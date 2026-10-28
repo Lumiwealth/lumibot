@@ -39,10 +39,10 @@ In a backtest, `as_of` defaults to `self.get_datetime()`.
 FRED vintages identify calendar dates, not intraday release instants. During a
 backtest, LumiBot caps both the vintage request and eligible observations at the
 previous completed calendar day in America/Chicago, relative to the simulated
-clock. An earlier explicit `as_of` remains earlier; a future override cannot
+clock. Timezone-aware explicit `as_of` values use their Chicago calendar date. An earlier explicit vintage remains earlier; a future override cannot
 advance the effective vintage. Live requests retain their current-date behavior.
 
-Results include `as_of_date`, `temporal_policy` and a timing limitation. This is a
+Results include `as_of`, `temporal_policy` and a timing limitation. This is a
 conservative availability approximation: it prevents a morning decision from
 seeing that day's closing observation, but can omit legitimate same-day releases.
 It does not certify exact intraday release timing. Keep that limitation in research

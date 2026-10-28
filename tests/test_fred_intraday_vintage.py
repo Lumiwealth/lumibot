@@ -10,7 +10,10 @@ from lumibot.macro import FREDMacroData
 
 @pytest.mark.parametrize("as_of,expected", [(None, "2025-01-14"),
     ("2025-01-15", "2025-01-14"), ("2025-01-20", "2025-01-14"),
-    ("2025-01-10", "2025-01-10")])
+    ("2025-01-10", "2025-01-10"),
+    ("2025-01-14T00:30:00Z", "2025-01-13"),
+    ("2025-01-14T00:30:00+14:00", "2025-01-13"),
+    ("2025-01-13T23:30:00-08:00", "2025-01-14")])
 def test_intraday_backtest_uses_completed_vintage_and_excludes_same_day_close(monkeypatch, tmp_path, as_of, expected):
     strategy = SimpleNamespace(is_backtesting=True,
         get_datetime=lambda: datetime(2025, 1, 15, 9, 30, tzinfo=ZoneInfo("America/New_York")))

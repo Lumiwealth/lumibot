@@ -247,6 +247,12 @@ Direct strategy history/indicator reads keep their required-data behavior, and
 missing portfolio-valuation prices still invalidate the backtest. A successful
 fallback never clears a previously recorded required-data failure.
 
+Batch history preserves legitimate shorter data with ``symbols_incomplete`` and
+``bar_counts_by_symbol``. Both raw and DuckDB-table summaries disclose the
+shortfall; available rows do not certify the complete requested window. Known
+invalid interior gaps are reported per symbol in ``symbols_data_errors`` rather
+than registered as healthy history.
+
 Indicator input is restricted to rows at or before strategy time, not just the
 returned value. Noncausal parameters are rejected. Completion of a timestamped
 bar follows the selected data source's contract; see :doc:`indicators`.

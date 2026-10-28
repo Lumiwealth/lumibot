@@ -11,7 +11,9 @@ from .asset_resolution import resolve_asset_and_quote
 from .docs_tools import search_lumibot_docs
 from .schemas import BoundTool, ToolDefinition
 from .tool_context import current_agent_tool_context
-from lumibot.tools.ibkr_history_health import IncompleteResearchHistoryError, recoverable_history_request
+from lumibot.tools.ibkr_history_health import (
+    IncompleteResearchHistoryError, record_required_history, recoverable_history_request,
+)
 
 AssetTypeArg = Literal["stock", "option", "future", "cont_future", "forex", "crypto", "index", "multileg", "us_equity"]
 OrderSideArg = Literal[
@@ -1430,6 +1432,23 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
         symbol_list = _parse_symbol_list(symbols=symbols, symbols_json=symbols_json, max_symbols=150)
         length = _require_positive_int("length", length)
         timestep = _require_non_empty_text("timestep", timestep)
+
+        def validated_records(symbol, bars):
+            frame = getattr(bars, "pandas_df", None)
+            if frame is None:
+                frame = getattr(bars, "df", None)
+            if frame is not None and len(frame):
+                asset, _ = resolve_asset_and_quote(
+                    strategy, symbol=symbol, asset_type=asset_type, quote_symbol=quote_symbol,
+                )
+                # Short history is a supported response. Validate the rows we
+                # actually received against known gaps, and disclose counts
+                # separately rather than inventing or rejecting older data.
+                record_required_history(
+                    asset=asset, timestep=timestep, requested_bars=min(length, len(frame)),
+                    frame=frame, when=strategy.get_datetime(),
+                )
+            return _bars_to_records(bars)
         chunk_size = _require_positive_int("chunk_size", chunk_size)
         max_workers = _require_positive_int("max_workers", max_workers)
         chunk_size = min(chunk_size, 150)
@@ -1464,7 +1483,11 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
                 if _bars_coarser_than_requested(keyed.get(symbol), timestep):
                     interval_mismatch.append(symbol)
                     keyed[symbol] = None
-                records = _bars_to_records(keyed.get(symbol))
+                try:
+                    records = validated_records(symbol, keyed.get(symbol))
+                except IncompleteResearchHistoryError as exc:
+                    records = []
+                    data_errors[symbol] = str(exc)
                 zone = _bars_timezone_name(keyed.get(symbol))
                 if records and zone:
                     bar_timezones.append(zone)
@@ -1493,7 +1516,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
                     if _bars_coarser_than_requested(bars, timestep):
                         interval_mismatch.append(symbol)
                         bars = None
-                    records = _bars_to_records(bars)
+                    records = validated_records(symbol, bars)
                     bars_by_symbol[symbol] = records
                     zone = _bars_timezone_name(bars)
                     if records and zone:
@@ -1512,7 +1535,14 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
         interval_fields: dict[str, Any] = {
             "symbols_interval_mismatch": interval_mismatch,
             "symbols_data_errors": data_errors,
+            "symbols_incomplete": [symbol for symbol, rows in bars_by_symbol.items() if 0 < len(rows) < length],
+            "bar_counts_by_symbol": {symbol: len(rows) for symbol, rows in bars_by_symbol.items()},
         }
+        if interval_fields["symbols_incomplete"]:
+            interval_fields["history_note"] = (
+                f"Requested {length} bars per symbol. symbols_incomplete contains fewer actual observations; "
+                "those rows remain usable research, but do not establish the complete requested history."
+            )
         if interval_mismatch:
             interval_fields["interval_note"] = (
                 f"The data source returned daily bars, not {timestep} bars, for "
@@ -1575,6 +1605,8 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
             "Cap is 150 symbols per call. Returns bars_by_symbol keyed by symbol with datetime/open/high/low/close/volume rows, "
             "For an indicator value such as an SMA, EMA or RSI, call get_indicator or get_indicators instead of computing it from these bars by hand. "
             "plus symbols_available and symbols_missing. "
+            "Short but usable history remains available with symbols_incomplete and bar_counts_by_symbol; "
+            "do not treat it as the full requested window. Known invalid interior gaps are reported in symbols_data_errors. "
             "Optional table_name loads every returned bar into one DuckDB table with columns "
             "symbol, datetime, open, high, low, close, volume and returns only a summary (row counts per symbol, "
             "first/last datetime, missing symbols) instead of the raw bars. Datetimes in that table are "

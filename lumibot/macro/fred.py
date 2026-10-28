@@ -116,9 +116,12 @@ class FREDMacroData:
     def _effective_as_of_date(self, as_of: Any | None) -> date:
         as_of_dt = _as_of_datetime(as_of) if as_of is not None else self._strategy_as_of()
         as_of_date = as_of_dt.date()
+        historical = bool(getattr(self.strategy, "is_backtesting", False))
+        if historical and as_of_dt.tzinfo is not None:
+            as_of_date = as_of_dt.astimezone(FRED_REALTIME_TIMEZONE).date()
         if as_of is None:
             as_of_date = min(as_of_date, _fred_realtime_today())
-        if bool(getattr(self.strategy, "is_backtesting", False)):
+        if historical:
             # ALFRED vintages are calendar days, not release timestamps. A
             # morning request for today's vintage can include today's close
             # or a revision published later that day. Use a completed FRED

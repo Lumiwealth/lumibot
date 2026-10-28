@@ -186,3 +186,48 @@ def test_research_scope_cannot_downgrade_valuation_and_does_not_leak_to_other_th
     assert {(r["symbol"], r["reason"]) for r in health["required_failures"]} == {
         ("VALUED", "missing_valuation_price"), ("REQUIRED", "insufficient_required_history")}
     assert health["warnings"] == []
+
+
+@pytest.mark.parametrize("table_name", [None, "candidate_history"])
+def test_batch_history_keeps_short_data_usable_with_explicit_coverage(table_name):
+    from lumibot.components.agents.duckdb_tools import DuckDBQueryLayer
+
+    index = pd.date_range("2025-01-06", periods=3, freq="B", tz="UTC")
+    frame = pd.DataFrame({"close": [10., 11., 12.]}, index=index)
+    strategy = SimpleNamespace(get_datetime=lambda: index[-1] + pd.Timedelta(hours=16),
+        is_backtesting=True, quote_asset=Asset("USD", "forex"))
+    strategy.get_historical_prices_for_assets = lambda *a, **kw: {
+        Asset("CEDAR"): SimpleNamespace(pandas_df=frame.iloc[:2], timestep="day"),
+        Asset("MAPLE"): SimpleNamespace(pandas_df=frame, timestep="day"),
+    }
+    workspace = DuckDBQueryLayer(strategy)
+    try:
+        result = _bind_historical_prices(strategy, SimpleNamespace(duckdb=workspace)).function(
+            symbols=["CEDAR", "MAPLE"], length=3, timestep="day", table_name=table_name)
+        assert result["symbols_available"] == ["CEDAR", "MAPLE"]
+        assert result["symbols_missing"] == []
+        assert result["symbols_incomplete"] == ["CEDAR"]
+        assert result["bar_counts_by_symbol"] == {"CEDAR": 2, "MAPLE": 3}
+        if table_name:
+            counts = workspace.query(sql="SELECT symbol, COUNT(*) AS bars FROM candidate_history GROUP BY symbol ORDER BY symbol")["rows"]
+            assert counts == [{"symbol": "CEDAR", "bars": 2}, {"symbol": "MAPLE", "bars": 3}]
+        else:
+            assert len(result["bars_by_symbol"]["CEDAR"]) == 2
+        assert ibkr_history_health_snapshot()["required_complete"] is True
+    finally:
+        workspace.connection.close()
+
+
+def test_batch_history_cannot_publish_a_known_interior_gap_as_healthy():
+    strategy, bad, good = research_strategy()
+    source = strategy.broker.data_source
+    strategy.get_historical_prices_for_assets = lambda *a, **kw: {
+        asset: SimpleNamespace(pandas_df=source._data_store[(asset, "day")].df, timestep="day")
+        for asset in [bad, good]
+    }
+    result = _bind_historical_prices(strategy, None).function(
+        symbols=[bad.symbol, good.symbol], length=12, timestep="day")
+    assert result["symbols_available"] == [good.symbol]
+    assert result["symbols_missing"] == [bad.symbol]
+    assert "missing_required_sessions" in result["symbols_data_errors"][bad.symbol]
+    assert ibkr_history_health_snapshot()["required_complete"] is True

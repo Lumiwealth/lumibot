@@ -6,11 +6,14 @@ Deploy marker: `5785a912c741c85f9dee909456c31d3c6d623266`.
 
 ### Fixed
 - Incomplete optional agent history, indicator and quote research returns visible, recoverable limitations without invalidating unrelated healthy execution. Direct strategy and portfolio-valuation data remain required.
-- Historical FRED requests use the previous completed Chicago calendar vintage and disclose date-only timing limits, preventing morning decisions from using the same day's closing values.
-- Daily ranges retain the final available bar and exclude observations before the requested start. Routed daily benchmarks include the first open-to-close move and final close; incomplete coverage is reported instead of filled with invented flat returns.
+- Timezone-aware FRED overrides use their Chicago calendar date. Historical requests use the previous completed Chicago calendar vintage and disclose date-only timing limits, preventing morning decisions from using the same day's closing values.
+- Daily ranges preserve midnight source-calendar labels across timezone conversion, retain the final available bar and exclude observations before the requested start. Routed daily benchmarks include the first open-to-close move and final close; incomplete coverage is reported instead of filled with invented flat returns.
 - News research can recover through available alternative sources and read article bodies. Shared document guidance preserves supported approximations, matched retained originals and unchanged baseline holdings.
 - Real-model release cases cover news recovery and macro timing, with positive and negative judge calibration for original-version and approximate-source evidence.
 - Research handoffs retain separate source-request windows and complete timestamp offsets. Option selection distinguishes listed contracts from the subset already inspected before reporting missing protective legs.
+- Batch history discloses short-but-usable coverage through per-symbol counts and completeness metadata. Known invalid interior gaps remain visible recoverable limitations.
+- Release checkout verification rejects changed source under an existing immutable version tag while permitting exact-source rechecks.
+- Live Tradier sandbox reads are classified as API integrations, preserving their original assertions and keeping constructor/normalization/default checks in the portable gate.
 
 ## 4.6.33 - 2026-10-27
 

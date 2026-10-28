@@ -314,6 +314,14 @@ class Data:
         if timezone is not None:
             self.df.index = self.df.index.tz_localize(timezone)
 
+        # Midnight daily indices are source-calendar labels, not intraday
+        # instants. Retain that calendar for date-range comparisons without
+        # changing the stored timestamps used by pricing and bar lookups.
+        self._day_label_timezone = None
+        if self.timestep == "day":
+            source_index = pd.to_datetime(self.df.index)
+            if (source_index == source_index.normalize()).all():
+                self._day_label_timezone = source_index.tz or DEFAULT_PYTZ
         self.df = self.set_date_format(self.df)
         self.df = self.df.sort_index()
         # PERF: many hot paths (quotes/bars) assume the underlying index is unique. Cache this once.
@@ -435,6 +443,13 @@ class Data:
             df.index = df.index.tz_convert(DEFAULT_PYTZ)
         return df
 
+    def _range_comparison_index(self, index):
+        label_timezone = getattr(self, "_day_label_timezone", None)
+        if label_timezone is None or index.tz is None:
+            return index
+        labels = index.tz_convert(label_timezone).tz_localize(None).normalize()
+        return labels.tz_localize(index.tz, ambiguous=False, nonexistent="shift_forward")
+
     def set_dates(self, date_start, date_end):
         # Set the start and end dates of the data.
         for dt in [date_start, date_end]:
@@ -442,9 +457,9 @@ class Data:
                 raise TypeError(f"Start and End dates must be entries as full datetimes. {dt} " f"was entered")
 
         if not date_start:
-            date_start = self.df.index.min()
+            date_start = self._range_comparison_index(self.df.index).min()
         if not date_end:
-            date_end = self.df.index.max()
+            date_end = self._range_comparison_index(self.df.index).max()
 
         date_start = to_datetime_aware(date_start)
         date_end = to_datetime_aware(date_end)
@@ -460,7 +475,8 @@ class Data:
     def trim_data(self, df, date_start, date_end, trading_hours_start, trading_hours_end):
         # Trim the dataframe to match the desired backtesting dates.
 
-        df = df.loc[(df.index >= date_start) & (df.index <= date_end), :]
+        comparison_index = self._range_comparison_index(df.index)
+        df = df.loc[(comparison_index >= date_start) & (comparison_index <= date_end), :]
         if self.timestep in {"minute", "hour"}:
             df = df.between_time(trading_hours_start, trading_hours_end)
         if df.empty:
@@ -1463,7 +1479,7 @@ class Data:
         # bar when a benchmark ends after its last stored timestamp.
         if getattr(self, "iter_index_dict", None) is None:
             self.repair_times_and_fill(self.df.index)
-        index = self.df.index
+        index = self._range_comparison_index(self.df.index)
 
         def bound(value, default):
             if value is None:

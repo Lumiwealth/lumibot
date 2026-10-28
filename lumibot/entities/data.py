@@ -3,7 +3,6 @@ from decimal import Decimal
 from typing import Optional, Union
 
 import numpy as np
-
 import pandas as pd
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
@@ -1849,5 +1848,11 @@ class Data:
             agg["stock_splits"] = "max"
 
         unit_code = "min" if timestep == "minute" else "h" if timestep == "hour" else "D"
+        label_timezone = getattr(self, "_day_label_timezone", None)
+        if timestep == "day" and self.timestep == "day" and label_timezone is not None:
+            # Daily aggregation must use the same source-calendar labels as
+            # range selection. Flooring converted evening timestamps in the
+            # storage timezone would move each returned session back one day.
+            df = df.tz_convert(label_timezone)
         df_result = resample_ohlcv(df, f"{int(quantity)}{unit_code}", aggregation=agg, dropna="any", sort=False)
         return df_result

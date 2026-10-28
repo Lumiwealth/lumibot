@@ -13,8 +13,7 @@ from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestin
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.credentials import ALPACA_CONFIG, COINBASE_CONFIG, KRAKEN_CONFIG, POLYGON_API_KEY
 from lumibot.entities import Asset, AssetsMapping, Data
-from lumibot.tools import ibkr_helper
-from lumibot.tools import polygon_helper
+from lumibot.tools import ibkr_helper, polygon_helper
 from lumibot.tools.helpers import parse_timestep_qty_and_unit
 from lumibot.tools.ibkr_equity_basis import EquityBasisSnapshot, assert_same_basis, equity_basis_from_frame
 
@@ -239,11 +238,16 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
     ) -> pd.DataFrame | None:
         raise NotImplementedError
 
-    def _normalize_fetched_index(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _normalize_fetched_index(self, df: pd.DataFrame, timestep: str | None = None) -> pd.DataFrame:
         if isinstance(df.index, pd.DatetimeIndex):
             if df.index.tz is None:
                 df.index = df.index.tz_localize("UTC")
-            df.index = df.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+            # Data records a midnight daily index's source calendar before
+            # converting its storage timezone. Preserve that input provenance;
+            # otherwise UTC session labels become the prior evening locally.
+            daily_labels = timestep == "day" and (df.index == df.index.normalize()).all()
+            if not daily_labels:
+                df.index = df.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
             df = df.sort_index()
         return df
 
@@ -330,10 +334,17 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
         if df is None or df.empty:
             return None
 
-        df = self._normalize_fetched_index(df)
+        df = self._normalize_fetched_index(df, ts_unit)
 
         if existing_df is not None and isinstance(existing_df, pd.DataFrame) and not existing_df.empty:
-            merged = pd.concat([existing_df, df], axis=0).sort_index()
+            # Stored bars use the default timezone. Restore the fetched index's
+            # timezone before merging so daily calendar labels survive refresh
+            # and concatenation keeps a DatetimeIndex instead of mixed objects.
+            previous = existing_df
+            if isinstance(previous.index, pd.DatetimeIndex) and isinstance(df.index, pd.DatetimeIndex):
+                previous = previous.copy()
+                previous.index = previous.index.tz_convert(df.index.tz)
+            merged = pd.concat([previous, df], axis=0).sort_index()
             merged = merged[~merged.index.duplicated(keep="last")]
         else:
             merged = df
@@ -1374,7 +1385,7 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                         self.get_bars(
                             [asset], self._backtest_daily_corporate_action_length(), timestep="day", quote=quote
                         )
-                    except Exception as exc:
+                    except Exception:
                         # This daily load enriches dividend accounting, not the
                         # strategy's requested minute-price series. Preserve the
                         # warning and retry later; do not invent a verified zero.

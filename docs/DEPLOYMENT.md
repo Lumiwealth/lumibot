@@ -94,6 +94,7 @@ Run this before changing versions, tagging, creating a release, or triggering Bo
 
 ```bash
 set -e
+git fetch origin dev --tags --prune
 
 branch="$(git branch --show-current)"
 setup_version="$(python3 - <<'PY'
@@ -113,7 +114,6 @@ echo "branch=${branch}"
 echo "setup.py=${setup_version}"
 echo "expected_branch=${expected_branch}"
 echo "latest_tag=${latest_tag}"
-git fetch origin dev --tags --prune
 git status --porcelain=v1
 
 test "${branch}" = "${expected_branch}" || {
@@ -132,9 +132,16 @@ git merge-base --is-ancestor origin/dev HEAD || {
 }
 
 git log --oneline "origin/${branch}..HEAD"
+python3 scripts/verify_release_checkout_state.py
 ```
 
 If this preflight fails, the release is blocked. Do not "just bump setup.py" on the old branch. Do not tag from the old branch. Do not deploy BotManager while this is failing.
+
+A canonical checkout can be clean and still be stale. Inspect fetched `dev` and
+tags before trusting its version branch. The checkout verifier rejects changed
+source under an existing package tag; prepare a forward version from current
+`dev`. Reverification of the exact tagged source remains supported for an
+interrupted publication. Never move or replace the old tag.
 
 Known bad state example:
 

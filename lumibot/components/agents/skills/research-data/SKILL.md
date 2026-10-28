@@ -23,9 +23,11 @@ claiming it was published. A visible authorization error means it was not publis
    A catalog flag is not a failed observation query. A dataset can supply a
    current snapshot while lacking proof of its original historical versions.
 2. After selecting a structured dataset, call `query_data` for its observations.
-   For a live request, query the relevant dataset without `asOf` before reporting
-   its observations unavailable. Judge the returned observations, dates and
-   errors; do not infer an outage from historical capability metadata.
+   Use the runtime mode and requested operation together. In live research,
+   retrieving an older calendar period is still a live retrieval: use calendar
+   filters and omit `asOf` unless historical replay was actually requested.
+   Query before calling observations unavailable; judge returned data and errors,
+   not catalog capability flags. A mistaken live-only `asOf` can be corrected.
    Keep the historical ceiling for a historical request and prefer original-release values.
    For SEC evidence, call `search_documents` followed
    by `get_document` for SEC documents. Prefer a bounded section or search result
@@ -39,8 +41,10 @@ claiming it was published. A visible authorization error means it was not publis
    alone cannot identify the queried dataset; retain the id even when the returned
    observations are stale or insufficient. Do not leave it only in the tool call.
    Distinguish the requested bound from the successful response's effective bound.
-   Report the effective `asOf`, calendar filters, and retrieval time separately;
-   a date filter is not proof of historical availability. If an earlier bounded
+   Report each dataset's own effective `asOf`, calendar start/end and retrieval
+   time. Copy its bounds from that request/response; another dataset's window
+   is not interchangeable. A date filter is not proof of historical availability.
+   If an earlier bounded
    request failed and a permitted live retry succeeded, describe that correction
    and the successful request, not the failed request's bound.
    If the successful response returns `asOf: null`, describe it as unbounded live
@@ -76,13 +80,15 @@ claiming it was published. A visible authorization error means it was not publis
    change rules, or place trades.
 6. If a news feed, archive query, or article fails, continue useful research with
    available web search, publisher archives and document-reading tools. An
-   unavailable feed is not proof that all news is unavailable. Search a bounded
-   period ending before the simulated decision, open relevant articles, and read
-   their bodies; a headline or a search snippet is not an inspected article.
-   Preserve the failed-source limitation. A dated publisher page can support a
-   disclosed historical approximation without proving its original version.
-   Exclude known future publications and revisions. Do not remove a managed
-   query's historical ceiling or present a live retry as historical evidence.
+   unavailable feed is not proof that all news is unavailable. Open relevant
+   articles and read their bodies; a headline or snippet is not an inspected
+   article. Preserve the failed-source limitation and the task's time scope.
+   For backtests or historical requests, bound searches at the decision time,
+   exclude known future versions, and retain the historical ceiling. Dated pages
+   can support disclosed approximations without certifying original versions.
+   Live calendar-period retrievals remain live; do not impose a replay ceiling
+   merely because observations are old. Never describe a live retry as historical
+   availability evidence.
    If the managed tools are unavailable, use another configured source whose
    availability you can reasonably establish or estimate and disclose, or
    explicitly report missing evidence. Never invent a macro value or

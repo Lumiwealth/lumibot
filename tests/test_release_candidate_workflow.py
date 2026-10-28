@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -75,3 +76,73 @@ def test_release_and_source_qualification_await_completion_without_shell_deadlin
         for command in commands:
             for line in command.splitlines():
                 assert not line.strip().startswith("timeout "), "Qualification must await completion or a real error"
+
+
+@pytest.fixture
+def release_checkout_candidate(tmp_path):
+    """Real disposable Git refs, with no publication or customer credentials."""
+    owned = []
+
+    def create(version="1.2.3"):
+        origin = tmp_path / "origin.git"
+        repo = tmp_path / "candidate"
+        owned.extend([origin, repo])
+        subprocess.run(["git", "init", "--bare", str(origin)], check=True, capture_output=True)
+        subprocess.run(["git", "init", "-b", f"version/{version}", str(repo)], check=True, capture_output=True)
+
+        def git(*args):
+            return subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True)
+
+        git("config", "user.name", "Release fixture")
+        git("config", "user.email", "release-fixture@example.invalid")
+        git("config", "commit.gpgsign", "false")  # Only this synthetic repository.
+        (repo / "setup.py").write_text(f'version="{version}"\n')
+        git("add", "setup.py")
+        git("commit", "-m", "Initial synthetic package")
+        git("remote", "add", "origin", str(origin))
+        git("push", "-u", "origin", "HEAD")
+        return repo, git
+
+    try:
+        yield create
+    finally:
+        for path in owned:
+            if path.exists():
+                shutil.rmtree(path)
+
+
+def _verify_checkout(repo, *args):
+    script = Path(__file__).resolve().parents[1] / "scripts/verify_release_checkout_state.py"
+    return subprocess.run([sys.executable, str(script), *args], cwd=repo, capture_output=True, text=True)
+
+
+def test_changed_source_cannot_reuse_an_already_tagged_package_version(release_checkout_candidate):
+    repo, git = release_checkout_candidate()
+    git("tag", "v1.2.3")
+    git("push", "origin", "refs/tags/v1.2.3")
+    (repo / "change.txt").write_text("A new source change needs a forward package version.\n")
+    git("add", "change.txt")
+    git("commit", "-m", "Changed source after release tag")
+    result = _verify_checkout(repo)
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "already tagged" in result.stdout
+
+
+def test_same_immutable_tagged_source_can_be_reverified(release_checkout_candidate):
+    repo, git = release_checkout_candidate()
+    git("tag", "v1.2.3")
+    git("push", "origin", "refs/tags/v1.2.3")
+    result = _verify_checkout(repo)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_untagged_forward_package_remains_usable(release_checkout_candidate):
+    repo, _ = release_checkout_candidate("1.2.4")
+    result = _verify_checkout(repo)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_post_release_checkout_still_accepts_the_next_patch(release_checkout_candidate):
+    repo, _ = release_checkout_candidate("1.2.4")
+    result = _verify_checkout(repo, "--post-release-of", "1.2.3")
+    assert result.returncode == 0, result.stdout + result.stderr

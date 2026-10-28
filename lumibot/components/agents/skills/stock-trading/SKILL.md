@@ -71,7 +71,13 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    Modify or cancel and replace it only when the user's rules explicitly require
    changing an existing order. A due exit condition or a nonmarketable limit
    alone does not authorize changing an already-pending exit.
-9. Reconcile the final summary with the mutation tools and the final account
+9. Keep the final decision evidence compact and exact. For a bar-based signal,
+   identify the particular completed bar used and copy that row's timestamp,
+   close and volume. Do not collapse several bars into one set of values: one
+   bar's volume does not describe every bar in a range. Report an aggregate only
+   when a tool actually returned that aggregate for those rows. Extra market
+   commentary is unnecessary when the requested rule and outcome are clear.
+   Reconcile the final summary with the mutation tools and the final account
    reads. If an order tool returned a submitted identifier, never say that no
    order was entered. Report the exact observed status instead.
 
@@ -148,8 +154,11 @@ reasoning, and must contain no credentials or account identifiers. The order
 service commits it before execution. Report only observed order status and fills;
 reconcile an uncertain outcome before trying again.
 
-When a separate `public_reason` is requested, write a qualitative trade thesis
-and risk. Keep portfolio-relative sizing percentages, formulas, account value,
+When a separate `public_reason` is requested, write the qualitative thesis and
+one material risk in one short sentence, usually 15–25 words. Leave ample room
+under the tool's 280 UTF-8 byte limit; several explanatory sentences can exceed
+it even when they look short. Detailed dates, calculations and invalidation
+conditions belong in the private reason. Keep portfolio-relative sizing percentages, formulas, account value,
 buying power, owner context and tool purposes in the private `reason` only. Do
 not copy its sizing explanation into the public summary. Follow the order tool's
 public-summary contract before submitting; later omission of an unsafe summary

@@ -104,6 +104,15 @@ The preserved credit-spread red baseline lives under `agent_eval_baselines/`.
 It records the real historical reversing sides, repeated closes, and quantity
 escalation that the repaired catalog protects against.
 
+The portfolio baseline in
+`agent_eval_baselines/2026-10-28_portfolio-completion-and-sizing.json` preserves
+all 30 original outcomes before the shared instruction repair: 13 failed and
+17 passed. Large/small basket completion and unavailable-holding sizing exposed
+actual failures. Funded rebalancing, explicit single-stock quote sizing and
+dated-row selection already passed those initial trials; their results are
+retained as coverage, without inventing a failing run. Native attempt IDs and
+evidence digests bind the compact record to the original private artifacts.
+
 Portfolio qualification uses five successful repetitions per new or repaired
 case with Luna High for actor and judge, on Standard/default tier through Login
 with ChatGPT. Independent machine checks use broker-observed orders, fills,

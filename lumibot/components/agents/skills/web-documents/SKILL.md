@@ -30,6 +30,21 @@ lookup, not a safe way to inspect metadata; use the discovery metadata already
 returned to explain the exclusion. Apply this check to supplements as well as
 the main index.
 
+For a baseline-plus-updates task, first query the available index for eligible
+rows across its report categories, without restricting it to the baseline's
+type. Then separate the baseline from transactions, amendments and supplements.
+A query selecting only annual/snapshot reports cannot establish that there are
+no later changes; a separate supplement does not replace transaction rows in
+the original index. This is an inventory of the sources available to you, not
+a requirement for an exhaustive archive.
+
+For a structured index with offset timestamps, return one explicit UTC string
+column from SQL for the final evidence table and copy its values verbatim.
+Keep the original offset timestamp for read arguments when needed. Avoid
+manually rendering the same instant in a second timezone in prose. An excluded
+document can simply be identified as after the cutoff unless its exact time is
+requested; do not add an unnecessary timestamp conversion to the answer.
+
 After filtering a discovery table, replace its preview with the returned
 eligible rows as your read worklist. Read each selected row once with its own
 URL, timestamp and hash; do not append adjacent rows from the earlier preview.

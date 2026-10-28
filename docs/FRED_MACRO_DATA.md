@@ -26,9 +26,9 @@ You do not need to manually attach these tools. They are included with the rest 
 
 ## API Key Behavior
 
-`FRED_API_KEY` is required for the official FRED/ALFRED API path and for strict point-in-time macro backtests.
+`FRED_API_KEY` is required for the official FRED/ALFRED API path.
 
-Lumibot uses the official FRED/ALFRED API and passes `realtime_start` and `realtime_end` based on the strategy datetime. This is the strict point-in-time path for macro backtests.
+Lumibot uses the official FRED/ALFRED API and passes `realtime_start` and `realtime_end` based on the strategy datetime. Vintage dates support conservative historical observations; they do not certify intraday release instants.
 
 Lumibot does not use public CSV fallbacks for macro data. Built-in FRED agent tools are hidden during backtests unless `FRED_API_KEY` is configured. This prevents agents from accidentally using macro data without a point-in-time data contract in historical simulations.
 

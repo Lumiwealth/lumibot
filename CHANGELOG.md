@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.6.34 - 2026-10-28
+
+### Fixed
+- Incomplete optional agent history, indicator and quote research returns visible, recoverable limitations without invalidating unrelated healthy execution. Direct strategy and portfolio-valuation data remain required.
+- Historical FRED requests use the previous completed Chicago calendar vintage and disclose date-only timing limits, preventing morning decisions from using the same day's closing values.
+- Daily ranges retain the final available bar and exclude observations before the requested start. Routed daily benchmarks include the first open-to-close move and final close; incomplete coverage is reported instead of filled with invented flat returns.
+- News research can recover through available alternative sources and read article bodies. Shared document guidance preserves supported approximations, matched retained originals and unchanged baseline holdings.
+- Real-model release cases cover news recovery and macro timing, with positive and negative judge calibration for original-version and approximate-source evidence.
+
 ## 4.6.33 - 2026-10-27
 
 ### Added
@@ -18,11 +27,6 @@
 ## 4.6.32 - 2026-10-27
 
 ### Fixed
-- Daily historical ranges retain their final available bar and exclude bars before the requested start. Routed daily benchmarks include the first session's open-to-close move and final close; incomplete benchmark coverage is reported instead of filled with invented flat returns.
-- Historical FRED requests use the previous completed Chicago calendar vintage and disclose date-only timing limits, preventing morning decisions from using the same day's closing values.
-- Optional agent quote research reports unavailable candidates without invalidating otherwise healthy execution or portfolio valuation. Historical document results and shared research guidance disclose version uncertainty and recover from failed news sources.
-- Release-gated real-model coverage exercises news-source recovery and intraday macro vintage handling, with semantic judge calibration.
-- AI indicator and single-symbol history research reject known incomplete inputs with visible, recoverable tool errors. Failed candidates remain in data-health warnings without invalidating unrelated successful research; direct strategy requirements and portfolio-valuation failures remain strict.
 - First-iteration live order notifications survive competing background and iteration queue drains. Queued startup events remain suppressed, foreign-order filtering remains active, and callbacks are serialized with reentrant queue handling. Priority callback tests use controlled events instead of elapsed-time acceptance targets.
 - HTTP and dataframe test doubles patch their real modules so pytest restoration cannot remove shared methods or constructors. Entry pages keep the runnable AI example before the hero image and retain the execution explanation in every localized summary.
 - The README and documentation homepage lead with native AI trading, backtesting and the same strategy across backtests and broker runs. Strategy choices link to their examples, BotSpot MCP has a short introduction and a separate setup section, and all eight localized README summaries are synchronized with a checked source fingerprint.

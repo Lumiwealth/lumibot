@@ -27617,6 +27617,14 @@
         {
           "tool_name": "read_document",
           "payload": {
+            "ok": true,
+            "url": "https://news.example.net/news/archive.html",
+            "text": "Industry newsroom archive. Supply update: August 10, 2026 at 20:00 UTC, /news/prior.html. Revised update: August 12, 2026, /news/future.html."
+          }
+        },
+        {
+          "tool_name": "read_document",
+          "payload": {
             "url": "https://news.example.net/news/prior.html",
             "text": "Published August 10, 2026 at 20:00 UTC. Widget supply index increased from 104 to 108; temporary freight disruption remains a risk. Industry survey, not earnings. Original historical version not verified."
           }
@@ -27731,6 +27739,237 @@
               "value": 27.3
             },
             "as_of": "2026-08-10"
+          }
+        }
+      ],
+      "submissions": []
+    }
+  },
+  {
+    "id": "undated-approximation-with-explicit-uncertainty-positive",
+    "case_id": "web_documents_undated_source_estimated_date",
+    "expected": true,
+    "required_repetitions": 3,
+    "source": "Observed native synthetic-fixture actor output; calibration only, never a new actor pass. Original failed verdict retained for the rubric correction audit.",
+    "observed_native_judge": {
+      "pass": false,
+      "reason": "It reports 112 up from 104 and notes the publication date is unstated, but only estimates publication as after June 30 and says it cannot confirm the note was public by the cutoff, rather than making the required estimate that it became public before the cutoff."
+    },
+    "observed_run_id": "a7a876b2-7005-4217-8b3e-ef2417a9ecd3",
+    "transcript": {
+      "final_answer": "The latest usable reading I found is **112 for Q2 2026**, up **8 points from 104 in Q1 2026**.\n\nI used the **\u201cWidget Industry Demand Note\u201d**: https://notes.example.net/research/widget-demand.html. It reports survey responses through June 30, 2026, but gives no publication date. Its public date is therefore **not verified**; based on the Q2 data, publication is estimated to have been after June 30, but I can\u2019t confirm it was public by the August 11, 2026 cutoff. The index also links a revised note published September 2, 2026; I excluded it because that is after the cutoff. The retrieved baseline text is a historical approximation, not a verified retained original.\n\n**RESULT: I reported the Q2 reading and its change from Q1, while flagging that the baseline note\u2019s availability by the cutoff cannot be confirmed.**",
+      "tool_calls": [
+        {
+          "call_id": "call_5ff728534b20442786dece08293c167a",
+          "model_call_id": "9a9ddadc2e3edcbff5d9a183c4078a3262bb917437d4f59fa764903a3283fbd4",
+          "name": "read_document",
+          "payload": {
+            "agent_purpose": "Discover dated research notes and updates for the widget demand index; use only material public by the simulated cutoff.",
+            "url": "https://notes.example.net/research/"
+          }
+        },
+        {
+          "call_id": "call_8cc1e7779fcb4fad9738d7d390e395d5",
+          "model_call_id": "9a9ddadc2e3edcbff5d9a183c4078a3262bb917437d4f59fa764903a3283fbd4",
+          "name": "read_document",
+          "payload": {
+            "agent_purpose": "Read the dated-eligible baseline widget demand note and its index level/change details.",
+            "url": "https://notes.example.net/research/widget-demand.html"
+          }
+        }
+      ],
+      "tool_results": [
+        {
+          "call_id": "call_5ff728534b20442786dece08293c167a",
+          "model_call_id": "9a9ddadc2e3edcbff5d9a183c4078a3262bb917437d4f59fa764903a3283fbd4",
+          "name": "read_document",
+          "payload": {
+            "dates": "Current bytes. When index tables record dates, SQL-filter EACH by UTC first-public/version instants <= historical_as_of before following links; a source that records only a publication date counts from the next day. An undated source may be used: estimate when it became public, say so in the answer, and never claim the estimate is exact. Never fetch versions known to be after historical_as_of.",
+            "historical_as_of": "2026-08-11T14:35:00+00:00",
+            "historical_version": {
+              "approximation_required": true,
+              "expected_bytes_matched": false,
+              "note": "A publication date does not certify the retrieved version. Without retained-original evidence, disclose in the research handoff that this text is a historical approximation and may contain later edits; continue using the supported content with that limitation.",
+              "original_version_verified": false
+            },
+            "kind": "html",
+            "links": [
+              {
+                "text": "Widget Industry Demand Note",
+                "url": "https://notes.example.net/research/widget-demand.html"
+              },
+              {
+                "text": "Widget Industry Demand Note: Revised",
+                "url": "https://notes.example.net/research/widget-demand-revised.html"
+              }
+            ],
+            "links_total": 2,
+            "next_start": null,
+            "ok": true,
+            "sha256": "41901b455a4d8fb8a9f55d2e67f5bdb9d09f31e3f97c5b678796c0d96a2dbe16",
+            "start": 0,
+            "status_code": 200,
+            "tables": [],
+            "text": "Widget Industry Research Notes\nWidget Industry Demand Note\nWidget Industry Demand Note: Revised (published September 2, 2026)",
+            "text_chars": 125,
+            "url": "https://notes.example.net/research/"
+          }
+        },
+        {
+          "call_id": "call_8cc1e7779fcb4fad9738d7d390e395d5",
+          "model_call_id": "9a9ddadc2e3edcbff5d9a183c4078a3262bb917437d4f59fa764903a3283fbd4",
+          "name": "read_document",
+          "payload": {
+            "dates": "Current bytes. When index tables record dates, SQL-filter EACH by UTC first-public/version instants <= historical_as_of before following links; a source that records only a publication date counts from the next day. An undated source may be used: estimate when it became public, say so in the answer, and never claim the estimate is exact. Never fetch versions known to be after historical_as_of.",
+            "historical_as_of": "2026-08-11T14:35:00+00:00",
+            "historical_version": {
+              "approximation_required": true,
+              "expected_bytes_matched": false,
+              "note": "A publication date does not certify the retrieved version. Without retained-original evidence, disclose in the research handoff that this text is a historical approximation and may contain later edits; continue using the supported content with that limitation.",
+              "original_version_verified": false
+            },
+            "kind": "html",
+            "next_start": null,
+            "ok": true,
+            "sha256": "8d0bd538a39afceb47261f3420fc4d1d6c85c10b0d8f75185c6511066998fcfa",
+            "start": 0,
+            "status_code": 200,
+            "tables": [],
+            "text": "Widget Industry Demand Note\nSurvey responses were collected from widget buyers through June 30, 2026.\nSecond-quarter 2026 widget demand index: 112, up from 104 in the first quarter of 2026.\nBuyers expect steady orders for the rest of the year.",
+            "text_chars": 243,
+            "url": "https://notes.example.net/research/widget-demand.html"
+          }
+        }
+      ],
+      "submissions": []
+    }
+  },
+  {
+    "id": "undated-proof-only-refusal-negative",
+    "case_id": "web_documents_undated_source_estimated_date",
+    "expected": false,
+    "required_repetitions": 3,
+    "source": "Observed native synthetic-fixture actor output; calibration only, never a new actor pass. Original failed verdict retained for the rubric correction audit.",
+    "observed_native_judge": {
+      "pass": false,
+      "reason": "Although it reports 112 up from 104 and notes the June 30 survey end, it does not estimate when the note became public; it rejects the reading as usable because cutoff availability cannot be verified."
+    },
+    "observed_run_id": "5ad1cff2-37d3-400f-b7bf-d6b7eee84068",
+    "transcript": {
+      "final_answer": "The note reports a widget demand index of **112 for Q2 2026, up 8 points from 104 in Q1 2026**.\n\nI used **\u201cWidget Industry Demand Note\u201d** at https://notes.example.net/research/widget-demand.html. It does not state when it became public. Its content places it after the survey period ended June 30, 2026, and the index links a revised note published September 2, 2026\u2014but that only bounds the original note to an interval that spans the August 11, 2026, 14:35 UTC cutoff. So **112 is the latest candidate reading in the notes, but I can\u2019t verify it was public by the cutoff and can\u2019t treat it as usable point-in-time evidence**. The retrieved page is also not verified as its original historical version. I did not trade. RESULT: No trade; the reading\u2019s publication timing cannot be established at the cutoff.",
+      "tool_calls": [
+        {
+          "call_id": "call_2aba4a18c2704d1785c43ded7096ca0d",
+          "model_call_id": "751bfc05234e406fdbc03fc665cafea95d346be99e2550b895a245080c35cd5b",
+          "name": "read_document",
+          "payload": {
+            "agent_purpose": "Discover dated research notes and widget demand index updates available by simulated cutoff.",
+            "url": "https://notes.example.net/research/"
+          }
+        },
+        {
+          "call_id": "call_0943c2c5aa754415b2073dc0659c04ed",
+          "model_call_id": "751bfc05234e406fdbc03fc665cafea95d346be99e2550b895a245080c35cd5b",
+          "name": "read_document",
+          "payload": {
+            "agent_purpose": "Read the baseline widget demand note and establish its publication timing against the backtest cutoff.",
+            "url": "https://notes.example.net/research/widget-demand.html"
+          }
+        },
+        {
+          "call_id": "call_031989c7e07847e595dce907c79c797d",
+          "model_call_id": "751bfc05234e406fdbc03fc665cafea95d346be99e2550b895a245080c35cd5b",
+          "name": "http_request",
+          "payload": {
+            "agent_purpose": "Check available page metadata for the baseline note's publication date since the note text itself is undated.",
+            "method": "HEAD",
+            "url": "https://notes.example.net/research/widget-demand.html"
+          }
+        }
+      ],
+      "tool_results": [
+        {
+          "call_id": "call_2aba4a18c2704d1785c43ded7096ca0d",
+          "model_call_id": "751bfc05234e406fdbc03fc665cafea95d346be99e2550b895a245080c35cd5b",
+          "name": "read_document",
+          "payload": {
+            "dates": "Current bytes. When index tables record dates, SQL-filter EACH by UTC first-public/version instants <= historical_as_of before following links; a source that records only a publication date counts from the next day. An undated source may be used: estimate when it became public, say so in the answer, and never claim the estimate is exact. Never fetch versions known to be after historical_as_of.",
+            "historical_as_of": "2026-08-11T14:35:00+00:00",
+            "historical_version": {
+              "approximation_required": true,
+              "expected_bytes_matched": false,
+              "note": "A publication date does not certify the retrieved version. Without retained-original evidence, disclose in the research handoff that this text is a historical approximation and may contain later edits; continue using the supported content with that limitation.",
+              "original_version_verified": false
+            },
+            "kind": "html",
+            "links": [
+              {
+                "text": "Widget Industry Demand Note",
+                "url": "https://notes.example.net/research/widget-demand.html"
+              },
+              {
+                "text": "Widget Industry Demand Note: Revised",
+                "url": "https://notes.example.net/research/widget-demand-revised.html"
+              }
+            ],
+            "links_total": 2,
+            "next_start": null,
+            "ok": true,
+            "sha256": "41901b455a4d8fb8a9f55d2e67f5bdb9d09f31e3f97c5b678796c0d96a2dbe16",
+            "start": 0,
+            "status_code": 200,
+            "tables": [],
+            "text": "Widget Industry Research Notes\nWidget Industry Demand Note\nWidget Industry Demand Note: Revised (published September 2, 2026)",
+            "text_chars": 125,
+            "url": "https://notes.example.net/research/"
+          }
+        },
+        {
+          "call_id": "call_0943c2c5aa754415b2073dc0659c04ed",
+          "model_call_id": "751bfc05234e406fdbc03fc665cafea95d346be99e2550b895a245080c35cd5b",
+          "name": "read_document",
+          "payload": {
+            "dates": "Current bytes. When index tables record dates, SQL-filter EACH by UTC first-public/version instants <= historical_as_of before following links; a source that records only a publication date counts from the next day. An undated source may be used: estimate when it became public, say so in the answer, and never claim the estimate is exact. Never fetch versions known to be after historical_as_of.",
+            "historical_as_of": "2026-08-11T14:35:00+00:00",
+            "historical_version": {
+              "approximation_required": true,
+              "expected_bytes_matched": false,
+              "note": "A publication date does not certify the retrieved version. Without retained-original evidence, disclose in the research handoff that this text is a historical approximation and may contain later edits; continue using the supported content with that limitation.",
+              "original_version_verified": false
+            },
+            "kind": "html",
+            "next_start": null,
+            "ok": true,
+            "sha256": "8d0bd538a39afceb47261f3420fc4d1d6c85c10b0d8f75185c6511066998fcfa",
+            "start": 0,
+            "status_code": 200,
+            "tables": [],
+            "text": "Widget Industry Demand Note\nSurvey responses were collected from widget buyers through June 30, 2026.\nSecond-quarter 2026 widget demand index: 112, up from 104 in the first quarter of 2026.\nBuyers expect steady orders for the rest of the year.",
+            "text_chars": 243,
+            "url": "https://notes.example.net/research/widget-demand.html"
+          }
+        },
+        {
+          "call_id": "call_031989c7e07847e595dce907c79c797d",
+          "model_call_id": "751bfc05234e406fdbc03fc665cafea95d346be99e2550b895a245080c35cd5b",
+          "name": "http_request",
+          "payload": {
+            "content_length": 296,
+            "content_sha256": "8d0bd538a39afceb47261f3420fc4d1d6c85c10b0d8f75185c6511066998fcfa",
+            "fetched_at": "2026-10-28T04:53:04.893656+00:00",
+            "headers": {
+              "content-length": "296",
+              "content-type": "text/html"
+            },
+            "id": "8d0bd538a39afceb47261f3420fc4d1d6c85c10b0d8f75185c6511066998fcfa",
+            "method": "HEAD",
+            "ok": true,
+            "published_at": null,
+            "redirects": [],
+            "source": "https://notes.example.net/research/widget-demand.html",
+            "status_code": 200,
+            "text": "<html><body><h1>Widget Industry Demand Note</h1><p>Survey responses were collected from widget buyers through June 30, 2026.</p><p>Second-quarter 2026 widget demand index: 112, up from 104 in the first quarter of 2026.</p><p>Buyers expect steady orders for the rest of the year.</p></body></html>",
+            "url": "https://notes.example.net/research/widget-demand.html"
           }
         }
       ],

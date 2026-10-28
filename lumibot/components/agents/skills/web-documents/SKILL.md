@@ -83,9 +83,11 @@ number against the calculation output rather than recomputing it in prose.
 4. Reconcile the baseline and updates, keeping snapshot valuation dates,
    transaction dates and public disclosure dates separate. Updates after the
    snapshot may have been published before the baseline report was filed.
-   Apply each transaction once; an amendment corrects the original. Transactions
-   already reflected in the snapshot must not be deducted or added again simply
-   because a later document repeats them.
+   Carry unchanged baseline holdings into the remaining-holdings result; an
+   update's silence is not a sale. Remove or change a baseline row only when an
+   eligible update supports it. Apply each transaction once; an amendment
+   corrects the original. Transactions already reflected in the snapshot must
+   not be deducted or added again simply because a later document repeats them.
 5. Estimate missing quantities or values from the available evidence when the
    task permits approximation. State the method, price dates and uncertainty;
    use tools for calculations. Return supported holdings and usable estimates

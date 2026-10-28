@@ -2651,10 +2651,13 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
                 }.items()
                 if value is not None
             }
-        if historical_as_of is not None:
+        # Preserve a source-indexed retained version whose bytes and availability
+        # were both supplied and matched. Only incomplete version evidence needs
+        # the approximation warning; later retrieval does not negate that proof.
+        if historical_as_of is not None and (expected_sha256 is None or availability is None):
             result["historical_version"] = {
                 "original_version_verified": False,
-                "approximation_required": expected_sha256 is None,
+                "approximation_required": True,
                 "expected_bytes_matched": expected_sha256 is not None,
                 "note": (
                     "Use supported content as a disclosed historical approximation: these bytes may include "

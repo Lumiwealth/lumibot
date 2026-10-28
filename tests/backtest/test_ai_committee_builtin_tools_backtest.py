@@ -287,6 +287,8 @@ def _fake_fred_get(url, params=None, **kwargs):
     if "series/observations" in url:
         series_id = params["series_id"]
         assert params["api_key"] == "fixture-fred-key"
+        # The Monday morning decision uses Sunday's completed calendar vintage,
+        # excluding Monday's closing yield; Friday is the latest observation.
         assert params["observation_end"] == "2025-01-05"
         assert params["realtime_start"] == "2025-01-05"
         assert params["realtime_end"] == "2025-01-05"
@@ -375,6 +377,8 @@ def test_ai_committee_builtin_tools_execute_inside_backtest(monkeypatch, tmp_pat
     assert results["cash_flow"]["values"]["free_cash_flow"]["derived"] is True
     assert results["facts"]["facts"]["NetIncomeLoss"]["value"] == 93736000000
     assert results["fred_list"]["series"]
+    # Same-day closing 4.60 was look-ahead at this morning decision. Keep the
+    # actual prior-session 4.50 and its vintage/observation dates instead.
     assert results["fred_latest"]["latest"]["value"] == 4.5
     assert results["fred_latest"]["latest"]["date"] == "2025-01-03"
     assert results["fred_latest"]["as_of"] == "2025-01-05"

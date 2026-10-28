@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 8ecf9bafe56a350f0394f277d4c890a90762d87262cbda98cad00a25b44b4460 -->
+<!-- entry-source-sha256: 7e4b9f55cd1699da8c65e25a9decaff4608e9ba1e7bf7bc06e5ffb5bcca95206 -->
 
 # LumiBot AI 交易框架
 
@@ -21,6 +21,16 @@ LumiBot 是一个免费、开源的 Python 交易机器人框架。你可以编�
 ## 借助 BotSpot MCP 更快构建
 
 免费连接你的 AI 助手，获取 LumiBot 策略构建技能、研究数据，以及回测和部署工具。[查看助手可以获得什么](#连接你的-ai-助手)。
+
+## 为你的智能体赋予超能力——免费连接
+
+将 BotSpot MCP 接入 LumiBot 策略，即可使用经济数据、新闻、SEC 文件、Marketplace 策略和 Community 知识。
+
+![为你的智能体赋予超能力——免费连接](docs/assets/readme/botspot_mcp_superpowers.png)
+
+你的编程助手已连接 BotSpot？告诉它：“将这个 LumiBot 项目连接到 BotSpot MCP。”助手可以为你创建 API 密钥并保存配置。
+
+**[连接你的智能体](https://lumibot.lumiwealth.com/botspot_mcp.html)**
 
 ## 三种策略构建方式
 
@@ -48,9 +58,6 @@ BotSpot MCP 提供策略构建技能、免费研究数据、带图表的回测�
 **[连接你的 AI 助手](https://botspot.trade/agents)**
 
 本地编程辅助也可使用免费的 [LumiBot 交易技能](https://github.com/Lumiwealth/lumibot-trading-skills)。策略内的研究工具见 [BotSpot MCP 指南](https://lumibot.lumiwealth.com/botspot_mcp.html)。
-
-
-运行 `lumibot connect botspot`，即可为策略中的智能体添加数据查询、文档检索以及获准的 Marketplace 和 Community 读取工具。LumiBot 也可以独立使用。
 
 ## 继续探索
 

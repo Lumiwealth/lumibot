@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 8ecf9bafe56a350f0394f277d4c890a90762d87262cbda98cad00a25b44b4460 -->
+<!-- entry-source-sha256: 7e4b9f55cd1699da8c65e25a9decaff4608e9ba1e7bf7bc06e5ffb5bcca95206 -->
 
 # LumiBot AI Trading
 
@@ -21,6 +21,16 @@ Esta página resume o README em inglês e a página inicial da documentação. O
 ## Desenvolva mais rápido com BotSpot MCP
 
 Conecte seu assistente gratuitamente para acessar habilidades de criação de estratégias LumiBot, dados de pesquisa e ferramentas de backtest e implantação. [Veja o que seu assistente recebe](#conecte-seu-assistente-de-ia).
+
+## Dê superpoderes aos seus agentes — de graça
+
+Conecte BotSpot MCP à sua estratégia LumiBot: dados econômicos, notícias, documentos da SEC, estratégias do Marketplace e conhecimento da comunidade.
+
+![Dê superpoderes aos seus agentes — de graça](docs/assets/readme/botspot_mcp_superpowers.png)
+
+Seu assistente já está conectado ao BotSpot? Diga: “Conecte este projeto LumiBot ao BotSpot MCP.” Ele pode criar a chave API e salvar a configuração para você.
+
+**[Conecte seus agentes](https://lumibot.lumiwealth.com/botspot_mcp.html)**
 
 ## Três maneiras de criar uma estratégia
 
@@ -48,9 +58,6 @@ O BotSpot MCP oferece habilidades de criação, dados de pesquisa gratuitos, bac
 **[Conecte seu assistente de IA](https://botspot.trade/agents)**
 
 Para ajuda local de programação, instale as [habilidades gratuitas de trading LumiBot](https://github.com/Lumiwealth/lumibot-trading-skills). Para ferramentas de pesquisa dentro da estratégia, consulte o [guia BotSpot MCP](https://lumibot.lumiwealth.com/botspot_mcp.html).
-
-
-Execute `lumibot connect botspot` para dar aos agentes da estratégia ferramentas de pesquisa de dados, documentos e informações permitidas do marketplace e da comunidade. O LumiBot também funciona de forma independente.
 
 ## Explore o framework
 

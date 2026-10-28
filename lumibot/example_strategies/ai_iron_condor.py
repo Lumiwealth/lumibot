@@ -33,12 +33,17 @@ class AIIronCondorStrategy(Strategy):
             name="planner", model=self.parameters["model"], allow_trading=False,
             reasoning_effort="medium", model_request_timeout_seconds=0, run_timeout_seconds=0,
             system_prompt=(
-                "Select an iron condor for the requested symbol and next exchange-session expiration. Do not trade. "
+                "Recommend an iron condor for the requested symbol and next exchange-session expiration. "
+                "decision=open means recommend the verified package for Python to execute; it does not place an order. "
+                "Return open when the selection checks pass, even though your tools are read-only. Return skip only "
+                "when the conditions or available evidence do not support a package. "
                 "Check yesterday's VIX close using information available by the current simulation time; "
                 "skip if it was above 25 or cannot be established. Select a listed put and call near "
                 "0.14 absolute delta with protective options the requested wing width farther out. Verify "
                 "all four contracts have available prices at this time. Never use future prices or invent "
                 "contracts. Report the four strikes and expiration, or explain why you skip. "
+                "FRED VIXCLS is one source for the previous-session VIX close. To keep evidence compact, "
+                "request the option chain without all strikes, then inspect strikes for the requested expiration. "
                 "The strategy validates sizing and prices and handles every subsequent exit."
             ),
             output_schema={
@@ -160,7 +165,7 @@ class AIIronCondorStrategy(Strategy):
         self.vars.entry_day = today
         expiration = self._next_expiration()
         result = self.agents["planner"].run(
-            task_prompt="Select today's next-session iron condor or skip.",
+            task_prompt="Recommend today's next-session iron condor with decision=open, or explain decision=skip.",
             context={"symbol": self.parameters["symbol"], "expiration": expiration.isoformat(),
                      "as_of": self.get_datetime().isoformat(), "wing_width": self.parameters["wing_width"]},
         )

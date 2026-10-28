@@ -184,7 +184,9 @@ TECH_WORDS = ("duckdb", "sql", "skill", "multi-leg", "multileg", "get_filings", 
               "house_public_disclosures", "get_indicator", "rules.json", "tool")
 
 
-@pytest.mark.parametrize("name", sorted(set(REBUILT) - OWNED_ELSEWHERE))
+# The explicitly approved hybrid explains its read-only planner and Python
+# execution contract; it is covered by the strategy-owned behavioral tests.
+@pytest.mark.parametrize("name", sorted(set(REBUILT) - OWNED_ELSEWHERE - HYBRID))
 def test_prompts_are_plain_english(name):
     prompts = " ".join(
         node.value for node in ast.walk(_tree(name))

@@ -4215,5 +4215,3 @@ def test_snapshot_machine_contract_accepts_native_row_selection_without_sql(hist
     assert evals.score_machine_contract(case, transcript)["pass"]
     transcript["submissions"].append({"tool": "orders_submit_order"})
     assert not evals.score_machine_contract(case, transcript)["pass"]
-
-

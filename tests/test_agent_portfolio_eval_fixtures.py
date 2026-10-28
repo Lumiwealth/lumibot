@@ -56,5 +56,3 @@ def test_quote_sizing_fixture_distinguishes_every_possible_price_basis():
         assert len(set(prices)) == 4
     finally:
         production.close()
-
-

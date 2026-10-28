@@ -90,7 +90,7 @@ def test_external_static_research_key_auto_attaches_without_a_renewal_endpoint(m
     assert server.exposed_tools == _RESEARCH_PRESET_TOOL_NAMES
     assert server.auth_token_env == "BOTSPOT_RESEARCH_MCP_TOKEN"
     assert server.auth_token_refresh_url is None
-    assert server.headers is None
+    assert server.headers is None or server.headers.get("X-BotSpot-Attribution", "").startswith("utm_source=lumibot")
     assert "research-token" not in repr(server)
     assert all("research-token" not in message for message in strategy.messages)
     assert asyncio.run(runtime_module._refresh_mcp_auth_token(server, "research-token")) is False
@@ -815,3 +815,28 @@ def test_recorded_research_stdio_exposes_asof_and_preserves_native_tool_error_st
     assert result.isError is True
     assert result.structuredContent["errorCode"] == "unsupported_capability"
     assert result.structuredContent["details"]["asOf"] == "2026-08-11T14:35:00Z"
+
+
+def test_research_connection_labels_its_source_without_sending_credentials_as_attribution(monkeypatch):
+    monkeypatch.delenv("DO_NOT_TRACK", raising=False)
+    _configure_hosted_research(monkeypatch)
+    handle = AgentManager(_Strategy()).create(name="researcher", _runtime=_Runtime())
+    assert handle._mcp_servers[0].headers == {
+        "X-BotSpot-Attribution": "utm_source=lumibot&utm_medium=strategy&utm_campaign=research_connection"
+    }
+
+
+def test_research_connection_omits_attribution_when_tracking_is_disabled(monkeypatch):
+    monkeypatch.setenv("DO_NOT_TRACK", "1")
+    _configure_hosted_research(monkeypatch)
+    handle = AgentManager(_Strategy()).create(name="researcher", _runtime=_Runtime())
+    assert handle._mcp_servers[0].headers is None
+
+
+def test_intentionally_configured_http_connection_can_renew_on_its_same_origin():
+    server = MCPServer(
+        name="research", url="http://research.example.test/mcp",
+        exposed_tools=["query_data"], auth_token_env="RESEARCH_TOKEN",
+        auth_token_refresh_url="http://research.example.test/renew",
+    )
+    assert server.auth_token_refresh_url == "http://research.example.test/renew"

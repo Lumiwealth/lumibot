@@ -248,6 +248,11 @@ def _botspot_research_server_from_environment() -> tuple[MCPServer | None, str |
                 exposed_tools=_BOTSPOT_RESEARCH_TOOLS,
                 auth_token_env="BOTSPOT_RESEARCH_MCP_TOKEN",
                 auth_token_refresh_url=renew_url or None,
+                headers=(
+                    {"X-BotSpot-Attribution": "utm_source=lumibot&utm_medium=strategy&utm_campaign=research_connection"}
+                    if str(os.environ.get("DO_NOT_TRACK") or "").strip().lower() in {"", "0", "false", "no", "off"}
+                    else None
+                ),
             ),
             None,
         )

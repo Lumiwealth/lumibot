@@ -44,6 +44,21 @@ Order status tools:
 
 Use `orders_get_status` after a submit to verify identifiers. Never claim a fill unless `is_filled` is true. `orders_wait_for_terminal` polls with a bounded timeout (max 120 seconds) and uses `strategy.sleep` so pending fills can process.
 
+`orders_submit_orders(orders_json=..., reason=...)` wraps the existing
+`Strategy.submit_orders` method for an explicit independent basket. Each JSON
+object has the same fields as `orders_submit_order`; a row's optional `reason`
+overrides the common batch explanation. All rows are validated before the first
+submission, and the private journal retains per-order explanations. The tool
+does not compute target weights, quantities or funding automatically.
+
+The native batch is not atomic and acknowledgement is not a fill. Submit funding
+sells separately, verify their proceeds, then submit dependent buys. Related
+option legs still require `orders_submit_multileg`. Inspect every requested
+identifier after an exception or short return; never blindly retry a partially
+executed basket. Completion requires reconciling the full target list against
+positions, pending orders and cash, retaining already-correct holdings without
+duplicate buys and explaining specific unavailable constituents.
+
 Alpaca news uses an active Alpaca broker when available. Outside Alpaca broker runs, it checks `ALPACA_NEWS_API_KEY` / `ALPACA_NEWS_API_SECRET`. If neither path is available, `alpaca_news` is not exposed to agents.
 
 Historical news validates each returned publication/update timestamp against
@@ -78,6 +93,7 @@ self.agents.create(name="researcher", allow_trading=False)
 `allow_trading=False` removes mutating order tools and actual-decision writes:
 
 - `orders_submit_order`
+- `orders_submit_orders`
 - `orders_submit_multileg`
 - `orders_cancel_order`
 - `orders_modify_order`
@@ -97,7 +113,7 @@ Unknown tool names: when the model calls a tool that does not exist, the runtime
 
 Order readiness:
 
-Before an agent can submit an order with `orders_submit_order` or `orders_submit_multileg`, it must inspect account and price context in the same agent run:
+Before an agent can submit an order with `orders_submit_order`, `orders_submit_orders` or `orders_submit_multileg`, it must inspect account and price context in the same agent run:
 
 - `account_portfolio` for cash and portfolio value
 - `account_positions` for current holdings

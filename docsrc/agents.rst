@@ -219,9 +219,9 @@ LumiBot includes a full set of built-in trading tools that are available to ever
 The built-in tools cover everything a trading agent needs:
 
 - **Account:** ``account.positions``, ``account.portfolio`` -- current holdings and portfolio state
-- **Market data:** ``market.last_price``, ``market.load_history_table`` -- real-time quotes and historical bars
+- **Market data:** ``market.quote``, ``market.quotes``, ``market.last_price``, ``market.load_history_table`` -- current quotes, price fallbacks and historical bars
 - **DuckDB:** ``duckdb.query`` -- SQL queries over time-series data loaded into DuckDB tables
-- **Orders:** ``orders.submit``, ``orders.cancel``, ``orders.modify``, ``orders.open_orders`` -- full order management
+- **Orders:** ``orders.submit``, ``orders.submit_orders``, ``orders.cancel``, ``orders.modify``, ``orders.open_orders`` -- individual orders, explicit baskets and order management
 - **Documentation:** ``docs.search`` -- search LumiBot's own API docs for guidance
 
 These tools give the agent access to positions, prices, history, and order execution without any setup. If you want to add external data on top of these, use ``@agent_tool`` or add MCP servers.

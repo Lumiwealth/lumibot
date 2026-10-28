@@ -86,7 +86,7 @@ Agent order tools are intentionally broker-like: LumiBot either submits the
 exact order requested or rejects it. It does not silently resize, clip, or
 normalize a requested order into a different order.
 
-Before ``orders_submit_order`` or ``orders_submit_multileg`` can submit an
+Before ``orders_submit_order``, ``orders_submit_orders`` or ``orders_submit_multileg`` can submit an
 order, the agent must inspect the required account, open-order, and price
 context in the same agent run:
 
@@ -179,6 +179,27 @@ These tools let agents understand what the strategy already knows:
 
 These tools are read-only. They remain available even when
 ``allow_trading=False``.
+
+Independent Order Baskets
+-------------------------
+
+``orders_submit_orders(orders_json=..., reason=...)`` exposes the existing
+``Strategy.submit_orders`` method. The JSON array contains explicit order objects
+with the same fields as ``orders_submit_order``. Each row may supply its own
+``reason`` and ``public_reason``; the batch reason applies when a row omits one.
+Every row is validated before submission, and explanations are journaled before
+the broker call. The tool does not calculate targets or change requested sizes.
+
+An independent basket is not atomic. Related option legs still use
+``orders_submit_multileg``. Funding sells must finish before a dependent buy
+batch. Each requested order and each native returned result remain visible;
+acknowledgement does not establish a fill. After a partial return or exception,
+reconcile all requested identifiers and actual holdings before retrying.
+
+Portfolio completion means checking every target against actual holdings,
+pending orders and remaining cash. Already-correct holdings need no duplicate
+buy. Complete affordable supported constituents and report each specific
+unavailable or infeasible holding rather than stopping after a partial basket.
 
 Options And Multi-Leg Orders
 ----------------------------

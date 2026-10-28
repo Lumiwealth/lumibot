@@ -2,7 +2,13 @@
 
 ## 4.6.32 - 2026-10-27
 
+### Added
+- AI agents can use native single and batch quotes, including exact option contracts, supplied source timestamps and multipliers. Shared trading guidance uses executable quote sides for immediate orders and current last prices when usable quote fields are unavailable.
+- AI agents can submit explicit independent baskets through the existing `Strategy.submit_orders` method. Each row retains its explanation and actual broker result; partial or uncertain results require reconciliation before retrying. Atomic option packages keep their existing multi-leg tool.
+- Release-gated portfolio behavior covers complete large and small baskets, funding sells before dependent buys, current-quote sizing, exact dated-row selection, and completing supported holdings when one is unavailable. Assertions reconcile native positions, fills, quantities and cash alongside a real-model judge.
+
 ### Fixed
+- Simulated stock market orders use the execution bar at the simulated time when intraday data is already loaded, including strategies with daily cadence. Daily-only sources and limit/stop behavior retain their existing data path; this change does not force minute-data downloads.
 - Daily historical ranges retain their final available bar and exclude bars before the requested start. Routed daily benchmarks include the first session's open-to-close move and final close; incomplete benchmark coverage is reported instead of filled with invented flat returns.
 - Historical FRED requests use the previous completed Chicago calendar vintage and disclose date-only timing limits, preventing morning decisions from using the same day's closing values.
 - Optional agent quote research reports unavailable candidates without invalidating otherwise healthy execution or portfolio valuation. Historical document results and shared research guidance disclose version uncertainty and recover from failed news sources.

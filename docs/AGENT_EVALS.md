@@ -2,7 +2,7 @@
 
 > Real-model release gates for LumiBot's built-in trading-agent behavior.
 
-**Last Updated:** 2026-10-16
+**Last Updated:** 2026-10-28
 **Status:** Active
 **Audience:** Both
 
@@ -13,7 +13,7 @@
 LumiBot agent evals call the real trading model and a separate real LLM judge.
 Both use the explicitly selected ChatGPT subscription connection. Actors default
 to `chatgpt/gpt-6-luna` on High reasoning; semantic judges use the same Luna
-model on XHigh reasoning after recorded failures of cheaper reasoning profiles.
+model on High reasoning and must pass the maintained labeled calibration controls.
 The candidate still requires complete source-bound qualification. API-funded model selections are rejected
 for both roles, including when ordinary provider API keys are present. Connect
 your own account with `python -m lumibot.components.agents.chatgpt_auth login`.
@@ -80,24 +80,36 @@ condition to match the latest completed-bar window and its tool-computed value.
   actor, judge, continuation and outer retry. It also records each repetition
   and resumes only missing or failed work.
 
-## Initial Catalog
+## Trading Catalog Highlights
 
 | Case | Release behavior |
 | --- | --- |
 | `options_iron_condor_atomic_open` | Loads options guidance, verifies four contracts, prices the package, and submits one atomic iron condor. |
 | `options_iron_condor_limit_between_bid_ask` | Submits one iron condor whose explicit package price sits between the bid and ask, without the prompt saying to use a limit. |
 | `options_expiration_with_data` | Opens the iron condor on the listed expiration that has quotes when a nearer listed expiration has none. The prompt does not name that fallback. |
-| `congress_public_filings_only` | Uses the House disclosure tool and trades only filings already public at the simulated clock. |
 | `options_credit_spread_close_signed_quantities` | Maps signed positions to correct closing sides and prevents duplicate or escalating closes. |
 | `options_single_leg_chain_and_quote` | Retrieves a chain, verifies the exact contract, and checks current option market evidence. |
 | `stock_price_before_order` | Retrieves current stock price evidence before any stock order. |
 | `stock_pending_exit_no_duplicate` | Inspects an existing pending exit and refuses to submit a duplicate position change. |
 | `stock_orb_completed_bars` | Uses a completed 09:30 ET opening range and a completed breakout bar before ordering. |
+| `stock_complete_portfolio_25` | Establishes every affordable target in a 25-name basket and reconciles native positions, fills and cash. |
+| `stock_complete_portfolio_9` | Establishes a different-size basket without a fixed trade-count stopping rule. |
+| `stock_rebalance_complete_portfolio` | Reduces and exits holdings, settles funding sells before dependent buys, adds missing targets and avoids buying an already-correct holding again. |
+| `stock_size_from_current_quote` | Distinct historical, last, bid and ask prices expose sizing from the wrong field. |
+| `stock_snapshot_price_from_dated_row` | Uses the requested snapshot date's close rather than an earlier historical high. |
+| `stock_complete_supported_portfolio_with_gap` | Completes supported targets with a current-price fallback and preserves only the unavailable holding's allocation in cash. |
 | `rules_active_override_strategy_prompt` | Applies only active canonical rules and gives them precedence over conflicting strategy prose. |
 
 The preserved credit-spread red baseline lives under `agent_eval_baselines/`.
 It records the real historical reversing sides, repeated closes, and quantity
 escalation that the repaired catalog protects against.
+
+Portfolio qualification uses five successful repetitions per new or repaired
+case with Luna High for actor and judge, on Standard/default tier through Login
+with ChatGPT. Independent machine checks use broker-observed orders, fills,
+quantities, final positions and cash; the judge checks interpretation and the
+reported explanation. Fixture-backed success does not establish historical
+provider integration or a complete real-data strategy backtest.
 
 ## Local Commands
 

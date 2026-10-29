@@ -17,11 +17,11 @@ npm start
 
 Open the localhost URL printed by the service. Unlock setup with its local `admin-token` file. In setup:
 
-1. Open the official MetaMask Agent Wallet login page. Complete sign-in and import its CLI token **into the local page**, never into a strategy or chat.
+1. Open the official MetaMask Agent Wallet login page. Complete sign-in and import its CLI token **into the local page**, never into a strategy or chat. Keep the original Google, email, or QR method: each method creates a separate wallet identity even for the same email. Setup shows the current method, offers reconnect, and warns when existing agent wallets are absent from the session. Failed session refresh no longer appears connected.
 2. Create a named server wallet for the agent. Review the provider's Guard Mode policy, including network/address allowlists and outflow limits. Policy changes that broaden access can require MetaMask approval. Use **Refresh policy approvals** to see pending, approved, denied or expired requests after a restart, then reload the policy to confirm it applied. An unknown submission remains blocked against duplicate widening requests.
-3. Set allowed markets, chains, exact token contracts/decimals, trade-notional limits, leverage, slippage, and expiry. Defaults are testnet, $10 per order, $25 per rolling 24 hours, 1× leverage, 50 bps slippage, and 24-hour expiry. These are editable defaults, not trading advice.
+3. Set allowed markets, chains, exact token contracts/decimals, trade-notional limits, leverage, slippage, and expiry. Defaults are testnet, BTC/ETH markets, $25 per order, $100 per rolling 24 hours, 1× leverage, 50 bps slippage, and 24-hour expiry. These are editable defaults, not trading advice.
 4. Create a scoped token. Save the displayed broker configuration in your secret manager. The service stores only the token hash; its UI displays the raw token once.
-5. Fund only the agent wallet. The normal MetaMask Connect flow can request a user-approved testnet ETH transfer. Hyperliquid testnet collateral is separate from native gas. A submitted funding hash is not confirmation.
+5. Fund only the agent wallet. Use **Hyperliquid testnet collateral → Refresh balances** to inspect actual spot USDC and perps equity. If mock USDC is in spot, enter an amount and choose **Move USDC to perps**. This owner-only action moves collateral within the same bound testnet wallet; bot tokens cannot call it or choose another recipient. Unified accounts pool collateral and do not need this move. Native gas is separate: the optional MetaMask Connect flow requests a user-approved testnet ETH transfer. A submitted funding request is not confirmation; verify balances or a mined receipt.
 
 The service binds to `127.0.0.1`. Keep it local or use an authenticated SSH tunnel. No public deployment, wallet creation, funding, or mainnet trade happens merely by starting it. `--state-dir` selects a dedicated private state directory; `--port` changes the port. Mainnet bindings require the explicit `--allow-mainnet` startup flag and owner configuration. The setup UI deliberately creates testnet bindings.
 
@@ -47,11 +47,13 @@ order = Order(
     "strategy-name", asset, "0.0001", "buy",
     quote=Asset("USDC", asset_type="crypto"),
     order_type="limit", limit_price="<limit-price>", time_in_force="gtc",
-    custom_params={"reduce_only": False},
+    reduce_only=False,
 )
 ```
 
 Set the strategy constructor’s `quote_asset=Asset("USDC", asset_type="crypto")` so account valuation uses the venue settlement currency.
+
+Canonical `Order(..., reduce_only=True)` is preserved, including closing orders created by `close_position()` and `sell_all()`. The older `custom_params={"reduce_only": True}` spelling also works, but cannot turn off canonical reduce-only intent. Restored orders retain this flag.
 
 The quantity example is illustrative, not a testnet minimum or suggested trade. The venue and configured limits determine whether an order is accepted. Market orders persist a slippage-bounded execution price and submit an IOC limit against that price, rather than repricing the authority at signing time. Limit orders require explicit `gtc`, `ioc`, or `alo`; `day` is rejected rather than silently changed into a perpetual order. Only buy/sell, market/limit, and explicit reduce-only behavior are supported. No conditional, bracket, OCO, or automatic cancel/replace emulation.
 
@@ -101,6 +103,7 @@ Guard Mode can ask for 2FA on out-of-policy requests. MetaMask's documented outf
 - Allowance transactions and trade transactions are separate. When an interrupted allowance later confirms, setup offers **Resume swap with fresh quote**. It rechecks policy and valuation against the existing reservation. An uncertain trade is never automatically replayed.
 - A timeout without a known job/hash/order ID stays unknown. Inspect the provider wallet and venue before any replacement. This version does not guess an order match or offer an owner override that declares an unknown trade failed.
 - Revoking a binding stops future bot requests. It does not cancel already submitted orders, revoke ERC-20 allowances or browser grants, undo signed messages, or withdraw funds. Setup can cancel known perpetual orders after bot revocation; confirm venue status afterward. Review remaining approvals in MetaMask.
+- Owner collateral moves also retain stable request IDs and pending signing jobs. Repeating an ID never signs again. Interrupted preparation is rejected before signing; interrupted signatures resolve without replay. Once a signature may have reached the venue, an unknown funding outcome blocks further wallet execution until independently reconciled. No automatic retry or balance-based guess declares success.
 - Preserve the state directory across restarts. Deleting the journal also deletes idempotency and budget history; do not reset it to escape a pending operation.
 
 Perpetual account equity already includes funding. Reported cash is the lesser of spendable collateral and equity minus used margin, floored at zero; this excludes extra spot buying power outside the equity snapshot. `positionsValue` is the equity residual, not leveraged position notional. `get_funding_payments(start_time, end_time, symbol=None)` exposes its ledger (Unix milliseconds) without posting the same cash flow twice. Fill fees remain available in the order's raw operation. Spot cost basis and unrealized PnL are left unavailable; they are not invented from current prices.
@@ -126,20 +129,20 @@ Local tests cover authorization separation, Host/Origin validation, idempotency,
 
 Before operational use, qualify a funded testnet wallet: login, create/list wallet, policy update/2FA, scoped-token issuance, balances, a small order and receipt, partial fills/cancel where available, explicit approval denial/expiry, service restart during pending work, and revocation. Test swaps only where MetaMask returns a supported route and reliable prices. Hyperliquid faucet eligibility is provider-specific; never fund mainnet just to make a test pass.
 
-### Qualification status, 2026-10-27
+### Qualification status, 2026-10-29
 
 | Path | Evidence | Remaining qualification |
 | --- | --- | --- |
-| Agent Wallet login, creation and Guard Mode | Two real, separate server wallets created and read back; provider approved adding HyperEVM testnet to one wallet, with Guard Mode and zero rolling outflow unchanged | Funded execution under the reviewed policy |
-| Signing | Harmless message and EIP-712 verification signatures checked cryptographically against the real wallet; new signing boundary exercised | Funded venue actions, MFA denial and approval during an actual trade |
-| Account and market reads | Connected Python broker checks pass for both wallets, empty spot portfolios, marks and closed candles | Funded equity, positions, fills and fees |
+| Agent Wallet login, creation and Guard Mode | Two real, separate server wallets created and read back; provider approved adding HyperEVM testnet to one wallet, with Guard Mode and zero rolling outflow unchanged | Broader provider approval cases |
+| Signing | Harmless message and EIP-712 verification signatures checked cryptographically against the real wallet; new signing boundary exercised | MFA denial and approval during an actual trade |
+| Account and market reads | Connected Python broker checks pass for both wallets, funded perps equity/positions/fills/fees, empty EVM spot portfolios, marks and closed candles | Unified-account valuation and broader account modes |
 | Isolation and revocation | Wrong wallet/admin credentials denied; revoked and superseded tokens rejected; replacement token accepted | Deployment isolation for untrusted strategies |
 | Policy recovery | Real expired, approved and denied requests observed through the broker; email approval changed only the requested testnet chain, and email rejection left the other wallet's policy unchanged | Approval/denial during an actual funded trade and restart during a pending approval |
-| Perpetual execution | Real market quote and zero-collateral refusal before signing; duplicate ID returns the same refusal. Deterministic partial-fill, cancellation and unknown-outcome coverage | Real opening, closing, resting-order cancellation, partial fills and reconciliation across restart |
+| Perpetual execution | Real market open/reduce-only close with multiple fills and fees, full strategy iteration with fill callbacks, resting order/restart/cancel, and request-ID deduplication; restored cumulative fills are not replayed | Persistent partial-fill cancellation and approval interruption during funded execution |
 | Spot execution | Exact-input guards and unsupported testnet route refusal | Mined receipts require a supported route; current provider offers no testnet swap route |
-| Browser wallet | Connect integration and local setup rendered | User wallet connection and user-approved funding transaction |
+| Setup and funding | Connected owner UI, real same-wallet testnet spot-to-perps move, independently verified balances, narrow/wide layouts and service-failure recovery | Browser Connect native-gas receipt conventions |
 
-Hyperliquid's official faucet requires prior mainnet deposits from the same address. Its Arbitrum Sepolia bridge uses a distinct USDC2 contract, not the token issued by the ordinary Circle testnet faucet. The verified USDC2 source has owner-only minting and no public claim function despite exposing `dripAmount` and `dripClaimed` getters. A transfer of existing Hyperliquid testnet collateral from another testnet participant avoids mainnet deposits. No funded execution is claimed without that collateral.
+Hyperliquid's official faucet requires prior mainnet deposits from the same address. Its Arbitrum Sepolia bridge uses a distinct USDC2 contract, not the token issued by the ordinary Circle testnet faucet. The verified USDC2 source has owner-only minting and no public claim function despite exposing `dripAmount` and `dripClaimed` getters. A transfer of existing Hyperliquid testnet collateral from another testnet participant avoids mainnet deposits. The funded tests above used mock collateral; a faucet or native-gas receipt alone does not prove trading collateral.
 
 Alternate funding research found these constraints, checked on 2026-10-26:
 
@@ -235,7 +238,7 @@ Recheck with `npm audit --omit=dev`. See, for example, the
 Funded Hyperliquid testnet qualification has verified market opening,
 reduce-only closing, multiple fill aggregation and fees, resting-order
 cancellation, service restart recovery, stable request-ID deduplication, and
-a full strategy-executor trading iteration with actual fill callbacks.
+a full strategy-executor trading iteration with actual fill callbacks. Startup restores cumulative fill history without adding total order size a second time.
 Persistent partial-fill cancellation, approval interruption/denial during
 funded execution, mined swap transfer units, and native-token receipt
 conventions remain separate qualification items. Testnet spot swap routing

@@ -159,6 +159,31 @@ def test_pending_approval_does_not_emit_fill_or_error(broker):
     broker._process_trade_event.assert_not_called()
 
 
+@pytest.mark.parametrize("custom", [{}, {"reduce_only": False}])
+def test_canonical_reduce_only_cannot_be_weakened_by_custom_params(broker, custom):
+    item = order(reduce_only=True, custom_params=custom)
+    broker.client.request.return_value = observation(item, "awaiting_approval")
+    broker.submit_order(item)
+    assert broker.client.request.call_args.kwargs["payload"]["reduceOnly"] is True
+
+
+def test_shared_close_position_keeps_reduce_only_on_wire_and_restore(broker):
+    item = order()
+    broker._filled_positions.append(Position(item.strategy, item.asset, item.quantity))
+    broker.quote_assets = {item.quote}
+    broker.client.request.side_effect = lambda method, path, payload: {
+        "id": payload["id"], "request": payload, "state": "submitted", "filledQuantity": "0",
+    }
+    closed = broker.close_position(item.strategy, item.asset)
+    assert closed is not None and closed.reduce_only is True
+    request = broker.client.request.call_args.kwargs["payload"]
+    assert request["reduceOnly"] is True
+    assert request["side"] == "sell"
+    restored = broker._parse_broker_order({"id": "restored-close", "request": request,
+                                            "state": "open", "filledQuantity": "0"}, item.strategy)
+    assert restored.reduce_only is True
+
+
 @pytest.mark.parametrize("state,tracker", [("canceled", "_canceled_orders"), ("rejected", "_error_orders")])
 def test_restored_terminal_order_is_not_processed_again_by_polling(broker, state, tracker):
     class RestoreStrategy(Strategy):
@@ -204,6 +229,49 @@ def test_restored_terminal_order_is_not_processed_again_by_polling(broker, state
 
     # Startup already restored terminal history; later polls must not append it again.
     assert [item.identifier for item in getattr(broker, tracker)] == [response["id"]]
+
+
+@pytest.mark.parametrize("state,filled", [("partial_fill", "0.0004"), ("filled", "0.001")])
+def test_executor_restores_exact_fill_history_without_replaying_quantity(broker, state, filled):
+    class RestoreStrategy(Strategy):
+        def initialize(self, parameters=None):
+            self.sleeptime = "1S"
+
+        def on_trading_iteration(self):
+            pass
+
+    response = {
+        "id": "restored-fill",
+        "request": {
+            "kind": "perp", "symbol": "BTC", "side": "buy", "quantity": "0.001",
+            "orderType": "limit", "limitPrice": "40000", "leverage": 1, "tif": "gtc",
+        },
+        "state": state, "filledQuantity": filled, "averagePrice": "40000",
+    }
+
+    def read(method, path, **kwargs):
+        if path == "/v1/account":
+            return {"cash": "60", "positionsValue": "40", "equity": "100", "currency": "USDC",
+                    "positions": [{"symbol": "BTC", "quantity": filled, "entryPrice": "40000",
+                                   "marketValue": "40", "unrealizedPnl": "0"}]}
+        assert path == "/v1/orders"
+        return [response]
+
+    broker.client.call.side_effect = read
+    strategy = RestoreStrategy(broker=broker, name="restore-strategy",
+                               quote_asset=Asset("USDC", asset_type="crypto"),
+                               benchmark_asset=None, analyze_backtest=False)
+    strategy._executor.sync_broker()
+    restored = broker.get_tracked_order(response["id"])
+    assert restored is not None
+    # A venue snapshot already contains cumulative fills. Startup must not add total order size again.
+    assert sum(Decimal(str(t.quantity)) for t in restored.transactions) == Decimal(filled)
+    if state == "partial_fill":
+        assert restored.status == Order.OrderStatus.PARTIALLY_FILLED
+    else:
+        assert restored.is_filled()
+    broker.do_polling()
+    assert sum(Decimal(str(t.quantity)) for t in restored.transactions) == Decimal(filled)
 
 
 def test_order_snapshot_cannot_consume_unprocessed_fill_delta(broker):

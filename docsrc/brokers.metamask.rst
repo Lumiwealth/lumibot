@@ -31,14 +31,31 @@ token into the local page. Never give a strategy your CLI session, admin token,
 seed phrase, or private key.
 
 Create a dedicated wallet, review its Guard Mode policy, and set its allowed
-markets/chains/tokens and limits. Setup defaults to testnet, a $10 trade-notional
-ceiling per order, $25 per rolling 24 hours, 1x leverage, 50 bps slippage, and a
+markets/chains/tokens and limits. Setup defaults to testnet, BTC/ETH markets, a $25
+trade-notional ceiling per order, $100 per rolling 24 hours, 1x leverage, 50 bps slippage, and a
 24-hour token lifetime. These editable defaults exclude gas, funding, and losses.
 Save the scoped broker configuration in your secret manager. The browser wallet
 can request user-approved testnet ETH funding; Hyperliquid collateral is separate.
 
+Use the original Google, email, or QR sign-in method when reconnecting. Each
+method has separate wallets, even for the same email. Setup reports session
+refresh failures and warns when existing agent wallets are missing.
+
+After creating a binding, use **Hyperliquid testnet collateral** to read actual
+spot USDC and perps equity. **Move USDC to perps** moves mock collateral within
+that same bound wallet. Only owner credentials can request this testnet action;
+bot tokens cannot transfer collateral or select a recipient. Unified accounts
+already pool collateral and do not need this move. Verify balances after
+submission. Funding IDs and pending signing jobs survive restart; uncertain
+submissions block further wallet execution and are never automatically replayed.
+
 Python configuration
 --------------------
+
+``Order(..., reduce_only=True)`` remains reduce-only through submission and
+restoration, including orders created by ``close_position()`` and ``sell_all()``.
+The older ``custom_params={"reduce_only": True}`` spelling remains supported;
+custom parameters cannot weaken canonical closing intent.
 
 .. code-block:: python
 
@@ -118,7 +135,8 @@ Connected identity, balances, market data, harmless signing, policy expiry and
 token revocation have been verified. A dedicated Hyperliquid testnet wallet
 has also passed market open/close, multiple-fill accounting, resting-order
 cancellation, restart recovery and a full strategy-executor iteration with fill
-callbacks. Qualify your own funded wallet and its approval/recovery paths. The
+callbacks. Restored cumulative fills are not replayed into order transactions.
+Qualify your own funded wallet and its approval/recovery paths. The
 pinned MetaMask dependency tree also has unresolved upstream security advisories;
 this beta is not production-qualified. See the engineering guide for the audit,
 trust boundary, and test checklist. Configure strategies with

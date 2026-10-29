@@ -43,6 +43,34 @@ export const bindingSchema = z
   })
   .strict();
 export type Binding = z.infer<typeof bindingSchema>;
+export const collateralTransferSchema = z.object({
+  id: identifier,
+  agent: identifier,
+  wallet: address,
+  network: z.literal("testnet"),
+  amount: positive.max(80),
+  state: z.enum([
+    "prepared",
+    "awaiting_approval",
+    "submitted",
+    "rejected",
+    "unknown",
+  ]),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  approvalId: z.string().optional(),
+  signatureOnly: z.boolean().optional(),
+  message: z.string().optional(),
+});
+export type CollateralTransfer = z.infer<typeof collateralTransferSchema>;
+export const collateralBalanceSchema = z.object({
+  wallet: address,
+  network: z.literal("testnet"),
+  spotUsdc: amount,
+  perpsEquity: signedAmount,
+  unifiedAccount: z.boolean(),
+  transferAvailable: z.boolean(),
+});
 export const perpSchema = z
   .object({
     kind: z.literal("perp"),

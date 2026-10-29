@@ -17,12 +17,14 @@ import {
   bindingSchema,
   BrokerError,
   identifier,
+  positive,
   requestSchema,
 } from "./contracts.js";
 import { Store, digest } from "./store.js";
 import { Engine } from "./engine.js";
 import { PolicyApprovals } from "./policy-approvals.js";
 import { MetaMaskProvider } from "./sdk.js";
+import { CollateralTransfers } from "./collateral-transfers.js";
 
 const bodyLimit = 65536;
 async function body(req: IncomingMessage): Promise<unknown> {
@@ -53,6 +55,7 @@ export function application(
 ) {
   const engine = new Engine(store, provider);
   const policyApprovals = new PolicyApprovals(store, provider);
+  const collateralTransfers = new CollateralTransfers(store, provider);
   const parent = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const root = existsSync(join(parent, "package.json"))
     ? parent
@@ -101,7 +104,7 @@ export function application(
         );
         if (req.method === "GET" && url.pathname === "/admin/status") {
           json(res, {
-            authenticated: provider.session.get("cliToken") !== null,
+            ...(await provider.authenticationStatus()),
             loginUrl: new URL(
               "/agentic/login",
               provider.config.dashboardUrl,
@@ -123,6 +126,35 @@ export function application(
         }
         if (req.method === "GET" && url.pathname === "/admin/wallets") {
           json(res, await provider.listWallets());
+          return;
+        }
+        if (req.method === "GET" && url.pathname === "/admin/collateral") {
+          const binding = store.binding(
+            identifier.parse(url.searchParams.get("agent")),
+          );
+          json(res, {
+            ...(await provider.collateralBalance(binding)),
+            transfers: await collateralTransfers.list(binding),
+          });
+          return;
+        }
+        if (req.method === "POST" && url.pathname === "/admin/collateral") {
+          const input = z
+            .object({
+              id: identifier,
+              agent: identifier,
+              amount: positive.max(80),
+            })
+            .strict()
+            .parse(await body(req));
+          json(
+            res,
+            await collateralTransfers.submit(
+              store.binding(input.agent),
+              input.id,
+              input.amount,
+            ),
+          );
           return;
         }
         if (req.method === "POST" && url.pathname === "/admin/wallets") {

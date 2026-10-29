@@ -183,6 +183,26 @@ export class MetaMaskProvider implements Provider {
     );
     return token;
   }
+  async authenticationStatus(): Promise<{
+    authenticated: boolean;
+    loginMethod: string | null;
+    authenticationError?: string;
+  }> {
+    const loginMethod = this.session.get("loginMethod") ?? null;
+    if (this.session.get("cliToken") === null)
+      return { authenticated: false, loginMethod };
+    try {
+      await this.authToken();
+      return { authenticated: true, loginMethod };
+    } catch {
+      return {
+        authenticated: false,
+        loginMethod,
+        authenticationError:
+          "MetaMask session could not refresh. Reconnect using the original sign-in method.",
+      };
+    }
+  }
   async login(token: string): Promise<void> {
     await this.auth.importCliToken(token);
     this.session.update({ walletMode: "server-wallet" });
@@ -343,6 +363,80 @@ export class MetaMaskProvider implements Provider {
     ).find((m) => m.symbol === symbol);
     assert(market !== undefined, "MARKET_NOT_FOUND", "Market not available");
     return market.markPrice;
+  }
+  async collateralBalance(binding: Binding) {
+    assert(
+      binding.network === "testnet",
+      "NETWORK_DENIED",
+      "Setup collateral funding supports testnet only",
+    );
+    const service = await this.perps(binding);
+    const [balance, mode, rawSpot] = await Promise.all([
+      service.getBalance("hyperliquid"),
+      service.getAccountMode("hyperliquid"),
+      this.info(binding, {
+        type: "spotClearinghouseState",
+        user: binding.wallet,
+      }),
+    ]);
+    const spot = z
+      .object({
+        balances: z.array(z.object({ coin: z.string(), total: z.string() })),
+      })
+      .parse(rawSpot);
+    const spotUsdc = spot.balances
+      .filter((row) => row.coin === "USDC")
+      .reduce((sum, row) => sum.plus(row.total), new Decimal(0))
+      .toFixed();
+    return {
+      wallet: binding.wallet,
+      network: "testnet" as const,
+      spotUsdc,
+      perpsEquity: balance.totalBalance,
+      unifiedAccount: mode.unifiedAccount,
+      transferAvailable: mode.usdClassTransferAvailable,
+    };
+  }
+  async prepareCollateral(binding: Binding, amount: string): Promise<void> {
+    assert(
+      binding.network === "testnet",
+      "NETWORK_DENIED",
+      "Setup collateral funding supports testnet only",
+    );
+    await (
+      await this.perps(binding)
+    ).prepareTransferCollateral("hyperliquid", {
+      amount,
+      asset: "USDC",
+      direction: "spotToPerp",
+    });
+  }
+  async submitCollateral(
+    binding: Binding,
+    amount: string,
+    boundary: SigningBoundary,
+  ): Promise<void> {
+    const result = await (
+      await this.perps(binding, boundary)
+    ).transferCollateral("hyperliquid", {
+      amount,
+      asset: "USDC",
+      direction: "spotToPerp",
+    });
+    assert(
+      ["submitted", "confirmed"].includes(result.status),
+      "FUNDING_UNCONFIRMED",
+      "Collateral transfer was not acknowledged by the venue",
+    );
+  }
+  async collateralSignatureStatus(
+    binding: Binding,
+    id: string,
+  ): Promise<string> {
+    const wallet = this.wallet(await this.walletState(binding.wallet));
+    return (
+      await wallet.getJobStatus("evm", { kind: "signature", pollingId: id })
+    ).status;
   }
   async tokenPrice(
     binding: Binding,

@@ -5,10 +5,13 @@
 Deploy marker: `d326af579d52b2869152e4ee7ff775e0ec1685a3`.
 
 ### Added
+- MetaMask owner setup displays testnet spot/perps collateral and supports durable same-wallet spot-to-perps funding. Session reconnect preserves sign-in-method context and reports failed refresh or missing agent wallets.
 - Optional MetaMask Agent Wallet broker beta: dedicated server-wallet bindings, scoped runtime tokens, Guard policy checks, durable order reservations and reconciliation, Hyperliquid perpetuals, exact-input onchain swap operations, and local MetaMask Connect setup. Crypto assets retain EVM chain and contract identity.
 - MetaMask qualification supports persisted policy approvals, signature-boundary authority checks, IOC market quotes, explicit unsupported testnet swap routes, and connected broker checks. Funded open/close, multi-fill aggregation, restart recovery and cancellation have been exercised on Hyperliquid testnet; broader qualification remains in progress.
 
 ### Fixed
+- MetaMask honors canonical reduce-only intent from shared close-position/sell-all actions and restores it from venue snapshots; custom parameters cannot turn a closing order into an opening order.
+- MetaMask startup restores cumulative filled and partially filled order snapshots without adding total order quantity again; executor restoration uses the existing broker hook.
 - MetaMask vendor UUID 8/9 paths use patched CommonJS-compatible UUID 11.1.1. Real managed-wallet signing, browser bundling and vendor JSON-RPC request IDs were verified; unresolved upstream dependency advisories remain documented.
 - MetaMask strategy startup restores terminal order history without duplicating tracked orders. Account synchronization no longer consumes fill deltas before the polling stream can deliver strategy callbacks.
 - Backtest market-input capture streams deduplicated observations to a temporary disk spool instead of stopping at 4,096 reads or 50,000 unique rows. A bounded serialization cache limits memory independently of run length; exports stream their CSV and hashes, disclose actual capture failures, and remove the owned spool on completion or export failure. Optional explicit capture ceilings remain available without limiting trading. Input export also remains independent of unrelated provenance-export failures.

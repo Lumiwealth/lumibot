@@ -68,7 +68,7 @@ class MetaMask(Broker):
             "quantity": format(decimal_value(order.quantity), "f"),
             "orderType": str(order.order_type),
             "leverage": params.get("leverage", order.asset.leverage),
-            "reduceOnly": params.get("reduce_only", False),
+            "reduceOnly": order.reduce_only or params.get("reduce_only", False),
             "tif": tif,
         }
         if order.order_type == Order.OrderType.LIMIT:
@@ -152,6 +152,7 @@ class MetaMask(Broker):
             time_in_force=request["tif"],
             quote=Asset("USDC", asset_type="crypto"),
             identifier=response["id"],
+            reduce_only=request.get("reduceOnly", False),
         )
         order.update_raw(response)
         order.status = {
@@ -161,6 +162,8 @@ class MetaMask(Broker):
             "partial_fill": "partial_fill",
             "open": "open",
         }.get(response["state"], "submitted")
+        if response["state"] == "rejected":
+            order.error_message = response.get("message", "Provider rejected order")
         if response.get("averagePrice"):
             order.avg_fill_price = float(decimal_value(response["averagePrice"]))
         quantity = decimal_value(response["filledQuantity"])
@@ -177,6 +180,29 @@ class MetaMask(Broker):
 
     def _flatten_order(self, order):
         return [order]
+
+    def _process_broker_synced_order(self, order):
+        """Restore a cumulative snapshot without replaying fills into account state."""
+        with self._lock:
+            if self.get_tracked_order(order.identifier) is not None:
+                return
+            order.set_new()
+            if order.is_filled():
+                order.set_filled()
+                tracker = self._filled_orders
+            elif order.status == Order.OrderStatus.ERROR:
+                order.set_error(order.error_message or "Provider rejected order")
+                tracker = self._error_orders
+            elif order.is_canceled():
+                order.set_canceled()
+                tracker = self._canceled_orders
+            elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
+                order.set_partially_filled()
+                tracker = self._partially_filled_orders
+            else:
+                tracker = self._new_orders if order.is_active() else self._unprocessed_orders
+            tracker.append(order)
+            self._invalidate_order_caches()
 
     def _modify_order(self, order, **kwargs):
         raise NotImplementedError("Cancel and confirm cancellation before placing a replacement order")

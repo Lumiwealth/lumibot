@@ -7,6 +7,8 @@ import {
   bindingSchema,
   operationSchema,
   policyApprovalSchema,
+  collateralBalanceSchema,
+  collateralTransferSchema,
 } from "../src/contracts.js";
 
 function element(id: string): HTMLElement {
@@ -38,8 +40,12 @@ function notice(message: string, error = false) {
 let admin = "";
 let connected: Awaited<ReturnType<typeof createEVMClient>> | undefined;
 let browserAccount: `0x${string}` | undefined;
+let boundWallets = new Set<string>();
+let approvalChannel = "your MetaMask approval channel";
 const statusSchema = z.object({
   authenticated: z.boolean(),
+  loginMethod: z.string().nullable(),
+  authenticationError: z.string().optional(),
   loginUrl: z.string().url(),
   bindings: z.array(bindingSchema.omit({ tokenHash: true })),
 });
@@ -85,11 +91,28 @@ async function refresh() {
   element("scope").hidden = !state.authenticated;
   element("login").hidden = state.authenticated;
   element("wallets").hidden = !state.authenticated;
+  element("identity-warning").hidden = true;
+  element("reconnect-session").hidden = !state.authenticated;
+  element("session-state").textContent =
+    state.authenticationError ??
+    (state.authenticated
+      ? `MetaMask session ready${state.loginMethod ? ` · ${state.loginMethod} sign-in` : ""}.`
+      : `Sign in${state.loginMethod ? ` using your original ${state.loginMethod} method` : ""}.`);
+  boundWallets = new Set(state.bindings.map((b) => b.wallet.toLowerCase()));
+  approvalChannel =
+    state.loginMethod === "qr"
+      ? "MetaMask Mobile"
+      : ["google", "email"].includes(state.loginMethod ?? "")
+        ? "your registered email"
+        : "your MetaMask approval channel";
   const link = element("login-link");
   if (link instanceof HTMLAnchorElement) link.href = state.loginUrl;
   const list = element("bindings");
   list.replaceChildren();
+  const operationAgent = select("operation-agent").value;
+  const collateralAgent = select("collateral-agent").value;
   select("operation-agent").replaceChildren();
+  select("collateral-agent").replaceChildren();
   for (const binding of state.bindings) {
     const div = document.createElement("div");
     div.className = "binding";
@@ -127,7 +150,17 @@ async function refresh() {
     }
     list.append(div);
     select("operation-agent").add(new Option(binding.id, binding.id));
+    if (binding.network === "testnet")
+      select("collateral-agent").add(new Option(binding.id, binding.id));
   }
+  if (state.bindings.some((b) => b.id === operationAgent))
+    select("operation-agent").value = operationAgent;
+  if (
+    state.bindings.some(
+      (b) => b.id === collateralAgent && b.network === "testnet",
+    )
+  )
+    select("collateral-agent").value = collateralAgent;
   if (!state.bindings.length) list.textContent = "No agent bindings yet.";
   if (state.authenticated) await wallets();
 }
@@ -137,6 +170,12 @@ async function wallets() {
       z.object({ address: z.string(), name: z.string(), kind: z.string() }),
     )
     .parse(await api("wallets"));
+  const addresses = new Set(rows.map((row) => row.address.toLowerCase()));
+  const missing = [...boundWallets].some((address) => !addresses.has(address));
+  element("identity-warning").hidden = !missing;
+  element("identity-warning").textContent = missing
+    ? "Existing agent wallets are missing from this session. Reconnect using the sign-in method that created them before funding or renewing access."
+    : "";
   const menu = select("wallet-select"),
     previous = menu.value;
   menu.replaceChildren(new Option("Select wallet", ""));
@@ -189,6 +228,10 @@ action(
 );
 action("refresh-wallets", wallets);
 action("refresh-status", refresh);
+action("reconnect-session", async () => {
+  element("login").hidden = false;
+  input("cli-token").focus();
+});
 action(
   "wallet-form",
   async () => {
@@ -425,6 +468,9 @@ action("refresh-operations", async () => {
     const detail = document.createElement("p");
     detail.textContent =
       (op.message ?? `Filled: ${op.filledQuantity}`) +
+      (op.state === "awaiting_approval"
+        ? ` Approval: ${approvalChannel}.`
+        : "") +
       (op.approvalId ? ` Signing job: ${op.approvalId}` : "");
     div.append(title, detail);
     if (
@@ -467,3 +513,105 @@ action("refresh-operations", async () => {
     list.append(div);
   }
 });
+
+let collateralRevision = 0;
+let collateralRequest:
+  | { id: string; agent: string; amount: string }
+  | undefined;
+function renderCollateralTransfer(
+  op: z.infer<typeof collateralTransferSchema>,
+): HTMLElement {
+  const row = document.createElement("p");
+  const detail = op.state === "submitted" ? "" : op.message;
+  row.textContent = `${op.amount} USDC · ${op.state}${detail ? ` · ${detail}` : ""}${op.approvalId ? ` · Signing job: ${op.approvalId}` : ""}`;
+  return row;
+}
+select("collateral-agent").addEventListener("change", () => {
+  collateralRevision++;
+  element("collateral-balance").textContent =
+    "Refresh balances for this agent.";
+  element("collateral-transfers").replaceChildren();
+  element("collateral-amount-field").hidden = false;
+  element("collateral-submit").hidden = false;
+});
+async function refreshCollateral() {
+  const agent = select("collateral-agent").value;
+  if (!agent) throw new Error("Create a testnet agent binding first");
+  const revision = ++collateralRevision;
+  element("collateral-balance").textContent = "Loading collateral balances…";
+  const schema = collateralBalanceSchema.extend({
+    transfers: z.array(collateralTransferSchema),
+  });
+  let state: z.infer<typeof schema>;
+  try {
+    state = schema.parse(
+      await api(`collateral?agent=${encodeURIComponent(agent)}`),
+    );
+  } catch (error) {
+    if (
+      revision === collateralRevision &&
+      agent === select("collateral-agent").value
+    )
+      element("collateral-balance").textContent =
+        "Balances unavailable. Refresh to retry; no values assumed.";
+    throw error;
+  }
+  if (
+    revision !== collateralRevision ||
+    agent !== select("collateral-agent").value
+  )
+    return;
+  element("collateral-balance").textContent =
+    `Spot: ${state.spotUsdc} USDC · Perps equity: ${state.perpsEquity} USDC${state.unifiedAccount ? " · Unified account; no collateral move needed." : ""}`;
+  element("collateral-amount-field").hidden = !state.transferAvailable;
+  element("collateral-submit").hidden = !state.transferAvailable;
+  element("collateral-transfers").replaceChildren(
+    ...state.transfers.map(renderCollateralTransfer),
+  );
+}
+action("refresh-collateral", async () => {
+  await refreshCollateral();
+  notice("Collateral balances refreshed.");
+});
+action(
+  "collateral-form",
+  async () => {
+    const agent = select("collateral-agent").value;
+    if (!agent) throw new Error("Create a testnet agent binding first");
+    const amount = input("collateral-amount").value.trim();
+    if (
+      !collateralRequest ||
+      collateralRequest.agent !== agent ||
+      collateralRequest.amount !== amount
+    )
+      collateralRequest = { id: crypto.randomUUID(), agent, amount };
+    notice(
+      `Requesting testnet collateral move for ${agent}. Approval may be required via ${approvalChannel}.`,
+    );
+    const result = collateralTransferSchema.parse(
+      await api("collateral", collateralRequest),
+    );
+    if (["submitted", "rejected"].includes(result.state))
+      collateralRequest = undefined;
+    if (select("collateral-agent").value !== agent) return;
+    element("collateral-transfers").prepend(renderCollateralTransfer(result));
+    if (result.state === "submitted") {
+      input("collateral-amount").value = "";
+      try {
+        await refreshCollateral();
+        notice("Funding submitted. Spot and perps balances refreshed.");
+      } catch {
+        notice(
+          "Funding submitted, but balance refresh failed. Refresh balances before another transfer.",
+          true,
+        );
+      }
+      return;
+    }
+    notice(
+      `${result.message ?? `Collateral ${result.state}.`}${result.state === "awaiting_approval" ? ` Check ${approvalChannel}.` : ""}`,
+      ["unknown", "rejected"].includes(result.state),
+    );
+  },
+  "submit",
+);

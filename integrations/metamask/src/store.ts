@@ -8,10 +8,12 @@ import { acquireStateLock } from "./state-lock.js";
 import {
   assert,
   bindingSchema,
+  collateralTransferSchema,
   operationSchema,
   policyApprovalSchema,
   type PolicyApproval,
   type Binding,
+  type CollateralTransfer,
   type Operation,
   type TradeRequest,
 } from "./contracts.js";
@@ -44,7 +46,8 @@ export class Store {
       this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS bindings (id TEXT PRIMARY KEY, wallet TEXT UNIQUE NOT NULL, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS operations (agent TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(agent,id));
-      CREATE TABLE IF NOT EXISTS policy_approvals (id TEXT PRIMARY KEY, wallet TEXT NOT NULL, data TEXT NOT NULL);`);
+      CREATE TABLE IF NOT EXISTS policy_approvals (id TEXT PRIMARY KEY, wallet TEXT NOT NULL, data TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS collateral_transfers (agent TEXT NOT NULL, id TEXT NOT NULL, wallet TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(agent,id));`);
     } catch (error) {
       database?.close();
       this.releaseOwner?.();
@@ -101,6 +104,22 @@ export class Store {
   get(agent: string, id: string): Operation | undefined {
     return this.operations(agent).find((op) => op.id === id);
   }
+  collateralTransfers(wallet: string): CollateralTransfer[] {
+    return this.db
+      .prepare("SELECT data FROM collateral_transfers WHERE wallet=?")
+      .all(wallet)
+      .map((value) =>
+        collateralTransferSchema.parse(JSON.parse(row.parse(value).data)),
+      );
+  }
+  saveCollateralTransfer(value: CollateralTransfer): void {
+    value = collateralTransferSchema.parse(value);
+    this.db
+      .prepare(
+        "INSERT INTO collateral_transfers VALUES (?,?,?,?) ON CONFLICT(agent,id) DO UPDATE SET data=excluded.data",
+      )
+      .run(value.agent, value.id, value.wallet, JSON.stringify(value));
+  }
   save(op: Operation): void {
     op = operationSchema.parse(op);
     this.db
@@ -139,6 +158,13 @@ export class Store {
         return { operation: existing, created: false };
       }
       const operations = this.operations(binding.id);
+      assert(
+        !this.collateralTransfers(binding.wallet).some((value) =>
+          ["prepared", "awaiting_approval", "unknown"].includes(value.state),
+        ),
+        "RECONCILIATION_REQUIRED",
+        "Resolve pending collateral funding before placing another trade",
+      );
       assert(
         !operations.some((op) =>
           ["prepared", "awaiting_approval", "unknown"].includes(op.state),

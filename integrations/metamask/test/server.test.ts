@@ -48,6 +48,35 @@ test("real HTTP server isolates admin and agent access, checks origins and serve
     });
   try {
     assert.equal((await call("/admin/status", "runtime")).status, 401);
+    assert.equal(
+      (await call("/admin/collateral?agent=agent", "runtime")).status,
+      401,
+    );
+    assert.equal(
+      (
+        await fetch(url + "/admin/collateral", {
+          method: "POST",
+          headers: { Authorization: "Bearer runtime" },
+          body: JSON.stringify({ agent: "agent", id: "fund", amount: "1" }),
+        })
+      ).status,
+      401,
+    );
+    assert.equal(
+      (
+        await fetch(url + "/admin/collateral", {
+          method: "POST",
+          headers: { Authorization: "Bearer owner" },
+          body: JSON.stringify({
+            agent: "agent",
+            id: "fund",
+            amount: "1",
+            recipient: "0x" + "2".repeat(40),
+          }),
+        })
+      ).status,
+      400,
+    );
     assert.equal((await call("/v1/identity", "owner")).status, 401);
     assert.equal(
       (await call("/admin/status", "owner", { Origin: "https://evil.invalid" }))
@@ -73,6 +102,19 @@ test("real HTTP server isolates admin and agent access, checks origins and serve
     assert.equal(state.authenticated, false);
     assert.equal(state.loginUrl, "https://developer.metamask.io/agentic/login");
     assert.equal(JSON.stringify(state).includes("tokenHash"), false);
+    provider.session.update({
+      cliToken: "expired-session",
+      loginMethod: "google",
+    });
+    provider.auth.isCliTokenExpiringSoon = () => true;
+    provider.auth.refreshCliToken = async () => {
+      throw new Error("Refresh unavailable");
+    };
+    const expired = await (await call("/admin/status", "owner")).json();
+    assert.equal(expired.authenticated, false);
+    assert.equal(expired.loginMethod, "google");
+    assert.match(expired.authenticationError, /original sign-in method/);
+    assert.equal(provider.session.get("cliToken"), "expired-session");
     const identity = await (await call("/v1/identity", "runtime")).json();
     assert.equal(identity.network, "testnet");
     const page = await call("/", "");

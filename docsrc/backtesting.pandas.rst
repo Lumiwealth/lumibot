@@ -54,6 +54,7 @@ no matching row, LumiBot warns once per data object. The message names the asset
 and affected columns. Check that your action timestamps match the alignment
 index. Actions outside this window, zero/null events and discarded duplicate
 rows do not trigger this warning.
+Warnings follow your normal logging settings.
 
 .. code-block:: python
 

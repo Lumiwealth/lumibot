@@ -193,7 +193,7 @@ def _alignment_warnings(caplog):
 @pytest.mark.parametrize("column", ["dividend", "stock_splits"])
 def test_off_grid_action_warning_is_once_per_object(backend, column, caplog):
     """Report lost real events once, preserving exact retained integers and marks."""
-    caplog.set_level("WARNING")
+    caplog.set_level("WARNING", logger="lumibot.entities.data")
     index = pd.date_range("2026-10-12 10:00", periods=5, freq="min", tz="UTC", name="datetime")
     source_index = (index[[0, 1, 3, 4]] + pd.to_timedelta([0, 30, 0, 0], unit="s")).rename("datetime")
     frame = _frame(source_index)
@@ -231,7 +231,7 @@ def test_off_grid_action_warning_is_once_per_object(backend, column, caplog):
 @pytest.mark.parametrize("backend", BACKENDS)
 def test_alignment_warning_waits_until_an_event_is_omitted(backend, caplog):
     """An earlier harmless alignment must not suppress a later useful warning."""
-    caplog.set_level("WARNING")
+    caplog.set_level("WARNING", logger="lumibot.entities.data")
     index = pd.date_range("2026-10-12 10:00", periods=3, freq="min", tz="America/New_York", name="datetime")
     data = _data(backend, _frame(index, [0.0, 1.0, 0.0]), "minute")
 
@@ -247,7 +247,7 @@ def test_alignment_warning_waits_until_an_event_is_omitted(backend, caplog):
 @pytest.mark.parametrize("backend", BACKENDS)
 def test_alignment_warning_accepts_numpy_timestamp_targets(backend, caplog):
     """The diagnostic must accept the same timestamp arrays as native alignment."""
-    caplog.set_level("WARNING")
+    caplog.set_level("WARNING", logger="lumibot.entities.data")
     index = pd.date_range("2026-10-12 10:00", periods=3, freq="min", tz="America/New_York", name="datetime")
     data = _data(backend, _frame(index, [0.0, 1.0, 0.0]), "minute")
 
@@ -259,10 +259,23 @@ def test_alignment_warning_accepts_numpy_timestamp_targets(backend, caplog):
 
 
 @pytest.mark.parametrize("backend", BACKENDS)
+def test_alignment_warning_respects_logging_level(backend, caplog):
+    """The diagnostic follows normal logging settings instead of forcing visibility."""
+    caplog.set_level("ERROR", logger="lumibot.entities.data")
+    index = pd.date_range("2026-10-12 10:00", periods=3, freq="min", tz="America/New_York", name="datetime")
+    data = _data(backend, _frame(index, [0.0, 1.0, 0.0]), "minute")
+
+    data.repair_times_and_fill(index[[0, 2]])
+
+    assert not _alignment_warnings(caplog)
+    assert data.df["dividend"].tolist() == [0.0, 0.0]
+
+
+@pytest.mark.parametrize("backend", BACKENDS)
 @pytest.mark.parametrize("case", ["absent", "neutral", "trimmed", "duplicates"])
 def test_action_alignment_warning_ignores_normal_filtering(backend, case, caplog):
     """Absent/null/zero events, window trimming and discarded duplicates stay quiet."""
-    caplog.set_level("WARNING")
+    caplog.set_level("WARNING", logger="lumibot.entities.data")
     index = pd.date_range("2026-10-12 10:00", periods=5, freq="min", tz="America/New_York", name="datetime")
     target = index
     if case == "absent":
@@ -290,7 +303,7 @@ def test_action_alignment_warning_ignores_normal_filtering(backend, case, caplog
 @pytest.mark.parametrize("backend,source_class", [(Data, PandasData), (DataPolars, PolarsData)])
 def test_public_minute_load_warns_for_lost_action(backend, source_class, caplog):
     """A public loader's minute grid can omit a second-offset corporate action."""
-    caplog.set_level("WARNING")
+    caplog.set_level("WARNING", logger="lumibot.entities.data")
     index = pd.date_range("2026-10-12 10:00", periods=5, freq="min", tz="America/New_York", name="datetime")
     source_index = (index[[0, 1, 4]] + pd.to_timedelta([0, 30, 0], unit="s")).rename("datetime")
     action = _data(backend, _frame(source_index, [0.0, 1.0, 0.0], [0.0, 2.0, 0.0]), "minute")
@@ -312,7 +325,7 @@ def test_public_minute_load_warns_for_lost_action(backend, source_class, caplog)
 @pytest.mark.parametrize("backend,source_class", [(Data, PandasData), (DataPolars, PolarsData)])
 def test_public_daily_load_preserves_shifted_actions_without_warning(backend, source_class, caplog):
     """Daily union calendars keep the supplied hour instead of forcing midnight."""
-    caplog.set_level("WARNING")
+    caplog.set_level("WARNING", logger="lumibot.entities.data")
     index = pd.date_range("2026-10-12", periods=5, tz="America/New_York", name="datetime")
     shifted = index[[0, 2, 4]] + pd.Timedelta(hours=1)
     action = _data(backend, _frame(shifted, [1.0, np.nan, 0.5], [2.0, np.nan, 0.5]))

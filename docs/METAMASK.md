@@ -193,6 +193,15 @@ restart, independent journals and concurrent engine reconciliation.
 
 ## Dependency qualification
 
+The 2026-10-29 clean-install audit reports 68 affected production package
+entries: 6 high, 2 moderate, 60 low, and zero critical. Legacy UUID 8/9 vendor
+paths use the patched 11.1.1 release, which retains the CommonJS entry points
+used by the SDK. Vendor JSON-RPC request-ID behavior, buffer-bound checks,
+browser bundling, and real managed-wallet EIP-712 signing were verified after
+the change. The [UUID advisory](https://github.com/advisories/GHSA-w5hq-g745-h8pq)
+is no longer present. The audit still reports upstream issues in
+`bigint-buffer`, nested Zod 3, `stream-json`, `elliptic`, and `deepmerge`.
+
 The 2026-10-26 production dependency audit reports 107 affected package entries
 (6 high, 77 moderate, 24 low; zero critical), down from 119 entries and 10 high.
 Scoped overrides update ws, bn.js, the Axios 0.x security branch and the affected
@@ -200,7 +209,7 @@ transitive esbuild version. A real local HTTP test checks the vendor's Axios
 wrapper request and error contracts after the backport; the main broker's
 authenticated testnet reads also pass after a clean install.
 
-Remaining root advisories concern `bigint-buffer`, nested Zod 3, `elliptic`,
+The earlier remaining root advisories concerned `bigint-buffer`, nested Zod 3, `elliptic`,
 `stream-json` and old `uuid`. Counts include transitive paths and are not evidence
 that every advisory is reachable through this broker. Current assessment:
 
@@ -223,10 +232,14 @@ version overrides have not been used to conceal incompatible vendor pins.
 Recheck with `npm audit --omit=dev`. See, for example, the
 [bigint-buffer advisory](https://github.com/advisories/GHSA-3gc7-fjrx-p6mg) and
 [Zod advisory](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5).
-Funded execution remains unverified: mined swap transfer units, native-token
-receipt conventions, trade approval denial and funded account reconciliation
-need the connected qualification described above. Policy expiry and harmless
-authenticated signing have been verified; they do not prove funded execution.
+Funded Hyperliquid testnet qualification has verified market opening,
+reduce-only closing, multiple fill aggregation and fees, resting-order
+cancellation, service restart recovery, stable request-ID deduplication, and
+a full strategy-executor trading iteration with actual fill callbacks.
+Persistent partial-fill cancellation, approval interruption/denial during
+funded execution, mined swap transfer units, and native-token receipt
+conventions remain separate qualification items. Testnet spot swap routing
+is unavailable in the pinned provider SDK.
 
 ## Sources checked 2026-10-26
 

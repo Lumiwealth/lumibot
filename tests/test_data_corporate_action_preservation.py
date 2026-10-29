@@ -245,6 +245,20 @@ def test_alignment_warning_waits_until_an_event_is_omitted(backend, caplog):
 
 
 @pytest.mark.parametrize("backend", BACKENDS)
+def test_alignment_warning_accepts_numpy_timestamp_targets(backend, caplog):
+    """The diagnostic must accept the same timestamp arrays as native alignment."""
+    caplog.set_level("WARNING")
+    index = pd.date_range("2026-10-12 10:00", periods=3, freq="min", tz="America/New_York", name="datetime")
+    data = _data(backend, _frame(index, [0.0, 1.0, 0.0]), "minute")
+
+    data.repair_times_and_fill(index[[0, 2]].to_numpy())
+
+    assert len(_alignment_warnings(caplog)) == 1
+    assert data.df.index.tolist() == index[[0, 2]].tolist()
+    assert data.df["dividend"].tolist() == [0.0, 0.0]
+
+
+@pytest.mark.parametrize("backend", BACKENDS)
 @pytest.mark.parametrize("case", ["absent", "neutral", "trimmed", "duplicates"])
 def test_action_alignment_warning_ignores_normal_filtering(backend, case, caplog):
     """Absent/null/zero events, window trimming and discarded duplicates stay quiet."""

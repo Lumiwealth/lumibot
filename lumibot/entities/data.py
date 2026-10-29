@@ -146,7 +146,7 @@ def _repair_quote_source_times(frame, before_fill, segment_ids=None):
 
 def _warn_off_grid_actions(owner, frame, index):
     """Warn once about real actions omitted inside the retained alignment window."""
-    if index.empty or getattr(owner, "_off_grid_actions_warned", False):
+    if len(index) == 0 or getattr(owner, "_off_grid_actions_warned", False):
         return
 
     omitted_columns = []

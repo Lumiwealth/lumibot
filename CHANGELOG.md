@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Preserve dividend and stock-split event timestamps when Pandas and Polars backtest data are aligned to a shared index. Inserted rows carry zero actions instead of repeating a prior event.
+- Warn once per data object when alignment omits nonzero dividends or splits inside the retained time window.
+
 ## 4.6.33 - 2026-10-27
 
 ### Added

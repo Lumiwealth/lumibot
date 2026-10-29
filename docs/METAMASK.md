@@ -127,6 +127,8 @@ LUMIBOT_DISABLE_DOTENV=1 METAMASK_TEST_CONFIG_FILE="<private-testnet-config-file
 
 Local tests cover authorization separation, Host/Origin validation, idempotency, racing submissions, limits, expiry/revocation, restart uncertainty, approval persistence, exact chain identity, fill deduplication, partial fills, cancellation, transport loss, and broker lifecycle integration. The opt-in public test queries real Hyperliquid testnet market/candle APIs and submits no transactions.
 
+The MetaMask companion CI workflow installs with scripts disabled and runs formatting, tests, and browser bundling on Node 22.18 and Node 24. It uses no wallet credentials or funded account. Public API and connected-wallet checks remain explicit opt-in qualification steps.
+
 Before operational use, qualify a funded testnet wallet: login, create/list wallet, policy update/2FA, scoped-token issuance, balances, a small order and receipt, partial fills/cancel where available, explicit approval denial/expiry, service restart during pending work, and revocation. Test swaps only where MetaMask returns a supported route and reliable prices. Hyperliquid faucet eligibility is provider-specific; never fund mainnet just to make a test pass.
 
 ### Qualification status, 2026-10-29

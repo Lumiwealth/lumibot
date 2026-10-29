@@ -5,6 +5,7 @@
 Deploy marker: `d326af579d52b2869152e4ee7ff775e0ec1685a3`.
 
 ### Added
+- MetaMask companion CI checks the supported Node 22.18 minimum and Node 24 with a clean install, formatting, tests, and browser bundling, without wallet credentials.
 - MetaMask owner setup displays testnet spot/perps collateral and supports durable same-wallet spot-to-perps funding. Session reconnect preserves sign-in-method context and reports failed refresh or missing agent wallets.
 - Optional MetaMask Agent Wallet broker beta: dedicated server-wallet bindings, scoped runtime tokens, Guard policy checks, durable order reservations and reconciliation, Hyperliquid perpetuals, exact-input onchain swap operations, and local MetaMask Connect setup. Crypto assets retain EVM chain and contract identity.
 - MetaMask qualification supports persisted policy approvals, signature-boundary authority checks, IOC market quotes, explicit unsupported testnet swap routes, and connected broker checks. Funded open/close, multi-fill aggregation, restart recovery and cancellation have been exercised on Hyperliquid testnet; broader qualification remains in progress.

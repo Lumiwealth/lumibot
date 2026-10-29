@@ -131,6 +131,10 @@ For examples, failure states, qualification steps and primary sources, see
 Qualification limits
 --------------------
 
+Companion CI checks formatting, tests, and browser bundling on Node 22.18 and
+Node 24 without wallet credentials. Connected wallet execution and public venue
+API checks remain separate opt-in qualification steps.
+
 Connected identity, balances, market data, harmless signing, policy expiry and
 token revocation have been verified. A dedicated Hyperliquid testnet wallet
 has also passed market open/close, multiple-fill accounting, resting-order

@@ -1,6 +1,11 @@
 MetaMask Agent Wallet
 =====================
 
+.. meta::
+   :description: Connect LumiBot to MetaMask Agent Wallet with scoped bot tokens, Hyperliquid testnet perpetuals, owner collateral setup, and durable order recovery.
+
+.. include:: _snippets/botspot_mcp_callout.rst
+
 .. warning::
 
    This optional broker is a local beta. Offline tests and public testnet market
@@ -146,3 +151,41 @@ pinned MetaMask dependency tree also has unresolved upstream security advisories
 this beta is not production-qualified. See the engineering guide for the audit,
 trust boundary, and test checklist. Configure strategies with
 ``quote_asset=Asset("USDC", asset_type="crypto")`` for perpetual account valuation.
+
+Frequently asked questions
+--------------------------
+
+Which MetaMask wallet does a strategy use?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Each agent uses a dedicated, separately funded MetaMask Agent Wallet server wallet. MetaMask manages its signing keys. The strategy receives a scoped local broker token, while the owner protects the CLI session and setup credentials.
+
+Why does the same email show different wallets?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Google, email-code, and QR sign-in methods have separate wallet identities. Reconnect using the method that created the wallets. Setup warns when existing agent wallets are absent from the current session.
+
+Does testnet ETH fund Hyperliquid perpetuals?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. ETH pays EVM gas; Hyperliquid positions need mock USDC collateral in HyperCore. Refresh collateral balances in setup and move spot USDC to perps within the agent wallet when needed. Unified accounts pool collateral. Faucet eligibility is separate from wallet creation.
+
+Can a strategy transfer funds to another wallet?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Bot tokens cannot request arbitrary transfers, withdrawals, or raw signatures. The owner-only setup collateral action moves testnet USDC within the same bound wallet. Protect the provider session separately because it can control multiple managed wallets.
+
+What should I do after an interrupted order?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Keep the journal and reuse the original request ID. Check the saved order and provider approval status. Unknown submissions require independent reconciliation; the service does not automatically replay a signature or guess that a timeout means failure.
+
+Can I test spot swaps on testnet?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The pinned provider SDK has no testnet spot swap route. The broker refuses that route before signing. Funded perpetual tests do not qualify spot swap receipts, and the setup flow does not switch to mainnet automatically.
+
+Is this integration production-qualified?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This is a local beta with funded perpetual and recovery checks. Upstream dependency advisories and broader funded approval, partial-fill cancellation, and account-mode qualification remain open. Review the engineering guide before operational use.

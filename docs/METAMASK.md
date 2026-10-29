@@ -117,7 +117,7 @@ npm run build
 METAMASK_TEST_PUBLIC_TESTNET=1 npm test
 
 # In repository root; dotenv disabled to avoid real account configuration
-LUMIBOT_DISABLE_DOTENV=1 python -m pytest tests/test_metamask_broker.py tests/test_asset.py
+LUMIBOT_DISABLE_DOTENV=1 python -m pytest tests/test_metamask_broker.py tests/test_asset.py tests/test_public_docs_discovery.py tests/test_docs_broker_faq_callout.py
 
 # Connected reads: private JSON array of setup responses for two testnet agents.
 # This suite never submits a trade or signature and skips without configuration.

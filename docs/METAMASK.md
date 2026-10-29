@@ -171,6 +171,11 @@ faucet also supplies trading collateral or deposit real funds automatically.
 
 ## Runtime ownership and restart
 
+Restored order snapshots seed fill and terminal-state checkpoints once. Later
+account synchronization does not advance an already tracked order's callback
+checkpoint. This prevents canceled/rejected history from being appended again
+and keeps new partial-fill quantities available to the polling stream.
+
 One companion owns each journal. A second process using the same state directory
 fails with `STATE_IN_USE`, even on a different port. Engines sharing a Store
 also share wallet execution locks, so another engine cannot mark an in-flight

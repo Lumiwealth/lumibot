@@ -9,6 +9,7 @@ import requests
 
 from lumibot.brokers import MetaMask
 from lumibot.entities import Asset, Order, Position
+from lumibot.strategies.strategy import Strategy
 from lumibot.tools.metamask_client import MetaMaskAPIError, MetaMaskClient
 
 WALLET = "0x" + "1" * 40
@@ -156,6 +157,91 @@ def test_pending_approval_does_not_emit_fill_or_error(broker):
     broker._process_trade_event = Mock()
     broker._observe(item, observation(item, "awaiting_approval"))
     broker._process_trade_event.assert_not_called()
+
+
+@pytest.mark.parametrize("state,tracker", [("canceled", "_canceled_orders"), ("rejected", "_error_orders")])
+def test_restored_terminal_order_is_not_processed_again_by_polling(broker, state, tracker):
+    class RestoreStrategy(Strategy):
+        def initialize(self, parameters=None):
+            self.sleeptime = "1S"
+
+        def on_trading_iteration(self):
+            pass
+
+    response = {
+        "id": "restored-terminal",
+        "request": {
+            "kind": "perp",
+            "symbol": "BTC",
+            "side": "buy",
+            "quantity": "0.001",
+            "orderType": "limit",
+            "limitPrice": "40000",
+            "leverage": 1,
+            "tif": "gtc",
+        },
+        "state": state,
+        "filledQuantity": "0",
+    }
+
+    def read(method, path, **kwargs):
+        if path == "/v1/account":
+            return {"cash": "100", "positionsValue": "0", "equity": "100", "currency": "USDC", "positions": []}
+        assert path == "/v1/orders"
+        return [response]
+
+    broker.client.call.side_effect = read
+    strategy = RestoreStrategy(
+        broker=broker,
+        name="restore-strategy",
+        quote_asset=Asset("USDC", asset_type="crypto"),
+        benchmark_asset=None,
+        analyze_backtest=False,
+    )
+    strategy._executor.sync_broker()
+    broker.do_polling()
+    broker.do_polling()
+
+    # Startup already restored terminal history; later polls must not append it again.
+    assert [item.identifier for item in getattr(broker, tracker)] == [response["id"]]
+
+
+def test_order_snapshot_cannot_consume_unprocessed_fill_delta(broker):
+    item = order()
+    subscriber = SimpleNamespace(
+        name=item.strategy,
+        add_event=Mock(),
+        NEW_ORDER="new",
+        PARTIALLY_FILLED_ORDER="partial_fill",
+        FILLED_ORDER="fill",
+    )
+    broker._add_subscriber(subscriber)
+    broker.client.request.return_value = observation(item, "partial_fill", "0.0004", "50000")
+    broker.submit_order(item)
+    final = {
+        **observation(item, "filled", "0.001", "50600"),
+        "request": {
+            "kind": "perp",
+            "symbol": "BTC",
+            "quantity": "0.001",
+            "side": "buy",
+            "orderType": "market",
+            "leverage": 1,
+            "tif": "ioc",
+        },
+    }
+
+    # Executor synchronization parses snapshots before the stream processes callbacks.
+    broker._parse_broker_order(final, item.strategy)
+    broker.client.call.return_value = [final]
+    broker.do_polling()
+
+    assert item.is_filled()
+    assert len(item.transactions) == 2
+    assert subscriber.add_event.call_count == 2
+    assert subscriber.add_event.call_args.args[0] == subscriber.FILLED_ORDER
+    # Shared broker callbacks expose floats; compare the reported decimal quantity.
+    assert Decimal(str(subscriber.add_event.call_args.args[1]["quantity"])) == Decimal("0.0006")
 
 
 def test_swap_retains_request_id_on_uncertain_response(broker):

@@ -81,6 +81,8 @@ The service stores durable order IDs and reservations. Broadcasts and approvals
 are not fills. Unknown submissions block new orders and are never automatically
 retried. Interrupted allowance approval can be resumed from setup after its
 receipt confirms, under the original budget and current policy checks.
+Restored terminal orders are not replayed as new cancellation/error events.
+Account snapshots retain unprocessed fill deltas for normal strategy callbacks.
 Policy requests persist separately and expose approved, denied and expired
 states after restart. Perpetual openings check authority before each SDK
 signature and again before releasing it to the venue. Interrupted pending

@@ -167,7 +167,12 @@ class MetaMask(Broker):
         if quantity and response.get("averagePrice"):
             price = decimal_value(response["averagePrice"])
             order.add_transaction(price, quantity)
-            self._observations[str(order.identifier)] = (quantity, quantity * price, response["state"])
+        with self._event_lock:
+            identifier = str(order.identifier)
+            if identifier not in self._observations and self.get_tracked_order(identifier) is None:
+                # Seed restored history once. Parsing a newer snapshot must not consume pending callbacks.
+                value = quantity * decimal_value(response.get("averagePrice", "0"))
+                self._observations[identifier] = (quantity, value, response["state"])
         return order
 
     def _flatten_order(self, order):

@@ -1,4 +1,4 @@
-"""Bounded observations of actual framework inputs, independent of strategy charts.
+"""Streaming observations of actual framework inputs, independent of strategy charts.
 
 This recorder neither fetches data nor changes simulation decisions. It preserves
 market columns and observed times, including missing or future rows if an API
@@ -6,9 +6,16 @@ actually returned them. Its manifest states the scope and any incomplete capture
 """
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import math
+import os
+import sqlite3
+import tempfile
+import weakref
+from collections import OrderedDict
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from threading import RLock
 
@@ -46,25 +53,132 @@ def _encoded(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
+def _close_spool(connection, directory):
+    try:
+        connection.close()
+    finally:
+        directory.cleanup()
+
+
+class _InputRows(Mapping):
+    def __init__(self, recorder):
+        self.recorder = recorder
+
+    def __len__(self):
+        return self.recorder._row_count
+
+    def __iter__(self):
+        for row in self.recorder._read_records("input_rows"):
+            yield row["rowSha256"]
+
+    def __getitem__(self, key):
+        with self.recorder.lock:
+            row = self.recorder._connection.execute(
+                "SELECT payload FROM input_rows WHERE fingerprint = ?", (key,)
+            ).fetchone()
+        if row is None:
+            raise KeyError(key)
+        return json.loads(row[0])
+
+    def values(self):
+        return self.recorder._read_records("input_rows")
+
+
+class _Observations(Sequence):
+    def __init__(self, recorder):
+        self.recorder = recorder
+
+    def __len__(self):
+        return self.recorder._observation_count
+
+    def __iter__(self):
+        return self.recorder._read_records("observations")
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return [self[i] for i in range(*index.indices(len(self)))]
+        if index < 0:
+            index += len(self)
+        if index < 0 or index >= len(self):
+            raise IndexError(index)
+        with self.recorder.lock:
+            row = self.recorder._connection.execute(
+                "SELECT payload FROM observations WHERE sequence = ?", (index,)
+            ).fetchone()
+        if row is None:
+            raise IndexError(index)
+        return json.loads(row[0])
+
+
 class MarketInputEvidence:
-    def __init__(self, *, max_rows=50_000, max_observations=4096):
+    """Spool complete history to disk with a bounded serialization cache.
+
+    Optional capture ceilings remain available to an explicit caller. They never
+    limit the underlying strategy or turn incomplete evidence into a full capture.
+    """
+
+    def __init__(self, *, max_rows=None, max_observations=None, max_cache_rows=50_000):
+        for name, value in (("max_rows", max_rows), ("max_observations", max_observations),
+                            ("max_cache_rows", max_cache_rows)):
+            if value is not None and (type(value) is not int or value < 0):
+                raise ValueError(f"{name} must be a nonnegative integer or None")
+        if max_cache_rows is None:
+            raise ValueError("max_cache_rows must be bounded")
         self.max_rows = max_rows
         self.max_observations = max_observations
-        self.rows = {}
-        self._serialized_rows = {}
-        self.observations = []
-        self.seen = set()
+        self.max_cache_rows = min(max_cache_rows, max_rows) if max_rows is not None else max_cache_rows
+        self._serialized_rows = OrderedDict()
         self.incomplete = set()
         self.lock = RLock()
+        self._row_count = 0
+        self._observation_count = 0
+        self._directory = tempfile.TemporaryDirectory(prefix="lumibot-market-input-")
+        self.spool_directory = Path(self._directory.name)
+        try:
+            self._connection = sqlite3.connect(self.spool_directory / "capture.sqlite", check_same_thread=False)
+            self._connection.execute("PRAGMA journal_mode = WAL")
+            self._connection.execute("PRAGMA synchronous = NORMAL")
+            self._connection.execute("PRAGMA cache_size = -2048")
+            self._connection.execute("PRAGMA temp_store = FILE")
+            self._connection.execute("PRAGMA wal_autocheckpoint = 128")
+            self._connection.execute("CREATE TABLE input_rows (fingerprint TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+            self._connection.execute("CREATE TABLE observations (fingerprint TEXT UNIQUE, sequence INTEGER PRIMARY KEY, payload TEXT NOT NULL)")
+            self._connection.commit()
+        except Exception:
+            if hasattr(self, "_connection"):
+                self._connection.close()
+            self._directory.cleanup()
+            raise
+        self._finalizer = weakref.finalize(self, _close_spool, self._connection, self._directory)
+        self.rows = _InputRows(self)
+        self.observations = _Observations(self)
+
+    def close(self):
+        with self.lock:
+            self._finalizer()
+            self._serialized_rows.clear()
+
+    def _read_records(self, table):
+        # Table names are internal constants, never caller input.
+        if table not in {"input_rows", "observations"}:
+            raise ValueError("Unknown capture table")
+        with self.lock:
+            cursor = self._connection.execute(f"SELECT payload FROM {table} ORDER BY rowid")
+            try:
+                while records := cursor.fetchmany(256):
+                    for row in records:
+                        yield json.loads(row[0])
+            finally:
+                cursor.close()
 
     def record(self, *, asset, timestep, when, frame, purpose, quote=None):
         with self.lock:
-            if len(self.observations) >= self.max_observations:
+            if self.max_observations is not None and self._observation_count >= self.max_observations:
                 self.incomplete.add("observation_limit")
                 return
-            if frame is not None and len(frame) > self.max_rows:
+            if frame is not None and self.max_rows is not None and len(frame) > self.max_rows:
                 self.incomplete.add("row_limit")
-                return  # Bound conversion memory as well as retained rows.
+                return
             columns = [c for c in frame.columns if c in MARKET_COLUMNS] if frame is not None else []
             if frame is not None and (not isinstance(frame.index, pd.DatetimeIndex) or not frame.index.is_unique):
                 self.incomplete.add("unsupported_index")
@@ -75,50 +189,70 @@ class MarketInputEvidence:
             identity = _encoded(asset_identity(asset, quote))
             observed = when.isoformat()
             context = {"asset": identity, "timestep": str(timestep), "columns": _encoded(columns)}
-            values, fingerprints, encoded_rows = [], [], []
             timezone_name = str(frame.index.tz) if frame is not None else ""
-            if frame is not None:
-                for index, *row in frame[columns].itertuples(name=None):
-                    # Rolling lookbacks repeat the same prices hundreds of times.
-                    # Memoize serialization, not the observation or market data.
-                    # Preserve scalar types and signed zero in the identity so
-                    # corrected values cannot reuse an earlier row's evidence.
-                    signature = (identity, str(timestep), tuple(columns), timezone_name, index.value,
-                                 tuple((type(v), v.hex() if isinstance(v, float) else v) for v in row))
-                    try:
-                        cached = self._serialized_rows.get(signature)
-                    except TypeError:
-                        signature, cached = None, None
-                    if cached is None:
-                        converted = [index.isoformat(), *(_scalar(v) for v in row)]
-                        fingerprint = hashlib.sha256(_encoded({**context, "values": converted}).encode()).hexdigest()
-                        cached = (converted, fingerprint, _encoded(converted))
-                        if signature is not None and len(self._serialized_rows) < self.max_rows:
-                            self._serialized_rows[signature] = cached
-                    values.append(cached[0])
-                    fingerprints.append(cached[1])
-                    encoded_rows.append(cached[2])
-            # Exact original canonical JSON, reusing each row's encoded bytes.
-            encoded_frame = '{"columns":' + context["columns"] + ',"rows":[' + ','.join(encoded_rows) + ']}'
-            frame_hash = hashlib.sha256(encoded_frame.encode()).hexdigest()
-            observation = {**context, "purpose": purpose, "observedAt": observed,
-                "frameSha256": frame_hash, "returnedRows": len(values),
-                "windowStart": values[0][0] if values else None,
-                "windowEnd": values[-1][0] if values else None}
-            observation_key = _encoded(observation)
-            if observation_key in self.seen:
-                return
-            sequence = len(self.observations)
-            for row, key in zip(values, fingerprints):
-                if key not in self.rows:
-                    if len(self.rows) >= self.max_rows:
-                        self.incomplete.add("row_limit")
-                        continue
-                    self.rows[key] = {**context, "rowSha256": key, "barTime": row[0],
-                        "firstObservedAt": observed, "observedSequence": sequence,
-                        **dict(zip(columns, row[1:]))}
-            self.seen.add(observation_key)
-            self.observations.append({**observation, "sequence": sequence})
+            digest = hashlib.sha256(('{"columns":' + context["columns"] + ',"rows":[').encode())
+            count, first, last, added_rows = 0, None, None, 0
+            sequence = self._observation_count
+            try:
+                with self._connection:
+                    if frame is not None:
+                        for index, *row in frame[columns].itertuples(name=None):
+                            signature = (identity, str(timestep), tuple(columns), timezone_name, index.value,
+                                         tuple((type(v), v.hex() if isinstance(v, float) else v) for v in row))
+                            try:
+                                cached = self._serialized_rows.get(signature)
+                            except TypeError:
+                                signature, cached = None, None
+                            if cached is None:
+                                converted = [index.isoformat(), *(_scalar(v) for v in row)]
+                                key = hashlib.sha256(_encoded({**context, "values": converted}).encode()).hexdigest()
+                                cached = [converted, key, _encoded(converted), False]
+                                if signature is not None and self.max_cache_rows:
+                                    self._serialized_rows[signature] = cached
+                                    if len(self._serialized_rows) > self.max_cache_rows:
+                                        self._serialized_rows.popitem(last=False)
+                            elif signature is not None:
+                                self._serialized_rows.move_to_end(signature)
+                            converted, key, encoded, persisted = cached
+                            digest.update(("," if count else "").encode())
+                            digest.update(encoded.encode())
+                            first = converted[0] if first is None else first
+                            last = converted[0]
+                            count += 1
+                            if persisted:
+                                continue  # This bounded cache entry already exists in the committed spool.
+                            if self.max_rows is not None and self._row_count + added_rows >= self.max_rows:
+                                exists = self._connection.execute(
+                                    "SELECT 1 FROM input_rows WHERE fingerprint = ?", (key,)
+                                ).fetchone()
+                                if exists is None:
+                                    self.incomplete.add("row_limit")
+                                else:
+                                    cached[3] = True
+                                continue
+                            record = {**context, "rowSha256": key, "barTime": converted[0],
+                                      "firstObservedAt": observed, "observedSequence": sequence,
+                                      **dict(zip(columns, converted[1:]))}
+                            cursor = self._connection.execute(
+                                "INSERT OR IGNORE INTO input_rows (fingerprint, payload) VALUES (?, ?)",
+                                (key, _encoded(record)),
+                            )
+                            added_rows += cursor.rowcount
+                            cached[3] = True
+                    digest.update(b"]}")
+                    observation = {**context, "purpose": purpose, "observedAt": observed,
+                                   "frameSha256": digest.hexdigest(), "returnedRows": count,
+                                   "windowStart": first, "windowEnd": last}
+                    inserted = self._connection.execute(
+                        "INSERT OR IGNORE INTO observations (fingerprint, sequence, payload) VALUES (?, ?, ?)",
+                        (_encoded(observation), sequence, _encoded({**observation, "sequence": sequence})),
+                    ).rowcount
+            except Exception:
+                # An uncommitted row must not survive as a persisted cache hit.
+                self._serialized_rows.clear()
+                raise
+            self._row_count += added_rows
+            self._observation_count += inserted
 
 
 def record_market_input(*, source, asset, timestep, when, frame, purpose, quote=None):
@@ -130,35 +264,62 @@ def record_market_input(*, source, asset, timestep, when, frame, purpose, quote=
         recorder.record(asset=asset, timestep=timestep, when=when, frame=frame,
                         purpose=purpose, quote=quote)
     except Exception:
-        # Diagnostics must not change orders or data validation. Failure is
-        # explicit when a recorder exists, never silently labeled complete.
         if recorder is not None:
             with recorder.lock:
                 recorder.incomplete.add("capture_error")
 
 
-def write_market_input_evidence(source, directory, *, prefix=""):
+def _write_csv(path, fields, rows):
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", newline="", encoding="utf-8", dir=path.parent,
+                                         prefix=path.name + ".", suffix=".tmp", delete=False) as handle:
+            temporary = Path(handle.name)
+            writer = csv.DictWriter(handle, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(rows)
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return {"bytes": path.stat().st_size, "sha256": digest.hexdigest()}
+
+
+def write_market_input_evidence(source, directory, *, prefix="", finalize=False):
     recorder = getattr(source, "_market_input_evidence", None)
     if recorder is None:
         return
-    if prefix not in {"", "option_"}:
-        raise ValueError("Unsupported input artifact prefix")
-    directory = Path(directory)
-    directory.mkdir(parents=True, exist_ok=True)
-    with recorder.lock:
-        files = {}
-        for name, rows in (("market_inputs.csv", list(recorder.rows.values())),
-                           ("market_input_observations.csv", recorder.observations)):
-            name = prefix + name
-            path = directory / name
-            pd.DataFrame(rows).to_csv(path, index=False)
-            files[name] = {"rows": len(rows), "bytes": path.stat().st_size,
-                "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
-        manifest = {"schemaVersion": 1, "producer": "lumibot-framework",
-            "scope": ("Observed market columns from history and indicator inputs; "
-                      "not quotes, broker fills or raw custom data accesses."),
-            "complete": not recorder.incomplete, "incompleteReasons": sorted(recorder.incomplete),
-            "rowLimit": recorder.max_rows, "observationLimit": recorder.max_observations,
-            "files": files}
-        manifest_path = directory / (prefix + "market_input_manifest.json")
-        manifest_path.write_text(_encoded(manifest) + "\n", encoding="utf-8")
+    try:
+        if prefix not in {"", "option_"}:
+            raise ValueError("Unsupported input artifact prefix")
+        directory = Path(directory)
+        directory.mkdir(parents=True, exist_ok=True)
+        with recorder.lock:
+            manifest_path = directory / (prefix + "market_input_manifest.json")
+            manifest_path.unlink(missing_ok=True)  # A failed replacement is never an old complete snapshot.
+            context_fields = ["asset", "timestep", "columns"]
+            files = {}
+            records = (
+                ("market_inputs.csv", context_fields + ["rowSha256", "barTime", "firstObservedAt", "observedSequence"]
+                 + sorted(MARKET_COLUMNS), recorder.rows.values(), len(recorder.rows)),
+                ("market_input_observations.csv", context_fields + ["purpose", "observedAt", "frameSha256", "returnedRows",
+                 "windowStart", "windowEnd", "sequence"], iter(recorder.observations), len(recorder.observations)),
+            )
+            for name, fields, rows, count in records:
+                name = prefix + name
+                files[name] = {"rows": count, **_write_csv(directory / name, fields, rows)}
+            manifest = {"schemaVersion": 1, "producer": "lumibot-framework",
+                        "scope": ("Observed market columns from history and indicator inputs; "
+                                  "not quotes, broker fills or raw custom data accesses."),
+                        "complete": not recorder.incomplete, "incompleteReasons": sorted(recorder.incomplete),
+                        "rowLimit": recorder.max_rows, "observationLimit": recorder.max_observations,
+                        "serializationCacheLimit": recorder.max_cache_rows, "storage": "disk-spool",
+                        "files": files}
+            manifest_path.write_text(_encoded(manifest) + "\n", encoding="utf-8")
+    finally:
+        if finalize:
+            recorder.close()

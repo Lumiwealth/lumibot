@@ -3638,16 +3638,21 @@ class _Strategy:
                 from lumibot.backtesting.data_provenance import write_backtest_data_provenance
 
                 write_backtest_data_provenance(data_source, logdir)
-                from lumibot.backtesting.market_input_evidence import write_market_input_evidence
-
-                write_market_input_evidence(data_source, logdir)
-                option_source = getattr(self.broker, "option_source", None)
-                if option_source is not None and option_source is not data_source:
-                    write_market_input_evidence(option_source, logdir, prefix="option_")
             except Exception as exc:
-                # Provenance is diagnostic metadata and must never make an otherwise valid
-                # trading simulation fail at the artifact-writing boundary.
+                # Diagnostics must not make an otherwise valid simulation fail.
                 self.logger.warning("Backtest data provenance artifact could not be written: %s", exc)
+
+            capture_sources = [(data_source, "")]
+            option_source = getattr(strategy.broker, "option_source", None)
+            if option_source is not None and option_source is not data_source:
+                capture_sources.append((option_source, "option_"))
+            for capture_source, prefix in capture_sources:
+                try:
+                    from lumibot.backtesting.market_input_evidence import write_market_input_evidence
+
+                    write_market_input_evidence(capture_source, logdir, prefix=prefix, finalize=True)
+                except Exception as exc:
+                    self.logger.warning("Backtest market-input artifact could not be written: %s", exc)
 
             end = datetime.datetime.now()
             backtesting_length = backtesting_end - backtesting_start

@@ -5,6 +5,7 @@
 Deploy marker: `d326af579d52b2869152e4ee7ff775e0ec1685a3`.
 
 ### Fixed
+- Backtest market-input capture streams deduplicated observations to a temporary disk spool instead of stopping at 4,096 reads or 50,000 unique rows. A bounded serialization cache limits memory independently of run length; exports stream their CSV and hashes, disclose actual capture failures, and remove the owned spool on completion or export failure. Optional explicit capture ceilings remain available without limiting trading. Input export also remains independent of unrelated provenance-export failures.
 - The README and documentation homepage put the full coding-assistant connection section directly after the framework benefits. The AI-native example explains its separate BotSpot research connection, with project setup, automatic attachment and prompt instructions. All eight localized summaries follow the same structure and retain the existing superpowers illustration.
 - Incomplete optional agent history, indicator and quote research returns visible, recoverable limitations without invalidating unrelated healthy execution. Direct strategy and portfolio-valuation data remain required.
 - Timezone-aware FRED overrides use their Chicago calendar date. Historical requests use the previous completed Chicago calendar vintage and disclose date-only timing limits, preventing morning decisions from using the same day's closing values.

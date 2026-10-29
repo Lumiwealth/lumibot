@@ -803,7 +803,20 @@ class StrategyExecutor(Thread):
                     # that the order was filled/canceled/etc before the strategy started. This is also a recovery
                     # mechanism for bot restarts where the broker has orders that lumibot does not.
                     if self.broker._first_iteration:
-                        self.broker._process_broker_synced_order(order)
+                        if order.status == Order.OrderStatus.FILLED:
+                            self.broker._process_new_order(order)
+                            self.broker._process_filled_order(order, order.avg_fill_price, order.quantity)
+                        elif order.status == Order.OrderStatus.CANCELED:
+                            self.broker._process_new_order(order)
+                            self.broker._process_canceled_order(order)
+                        elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
+                            self.broker._process_new_order(order)
+                            self.broker._process_partially_filled_order(order, order.avg_fill_price, order.quantity)
+                        elif order.status == Order.OrderStatus.NEW:
+                            self.broker._process_new_order(order)
+                        elif order.status == Order.OrderStatus.ERROR:
+                            self.broker._process_new_order(order)
+                            self.broker._process_error_order(order, order.error_message)
                     else:
                         # Some brokers return broad recent history from the order-list endpoint.
                         # Do not promote old filled/canceled/error history into a fresh active order.

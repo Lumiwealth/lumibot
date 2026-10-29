@@ -241,7 +241,7 @@ Recheck with `npm audit --omit=dev`. See, for example, the
 Funded Hyperliquid testnet qualification has verified market opening,
 reduce-only closing, multiple fill aggregation and fees, resting-order
 cancellation, service restart recovery, stable request-ID deduplication, and
-a full strategy-executor trading iteration with actual fill callbacks. Startup restores cumulative fill history without adding total order size a second time.
+a full strategy-executor trading iteration with actual fill callbacks. Connected read-only checks also run a real strategy startup and verify that historical fills never replay. Snapshot registration belongs to the MetaMask adapter; the shared executor and its native qualification fingerprint remain unchanged. Startup restores cumulative fill history without adding total order size a second time.
 Persistent partial-fill cancellation, approval interruption/denial during
 funded execution, mined swap transfer units, and native-token receipt
 conventions remain separate qualification items. Testnet spot swap routing

@@ -176,6 +176,10 @@ class MetaMask(Broker):
                 # Seed restored history once. Parsing a newer snapshot must not consume pending callbacks.
                 value = quantity * decimal_value(response.get("averagePrice", "0"))
                 self._observations[identifier] = (quantity, value, response["state"])
+                # Register cumulative snapshots before shared executor synchronization
+                # can treat them as new fills and add the full order size again.
+                if self._first_iteration or order.is_active():
+                    self._process_broker_synced_order(order)
         return order
 
     def _flatten_order(self, order):

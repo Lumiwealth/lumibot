@@ -14,7 +14,9 @@ import pytest
 
 from lumibot.brokers import MetaMask
 from lumibot.entities import Asset
+from lumibot.strategies import Strategy
 from lumibot.tools.metamask_client import MetaMaskAPIError, MetaMaskClient
+from lumibot.traders import Trader
 
 pytestmark = [pytest.mark.apitest, pytest.mark.metamask]
 
@@ -112,3 +114,38 @@ def test_connected_scope_denials_do_not_create_operations(connected):
         with pytest.raises(MetaMaskAPIError, match="INVALID_INPUT"):
             broker.client.call("POST", "/v1/orders", payload={"kind": "rawTransaction"})
         assert broker.client.call("GET", "/v1/orders") == before
+
+
+def test_connected_strategy_restores_history_without_replaying_fills(connected):
+    _, brokers = connected
+    broker = brokers[0]
+    iterations, callbacks = [], []
+
+    class ReadOnlyStrategy(Strategy):
+        def initialize(self, parameters=None):
+            self.sleeptime = "1S"
+
+        def on_trading_iteration(self):
+            broker.do_polling()
+            broker.do_polling()
+            iterations.append(True)
+
+        def on_filled_order(self, position, order, price, quantity, multiplier):
+            callbacks.append(str(order.identifier))
+
+    strategy = ReadOnlyStrategy(
+        broker=broker, name="connected-history-read", quote_asset=Asset("USDC", asset_type="crypto"),
+        benchmark_asset=None, analyze_backtest=False,
+    )
+    trader = Trader(quiet_logs=True)
+    trader.add_strategy(strategy)
+    trader.run_all(run_once=True, show_plot=False, show_tearsheet=False,
+                   save_tearsheet=False, show_indicators=False)
+    assert iterations == [True]
+    assert callbacks == []
+    for order in broker.get_all_orders():
+        raw = order._raw
+        if raw and raw.get("averagePrice"):
+            # A cumulative venue snapshot must not gain another full-size fill at startup.
+            quantity = sum((Decimal(str(t.quantity)) for t in order.transactions), Decimal(0))
+            assert quantity == Decimal(raw["filledQuantity"])

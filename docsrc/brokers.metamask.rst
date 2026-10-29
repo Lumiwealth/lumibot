@@ -146,6 +146,8 @@ token revocation have been verified. A dedicated Hyperliquid testnet wallet
 has also passed market open/close, multiple-fill accounting, resting-order
 cancellation, restart recovery and a full strategy-executor iteration with fill
 callbacks. Restored cumulative fills are not replayed into order transactions.
+Connected read-only checks also verify strategy startup and polling against
+real saved history without placing orders.
 Qualify your own funded wallet and its approval/recovery paths. The
 pinned MetaMask dependency tree also has unresolved upstream security advisories;
 this beta is not production-qualified. See the engineering guide for the audit,

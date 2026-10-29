@@ -13,7 +13,7 @@ Deploy marker: `d326af579d52b2869152e4ee7ff775e0ec1685a3`.
 ### Fixed
 - MetaMask clean installs on Node 22/npm 10 include the legacy WebSocket optional UTF-8 validation peer that npm 11 omitted from its lockfile.
 - MetaMask honors canonical reduce-only intent from shared close-position/sell-all actions and restores it from venue snapshots; custom parameters cannot turn a closing order into an opening order.
-- MetaMask startup restores cumulative filled and partially filled order snapshots without adding total order quantity again; executor restoration uses the existing broker hook.
+- MetaMask startup restores cumulative filled and partially filled order snapshots without adding total order quantity again; the adapter registers restored snapshots through its broker hook before shared executor synchronization.
 - MetaMask vendor UUID 8/9 paths use patched CommonJS-compatible UUID 11.1.1. Real managed-wallet signing, browser bundling and vendor JSON-RPC request IDs were verified; unresolved upstream dependency advisories remain documented.
 - MetaMask strategy startup restores terminal order history without duplicating tracked orders. Account synchronization no longer consumes fill deltas before the polling stream can deliver strategy callbacks.
 - Backtest market-input capture streams deduplicated observations to a temporary disk spool instead of stopping at 4,096 reads or 50,000 unique rows. A bounded serialization cache limits memory independently of run length; exports stream their CSV and hashes, disclose actual capture failures, and remove the owned spool on completion or export failure. Optional explicit capture ceilings remain available without limiting trading. Input export also remains independent of unrelated provenance-export failures.

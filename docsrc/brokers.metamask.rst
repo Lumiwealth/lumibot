@@ -16,7 +16,8 @@ Setup
 -----
 
 Use the ``integrations/metamask`` directory from the same LumiBot revision.
-Node 24 is recommended; Node 22.18 or later is required.
+Node 24 is recommended. Node 22 releases from 22.18 onward are also supported.
+The checked-in lockfile supports their bundled npm 10 and npm 11 installers.
 
 .. code-block:: console
 

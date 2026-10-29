@@ -201,7 +201,8 @@ restart, independent journals and concurrent engine reconciliation.
 The 2026-10-29 clean-install audit reports 68 affected production package
 entries: 6 high, 2 moderate, 60 low, and zero critical. Legacy UUID 8/9 vendor
 paths use the patched 11.1.1 release, which retains the CommonJS entry points
-used by the SDK. Vendor JSON-RPC request-ID behavior, buffer-bound checks,
+used by the SDK. The lockfile also records the legacy WebSocket optional
+UTF-8 validation peer required for clean installs with npm 10 and npm 11. Vendor JSON-RPC request-ID behavior, buffer-bound checks,
 browser bundling, and real managed-wallet EIP-712 signing were verified after
 the change. The [UUID advisory](https://github.com/advisories/GHSA-w5hq-g745-h8pq)
 is no longer present. The audit still reports upstream issues in

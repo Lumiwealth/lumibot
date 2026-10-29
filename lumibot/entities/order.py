@@ -1560,6 +1560,8 @@ class Order:
         if asset_data and isinstance(asset_data, dict):
             # Assuming Asset has its own from_dict method
             asset_obj = entities.Asset.from_dict(asset_data)
+        quote_data = order_dict.get('quote')
+        quote_obj = entities.Asset.from_dict(quote_data) if isinstance(quote_data, dict) else quote_data
 
         # Extract essential arguments, using None if the values are missing
         strategy = order_dict.get('strategy', None)
@@ -1571,6 +1573,7 @@ class Order:
             strategy=strategy,
             side=side,
             asset=asset_obj,  # Pass the constructed asset object
+            quote=quote_obj,
             quantity=quantity
         )
 
@@ -1581,7 +1584,7 @@ class Order:
 
         # Handle additional fields directly after the instance is created
         for key, value in order_dict.items():
-            if key not in ['strategy', 'side', 'asset', 'quantity'] and key not in non_serializable_keys:
+            if key not in ['strategy', 'side', 'asset', 'quote', 'quantity'] and key not in non_serializable_keys:
 
                 # Convert datetime strings back to datetime objects
                 if isinstance(value, str) and "T" in value:

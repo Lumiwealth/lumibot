@@ -1340,3 +1340,21 @@ them to a repository. Do not commit ``.env.local`` either. If a key was ever
 pushed to a repository, GitHub's guide says the first step is to revoke or
 rotate that secret. See
 `Removing sensitive data from a repository <https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository>`_.
+
+
+MetaMask Agent Wallet (beta)
+---------------------------
+
+Set ``TRADING_BROKER=metamask`` and optionally ``DATA_SOURCE=metamask``.
+See :doc:`brokers.metamask` for local service setup and qualification limits.
+
+* ``METAMASK_BROKER_URL``: loopback service URL; defaults to
+  ``http://127.0.0.1:8766``.
+* ``METAMASK_BROKER_TOKEN``: required agent-scoped runtime token from setup.
+* ``METAMASK_WALLET_ADDRESS``: required expected agent wallet address.
+* ``METAMASK_NETWORK``: ``testnet`` (default) or ``mainnet``. The service must
+  explicitly enable mainnet; this setting alone does not grant permission.
+* ``METAMASK_MODE``: ``perp`` (default) for Hyperliquid or ``spot`` for exact-input
+  onchain swaps.
+
+Keep the local admin token and MetaMask CLI session outside strategy environments.

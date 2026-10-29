@@ -42,6 +42,16 @@ def _parse_datetime(value):
     return _DATEUTIL_PARSER.parse(value)
 
 
+def _metamask_config():
+    return {
+        "BROKER_URL": os.environ.get("METAMASK_BROKER_URL", "http://127.0.0.1:8766"),
+        "BROKER_TOKEN": os.environ.get("METAMASK_BROKER_TOKEN"),
+        "WALLET_ADDRESS": os.environ.get("METAMASK_WALLET_ADDRESS"),
+        "NETWORK": os.environ.get("METAMASK_NETWORK", "testnet"),
+        "MODE": os.environ.get("METAMASK_MODE", "perp"),
+    }
+
+
 def _broker_class(name: str):
     from . import brokers
 
@@ -59,6 +69,7 @@ _BROKER_CLASS_NAMES = {
     "Bitunix",
     "ProjectX",
     "Polymarket",
+    "MetaMask",
     "Kalshi",
 }
 
@@ -700,6 +711,10 @@ def _build_default_live_credentials():
             broker = _broker_class("Schwab")(SCHWAB_CONFIG, connect_stream=connect_stream)
         elif broker_name == "bitunix":
             broker = _broker_class("Bitunix")(BITUNIX_CONFIG, connect_stream=connect_stream)
+        elif broker_name == "metamask":
+            broker = _broker_class("MetaMask")(
+                _metamask_config(), connect_stream=connect_stream, start_orders_thread=start_orders_thread
+            )
         elif broker_name == "kalshi":
             broker = _broker_class("Kalshi")(KALSHI_CONFIG, connect_stream=connect_stream)
             data_source = broker.data_source
@@ -871,6 +886,10 @@ def _build_default_live_credentials():
                 data_source = SchwabData(account_number=SCHWAB_CONFIG["SCHWAB_ACCOUNT_NUMBER"])
                 if broker and broker.name.lower() == "schwab" and hasattr(broker, "client"):
                     data_source.set_client(broker.client)
+            elif data_name == "metamask":
+                from .data_sources import MetaMaskData
+
+                data_source = MetaMaskData(_metamask_config())
             elif data_name == "kalshi":
                 from .data_sources import KalshiData
 
@@ -997,6 +1016,10 @@ elif not is_backtesting or is_backtesting.lower() == "false":
             broker = _broker_class("Schwab")(SCHWAB_CONFIG, connect_stream=connect_stream)
         elif trading_broker_name.lower() == "bitunix":
             broker = _broker_class("Bitunix")(BITUNIX_CONFIG, connect_stream=connect_stream)
+        elif trading_broker_name.lower() == "metamask":
+            broker = _broker_class("MetaMask")(
+                _metamask_config(), connect_stream=connect_stream, start_orders_thread=start_orders_thread
+            )
         elif trading_broker_name.lower() == "kalshi":
             broker = _broker_class("Kalshi")(KALSHI_CONFIG, connect_stream=connect_stream)
             data_source = broker.data_source
@@ -1189,6 +1212,10 @@ elif not is_backtesting or is_backtesting.lower() == "false":
                 # If broker is also Schwab, share the client
                 if broker and broker.name.lower() == "schwab" and hasattr(broker, "client"):
                     data_source.set_client(broker.client)
+            elif data_source_name.lower() == "metamask":
+                from .data_sources import MetaMaskData
+
+                data_source = MetaMaskData(_metamask_config())
             elif data_source_name.lower() == "kalshi":
                 from .data_sources import KalshiData
 

@@ -334,6 +334,7 @@ def pytest_runtest_setup(item: pytest.Item):
       - thetadata: requires ThetaData credentials
       - ibkr: downloader-only IBKR tests; does not require Polygon/ThetaData creds
       - kalshi: Kalshi tests; credentials are checked by the provider fixture
+      - metamask: MetaMask testnet checks; private configuration is checked by the provider fixture
       - polymarket: Polymarket CLOB tests; does not require Polygon/ThetaData creds
       - polymarket_credentials: requires Polymarket wallet/CLOB credentials
       - polymarket_live_trading: requires explicit live-trading enablement
@@ -356,13 +357,21 @@ def pytest_runtest_setup(item: pytest.Item):
     requires_theta = item.get_closest_marker("thetadata") is not None
     requires_ibkr = item.get_closest_marker("ibkr") is not None
     requires_kalshi = item.get_closest_marker("kalshi") is not None
+    requires_metamask = item.get_closest_marker("metamask") is not None
     requires_polymarket = item.get_closest_marker("polymarket") is not None
     requires_polymarket_credentials = item.get_closest_marker("polymarket_credentials") is not None
     requires_polymarket_live_trading = item.get_closest_marker("polymarket_live_trading") is not None
     requires_public_http = item.get_closest_marker("public_http") is not None
 
     # Determine which providers are required
-    if requires_public_http or requires_ibkr or requires_polymarket or requires_kalshi or requires_alpaca:
+    if (
+        requires_public_http
+        or requires_ibkr
+        or requires_polymarket
+        or requires_kalshi
+        or requires_metamask
+        or requires_alpaca
+    ):
         need_polygon = False
         need_theta = False
     elif requires_polygon or requires_theta:

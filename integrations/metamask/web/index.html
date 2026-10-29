@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>MetaMask · LumiBot</title>
+    <style>
+      :root {
+        font:
+          15px/1.5 system-ui,
+          sans-serif;
+        color: #192627;
+        background: #f4f6f5;
+        color-scheme: light;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+      }
+      main {
+        max-width: 1000px;
+        margin: auto;
+        padding: 28px 22px 64px;
+        overflow-wrap: anywhere;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+      }
+      h1 {
+        font-size: 26px;
+        line-height: 1.15;
+        margin: 0;
+      }
+      h2 {
+        font-size: 18px;
+        margin: 0 0 14px;
+      }
+      p {
+        margin: 10px 0;
+        color: #435b5b;
+      }
+      section {
+        border-top: 1px solid #cbd7d2;
+        padding-block: 22px;
+      }
+      form,
+      .fields {
+        display: grid;
+        gap: 12px;
+      }
+      .columns {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 28px;
+      }
+      .columns:has(#scope[hidden]) {
+        grid-template-columns: 1fr;
+      }
+      label {
+        display: grid;
+        gap: 5px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      input,
+      select,
+      textarea,
+      button {
+        font: inherit;
+        min-height: 42px;
+        border-radius: 6px;
+        border: 1px solid #a2b5ad;
+      }
+      input,
+      select,
+      textarea {
+        padding: 9px 10px;
+        background: white;
+        width: 100%;
+        color: inherit;
+      }
+      textarea {
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+        min-height: 130px;
+      }
+      button {
+        padding: 8px 14px;
+        background: #174d3c;
+        color: white;
+        border-color: #174d3c;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      button.secondary {
+        background: transparent;
+        color: #174d3c;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: wait;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .row > * {
+        flex: 1;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .hint {
+        font-size: 13px;
+        color: #566966;
+      }
+      pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        font-size: 12px;
+        background: #e8eeeb;
+        border-radius: 6px;
+        padding: 12px;
+      }
+      #notice {
+        position: sticky;
+        top: 0;
+        background: #e6f1ea;
+        color: #153c30;
+        padding: 12px;
+        border-left: 3px solid #22674c;
+        margin-bottom: 16px;
+      }
+      #notice.error {
+        background: #fff0e8;
+        color: #7e2810;
+        border-color: #b04421;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      a {
+        color: #17523e;
+      }
+      details {
+        margin-top: 15px;
+      }
+      summary {
+        cursor: pointer;
+        font-weight: 600;
+      }
+      .binding {
+        padding-block: 12px;
+        border-bottom: 1px solid #d6dfda;
+      }
+      .binding p {
+        margin: 5px 0;
+      }
+      code {
+        overflow-wrap: anywhere;
+      }
+      fieldset {
+        border: 0;
+        padding: 0;
+        margin: 0;
+      }
+      small {
+        font-weight: 400;
+      }
+      input:focus-visible,
+      button:focus-visible,
+      select:focus-visible,
+      textarea:focus-visible,
+      summary:focus-visible {
+        outline: 3px solid #90bdaa;
+        outline-offset: 2px;
+      }
+      @media (max-width: 650px) {
+        .columns {
+          grid-template-columns: 1fr;
+          gap: 0;
+        }
+        main {
+          padding: 20px 16px 40px;
+        }
+        .row {
+          align-items: stretch;
+        }
+        h1 {
+          font-size: 23px;
+        }
+        header {
+          align-items: flex-start;
+          gap: 12px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>MetaMask broker</h1>
+          <p>Dedicated agent wallets. Bounded trading authority.</p>
+        </div>
+        <span>Testnet setup</span>
+      </header>
+      <div id="notice" role="status" aria-live="polite" hidden></div>
+      <section id="unlock">
+        <h2>Unlock local setup</h2>
+        <form id="unlock-form">
+          <label
+            >Local admin token<input
+              id="admin-token"
+              type="password"
+              autocomplete="off"
+              required
+          /></label>
+          <p class="hint">
+            Use the admin-token file shown when starting this service. Owner
+            credentials stay here; bots receive separate scoped tokens.
+          </p>
+          <div><button>Unlock</button></div>
+        </form>
+      </section>
+      <div id="setup" hidden>
+        <section id="login">
+          <h2>1. Sign in to MetaMask Agent Wallet</h2>
+          <p>
+            Open the official dashboard, sign in, then copy its CLI token here.
+            Never enter a seed phrase or private key.
+          </p>
+          <p>
+            <a id="login-link" target="_blank" rel="noopener noreferrer"
+              >Open MetaMask Agent Wallet</a
+            >
+          </p>
+          <form id="login-form">
+            <label
+              >MetaMask CLI token<input
+                id="cli-token"
+                type="password"
+                autocomplete="off"
+                required
+            /></label>
+            <div><button>Import session</button></div>
+          </form>
+        </section>
+        <section id="wallets" hidden>
+          <h2>2. Create a wallet for this agent</h2>
+          <form id="wallet-form">
+            <div class="row">
+              <label
+                >Agent name<input
+                  id="wallet-name"
+                  placeholder="research-agent"
+                  pattern="[a-zA-Z0-9_-]{1,100}"
+                  required
+              /></label>
+              <div><button>Create agent wallet</button></div>
+            </div>
+          </form>
+          <label
+            >Agent wallet<select id="wallet-select">
+              <option value="">Select wallet</option>
+            </select></label
+          >
+          <div class="actions">
+            <button id="refresh-wallets" class="secondary">
+              Refresh wallets</button
+            ><button id="load-policy" class="secondary">
+              Review Guard policy
+            </button>
+          </div>
+          <div id="policy-area" hidden>
+            <p id="guard-state"></p>
+            <label
+              >MetaMask trading policy<textarea id="policy"></textarea>
+            </label>
+            <div class="actions">
+              <button id="save-policy">Submit policy for approval</button
+              ><button id="guard-mode" class="secondary">
+                Enable Guard Mode
+              </button>
+            </div>
+            <p class="hint">
+              MetaMask may request approval on your bound device. Refresh after
+              approval. Runtime bindings stop trading if this policy changes.
+            </p>
+            <button id="refresh-policy-approvals" class="secondary">
+              Refresh policy approvals
+            </button>
+            <div id="policy-approvals" role="status"></div>
+          </div>
+        </section>
+        <div class="columns">
+          <section id="scope">
+            <h2>3. Limit trading authority</h2>
+            <form id="binding-form">
+              <label
+                >Agent ID<input
+                  id="agent-id"
+                  pattern="[a-zA-Z0-9_-]{1,100}"
+                  required
+              /></label>
+              <div class="row">
+                <label
+                  >Per order · USD<input
+                    id="order-limit"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value="10"
+                    required /></label
+                ><label
+                  >Rolling 24h · USD<input
+                    id="daily-limit"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value="25"
+                    required
+                /></label>
+              </div>
+              <div class="row">
+                <label
+                  >Leverage ceiling<input
+                    id="leverage"
+                    type="number"
+                    min="1"
+                    max="50"
+                    value="1"
+                    required /></label
+                ><label
+                  >Slippage · bps<input
+                    id="slippage"
+                    type="number"
+                    min="1"
+                    max="500"
+                    value="50"
+                    required /></label
+                ><label
+                  >Expires in · hours<input
+                    id="expiry"
+                    type="number"
+                    min="1"
+                    max="168"
+                    value="24"
+                    required
+                /></label>
+              </div>
+              <label
+                >Allowed Hyperliquid markets<small
+                  >Comma-separated, exact venue symbols. Leave empty for swaps
+                  only.</small
+                ><input id="markets" placeholder="BTC, ETH" /></label
+              ><label
+                >Testnet chain IDs<small
+                  >Explicit chain allowlist. Sepolia: 11155111; Arbitrum
+                  Sepolia: 421614.</small
+                ><input id="chains" value="11155111" required
+              /></label>
+              <details>
+                <summary>Onchain token allowlist</summary>
+                <p class="hint">
+                  Exact contracts and decimals from the token issuer. No
+                  symbol-based address lookup. Tokens lacking reliable USD
+                  prices cannot trade under USD limits.
+                </p>
+                <label
+                  >Token records · JSON<textarea id="assets">[]</textarea>
+                </label>
+                <p class="hint">
+                  Each record: symbol, chainId, address (or "native"), decimals.
+                </p>
+              </details>
+              <button>Create scoped broker token</button>
+            </form>
+            <div id="credentials" hidden>
+              <p>
+                Save this token in your strategy's secret configuration.
+                Displayed once; reload clears it.
+              </p>
+              <pre id="credential-output"></pre>
+              <button id="hide-token" class="secondary">Hide token</button>
+            </div>
+          </section>
+          <section>
+            <h2>Browser wallet</h2>
+            <p>
+              Connect your normal MetaMask wallet to fund an agent with testnet
+              ETH. Every funding transaction needs your approval.
+            </p>
+            <div class="actions">
+              <button id="connect" class="secondary">Connect MetaMask</button
+              ><button id="disconnect" class="secondary" hidden>
+                Disconnect
+              </button>
+            </div>
+            <p id="browser-wallet">No browser wallet connected.</p>
+            <form id="fund-form" hidden>
+              <label
+                >Testnet network<select id="fund-chain">
+                  <option value="11155111">Ethereum Sepolia</option>
+                  <option value="421614">Arbitrum Sepolia</option>
+                </select></label
+              ><label
+                >ETH amount<input
+                  id="fund-amount"
+                  type="number"
+                  min="0.000001"
+                  step="0.000001"
+                  required
+              /></label>
+              <p class="hint">
+                Recipient: selected agent wallet above. This funds native gas;
+                Hyperliquid testnet collateral is separate.
+              </p>
+              <button>Review funding in MetaMask</button>
+            </form>
+            <details>
+              <summary>Smart account permissions</summary>
+              <p class="hint">
+                Inspect ERC-7715 support and existing grants. Server agent
+                wallets use Guard policies and separate funding. This broker
+                does not redeem browser-wallet delegations.
+              </p>
+              <button id="permissions" class="secondary">
+                Inspect permissions
+              </button>
+              <pre id="permission-output" hidden></pre>
+            </details>
+          </section>
+        </div>
+        <section>
+          <h2>Active agents</h2>
+          <div id="bindings"></div>
+          <button id="refresh-status" class="secondary">Refresh agents</button>
+        </section>
+        <section>
+          <h2>Orders and approvals</h2>
+          <label>Agent<select id="operation-agent"></select></label
+          ><button id="refresh-operations" class="secondary">
+            Refresh orders
+          </button>
+          <div id="operations"></div>
+        </section>
+      </div>
+      <p class="hint">
+        Local beta integration. Provider approvals, token support, and testnet
+        execution must be verified with your wallet before relying on unattended
+        operation.
+      </p>
+    </main>
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>

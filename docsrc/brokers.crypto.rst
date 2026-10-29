@@ -18,6 +18,9 @@ LumiBot trades crypto on 100+ exchanges through one shared crypto broker (built 
    * - 100+ exchanges (built on the open source CCXT library)
      - Spot, margin, perpetual swaps or futures, depending on the exchange
      - :doc:`How crypto exchange setup works <brokers.ccxt>`
+   * - MetaMask Agent Wallet (beta)
+     - Dedicated agent wallets, exact-input swaps, and Hyperliquid perpetuals
+     - :doc:`MetaMask setup and limits <brokers.metamask>`
    * - Bitunix
      - USDT perpetual futures only (no spot)
      - :doc:`Bitunix guide <brokers.bitunix>`
@@ -27,6 +30,7 @@ LumiBot trades crypto on 100+ exchanges through one shared crypto broker (built 
    :hidden:
 
    How crypto exchange setup works <brokers.ccxt>
+   MetaMask Agent Wallet beta <brokers.metamask>
    Bitunix <brokers.bitunix>
    Alpaca <brokers.alpaca>
 

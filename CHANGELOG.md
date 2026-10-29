@@ -4,6 +4,10 @@
 
 Deploy marker: `d326af579d52b2869152e4ee7ff775e0ec1685a3`.
 
+### Added
+- Optional MetaMask Agent Wallet broker beta: dedicated server-wallet bindings, scoped runtime tokens, Guard policy checks, durable order reservations and reconciliation, Hyperliquid perpetuals, exact-input onchain swap operations, and local MetaMask Connect setup. Crypto assets retain EVM chain and contract identity.
+- MetaMask qualification supports persisted policy approvals, signature-boundary authority checks, IOC market quotes, explicit unsupported testnet swap routes, and connected broker checks. Funded open/close, multi-fill aggregation, restart recovery and cancellation have been exercised on Hyperliquid testnet; broader qualification remains in progress.
+
 ### Fixed
 - Backtest market-input capture streams deduplicated observations to a temporary disk spool instead of stopping at 4,096 reads or 50,000 unique rows. A bounded serialization cache limits memory independently of run length; exports stream their CSV and hashes, disclose actual capture failures, and remove the owned spool on completion or export failure. Optional explicit capture ceilings remain available without limiting trading. Input export also remains independent of unrelated provenance-export failures.
 - The README and documentation homepage put the full coding-assistant connection section directly after the framework benefits. The AI-native example explains its separate BotSpot research connection, with project setup, automatic attachment and prompt instructions. All eight localized summaries follow the same structure and retain the existing superpowers illustration.

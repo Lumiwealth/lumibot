@@ -153,6 +153,7 @@ def test_broker_index_lists_every_broker_page_and_splits_dex():
     conf = _load_docs_config()
     rows = conf.broker_index_rows(str(DOCSRC))
     docnames = {row[3] for row in rows}
+    assert any(row[0] == "Kalshi" and row[3] == "brokers.prediction_markets" for row in rows)
     for page in DOCSRC.glob("brokers.*.rst"):
         if page.stem.startswith("brokers.ccxt.") or page.stem in {
             "brokers.alpaca", "brokers.bitunix", "brokers.ccxt", "brokers.schwab", "brokers.tradier",
@@ -194,15 +195,22 @@ def test_exchanges_sit_directly_under_crypto_exchanges_with_plain_names():
 
 def test_callout_says_free_and_never_paid_plan_required():
     text = SNIPPET.read_text(encoding="utf-8")
-    assert "free" in text.lower() and "strongly recommended" in text.lower()
-    assert "why-botspot-mcp" in text
+    # Keep the benefits heading distinct from the surrounding connection section;
+    # the shared include supplies the one setup button.
+    assert "free" in text.lower() and "What BotSpot MCP adds" in text
+    assert ".. include:: /_snippets/botspot_mcp_connect.rst" in text
+    button = (DOCSRC / "_snippets" / "botspot_mcp_connect.rst").read_text(encoding="utf-8")
+    assert "Connect your AI assistant" in button
+    assert "Add custom connector" not in text
     assert "paid plan is required" not in text.lower()
     mcp = (DOCSRC / "botspot_mcp.rst").read_text(encoding="utf-8")
     assert ".. _why-botspot-mcp:" in mcp
     assert "paid botspot plan is required" not in mcp.lower()
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "paid botspot plan is required" not in readme.lower()
-    assert "connect the free [BotSpot MCP]" in readme[:3000]
+    # October 26: connection is a separate section after the strategy examples.
+    connection = readme.split("## Connect your AI assistant")[1].split("## Explore LumiBot")[0]
+    assert "Connect the free [BotSpot MCP]" in connection
 
 
 def test_exchange_pages_never_use_exchange_id_as_backtesting_data_source():

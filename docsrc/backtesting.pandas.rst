@@ -49,6 +49,12 @@ dividend and a Wednesday bar leaves the dividend on Monday only. Duplicate
 timestamps retain the first input row. An action whose timestamp is absent from
 the requested index is not moved to another row by price-mark filling.
 
+If a nonzero action falls between the first and last retained timestamps but has
+no matching row, LumiBot warns once per data object. The message names the asset
+and affected columns. Check that your action timestamps match the alignment
+index. Actions outside this window, zero/null events and discarded duplicate
+rows do not trigger this warning.
+
 .. code-block:: python
 
     Index: 

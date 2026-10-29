@@ -1387,6 +1387,19 @@ class Alpaca(Broker):
                 return
             if status != "filled":
                 raise
+            if not self._reconcile_confirmed_fill(order, confirmed):
+                raise cancel_error
+
+    def _reconcile_confirmed_fill(self, order, confirmed):
+        """Process only unrecorded quantity from a confirmed cumulative fill.
+
+        Account synchronization and submit responses can copy a terminal status
+        before the fill lifecycle runs. Transactions are the processed receipt;
+        a matching status string alone is not proof of callback delivery.
+        """
+        with self._lock:
+            if str(getattr(confirmed, "id", "")) != str(order.identifier):
+                return False
             try:
                 total_quantity = Decimal(str(confirmed.filled_qty))
                 price = Decimal(str(confirmed.filled_avg_price))
@@ -1400,28 +1413,37 @@ class Alpaca(Broker):
                 remaining_quantity = total_quantity - prior_quantity
                 if (order.is_filled() and total_quantity.is_finite() and price.is_finite()
                         and total_quantity == Decimal(str(order.quantity)) == prior_quantity
-                        and price > 0 and prior_value == total_quantity * price):
-                    # The broker lookup, not the local status, confirms that a
-                    # repeated explicit cancellation has no missing fill event.
-                    return
+                        and price > 0):
+                    return True
                 remaining_price = (total_quantity * price - prior_value) / remaining_quantity
                 valid_fill = (
-                    total_quantity.is_finite() and price.is_finite()
+                    str(confirmed.id) == str(order.identifier)
+                    and total_quantity.is_finite() and price.is_finite()
                     and total_quantity == Decimal(str(order.quantity))
                     and price > 0 and remaining_quantity > 0
                     and prior_quantity.is_finite() and prior_quantity >= 0
                     and remaining_price.is_finite() and remaining_price > 0
                 )
             except Exception:
-                raise cancel_error from None
+                return False
             if not valid_fill:
-                raise
+                return False
+            if getattr(order, "_alpaca_confirmed_fill_pending", False):
+                return True
+            order._alpaca_confirmed_fill_pending = True
             order.update_raw(confirmed)
             order.avg_fill_price = float(price)
+        # Never call a strategy subscriber while holding the broker tracker
+        # lock: the strategy executor can hold its own lock while querying it.
+        try:
             self._process_trade_event(
                 order, self.FILLED_ORDER, price=float(remaining_price),
                 filled_quantity=float(remaining_quantity), multiplier=order.asset.multiplier,
             )
+            return True
+        finally:
+            with self._lock:
+                order._alpaca_confirmed_fill_pending = False
 
 
     def _modify_order(
@@ -1825,7 +1847,7 @@ class Alpaca(Broker):
 
             # Get current orders from Alpaca and dispatch them to the stream for processing
             raw_orders = self._pull_broker_all_orders()
-            stored_orders = {x.identifier: x for x in self.get_all_orders()}
+            stored_orders = {str(x.identifier): x for x in self.get_all_orders()}
 
             # Only log summary, not detailed per-order processing
             logger.debug(f"OAuth Polling: Found {len(raw_orders)} raw orders from Alpaca, {len(stored_orders)} stored orders in Lumibot")
@@ -1843,11 +1865,12 @@ class Alpaca(Broker):
                 logger.debug(f"OAuth Polling: Processing Alpaca order {order.identifier} with status {order.status}")
 
                 # Check if this order exists in our stored orders
-                if order.identifier in stored_orders:
-                    stored_order = stored_orders[order.identifier]
+                if str(order.identifier) in stored_orders:
+                    stored_order = stored_orders[str(order.identifier)]
 
                     # Check if the status has changed
-                    if stored_order.status != order.status:
+                    if (stored_order.status != order.status
+                            or (order.is_filled() and not stored_order._filled_event.is_set())):
                         logger.debug(f"OAuth Polling: Order status changed - {order.identifier}: {stored_order.status} -> {order.status}")
 
                         # Update the stored order with new data and dispatch the event
@@ -1866,14 +1889,8 @@ class Alpaca(Broker):
 
                         # Dispatch the appropriate event based on the new status
                         if order.status == "filled" or order.status == "fill": 
-                            # Get price and quantity with proper fallbacks for Alpaca API
-                            price = (getattr(alpaca_order, 'filled_avg_price', None) or
-                                   getattr(alpaca_order, 'avg_fill_price', None) or
-                                   getattr(order, 'limit_price', None))
-                            filled_qty = (getattr(alpaca_order, 'filled_qty', None) or
-                                        getattr(alpaca_order, 'qty', None) or
-                                        getattr(order, 'quantity', None))
-                            self.stream.dispatch(self.FILLED_ORDER, order=stored_order, price=price, filled_quantity=filled_qty)
+                            if not self._reconcile_confirmed_fill(stored_order, alpaca_order):
+                                raise ValueError("Alpaca fill observation has inconsistent quantity or price")
                         elif order.status == "partially_filled":
                             # Get price and quantity with proper fallbacks for Alpaca API
                             price = (getattr(alpaca_order, 'filled_avg_price', None) or
@@ -1892,13 +1909,13 @@ class Alpaca(Broker):
                         stored_order.status = order.status
 
             # Check for orders that are no longer in the broker's list
-            tracked_orders = {x.identifier: x for x in self.get_tracked_orders()}
-            broker_ids = [getattr(o, 'id', None) for o in raw_orders if hasattr(o, 'id')]
+            tracked_orders = {str(x.identifier): x for x in self.get_tracked_orders()}
+            broker_ids = [str(o.id) for o in raw_orders if getattr(o, 'id', None) is not None]
 
             logger.debug(f"OAuth Polling: Checking {len(tracked_orders)} tracked orders against {len(broker_ids)} broker order IDs")
 
             for order_id, order in tracked_orders.items():
-                if order_id not in broker_ids and order.is_active():
+                if order_id not in broker_ids and (order.is_active() or not order._closed_event.is_set()):
                     # Instead of assuming cancellation, verify the order individually
                     # This is much more robust than relying on timing or presence in bulk lists
                     try:
@@ -1907,7 +1924,9 @@ class Alpaca(Broker):
                         logger.debug(f"OAuth Polling: Individual lookup found order {order_id} with status {individual_order.status}")
 
                         # Update status based on individual lookup
-                        if individual_order.status != order.status:
+                        if (individual_order.status != order.status
+                                or (str(individual_order.status) in ("filled", "fill")
+                                    and not order._filled_event.is_set())):
                             logger.debug(f"OAuth Polling: Individual order status changed - {order_id}: {order.status} -> {individual_order.status}")
                             order.update_raw(individual_order)
 
@@ -1924,14 +1943,8 @@ class Alpaca(Broker):
 
                             # Dispatch appropriate event based on new status
                             if individual_order.status in ["filled", "fill"]:
-                                # Get price and quantity with proper fallbacks for Alpaca API
-                                price = (getattr(individual_order, 'filled_avg_price', None) or
-                                       getattr(individual_order, 'avg_fill_price', None) or
-                                       getattr(order, 'limit_price', None))
-                                filled_qty = (getattr(individual_order, 'filled_qty', None) or
-                                            getattr(individual_order, 'qty', None) or
-                                            getattr(order, 'quantity', None))
-                                self.stream.dispatch(self.FILLED_ORDER, order=order, price=price, filled_quantity=filled_qty)
+                                if not self._reconcile_confirmed_fill(order, individual_order):
+                                    raise ValueError("Alpaca fill observation has inconsistent quantity or price")
                             elif individual_order.status == "canceled":
                                 self.stream.dispatch(self.CANCELED_ORDER, order=order)
 

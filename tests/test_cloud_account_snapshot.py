@@ -1,3 +1,4 @@
+import requests
 import json
 import logging
 import datetime as dt
@@ -61,7 +62,7 @@ def test_cloud_transport_never_logs_credentials_or_echoed_headers(monkeypatch, c
     response.status_code = status
     response.headers = {"x-echo": strategy.lumiwealth_api_key}
     response.text = strategy.lumiwealth_api_key
-    monkeypatch.setattr("lumibot.strategies._strategy.requests.post", lambda *args, **kwargs: response)
+    monkeypatch.setattr(requests, "post", lambda *args, **kwargs: response)
     with caplog.at_level(logging.DEBUG):
         _Strategy.send_update_to_cloud(strategy)
     assert strategy.lumiwealth_api_key not in caplog.text
@@ -76,7 +77,7 @@ def test_cloud_update_marks_successful_broker_snapshot_verified(monkeypatch):
         payloads.append(data)
         return _Response()
 
-    monkeypatch.setattr("lumibot.strategies._strategy.requests.post", fake_post)
+    monkeypatch.setattr(requests, "post", fake_post)
 
     result = _Strategy.send_update_to_cloud(strategy)
 
@@ -117,7 +118,7 @@ def test_balance_observation_time_precedes_slow_funding_fetch(monkeypatch, sende
     strategy.broker.get_cash_events = lambda **_kwargs: []
     strategy.broker.get_cash_event_sync = get_sync
     payloads = []
-    monkeypatch.setattr(module.requests, "post", lambda _url, **kwargs:
+    monkeypatch.setattr(requests, "post", lambda _url, **kwargs:
                         payloads.append(json.loads(kwargs["data"])) or _Response())
 
     assert getattr(_Strategy, sender)(strategy) is True
@@ -133,7 +134,7 @@ def test_cloud_update_uses_production_listener_by_default(monkeypatch):
 
     monkeypatch.delenv("LISTENER_WRITE_URL", raising=False)
     monkeypatch.setattr(
-        "lumibot.strategies._strategy.requests.post",
+        requests, "post",
         lambda url, **_kwargs: urls.append(url) or _Response(),
     )
 
@@ -147,7 +148,7 @@ def test_cloud_update_uses_production_listener_for_blank_override(monkeypatch):
 
     monkeypatch.setenv("LISTENER_WRITE_URL", "  ")
     monkeypatch.setattr(
-        "lumibot.strategies._strategy.requests.post",
+        requests, "post",
         lambda url, **_kwargs: urls.append(url) or _Response(),
     )
 
@@ -165,7 +166,7 @@ def test_cloud_update_uses_configured_listener(monkeypatch):
         "https://listener.dev.example/portfolio_events",
     )
     monkeypatch.setattr(
-        "lumibot.strategies._strategy.requests.post",
+        requests, "post",
         lambda url, **kwargs: (
             urls.append(url),
             timeouts.append(kwargs.get("timeout")),
@@ -188,7 +189,7 @@ def test_cloud_update_refreshes_positions_before_publish(monkeypatch):
         payloads.append(json.loads(data))
         return _Response()
 
-    monkeypatch.setattr("lumibot.strategies._strategy.requests.post", fake_post)
+    monkeypatch.setattr(requests, "post", fake_post)
 
     result = _Strategy.send_update_to_cloud(strategy)
 
@@ -220,7 +221,7 @@ def test_cloud_update_preserves_terminal_filled_orders(monkeypatch):
         payloads.append(json.loads(data))
         return _Response()
 
-    monkeypatch.setattr("lumibot.strategies._strategy.requests.post", fake_post)
+    monkeypatch.setattr(requests, "post", fake_post)
 
     assert _Strategy.send_update_to_cloud(strategy) is not False
     assert payloads[0]["orders"] == [{
@@ -247,7 +248,7 @@ def test_cloud_update_omits_positions_when_position_refresh_fails(monkeypatch):
         payloads.append(json.loads(data))
         return _Response()
 
-    monkeypatch.setattr("lumibot.strategies._strategy.requests.post", fake_post)
+    monkeypatch.setattr(requests, "post", fake_post)
 
     result = _Strategy.send_update_to_cloud(strategy)
 
@@ -265,7 +266,7 @@ def test_cloud_update_skips_when_broker_balances_are_not_verified(monkeypatch):
         payloads.append(data)
         return _Response()
 
-    monkeypatch.setattr("lumibot.strategies._strategy.requests.post", fake_post)
+    monkeypatch.setattr(requests, "post", fake_post)
 
     result = _Strategy.send_update_to_cloud(strategy)
 
@@ -288,7 +289,7 @@ def test_cloud_update_warns_then_recovers_after_temporary_balance_failure(
         payloads.append(json.loads(data))
         return _Response()
 
-    monkeypatch.setattr("lumibot.strategies._strategy.requests.post", fake_post)
+    monkeypatch.setattr(requests, "post", fake_post)
     caplog.set_level(logging.DEBUG)
 
     first_result = _Strategy.send_update_to_cloud(strategy)

@@ -7,12 +7,13 @@ import polars as pl
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
 import pytz
+from lumibot.tools.candles import resample_ohlcv
 from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 from lumibot.tools.lumibot_logger import get_logger
 
 from .asset import Asset
 from .dataline import Dataline
-from .data import _repair_quote_source_times
+from .data import _repair_quote_source_times, _warn_off_grid_actions
 
 logger = get_logger(__name__)
 
@@ -315,6 +316,7 @@ class DataPolars:
 
         This converts to pandas for compatibility with the existing dataline system.
         Dividends and splits match only their recorded timestamps; missing events are zero.
+        Warn once if a nonzero action inside the retained window has no matching row.
         """
         # Get pandas DataFrame
         df = self.df
@@ -327,6 +329,8 @@ class DataPolars:
         # OPTIMIZATION: More efficient duplicate removal
         if df.index.has_duplicates:
             df = df[~df.index.duplicated(keep='first')]
+
+        _warn_off_grid_actions(self, df, idx)
 
         # Preserve exact event matches before the mark reindex can copy a prior action.
         # Do this after duplicate removal so events follow the existing first-row policy.
@@ -700,10 +704,8 @@ class DataPolars:
         df = pd.DataFrame(data).assign(datetime=lambda df: pd.to_datetime(df['datetime'])).set_index('datetime')
         if "dividend" in df.columns:
             agg_column_map["dividend"] = "sum"
-        df_result = df.resample(f"{quantity}{unit}").agg(agg_column_map)
-
-        # Drop any rows that have NaN values
-        df_result = df_result.dropna()
+        # Shared candle builder, same pandas call as before; drop any rows that have NaN values.
+        df_result = resample_ohlcv(df, f"{quantity}{unit}", aggregation=agg_column_map, dropna="any", sort=False)
 
         # Remove partial day data from the current day
         if timestep == "day" and self.timestep in {"minute", "hour"}:
@@ -751,4 +753,4 @@ class DataPolars:
             agg["dividend"] = "sum"
 
         unit_code = "min" if timestep == "minute" else "h" if timestep == "hour" else "D"
-        return df.resample(f"{int(quantity)}{unit_code}").agg(agg).dropna()
+        return resample_ohlcv(df, f"{int(quantity)}{unit_code}", aggregation=agg, dropna="any", sort=False)

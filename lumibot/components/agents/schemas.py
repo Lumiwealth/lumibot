@@ -37,9 +37,8 @@ class MCPServer:
                 raise ValueError("MCP token refresh requires an authenticated HTTP transport.")
             service_url = urlparse(self.url)
             refresh_url = urlparse(self.auth_token_refresh_url)
-            localhost = refresh_url.hostname in {"127.0.0.1", "localhost", "::1"}
-            if refresh_url.scheme != "https" and not (localhost and refresh_url.scheme == "http"):
-                raise ValueError("MCP token refresh URL must use HTTPS (or HTTP on localhost).")
+            # Renewal follows the user's configured transport. Same-origin
+            # validation below prevents sending its credential to another server.
             if (service_url.scheme, service_url.hostname, service_url.port) != (
                 refresh_url.scheme,
                 refresh_url.hostname,

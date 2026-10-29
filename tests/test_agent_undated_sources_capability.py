@@ -106,6 +106,19 @@ def test_backtest_prompt_allows_undated_sources_and_keeps_the_future_wall():
     assert "treat the current simulated datetime as a hard wall" in prompt
 
 
+def test_research_can_finish_with_disclosed_coverage_and_valuation_estimates():
+    # A native backtest read a baseline and updates but refused to produce any
+    # weights because the shared instructions demanded an exhaustive manifest.
+    skill = _normalized(_skill_texts()["web-documents"])
+    prompt = _normalized(_prompt(backtesting=True))
+    assert "an exhaustive index or original-version archive is not a prerequisite" in skill
+    assert "provide the best supported reconstruction" in skill
+    assert "missing exact quantities, version hashes or certified coverage do not prevent a useful, explicitly approximate answer" in skill
+    assert "query its eligible rows with typed sql before following its report links" in prompt
+    assert "reasonable approximations" in prompt
+    assert "if you are unsure whether information was available yet, say the evidence is insufficient and do nothing" not in prompt
+
+
 def test_live_prompt_has_no_publication_date_gates():
     prompt = _normalized(_prompt(backtesting=False))
     for gate in (

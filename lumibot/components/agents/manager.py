@@ -248,6 +248,11 @@ def _botspot_research_server_from_environment() -> tuple[MCPServer | None, str |
                 exposed_tools=_BOTSPOT_RESEARCH_TOOLS,
                 auth_token_env="BOTSPOT_RESEARCH_MCP_TOKEN",
                 auth_token_refresh_url=renew_url or None,
+                headers=(
+                    {"X-BotSpot-Attribution": "utm_source=lumibot&utm_medium=strategy&utm_campaign=research_connection"}
+                    if str(os.environ.get("DO_NOT_TRACK") or "").strip().lower() in {"", "0", "false", "no", "off"}
+                    else None
+                ),
             ),
             None,
         )
@@ -1392,10 +1397,11 @@ class AgentHandle:
                     "If you leak future information into a backtest, the backtest becomes invalid, misleading, and useless for decision-making.",
                     "Treat the current simulated datetime as a hard wall. Do not cross it. Do not infer across it. Do not hint across it.",
                     "Only use bars, news, macro data, filings, prices, positions, and events that were available at or before the current simulated datetime.",
-                    "Before following document links, use discovery metadata and typed duckdb_query SQL to compare first public availability and version time against the full current simulated datetime. Parse explicit timezone offsets as TIMESTAMPTZ and compare UTC instants before sorting or limiting; never use lexicographic timestamp strings or observation/transaction dates as substitutes. When a source records only a publication or filing date, the document counts as public from the start of the next day; a document dated on the simulated day or later is not yet public. Query EACH relevant discovery table, including short CSVs; samples and counts are not an eligible document manifest. Select actual IDs/URLs and inspect every selected URL and normalized availability time. A baseline-only report-type filter does not discover later transactions. Never open a disclosure or revision known to have become public after the simulated datetime, even to reject it or reconstruct an earlier version. Prefer dated sources, but a source with no date at all is allowed: estimate when it became public from its contents and context, use it only if that estimate is at or before the simulated datetime, and say in your answer that the date is an estimate and why. Never invent a date or present an estimate as exact; a missing date alone does not make evidence unavailable.",
-                    "Never change a publisher timestamp to make a document eligible. Carry the exact selected document URL, version time and hash together from the typed eligible manifest to the read; normalized timestamps must represent the same instant. An excluded row is a diagnostic, never a candidate to open.",
-                    "When discovery tables record dates, fetch arguments must come only from the computed eligible manifest. Do not follow URLs from samples, excluded rows or an unfiltered query. If you lose the selected rows, rerun the eligibility query. For each linked document, pass the selected normalized instant as read_document available_at and any indexed original hash as expected_sha256; never recompute eligibility mentally from an offset string.",
-                    "Do not request a known future version merely to confirm metadata, test a cutoff error, or check that it should be excluded. Discovery metadata already establishes that exclusion. Read every relevant eligible supplement before claiming completion, including administrative confirmations, and reconcile the manifest with documents actually read.",
+                    "Before following document links, compare recorded first public availability and version time with the full simulated datetime. For structured indexes use typed duckdb_query SQL; ordinary dated links and report text are also valid discovery evidence. Parse explicit timezone offsets as TIMESTAMPTZ and compare UTC instants before sorting or limiting; never use lexicographic timestamp strings or observation/transaction dates as substitutes. When a source records only a publication or filing date, conservatively count it as public from the start of the next day and explain that assumption. Check relevant updates as well as the baseline. Never open a disclosure or revision known to have become public after the simulated datetime, even to reject it or reconstruct an earlier version. Prefer dated sources, but a source with no date at all is allowed: estimate when it became public from its contents and context, use it only if that estimate is at or before the simulated datetime, and say in your answer that the date is an estimate and why. Never invent a date or present an estimate as exact; a missing date alone does not make evidence unavailable.",
+                    "Never change a publisher timestamp to make a document eligible. Carry the exact selected URL, any supplied version time and hash together into the read; normalized timestamps must represent the same instant. Excluded rows are diagnostics, never fetch candidates. Do not mistake table previews for a fully inspected index.",
+                    "For an index that supplies publication/version timestamps, query its eligible rows with typed SQL before following its report links, including relevant supplementary tables. Keep those selected URLs separate from unfiltered previews and excluded diagnostics. This does not require a complete archive or inventing missing metadata. Never call read_document, HTTP or browser tools on a known future URL merely to confirm metadata or reject its contents; explain the exclusion from the discovery evidence already returned.",
+                    "Pass recorded availability as read_document available_at and any indexed original hash as expected_sha256 when supplied. Omit unavailable proof rather than inventing it. An exhaustive manifest, exact quantities or original-version hashes are not prerequisites for useful research. Make reasonable approximations from supported evidence when the task permits them; disclose coverage, valuation and version limitations without claiming exact historical validity.",
+                    "Do not request a known future version merely to confirm metadata, test a cutoff error, or check that it should be excluded. Discovery metadata already establishes that exclusion. Read relevant eligible supplements before claiming to have reconciled them. Never describe unread contents or claim exhaustive coverage from a partial search.",
                     "Correct example: if the current simulated time is 2026-03-10 10:15 ET, you may use a news article published at 09:30 ET that same day if it appears in tool output.",
                     "Incorrect example: using a headline published at 14:00 ET, a later macro revision, a later SEC filing, or knowledge of the close when the simulated time is still the morning.",
                     "Incorrect example: saying 'the market later sold off' or 'inflation kept rising after this' unless that fact is explicitly visible in current tool output at or before the simulated datetime.",
@@ -1407,7 +1413,7 @@ class AgentHandle:
                     "Incorrect example: calling a news, macro, or data tool with only a start parameter and no end parameter, allowing it to return future data by default.",
                     "If a tool response includes records published after the simulated datetime, exclude them before selecting evidence or following their links. Calling out the risk does not make future information usable.",
                     "Some backtest data sources have option trade bars but no bid/ask history. When a tool result or another agent's research reports price_basis='last_trade', that last traded price is the price this backtest fills at. Missing bid/ask alone is not a reason to pass, and it does not make that price unverified or unexecutable. A recent trade bar for the exact contract is the liquidity evidence.",
-                    "If you are unsure whether information was available yet, say the evidence is insufficient and do nothing.",
+                    "If availability is uncertain, use the disclosed-estimate procedure in web-documents. If no reasonable estimate or usable evidence supports a decision, explain the remaining gap and preserve existing supported state; do not fabricate evidence or treat a lookup failure as a liquidation signal.",
                     "Backtesting accuracy is more important than being clever. A cautious no-trade is better than a future-biased trade.",
                 ]
             )
@@ -1583,7 +1589,7 @@ class AgentHandle:
                         hour=23, minute=59, second=59, microsecond=999999, tzinfo=timezone.utc
                     )
                 else:
-                    # Node's ISO contract permits compact offsets. Python 3.10
+                    # The server's ISO contract permits compact offsets. Python 3.10
                     # requires their colon; preserve the instant before parsing.
                     normalized = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", requested_as_of)
                     requested = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
@@ -1594,7 +1600,10 @@ class AgentHandle:
                 raise ValueError("BotSpot research asOf must be a valid date or timezone-aware ISO timestamp.") from exc
         arguments["asOf"] = ceiling.isoformat().replace("+00:00", "Z")
         as_of_day = ceiling.date().isoformat()
-        if tool_name in {"query_data", "search_documents"}:
+        # asOf is the availability ceiling. Period selection is optional and
+        # some release adapters intentionally do not support it; do not invent
+        # a selector merely because this is a backtest.
+        if tool_name in {"query_data", "search_documents"} and arguments.get("timeRange") is not None:
             time_range = dict(arguments.get("timeRange") or {})
             requested_end = str(time_range.get("endDate") or "").strip()
             if not requested_end or requested_end[:10] > as_of_day:
@@ -1758,6 +1767,8 @@ class AgentHandle:
         builtin_skill_fingerprint: str | None,
         reasoning_effort: str | None,
     ) -> dict[str, Any]:
+        from .replay_cache import runtime_capability_fingerprint
+
         bound_tools = self._ensure_bound_tools()
         payload = {
             "user_system_prompt": self.system_prompt,
@@ -1770,6 +1781,7 @@ class AgentHandle:
             "memory_state": memory_state or {},
             "model": model,
             "reasoning_effort": reasoning_effort,
+            "runtime_capabilities": runtime_capability_fingerprint(bound_tools, self._runtime),
             "tool_surface": [
                 {
                     "name": tool.name,
@@ -2239,8 +2251,10 @@ class AgentHandle:
             strategy = self.manager.strategy
             should_replay = bool(getattr(strategy, "is_backtesting", False))
             if should_replay:
+                from .replay_cache import has_failed_tool_result
+
                 cached = self.manager.replay_cache.load(cache_key)
-                if cached is not None:
+                if cached is not None and not has_failed_tool_result(cached):
                     result = self._result_from_cached(cached, cache_key)
                     result.payload = {
                         **(result.payload or {}),

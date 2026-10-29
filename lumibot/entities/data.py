@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
+from lumibot.tools.candles import resample_ohlcv
 from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 from lumibot.tools.lumibot_logger import get_logger
 
@@ -141,6 +142,36 @@ def _repair_quote_source_times(frame, before_fill, segment_ids=None):
         groups = event_ids if segment_ids is None else [event_ids, segment_ids]
         times = before_fill[column].where(observed).groupby(groups).ffill()
         frame[column] = times.where(frame[side].notna())
+
+
+def _warn_off_grid_actions(owner, frame, index):
+    """Warn once about real actions omitted inside the retained alignment window."""
+    if index.empty or getattr(owner, "_off_grid_actions_warned", False):
+        return
+
+    omitted_columns = []
+    for column in ("dividend", "stock_splits"):
+        if column not in frame:
+            continue
+        events = frame[column]
+        event_index = events.index[events.notna() & events.ne(0)]
+        # Trimming the requested window and keeping the first duplicate are
+        # established policies. Only inspect surviving events inside that window.
+        event_index = event_index[(event_index >= index[0]) & (event_index <= index[-1])]
+        if len(event_index) and not event_index.isin(index).all():
+            omitted_columns.append(column)
+
+    if omitted_columns:
+        logger.warning(
+            "Corporate-action alignment for %s omitted nonzero %s events between %s and %s "
+            "because their timestamps are absent from the target index. "
+            "Check the action timestamps and alignment index.",
+            owner.asset,
+            ", ".join(omitted_columns),
+            index[0],
+            index[-1],
+        )
+        owner._off_grid_actions_warned = True
 
 
 class Data:
@@ -480,7 +511,10 @@ class Data:
     # To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
 
     def repair_times_and_fill(self, idx):
-        """Align rows and build datalines, keeping actions at their recorded timestamps."""
+        """Align rows and build datalines, keeping actions at their recorded timestamps.
+
+        Warn once if a nonzero action inside the retained window has no matching row.
+        """
         # OPTIMIZATION: Use searchsorted instead of expensive boolean indexing
         # Replace: idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
         start_pos = idx.searchsorted(self.datetime_start, side='left')
@@ -490,6 +524,8 @@ class Data:
         # OPTIMIZATION: More efficient duplicate removal
         if self.df.index.has_duplicates:
             self.df = self.df[~self.df.index.duplicated(keep='first')]
+
+        _warn_off_grid_actions(self, self.df, idx)
 
         # Reindex the DataFrame with the new index and forward-fill missing values.
         df = self.df.reindex(idx, method="ffill")
@@ -1741,10 +1777,9 @@ class Data:
             agg_column_map["dividend"] = "sum"
         if "stock_splits" in df.columns:
             agg_column_map["stock_splits"] = "max"
-        df_result = df.resample(f"{quantity}{unit}").agg(agg_column_map)
-
-        # Drop any rows that have NaN values (this can happen if the data is not complete, eg. weekends)
-        df_result = df_result.dropna()
+        # Shared candle builder, same pandas call as before. Drop any rows that have NaN values
+        # (this can happen if the data is not complete, eg. weekends).
+        df_result = resample_ohlcv(df, f"{quantity}{unit}", aggregation=agg_column_map, dropna="any", sort=False)
 
         if timestep in {"minute", "hour"} and self.timestep in {"minute", "hour"}:
             base_delta = datetime.timedelta(minutes=1) if self.timestep == "minute" else datetime.timedelta(hours=1)
@@ -1822,5 +1857,5 @@ class Data:
             agg["stock_splits"] = "max"
 
         unit_code = "min" if timestep == "minute" else "h" if timestep == "hour" else "D"
-        df_result = df.resample(f"{int(quantity)}{unit_code}").agg(agg).dropna()
+        df_result = resample_ohlcv(df, f"{int(quantity)}{unit_code}", aggregation=agg, dropna="any", sort=False)
         return df_result

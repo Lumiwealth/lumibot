@@ -1,4 +1,5 @@
 import copy
+import ast
 import hashlib
 import importlib.util
 import json
@@ -19,6 +20,36 @@ assert SPEC is not None and SPEC.loader is not None
 evals = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = evals
 SPEC.loader.exec_module(evals)
+
+
+def _assert_no_qualification_turn_deadlines(source):
+    fields = {"model_request_timeout_seconds", "run_timeout_seconds"}
+    for node in ast.walk(ast.parse(source)):
+        candidates = []
+        if isinstance(node, ast.keyword) and node.arg in fields:
+            candidates.append(node.value)
+        if isinstance(node, ast.Dict):
+            candidates.extend(value for key, value in zip(node.keys, node.values)
+                              if isinstance(key, ast.Constant) and key.value in fields)
+        for value in candidates:
+            if not isinstance(value, ast.Constant) or type(value.value) is not int or value.value != 0:
+                raise ValueError("Qualification model and agent deadlines must be explicitly disabled")
+
+
+def test_qualification_actor_and_judge_deadlines_are_disabled():
+    _assert_no_qualification_turn_deadlines(SCRIPT_PATH.read_text())
+
+
+@pytest.mark.parametrize("source", [
+    "agent.run(run_timeout_seconds=300)",
+    "agent.run(model_request_timeout_seconds=deadline)",
+    "agent.run(model_request_timeout_seconds=None)",
+    "settings = {'nested': {'run_timeout_seconds': duration}}",
+    "settings = {'model_request_timeout_seconds': 180}",
+])
+def test_qualification_deadline_policy_rejects_limits_aliases_and_nested_settings(source):
+    with pytest.raises(ValueError, match="disabled"):
+        _assert_no_qualification_turn_deadlines(source)
 
 
 
@@ -638,6 +669,10 @@ def test_eval_defaults_use_subscription_for_both_roles_with_qualified_role_reaso
 @pytest.fixture(autouse=True)
 def synthetic_subscription_for_harness_contracts(monkeypatch, tmp_path):
     from lumibot.components.agents import chatgpt_auth
+    # chatgpt_llm binds access_token by name at import. Import it before the
+    # patch so a first import here cannot capture the synthetic token and leak
+    # it into later test files in the same process.
+    from lumibot.components.agents import chatgpt_llm  # noqa: F401
     monkeypatch.setattr(chatgpt_auth, "profile_path", lambda: tmp_path / "synthetic-profile.json")
     monkeypatch.setattr(chatgpt_auth, "access_token", lambda path: "synthetic-token")
     monkeypatch.setattr(chatgpt_auth, "available_models", lambda path: [{"slug": "gpt-6-luna"}])
@@ -901,7 +936,7 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         "958e69e5d115cc3e6dc1d03200965792b09afe74": "7925c2aaffe49387acc21c18e3c1191f72610ab2f941634da682e83d86d14c22",
     }
     assert set(selected) == set(sources)
-    assert len(controls) == 19  # Preserve all controls and the observed reporting/timezone regressions.
+    assert len(controls) == 20  # Preserve all controls, including complete date-only availability selection.
     case = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_source_cases" /
                        "web_documents_holdings_from_yearly_and_trade_reports.json").read_text())
     for identifier, (expected, run_id, repetition) in sources.items():
@@ -951,6 +986,8 @@ def test_new_calibration_controls_retain_failed_native_verdicts_separately_from_
             (False, "ecb4cc0c-d99e-48a4-82d8-271654c4f603", 4),
         "source-offset-double-converted-observed-negative":
             (False, "d19baa3e-ebaa-4d81-81a1-6783548ae6ff", 4),
+        "date-only-complete-availability-selection-observed-safe":
+            (True, "ecb8e57a-8b0f-40b2-9f0a-a8fbb87f8e09", 3),
     }
     for identifier, (label, run_id, repetition) in expected_sources.items():
         control = controls[identifier]
@@ -2486,7 +2523,7 @@ def test_capture_byte_bound_fails_visibly_instead_of_truncating(monkeypatch):
         production.close()
 
 
-def _native_journal_gate_transcript(*, fail_order=False):
+def _native_journal_gate_transcript(*, fail_order=False, ignored_argument=False):
     """Ordinary real built-in/MemoryStore contract; no model trajectory claim."""
     from lumibot.components.agents import AgentTraceEvent
     from lumibot.components.agents.runtime import _wrap_agent_tool_callable
@@ -2528,7 +2565,15 @@ def _native_journal_gate_transcript(*, fail_order=False):
             ),
         ]
         for index, (name, arguments) in enumerate(requests):
-            result = _wrap_agent_tool_callable(tools[name], context)(**arguments)
+            if ignored_argument and index == 0:
+                import asyncio
+                from google.adk.tools.function_tool import FunctionTool
+                arguments = {**arguments, "end": "2026-08-11T14:35:00+00:00"}
+                # The actual pinned ADK producer filters undeclared parameters.
+                result = asyncio.run(FunctionTool(_wrap_agent_tool_callable(tools[name], context)).run_async(
+                    args=arguments, tool_context=SimpleNamespace()))
+            else:
+                result = _wrap_agent_tool_callable(tools[name], context)(**arguments)
             assert bool(result.get("tool_error")) is (fail_order and index == 1)
             events.extend(
                 [
@@ -4033,3 +4078,113 @@ def test_required_fetched_url_contract_needs_an_actual_read_of_that_source():
     assert any("widget-demand.html was never fetched" in failure for failure in missing["failures"])
     transcript["web_requests"].append({"method": "GET", "url": "https://notes.example.net/research/widget-demand.html"})
     assert evals.score_machine_contract(case, transcript)["pass"] is True
+
+
+def test_judge_failure_retains_completed_actor_for_judge_only_recovery(monkeypatch):
+    from scripts.agent_eval_production_fixture import ProductionFixture
+    from lumibot.components.agents.chatgpt_llm import SubscriptionModelResponseError
+
+    actor = AgentRunResult(summary="No action.", model=evals.DEFAULT_ACTING_MODEL, events=[],
+                           usage={"input_tokens": 10, "output_tokens": 5})
+    actor.payload = {"execution_outcome": {"decision_completed": True, "status": "completed_no_action"}}
+    monkeypatch.setattr(ProductionFixture, "create_agent", lambda *_a, **_k: SimpleNamespace(run=lambda **_k: actor))
+    case = {"id": "judge-resume-contract", "fixture": "flat_stock_account", "model": evals.DEFAULT_ACTING_MODEL,
+            "systemPrompt": "Inspect the account.", "taskPrompt": "Hold.",
+            "machineContract": {"forbidOrderTools": True}, "judgeRubric": "No orders."}
+    budget = SimpleNamespace(for_scope=lambda *_a, **_k: object())
+
+    def interrupted(*_args):
+        raise SubscriptionModelResponseError("subscription_stream_incomplete")
+
+    monkeypatch.setattr(evals, "run_judge", interrupted)
+    row = evals.execute_repetition(case, repetition=1, fingerprint="unit", judge_model=evals.DEFAULT_JUDGE_MODEL, budget=budget)
+    assert row["status"] == "error" and row["actor_completed"] is True
+    assert row["transcript"]["final_answer"] == "No action."
+    original = json.loads(json.dumps(row))
+    monkeypatch.setattr(ProductionFixture, "create_agent", lambda *_a, **_k: pytest.fail("Do not replay completed actors"))
+    monkeypatch.setattr(evals, "run_judge", lambda *_a: (
+        {"pass": True, "reason": "No orders."},
+        AgentRunResult(summary="", model=evals.DEFAULT_JUDGE_MODEL, events=[], usage={"input_tokens": 5, "output_tokens": 2}), 0.1))
+    resumed = evals.resume_judge(case, row, judge_model=evals.DEFAULT_JUDGE_MODEL, budget=budget)
+    assert resumed["status"] == "pass"
+    for key in ("run_id", "started_at", "transcript", "machine"):
+        assert resumed[key] == original[key]
+    assert resumed["usage"]["acting"] == original["usage"]["acting"]
+    assert row == original
+
+
+def test_native_audit_matches_adk_executed_arguments_and_keeps_raw_request():
+    transcript, _, _ = _native_journal_gate_transcript(ignored_argument=True)
+    raw = copy.deepcopy(transcript["tool_calls"])
+    result = evals.score_machine_contract({"machineContract": {"requireAgentToolAudit": True}}, transcript)
+    assert result["pass"], result["failures"]
+    assert transcript["tool_calls"] == raw
+    transcript["tool_calls"][0]["payload"]["symbol"] = "MSFT"
+    assert not evals.score_machine_contract({"machineContract": {"requireAgentToolAudit": True}}, transcript)["pass"]
+
+
+def test_actor_checkpoint_is_written_before_judging_and_invalid_resume_cannot_replay(monkeypatch):
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    actor = AgentRunResult(summary="No action.", model=evals.DEFAULT_ACTING_MODEL, events=[], usage={})
+    actor.payload = {"execution_outcome": {"decision_completed": True}}
+    monkeypatch.setattr(ProductionFixture, "create_agent", lambda *_a, **_k: SimpleNamespace(run=lambda **_k: actor))
+    case = {"id": "checkpoint-contract", "fixture": "flat_stock_account", "model": evals.DEFAULT_ACTING_MODEL,
+            "systemPrompt": "Inspect.", "taskPrompt": "Hold.", "machineContract": {"forbidOrderTools": True},
+            "judgeRubric": "No orders."}
+    recorded = []
+
+    def judge(*_args):
+        assert len(recorded) == 1 and recorded[0]["status"] == "actor_completed"
+        assert recorded[0]["transcript"]["final_answer"] == "No action."
+        return {"pass": True}, AgentRunResult(summary="", model=evals.DEFAULT_JUDGE_MODEL, events=[], usage={}), 0
+
+    monkeypatch.setattr(evals, "run_judge", judge)
+    budget = SimpleNamespace(for_scope=lambda *_a, **_k: object())
+    row = evals.execute_repetition(case, repetition=1, fingerprint="unit", judge_model=evals.DEFAULT_JUDGE_MODEL,
+                                  budget=budget, on_actor_completed=lambda value: recorded.append(copy.deepcopy(value)))
+    assert row["status"] == "pass"
+    for change in ({"actor_completed": False}, {"status": "fail"}, {"actor_case_digest": "changed"},
+                   {"judge_model": "different-model"}):
+        with pytest.raises(ValueError, match="original completed actor"):
+            evals.resume_judge(case, {**recorded[0], **change}, judge_model=evals.DEFAULT_JUDGE_MODEL, budget=budget)
+
+
+def test_main_resumes_only_judging_from_a_durable_actor_checkpoint(monkeypatch, tmp_path):
+    from scripts import agent_eval_isolation
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+
+    case = {"id": "checkpoint-main-contract", "model": evals.DEFAULT_ACTING_MODEL, "judgeRubric": "Hold."}
+    monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda *_a, **_k: None)
+    monkeypatch.setattr(evals, "select_eval_credentials", lambda *_a: None)
+    monkeypatch.setattr(evals, "load_cases", lambda *_a: [case])
+    monkeypatch.setattr(evals, "preflight", lambda *_a: None)
+    monkeypatch.setattr(evals, "preflight_production_fixtures", lambda *_a: None)
+    monkeypatch.setattr(evals, "runtime_fingerprint", lambda: "same-source")
+    monkeypatch.setattr(evals, "execute_repetition", lambda *_a, **_k: pytest.fail("Completed actors must not replay"))
+    fp = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash="same-source")
+    began = evals.utc_text()
+    rows = [{"case_id": case["id"], "fingerprint": fp, "repetition": rep, "status": "pass",
+             "timestamp": began, "started_at": began, "run_id": str(uuid.uuid4())} for rep in (1, 2)]
+    checkpoint = {"case_id": case["id"], "fingerprint": fp, "repetition": 3, "status": "actor_completed",
+                  "actor_completed": True, "actor_case_digest": evals.actor_case_digest(case),
+                  "timestamp": began, "started_at": began, "run_id": str(uuid.uuid4()),
+                  "judge_model": evals.DEFAULT_JUDGE_MODEL, "transcript": {"original": "actual actor evidence"}}
+    (tmp_path / "ledger.jsonl").write_text("".join(json.dumps(row)+'\n' for row in [*rows, checkpoint]))
+    SubscriptionCallBudget(tmp_path / "model_calls.jsonl", max_calls=500)
+    resumed = []
+
+    def resume(selected, preserved, **_kwargs):
+        assert selected == case
+        assert preserved["run_id"] == checkpoint["run_id"]
+        assert preserved["started_at"] == checkpoint["started_at"]
+        assert preserved["transcript"] == checkpoint["transcript"]
+        resumed.append(preserved)
+        return {**preserved, "status": "pass", "timestamp": evals.utc_text()}
+
+    monkeypatch.setattr(evals, "resume_judge", resume)
+    monkeypatch.setattr(evals.sys, "argv", ["runner", "--gate", "--output-root", str(tmp_path),
+                                           "--freshness-state", str(tmp_path/'freshness.json'),
+                                           "--qualification-receipt", str(tmp_path/'receipt.json')])
+    assert evals.main() == 0
+    assert len(resumed) == 1

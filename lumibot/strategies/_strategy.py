@@ -207,6 +207,7 @@ def __getattr__(name):
 STATS_TABLE_NAME = "strategy_tracker"
 
 _BACKTESTING_CLASS_MODULES = {
+    "KalshiBacktesting": "lumibot.backtesting.kalshi_backtesting",
     "AlpacaBacktesting": "lumibot.backtesting.alpaca_backtesting",
     "BacktestingBroker": "lumibot.backtesting.backtesting_broker",
     "CcxtBacktesting": "lumibot.backtesting.ccxt_backtesting",
@@ -1165,7 +1166,7 @@ class _Strategy:
         # Check if cash is in the list of positions yet
         for x in range(len(self.broker._filled_positions.get_list())):
             position = self.broker._filled_positions[x]
-            if position is not None and position.asset == self._quote_asset:
+            if position is not None and position.asset == self._quote_asset and position.strategy == self._name:
                 position.quantity = cash
                 self.broker._filled_positions[x] = position
                 self._cash_position = position
@@ -1752,6 +1753,9 @@ class _Strategy:
                     entry_price = position.avg_fill_price if (hasattr(position, 'avg_fill_price') and position.avg_fill_price) else price
                     unrealized_pnl = (float(price) - float(entry_price)) * float(quantity) * multiplier
                     portfolio_value += unrealized_pnl
+                elif self.is_backtesting and position_asset_type == "crypto_future":
+                    portfolio_value += float(self.broker._perpetuals.unrealized(
+                        self, position, price, currency=quote_asset.symbol))
                 else:
                     # All other cases (stocks, options, crypto, live trading)
                     position_value = float(quantity) * float(price) * multiplier
@@ -2509,6 +2513,12 @@ class _Strategy:
             self._strategy_returns_df = day_deduplicate(self._stats)
 
             self._analysis = stats_summary(self._strategy_returns_df, self.risk_free_rate)
+            assumptions = getattr(self.broker, "backtest_assumptions", None)
+            if assumptions:
+                self._analysis["backtest_assumptions"] = list(assumptions)
+            perpetual_events = getattr(self.broker, "perpetual_events", None)
+            if perpetual_events:
+                self._analysis["perpetual_events"] = [row for row in perpetual_events if row["strategy"] == self._name]
 
             # Get performance for the benchmark asset
             self._dump_benchmark_stats()
@@ -3320,6 +3330,7 @@ class _Strategy:
                 "interactivebrokersrest": "InteractiveBrokersRESTBacktesting",
                 "interactive_brokers_rest": "InteractiveBrokersRESTBacktesting",
                 "polymarket": "PolymarketBacktesting",
+                "kalshi": "KalshiBacktesting",
                 "polymarket_clob": "PolymarketBacktesting",
                 "router": "RoutedBacktestingPandas",
                 "thetadata_ibkr": "RoutedBacktestingPandas",

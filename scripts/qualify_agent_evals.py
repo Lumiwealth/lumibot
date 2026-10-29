@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts import check_agent_judge_calibration as calibration
 from scripts import run_agent_evals as evals
 from scripts.agent_eval_call_budget import EvalCallBudget as EvalCallBudget
-from scripts.agent_eval_subscription_budget import MAX_SUBSCRIPTION_QUALIFICATION_CALLS, subscription_call_state
+from scripts.agent_eval_subscription_budget import subscription_call_state
 
 KIND = "lumibot-real-model-qualification"
 VERSION = 2
@@ -246,7 +246,7 @@ def build_receipt(rows, call_rows, cases, *, runtime_hash, versions, calibration
     if not call_rows or call_rows[0].get("funding") != "chatgpt-plan" or call_rows[0].get("version") != 2:
         raise ValueError("Native subscription call ledger is required")
     cap, calls = subscription_call_state(call_rows)
-    if type(cap) is not int or not 0 < cap <= MAX_SUBSCRIPTION_QUALIFICATION_CALLS or len(calls) > cap:
+    if type(cap) is not int or cap <= 0 or len(calls) > cap:
         raise ValueError("Native model-call allowance is invalid or exceeded")
     records = {}
     for case in cases:
@@ -265,6 +265,20 @@ def build_receipt(rows, call_rows, cases, *, runtime_hash, versions, calibration
                         and timestamp(call.get("timestamp"), now=now, require_fresh=False) >= started):
                     raise ValueError("A newer incomplete native attempt supersedes the prior pass")
             bound_calls = [call for call in calls.values() if (call.get("scope") or {}).get("run_id") == attempt]
+            # A transport-failed judge may have unknown usage. Retain its native
+            # reservation in the full cumulative journal, while qualifying only
+            # a later completed judge over this same completed actor attempt.
+            settled_judges = [call for call in bound_calls if call.get("kind") == "settle"
+                              and (call.get("scope") or {}).get("role") == "judge"]
+            expected_judge_scope = {key: row[key] for key in ("case_id", "repetition", "run_id", "fingerprint")} | {"role": "judge"}
+            earlier_unknown_judges = {
+                call["id"] for call in bound_calls if call.get("kind") == "reserve"
+                and call.get("scope") == expected_judge_scope
+                and call.get("model") == evals.DEFAULT_JUDGE_MODEL
+                and any(timestamp(call["timestamp"], now=now) < timestamp(judge["timestamp"], now=now)
+                        for judge in settled_judges)
+            }
+            bound_calls = [call for call in bound_calls if call["id"] not in earlier_unknown_judges]
             projected = {key: row.get(key) for key in ("case_id", "repetition", "run_id", "fingerprint", "started_at",
                                                        "timestamp", "status", "acting_model", "judge_model")}
             projected.update(machine_pass=(row.get("machine") or {}).get("pass"),
@@ -301,7 +315,7 @@ def verify_receipt(receipt, cases, *, runtime_hash, versions, now=None):
     allowance = receipt["call_allowance"]
     if (not isinstance(allowance, dict) or set(allowance) != {"max_calls", "consumed_calls"}
             or any(type(n) is not int for n in allowance.values())
-            or not 0 < allowance["consumed_calls"] <= allowance["max_calls"] <= MAX_SUBSCRIPTION_QUALIFICATION_CALLS):
+            or not 0 < allowance["consumed_calls"] <= allowance["max_calls"]):
         raise ValueError("Invalid cumulative subscription call allowance")
     hashes = receipt["native_ledger_digests"]
     if not isinstance(hashes, dict) or set(hashes) != {"repetitions", "model_calls", "calibration", "calibration_summary"} or any(

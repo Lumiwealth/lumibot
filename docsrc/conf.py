@@ -58,6 +58,9 @@ extensions = [
     "sphinxext.opengraph",  # Open Graph and Twitter cards for shared links
 ]
 
+# Generate missing API pages without replacing authored examples and notes.
+autosummary_generate_overwrite = False
+
 # ============================================================================
 # Open Graph / Twitter cards
 # ----------------------------------------------------------------------------
@@ -1007,6 +1010,7 @@ HAND_WRITTEN_BROKERS = [
     ("Charles Schwab", "Stocks and options broker", "Stocks, ETFs, single-leg options", "brokers.schwab"),
     ("Interactive Brokers (Client Portal REST)", "Stocks, options and futures broker", "Stocks, options, futures and more, by account", "brokers.interactive_brokers"),
     ("Interactive Brokers (legacy TWS)", "Stocks, options and futures broker", "Markets your TWS account can trade", "brokers.interactive_brokers_legacy"),
+    ("Kalshi", "Prediction market", "Prediction contracts", "brokers.prediction_markets"),
     ("Polymarket", "Prediction market", "Prediction contracts", "brokers.polymarket"),
     ("TopstepX (ProjectX)", "Futures broker", "CME futures", "brokers.projectx"),
     ("Tradier", "Stocks and options broker", "Stocks, ETFs, options", "brokers.tradier"),

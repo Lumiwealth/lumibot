@@ -52,11 +52,11 @@ class _Runtime:
 
 
 def _configure_hosted_research(monkeypatch):
-    monkeypatch.setenv("BOTSPOT_RESEARCH_MCP_URL", "https://api.test.botspot.trade/research-mcp")
+    monkeypatch.setenv("BOTSPOT_RESEARCH_MCP_URL", "https://research.example.test/research-mcp")
     monkeypatch.setenv("BOTSPOT_RESEARCH_MCP_TOKEN", "research-token")
     monkeypatch.setenv(
         "BOTSPOT_RESEARCH_MCP_RENEW_URL",
-        "https://api.test.botspot.trade/saved-secrets/research-runtime-capabilities/renew",
+        "https://research.example.test/renew",
     )
 
 
@@ -70,7 +70,7 @@ def test_hosted_research_capability_auto_attaches_the_shared_research_preset(mon
     # Community is one mixed-action tool; its write scopes are enforced by Node.
     assert server.exposed_tools == _RESEARCH_PRESET_TOOL_NAMES
     assert server.auth_token_env == "BOTSPOT_RESEARCH_MCP_TOKEN"
-    assert server.auth_token_refresh_url.endswith("/research-runtime-capabilities/renew")
+    assert server.auth_token_refresh_url.endswith("/renew")
 
 
 @pytest.mark.parametrize("renew_url", [None, "", "  "])
@@ -90,7 +90,7 @@ def test_external_static_research_key_auto_attaches_without_a_renewal_endpoint(m
     assert server.exposed_tools == _RESEARCH_PRESET_TOOL_NAMES
     assert server.auth_token_env == "BOTSPOT_RESEARCH_MCP_TOKEN"
     assert server.auth_token_refresh_url is None
-    assert server.headers is None
+    assert server.headers is None or server.headers.get("X-BotSpot-Attribution", "").startswith("utm_source=lumibot")
     assert "research-token" not in repr(server)
     assert all("research-token" not in message for message in strategy.messages)
     assert asyncio.run(runtime_module._refresh_mcp_auth_token(server, "research-token")) is False
@@ -98,7 +98,7 @@ def test_external_static_research_key_auto_attaches_without_a_renewal_endpoint(m
 
 @pytest.mark.parametrize(
     "renew_url",
-    ["https://attacker.example/renew", "http://api.test.botspot.trade/renew", "not-a-url"],
+    ["https://attacker.example/renew", "http://research.example.test/renew", "not-a-url"],
 )
 def test_auto_attachment_rejects_a_supplied_unsafe_renewal_endpoint(monkeypatch, renew_url):
     _configure_hosted_research(monkeypatch)
@@ -118,10 +118,10 @@ def test_auto_attachment_rejects_a_supplied_unsafe_renewal_endpoint(monkeypatch,
 @pytest.mark.parametrize(
     "endpoint",
     [
-        "http://api.test.botspot.trade/research-mcp",
-        "https://user:private-url-secret@api.test.botspot.trade/research-mcp",
-        "https://api.test.botspot.trade/research-mcp?region=us&tenant=research",
-        "https://api.test.botspot.trade/research-mcp#research",
+        "http://research.example.test/research-mcp",
+        "https://user:private-url-secret@research.example.test/research-mcp",
+        "https://research.example.test/research-mcp?region=us&tenant=research",
+        "https://research.example.test/research-mcp#research",
         "http://10.0.0.10:8080/research-mcp?region=us",
     ],
 )
@@ -250,7 +250,7 @@ def test_remote_mcp_contract_failure_warns_once_and_keeps_legacy_payload_shape(m
 
 
 def test_partial_hosted_configuration_warns_once_without_changing_ordinary_execution(monkeypatch):
-    monkeypatch.setenv("BOTSPOT_RESEARCH_MCP_URL", "https://api.test.botspot.trade/research-mcp")
+    monkeypatch.setenv("BOTSPOT_RESEARCH_MCP_URL", "https://research.example.test/research-mcp")
     monkeypatch.delenv("BOTSPOT_RESEARCH_MCP_TOKEN", raising=False)
     monkeypatch.delenv("BOTSPOT_RESEARCH_MCP_RENEW_URL", raising=False)
     strategy = _Strategy()
@@ -302,7 +302,7 @@ def test_backtest_research_calls_receive_a_hard_point_in_time_ceiling(monkeypatc
         handle._bound_remote_tool_payload(
             server,
             "search_documents",
-            {"datasetId": "sec.filings"},
+            {"datasetId": "sec.filings", "timeRange": {"endDate": "2026-01-01"}},
         )["timeRange"]["endDate"]
         == "2025-01-06"
     )
@@ -314,6 +314,21 @@ def test_backtest_research_calls_receive_a_hard_point_in_time_ceiling(monkeypatc
         )["asOf"]
         == "2025-01-06T15:30:00Z"
     )
+
+
+@pytest.mark.parametrize("tool_name", ["query_data", "search_documents"])
+def test_backtest_research_does_not_invent_an_optional_period_selector(monkeypatch, tool_name):
+    # Some registered releases accept asOf but do not accept period selection.
+    # Preserve the exact temporal ceiling without adding an unsupported field.
+    _configure_hosted_research(monkeypatch)
+    handle = AgentManager(_Strategy()).create(name="researcher", _runtime=_Runtime())
+    server = handle._mcp_servers[0]
+    payload = {"datasetId": "provider.release", "asOf": "2025-01-03"}
+
+    result = handle._bound_remote_tool_payload(server, tool_name, payload)
+
+    assert result == {"datasetId": "provider.release", "asOf": "2025-01-03T23:59:59.999999Z"}
+    assert payload == {"datasetId": "provider.release", "asOf": "2025-01-03"}
 
 
 @pytest.mark.parametrize("offset", ["-05:00", "-0500"])
@@ -800,3 +815,28 @@ def test_recorded_research_stdio_exposes_asof_and_preserves_native_tool_error_st
     assert result.isError is True
     assert result.structuredContent["errorCode"] == "unsupported_capability"
     assert result.structuredContent["details"]["asOf"] == "2026-08-11T14:35:00Z"
+
+
+def test_research_connection_labels_its_source_without_sending_credentials_as_attribution(monkeypatch):
+    monkeypatch.delenv("DO_NOT_TRACK", raising=False)
+    _configure_hosted_research(monkeypatch)
+    handle = AgentManager(_Strategy()).create(name="researcher", _runtime=_Runtime())
+    assert handle._mcp_servers[0].headers == {
+        "X-BotSpot-Attribution": "utm_source=lumibot&utm_medium=strategy&utm_campaign=research_connection"
+    }
+
+
+def test_research_connection_omits_attribution_when_tracking_is_disabled(monkeypatch):
+    monkeypatch.setenv("DO_NOT_TRACK", "1")
+    _configure_hosted_research(monkeypatch)
+    handle = AgentManager(_Strategy()).create(name="researcher", _runtime=_Runtime())
+    assert handle._mcp_servers[0].headers is None
+
+
+def test_intentionally_configured_http_connection_can_renew_on_its_same_origin():
+    server = MCPServer(
+        name="research", url="http://research.example.test/mcp",
+        exposed_tools=["query_data"], auth_token_env="RESEARCH_TOKEN",
+        auth_token_refresh_url="http://research.example.test/renew",
+    )
+    assert server.auth_token_refresh_url == "http://research.example.test/renew"

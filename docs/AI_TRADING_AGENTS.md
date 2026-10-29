@@ -77,28 +77,29 @@ Macro tools additionally require `FRED_API_KEY`. They use the strategy clock and
 
 ### BotSpot managed research
 
-In BotSpot account settings, create a named API key and enable the independent
-research permissions you need. Leave trading, deployment, backtest-control and
-secret-management permissions off. The key defaults to never expiring; choose
-an expiry if needed and revoke it from the same page to end access.
+Connect your running strategy's agents with one command:
 
-Set `BOTSPOT_RESEARCH_MCP_URL` to the Research MCP endpoint shown by BotSpot and
-`BOTSPOT_RESEARCH_MCP_TOKEN` to that key. Agents attach the connection automatically;
-no custom `MCPServer` or supplier key is required. A static external key does not
-need `BOTSPOT_RESEARCH_MCP_RENEW_URL`. Keep credentials in the token environment
-variable, never in a URL or committed strategy. HTTPS is required outside loopback.
+```bash
+lumibot connect botspot
+```
 
-Hosted direct, scheduled and backtest workloads receive restricted connection
-credentials from BotSpot. Their account-wide hosted research settings are separate
-from API-key creation; changing or revoking a selected key changes the hosted
-permission ceiling too. Community publication requires its own explicit grants.
-The research connection does not authorize running backtests, deployments or trades.
+Connecting is free. The command signs you in, verifies the connection and saves
+your research key locally without printing it. Agents then discover datasets,
+query observations, retrieve documents and read permitted Marketplace/Community
+information. No supplier-by-supplier integration is needed. See the
+[connection guide](https://lumibot.lumiwealth.com/botspot_mcp.html) for manual
+keys and external coding-assistant setup.
 
-LumiBot bounds historical data requests to the strategy clock. Server authorization
-must also verify a hosted backtest's simulation clock; if that binding or a source's
-historical version is unavailable, an explicit unsupported-capability response is
-the result. Do not retry a historical request with a live clock or an unbounded key.
-BotSpot owns supplier credentials, normalization, storage and source qualification.
+HTTP, private/local endpoints, supported username/password authentication and
+query parameters remain valid configurations. Prefer HTTPS when available and
+keep credentials out of source control and logs. Ordinary research permissions
+do not grant trading, backtest-control or deployment authority.
+
+Backtests bound requests to simulated time without requiring a separate verified
+server clock. Period ranges are optional. Agents can work with date-only values,
+missing metadata and reasonable disclosed approximations; they must not use
+known future evidence or claim an exact historical snapshot without support.
+An unavailable source operation returns a visible error; other tools remain usable.
 
 ### Pattern 1: @agent_tool wrapping a REST API (recommended)
 

@@ -1,82 +1,59 @@
-[English](README.md) · [中文](README.zh-CN.md) · **Español** · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português](README.pt.md) · [Русский](README.ru.md)
+<!-- entry-source-sha256: 8ecf9bafe56a350f0394f277d4c890a90762d87262cbda98cad00a25b44b4460 -->
 
 # LumiBot AI Trading
 
-**Agentes de IA que realmente envían la orden.** Doce integraciones con brókers, backtests reales, y acciones, opciones, futuros, divisas, cripto y mercados de predicción.
+[English](README.md) · [中文](README.zh-CN.md) · **Español** · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português](README.pt.md) · [Русский](README.ru.md)
 
-## Sesenta segundos
+**Crea agentes de trading con IA. Haz backtests. Opera con la misma estrategia.**
+
+LumiBot es un framework de Python gratuito y de código abierto para crear bots de trading. Escribe reglas en Python, deja que los agentes de IA tomen decisiones o combina ambos. Ejecuta backtests históricos, revisa decisiones y operaciones y conecta un bróker para operar en simulado o en real.
+
+Este es un resumen localizado del README en inglés y de la página principal de la documentación. El código completo está en el [README en inglés](README.md) y la [documentación](https://lumibot.lumiwealth.com/).
+
+## Por qué LumiBot
+
+- **Trading nativo con IA:** los agentes investigan, razonan y envían órdenes a partir de tus instrucciones.
+- **Backtest antes de operar:** evalúa decisiones de IA y reglas de Python con datos históricos, gráficos, operaciones y registros.
+- **La misma estrategia para backtesting y trading:** conserva la clase de estrategia; cambia la fuente de datos y la configuración del bróker.
+- **Varias clases de activos:** acciones, opciones, futuros, divisas, cripto y mercados de predicción, según los [brókers compatibles](https://lumibot.lumiwealth.com/brokers.all.html).
+- **La decisión llega a un bróker.** Revisa las órdenes, las ejecuciones y los registros de decisiones. [Cómo funciona la ejecución](https://lumibot.lumiwealth.com/execution_gap.html).
+
+## Construye más rápido con BotSpot MCP
+
+Conecta gratis tu asistente para acceder a habilidades de desarrollo de estrategias LumiBot, datos de investigación y herramientas de backtesting y despliegue. [Consulta qué obtiene tu asistente](#conecta-tu-asistente-de-ia).
+
+## Tres formas de crear una estrategia
+
+1. **[Estrategias nativas de IA](README.md#run-your-first-ai-backtest):** edita los prompts del agente de trading.
+2. **[Estrategias de Python](README.md#backtest-a-strategy):** escribe las reglas en Python.
+3. **[Estrategias híbridas](README.md#build-a-hybrid-strategy):** combina reglas de Python y decisiones de IA.
+
+## Primeros pasos
+
+Necesitas Python 3.10 o posterior. Ejecuta un backtest de ejemplo con datos diarios gratuitos:
 
 ```bash
 pip install lumibot
 lumibot demo
 ```
 
-Eso ejecuta un backtest real con datos diarios gratuitos y genera un informe de resultados. Sin clave de API, sin cuenta de bróker y sin configuración.
+Los ejemplos de IA requieren credenciales del modelo; las llamadas pueden tener coste. Operar en simulado o en real requiere una cuenta y credenciales del bróker. Consulta el [ejemplo de IA](README.md#run-your-first-ai-backtest), la [configuración de la CLI](https://lumibot.lumiwealth.com/cli.html) y los [modos de ejecución](https://lumibot.lumiwealth.com/strategy_run_modes.html). Un backtest no garantiza resultados futuros.
 
-Después hazlo tuyo:
+## Conecta tu asistente de IA
 
-```bash
-lumibot init my-bot --template ai     # escribe una subclase de Strategy normal y editable
-lumibot backtest my-bot --days 90
-lumibot run my-bot --paper
-```
+Usa Claude, ChatGPT, Codex, Cursor, VS Code u otro asistente compatible con MCP. El asistente de programación ayuda a crear y probar el código; los agentes dentro de la estrategia toman las decisiones durante su ejecución.
 
-Ejecutar la plantilla de IA requiere `OPENAI_API_KEY` y las llamadas al modelo tienen coste. El comando `--paper` requiere las credenciales de una cuenta de simulación de Alpaca (`ALPACA_API_KEY` y `ALPACA_API_SECRET`). Consulta la [guía de configuración de la CLI](https://lumibot.lumiwealth.com/cli.html).
+BotSpot MCP ofrece habilidades de desarrollo, datos de investigación gratuitos, backtests con gráficos, alojamiento programado, comunidad, marketplace y conexión de cuentas de bróker. Conectarse es gratis; el uso alojado depende del plan.
 
-`lumibot init` escribe el mismo Python que habrías escrito a mano. La línea de comandos no oculta nada y te quedas con un archivo que puedes editar.
+**[Conecta tu asistente de IA](https://botspot.trade/agents)**
 
-**¿Prefieres estrategias tradicionales?** Usa `--template python`. Escribe tus propias reglas, indicadores y lógica de órdenes en una subclase de `Strategy` normal, sin modelo de IA y sin clave de API de ningún modelo.
+Para ayuda local de programación, instala las [habilidades gratuitas de LumiBot](https://github.com/Lumiwealth/lumibot-trading-skills). Para herramientas de investigación dentro de la estrategia, consulta la [guía de BotSpot MCP](https://lumibot.lumiwealth.com/botspot_mcp.html).
 
-## Por qué LumiBot
 
-- **Reglas en Python, agentes de IA, o ambos.** Un único ciclo de vida `Strategy` conocido.
-- **Haz backtest antes de conectar un bróker.** Ejecuta simulaciones históricas y revisa operaciones y resultados.
-- **Reutiliza tu estrategia en varios brókers.** La lógica de la estrategia queda separada de la configuración del bróker.
-- **Empieza desde ejemplos que funcionan.** Acciones, macro, opciones o una estrategia tradicional de comprar y mantener.
+Para dar herramientas de investigación a los agentes de la estrategia, ejecuta `lumibot connect botspot`. Pueden consultar datos y documentos y leer la información permitida del marketplace y la comunidad. LumiBot también funciona por sí solo.
 
-## Cómo se compara LumiBot
+## Explora el framework
 
-Los proyectos de trading con IA han demostrado que la gente quiere flujos de trabajo con agentes. La ventaja de LumiBot es que esos flujos se ejecutan dentro de un framework de trading real en Python: puedes hacer backtest de las decisiones del agente, inspeccionar los artefactos, añadir barreras de riesgo en Python, operar en simulado y conectar brókers sin reescribir la estrategia.
+[Ejemplos de Python](https://lumibot.lumiwealth.com/examples.html) · [Ejemplos de IA](https://lumibot.lumiwealth.com/agents_examples.html) · [Strategy API](https://lumibot.lumiwealth.com/strategy_api_overview.html) · [Brókers](https://lumibot.lumiwealth.com/brokers.all.html)
 
-Esto importa porque una demo de trading con IA no es lo mismo que un sistema de trading. Sin backtests y sin código de estrategia consciente del bróker, básicamente estás confiando en los prompts.
-
-### Comparado con proyectos de agentes de trading con IA
-
-| Proyecto | Enfoque principal | Agentes / equipos de IA | Backtest de decisiones del agente | Ruta a bróker simulado o real | Estrategias deterministas en Python |
-|---|---|---|---|---|---|
-| **Lumibot + BotSpot** | Estrategias en Python, equipos de IA flexibles, barreras híbridas, backtests, brókers, despliegue gestionado | **Equipos flexibles, debates, mesas especializadas y filtros deterministas** | **Decisiones, órdenes, trazas, artefactos, gráficos y registros reproducibles** | **Sí: Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate, ProjectX, Bitunix, Polymarket, CCXT seleccionados** | **Sí** |
-| TradingAgents | Framework de investigación multiagente con LLM | Sí, con una estructura concreta de investigación y debate | Orientado a investigación y demo | No es su objetivo principal | Limitado |
-| ai-hedge-fund | Fondo de cobertura con IA, educativo, con personajes de inversores | Sí, con personajes de inversores | Orientado a demo y backtest | No es su objetivo principal | Limitado |
-| OpenBB | Plataforma de datos financieros para analistas, quants y agentes | Herramientas para agentes | No es un motor de backtest de estrategias | Sin framework de ejecución en bróker | No |
-| Qlib | Plataforma de investigación cuantitativa orientada a IA | Investigación y aprendizaje automático | Backtests de investigación cuantitativa | Enfoque limitado en tiempo real | Pipelines de investigación |
-
-### Comparado con librerías de backtesting
-
-| Característica | Lumibot | Backtrader | Freqtrade | Zipline | Jesse | NautilusTrader | Hummingbot |
-|---|---|---|---|---|---|---|---|
-| **Mismo código: backtest y real** | Sí | Sí | Sí (cripto) | No | Sí (de pago) | Sí | Sí (cripto) |
-| **Acciones** | Sí | Sí | No | Sí | No | Sí | No |
-| **Opciones** | **Sí** | No | No | No | No | Limitado | No |
-| **Cripto** | Sí | Limitado | Sí | No | Sí | Sí | Sí |
-| **Mercados de predicción** | Trading y backtest en Polymarket | No | No | No | No | No | Limitado / no |
-| **Futuros** | Sí | Limitado | Solo cripto | Parcial | Solo cripto | Sí | Perpetuos cripto |
-| **Runtime de agentes de IA** | Integrado | No | FreqAI (aprendizaje automático) | No | Pipeline de ML | No | Scripts / controladores |
-| **Ruta de despliegue gestionado** | BotSpot | No | No | No | Nube de pago | No | Fundación Hummingbot / ecosistema empresarial |
-
-## Brókers admitidos
-
-Alpaca, Interactive Brokers (incluida su API REST), Tradier, Schwab, Tradovate, futuros de TopstepX (a través de ProjectX), Bitunix, trading y backtest de contratos de predicción en Polymarket, y rutas seleccionadas de CCXT para cripto.
-
-LumiBot no afirma dar soporte a todos los exchanges de CCXT. Consulta la documentación para el alcance exacto.
-
-## Documentación completa
-
-Esta página es un resumen de lo esencial del README en inglés. Para el contenido completo, incluidos los ejemplos de equipos de IA, las fuentes de datos, el despliegue y la guía de contribución:
-
-- README en inglés: [README.md](README.md)
-- Documentación: https://lumibot.lumiwealth.com/
-- Versión gestionada: https://botspot.trade
-
-## Aviso legal
-
-Este software es solo para fines educativos. Operar conlleva riesgo y puedes perder dinero. Los resultados pasados no indican resultados futuros. Este proyecto no ofrece asesoramiento de inversión.
+El trading implica riesgo y puede causar pérdidas. Una simulación histórica no garantiza rentabilidad.

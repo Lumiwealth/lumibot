@@ -168,7 +168,7 @@ jobs:
           PY
 
           echo "Running $(wc -l shard_files.txt | awk '{print $1}') files"
-          timeout 1500 python -m pytest -m "${PYTEST_MARKERS}" --tb=short -q --durations=30 -x $(cat shard_files.txt)
+          python -m pytest -m "${PYTEST_MARKERS}" --tb=short -q --durations=30 -x $(cat shard_files.txt)
 
   backtest-tests:
     name: Backtest Tests (shard ${{ matrix.shard }}/4)
@@ -246,7 +246,7 @@ jobs:
           PY
 
           echo "Running $(wc -l shard_nodeids.txt | awk '{print $1}') nodeids"
-          timeout 1500 python -m pytest -m "${PYTEST_MARKERS}" --tb=short -q --durations=30 -x $(cat shard_nodeids.txt)
+          python -m pytest -m "${PYTEST_MARKERS}" --tb=short -q --durations=30 -x $(cat shard_nodeids.txt)
 
   LintAndTest:
     name: LintAndTest

@@ -71,6 +71,8 @@ class CcxtCacheDB:
         for attempt in range(3):
             try:
                 self.api.load_markets()
+                from lumibot.tools.ccxt_phemex import normalize_markets
+                normalize_markets(self.api)
                 last_error = None
                 break
             except Exception as exc:
@@ -671,7 +673,8 @@ class CcxtCacheDB:
 
         while curr_start <= endunix:
             cnt += 1
-            candles = self.api.fetch_ohlcv(symbol, timeframe,
+            from lumibot.tools.ccxt_phemex import fetch_ohlcv
+            candles = fetch_ohlcv(self.api, symbol, timeframe,
                                            since=curr_start, limit=loop_limit, params={})
 
             df = pd.DataFrame(candles, columns=["datetime",

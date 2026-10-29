@@ -10,6 +10,7 @@ from .data_source import DataSource
 logger = LazyLogger(__name__)
 datetime = LazyModule("datetime")
 pd = LazyModule("pandas")
+ccxt = LazyModule("ccxt")
 Asset = lazy_class("lumibot.entities", "Asset")
 
 
@@ -71,6 +72,8 @@ class CcxtData(DataSource):
                 return
             try:
                 self.api.load_markets()
+                from lumibot.tools.ccxt_phemex import normalize_markets
+                normalize_markets(self.api)
                 self._markets_loaded = True
             except Exception as exc:
                 logger.warning(
@@ -83,31 +86,14 @@ class CcxtData(DataSource):
 
     def get_market(self, asset, quote=None):
         """Resolve a spot or contract instrument without losing settlement."""
-        from lumibot.tools.symbol_normalization import build_ccxt_crypto_symbol, resolve_ccxt_market_symbol
+        from lumibot.tools.symbol_normalization import resolve_ccxt_instrument_market
 
         self._ensure_markets_loaded()
         if getattr(asset, "asset_type", None) == "option":
             return self._get_option_market(asset, quote)
-        raw = getattr(asset, "symbol", asset)
-        symbol = build_ccxt_crypto_symbol(raw, getattr(quote, "symbol", quote))
-        resolved = resolve_ccxt_market_symbol(self.api.markets, symbol,
-                                              exchange_id=self.config.get("exchange_id"))
-        contract = getattr(asset, "asset_type", None) == "crypto_future"
-        if resolved and (not contract or self.api.markets[resolved].get("contract")):
-            return self.api.markets[resolved]
-        if contract and ":" not in symbol:
-            matches = [market for market in self.api.markets.values()
-                       if market.get("contract") and market["symbol"].split(":", 1)[0] == symbol]
-            if len(matches) == 1:
-                return matches[0]
-            # An exchange-style symbol such as "BTCUSDT" (the Bitunix convention) means the
-            # perpetual. Dated futures and other settlements need the full CCXT symbol.
-            perpetuals = [market for market in matches if market.get("swap")]
-            if len(perpetuals) == 1:
-                return perpetuals[0]
-            if len(matches) > 1:
-                raise ValueError(f"Multiple settlement contracts for {symbol}; use the full CCXT symbol")
-        raise ValueError(f"No CCXT market for {symbol}")
+        from lumibot.tools.ccxt_phemex import normalize_market
+        return normalize_market(self.api, resolve_ccxt_instrument_market(self.api.markets, asset, quote,
+                                              exchange_id=self.config.get("exchange_id")))
 
     def _get_option_market(self, asset, quote=None):
         """Find the CCXT option market for a LumiBot option asset (base, expiry, strike, right)."""
@@ -252,9 +238,14 @@ class CcxtData(DataSource):
         buffer = 10  # A few extra datapoints in the download then trim the df.
         timeframe_delta, _ = self.convert_timestep_str_to_timedelta(freq)
         timeframe_ms = int(timeframe_delta.total_seconds() * 1000)
-        loop_limit = 300
         rate_limit = 10  # Requests per second in burst.
-        page_span_ms = loop_limit * timeframe_ms
+        # Exchanges disagree on how many candles one request may ask for: some
+        # cap it, some accept only a fixed list (5, 10, 50, 100, 500, 1000) and
+        # answer anything else with a generic "bad request". Try the size the
+        # exchange advertises through CCXT first, then step through common
+        # sizes until one is accepted, and keep using the size that worked.
+        page_sizes = _candle_page_sizes(api, market)
+        page_state = {"index": 0}
 
         def fetch(range_start, range_end):
             """Page CCXT candles covering [range_start, range_end]. Exchange errors raise."""
@@ -264,7 +255,23 @@ class CcxtData(DataSource):
             cnt = 0
             while curr_start <= endunix:
                 cnt += 1
-                candles = self.api.fetch_ohlcv(symbol, freq, since=curr_start, limit=loop_limit, params={})
+                from lumibot.tools.ccxt_phemex import fetch_ohlcv
+                while True:
+                    loop_limit = page_sizes[page_state["index"]]
+                    try:
+                        candles = fetch_ohlcv(self.api, symbol, freq, since=curr_start, limit=loop_limit, params={})
+                        break
+                    except ccxt.BadRequest:
+                        # Only a rejected request is retried with a smaller
+                        # page; auth, network and other errors still raise.
+                        if page_state["index"] + 1 >= len(page_sizes):
+                            raise
+                        page_state["index"] += 1
+                        logger.info(
+                            f"{getattr(api, 'id', 'exchange')} rejected {loop_limit} candles per request "
+                            f"for {symbol}; retrying with {page_sizes[page_state['index']]}."
+                        )
+                page_span_ms = loop_limit * timeframe_ms
                 df = pd.DataFrame(candles, columns=["datetime", "open", "high", "low", "close", "volume"])
                 df["datetime"] = pd.to_datetime(df["datetime"], unit="ms", utc=True)
                 df = df.set_index("datetime")
@@ -385,3 +392,34 @@ class CcxtData(DataSource):
                      bid_size=bids[0][1] if bids else None, ask_size=asks[0][1] if asks else None,
                      volume=ticker.get("baseVolume"), timestamp=source_time, quote_time=source_time,
                      bid_time=book_time, ask_time=book_time, raw_data={"ticker": ticker, "order_book": book})
+
+
+_COMMON_CANDLE_PAGE_SIZES = (300, 1000, 500, 200, 100, 50, 10)
+
+
+def _candle_page_sizes(api, market):
+    """Candle counts to try per request, most likely to be accepted first.
+
+    CCXT publishes a per-market-type maximum in ``api.features`` for many
+    exchanges. When present it caps every candidate; otherwise the common sizes
+    are tried in order until the exchange accepts one.
+    """
+    advertised = None
+    try:
+        features = getattr(api, "features", None) or {}
+        market_type = (market or {}).get("type") or "spot"
+        node = features.get(market_type) or {}
+        if "fetchOHLCV" not in node:
+            sub_type = "linear" if (market or {}).get("linear", True) else "inverse"
+            node = node.get((market or {}).get("subType") or sub_type) or {}
+        advertised = (node.get("fetchOHLCV") or {}).get("limit")
+        advertised = int(advertised) if advertised else None
+    except (TypeError, ValueError, AttributeError):
+        advertised = None
+    sizes = []
+    for size in ((min(300, advertised),) if advertised else ()) + _COMMON_CANDLE_PAGE_SIZES:
+        if advertised and size > advertised:
+            continue
+        if size not in sizes:
+            sizes.append(size)
+    return sizes

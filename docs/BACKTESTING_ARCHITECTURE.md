@@ -67,6 +67,12 @@ policy applies to duplicate timestamps. An off-grid price observation may
 supply a mark under existing fill rules, while its action is retained only if
 its recorded timestamp appears in the requested index.
 
+A nonzero action between the first and last retained timestamps triggers one
+warning per data object if its timestamp has no matching row. The message names
+the asset and affected columns so callers can check their timestamps and index.
+The check follows deduplication and does not warn about actions outside this
+window or zero/null events. It does not move events or change aligned values.
+
 For example, a $1 dividend and a 2:1 split recorded on Monday remain Monday
 events when another asset adds Tuesday to the shared calendar. Tuesday carries
 zero dividend and zero split, even if its price mark comes from Monday.

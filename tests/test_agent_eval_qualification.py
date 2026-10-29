@@ -97,7 +97,7 @@ def make_receipt(metadata):
     return build_with_calibration(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
 
 
-@pytest.mark.parametrize("cap", [1500, 2500, 4000, 5000])
+@pytest.mark.parametrize("cap", [1500, 2500, 4000, 5000, 5001, 100000])
 def test_explicit_subscription_attempt_can_qualify_with_approved_call_limit(native_metadata, cap):
     metadata = deepcopy(native_metadata)
     metadata[1][0]["max_calls"] = cap
@@ -107,8 +107,8 @@ def test_explicit_subscription_attempt_can_qualify_with_approved_call_limit(nati
                                  versions=metadata[3], now=metadata[4])
 
 
-# The approved ceiling rises; malformed limits and limits above it stay invalid.
-@pytest.mark.parametrize("cap", [5001, 0, -1, True, 1.5, "5000"])
+# Positive informational windows may grow; malformed values remain invalid.
+@pytest.mark.parametrize("cap", [0, -1, True, 1.5, "5000"])
 def test_export_and_verification_reject_invalid_subscription_caps(native_metadata, cap):
     metadata = deepcopy(native_metadata)
     metadata[1][0]["max_calls"] = cap
@@ -546,3 +546,40 @@ def test_native_export_retains_original_header_and_explicit_allowance_amendment(
     receipt = make_receipt(metadata)
     assert receipt["call_allowance"] == {"max_calls": 1500, "consumed_calls": 12}
     assert metadata[1][0]["max_calls"] == 500
+
+
+def test_earlier_unsettled_judge_can_resume_without_replaying_settled_actor(native_metadata):
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    row = rows[0]
+    unknown = {**calls[1], "id": str(uuid4()),
+               "scope": {**calls[1]["scope"], "role": "judge"},
+               "timestamp": (datetime.fromisoformat(row["started_at"]) + timedelta(seconds=0.5)).isoformat()}
+    calls.append(unknown)
+    receipt = build_with_calibration(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
+    assert receipt["call_allowance"]["consumed_calls"] == 13
+    assert all(call["id"] != unknown["id"] for item in receipt["cases"]["contract"]["repetitions"] for call in item["calls"])
+    assert calls[-1] == unknown  # Unknown usage is retained, never settled or removed.
+
+
+@pytest.mark.parametrize("role", ["acting", "judge"])
+def test_unsettled_actor_or_newer_judge_still_blocks_resumed_export(native_metadata, role):
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    row = rows[0]
+    calls.append({**calls[1], "id": str(uuid4()), "scope": {**calls[1]["scope"], "role": role},
+                  "timestamp": (datetime.fromisoformat(row["started_at"]) + timedelta(seconds=15)).isoformat()})
+    with pytest.raises(ValueError):
+        build_with_calibration(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
+
+
+@pytest.mark.parametrize("damage", ["model", "case_id", "fingerprint"])
+def test_unknown_judge_exception_never_hides_foreign_scope_or_model(native_metadata, damage):
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    old = {**calls[1], "id": str(uuid4()), "scope": {**calls[1]["scope"], "role": "judge"},
+           "timestamp": (datetime.fromisoformat(rows[0]["started_at"]) + timedelta(seconds=0.5)).isoformat()}
+    if damage == "model":
+        old["model"] = "other-model"
+    else:
+        old["scope"][damage] = "other-identity"
+    calls.append(old)
+    with pytest.raises(ValueError):
+        build_with_calibration(rows, calls, cases, runtime_hash="source", versions=versions, now=now)

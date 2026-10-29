@@ -3,6 +3,7 @@ import json
 import time
 
 import pytest
+import requests
 
 from lumibot.brokers.tradier import Tradier
 from lumibot.data_sources.tradier_data import TradierData
@@ -58,7 +59,7 @@ def test_oauth_force_refresh_when_not_expired_writes_botspot_rotation_artifact(m
         refresh_calls.append((args, kwargs))
         return _Resp()
 
-    monkeypatch.setattr(tradier_module.requests, "post", _fake_post)
+    monkeypatch.setattr(requests, "post", _fake_post)
 
     broker = Tradier(
         config={"ACCESS_TOKEN": None, "ACCOUNT_NUMBER": "1234", "PAPER": True},
@@ -111,7 +112,7 @@ def test_oauth_force_refresh_updates_tradier_token_path(monkeypatch, tmp_path):
 
     from lumibot.brokers import tradier as tradier_module
 
-    monkeypatch.setattr(tradier_module.requests, "post", lambda *args, **kwargs: _Resp())
+    monkeypatch.setattr(requests, "post", lambda *args, **kwargs: _Resp())
 
     broker = Tradier(
         config={"ACCESS_TOKEN": None, "ACCOUNT_NUMBER": "1234", "PAPER": True},
@@ -160,7 +161,7 @@ def test_oauth_force_refresh_fails_if_tradier_token_path_cannot_be_written(monke
 
     from lumibot.brokers import tradier as tradier_module
 
-    monkeypatch.setattr(tradier_module.requests, "post", lambda *args, **kwargs: _Resp())
+    monkeypatch.setattr(requests, "post", lambda *args, **kwargs: _Resp())
     monkeypatch.setattr(
         tradier_module.Tradier,
         "_write_json_file_atomic",
@@ -195,7 +196,7 @@ def test_oauth_force_refresh_failure_raises(monkeypatch):
     from lumibot.brokers import tradier as tradier_module
 
     monkeypatch.setattr(
-        tradier_module.requests,
+        requests,
         "post",
         lambda *args, **kwargs: pytest.fail("Forced-refresh failure test must not call network"),
     )
@@ -232,7 +233,7 @@ def test_oauth_force_refresh_is_skipped_when_oauth_refresh_mode_external(monkeyp
     from lumibot.brokers import tradier as tradier_module
 
     monkeypatch.setattr(
-        tradier_module.requests,
+        requests,
         "post",
         lambda *args, **kwargs: pytest.fail("External OAuth refresh mode must not call Tradier refresh endpoint"),
     )
@@ -268,7 +269,7 @@ def test_force_refresh_is_noop_for_api_token_mode(monkeypatch):
     monkeypatch.setenv("DATADOWNLOADER_API_KEY", "test")
     monkeypatch.delenv("TRADIER_TOKEN", raising=False)
     monkeypatch.setattr(
-        tradier_module.requests,
+        requests,
         "post",
         lambda *args, **kwargs: pytest.fail("API-token mode must not call OAuth refresh"),
     )
@@ -307,7 +308,7 @@ def test_oauth_force_refresh_updates_external_data_source(monkeypatch):
 
     from lumibot.brokers import tradier as tradier_module
 
-    monkeypatch.setattr(tradier_module.requests, "post", lambda *args, **kwargs: _Resp())
+    monkeypatch.setattr(requests, "post", lambda *args, **kwargs: _Resp())
 
     data_source = TradierData(
         account_number="1234",

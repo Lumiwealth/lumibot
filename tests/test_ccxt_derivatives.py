@@ -90,6 +90,75 @@ def test_contract_exposure_uses_metadata_for_linear_and_inverse(derivatives, sym
     assert exposure["quote"] == Decimal(quote)
 
 
+def test_phemex_startup_does_not_require_nonexistent_empty_account_frames(derivatives):
+    derivatives.stream = Mock()
+    derivatives.stream.snapshot.side_effect = AssertionError("AOP may send zero initial snapshots")
+    derivatives.api.fetch_open_orders = Mock(return_value=[])
+    assert derivatives._pull_broker_all_orders() == []
+    assert derivatives.api.fetch_open_orders.call_count == len(derivatives.api.markets)
+    derivatives.api.fetch_open_orders.reset_mock()
+    assert derivatives._pull_broker_all_orders() == []
+    derivatives.api.fetch_open_orders.assert_not_called()
+    derivatives.stream.snapshot.assert_not_called()
+
+
+def test_phemex_rest_bootstrap_replays_stream_changes_after_rest_rows(derivatives):
+    derivatives.stream = Mock()
+    stale = {"id": "externally-closed", "symbol": "BTC/USDT:USDT", "status": "open"}
+    def fetch(symbol):
+        if symbol == stale["symbol"]:
+            derivatives._on_ccxt_orders([{**stale, "status": "closed"}],
+                                         {"type": "swap", "settle": "USDT", "currency": "USDT"})
+            return [stale]
+        return []
+    derivatives.api.fetch_open_orders = Mock(side_effect=fetch)
+    assert derivatives._pull_broker_all_orders() == []
+
+
+def test_phemex_reconnect_repeats_complete_discovery_and_retains_external_orders(derivatives):
+    derivatives.stream = Mock()
+    derivatives.api.fetch_open_orders = Mock(return_value=[])
+    assert derivatives._pull_broker_all_orders() == []
+    derivatives._on_ccxt_stream_disconnect()
+    external = {"id": "external-trigger", "symbol": "BTC/USDC:USDC", "status": "open"}
+    derivatives.api.fetch_open_orders.side_effect = lambda symbol: [external] if symbol == external["symbol"] else []
+    assert derivatives._pull_broker_all_orders() == [external]
+
+
+def test_phemex_failed_discovery_is_not_published_as_flat(derivatives):
+    derivatives.stream = Mock()
+    existing = {"id": "working", "symbol": "BTC/USDT:USDT", "status": "open"}
+    derivatives._on_ccxt_orders([existing], {"type": "swap", "settle": "USDT", "currency": "USDT"})
+    derivatives.api.fetch_open_orders = Mock(side_effect=ConnectionError("REST interrupted"))
+    with pytest.raises(ConnectionError):
+        derivatives._pull_broker_all_orders()
+    assert derivatives._stream_orders["working"] == existing
+
+
+def test_phemex_native_empty_wallet_snapshot_wins_over_inflight_rest_discovery(derivatives):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    derivatives.stream = Mock()
+    entered, release = Event(), Event()
+    stale = {"id": "old-rest-order", "symbol": "BTC/USDC:USDC", "status": "open"}
+    def fetch(symbol):
+        if symbol == stale["symbol"]:
+            entered.set()
+            release.wait()
+            return [stale]
+        return []
+    derivatives.api.fetch_open_orders = Mock(side_effect=fetch)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pending = pool.submit(derivatives._pull_broker_all_orders)
+        try:
+            entered.wait()
+            derivatives._on_ccxt_orders([], {"type": "swap", "settle": "USDT", "currency": "USDC"}, True)
+        finally:
+            release.set()
+        assert pending.result() == []
+
+
 def test_order_import_keeps_hedge_leg_and_settlement(derivatives):
     parsed = derivatives._parse_broker_order({
         "id": "contract-order", "symbol": "BTC/USDC:USDC", "type": "market", "side": "buy",
@@ -119,6 +188,41 @@ def test_phemex_account_routes_follow_product_metadata_and_real_value_fields(der
     assert snapshot["balances"]["USDC"]["total"] == Decimal("100")
     assert snapshot["balances"]["USDC"]["free"] == Decimal("90")
     assert snapshot["balances"]["BTC"]["total"] == Decimal("1")
+
+
+@pytest.mark.parametrize("active,error_code,skip", [
+    (False, 39108, True), (True, 39108, False), (None, 39108, False),
+    (False, 10002, False),
+])
+def test_phemex_retired_unsupported_settlement_does_not_break_other_wallets(
+        derivatives, active, error_code, skip):
+    import ccxt
+
+    # Shape and code come from Phemex's account endpoint. Retired market
+    # metadata can still name a currency the account API no longer supports.
+    obsolete = deepcopy(derivatives.api.markets["BTC/USD:BTC"])
+    obsolete.update(symbol="ETH/USD:USD", id="ETHUSD", settle="USD", active=active)
+    derivatives.api.markets[obsolete["symbol"]] = obsolete
+    derivatives.api.privateGetGAccountsAccountPositions = Mock(return_value={
+        "code": 0, "data": {"account": {"accountBalanceRv": "0", "totalUsedBalanceRv": "0"},
+                             "positions": []}})
+    valid = {"code": 0, "data": {"account": {"accountBalanceEv": 100000000,
+                                              "totalUsedBalanceEv": 0}, "positions": []}}
+
+    def legacy(params):
+        if params["currency"] == "USD":
+            raise ccxt.ExchangeError(
+                'phemex {"code":%s,"msg":"Currency not supported.","data":null}' % error_code)
+        return valid
+
+    derivatives.api.privateGetAccountsAccountPositions = Mock(side_effect=legacy)
+    if skip:
+        result = derivatives._phemex_contract_accounts()
+        assert set(result["balances"]) == {"BTC", "USDT", "USDC"}
+        assert result["balances"]["BTC"]["total"] == Decimal("1")
+    else:
+        with pytest.raises(ccxt.ExchangeError):
+            derivatives._phemex_contract_accounts()
 
 
 def test_phemex_equity_adds_collateral_and_settlement_pnl_once(derivatives):

@@ -154,6 +154,10 @@ data and document reads. Each source applies its own historical availability
 contract and reports unavailable snapshots explicitly. Backtests are not blocked
 from research merely because they lack a separate server-attested clock.
 
+The simulated-time ceiling uses ``asOf``. If a request supplies a ``timeRange``,
+its end date is also bounded; requests that omit period selection keep it omitted
+so release-based datasets can use their own supported selectors.
+
 **Pattern 1: @agent_tool wrapping a REST API (recommended)**
 
 This is the primary and recommended approach. It works reliably in both backtests and live trading because you control the HTTP call directly.
@@ -309,11 +313,11 @@ This is handled by the base prompt and the built-in ``market.load_history_table`
 Replay Cache
 ------------
 
-In backtesting mode, LumiBot caches every agent run. When a subsequent backtest hits the same combination of prompt, context, model, tools, and simulated timestamp, the cached result is returned instantly without calling the LLM or any external tool.
+In backtesting mode, LumiBot records agent runs and replays compatible successful decisions. The identity covers prompts, context, model, tools, simulated timestamp, dependency versions and callable implementation hashes. Explicit failed tool responses remain recorded but trigger fresh execution on the next run, allowing repaired dependencies and external services to recover.
 
 This means:
 
-- **Deterministic backtests.** The same inputs always produce the same outputs.
+- **Reproducible successful decisions.** Compatible saved inputs and runtime capabilities reuse the original output.
 - **Fast warm reruns.** A cached backtest that took 30 minutes on the first run can complete in seconds.
 - **Cost control.** No duplicate LLM API calls or external API calls on repeated runs.
 
@@ -478,6 +482,13 @@ Describe your strategy's thesis and the assets it trades. Do not repeat instruct
 **What does LumiBot handle automatically in the base prompt?**
 
 The base prompt tells the agent whether the run is a backtest or live, the current datetime and timezone, current positions and cash, rules about look-ahead bias, the default investor policy (conviction over activity, no overtrading), risk and drawdown discipline (risk-adjusted returns over raw returns, recovery math, cut losers, no chasing after drawdowns, Sharpe/Sortino/Calmar framing), position sizing and limit order preferences, and DuckDB conventions and tool usage guidance.
+
+For web research in backtests, the shared skill permits reasonable date, quantity
+and valuation estimates with their assumptions and coverage limits. A certified
+complete archive or original-version hash is not required. Known future
+disclosures and revisions remain excluded; uncertain evidence must never be
+presented as an exact historical snapshot. Live research has no publication-date
+restriction.
 
 **Can I override the default investor policy?**
 

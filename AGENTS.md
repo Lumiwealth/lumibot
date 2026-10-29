@@ -1,3 +1,10 @@
+# Keep entry pages and translations synchronized
+
+- When changing the README or documentation homepage, update every shipped localized counterpart in the same commit. This includes shared positioning, benefits, examples, setup commands, prerequisites, capability claims and destination links. Do not leave a language on an older setup story.
+- Localized summaries may remain concise and link to the full examples, but must identify themselves as summaries and preserve the current meaning. Update the entry-source fingerprint only after reviewing their content.
+- Keep shared README/homepage messaging consistent. Inspect the documentation locale inventory when changing a translated page; update existing catalogs/pages together. Do not invent new translated routes when none exist.
+- Run the entry-page and localization checks, build the affected documentation, and review desktop/mobile and light/dark rendering before publication. A matching fingerprint checks freshness, not translation quality.
+
 # Capability first: agents may use undated sources; live trading has no date rules (Rob, 2026-10-22)
 
 - Never make LumiBot agents less capable to look safer. Do not add an instruction, tool filter or gate that blocks ordinary research without a concrete failure behind it.
@@ -33,16 +40,19 @@
   exception requires explicit human approval and an exact bounded plan.
 - Explicit Standard/default service tier is required for actors, judges, nested
   calls and retries. Never use fast/priority service for evals.
-- Declare one cumulative call/input/output and API-equivalent envelope before
-  inference. The default task allowance is at most $20 equivalent, not a target
-  or permission for cash billing. Use the existing subscription budget owner;
-  do not create separate budgets for judges, retries or calibration to reset use.
+- Keep one append-only call/input/output usage ledger for subscription inference.
+  API-equivalent estimates are informational, not charges or approval limits.
+  Replenish technical reporting windows automatically without resetting history
+  or stopping actors, judges or calibration. Actual provider limits remain real.
 - Reserve the provider's actual possible envelope before every request, including
   ignored output limits. Unknown usage keeps its reservation after interruption.
   Retain cache and reasoning counts without double-counting OpenAI completion
   tokens. Record API-equivalent estimates separately from API charges and
   unreported subscription-credit debits.
-- Run deterministic setup/budget checks before inference. Reuse compatible native
+- Qualification actors and judges explicitly disable model-request and run
+  deadlines, including inherited transport defaults. Preserve functional,
+  authorization, trading and source-integrity assertions.
+- Run deterministic setup, authentication and billing-path checks before inference. Reuse compatible native
   actor evidence and rejudge stored transcripts when only the judge changes;
   preserve source, model and timestamp identities and every release assertion.
   A new verdict must never relabel old actor evidence as a new run.

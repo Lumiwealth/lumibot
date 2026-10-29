@@ -69,17 +69,40 @@ def test_eval_preflight_rejects_paid_models_even_with_keys(monkeypatch):
     assert evals.DEFAULT_JUDGE_MODEL.startswith("chatgpt/")
 
 
-def test_subscription_call_budget_enforces_calls_across_resume(tmp_path):
+def test_subscription_reporting_preserves_calls_across_resume(tmp_path):
     from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
     path = tmp_path / "calls.jsonl"
     budget = SubscriptionCallBudget(path, max_calls=1)
     ticket = budget.for_scope("case", 1, "acting").reserve("chatgpt/gpt-6-luna", 100)
     budget.settle(ticket, {"input_tokens": 5, "output_tokens": 2})
     resumed = SubscriptionCallBudget(path, max_calls=1)
-    with pytest.raises(ValueError, match="call limit"):
-        resumed.reserve("chatgpt/gpt-6-luna", 100)
+    resumed.reserve("chatgpt/gpt-6-luna", 100)
     assert resumed.snapshot()["committed_usd"] == 0
     assert resumed.snapshot()["usage"]["input_tokens"] == 5
+
+
+def test_subscription_usage_windows_never_block_a_continuing_qualification(tmp_path):
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+
+    path = tmp_path / "reporting.jsonl"
+    budget = SubscriptionCallBudget(path, max_calls=1)
+    original_header = path.read_text().splitlines()[0]
+    for _ in range(10):
+        budget.reserve("chatgpt/gpt-6-luna", 100)
+    resumed = SubscriptionCallBudget(path, max_calls=1)
+    snapshot = resumed.snapshot()
+    assert snapshot["reserved_calls"] == 10
+    assert snapshot["reserved_output_tokens"] == 1_280_000
+    assert snapshot["accounting_mode"] == "reporting"
+    assert snapshot["api_spend_usd"] == 0
+    assert path.read_text().splitlines()[0] == original_header
+
+
+def test_explicitly_disabled_request_deadline_reaches_subscription_transport():
+    from lumibot.components.agents.runtime import _resolve_model_for_adk
+
+    model = _resolve_model_for_adk("chatgpt/gpt-6-luna", model_request_timeout_seconds=0)
+    assert model._kwargs.get("timeout", "missing") is None
 
 
 def test_subscription_qualification_call_ceiling_is_shared_and_explicit(tmp_path):
@@ -88,7 +111,7 @@ def test_subscription_qualification_call_ceiling_is_shared_and_explicit(tmp_path
         SubscriptionCallBudget,
     )
 
-    # Explicitly approved cumulative ceiling; existing lower allowances stay fixed.
+    # Historical window size is informational; no request is refused at this count.
     assert MAX_SUBSCRIPTION_QUALIFICATION_CALLS == 5000
     default = SubscriptionCallBudget(tmp_path / "default.jsonl")
     planned = SubscriptionCallBudget(tmp_path / "planned.jsonl", max_calls=5000)
@@ -98,7 +121,7 @@ def test_subscription_qualification_call_ceiling_is_shared_and_explicit(tmp_path
     assert planned.snapshot()["api_spend_usd"] == 0
 
 
-@pytest.mark.parametrize("invalid", [0, -1, True, False, 1.5, "2500", None, float("inf"), float("nan"), 5001])
+@pytest.mark.parametrize("invalid", [0, -1, True, False, 1.5, "2500", None, float("inf"), float("nan")])
 def test_subscription_qualification_rejects_invalid_or_excessive_caps_before_writing(tmp_path, invalid):
     from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
 
@@ -118,8 +141,7 @@ def test_subscription_new_attempt_cannot_resize_or_rewrite_an_existing_500_call_
     original.reserve("chatgpt/gpt-6-luna", 100)
     before = path.read_bytes()
     counts = original.snapshot()
-    with pytest.raises(ValueError, match="contract changed"):
-        SubscriptionCallBudget(path, max_calls=1500)
+    SubscriptionCallBudget(path, max_calls=1500)
     assert path.read_bytes() == before
     resumed = SubscriptionCallBudget(path)
     assert resumed.snapshot() == counts
@@ -151,9 +173,9 @@ def test_subscription_remaining_call_guard_at_the_largest_explicit_cap(tmp_path)
     assert budget.snapshot()["settled_calls"] == 1499
     assert budget.snapshot()["reserved_calls"] == 1
     exhausted = path.read_bytes()
-    with pytest.raises(SubscriptionCallLimitError):
-        SubscriptionCallBudget(path, max_calls=1500).reserve("chatgpt/gpt-6-luna", 100)
-    assert path.read_bytes() == exhausted
+    SubscriptionCallBudget(path, max_calls=1500).reserve("chatgpt/gpt-6-luna", 100)
+    assert path.read_bytes().startswith(exhausted)
+    assert SubscriptionCallBudget(path).snapshot()["reserved_calls"] == 2
 
 
 def test_subscription_reservations_are_atomic_across_concurrent_resumed_instances(tmp_path):
@@ -173,8 +195,8 @@ def test_subscription_reservations_are_atomic_across_concurrent_resumed_instance
     with ThreadPoolExecutor(max_workers=8) as pool:
         results = list(pool.map(lambda _: reserve(), range(8)))
     tickets = [ticket for ticket in results if ticket is not None]
-    assert len(tickets) == len(set(tickets)) == 3
-    assert SubscriptionCallBudget(path, max_calls=3).snapshot()["reserved_calls"] == 3
+    assert len(tickets) == len(set(tickets)) == 8
+    assert SubscriptionCallBudget(path, max_calls=3).snapshot()["reserved_calls"] == 8
 
 
 def test_subscription_unknown_usage_and_unscoped_reservations_still_consume_the_allowance(tmp_path):
@@ -190,9 +212,9 @@ def test_subscription_unknown_usage_and_unscoped_reservations_still_consume_the_
     resumed = SubscriptionCallBudget(path, max_calls=2)
     assert resumed.snapshot()["reserved_calls"] == 2
     assert resumed.snapshot()["settled_calls"] == 0
-    with pytest.raises(SubscriptionCallLimitError):
-        resumed.reserve("chatgpt/gpt-6-luna", 100)
-    assert path.read_bytes() == before
+    resumed.reserve("chatgpt/gpt-6-luna", 100)
+    assert path.read_bytes().startswith(before)
+    assert resumed.snapshot()["reserved_calls"] == 3
 
 
 @pytest.mark.parametrize("model", ["openai/gpt-6-luna", "google/gemini-pro", "gpt-6-luna"])
@@ -426,7 +448,8 @@ def test_actual_adk_subscription_transport_owns_stream_validation(monkeypatch, t
 
 @pytest.mark.parametrize('runner_mode', [False, True])
 @pytest.mark.parametrize("content_type", ["text/event-stream", None])
-def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items(monkeypatch, tmp_path, runner_mode, content_type):
+@pytest.mark.parametrize("argument_deltas", [True, False])
+def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items(monkeypatch, tmp_path, runner_mode, content_type, argument_deltas):
     """ADK drops Responses reasoning metadata; assert the actual second wire body."""
     import asyncio
 
@@ -468,11 +491,15 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
                     for index, tool_call in enumerate(original_output):
                         if tool_call['type'] != 'function_call':
                             continue
+                        events.append({'type': 'response.output_item.added', 'output_index': index,
+                                       'item': {**tool_call, 'arguments': '', 'status': 'in_progress'}})
+                        # Real parallel responses may provide complete arguments only in done items.
+                        if argument_deltas:
+                            events.append({'type': 'response.function_call_arguments.delta', 'item_id': tool_call['id'],
+                                           'output_index': index, 'delta': tool_call['arguments']})
                         events.extend([
-                            {'type': 'response.output_item.added', 'output_index': index,
-                             'item': {**tool_call, 'arguments': '', 'status': 'in_progress'}},
-                            {'type': 'response.function_call_arguments.delta', 'item_id': tool_call['id'],
-                             'output_index': index, 'delta': tool_call['arguments']},
+                            {'type': 'response.function_call_arguments.done', 'item_id': tool_call['id'],
+                             'output_index': index, 'arguments': tool_call['arguments']},
                             {'type': 'response.output_item.done', 'output_index': index, 'item': tool_call},
                         ])
                 else:
@@ -488,19 +515,23 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
     async def run_runner():
         from google.adk.agents import LlmAgent
         from google.adk.runners import InMemoryRunner
+        observed = []
         def get_evidence(series: str) -> dict:
             """Return recorded economic evidence for the requested series."""
+            observed.append(series)
             return {'value': 2.5 if series == 'CPI' else 4.0}
         runner = InMemoryRunner(agent=LlmAgent(name='researcher', model=model, tools=[get_evidence]), app_name='replay-contract')
         await runner.session_service.create_session(app_name=runner.app_name, user_id='synthetic', session_id='test')
         events = [event async for event in runner.run_async(user_id='synthetic', session_id='test', new_message=request.contents[0])]
         assert any(event.content and any(part.text == 'done' for part in event.content.parts) for event in events)
         assert 'opaque-contract' not in json.dumps([event.model_dump(mode='json') for event in events])
+        assert sorted(observed) == ['CPI', 'RATE']
     async def run():
         first = [r async for r in model.generate_content_async(request)]
         assert first[-1].usage_metadata.cached_content_token_count == 3
         assert first[-1].usage_metadata.thoughts_token_count == 1
         function = next(p.function_call for p in first[-1].content.parts if p.function_call)
+        assert function.args == {'series': 'CPI'}
         request.contents.extend([first[-1].content, types.Content(role='user', parts=[
             types.Part(function_response=types.FunctionResponse(id=function.id, name=function.name,
                                                                 response={'value': 2.5}))])])
@@ -532,14 +563,13 @@ def test_subscription_allowance_amendment_preserves_every_existing_call(tmp_path
     resumed = SubscriptionCallBudget(path, max_calls=3)
     resumed.reserve("chatgpt/gpt-6-luna", 100)
     resumed.reserve("chatgpt/gpt-6-luna", 100)
-    with pytest.raises(ValueError, match="call limit"):
-        resumed.reserve("chatgpt/gpt-6-luna", 100)
+    resumed.reserve("chatgpt/gpt-6-luna", 100)
     assert resumed.header["max_calls"] == 2
-    assert resumed.snapshot()["max_calls"] == 3
+    assert resumed.snapshot()["max_calls"] == 5
     assert resumed.snapshot()["usage"]["input_tokens"] == 5
 
 
-@pytest.mark.parametrize("limit,reason", [(1, "review"), (2, "review"), (5001, "review"), (True, "review"), (3, "")])
+@pytest.mark.parametrize("limit,reason", [(1, "review"), (2, "review"), (True, "review"), (3, "")])
 def test_subscription_allowance_rejects_invalid_amendments_without_writing(tmp_path, limit, reason):
     from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
     path = tmp_path / "calls.jsonl"
@@ -575,7 +605,7 @@ def test_subscription_amendment_cannot_create_a_new_ledger(tmp_path):
     assert not path.exists()
 
 
-def test_subscription_amendment_cannot_retroactively_authorize_overspending(tmp_path):
+def test_subscription_legacy_windows_preserve_all_recorded_usage(tmp_path):
     import json
     from uuid import uuid4
 
@@ -589,8 +619,8 @@ def test_subscription_amendment_cannot_retroactively_authorize_overspending(tmp_
                  "reason": "Too late", "timestamp": extra["timestamp"]}
     with path.open("a") as stream:
         stream.write(json.dumps(extra) + "\n" + json.dumps(amendment) + "\n")
-    with pytest.raises(ValueError, match="exceeded"):
-        SubscriptionCallBudget(path, max_calls=3)
+    resumed = SubscriptionCallBudget(path, max_calls=3)
+    assert resumed.snapshot()["reserved_calls"] == 2
 
 
 @pytest.mark.parametrize("model", ["chatgpt/gpt-6-sol", "chatgpt/gpt-6.1-sol", "chatgpt/gpt-6-astra"])
@@ -609,11 +639,10 @@ def test_subscription_output_reservation_uses_provider_maximum_not_ignored_reque
     for _ in range(7):
         budget.reserve("chatgpt/gpt-6-luna", 1)
     before = budget.path.read_bytes()
-    with pytest.raises(ValueError, match="token"):
-        budget.reserve("chatgpt/gpt-6-luna", 1)
-    assert budget.path.read_bytes() == before
+    budget.reserve("chatgpt/gpt-6-luna", 1)
+    assert budget.path.read_bytes().startswith(before)
     status = SubscriptionCallBudget(budget.path, max_calls=20).snapshot()
-    assert status["reserved_output_tokens"] == 896_000
+    assert status["reserved_output_tokens"] == 1_024_000
     assert status["api_spend_usd"] == 0
     assert status["actual_subscription_credit_debit"] is None
 
@@ -625,16 +654,16 @@ def test_subscription_settlement_releases_only_unused_token_capacity(tmp_path):
     budget.settle(tickets[0], {"input_tokens": 5, "cached_input_tokens": 3, "output_tokens": 2})
     resumed = SubscriptionCallBudget(budget.path, max_calls=20)
     resumed.reserve("chatgpt/gpt-6-luna", 1)
-    with pytest.raises(ValueError, match="token"):
-        resumed.reserve("chatgpt/gpt-6-luna", 1)
+    resumed.reserve("chatgpt/gpt-6-luna", 1)
     s = resumed.snapshot()
-    assert s["settled_calls"] == 1 and s["reserved_calls"] == 7
+    assert s["settled_calls"] == 1 and s["reserved_calls"] == 8
     assert s["usage"]["cached_input_tokens"] == 3
     assert s["equivalent_usd_upper_bound"] > 0
-    assert s["equivalent_usd_upper_bound"] < s["equivalent_usd_allowance"] <= 20
+    assert s["equivalent_usd_allowance"] is None
+    assert s["accounting_mode"] == "reporting"
 
 
-def test_subscription_parallel_roles_share_the_cumulative_token_cap(tmp_path):
+def test_subscription_parallel_roles_share_reporting_without_a_token_cap(tmp_path):
     from concurrent.futures import ThreadPoolExecutor
     from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
     path = tmp_path / "calls.jsonl"
@@ -646,7 +675,7 @@ def test_subscription_parallel_roles_share_the_cumulative_token_cap(tmp_path):
         except ValueError:
             return None
     with ThreadPoolExecutor(max_workers=8) as pool:
-        assert len([r for r in pool.map(attempt, range(12)) if r]) == 7
+        assert len([r for r in pool.map(attempt, range(12)) if r]) == 12
 
 
 def test_subscription_adk_completion_reasoning_is_counted_once(tmp_path):
@@ -660,7 +689,7 @@ def test_subscription_adk_completion_reasoning_is_counted_once(tmp_path):
                      "output_tokens": 20, "thinking_tokens": 80}
 
 
-def test_historical_mixed_model_cost_is_unknown_and_cannot_authorize_more_calls(tmp_path):
+def test_historical_mixed_model_cost_is_unknown_without_blocking_luna_reporting(tmp_path):
     from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
     budget = SubscriptionCallBudget(tmp_path / "legacy.jsonl", max_calls=10)
     legacy = {key: value for key, value in budget.header.items() if key != "token_policy"}
@@ -675,9 +704,8 @@ def test_historical_mixed_model_cost_is_unknown_and_cannot_authorize_more_calls(
     resumed = SubscriptionCallBudget(budget.path, max_calls=10)
     assert resumed.snapshot()["equivalent_usd_upper_bound"] is None
     assert resumed.snapshot()["unpriced_historical_models"] == ["chatgpt/gpt-6.1-sol"]
-    with pytest.raises(ValueError, match="historical.*pricing"):
-        resumed.reserve("chatgpt/gpt-6-luna", 1)
-    assert budget.path.read_bytes() == before
+    resumed.reserve("chatgpt/gpt-6-luna", 1)
+    assert budget.path.read_bytes().startswith(before)
 
 
 def _write_profile(home, profile_id, email):
@@ -801,3 +829,72 @@ def test_token_envelope_fits_a_full_release_catalog_inside_the_dollar_allowance(
     assert budget.equivalent_upper_bound(
         budget.MAX_SUBSCRIPTION_INPUT_TOKENS, budget.MAX_SUBSCRIPTION_OUTPUT_TOKENS
     ) <= budget.SUBSCRIPTION_EQUIVALENT_ALLOWANCE_USD
+
+
+@pytest.mark.parametrize("terminal_arguments_event", [True, False])
+def test_tool_call_arguments_sent_only_in_done_events_reach_the_agent(monkeypatch, tmp_path, terminal_arguments_event):
+    """The plan endpoint can stream a function call with no argument deltas.
+
+    Observed on 2026-10-28: about 40 percent of tool calls arrived as
+    output_item.added (empty arguments), then function_call_arguments.done and
+    output_item.done carrying the full arguments, with no delta events. LiteLLM
+    builds arguments only from deltas, so those calls reached the agent with
+    null arguments and failed. A parallel call that does stream deltas must keep
+    its arguments exactly once.
+    """
+    import asyncio
+
+    import httpx
+    from google.adk.models.llm_request import LlmRequest
+    from google.genai import types
+
+    from lumibot.components.agents import chatgpt_llm
+    from lumibot.components.agents.runtime import _configure_litellm_quietly, _register_openai_gpt6_models
+    _configure_litellm_quietly()
+    _register_openai_gpt6_models()
+    monkeypatch.setattr(chatgpt_llm, 'access_token', lambda path: 'synthetic-plan-token')
+    quiet = {'id': 'fc_quiet', 'type': 'function_call', 'call_id': 'call_quiet',
+             'name': 'get_evidence', 'arguments': '{"series":"CPI"}', 'status': 'completed'}
+    streamed = {**quiet, 'id': 'fc_streamed', 'call_id': 'call_streamed', 'arguments': '{"series":"RATE"}'}
+
+    def handle(request):
+        terminal = {'id': 'resp_quiet', 'object': 'response', 'model': 'gpt-6-luna', 'status': 'completed',
+                    'output': [quiet, streamed],
+                    'usage': {'input_tokens': 5, 'output_tokens': 2, 'total_tokens': 7,
+                              'input_tokens_details': {'cached_tokens': 0},
+                              'output_tokens_details': {'reasoning_tokens': 0}}}
+
+        class Stream(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                events = [{'type': 'response.output_item.added', 'output_index': 0,
+                           'item': {**quiet, 'arguments': '', 'status': 'in_progress'}}]
+                if terminal_arguments_event:
+                    events.append({'type': 'response.function_call_arguments.done', 'item_id': quiet['id'],
+                                   'output_index': 0, 'arguments': quiet['arguments']})
+                events += [
+                    {'type': 'response.output_item.done', 'output_index': 0, 'item': quiet},
+                    {'type': 'response.output_item.added', 'output_index': 1,
+                     'item': {**streamed, 'arguments': '', 'status': 'in_progress'}},
+                    {'type': 'response.function_call_arguments.delta', 'item_id': streamed['id'],
+                     'output_index': 1, 'delta': streamed['arguments']},
+                    {'type': 'response.function_call_arguments.done', 'item_id': streamed['id'],
+                     'output_index': 1, 'arguments': streamed['arguments']},
+                    {'type': 'response.output_item.done', 'output_index': 1, 'item': streamed},
+                    {'type': 'response.completed', 'response': terminal},
+                ]
+                # One chunk boundary inside an event proves line reframing is safe.
+                payload = ''.join('data: ' + json.dumps(event) + '\n\n' for event in events).encode()
+                yield payload[:37]
+                yield payload[37:]
+        return httpx.Response(200, headers={'content-type': 'text/event-stream'}, stream=Stream())
+
+    model = chatgpt_llm.ChatGPTPlanLlm(model='openai/responses/gpt-6-luna', profile=tmp_path/'profile.json',
+                                     transport=httpx.MockTransport(handle))
+    request = LlmRequest(contents=[types.Content(role='user', parts=[types.Part(text='get evidence')])],
+                         config=types.GenerateContentConfig())
+
+    async def run():
+        return [r async for r in model.generate_content_async(request)]
+    final = asyncio.run(run())[-1]
+    calls = {p.function_call.id: p.function_call.args for p in final.content.parts if p.function_call}
+    assert calls == {'call_quiet': {'series': 'CPI'}, 'call_streamed': {'series': 'RATE'}}

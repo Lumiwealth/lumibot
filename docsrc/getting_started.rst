@@ -26,6 +26,21 @@ Choose what you want to build
 Already building with an AI coding assistant? :doc:`Install the free LumiBot trading skills <claude_code_codex_cursor>`
 in Claude Code, Codex or Cursor with one command, and give it :doc:`agent_start_here`.
 
+Give strategy agents BotSpot research tools
+-------------------------------------------
+
+Recommended for agentic strategies: connect BotSpot once, then let agents discover
+research datasets, retrieve SEC documents and read permitted Marketplace and
+Community information. LumiBot remains usable independently.
+
+.. code-block:: bash
+
+   lumibot connect botspot
+
+Connecting is free. See :doc:`botspot_mcp` for the available tools, account
+permissions and historical-data limitations. Hosted backtests and deployment
+from your coding assistant are separate BotSpot workflows with plan-based usage.
+
 Install LumiBot
 ---------------
 

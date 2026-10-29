@@ -102,7 +102,8 @@ def test_readme_leads_with_runnable_ai_before_education():
     opening = text.split('## What You Can Build')[0]
     assert 'LumiBot AI Trading' in opening
     assert 'Try the development example without API keys' not in opening
-    assert 'ResearcherTraderStrategy.backtest(' in opening
+    # October 26: the first example now exposes its prompts instead of importing a hidden class.
+    assert 'MyAIStrategy.backtest(' in opening
     assert 'export OPENAI_API_KEY=' in opening
     assert opening.index('```python') < opening.index('Join the free challenge')
     assert 'width="640"' in opening
@@ -125,9 +126,12 @@ def test_homepage_and_readme_offer_direct_ai_runner_before_reference_choices():
     home = (ROOT / 'docsrc/index.rst').read_text()
     readme = (ROOT / 'README.md').read_text()
     runner = 'python -m lumibot.example_strategies.ai_researcher_trader'
-    assert home.index(runner) < home.index('lumibot-entry-grid')
+    # The primary AI/Python/hybrid links reuse the grid class. Check the
+    # reference grid itself, rather than matching that earlier navigation.
+    assert home.index(runner) < home.index('Explore the framework\n')
     assert home.index(runner) < home.index('.. _first-python-backtest:')
-    assert readme.index(runner) < readme.index('Save as `my_ai_strategy.py`')
+    # October 26: show editable AI code first; the canonical team runner follows it.
+    assert readme.index('system_prompt=') < readme.index(runner)
 
 
 def test_generated_artwork_has_consistent_centered_placements():
@@ -146,10 +150,11 @@ def test_generated_artwork_has_consistent_centered_placements():
 
 def test_traditional_strategies_are_first_screen_and_start_here_choices():
     readme = (ROOT / 'README.md').read_text().split('## Run your first AI backtest')[0]
-    assert '[Python quickstart](#backtest-a-strategy)' in readme
-    assert 'No AI model or model API key is required' in readme
+    assert '[Python strategies](#backtest-a-strategy)' in readme
+    # October 26: explain Python, AI-native and hybrid strategies once, without repeated disclaimers.
+    assert 'Python strategies' in readme and 'AI-native strategies' in readme
     home = (ROOT / 'docsrc/index.rst').read_text()
-    assert home.index('Python quickstart <first-python-backtest>') < home.index('Run an AI strategy')
+    assert home.index('<first-python-backtest>') < home.index('Build an AI-native strategy')
     nav = home.split(':caption: Start here')[1].split('.. toctree::')[0]
     assert 'Python Strategy Examples <examples>' in nav
     examples = (ROOT / 'docsrc/examples.rst').read_text()
@@ -159,7 +164,7 @@ def test_traditional_strategies_are_first_screen_and_start_here_choices():
 
 def test_benefit_copy_and_tracked_learning_placements():
     home = (ROOT / 'docsrc/index.rst').read_text()
-    assert 'Turn trading ideas into working strategies' in home
+    assert 'Build AI trading agents. Backtest them. Trade with the same strategy.' in home
     for page, content in [('index.rst', 'home_challenge_image'),
                           ('getting_started.rst', 'setup_challenge_image'),
                           ('agents_examples.rst', 'examples_challenge_image'),

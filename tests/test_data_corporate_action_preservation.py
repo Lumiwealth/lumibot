@@ -182,3 +182,134 @@ def test_public_daily_action_reads_do_not_repeat_another_assets_event(backend, s
         bars = source.get_historical_prices(action_data.asset, 1, timestep="day")
         assert bars.df.index[-1].date() == timestamp.date()
         assert bars.df["dividend"].iloc[-1] == dividend
+
+
+def _alignment_warnings(caplog):
+    """Select the action diagnostic without hiding unrelated log records."""
+    return [record for record in caplog.records if record.getMessage().startswith("Corporate-action alignment")]
+
+
+@pytest.mark.parametrize("backend", BACKENDS)
+@pytest.mark.parametrize("column", ["dividend", "stock_splits"])
+def test_off_grid_action_warning_is_once_per_object(backend, column, caplog):
+    """Report lost real events once, preserving exact retained integers and marks."""
+    caplog.set_level("WARNING")
+    index = pd.date_range("2026-10-12 10:00", periods=5, freq="min", tz="UTC", name="datetime")
+    source_index = (index[[0, 1, 3, 4]] + pd.to_timedelta([0, 30, 0, 0], unit="s")).rename("datetime")
+    frame = _frame(source_index)
+    frame[column] = pd.Series([0, 2**53 + 1, 1, 0], index=source_index, dtype="int64")
+    data = _data(backend, frame, "minute", symbol="ACTION_A")
+    original = data.df
+    saved = original.copy(deep=True)
+
+    data.repair_times_and_fill(index)
+
+    records = _alignment_warnings(caplog)
+    assert len(records) == 1
+    assert records[0].levelname == "WARNING"
+    assert "ACTION_A" in records[0].getMessage()
+    assert column in records[0].getMessage()
+    assert str(index[0]) in records[0].getMessage()
+    assert str(index[-1]) in records[0].getMessage()
+    pd.testing.assert_series_equal(data.df[column], pd.Series([0, 0, 0, 1, 0], index=index, name=column, dtype="int64"))
+    np.testing.assert_array_equal(data.datalines[column].dataline, [0, 0, 0, 1, 0])
+    assert data.df["close"].tolist() == [100.0] * 5
+    pd.testing.assert_frame_equal(original, saved)
+
+    # This alignment loses another real event, so a missing suppression flag
+    # would emit a second warning even though the first lost event is already gone.
+    data.repair_times_and_fill(index[[0, 2, 4]])
+    assert data.df[column].tolist() == [0, 0, 0]
+    assert len(_alignment_warnings(caplog)) == 1
+
+    other = _data(backend, frame, "minute", symbol="ACTION_B")
+    other.repair_times_and_fill(index)
+    assert len(_alignment_warnings(caplog)) == 2
+    assert "ACTION_B" in _alignment_warnings(caplog)[1].getMessage()
+
+
+@pytest.mark.parametrize("backend", BACKENDS)
+def test_alignment_warning_waits_until_an_event_is_omitted(backend, caplog):
+    """An earlier harmless alignment must not suppress a later useful warning."""
+    caplog.set_level("WARNING")
+    index = pd.date_range("2026-10-12 10:00", periods=3, freq="min", tz="America/New_York", name="datetime")
+    data = _data(backend, _frame(index, [0.0, 1.0, 0.0]), "minute")
+
+    data.repair_times_and_fill(index)
+    assert not _alignment_warnings(caplog)
+    assert data.df["dividend"].tolist() == [0.0, 1.0, 0.0]
+
+    data.repair_times_and_fill(index[[0, 2]])
+    assert len(_alignment_warnings(caplog)) == 1
+    assert data.df["dividend"].tolist() == [0.0, 0.0]
+
+
+@pytest.mark.parametrize("backend", BACKENDS)
+@pytest.mark.parametrize("case", ["absent", "neutral", "trimmed", "duplicates"])
+def test_action_alignment_warning_ignores_normal_filtering(backend, case, caplog):
+    """Absent/null/zero events, window trimming and discarded duplicates stay quiet."""
+    caplog.set_level("WARNING")
+    index = pd.date_range("2026-10-12 10:00", periods=5, freq="min", tz="America/New_York", name="datetime")
+    target = index
+    if case == "absent":
+        frame = _frame(index[[0, 4]])
+    elif case == "neutral":
+        off_grid = (index[[0, 1, 4]] + pd.to_timedelta([0, 30, 0], unit="s")).rename("datetime")
+        frame = _frame(off_grid, [0.0, np.nan, 0.0], [0.0, 0.0, 0.0])
+    elif case == "trimmed":
+        frame = _frame(index, [1.0, 0.0, 0.0, 0.0, 0.5], [2.0, 0.0, 0.0, 0.0, 0.5])
+        target = index[1:-1]
+    else:
+        duplicate = (index[[0, 1, 1, 4]] + pd.to_timedelta([0, 30, 30, 0], unit="s")).rename("datetime")
+        frame = _frame(duplicate, [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 2.0, 0.0])
+    data = _data(backend, frame, "minute")
+
+    data.repair_times_and_fill(target)
+
+    assert not _alignment_warnings(caplog)
+    pd.testing.assert_index_equal(data.df.index, target)
+    for column in ("dividend", "stock_splits"):
+        if column in frame:
+            assert data.df[column].eq(0).all()
+
+
+@pytest.mark.parametrize("backend,source_class", [(Data, PandasData), (DataPolars, PolarsData)])
+def test_public_minute_load_warns_for_lost_action(backend, source_class, caplog):
+    """A public loader's minute grid can omit a second-offset corporate action."""
+    caplog.set_level("WARNING")
+    index = pd.date_range("2026-10-12 10:00", periods=5, freq="min", tz="America/New_York", name="datetime")
+    source_index = (index[[0, 1, 4]] + pd.to_timedelta([0, 30, 0], unit="s")).rename("datetime")
+    action = _data(backend, _frame(source_index, [0.0, 1.0, 0.0], [0.0, 2.0, 0.0]), "minute")
+    companion = _data(backend, _frame(index), "minute", symbol="OTHER")
+    source = source_class(
+        datetime_start=index[0], datetime_end=index[-1] + pd.Timedelta(minutes=2), pandas_data=[action, companion]
+    )
+
+    source.load_data()
+
+    assert len(_alignment_warnings(caplog)) == 1
+    assert "dividend" in _alignment_warnings(caplog)[0].getMessage()
+    assert "stock_splits" in _alignment_warnings(caplog)[0].getMessage()
+    assert action.df["dividend"].tolist() == [0.0] * 5
+    assert action.df["stock_splits"].tolist() == [0.0] * 5
+    assert action.df["close"].tolist() == [100.0] * 5
+
+
+@pytest.mark.parametrize("backend,source_class", [(Data, PandasData), (DataPolars, PolarsData)])
+def test_public_daily_load_preserves_shifted_actions_without_warning(backend, source_class, caplog):
+    """Daily union calendars keep the supplied hour instead of forcing midnight."""
+    caplog.set_level("WARNING")
+    index = pd.date_range("2026-10-12", periods=5, tz="America/New_York", name="datetime")
+    shifted = index[[0, 2, 4]] + pd.Timedelta(hours=1)
+    action = _data(backend, _frame(shifted, [1.0, np.nan, 0.5], [2.0, np.nan, 0.5]))
+    companion = _data(backend, _frame(index), symbol="OTHER")
+    source = source_class(
+        datetime_start=index[0], datetime_end=index[-1] + pd.Timedelta(hours=23), pandas_data=[action, companion]
+    )
+
+    source.load_data()
+
+    assert not _alignment_warnings(caplog)
+    retained = action.df.loc[action.df["dividend"].ne(0), "dividend"]
+    assert retained.tolist() == [1.0, 0.5]
+    assert retained.index.tolist() == shifted[[0, 2]].tolist()

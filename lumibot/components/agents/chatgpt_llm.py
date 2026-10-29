@@ -108,14 +108,21 @@ class CompletionCheckedStream(httpx.AsyncByteStream):
     async def __aiter__(self) -> AsyncGenerator[bytes, None]:
         pending = b""
         complete = False
+        # The plan endpoint may send a function call's arguments only in its
+        # done events, with no argument deltas. LiteLLM builds arguments from
+        # deltas alone, so such calls reached the agent empty. Emit one
+        # equivalent delta before the first done event that carries them.
+        streamed_arguments = set()
         async for chunk in self.delegate:
             pending += chunk
+            out = []
             while b"\n" in pending:
                 line, pending = pending.split(b"\n", 1)
                 if line.startswith(b"data:"):
                     data = line[5:].strip()
                     if data and data != b"[DONE]":
                         event = json.loads(data)
+                        out.extend(self._missing_argument_delta(event, streamed_arguments))
                         if event.get("type") in {"error", "response.failed", "response.incomplete"}:
                             error = event.get("error") or event.get("response", {}).get("error") or {}
                             self.failure = SubscriptionModelResponseError(error.get("code") or event.get("code") or "unknown")
@@ -130,10 +137,34 @@ class CompletionCheckedStream(httpx.AsyncByteStream):
                                 except Exception as error:
                                     self.failure = error
                                     raise
-            yield chunk
+                out.append(line + b"\n")
+            if out:
+                yield b"".join(out)
+        if pending:
+            yield pending
         if not complete:
             self.failure = SubscriptionModelResponseError("subscription_stream_incomplete")
             raise self.failure
+
+    @staticmethod
+    def _missing_argument_delta(event: dict, streamed_arguments: set) -> list[bytes]:
+        kind = event.get("type")
+        index = event.get("output_index")
+        if kind == "response.function_call_arguments.delta":
+            streamed_arguments.add(index)
+            return []
+        if kind == "response.function_call_arguments.done":
+            arguments, item_id = event.get("arguments"), event.get("item_id")
+        elif kind == "response.output_item.done" and (event.get("item") or {}).get("type") == "function_call":
+            arguments, item_id = event["item"].get("arguments"), event["item"].get("id")
+        else:
+            return []
+        if index in streamed_arguments or not arguments:
+            return []
+        streamed_arguments.add(index)
+        delta = {"type": "response.function_call_arguments.delta", "item_id": item_id,
+                 "output_index": index, "delta": arguments}
+        return [b"data: " + json.dumps(delta).encode() + b"\n", b"\n"]
 
     async def aclose(self) -> None:
         await self.delegate.aclose()

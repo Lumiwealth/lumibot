@@ -638,18 +638,18 @@ def test_web_skill_passes_computed_version_proof_to_document_tool():
     assert "Diagnostic excluded rows never enter the fetch manifest" in text
 
 
-def test_web_skill_starts_with_complete_historical_read_sequence():
+def test_web_skill_checks_updates_without_demanding_an_exhaustive_archive():
     # Real 964967c6 repetitions either skipped yearly-index eligibility SQL
     # or described an eligible supplemental report without opening it.
     skill = next(skill for skill in load_builtin_skills() if skill.name == "web-documents")
     text = " ".join(skill.instructions.split())
-    assert "For EACH discovered index table" in text
-    assert "Read every eligible document that changes OR confirms the baseline" in text
-    assert "An eligible administrative supplement must be opened" in text
-    assert text.index("For EACH discovered index table") < text.index("Eligibility belongs to")
+    assert "include eligible baseline and update rows, including supplementary indexes" in text
+    assert "Read a relevant supplement before claiming to have reconciled it" in text
+    assert "Do not describe unread contents" in text
+    assert "An exhaustive index or original-version archive is not a prerequisite" in text
 
 
-def test_historical_runtime_requires_fetch_arguments_from_computed_manifest(tmp_path):
+def test_historical_runtime_preserves_recorded_proof_without_requiring_unknown_proof(tmp_path):
     # Actual c016898e native repeats followed excluded samples or reopened
     # an explicitly future revised page to confirm already-known metadata.
     strategy = _Strategy()
@@ -661,8 +661,9 @@ def test_historical_runtime_requires_fetch_arguments_from_computed_manifest(tmp_
     agent.run(task_prompt="Reconstruct historical disclosures without trading.")
     prompt = " ".join(runtime.requests[0].system_prompt.split())
     # 4.6.27 (undated sources): the rule now applies whenever discovery tables record dates.
-    assert "When discovery tables record dates, fetch arguments must come only from the computed eligible manifest" in prompt
-    assert "Do not follow URLs from samples, excluded rows or an unfiltered query" in prompt
+    assert "Pass recorded availability as read_document available_at and any indexed original hash as expected_sha256 when supplied" in prompt
+    assert "Excluded rows are diagnostics, never fetch candidates" in prompt
+    assert "Omit unavailable proof rather than inventing it" in prompt
     assert "Do not request a known future version merely to confirm metadata" in prompt
 
 

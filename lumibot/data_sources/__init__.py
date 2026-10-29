@@ -3,6 +3,7 @@
 from importlib import import_module as _import_module
 
 _NAME_TO_MODULE = {
+    "KalshiData": "kalshi_data",
     "AlpacaData": "alpaca_data",
     "AlphaVantageData": "alpha_vantage_data",
     "BitunixData": "bitunix_data",

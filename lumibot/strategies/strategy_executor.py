@@ -4,7 +4,7 @@ import time
 from contextlib import contextmanager
 from functools import wraps
 from queue import Empty, Queue
-from threading import Event, Lock, Thread
+from threading import Event, Lock, RLock, Thread
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
@@ -163,6 +163,8 @@ class StrategyExecutor(Thread):
         self.lock = Lock()
         self.queue = Queue()
         self.priority_queue = Queue()
+        self._event_drain_lock = RLock()
+        self._live_iteration_callbacks_ready = False
 
         self.strategy = strategy
         self._strategy_context = None
@@ -183,6 +185,7 @@ class StrategyExecutor(Thread):
         # APScheduler is only needed for continuous live loops and explicit cron callbacks.
         # Scheduled run_once deployments skip it, so create it lazily.
         self.scheduler = None
+        self._scheduler_job_executor = None
 
         # Initialize a target count and a current count for cron jobs to 0.
         # These are used to determine when to execute the on_trading_iteration method.
@@ -230,13 +233,14 @@ class StrategyExecutor(Thread):
             else self.strategy.on_trading_iteration
         )
 
-    @staticmethod
-    def _create_scheduler():
+    def _create_scheduler(self):
+        from apscheduler.executors.pool import ThreadPoolExecutor
         from apscheduler.jobstores.memory import MemoryJobStore
         from apscheduler.schedulers.background import BackgroundScheduler
 
         job_stores = {"default": MemoryJobStore(), "On_Trading_Iteration": MemoryJobStore()}
-        return BackgroundScheduler(jobstores=job_stores)
+        self._scheduler_job_executor = ThreadPoolExecutor()
+        return BackgroundScheduler(jobstores=job_stores, executors={"default": self._scheduler_job_executor})
 
     def ensure_scheduler(self):
         if self.scheduler is None:
@@ -920,7 +924,11 @@ class StrategyExecutor(Thread):
         # If it's the first iteration, we don't want to process any events.
         # This is because in this case we are most likely processing events that occurred before the strategy started.
         # Callers draining fills the strategy itself just produced mid-iteration pass False.
-        if skip_first_iteration_events and (self.strategy._first_iteration or self.broker._first_iteration):
+        if (
+            skip_first_iteration_events
+            and not self._live_iteration_callbacks_ready
+            and (self.strategy._first_iteration or self.broker._first_iteration)
+        ):
             # Reduce noise on startup: log at debug instead of info
             if self.strategy.logger.isEnabledFor(10):
                 self.strategy.logger.debug(
@@ -1036,18 +1044,21 @@ class StrategyExecutor(Thread):
             self.strategy.logger.error(f"Event {event} not recognized. Payload: {payload}")
 
     def process_queue(self, skip_first_iteration_events=True):
-        while True:
-            try:
-                event, payload = self.priority_queue.get_nowait()
-            except Empty:
+        # A callback may itself drain newly queued events; keep that reentrant,
+        # while preventing the background and iteration workers from overlapping.
+        with self._event_drain_lock:
+            while True:
                 try:
-                    event, payload = self.queue.get_nowait()
+                    event, payload = self.priority_queue.get_nowait()
                 except Empty:
-                    break
-            if skip_first_iteration_events:
-                self.process_event(event, payload)
-            else:
-                self.process_event(event, payload, skip_first_iteration_events=False)
+                    try:
+                        event, payload = self.queue.get_nowait()
+                    except Empty:
+                        break
+                if skip_first_iteration_events:
+                    self.process_event(event, payload)
+                else:
+                    self.process_event(event, payload, skip_first_iteration_events=False)
 
     def _process_smart_limit_orders(self):
         if self.broker.IS_BACKTESTING_BROKER:
@@ -1435,6 +1446,13 @@ class StrategyExecutor(Thread):
         keep draining priority fill/cancel events so hedge submission is not
         delayed by the full scan duration.
         """
+        # Synchronization has finished. Discard queued startup notifications
+        # before user code can submit an order, then let every drain deliver
+        # fresh callbacks even while the public first-iteration flags stay true.
+        with self._event_drain_lock:
+            self.process_queue()
+            self._live_iteration_callbacks_ready = True
+
         done = Event()
         errors: list[BaseException] = []
 
@@ -1661,8 +1679,14 @@ class StrategyExecutor(Thread):
                 if self.scheduler.running:
                     # Remove all jobs first to prevent new scheduling
                     self.scheduler.remove_all_jobs()
-                    # Shutdown and wait for completion to prevent race conditions
-                    self.scheduler.shutdown(wait=True)
+                    # APScheduler holds its jobs lock while shutting down executors.
+                    # A running iteration can need that lock to read its next run.
+                    # Stop dispatch first, then join our workers outside scheduler locks.
+                    self.scheduler.shutdown(wait=False)
+                job_executor = getattr(self, "_scheduler_job_executor", None)
+                if job_executor is not None:
+                    job_executor.shutdown(wait=True)
+                    self._scheduler_job_executor = None
                 # Set scheduler to None to prevent reuse
                 self.scheduler = None
             except Exception as e:
@@ -2444,6 +2468,8 @@ class StrategyExecutor(Thread):
 
                 # Get the current jobs from the scheduler (may be None if gracefully exited previously)
                 if self.scheduler is None:
+                    if not self.should_continue:
+                        break
                     self.strategy.log_message("⚠️ Scheduler is None, attempting to recreate", color="yellow")
                     # Attempt to re-create and start the scheduler
                     self._setup_live_trading_scheduler()
@@ -2517,11 +2543,12 @@ class StrategyExecutor(Thread):
         # Check if scheduler object exists.
         from apscheduler.schedulers.background import BackgroundScheduler
 
-        if self.scheduler is None or not isinstance(self.scheduler, BackgroundScheduler):
+        scheduler = self.scheduler
+        if scheduler is None or not isinstance(scheduler, BackgroundScheduler):
             return None
 
         # Get the current jobs from the scheduler.
-        jobs = self.scheduler.get_jobs()
+        jobs = scheduler.get_jobs()
 
         if not jobs or len(jobs) == 0:
             return None

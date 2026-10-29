@@ -1175,12 +1175,15 @@ def _model_max_output_tokens(model: Any) -> int | None:
     if name in _MODEL_OUTPUT_LIMIT_CACHE:
         return _MODEL_OUTPUT_LIMIT_CACHE[name]
     limit: int | None = None
-    bare = name[len("openai/"):] if name.startswith("openai/") else name
+    # chatgpt/ selects our OAuth transport, not LiteLLM's separate login provider.
+    # Metadata resolution must not authenticate or change the inference model.
+    metadata_name = "openai/" + name.split("/", 1)[1] if name.startswith("chatgpt/") else name
+    bare = metadata_name[len("openai/"):] if metadata_name.startswith("openai/") else metadata_name
     gpt6 = _OPENAI_GPT6_MODEL_INFO.get(bare)
     if gpt6 is not None:
         limit = int(gpt6["max_output_tokens"])
     else:
-        candidates = [name]
+        candidates = [metadata_name]
         if _is_native_gemini_model(name):
             bare_gemini = name.split("/", 1)[-1] if name.startswith("models/") else name
             candidates = [f"gemini/{bare_gemini}", bare_gemini]
@@ -1345,26 +1348,6 @@ def _replace_function_response_payload(part: Any, message: str) -> bool:
         return True
     except Exception:
         return False
-
-
-def _prune_tool_response_for_context_window(
-    tool_response: Any, *, tool_name: str | None, max_chars: int = 4_000
-) -> Any | None:
-    response_chars = _serialized_content_length(tool_response)
-    if response_chars <= max_chars:
-        return None
-    serialized = json.dumps(_json_safe_value(tool_response), sort_keys=True, default=str)
-    return {
-        "lumibot_tool_result_pruned": True,
-        "tool_name": tool_name,
-        "original_chars": response_chars,
-        "excerpt": _truncate_preserving_edges(serialized, max_chars, label=f"tool_response.{tool_name or 'unknown'}"),
-        "message": (
-            "Tool response was shortened by Lumibot before sending it back to this model "
-            "because the provider context window would otherwise be exceeded. Call a targeted tool "
-            "again if more detail is required."
-        ),
-    }
 
 
 def _prune_request_contents_for_context_window(
@@ -1553,8 +1536,8 @@ def _resolve_model_for_adk(
             kwargs["reasoning_effort"] = reasoning_effort
             kwargs["allowed_openai_params"] = ["reasoning_effort"]
         timeout = _coerce_positive_timeout_seconds(model_request_timeout_seconds)
-        if timeout is not None:
-            kwargs["timeout"] = timeout
+        # Preserve disabled timeouts instead of restoring the transport default.
+        kwargs["timeout"] = timeout
         return ChatGPTPlanLlm(model="openai/responses/" + slug, profile=profile_path(), **kwargs)
     from lumibot.components.agents.managed_gateway import (
         MANAGED_MODEL_FAMILIES,
@@ -1852,35 +1835,6 @@ class GoogleADKRuntime:
             },
         }
 
-    def _after_tool_context_pruning_callback(self, request: RuntimeRequest):
-        if _model_context_limit_tokens(request.model) is None:
-            return None
-
-        def _callback(
-            *args: Any,
-            tool: Any = None,
-            tool_response: Any = None,
-            **_kwargs: Any,
-        ) -> Any | None:
-            if tool is None and len(args) >= 1:
-                tool = args[0]
-            if tool_response is None and len(args) >= 4:
-                tool_response = args[3]
-            tool_name = str(getattr(tool, "name", None) or "")
-            if tool_name in {"list_skills", "load_skill", "load_skill_resource"}:
-                return None
-            pruned = _prune_tool_response_for_context_window(tool_response, tool_name=tool_name)
-            if pruned is not None:
-                logging.getLogger(__name__).warning(
-                    "Pruned oversized tool response for model=%s tool=%s original_chars=%s.",
-                    request.model,
-                    tool_name,
-                    pruned["original_chars"],
-                )
-            return pruned
-
-        return _callback
-
     def _build_user_text(self, request: RuntimeRequest) -> str:
         sections: list[str] = []
         tool_names = {tool.name for tool in request.bound_tools}
@@ -2000,7 +1954,6 @@ class GoogleADKRuntime:
             planner=planner,
             before_model_callback=before_model,
             after_model_callback=after_model,
-            after_tool_callback=self._after_tool_context_pruning_callback(request),
             on_tool_error_callback=GoogleADKRuntime._unknown_tool_error_callback,
         )
         runner = InMemoryRunnerType(agent=agent, app_name="lumibot-agents")

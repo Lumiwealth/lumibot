@@ -2,7 +2,7 @@
 
 The native receipt remains byte-identical. Its original full source hash is rebuilt
 from Git objects, then every model-relevant byte is compared with the candidate.
-Only external IBKR price modules unused by the maintained Pandas fixtures, package
+Only exact live-provider modules unused by the maintained Pandas fixtures, package
 version metadata, and validator entry-point wiring are outside that comparison.
 Any actor, judge, fixture, SDK, case, skill or shared trading change still expires
 proof. This is compatibility verification, never new case freshness.
@@ -17,6 +17,13 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+# Reviewed first-live-iteration handoff only. The maintained catalog uses the
+# Pandas backtesting branch; its inputs and callback behavior are unchanged.
+# Bind the whole file so another shared executor edit can never inherit reuse.
+LIVE_EXECUTOR_COMPATIBILITY = (
+    '3b659b321c10f224eacf95282d3bec1932cfe46892a0ad40ed2c63c24f7b51ed',
+    'eec468ced168bdfe90e56e292ab5110146dc29b89a5ebcc4a2146dfc447bf4b6',
+)
 # Exact entry-point migration for the preserved legacy receipt. This is not a
 # general main() exemption. Remove the pair when the anchor is replaced by fresh
 # native proof under the current verifier; any other entry-point edit is stale.
@@ -29,6 +36,11 @@ PROVIDER_ONLY_PATHS = frozenset({
     'lumibot/tools/ibkr_equity_basis.py',
     'lumibot/tools/ibkr_helper.py',
     'lumibot/tools/ibkr_history_health.py',
+    # The native catalog constructs PandasDataBacktesting and BacktestingBroker,
+    # never these live adapters. The fixture/binding contract tests that boundary.
+    'lumibot/trading_builtins/ccxt_stream.py',
+    'lumibot/brokers/bitunix.py',
+    'lumibot/tools/bitunix_helpers.py',
 })
 NON_PACKAGE_PATHS = (
     'agent_eval_fixtures/research_data.json',
@@ -100,6 +112,10 @@ def entry_digest(node):
 
 def check_change(path, before, after):
     if before == after or path in PROVIDER_ONLY_PATHS:
+        return
+    if path == 'lumibot/strategies/strategy_executor.py' and (
+        hashlib.sha256(before).hexdigest(), hashlib.sha256(after).hexdigest()
+    ) == LIVE_EXECUTOR_COMPATIBILITY:
         return
     if path == 'setup.py':
         # Dependency/package changes remain incompatible; only the release

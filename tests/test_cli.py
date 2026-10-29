@@ -388,8 +388,11 @@ _KEY = "botspot_ak_cli_test_secret_0123456789"
 
 
 class _FakeBotSpot:
-    def __init__(self, polls=(), device_route=True, research_status=200, expires_in=600):
+    def __init__(self, polls=(), device_route=True, research_status=200, expires_in=600,
+                 json_404=False, start_body=None):
         self.polls = list(polls)
+        self.json_404 = json_404
+        self.start_body = start_body
         self.device_route = device_route
         self.research_status = research_status
         self.expires_in = expires_in
@@ -402,8 +405,12 @@ class _FakeBotSpot:
                 body = _json.loads(self.rfile.read(length) or b"{}")
                 fake.requests.append((self.path, body, self.headers.get("Authorization")))
                 if self.path.startswith("/mcp-api-keys/device/") and not fake.device_route:
+                    if fake.json_404:
+                        return self._json(404, {"error": "Not Found"})
                     page = f"<!DOCTYPE html><pre>Cannot POST {self.path}</pre>".encode()
                     return self._send(404, page, "text/html; charset=utf-8")
+                if self.path == "/mcp-api-keys/device/code" and fake.start_body is not None:
+                    return self._json(200, fake.start_body)
                 if self.path == "/mcp-api-keys/device/code":
                     return self._json(200, {
                         "device_code": "Zx3-device-code-base64url-secret-abcdef",
@@ -415,6 +422,8 @@ class _FakeBotSpot:
                     })
                 if self.path == "/mcp-api-keys/device/token":
                     step = fake.polls.pop(0) if fake.polls else "authorization_pending"
+                    if isinstance(step, int):
+                        return self._send(step, b"<html>Bad Gateway</html>", "text/html")
                     if step == "approved":
                         host = self.headers.get("Host")
                         return self._json(200, {
@@ -574,6 +583,46 @@ class TestConnectBotspotDeviceLogin:
         assert botspot_hint.api_base_url({}) == "https://api.botspot.trade"
         args = cli.build_parser().parse_args(["connect", "botspot"])
         assert args.api_url is None
+
+
+class TestConnectBotspotHandlesOddServers:
+    """Review follow-ups after 4.6.30: odd answers give a clean result, never a traceback."""
+
+    def test_json_404_still_falls_back_to_the_key_page(self, botspot, tmp_path, capsys, monkeypatch):
+        server = botspot(device_route=False, json_404=True)
+        monkeypatch.setattr(sys.stdin, "isatty", lambda: False, raising=False)
+        assert _connect(server, tmp_path / ".env") == 2
+        captured = capsys.readouterr()
+        assert "key page" in captured.out
+        assert "--token" in captured.err
+
+    @pytest.mark.parametrize("status", [429, 502, 503, 504])
+    def test_a_gateway_blip_while_waiting_keeps_polling(self, botspot, tmp_path, status):
+        server = botspot(polls=["authorization_pending", status, "approved"])
+        env_file = tmp_path / ".env"
+        assert _connect(server, env_file) == 0
+        assert f"BOTSPOT_RESEARCH_MCP_TOKEN={_KEY}\n" in env_file.read_text()
+
+    def test_a_non_object_answer_is_a_clean_error(self, botspot, tmp_path, capsys):
+        server = botspot(start_body=["not", "an", "object"])
+        env_file = tmp_path / ".env"
+        assert _connect(server, env_file) == 1
+        assert "Traceback" not in capsys.readouterr().err
+        assert not env_file.exists()
+
+    def test_bad_interval_and_expiry_fall_back_to_defaults(self, botspot, tmp_path):
+        server = botspot(
+            polls=["approved"],
+            start_body={
+                "device_code": "Zx3-device-code-base64url-secret-abcdef",
+                "user_code": "BCDF-GHJK",
+                "verification_uri": "https://botspot.trade/account-settings/api-keys",
+                "expires_in": "soon",
+                "interval": -3,
+            },
+        )
+        assert _connect(server, tmp_path / ".env") == 0
+        assert server.sleeps == [5]
 
 
 class TestInitWritesAgentsMd:

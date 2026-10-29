@@ -4,6 +4,67 @@
 
 ### Fixed
 - Preserve dividend and stock-split event timestamps when Pandas and Polars backtest data are aligned to a shared index. Inserted rows carry zero actions instead of repeating a prior event.
+- Warn once per data object when alignment omits nonzero dividends or splits inside the retained time window.
+
+## 4.6.33 - 2026-10-27
+
+### Added
+- Indicator v2 (`lumibot.indicators.Indicator`): indicators that process one bar at a time with forming-bar rollback (state advances only on closed bars), `compute()` equal to the update loop, `snapshot()`/`restore()`, typed input/output/level schemas and `describe()` for chart UIs and AI agents. Built-ins follow TradingView Pine v6 math: `sma`, `ema`, `rsi`, `macd`, `bbands`, `atr`, `stoch`, `vwap`; every built-in update is O(1) per bar. New `lumibot.indicators.registry` (`get(key, version)`, `list()`, `create()`, `register()`, immutable versions), `IndicatorRunner` for running indicators outside a strategy through any data source's `get_historical_prices` with live `on_bar(bar, closed)`, and `self.indicators.get(key, asset, version=, **inputs)` inside strategies (streams new bars instead of recomputing history; existing `self.indicators` calls are unchanged). Docs: new "Building indicators" page.
+- One shared candle builder, `lumibot.tools.candles`: `resample_ohlcv` (the batch resampler the Alpaca backtester, `get_historical_prices` multi-timeframe fallback, `Data.get_bars` and `DataPolars.get_bars` now all call, with parity tests pinning each to its former output), `build_candles` (candles cut on UTC boundaries), `CandleBuilder` (live forming candle that updates on every bar, wicks included, and locks when its bucket ends) and `choose_candle_source` (use the exchange's native timeframe when it has one, otherwise build from 1 minute bars). Polars resampling (`resample_polars_ohlc`, `Bars.aggregate_bars`) is unchanged.
+- Indicator execution hook, `lumibot.indicators.execution`: `IndicatorExecutor`, `set_indicator_executor`, `use_indicator_executor`. Indicators run in-process by default; a host program can register an executor that runs indicator code elsewhere (for example another process). `IndicatorRunner` (new `executor=` argument) and `self.indicators.get(...)` route new instances through it. Indicator authors change nothing.
+- Indicators documentation section (`docsrc/indicators*.rst`) with runnable, tested examples in `lumibot/example_indicators/`.
+
+### Fixed
+- ChatGPT-funded agents resolve model limits without starting LiteLLM's separate authentication flow. Inference retains the selected native ChatGPT connection, and unknown model limits remain unknown.
+- Agent research preserves omitted period selectors during backtests. Requests that use only `asOf` no longer gain an unsupported `timeRange`; caller-supplied date ranges and the simulated-time ceiling remain bounded.
+- ChatGPT plan agent tool calls keep their arguments when the provider sends them only in the final done events, without argument deltas. Those calls previously reached the agent with empty arguments and failed.
+- Bitunix history: a spot request that names the whole pair (`BTCUSDT`, `BTC-USDT`, `BTC/USDT`) no longer asks the exchange for `BTCUSDTUSDT`, and LumiBot timestep names such as `"15 minutes"`, `"2 hours"` and `"1 day"` map to the matching Bitunix interval. An unknown timestep now raises instead of silently returning one-minute bars.
+- CCXT history loads on exchanges that reject the default page size. The pager starts from the per-market-type maximum CCXT advertises, steps through common sizes when the exchange answers a request with `BadRequest`, and keeps the size that worked; other errors still raise. New `scripts/check_ccxt_history.py` checks public history on any or every CCXT exchange.
+
+## 4.6.32 - 2026-10-27
+
+### Fixed
+- First-iteration live order notifications survive competing background and iteration queue drains. Queued startup events remain suppressed, foreign-order filtering remains active, and callbacks are serialized with reentrant queue handling. Priority callback tests use controlled events instead of elapsed-time acceptance targets.
+- HTTP and dataframe test doubles patch their real modules so pytest restoration cannot remove shared methods or constructors. Entry pages keep the runnable AI example before the hero image and retain the execution explanation in every localized summary.
+- The README and documentation homepage lead with native AI trading, backtesting and the same strategy across backtests and broker runs. Strategy choices link to their examples, BotSpot MCP has a short introduction and a separate setup section, and all eight localized README summaries are synchronized with a checked source fingerprint.
+- IBKR stock contract lookup selects a candidate matching the requested quote currency instead of accepting the first stock search result. Existing mappings and historical price caches are not rewritten.
+
+## 4.6.31 - 2026-10-27
+
+### Added
+- Perpetual contract terms retain exchange contract size, settlement currency and linear/inverse exposure through assets and positions. Backtesting uses those terms for collateral, realized PnL and explicit historical funding events, with provider-backed historical symbol discovery and documented data/fee approximations.
+- Kalshi completed-candle backtesting reuses PandasData and BacktestingBroker with normal Strategy functions: selected-outcome netting/collateral, historical bid/ask execution, actual-time cash settlement, and configurable fee estimates. Real archived-data simulation and existing-provider regressions verified; depth, queues and full historical fee schedules remain explicit approximations.
+- Kalshi historical Bars through normal single/plural data functions: current/archive routing, fixed-point schema normalization, selected NO OHLC/quotes, complete bounded windows and completed custom-interval aggregation. Populated current/archive reads verified in demo and the public production API.
+- Kalshi selected YES/NO trading through normal Strategy order, position, quote and callback methods: metadata-driven routing/ticks, limit and marketable IOC orders, amend/cancel, REST polling, actual fill fees and cumulative reconciliation. Demo whole and fractional execution and netting verified; advanced product and live settlement qualification remains separate.
+- Optional selected-outcome identity on the existing prediction-contract asset, retained through orders, positions and strategy backups. Existing token-ID assets keep their wire shape and identity. Prediction partial-fill averages retain sub-cent precision and zero position marks survive serialization.
+- Kalshi account-read foundation: existing Broker/DataSource interfaces, shared native client, Ed25519 and RSA signing, demo/production configuration, scoped balances and public metadata. The account check uses normal Strategy cash/equity methods; funded-flat demo account values are verified. Current demo API `portfolio_value` excludes cash despite the older changelog description; total adds cash and holdings once.
+
+### Fixed
+- Agent replay identity includes dependency versions and callable implementations; explicit failed tool results no longer block fresh recovery, while compatible successful decisions remain reusable.
+- Standard reduce-only orders retain their close-only intent in Kalshi trading and backtests. Completed Alpaca fills tolerate rounded broker averages without duplicate callbacks; failed funding-history downloads are not repeated on every simulated bar.
+- Contract-metadata and missing-price failures use useful broker errors, and native qualification exports accept automatically replenished informational usage windows.
+- Prediction-market guides and broker discovery include Kalshi, and documentation builds preserve authored API examples instead of replacing them with generated stubs.
+- Kalshi orders accept the normal caller-supplied client order ID while retaining protected request fields, reconciliation checkpoints and no-replay submission behavior.
+- Ordinary stock fill accounting does not access prediction-contract data resolution. Public order explanations keep account-relative sizing in their separate private decision summary.
+- Agent qualification saves completed actor evidence before judging and resumes interrupted judges without replaying actors. Audit checks match the SDK's executed declared arguments while retaining raw requests and rejecting changed recognized arguments.
+- Stock answers derive reported date windows from the selected rows, and undated-source research distinguishes an unknown exact date from a labeled contextual estimate.
+- Documentation distinguishes Python, AI-native and hybrid strategies, shows editable AI prompts and a complete Python example, and gives coding-assistant connection its own section. The homepage and README link to detailed guides instead of repeating them.
+- Documentation explains LumiBot and the AI strategy workflow before hosted setup, replaces duplicate client install badges with one setup-guide button, and keeps shared connection panels compact on desktop and mobile.
+- Option tool descriptions distinguish quote evidence from Greeks and require both for every final opening leg, including protective wings. Agent eval judging follows explicit rubric requirements without adding an unstated SQL cutoff predicate; a recorded safe date-only selection protects that distinction alongside existing unsafe-source controls.
+- Continuous strategies stop scheduler dispatch before joining running jobs, outside the scheduler's jobs lock. An iteration reading its next run can finish before broker cleanup, rather than deadlocking shutdown.
+- Release history and pagination checks isolate both shared-cache modes, preserve provider-instant/cutoff assertions and verify actual sparse-history expansion without another synthetic client's cached bars.
+- Phemex derivatives retain settlement wallet selection and early balance snapshots; missing optional wallet metadata no longer narrows supported account discovery.
+- Phemex streamed account snapshots reconcile each settlement currency independently, retaining other collateral balances and open orders.
+- Bitunix order submission honors the account's existing hedge or one-way mode instead of changing it implicitly. Explicit mode changes remain available; close sides and hedge-leg selectors follow the confirmed mode.
+- Agent subscription usage remains informational and qualification awaits completed model/tool work instead of imposing response or turn deadlines.
+- Alpaca polling delivers a confirmed fill even when account synchronization already copied its terminal status. Cumulative fills retain their unprocessed quantity and price, repeated observations do not duplicate callbacks, and SDK UUID identifiers match serialized identifiers.
+- Historical research can produce disclosed date, quantity and valuation estimates without demanding an exhaustive archive. Instructions retain known-future exclusions, separate snapshot and transaction dates, and use explicit UTC values for mixed-offset source tables.
+- Agent tools retain complete new results, including typed rows and error fields. Context-window pruning still removes older history only when the conversation is oversized.
+- `lumibot connect botspot` handles odd server answers cleanly: a JSON "Not Found" from a server without code login still falls back to the key page, a 429 or 5xx while waiting for approval keeps polling instead of stopping, a non-object answer gives a clear error instead of a traceback, and a missing or invalid `interval`/`expires_in` uses the RFC 8628 defaults.
+
+Deploy marker: `51f8a06601c8ff44d5d34a7d7128dd33c7926110`.
+
+Qualification: 6,330 offline unit tests, 316 offline backtests and 719 affected documentation checks passed. Repaired-source native qualification verifies 105 actor trials and 92 judge controls on the pinned SDK tuple; the original provenance is retained. An isolated wheel install preserves selected YES/NO identity and standard reduce-only intent, with all 323 installed dependencies compatible.
 
 ## 4.6.30 - 2026-10-24
 
@@ -57,7 +118,7 @@
 - AI agents may use sources with no date in backtests. They still prefer dated sources and never open a document known to be from after the backtest time, but an undated page or file is now used with an estimated publication date that the agent discloses, instead of being refused. The web-documents and research-data skills, the backtest rules in the agent prompt and the `read_document` description say so. Live trading applies no publication-date rules, and the backtest-only document-manifest rule no longer appears in live prompts. New evals: `web_documents_undated_source_estimated_date`, `web_documents_known_future_document_not_opened`, `web_documents_live_undated_source_used_freely`.
 
 ### Fixed
-- Interactive Brokers Client Portal history no longer goes through the shared bar cache. The gateway answers "the last N bars" in trading time (at night a one-minute read returns the 16:00 bar), which the cache's calendar windows filtered away: 4.6.25 and 4.6.26 returned no bars for those reads (Bot Manager Dev scheduled smoke, Oct 23). Reads go straight to the gateway as before.
+- Interactive Brokers Client Portal history no longer goes through the shared bar cache. The gateway answers "the last N bars" in trading time (at night a one-minute read returns the 16:00 bar), which the cache's calendar windows filtered away: 4.6.25 and 4.6.26 returned no bars for those reads. Reads go straight to the gateway as before.
 - The shared bar cache never builds a connection scope from a provider name alone; without an account or key a read is not shared.
 - Bitunix HEDGE mode: a long and a short position on the same symbol are tracked as two positions with `position_side` and `position_id` (the exchange `positionId`). Before, a snapshot holding both raised and positions could not sync. Closing selects the right `positionId`, closing without a selector closes both, and opening and polled orders record the position they trade. Single-position behavior is unchanged.
 - Position sync updates a tracked position that has no side yet in place when the broker first reports its side, keeping its strategy owner, instead of replacing it with an ownerless copy.
@@ -473,7 +534,7 @@ Deploy marker: `3abbf8fcbd64` (original 4.5.92 marker)
 - Added an optional Patchright browser runtime with persistent profiles, JavaScript interaction, multi-tab control, scoped login credentials, managed uploads/downloads, storage-state export, screenshots, and action receipts.
 - Added an optional Camoufox browser engine plus reproducible lifecycle,
   fingerprint, latency, and memory qualification. No hosted default is selected
-  until an engine passes the exact Linux ARM64 Bot Manager gate.
+  until an engine passes the Linux ARM64 integration checks.
 - Added independently allowlisted Resend email and Slack communication tools.
   Historical runs use explicit fixtures for reads and can never force a live
   send; attempted writes produce structured simulation receipts.
@@ -1188,7 +1249,7 @@ Deploy marker: `deploy 4.5.76`
   still fails explicitly when neither source has a valid positive price.
 - **Scheduled lazy credentials preserve legacy lowercase exports.** Explicit
   imports of `broker` and `data_source` now resolve through the same cached lazy
-  getters as `BROKER` and `DATA_SOURCE`, so existing scheduled Bot Manager
+  getters as `BROKER` and `DATA_SOURCE`, so existing scheduled
   workloads no longer capture `None` while import-only startup remains lazy.
 - **Temporary broker balance-read failures no longer look like strategy failures.**
   A skipped cloud account snapshot is now logged as a warning that explains no
@@ -1209,8 +1270,8 @@ Deploy marker: `deploy 4.5.76`
 ### Documentation
 - **Release operations now require explicit publishing authority and verifiable
   downstream rebuilds.** The deployment runbook records the release approval
-  boundary, mandatory next-version checkout verification, and forced Bot Manager
-  image rebuild requirement for every LumiBot version bump.
+  boundary, next-version verification, and downstream runtime rebuild
+  requirements for every LumiBot version bump.
 - **The README Star History chart renders correctly in light and dark themes.**
 
 ## 4.5.75 - Unreleased
@@ -2137,7 +2198,7 @@ Deploy marker: 61b75f24 (`deploy 4.5.6`)
 > the `Strategy.indicators` subsystem.
 
 ### Added
-- **`Strategy.backtest()` now honours `BACKTESTING_START` / `BACKTESTING_END` env vars as overrides for hardcoded `backtesting_start`/`backtesting_end` args.** Strategies typically pin dates in their `if __name__ == "__main__":` block for local dev convenience. When the same code runs in a managed container (bot_manager backtest ECS task, BotSpot MCP `start_backtest`, etc.) the orchestrator sets these env vars from the caller's requested date range — previously those env vars did nothing, the hardcoded datetimes won, and MCP callers had no runtime control over the window. New precedence: env var (if present and parseable) > passed arg. Accepts ISO date (`YYYY-MM-DD`) or full ISO datetime; malformed values are logged and the passed arg is preserved (no silent fallback to the epoch or `now`). Unit tests in `tests/test_strategy_backtest_env_override.py` cover both shapes, empty-string handling, parse failures, and the no-env-set baseline.
+- **`Strategy.backtest()` now honours `BACKTESTING_START` / `BACKTESTING_END` env vars as overrides for hardcoded `backtesting_start`/`backtesting_end` args.** Strategies typically pin dates in their `if __name__ == "__main__":` block for local dev convenience. When the same code runs in a managed container (for example, a caller-configured backtest runner) the orchestrator sets these env vars from the caller's requested date range — previously those env vars did nothing, the hardcoded datetimes won, and MCP callers had no runtime control over the window. New precedence: env var (if present and parseable) > passed arg. Accepts ISO date (`YYYY-MM-DD`) or full ISO datetime; malformed values are logged and the passed arg is preserved (no silent fallback to the epoch or `now`). Unit tests in `tests/test_strategy_backtest_env_override.py` cover both shapes, empty-string handling, parse failures, and the no-env-set baseline.
 - **`Strategy.indicators` subsystem.** New per-strategy indicator accessor that computes any indicator over the full bar series once, then hands back the value at the current bar in O(1) on every subsequent call. Eliminates the per-iteration `df.rolling(...).apply(...)` full-history recompute pattern that dominated wall-time on indicator-heavy strategies. Exposes the entire pandas-ta-classic surface (~130 indicators) via `self.indicators.<indicator>(asset, **kwargs)` passthrough plus `self.indicators.custom(name, fn, asset, **kwargs)` for user-defined indicators. Same API for backtest and live. See `docsrc/indicators.rst` for the full reference and migration guide.
 - `LUMIBOT_CACHE_MISS_DEBUG` env var gates opt-in `[CACHE_MISS]` / `[FETCH]` warning traces in `ibkr_helper.py` for auditing why the cache layer decided to hit the network. Documented in `docs/ENV_VARS.md` and `docsrc/environment_variables.rst`.
 

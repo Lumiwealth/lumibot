@@ -11,6 +11,8 @@ Deploy marker: `d326af579d52b2869152e4ee7ff775e0ec1685a3`.
 - MetaMask qualification supports persisted policy approvals, signature-boundary authority checks, IOC market quotes, explicit unsupported testnet swap routes, and connected broker checks. Funded open/close, multi-fill aggregation, restart recovery and cancellation have been exercised on Hyperliquid testnet; broader qualification remains in progress.
 
 ### Fixed
+- MetaMask values USDC unified accounts from HyperCore's pooled spot collateral and holds, without reporting zero equity or adding PnL twice. Standard accounts retain their separate perps accounting; unsupported portfolio-margin modes fail explicitly.
+- MetaMask owner setup can recover an uncertain perpetual submission by linking its exact venue order ID after validating wallet, request and submission time. Recovery reads real status and fills without signing or replaying an order; bot tokens cannot invoke it.
 - MetaMask clean installs on Node 22/npm 10 include the legacy WebSocket optional UTF-8 validation peer that npm 11 omitted from its lockfile.
 - MetaMask honors canonical reduce-only intent from shared close-position/sell-all actions and restores it from venue snapshots; custom parameters cannot turn a closing order into an opening order.
 - MetaMask startup restores cumulative filled and partially filled order snapshots without adding total order quantity again; the adapter registers restored snapshots through its broker hook before shared executor synchronization.

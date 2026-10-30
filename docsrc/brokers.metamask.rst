@@ -182,6 +182,12 @@ What should I do after an interrupted order?
 
 Keep the journal and reuse the original request ID. Check the saved order and provider approval status. Unknown submissions require independent reconciliation; the service does not automatically replay a signature or guess that a timeout means failure.
 
+For an uncertain perpetual submission, owner setup offers **Link venue order**.
+Enter the exact ID from the same wallet's Hyperliquid history. The service checks
+the wallet, network, request details and submission time, then reads actual venue
+status and fills. A mismatched or already-linked order is refused. Recovery never
+signs another order and is unavailable to bot tokens.
+
 Can I test spot swaps on testnet?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -190,4 +196,11 @@ The pinned provider SDK has no testnet spot swap route. The broker refuses that 
 Is this integration production-qualified?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This is a local beta with funded perpetual and recovery checks. Upstream dependency advisories and broader funded approval, partial-fill cancellation, and account-mode qualification remain open. Review the engineering guide before operational use.
+This is a local beta with funded perpetual and recovery checks. Standard and
+USDC unified accounts have been exercised against real testnet collateral and
+positions. Unified equity uses the spot collateral ledger without adding PnL
+twice; portfolio margin is explicitly unsupported. Upstream dependency advisories
+and broader funded approval and partial-fill cancellation qualification remain
+open. MetaMask's outflow limits exclude typed-data signatures, so they do not
+force an approval challenge for perpetual orders. Review the engineering guide
+before operational use.

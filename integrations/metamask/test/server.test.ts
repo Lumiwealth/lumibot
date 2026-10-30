@@ -49,6 +49,24 @@ test("real HTTP server isolates admin and agent access, checks origins and serve
   try {
     assert.equal((await call("/admin/status", "runtime")).status, 401);
     assert.equal(
+      (
+        await fetch(url + "/admin/recover-perp", {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer runtime",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            agent: "agent",
+            id: "unknown",
+            providerOrderId: "123",
+          }),
+        })
+      ).status,
+      401,
+    );
+    assert.equal((await call("/v1/recover-perp", "runtime")).status, 400);
+    assert.equal(
       (await call("/admin/collateral?agent=agent", "runtime")).status,
       401,
     );

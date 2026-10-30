@@ -259,6 +259,28 @@ export function application(
           json(res, await engine.cancel(store.binding(input.agent), input.id));
           return;
         }
+        if (req.method === "POST" && url.pathname === "/admin/recover-perp") {
+          const input = z
+            .object({
+              agent: identifier,
+              id: identifier,
+              providerOrderId: z
+                .string()
+                .regex(/^[1-9]\d*$/)
+                .max(16),
+            })
+            .strict()
+            .parse(await body(req));
+          json(
+            res,
+            await engine.recoverPerp(
+              store.binding(input.agent),
+              input.id,
+              input.providerOrderId,
+            ),
+          );
+          return;
+        }
         if (req.method === "POST" && url.pathname === "/admin/resume") {
           const input = z
             .object({ agent: identifier, id: identifier })

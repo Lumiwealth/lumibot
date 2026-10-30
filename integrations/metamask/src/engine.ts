@@ -195,6 +195,44 @@ export class Engine {
       this.active.delete(binding.wallet);
     }
   }
+  async recoverPerp(
+    binding: Binding,
+    id: string,
+    providerOrderId: string,
+  ): Promise<Operation> {
+    assert(
+      !this.active.has(binding.wallet),
+      "BUSY",
+      "Wallet execution in progress",
+    );
+    this.active.add(binding.wallet);
+    try {
+      const op = this.store.get(binding.id, id);
+      assert(
+        op?.request.kind === "perp" &&
+          op.state === "unknown" &&
+          !op.providerOrderId &&
+          !op.signatureOnly,
+        "RECOVERY_DENIED",
+        "Only uncertain perpetual submissions without a venue ID can be linked",
+      );
+      assert(
+        !this.store
+          .operations(binding.id)
+          .some((other) => other.providerOrderId === providerOrderId),
+        "RECOVERY_DENIED",
+        "Venue order is already linked to another operation",
+      );
+      const result = await this.provider.recoverPerp(
+        binding,
+        op,
+        providerOrderId,
+      );
+      return this.store.replaceIfUnchanged(op, result);
+    } finally {
+      this.active.delete(binding.wallet);
+    }
+  }
   async cancel(binding: Binding, id: string): Promise<Operation> {
     const op = this.store.get(binding.id, id);
     assert(op !== undefined, "NOT_FOUND", "Order not found");

@@ -53,6 +53,11 @@ function fixture() {
       return { ...op, state: "submitted", providerOrderId: "123" };
     },
     reconcile: async (_b, op) => op,
+    recoverPerp: async (_b, op, providerOrderId) => ({
+      ...op,
+      providerOrderId,
+      state: "rejected",
+    }),
     cancel: async (_b, op) => ({ ...op, state: "canceled" }),
     account: async () => ({
       cash: "0",
@@ -80,6 +85,51 @@ test("same ID is idempotent and different payload is rejected", async () => {
       () => f.engine.submit(binding, { ...request(), side: "sell" }),
       /different request/,
     );
+  } finally {
+    f.store.close();
+  }
+});
+test("owner recovery links only uncertain submissions and never executes another trade", async () => {
+  const f = fixture();
+  try {
+    const op = {
+      ...f.store.reserve(binding, request(), "8").operation,
+      state: "unknown" as const,
+    };
+    f.store.save(op);
+    const recovered = await f.engine.recoverPerp(binding, op.id, "123");
+    assert.equal(recovered.state, "rejected");
+    assert.equal(f.store.get(binding.id, op.id)?.providerOrderId, "123");
+    assert.equal(f.calls(), 0);
+    await assert.rejects(() => f.engine.recoverPerp(binding, op.id, "123"), {
+      code: "RECOVERY_DENIED",
+    });
+    for (const patch of [
+      { signatureOnly: true },
+      { providerOrderId: "456" },
+      { state: "open" as const },
+    ]) {
+      f.store.save({ ...op, ...patch });
+      await assert.rejects(() => f.engine.recoverPerp(binding, op.id, "789"), {
+        code: "RECOVERY_DENIED",
+      });
+    }
+    f.store.save({
+      ...op,
+      id: "other",
+      request: request("other"),
+      state: "rejected",
+      providerOrderId: "123",
+    });
+    f.store.save(op);
+    await assert.rejects(() => f.engine.recoverPerp(binding, op.id, "123"), {
+      code: "RECOVERY_DENIED",
+    });
+    f.store.executingWallets.add(binding.wallet);
+    await assert.rejects(() => f.engine.recoverPerp(binding, op.id, "789"), {
+      code: "BUSY",
+    });
+    assert.equal(f.calls(), 0);
   } finally {
     f.store.close();
   }

@@ -53,9 +53,13 @@ order = Order(
 
 Set the strategy constructor’s `quote_asset=Asset("USDC", asset_type="crypto")` so account valuation uses the venue settlement currency.
 
+Standard accounts use perps equity and margin. Unified accounts use the actual HyperCore USDC balance in the spot ledger, with holds deducted from cash. That balance already includes unified PnL; per-DEX equity is not added again. Portfolio-margin and unknown account modes raise an explicit error because they require separate multi-asset valuation.
+
 Canonical `Order(..., reduce_only=True)` is preserved, including closing orders created by `close_position()` and `sell_all()`. The older `custom_params={"reduce_only": True}` spelling also works, but cannot turn off canonical reduce-only intent. Restored orders retain this flag.
 
 The quantity example is illustrative, not a testnet minimum or suggested trade. The venue and configured limits determine whether an order is accepted. Market orders persist a slippage-bounded execution price and submit an IOC limit against that price, rather than repricing the authority at signing time. Limit orders require explicit `gtc`, `ioc`, or `alo`; `day` is rejected rather than silently changed into a perpetual order. Only buy/sell, market/limit, and explicit reduce-only behavior are supported. No conditional, bracket, OCO, or automatic cancel/replace emulation.
+
+Limit-order valuation, execution and recovery use the SDK's normalized venue price. If that normalization would raise a buy limit or lower a sell limit, the request is rejected before signing; choose a venue-valid price instead.
 
 Environment-based selection supports `TRADING_BROKER=metamask`, `DATA_SOURCE=metamask`, `METAMASK_BROKER_URL`, `METAMASK_BROKER_TOKEN`, `METAMASK_WALLET_ADDRESS`, `METAMASK_NETWORK`, and `METAMASK_MODE`. Explicit constructor configuration is useful when several agents run in the same process.
 
@@ -101,12 +105,12 @@ Guard Mode can ask for 2FA on out-of-policy requests. MetaMask's documented outf
 - Perpetual openings check available collateral before signing. Each internal SDK signature (including leverage setup) rechecks local and provider authority, and checks again after the signing wait before releasing the signature to the venue. Pending signature IDs survive interruption. A completed signature that was never released is not automatically replayed; the interrupted order becomes rejected when its signature job resolves. A prior leverage change may already have applied. Once a signature is released, an uncertain venue response still requires manual reconciliation.
 - `submitted` means accepted/broadcast, not mined. Swaps require mined transfer evidence. Perpetual fills use paginated venue fill records, not quote estimates; partial fills emit only the new quantity.
 - Allowance transactions and trade transactions are separate. When an interrupted allowance later confirms, setup offers **Resume swap with fresh quote**. It rechecks policy and valuation against the existing reservation. An uncertain trade is never automatically replayed.
-- A timeout without a known job/hash/order ID stays unknown. Inspect the provider wallet and venue before any replacement. This version does not guess an order match or offer an owner override that declares an unknown trade failed.
+- A timeout without a known job/hash/order ID stays unknown. Inspect the provider wallet and venue before any replacement. For an uncertain perpetual submission, owner setup offers **Link venue order**. Enter the exact ID from the same wallet's Hyperliquid history. The service verifies the wallet/network lookup, symbol, side, original quantity, bounded price, order type, reduce-only intent and submission time before linking and refreshing actual fills/status. An ID already linked elsewhere is refused. This read-only recovery never signs, replays an order or lets an owner declare an unknown trade failed without venue evidence. Bot tokens cannot call it.
 - Revoking a binding stops future bot requests. It does not cancel already submitted orders, revoke ERC-20 allowances or browser grants, undo signed messages, or withdraw funds. Setup can cancel known perpetual orders after bot revocation; confirm venue status afterward. Review remaining approvals in MetaMask.
 - Owner collateral moves also retain stable request IDs and pending signing jobs. Repeating an ID never signs again. Interrupted preparation is rejected before signing; interrupted signatures resolve without replay. Once a signature may have reached the venue, an unknown funding outcome blocks further wallet execution until independently reconciled. No automatic retry or balance-based guess declares success.
 - Preserve the state directory across restarts. Deleting the journal also deletes idempotency and budget history; do not reset it to escape a pending operation.
 
-Perpetual account equity already includes funding. Reported cash is the lesser of spendable collateral and equity minus used margin, floored at zero; this excludes extra spot buying power outside the equity snapshot. `positionsValue` is the equity residual, not leveraged position notional. `get_funding_payments(start_time, end_time, symbol=None)` exposes its ledger (Unix milliseconds) without posting the same cash flow twice. Fill fees remain available in the order's raw operation. Spot cost basis and unrealized PnL are left unavailable; they are not invented from current prices.
+Perpetual account equity already includes funding. Standard-account cash is the lesser of spendable collateral and equity minus used margin, floored at zero; this excludes extra spot buying power outside the equity snapshot. Unified-account cash deducts spot-ledger holds from pooled USDC, floored at zero. `positionsValue` is the equity residual, not leveraged position notional. `get_funding_payments(start_time, end_time, symbol=None)` exposes its ledger (Unix milliseconds) without posting the same cash flow twice. Fill fees remain available in the order's raw operation. Spot cost basis and unrealized PnL are left unavailable; they are not invented from current prices.
 
 ## Verification
 
@@ -131,18 +135,20 @@ The MetaMask companion CI workflow installs with scripts disabled and runs forma
 
 Before operational use, qualify a funded testnet wallet: login, create/list wallet, policy update/2FA, scoped-token issuance, balances, a small order and receipt, partial fills/cancel where available, explicit approval denial/expiry, service restart during pending work, and revocation. Test swaps only where MetaMask returns a supported route and reliable prices. Hyperliquid faucet eligibility is provider-specific; never fund mainnet just to make a test pass.
 
-### Qualification status, 2026-10-29
+### Qualification status, 2026-10-30
 
 | Path | Evidence | Remaining qualification |
 | --- | --- | --- |
 | Agent Wallet login, creation and Guard Mode | Two real, separate server wallets created and read back; provider approved adding HyperEVM testnet to one wallet, with Guard Mode and zero rolling outflow unchanged | Broader provider approval cases |
 | Signing | Harmless message and EIP-712 verification signatures checked cryptographically against the real wallet; new signing boundary exercised | MFA denial and approval during an actual trade |
-| Account and market reads | Connected Python broker checks pass for both wallets, funded perps equity/positions/fills/fees, empty EVM spot portfolios, marks and closed candles | Unified-account valuation and broader account modes |
+| Account and market reads | Connected Python broker checks pass for standard and unified wallets, including real pooled USDC, held margin, positions/PnL, fills/fees, empty EVM spot portfolios, marks and closed candles | Portfolio margin remains explicitly unsupported |
 | Isolation and revocation | Wrong wallet/admin credentials denied; revoked and superseded tokens rejected; replacement token accepted | Deployment isolation for untrusted strategies |
 | Policy recovery | Real expired, approved and denied requests observed through the broker; email approval changed only the requested testnet chain, and email rejection left the other wallet's policy unchanged | Approval/denial during an actual funded trade and restart during a pending approval |
 | Perpetual execution | Real market open/reduce-only close with multiple fills and fees, full strategy iteration with fill callbacks, resting order/restart/cancel, and request-ID deduplication; restored cumulative fills are not replayed | Persistent partial-fill cancellation and approval interruption during funded execution |
 | Spot execution | Exact-input guards and unsupported testnet route refusal | Mined receipts require a supported route; current provider offers no testnet swap route |
 | Setup and funding | Connected owner UI, real same-wallet testnet spot-to-perps move, independently verified balances, narrow/wide layouts and service-failure recovery | Browser Connect native-gas receipt conventions |
+
+Hyperliquid perpetual orders use typed-data signatures. MetaMask [excludes signatures from its outflow-limit calculation](https://docs.metamask.io/agent-wallet/reference/outflow-policy/), so a zero outflow limit does not force MFA for these orders. Real testnet orders signed without an approval challenge. The signing-boundary tests cover pending, denied and expired jobs, but those simulated cases do not establish a real funded-trade MFA interruption.
 
 Hyperliquid's official faucet requires prior mainnet deposits from the same address. Its Arbitrum Sepolia bridge uses a distinct USDC2 contract, not the token issued by the ordinary Circle testnet faucet. The verified USDC2 source has owner-only minting and no public claim function despite exposing `dripAmount` and `dripClaimed` getters. A transfer of existing Hyperliquid testnet collateral from another testnet participant avoids mainnet deposits. The funded tests above used mock collateral; a faucet or native-gas receipt alone does not prove trading collateral.
 

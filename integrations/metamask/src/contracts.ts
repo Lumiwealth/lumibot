@@ -216,6 +216,11 @@ export interface Provider {
     save: (op: Operation) => void,
   ): Promise<Operation>;
   reconcile(binding: Binding, operation: Operation): Promise<Operation>;
+  recoverPerp(
+    binding: Binding,
+    operation: Operation,
+    providerOrderId: string,
+  ): Promise<Operation>;
   cancel(binding: Binding, operation: Operation): Promise<Operation>;
   account(binding: Binding, kind: "perp" | "spot"): Promise<Account>;
   price(binding: Binding, symbol: string): Promise<string>;

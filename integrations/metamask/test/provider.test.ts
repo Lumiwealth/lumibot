@@ -155,6 +155,73 @@ test("unknown submission without venue ID cannot infer a fill", async () => {
     f.cleanup();
   }
 });
+test("owner recovery verifies exact venue identity and records a confirmed rejection without signing", async () => {
+  const f = fixture();
+  const op = {
+    ...f.op,
+    state: "unknown" as const,
+    providerOrderId: undefined,
+    request: perpSchema.parse({
+      ...f.op.request,
+      orderType: "limit",
+      limitPrice: "50",
+      tif: "alo",
+    }),
+    executionLimitPrice: "50",
+  };
+  const order = {
+    oid: 123,
+    coin: "BTC",
+    side: "B",
+    origSz: "2",
+    limitPx: "50",
+    timestamp: op.createdAt,
+    reduceOnly: false,
+    tif: "Alo",
+    orderType: "Limit",
+  };
+  let evidence = order;
+  f.provider.info = async (b, body) => {
+    assert.equal(b.wallet, binding.wallet);
+    assert.equal(body.user, binding.wallet);
+    if (body.type === "userFillsByTime") return [];
+    assert.equal(body.oid, 123);
+    return {
+      status: "order",
+      order: { status: "badAloPxRejected", order: evidence },
+    };
+  };
+  const signing = mock.method(f.provider, "perps", async () => {
+    throw new Error("Recovery must not sign");
+  });
+  try {
+    const result = await f.provider.recoverPerp(binding, op, "123");
+    assert.equal(result.state, "rejected");
+    assert.equal(result.providerOrderId, "123");
+    assert.equal(result.filledQuantity, "0");
+    assert.equal(signing.mock.callCount(), 0);
+    for (const patch of [
+      { coin: "ETH" },
+      { side: "A" },
+      { origSz: "1" },
+      { limitPx: "51" },
+      { timestamp: op.createdAt - 5001 },
+      { timestamp: op.updatedAt + 5001 },
+      { reduceOnly: true },
+      { tif: "Ioc" },
+    ]) {
+      evidence = { ...order, ...patch };
+      await assert.rejects(() => f.provider.recoverPerp(binding, op, "123"), {
+        code: "RECOVERY_MISMATCH",
+      });
+    }
+    f.provider.info = async () => ({ status: "unknownOid" });
+    await assert.rejects(() => f.provider.recoverPerp(binding, op, "123"));
+  } finally {
+    signing.mock.restore();
+    f.cleanup();
+  }
+});
 test(
   "public Hyperliquid testnet schema",
   { skip: process.env.METAMASK_TEST_PUBLIC_TESTNET !== "1" },
@@ -400,6 +467,7 @@ test("perpetual cash excludes spot buying power outside the equity snapshot", as
       marginUsed: "20",
     }),
     getPositions: async () => [],
+    getAccountMode: async () => ({ rawState: "default" }),
   }));
   try {
     const result = await f.provider.account(binding, "perp");
@@ -412,6 +480,135 @@ test("perpetual cash excludes spot buying power outside the equity snapshot", as
   }
 });
 
+test("unified account equity comes from spot collateral and includes existing PnL only once", async () => {
+  const f = fixture();
+  const replacement = mock.method(f.provider, "perps", async () => ({
+    // The current SDK reports per-DEX equity even when unified balances live in spot.
+    getBalance: async () => ({
+      totalBalance: "0",
+      spendableBalance: "898",
+      marginUsed: "0",
+    }),
+    getPositions: async () => [],
+    getAccountMode: async () => ({ rawState: "unifiedAccount" }),
+  }));
+  let spotTotal = "898",
+    spotHold = "0";
+  const info = mock.method(
+    f.provider,
+    "info",
+    async (...[, request]: Parameters<MetaMaskProvider["info"]>) => {
+      assert.equal(request.type, "spotClearinghouseState");
+      return {
+        balances: [
+          { coin: "USDC", token: 0, total: spotTotal, hold: spotHold },
+        ],
+      };
+    },
+  );
+  try {
+    assert.deepEqual(await f.provider.account(binding, "perp"), {
+      cash: "898",
+      equity: "898",
+      positionsValue: "0",
+      currency: "USDC",
+      positions: [],
+    });
+    spotTotal = "102";
+    spotHold = "20";
+    // Spot total already includes unified PnL. SDK per-DEX equity must not be added.
+    replacement.mock.restore();
+    mock.method(f.provider, "perps", async () => ({
+      getBalance: async () => ({
+        totalBalance: "2",
+        spendableBalance: "82",
+        marginUsed: "20",
+      }),
+      getPositions: async () => [],
+      getAccountMode: async () => ({ rawState: "unifiedAccount" }),
+    }));
+    const result = await f.provider.account(binding, "perp");
+    assert.equal(result.equity, "102");
+    assert.equal(result.cash, "82");
+    assert.equal(result.positionsValue, "20");
+  } finally {
+    info.mock.restore();
+    mock.restoreAll();
+    f.cleanup();
+  }
+});
+
+test("limit recovery uses the SDK wire price without loosening the requested limit", async () => {
+  const f = fixture();
+  const service = createReadOnlyPerpsService({
+    venue: "hyperliquid",
+    network: "testnet",
+  });
+  mock.method(service, "getMarkets", async () => [
+    { symbol: "ETH", sizeDecimals: 4 },
+  ]);
+  mock.method(service, "quote", async () => ({
+    entryPrice: "2000.1",
+    estimatedFee: "0.01",
+  }));
+  mock.method(f.provider, "perps", async () => service);
+  const request = perpSchema.parse({
+    kind: "perp",
+    id: "rounded",
+    symbol: "ETH",
+    side: "buy",
+    quantity: "0.01",
+    orderType: "limit",
+    limitPrice: "2000.123456",
+    tif: "alo",
+  });
+  try {
+    const plan = await f.provider.estimate(binding, request);
+    assert.deepEqual(plan, { usd: "20.011", limitPrice: "2000.1" });
+    const op = {
+      ...f.op,
+      request,
+      state: "unknown" as const,
+      providerOrderId: undefined,
+      executionLimitPrice: plan.limitPrice,
+    };
+    f.provider.info = async (_b, body) =>
+      body.type === "userFillsByTime"
+        ? []
+        : {
+            status: "order",
+            order: {
+              status: "badAloPxRejected",
+              order: {
+                oid: 123,
+                coin: "ETH",
+                side: "B",
+                origSz: "0.01",
+                limitPx: "2000.1",
+                timestamp: op.createdAt,
+                reduceOnly: false,
+                tif: "Alo",
+                orderType: "Limit",
+              },
+            },
+          };
+    assert.equal(
+      (await f.provider.recoverPerp(binding, op, "123")).state,
+      "rejected",
+    );
+    await assert.rejects(
+      () => f.provider.estimate(binding, { ...request, side: "sell" }),
+      { code: "PRICE_PRECISION" },
+    );
+    await assert.rejects(
+      () => f.provider.estimate(binding, { ...request, limitPrice: "2000.09" }),
+      { code: "PRICE_PRECISION" },
+    );
+  } finally {
+    mock.restoreAll();
+    f.cleanup();
+  }
+});
 test("empty testnet assets need no invented USD price", async () => {
   const f = fixture();
   const state = f.provider.state(binding.wallet);

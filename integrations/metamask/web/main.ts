@@ -475,6 +475,52 @@ action("refresh-operations", async () => {
     div.append(title, detail);
     if (
       op.request.kind === "perp" &&
+      op.state === "unknown" &&
+      !op.providerOrderId &&
+      !op.signatureOnly
+    ) {
+      const form = document.createElement("form");
+      const label = document.createElement("label");
+      label.textContent = "Hyperliquid order ID";
+      const input = document.createElement("input");
+      input.required = true;
+      input.inputMode = "numeric";
+      input.pattern = "[1-9][0-9]*";
+      label.append(input);
+      const help = document.createElement("p");
+      help.textContent =
+        "Find this order in the same wallet's venue history. Linking checks its details and refreshes status without placing another order.";
+      const button = document.createElement("button");
+      button.textContent = "Link venue order";
+      form.append(label, help, button);
+      form.onsubmit = async (event) => {
+        event.preventDefault();
+        button.disabled = true;
+        try {
+          const result = operationSchema.parse(
+            await api("recover-perp", {
+              agent,
+              id: op.id,
+              providerOrderId: input.value.trim(),
+            }),
+          );
+          title.textContent = `${op.id} · ${result.state}`;
+          detail.textContent =
+            result.message ?? `Filled: ${result.filledQuantity}`;
+          form.remove();
+          notice(
+            "Venue order linked. Refresh orders for current status and available actions.",
+          );
+        } catch (error) {
+          notice(String(error), true);
+        } finally {
+          button.disabled = false;
+        }
+      };
+      div.append(form);
+    }
+    if (
+      op.request.kind === "perp" &&
       op.providerOrderId &&
       !["filled", "canceled", "rejected"].includes(op.state)
     ) {

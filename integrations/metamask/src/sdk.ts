@@ -38,6 +38,7 @@ import { Decimal } from "./numeric.js";
 import { acquireStateLock } from "./state-lock.js";
 import {
   assert,
+  amount,
   assetId,
   BrokerError,
   type Account,
@@ -48,6 +49,7 @@ import {
 } from "./contracts.js";
 import { digest } from "./store.js";
 import { PerpsWallet, type SigningBoundary } from "./perps-wallet.js";
+import { hyperCoreUsdc, perpFunds } from "./perps-account.js";
 
 const approvalAbi = parseAbi([
   "function approve(address spender, uint256 amount) returns (bool)",
@@ -379,20 +381,13 @@ export class MetaMaskProvider implements Provider {
         user: binding.wallet,
       }),
     ]);
-    const spot = z
-      .object({
-        balances: z.array(z.object({ coin: z.string(), total: z.string() })),
-      })
-      .parse(rawSpot);
-    const spotUsdc = spot.balances
-      .filter((row) => row.coin === "USDC")
-      .reduce((sum, row) => sum.plus(row.total), new Decimal(0))
-      .toFixed();
+    const spotUsdc = hyperCoreUsdc(rawSpot).total.toFixed();
+    const funds = perpFunds(balance, mode.rawState, rawSpot);
     return {
       wallet: binding.wallet,
       network: "testnet" as const,
       spotUsdc,
-      perpsEquity: balance.totalBalance,
+      perpsEquity: funds.equity,
       unifiedAccount: mode.unifiedAccount,
       transferAvailable: mode.usdClassTransferAvailable,
     };
@@ -477,14 +472,25 @@ export class MetaMaskProvider implements Provider {
         tif: request.orderType === "market" ? "ioc" : request.tif,
         ...(request.limitPrice ? { limitPrice: request.limitPrice } : {}),
       });
-      if (request.orderType === "limit")
+      if (request.orderType === "limit") {
+        const limit = new Decimal(quote.entryPrice);
+        assert(
+          limit.gt(0) &&
+            request.limitPrice !== undefined &&
+            (request.side === "buy"
+              ? limit.lte(request.limitPrice)
+              : limit.gte(request.limitPrice)),
+          "PRICE_PRECISION",
+          "SDK price rounding would loosen the requested limit; choose a venue-valid price",
+        );
         return {
           usd: new Decimal(request.quantity)
-            .mul(request.limitPrice ?? quote.entryPrice)
+            .mul(limit)
             .plus(quote.estimatedFee)
             .toFixed(),
-          limitPrice: request.limitPrice ?? quote.entryPrice,
+          limitPrice: limit.toFixed(),
         };
+      }
       const slippage = new Decimal(binding.maxSlippageBps).div(10000);
       const entry = new Decimal(quote.entryPrice);
       const rounding =
@@ -907,6 +913,70 @@ export class MetaMaskProvider implements Provider {
     assert(response.ok, "PROVIDER_UNAVAILABLE", "Hyperliquid read failed");
     return response.json();
   }
+  async recoverPerp(
+    binding: Binding,
+    op: Operation,
+    providerOrderId: string,
+  ): Promise<Operation> {
+    assert(
+      op.request.kind === "perp",
+      "RECOVERY_DENIED",
+      "Perpetual order required",
+    );
+    const oid = z
+      .string()
+      .regex(/^[1-9]\d*$/)
+      .transform(Number)
+      .pipe(z.number().int().positive().max(Number.MAX_SAFE_INTEGER))
+      .parse(providerOrderId);
+    // The owner supplies the exact venue ID. Never infer identity from similar fills.
+    // orderStatus scopes the lookup to this binding's wallet and network.
+    const response = z
+      .object({
+        status: z.literal("order"),
+        order: z.object({
+          status: z.string(),
+          order: z.object({
+            oid: z.literal(oid),
+            coin: z.string(),
+            side: z.enum(["B", "A"]),
+            origSz: amount,
+            limitPx: amount,
+            timestamp: z.number(),
+            reduceOnly: z.boolean(),
+            tif: z.string(),
+            orderType: z.literal("Limit"),
+          }),
+        }),
+      })
+      .parse(
+        await this.info(binding, {
+          type: "orderStatus",
+          user: binding.wallet,
+          oid,
+        }),
+      );
+    const order = response.order.order;
+    assert(
+      order.coin === op.request.symbol &&
+        order.side === (op.request.side === "buy" ? "B" : "A") &&
+        new Decimal(order.origSz).eq(op.request.quantity) &&
+        op.executionLimitPrice !== undefined &&
+        new Decimal(order.limitPx).eq(op.executionLimitPrice) &&
+        order.reduceOnly === op.request.reduceOnly &&
+        order.tif.toLowerCase() ===
+          (op.request.orderType === "market" ? "ioc" : op.request.tif) &&
+        order.timestamp >= op.createdAt - 5000 &&
+        order.timestamp <= op.updatedAt + 5000,
+      "RECOVERY_MISMATCH",
+      "Venue order does not match this operation's request and submission window",
+    );
+    return this.reconcile(binding, {
+      ...op,
+      providerOrderId,
+      message: `Venue status: ${response.order.status}`,
+    });
+  }
   async reconcile(binding: Binding, op: Operation): Promise<Operation> {
     if (op.request.kind === "perp") {
       if (op.signatureOnly && op.approvalId && !op.providerOrderId) {
@@ -1127,22 +1197,20 @@ export class MetaMaskProvider implements Provider {
   async account(binding: Binding, kind: "perp" | "spot"): Promise<Account> {
     if (kind === "perp") {
       const service = await this.perps(binding);
-      const [balance, positions] = await Promise.all([
+      const [balance, positions, mode] = await Promise.all([
         service.getBalance("hyperliquid"),
         service.getPositions("hyperliquid"),
+        service.getAccountMode("hyperliquid"),
       ]);
-      // Spendable collateral can include spot funds outside this equity snapshot.
-      const cash = Decimal.max(
-        0,
-        Decimal.min(
-          balance.spendableBalance,
-          new Decimal(balance.totalBalance).minus(balance.marginUsed),
-        ),
-      );
+      const rawSpot =
+        mode.rawState === "unifiedAccount"
+          ? await this.info(binding, {
+              type: "spotClearinghouseState",
+              user: binding.wallet,
+            })
+          : undefined;
       return {
-        cash: cash.toFixed(),
-        equity: balance.totalBalance,
-        positionsValue: new Decimal(balance.totalBalance).minus(cash).toFixed(),
+        ...perpFunds(balance, mode.rawState, rawSpot),
         currency: "USDC",
         positions: positions.map((p) => ({
           symbol: p.symbol,

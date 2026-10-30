@@ -31,6 +31,7 @@ import {
   writeFileSync,
   existsSync,
 } from "node:fs";
+import { assertDependencySafety } from "./dependency-safety.js";
 import { join } from "node:path";
 import { decodeFunctionData, encodeFunctionData, parseAbi } from "viem";
 import { z } from "zod";
@@ -112,6 +113,7 @@ export class MetaMaskProvider implements Provider {
   private networkCache: SupportedNetworksCache | null = null;
   private readonly quotes = new Map<string, PersistedSwapQuote>();
   constructor(directory: string) {
+    assertDependencySafety();
     disableAnalytics();
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     const path = join(directory, "session.json");

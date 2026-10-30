@@ -212,15 +212,21 @@ restart, independent journals and concurrent engine reconciliation.
 
 ## Dependency qualification
 
-The 2026-10-29 clean-install audit reports 68 affected production package
-entries: 6 high, 2 moderate, 60 low, and zero critical. Legacy UUID 8/9 vendor
+The 2026-10-30 clean-install audit reports 66 affected production package
+entries: 6 high, zero moderate, 60 low, and zero critical. A scoped override
+updates the Solana vendor HTTP JSON-RPC client to Jayson 5.0.0, removing
+its vulnerable `stream-json` dependency. Jayson 5 changes TCP/TLS framing;
+the SDK consumer uses its browser HTTP entry point. Actual vendor HTTP
+success, RPC errors, malformed JSON, notifications and request IDs pass
+regressions on Node 22.18 and 24. Browser bundling, connected broker reads
+and a real managed EIP-712 signature also pass after clean installation. Legacy UUID 8/9 vendor
 paths use the patched 11.1.1 release, which retains the CommonJS entry points
 used by the SDK. The lockfile also records the legacy WebSocket optional
 UTF-8 validation peer required for clean installs with npm 10 and npm 11. Vendor JSON-RPC request-ID behavior, buffer-bound checks,
 browser bundling, and real managed-wallet EIP-712 signing were verified after
 the change. The [UUID advisory](https://github.com/advisories/GHSA-w5hq-g745-h8pq)
 is no longer present. The audit still reports upstream issues in
-`bigint-buffer`, nested Zod 3, `stream-json`, `elliptic`, and `deepmerge`.
+`bigint-buffer`, nested Zod 3, `elliptic`, and `deepmerge`.
 
 The 2026-10-26 production dependency audit reports 107 affected package entries
 (6 high, 77 moderate, 24 low; zero critical), down from 119 entries and 10 high.
@@ -234,14 +240,21 @@ The earlier remaining root advisories concerned `bigint-buffer`, nested Zod 3, `
 that every advisory is reachable through this broker. Current assessment:
 
 - The `bigint-buffer` high advisory targets its native addon. A clean
-  `npm ci --ignore-scripts` installation did not contain a loadable addon and
-  used the package's JavaScript fallback. This is an installation-specific
-  mitigation, not an upstream fix; rebuilding native modules invalidates it.
-- Nested Zod 3 remains in Fox SDK. The broker bounds HTTP request bodies and
-  uses patched Zod 4 at its own boundary, but those controls do not prove every
-  SDK-parsed provider response is bounded. This remains unresolved.
-- `stream-json` is imported through Jayson; `elliptic` and UUID have multiple
-  vendor paths. A complete call-path assessment is still required. No blanket
+  `npm ci --ignore-scripts` installation uses the package's JavaScript fallback.
+  The companion defaults to skipping install scripts and checks the same native
+  binding search paths before initializing any managed-wallet provider. A native
+  addon or an indeterminate lookup failure stops startup with reinstall guidance.
+  This enforces the supported installation, not an upstream package fix.
+- Nested Zod 3 remains in Fox SDK 2.10.0. The broker uses patched Zod 4 at
+  its boundary. Published-source inspection found five Fox modules importing
+  Zod 3 and no array-schema constructors in those modules. The reported
+  oversized-array validation path was not found in this pinned code. This is
+  a limited static assessment, not an upstream fix or a guarantee for custom
+  plugins or future SDK versions. Do not force Zod 4 into Fox: its tool-schema
+  introspection uses Zod 3 internals.
+- `stream-json` is absent after the scoped Jayson upgrade. `elliptic` and
+  `deepmerge` retain legacy vendor paths. A complete call-path assessment
+  is still required. No blanket
   "unreachable" exception is granted merely because Solana and prediction-market
   trading are not exposed by this broker.
 
@@ -259,8 +272,9 @@ a full strategy-executor trading iteration with actual fill callbacks. Connected
 Persistent partial-fill cancellation, approval interruption/denial during
 funded perpetual execution and mined swap transfer units remain separate
 qualification items. A separate funded EVM transaction reached real MFA,
-remained queryable after its SDK client restarted, and was denied through
-the provider approval page with its Guard policy unchanged. This does not
+remained queryable after its SDK client restarted, was denied through
+the provider approval page, and a separate pending request expired after
+its client process exited. Both left the Guard policy unchanged. This does not
 qualify the perpetual-signature approval path. Testnet spot swap routing
 is unavailable in the pinned provider SDK.
 

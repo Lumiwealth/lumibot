@@ -148,13 +148,22 @@ Before operational use, qualify a funded testnet wallet: login, create/list wall
 | Path | Evidence | Remaining qualification |
 | --- | --- | --- |
 | Agent Wallet login, creation and Guard Mode | Two real, separate server wallets created and read back; provider approved adding HyperEVM testnet to one wallet, with Guard Mode and zero rolling outflow unchanged | Broader provider approval cases |
-| Signing | Harmless message and EIP-712 verification signatures checked cryptographically against the real wallet; new signing boundary exercised | MFA denial and approval during an actual trade |
+| Signing | Harmless message and EIP-712 signatures verified cryptographically; real funded EVM request denied, separate request expired, and pending job recovered by a fresh SDK client | Perpetual signatures did not trigger MFA under the observed provider policy |
 | Account and market reads | Connected Python broker checks pass for standard and unified wallets, including real pooled USDC, held margin, positions/PnL, fills/fees, empty EVM spot portfolios, marks and closed candles | Portfolio margin remains explicitly unsupported |
 | Isolation and revocation | Wrong wallet/admin credentials denied; revoked and superseded tokens rejected; replacement token accepted | Deployment isolation for untrusted strategies |
-| Policy recovery | Real expired, approved and denied requests observed through the broker; email approval changed only the requested testnet chain, and email rejection left the other wallet's policy unchanged | Approval/denial during an actual funded trade and restart during a pending approval |
-| Perpetual execution | Real market open/reduce-only close with multiple fills and fees, full strategy iteration with fill callbacks, resting order/restart/cancel, and request-ID deduplication; restored cumulative fills are not replayed | Persistent partial-fill cancellation and approval interruption during funded execution |
+| Policy recovery | Real expired, approved and denied policy requests observed through the broker; funded EVM denial and expiry left Guard policy unchanged | Broader provider approval cases and operational recovery procedures |
+| Perpetual execution | Real market open/reduce-only close with fills and fees, strategy fill callbacks, resting order/restart/cancel, explicit cancellation of a partially filled order, request-ID deduplication and exact restoration without replay | Provider-specific perpetual MFA challenges were not observed |
 | Spot execution | Exact-input guards and unsupported testnet route refusal | Mined receipts require a supported route; current provider offers no testnet swap route |
-| Setup and funding | Connected owner UI, real same-wallet testnet spot-to-perps move, native testnet ETH funding to two wallets with independent exact-wei receipts, same-nonce recovery after a stale-fee failure, wallet rejection, narrow/wide layouts and service-failure recovery | Parent-chain finality and broader wallet-provider cases |
+| Setup and funding | Connected owner UI, real same-wallet testnet spot-to-perps move, native testnet ETH funding to two wallets with exact-wei receipts, same-nonce recovery after stale fees, wallet rejection, narrow/wide layouts, service recovery and read-only browser permission discovery | Parent-chain finality and broader wallet-provider cases |
+
+The canceled-partial qualification used real managed-wallet signatures and venue
+orders. A private scheduling harness held signatures in memory to coordinate
+maker, taker and cancellation timing, preserving broker authorization checks
+and repeating provider policy checks after each hold. The broker journal and independent venue
+history agreed on the partial quantity, canceled remainder and fees. Both
+wallets were closed flat; an ordinary broker restart and real strategy startup
+restored the terminal partial snapshot without replaying fills. No scheduling
+hooks were added to the shipped service.
 
 Hyperliquid perpetual orders use typed-data signatures. MetaMask [excludes signatures from its outflow-limit calculation](https://docs.metamask.io/agent-wallet/reference/outflow-policy/), so a zero outflow limit does not force MFA for these orders. Real testnet orders signed without an approval challenge. The signing-boundary tests cover pending, denied and expired jobs, but those simulated cases do not establish a real funded-trade MFA interruption.
 
@@ -266,12 +275,11 @@ Recheck with `npm audit --omit=dev`. See, for example, the
 [bigint-buffer advisory](https://github.com/advisories/GHSA-3gc7-fjrx-p6mg) and
 [Zod advisory](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5).
 Funded Hyperliquid testnet qualification has verified market opening,
-reduce-only closing, multiple fill aggregation and fees, resting-order
-cancellation, service restart recovery, stable request-ID deduplication, and
+reduce-only closing, multiple fill aggregation and fees, resting-order and
+partial-fill cancellation, service restart recovery, stable request-ID deduplication, and
 a full strategy-executor trading iteration with actual fill callbacks. Connected read-only checks also run a real strategy startup and verify that historical fills never replay. Snapshot registration belongs to the MetaMask adapter; the shared executor and its native qualification fingerprint remain unchanged. Startup restores cumulative fill history without adding total order size a second time.
-Persistent partial-fill cancellation, approval interruption/denial during
-funded perpetual execution and mined swap transfer units remain separate
-qualification items. A separate funded EVM transaction reached real MFA,
+Perpetual MFA challenges and mined swap transfer units remain provider-specific
+qualification limits, separate from the verified perpetual execution path. A separate funded EVM transaction reached real MFA,
 remained queryable after its SDK client restarted, was denied through
 the provider approval page, and a separate pending request expired after
 its client process exited. Both left the Guard policy unchanged. This does not

@@ -106,6 +106,10 @@ retried. Interrupted allowance approval can be resumed from setup after its
 receipt confirms, under the original budget and current policy checks.
 Restored terminal orders are not replayed as new cancellation/error events.
 Account snapshots retain unprocessed fill deltas for normal strategy callbacks.
+Funded testnet qualification verified explicit cancellation after a real partial
+fill. Venue history and the broker journal agreed on fills, the canceled
+remainder and fees; normal restart restored that terminal snapshot without
+replaying its historical fill.
 Policy requests persist separately and expose approved, denied and expired
 states after restart. Perpetual openings check authority before each SDK
 signature and again before releasing it to the venue. Interrupted pending

@@ -9,6 +9,8 @@ import {
   assert,
   bindingSchema,
   collateralTransferSchema,
+  nativeFundingSchema,
+  type NativeFunding,
   operationSchema,
   policyApprovalSchema,
   type PolicyApproval,
@@ -47,6 +49,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS bindings (id TEXT PRIMARY KEY, wallet TEXT UNIQUE NOT NULL, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS operations (agent TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(agent,id));
       CREATE TABLE IF NOT EXISTS policy_approvals (id TEXT PRIMARY KEY, wallet TEXT NOT NULL, data TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS native_funding (agent TEXT NOT NULL, id TEXT NOT NULL, wallet TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(agent,id));
       CREATE TABLE IF NOT EXISTS collateral_transfers (agent TEXT NOT NULL, id TEXT NOT NULL, wallet TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(agent,id));`);
     } catch (error) {
       database?.close();
@@ -111,6 +114,25 @@ export class Store {
       .map((value) =>
         collateralTransferSchema.parse(JSON.parse(row.parse(value).data)),
       );
+  }
+  nativeFundings(wallet?: string): NativeFunding[] {
+    const rows =
+      wallet === undefined
+        ? this.db.prepare("SELECT data FROM native_funding").all()
+        : this.db
+            .prepare("SELECT data FROM native_funding WHERE wallet=?")
+            .all(wallet);
+    return rows.map((value) =>
+      nativeFundingSchema.parse(JSON.parse(row.parse(value).data)),
+    );
+  }
+  saveNativeFunding(value: NativeFunding): void {
+    value = nativeFundingSchema.parse(value);
+    this.db
+      .prepare(
+        "INSERT INTO native_funding VALUES (?,?,?,?) ON CONFLICT(agent,id) DO UPDATE SET data=excluded.data",
+      )
+      .run(value.agent, value.id, value.wallet, JSON.stringify(value));
   }
   saveCollateralTransfer(value: CollateralTransfer): void {
     value = collateralTransferSchema.parse(value);

@@ -43,6 +43,45 @@ export const bindingSchema = z
   })
   .strict();
 export type Binding = z.infer<typeof bindingSchema>;
+export const transactionHash = z
+  .string()
+  .regex(/^0x[\da-fA-F]{64}$/)
+  .transform((value): `0x${string}` => `0x${value.slice(2).toLowerCase()}`);
+export const nativeFundingSchema = z.object({
+  id: identifier,
+  agent: identifier,
+  wallet: address,
+  sender: address,
+  network: z.literal("testnet"),
+  chainId: z.union([z.literal(11155111), z.literal(421614)]),
+  amountWei: z
+    .string()
+    .regex(/^[1-9]\d{0,77}$/)
+    .refine((value) => BigInt(value) < 2n ** 256n),
+  state: z.enum([
+    "prepared",
+    "submitted",
+    "confirmed",
+    "reverted",
+    "unknown",
+    "wallet_rejected",
+    "replaced",
+  ]),
+  hash: transactionHash.optional(),
+  replacementHash: transactionHash.optional(),
+  nonce: z
+    .string()
+    .regex(/^(0|[1-9]\d*)$/)
+    .max(20)
+    .refine((value) => BigInt(value) < 2n ** 64n)
+    .optional(),
+  verified: z.boolean().default(false),
+  confirmations: z.number().int().nonnegative().default(0),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  message: z.string().optional(),
+});
+export type NativeFunding = z.infer<typeof nativeFundingSchema>;
 export const collateralTransferSchema = z.object({
   id: identifier,
   agent: identifier,

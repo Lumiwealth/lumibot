@@ -25,6 +25,14 @@ Open the localhost URL printed by the service. Unlock setup with its local `admi
 
 The service binds to `127.0.0.1`. Keep it local or use an authenticated SSH tunnel. No public deployment, wallet creation, funding, or mainnet trade happens merely by starting it. `--state-dir` selects a dedicated private state directory; `--port` changes the port. Mainnet bindings require the explicit `--allow-mainnet` startup flag and owner configuration. The setup UI deliberately creates testnet bindings.
 
+Optional native gas funding retains an owner-only record before opening the browser wallet confirmation. Setup verifies the selected testnet, sender, recipient and exact wei amount against public transaction data, then waits for a successful receipt and two block confirmations before showing **confirmed**. This is a testnet inclusion check, not parent-chain finality. A transaction hash or a wallet success message alone is insufficient. Receipts marked **reverted** did not deliver ETH. A wallet rejection before a hash is returned is shown separately.
+
+If the selected testnet is missing from MetaMask, setup requests its addition with the documented public RPC, then verifies the wallet's active chain before preparing funding. Rejecting the network request leaves funding unsubmitted.
+
+After a reload, select the agent wallet and refresh gas funding. Pending hashes resume read-only receipt checks. If the browser closed before saving a hash, enter it from MetaMask Activity under the existing funding record. Alternatively, **Review pending funding** opens the same transfer with its original persisted nonce and a fresh buffered fee estimate. It checks the connected sender and selected testnet again. A mined nonce must be reconciled before another wallet request. A mined same-nonce cancellation resolves as **replaced**, without claiming the expected ETH arrived. Unknown outcomes block a new funding intent; setup never automatically sends again. Bot tokens cannot prepare, link or refresh owner funding records. EVM native ETH and Hyperliquid USDC collateral remain separate.
+
+If MetaMask speeds up or cancels a pending transfer, enter the replacement hash. Setup retains the original record until a mined replacement proves the same sender and nonce on the same testnet, with two confirmations. A speed-up confirms funding only when recipient and amount still match. A mined cancellation or other replacement is shown as **replaced**, without claiming the expected ETH was received.
+
 ## Python usage
 
 Pass the configuration displayed by setup to the broker. The agent-scoped token and expected wallet/network are required. Do not give strategies the setup admin token or MetaMask CLI session.
@@ -146,7 +154,7 @@ Before operational use, qualify a funded testnet wallet: login, create/list wall
 | Policy recovery | Real expired, approved and denied requests observed through the broker; email approval changed only the requested testnet chain, and email rejection left the other wallet's policy unchanged | Approval/denial during an actual funded trade and restart during a pending approval |
 | Perpetual execution | Real market open/reduce-only close with multiple fills and fees, full strategy iteration with fill callbacks, resting order/restart/cancel, and request-ID deduplication; restored cumulative fills are not replayed | Persistent partial-fill cancellation and approval interruption during funded execution |
 | Spot execution | Exact-input guards and unsupported testnet route refusal | Mined receipts require a supported route; current provider offers no testnet swap route |
-| Setup and funding | Connected owner UI, real same-wallet testnet spot-to-perps move, independently verified balances, narrow/wide layouts and service-failure recovery | Browser Connect native-gas receipt conventions |
+| Setup and funding | Connected owner UI, real same-wallet testnet spot-to-perps move, native testnet ETH funding to two wallets with independent exact-wei receipts, same-nonce recovery after a stale-fee failure, wallet rejection, narrow/wide layouts and service-failure recovery | Parent-chain finality and broader wallet-provider cases |
 
 Hyperliquid perpetual orders use typed-data signatures. MetaMask [excludes signatures from its outflow-limit calculation](https://docs.metamask.io/agent-wallet/reference/outflow-policy/), so a zero outflow limit does not force MFA for these orders. Real testnet orders signed without an approval challenge. The signing-boundary tests cover pending, denied and expired jobs, but those simulated cases do not establish a real funded-trade MFA interruption.
 
@@ -249,8 +257,11 @@ reduce-only closing, multiple fill aggregation and fees, resting-order
 cancellation, service restart recovery, stable request-ID deduplication, and
 a full strategy-executor trading iteration with actual fill callbacks. Connected read-only checks also run a real strategy startup and verify that historical fills never replay. Snapshot registration belongs to the MetaMask adapter; the shared executor and its native qualification fingerprint remain unchanged. Startup restores cumulative fill history without adding total order size a second time.
 Persistent partial-fill cancellation, approval interruption/denial during
-funded execution, mined swap transfer units, and native-token receipt
-conventions remain separate qualification items. Testnet spot swap routing
+funded perpetual execution and mined swap transfer units remain separate
+qualification items. A separate funded EVM transaction reached real MFA,
+remained queryable after its SDK client restarted, and was denied through
+the provider approval page with its Guard policy unchanged. This does not
+qualify the perpetual-signature approval path. Testnet spot swap routing
 is unavailable in the pinned provider SDK.
 
 ## Sources checked 2026-10-26

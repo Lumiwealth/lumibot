@@ -1,6 +1,13 @@
 import { createEVMClient } from "@metamask/connect-evm";
-import { createWalletClient, custom, parseEther, getAddress } from "viem";
+import {
+  createWalletClient,
+  custom,
+  parseEther,
+  getAddress,
+  formatEther,
+} from "viem";
 import { erc7715ProviderActions } from "@metamask/smart-accounts-kit/actions";
+import { fundingNonce, nativeTransfer } from "./native-transfer.js";
 import { z } from "zod";
 import {
   assetSchema,
@@ -9,6 +16,8 @@ import {
   policyApprovalSchema,
   collateralBalanceSchema,
   collateralTransferSchema,
+  nativeFundingSchema,
+  type NativeFunding,
 } from "../src/contracts.js";
 
 function element(id: string): HTMLElement {
@@ -41,6 +50,9 @@ let admin = "";
 let connected: Awaited<ReturnType<typeof createEVMClient>> | undefined;
 let browserAccount: `0x${string}` | undefined;
 let boundWallets = new Set<string>();
+let boundAgents = new Map<string, string>();
+let nativeFundingPoll: ReturnType<typeof setTimeout> | undefined;
+const nativeSigning = new Set<string>();
 let approvalChannel = "your MetaMask approval channel";
 const statusSchema = z.object({
   authenticated: z.boolean(),
@@ -99,6 +111,9 @@ async function refresh() {
       ? `MetaMask session ready${state.loginMethod ? ` · ${state.loginMethod} sign-in` : ""}.`
       : `Sign in${state.loginMethod ? ` using your original ${state.loginMethod} method` : ""}.`);
   boundWallets = new Set(state.bindings.map((b) => b.wallet.toLowerCase()));
+  boundAgents = new Map(
+    state.bindings.map((b) => [b.wallet.toLowerCase(), b.id]),
+  );
   approvalChannel =
     state.loginMethod === "qr"
       ? "MetaMask Mobile"
@@ -398,42 +413,216 @@ action("disconnect", async () => {
   element("disconnect").hidden = true;
   element("browser-wallet").textContent = "No browser wallet connected.";
 });
+async function gasFunding(agent: string, automatic = false): Promise<void> {
+  clearTimeout(nativeFundingPoll);
+  if (automatic && element("native-funding").contains(document.activeElement)) {
+    nativeFundingPoll = setTimeout(() => {
+      void gasFunding(agent, true).catch((error: unknown) =>
+        notice(String(error), true),
+      );
+    }, 5000);
+    return;
+  }
+  const records = z
+    .array(nativeFundingSchema)
+    .parse(await api(`native-funding?agent=${encodeURIComponent(agent)}`));
+  if (boundAgents.get(select("wallet-select").value.toLowerCase()) !== agent)
+    return;
+  const list = element("native-funding");
+  list.replaceChildren();
+  if (!records.length)
+    list.textContent = "No native gas funding recorded for this agent.";
+  for (const record of records) {
+    const row = document.createElement("div");
+    row.className = "binding";
+    const title = document.createElement("strong");
+    title.textContent = `${formatEther(BigInt(record.amountWei))} ETH · ${record.chainId === 11155111 ? "Sepolia" : "Arbitrum Sepolia"} · ${record.state}`;
+    const detail = document.createElement("p");
+    detail.textContent =
+      record.message ??
+      "Check MetaMask Activity. This request will not be sent again automatically.";
+    row.append(title, detail);
+    if (record.hash || record.replacementHash) {
+      const link = document.createElement("a");
+      link.href = `https://${record.chainId === 11155111 ? "sepolia.etherscan.io" : "sepolia.arbiscan.io"}/tx/${record.replacementHash ?? record.hash}`;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      link.textContent = `View ${record.replacementHash ? "replacement" : "transaction"} · ${record.confirmations} confirmations`;
+      row.append(link);
+    }
+    if (["prepared", "submitted", "unknown"].includes(record.state)) {
+      const form = document.createElement("form"),
+        label = document.createElement("label"),
+        hash = document.createElement("input"),
+        button = document.createElement("button");
+      label.textContent = "Funding transaction hash from MetaMask Activity";
+      hash.required = true;
+      hash.pattern = "0x[0-9a-fA-F]{64}";
+      hash.value = record.hash ?? "";
+      label.append(hash);
+      button.textContent = "Check funding receipt";
+      form.append(label, button);
+      form.onsubmit = async (event) => {
+        event.preventDefault();
+        button.disabled = true;
+        try {
+          await api("native-funding/hash", {
+            agent,
+            id: record.id,
+            hash: hash.value.trim(),
+          });
+          await gasFunding(agent);
+        } catch (error) {
+          notice(String(error), true);
+        } finally {
+          button.disabled = false;
+        }
+      };
+      row.append(form);
+      if (!record.hash && record.nonce !== undefined) {
+        const review = document.createElement("button");
+        review.textContent = "Review pending funding";
+        review.disabled = nativeSigning.has(record.id);
+        review.onclick = async () => {
+          review.disabled = true;
+          try {
+            await requestFunding(record);
+          } catch (error) {
+            notice(String(error), true);
+          } finally {
+            review.disabled = false;
+          }
+        };
+        const hint = document.createElement("p");
+        hint.textContent =
+          "Reuses the original nonce and transfer details. MetaMask may replace a pending request; funds cannot be sent twice with this nonce.";
+        row.append(hint, review);
+      }
+    }
+    list.append(row);
+  }
+  if (
+    records.some(
+      (record) =>
+        record.hash && ["submitted", "unknown"].includes(record.state),
+    )
+  ) {
+    nativeFundingPoll = setTimeout(() => {
+      void gasFunding(agent, true).catch((error: unknown) =>
+        notice(String(error), true),
+      );
+    }, 5000);
+  }
+}
+select("wallet-select").addEventListener("change", () => {
+  clearTimeout(nativeFundingPoll);
+  element("native-funding").replaceChildren();
+  const agent = boundAgents.get(select("wallet-select").value.toLowerCase());
+  if (agent)
+    void gasFunding(agent).catch((error: unknown) =>
+      notice(String(error), true),
+    );
+});
+window.addEventListener("pagehide", () => clearTimeout(nativeFundingPoll));
+action("refresh-native-funding", async () => {
+  const agent = boundAgents.get(wallet().toLowerCase());
+  if (!agent) throw new Error("Create an agent binding first");
+  await gasFunding(agent);
+});
+async function requestFunding(
+  record: NativeFunding,
+  firstAttempt = false,
+): Promise<void> {
+  if (!connected || browserAccount?.toLowerCase() !== record.sender)
+    throw new Error(
+      "Connect the original sending wallet before reviewing funding.",
+    );
+  if (nativeSigning.has(record.id))
+    throw new Error("Funding confirmation is already open.");
+  nativeSigning.add(record.id);
+  try {
+    const provider = connected.getProvider();
+    const transaction = await nativeTransfer(provider, record);
+    let hash: unknown;
+    try {
+      hash = await provider.request({
+        method: "eth_sendTransaction",
+        params: [transaction],
+      });
+    } catch (error) {
+      if (
+        firstAttempt &&
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === 4001
+      )
+        await api("native-funding/rejected", {
+          agent: record.agent,
+          id: record.id,
+        });
+      throw error;
+    }
+    const fundingHash = z
+      .string()
+      .regex(/^0x[0-9a-fA-F]{64}$/)
+      .parse(hash);
+    notice(
+      `Funding submitted: ${fundingHash}. Checking mined receipt; do not send again.`,
+    );
+    try {
+      await api("native-funding/hash", {
+        agent: record.agent,
+        id: record.id,
+        hash: fundingHash,
+      });
+    } catch (error) {
+      notice(
+        `Keep funding hash ${fundingHash}. Receipt tracking unavailable: ${String(error)}`,
+        true,
+      );
+    }
+  } finally {
+    nativeSigning.delete(record.id);
+    try {
+      await gasFunding(record.agent);
+    } catch {
+      element("native-funding").textContent =
+        "Funding history unavailable. Refresh when the service returns; do not create another transfer.";
+    }
+  }
+}
 action(
   "fund-form",
   async () => {
     if (!connected || !browserAccount)
       throw new Error("Connect browser wallet first");
-    const chain = Number(select("fund-chain").value);
-    if (![11155111, 421614].includes(chain))
-      throw new Error("Only testnets supported");
+    const chain = nativeFundingSchema.shape.chainId.parse(
+      Number(select("fund-chain").value),
+    );
     const recipient = wallet();
     if (recipient.toLowerCase() === browserAccount.toLowerCase())
       throw new Error("Choose a separate agent wallet");
     const value = parseEther(input("fund-amount").value);
     if (value <= 0n) throw new Error("Funding amount must be positive");
     const provider = connected.getProvider();
-    const chainId = `0x${chain.toString(16)}`;
-    await provider.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId }],
-    });
-    const actual = await provider.request({ method: "eth_chainId" });
-    if (actual !== chainId)
-      throw new Error("Wallet network differs from selected testnet");
-    const hash = await provider.request({
-      method: "eth_sendTransaction",
-      params: [
-        {
-          from: browserAccount,
-          to: recipient,
-          value: `0x${value.toString(16)}`,
-          chainId,
-        },
-      ],
-    });
-    notice(
-      `Funding submitted: ${String(hash)}. Receipt confirmation still pending.`,
+    const sender = browserAccount;
+    const agent = boundAgents.get(recipient.toLowerCase());
+    if (!agent) throw new Error("Create an agent binding first");
+    const nonce = await fundingNonce(provider, chain, sender);
+    const prepared = nativeFundingSchema.parse(
+      await api("native-funding", {
+        id: crypto.randomUUID(),
+        agent,
+        sender,
+        chainId: chain,
+        amountWei: value.toString(),
+        nonce,
+      }),
     );
+    if (prepared.state !== "prepared" || prepared.hash)
+      throw new Error("Funding already started. Refresh its receipt.");
+    await requestFunding(prepared, true);
   },
   "submit",
 );

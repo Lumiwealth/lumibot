@@ -18,6 +18,8 @@ import {
   BrokerError,
   identifier,
   positive,
+  nativeFundingSchema,
+  transactionHash,
   requestSchema,
 } from "./contracts.js";
 import { Store, digest } from "./store.js";
@@ -25,6 +27,7 @@ import { Engine } from "./engine.js";
 import { PolicyApprovals } from "./policy-approvals.js";
 import { MetaMaskProvider } from "./sdk.js";
 import { CollateralTransfers } from "./collateral-transfers.js";
+import { NativeFundings } from "./native-funding.js";
 
 const bodyLimit = 65536;
 async function body(req: IncomingMessage): Promise<unknown> {
@@ -56,6 +59,7 @@ export function application(
   const engine = new Engine(store, provider);
   const policyApprovals = new PolicyApprovals(store, provider);
   const collateralTransfers = new CollateralTransfers(store, provider);
+  const nativeFundings = new NativeFundings(store);
   const parent = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const root = existsSync(join(parent, "package.json"))
     ? parent
@@ -122,6 +126,65 @@ export function application(
             .parse(await body(req));
           await provider.login(input.token);
           json(res, { authenticated: true });
+          return;
+        }
+        if (req.method === "GET" && url.pathname === "/admin/native-funding") {
+          const binding = store.binding(
+            identifier.parse(url.searchParams.get("agent")),
+          );
+          json(res, await nativeFundings.list(binding));
+          return;
+        }
+        if (req.method === "POST" && url.pathname === "/admin/native-funding") {
+          const input = nativeFundingSchema
+            .pick({
+              id: true,
+              agent: true,
+              sender: true,
+              chainId: true,
+              amountWei: true,
+              nonce: true,
+            })
+            .required({ nonce: true })
+            .strict()
+            .parse(await body(req));
+          json(res, nativeFundings.prepare(store.binding(input.agent), input));
+          return;
+        }
+        if (
+          req.method === "POST" &&
+          url.pathname === "/admin/native-funding/hash"
+        ) {
+          const input = z
+            .object({
+              agent: identifier,
+              id: identifier,
+              hash: transactionHash,
+            })
+            .strict()
+            .parse(await body(req));
+          json(
+            res,
+            await nativeFundings.refresh(
+              store.binding(input.agent),
+              input.id,
+              input.hash,
+            ),
+          );
+          return;
+        }
+        if (
+          req.method === "POST" &&
+          url.pathname === "/admin/native-funding/rejected"
+        ) {
+          const input = z
+            .object({ agent: identifier, id: identifier })
+            .strict()
+            .parse(await body(req));
+          json(
+            res,
+            nativeFundings.rejected(store.binding(input.agent), input.id),
+          );
           return;
         }
         if (req.method === "GET" && url.pathname === "/admin/wallets") {

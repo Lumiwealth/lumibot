@@ -48,6 +48,22 @@ test("real HTTP server isolates admin and agent access, checks origins and serve
     });
   try {
     assert.equal((await call("/admin/status", "runtime")).status, 401);
+    for (const path of [
+      "/admin/native-funding?agent=agent",
+      "/admin/native-funding/hash",
+      "/admin/native-funding/rejected",
+    ])
+      assert.equal((await call(path, "runtime")).status, 401);
+    assert.equal(
+      (
+        await fetch(url + "/admin/native-funding", {
+          method: "POST",
+          headers: { Authorization: "Bearer runtime" },
+          body: "{}",
+        })
+      ).status,
+      401,
+    );
     assert.equal(
       (
         await fetch(url + "/admin/recover-perp", {
@@ -96,6 +112,50 @@ test("real HTTP server isolates admin and agent access, checks origins and serve
       400,
     );
     assert.equal((await call("/v1/identity", "owner")).status, 401);
+    const nativeRequest = {
+      agent: "agent",
+      id: "native",
+      sender: "0x" + "2".repeat(40),
+      chainId: 421614,
+      amountWei: "1000001",
+      nonce: "7",
+    };
+    const nativePost = (payload: object) =>
+      fetch(url + "/admin/native-funding", {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer owner",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+    assert.equal(
+      (await nativePost({ ...nativeRequest, wallet: "0x" + "3".repeat(40) }))
+        .status,
+      400,
+    );
+    assert.equal(
+      (await nativePost({ ...nativeRequest, chainId: 42161 })).status,
+      400,
+    );
+    const prepared = await (await nativePost(nativeRequest)).json();
+    assert.equal(prepared.state, "prepared");
+    assert.equal(prepared.wallet, "0x" + "1".repeat(40));
+    assert.equal(prepared.amountWei, "1000001");
+    const nativeHistory = await (
+      await call("/admin/native-funding?agent=agent", "owner")
+    ).json();
+    assert.equal(nativeHistory.length, 1);
+    assert.equal(nativeHistory[0].id, nativeRequest.id);
+    const rejected = await fetch(url + "/admin/native-funding/rejected", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer owner",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ agent: "agent", id: "native" }),
+    });
+    assert.equal((await rejected.json()).state, "wallet_rejected");
     assert.equal(
       (await call("/admin/status", "owner", { Origin: "https://evil.invalid" }))
         .status,

@@ -172,6 +172,16 @@ Does testnet ETH fund Hyperliquid perpetuals?
 
 No. ETH pays EVM gas; Hyperliquid positions need mock USDC collateral in HyperCore. Refresh collateral balances in setup and move spot USDC to perps within the agent wallet when needed. Unified accounts pool collateral. Faucet eligibility is separate from wallet creation.
 
+Optional browser gas funding has a separate receipt history. It confirms the
+testnet, sender, recipient and exact ETH amount, then waits for a successful
+mined receipt and two block confirmations. Refreshing after a reload resumes
+read-only checks. A missing hash can be linked from MetaMask Activity.
+Alternatively, **Review pending funding** keeps the original nonce, sender,
+recipient and amount while refreshing the fee estimate. A consumed nonce
+requires receipt reconciliation. A mined cancellation is shown as
+**replaced**, without claiming that funding arrived. Unknown funding is
+retained and never automatically resent.
+
 Can a strategy transfer funds to another wallet?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

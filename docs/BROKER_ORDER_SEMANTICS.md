@@ -346,7 +346,7 @@ replay executions into crypto quote cash. Missing partial execution quantity
 remains unknown; it never becomes the full order size. Pending cancellation
 remains active until confirmation; pending replacement is not final cancellation.
 Alpaca parsing retains the provider status and cumulative filled quantity, and
-polling uses the same cumulative reconciliation owner for partial and final fills.
+Alpaca and Bitunix polling share the cumulative reconciliation owner for partial and final fills. Bitunix preserves pending cancellation, expiration and unknown states instead of reporting cancellation prematurely. A late cancellation snapshot cannot erase a fully recorded execution. Reparsed snapshots bind to the existing execution ledger before applying new quantities.
 
 The shared status contract retains pending replacement, done-for-day, suspended,
 and stopped as distinct working states. Replaced is terminal for that order ID;

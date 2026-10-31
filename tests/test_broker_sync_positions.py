@@ -232,3 +232,27 @@ def test_reparsed_duplicate_observations_share_one_execution_ledger():
     tracked = broker.get_tracked_order('synthetic-same-order')
     assert sum(t.quantity for t in tracked.transactions) == 5
     assert cash.quantity == 500
+
+@pytest.mark.parametrize('status', ['unknown', 'cash_settled', 'assigned', 'exercised'])
+def test_non_working_snapshots_remain_visible_without_synthetic_executions(status):
+    broker = _BrokerForSyncTest([])
+    order = Order('strategy', Asset('SYN'), 10, 'buy', identifier=f'synthetic-{status}')
+    order.status = status
+    broker._process_broker_synced_order(order)
+    assert order.status == status
+    assert order in broker.get_all_orders()
+    assert order.transactions == []
+
+
+def test_a_late_cancel_snapshot_does_not_erase_a_completed_execution():
+    broker = _BrokerForSyncTest([])
+    order = Order('strategy', Asset('SYN'), 10, 'buy', identifier='synthetic-race', avg_fill_price=100)
+    order.status = 'fill'
+    order.filled_quantity = 10
+    broker._process_broker_synced_order(order)
+    late = Order('strategy', Asset('SYN'), 10, 'buy', identifier=order.identifier, avg_fill_price=100)
+    late.status = 'canceled'
+    late.filled_quantity = 2
+    broker._process_broker_synced_order(late)
+    assert order.status == 'fill'
+    assert sum(t.quantity for t in order.transactions) == 10

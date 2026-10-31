@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from uuid import UUID
-
 import os
 import time
 from collections import Counter
@@ -964,6 +962,8 @@ class Alpaca(Broker):
         filled_qty = resp_raw.get("filled_qty") if "filled_qty" in resp_raw else getattr(response, "filled_qty", None)
         if isinstance(filled_qty, (str, int, float)):
             order.filled_quantity = Decimal(str(filled_qty))
+        from uuid import UUID
+
         for field in ("replaces", "replaced_by"):
             relation = resp_raw.get(field) or getattr(response, field, None)
             if isinstance(relation, (str, UUID)):

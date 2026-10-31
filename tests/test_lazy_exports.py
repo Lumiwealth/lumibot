@@ -169,7 +169,7 @@ def test_startup_class_exports_defer_heavy_dependencies():
                 "'lumibot.trading_builtins.custom_stream', "
                 "'logging', 'lumiwealth_tradier', 'matplotlib', 'numpy', 'pandas', "
                 "'pandas_market_calendars', 'polars', 'requests', 'schwab', 'scipy', "
-                "'random', 'subprocess', 'tempfile', 'termcolor', 'traceback', 'typing', 'yfinance'); "
+                "'random', 'subprocess', 'tempfile', 'termcolor', 'traceback', 'typing', 'uuid', 'yfinance'); "
                 "loaded = sorted(name for name in heavy "
                 "if name in sys.modules or any(module.startswith(name + '.') for module in sys.modules)); "
                 "print(','.join(loaded))"

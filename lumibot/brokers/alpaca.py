@@ -958,6 +958,10 @@ class Alpaca(Broker):
         order.broker_create_date = (resp_raw.get('created_at') if isinstance(resp_raw, dict) else None) or getattr(response, 'created_at', None)
         order.broker_update_date = getattr(response, 'updated_at', None)
         order.status = status_value
+        order.broker_status = str(status_value) if status_value is not None else None
+        filled_qty = resp_raw.get("filled_qty") if "filled_qty" in resp_raw else getattr(response, "filled_qty", None)
+        if isinstance(filled_qty, (str, int, float)):
+            order.filled_quantity = Decimal(str(filled_qty))
         order.update_raw(response)
         return order
 
@@ -1411,6 +1415,10 @@ class Alpaca(Broker):
                      for transaction in order.transactions), Decimal(0)
                 )
                 remaining_quantity = total_quantity - prior_quantity
+                status = getattr(confirmed, "status", "filled")
+                terminal = str(getattr(status, "value", status)).lower() in ("filled", "fill")
+                if not terminal and total_quantity.is_finite() and 0 <= total_quantity <= prior_quantity:
+                    return True
                 if (order.is_filled() and total_quantity.is_finite() and price.is_finite()
                         and total_quantity == Decimal(str(order.quantity)) == prior_quantity
                         and price > 0):
@@ -1419,7 +1427,8 @@ class Alpaca(Broker):
                 valid_fill = (
                     str(confirmed.id) == str(order.identifier)
                     and total_quantity.is_finite() and price.is_finite()
-                    and total_quantity == Decimal(str(order.quantity))
+                    and (total_quantity == Decimal(str(order.quantity)) if terminal
+                         else 0 < total_quantity < Decimal(str(order.quantity)))
                     and price > 0 and remaining_quantity > 0
                     and prior_quantity.is_finite() and prior_quantity >= 0
                     and remaining_price.is_finite() and remaining_price > 0
@@ -1437,7 +1446,7 @@ class Alpaca(Broker):
         # lock: the strategy executor can hold its own lock while querying it.
         try:
             self._process_trade_event(
-                order, self.FILLED_ORDER, price=float(remaining_price),
+                order, self.FILLED_ORDER if terminal else self.PARTIALLY_FILLED_ORDER, price=float(remaining_price),
                 filled_quantity=float(remaining_quantity), multiplier=order.asset.multiplier,
             )
             return True
@@ -1891,15 +1900,9 @@ class Alpaca(Broker):
                         if order.status == "filled" or order.status == "fill": 
                             if not self._reconcile_confirmed_fill(stored_order, alpaca_order):
                                 raise ValueError("Alpaca fill observation has inconsistent quantity or price")
-                        elif order.status == "partially_filled":
-                            # Get price and quantity with proper fallbacks for Alpaca API
-                            price = (getattr(alpaca_order, 'filled_avg_price', None) or
-                                   getattr(alpaca_order, 'avg_fill_price', None) or
-                                   getattr(order, 'limit_price', None))
-                            filled_qty = (getattr(alpaca_order, 'filled_qty', None) or
-                                        getattr(alpaca_order, 'qty', None) or
-                                        getattr(order, 'quantity', None))
-                            self.stream.dispatch(self.PARTIALLY_FILLED_ORDER, order=stored_order, price=price, filled_quantity=filled_qty)
+                        elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
+                            if not self._reconcile_confirmed_fill(stored_order, alpaca_order):
+                                raise ValueError("Alpaca partial fill observation has inconsistent quantity or price")
                         elif order.status == "canceled":
                             self.stream.dispatch(self.CANCELED_ORDER, order=stored_order)
                         elif order.status == "new":

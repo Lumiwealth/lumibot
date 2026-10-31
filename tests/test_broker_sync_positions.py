@@ -134,3 +134,54 @@ def test_sync_positions_preserves_fields_on_position_added_during_read():
     assert new_fill.quantity == 1
     assert new_fill.current_price == 210.0
     assert new_fill.strategy == _Strategy.name
+
+
+from decimal import Decimal
+from lumibot.entities import Order
+import pytest
+
+
+@pytest.mark.parametrize("filled", [Decimal("2"), Decimal("0.125")])
+def test_partial_order_hydration_uses_observed_execution_quantity(filled):
+    broker = _BrokerForSyncTest([])
+    cash = Position("strategy", Asset("USD", asset_type="forex"), 1000)
+    broker._filled_positions.append(cash)
+    order = Order("strategy", Asset("SYN", asset_type="crypto"), 10, "buy",
+                  quote=Asset("USD", asset_type="forex"), avg_fill_price=100)
+    order.status = "partially_filled"
+    order.filled_quantity = filled
+    broker._process_broker_synced_order(order)
+    assert sum(t.quantity for t in order.transactions) == filled
+    assert cash.quantity == 1000 - filled * 100
+
+
+def test_partial_order_without_execution_quantity_does_not_invent_fill():
+    broker = _BrokerForSyncTest([])
+    order = Order("strategy", Asset("SYN"), 10, "buy", avg_fill_price=100)
+    order.status = "partially_filled"
+    broker._process_broker_synced_order(order)
+    assert order.status == "partial_fill"
+    assert order.transactions == []
+
+
+@pytest.mark.parametrize("raw", ["pending_cancel", "pending_replace", "PendingCancel"])
+def test_pending_cancellation_or_replacement_remains_active(raw):
+    order = Order("strategy", Asset("SYN"), 10, "buy")
+    order.status = raw
+    assert order.is_active()
+    assert not order.is_canceled()
+
+
+def test_partial_order_hydration_is_cumulative_and_duplicate_safe():
+    broker = _BrokerForSyncTest([])
+    cash = Position("strategy", Asset("USD", asset_type="forex"), 1000)
+    broker._filled_positions.append(cash)
+    order = Order("strategy", Asset("SYN", asset_type="crypto"), 10, "buy",
+                  quote=Asset("USD", asset_type="forex"), avg_fill_price=100)
+    for filled, average in [(2, 100), (5, 102), (5, 102), (2, 100)]:
+        order.status = "partial_fill"
+        order.filled_quantity = filled
+        order.avg_fill_price = average
+        broker._process_broker_synced_order(order)
+    assert sum(t.quantity for t in order.transactions) == 5
+    assert cash.quantity == 490

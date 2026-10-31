@@ -1170,8 +1170,34 @@ class Broker(ABC):
             self._process_new_order(order)
             self._process_canceled_order(order)
         elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
-            self._process_new_order(order)
-            self._process_partially_filled_order(order, order.avg_fill_price, order.quantity)
+            # A broker observation is cumulative; the lifecycle processor takes
+            # an execution delta. Never substitute ordered size for an unknown
+            # partial fill, or debit the crypto quote wallet for that size.
+            observed = getattr(order, "filled_quantity", None)
+            processed = sum((Decimal(str(t.quantity)) for t in order.transactions), Decimal(0))
+            cumulative = Decimal(str(observed)) if observed is not None else None
+            if cumulative is not None and (
+                not cumulative.is_finite() or cumulative < 0 or cumulative > order.quantity
+            ):
+                raise ValueError("Broker cumulative fill quantity is invalid")
+            if cumulative is not None and cumulative > processed and order.avg_fill_price is not None:
+                prior_value = sum(
+                    (Decimal(str(t.quantity)) * Decimal(str(t.price)) for t in order.transactions), Decimal(0)
+                )
+                delta = cumulative - processed
+                price = (cumulative * Decimal(str(order.avg_fill_price)) - prior_value) / delta
+                if not price.is_finite() or price <= 0:
+                    raise ValueError("Broker cumulative fill price is invalid")
+                self._process_new_order(order)
+                self._process_partially_filled_order(order, price, delta)
+            else:
+                # Track the live remainder even when execution details are not
+                # supplied. An observation alone must not invent a transaction.
+                with self._lock:
+                    order.status = Order.OrderStatus.PARTIALLY_FILLED
+                    order.set_partially_filled()
+                    if order not in self._partially_filled_orders:
+                        self._partially_filled_orders.append(order)
         elif order.status == Order.OrderStatus.ERROR:
             self._process_new_order(order)
             self._process_error_order(order, order.error_message)

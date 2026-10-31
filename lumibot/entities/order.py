@@ -149,9 +149,9 @@ STATUS_ALIAS_MAP = {
     "replaced": "canceled",  # Alpaca status
     "stopped": "canceled",  # Alpaca status
     "suspended": "canceled",  # Alpaca status
-    "pending_cancel": "canceled",  # Alpaca status
+    "pending_cancel": "cancelling",  # Alpaca status
     "pending_new": "new",  # Alpaca status
-    "pending_replace": "canceled",  # Alpaca status
+    "pending_replace": "open",  # Alpaca status
     "pending_review": "open",  # Alpaca status
     "accepted": "open",  # Alpaca status
     "calculated": "open",  # Alpaca status

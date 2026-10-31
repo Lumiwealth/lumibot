@@ -4,6 +4,9 @@
 
 Deploy marker: `d326af579d52b2869152e4ee7ff775e0ec1685a3`.
 
+### Fixed
+- Reconcile broker-synchronized partial fills using observed cumulative execution deltas instead of full order size; retain pending cancellation/replacement as active and preserve Alpaca partial execution quantities for polling.
+
 ### Added
 - Update the scoped MetaMask vendor JSON-RPC client to Jayson 5, removing vulnerable stream-json while retaining the SDK's HTTP and browser request contracts. Default to script-free companion installs and refuse the unpatched optional bigint-buffer native addon at provider startup.
 - MetaMask owner setup retains native testnet gas-funding intents and verifies exact transaction details, mined receipt status and two block confirmations. Funding history survives reloads, supports linking a missing hash and explicitly reviewing the same nonce with buffered fees, and distinguishes wallet rejection, chain reversion, mined replacement and unknown outcomes without automatically resending.

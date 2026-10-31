@@ -313,3 +313,15 @@ def test_contract_execution_callbacks_do_not_debit_spot_notional(event):
     callback = executor._on_filled_order if event == "fill" else executor._on_partially_filled_order
     callback.assert_called_once_with(**payload)
 
+
+
+def test_expired_order_preserves_partial_executions_and_terminal_reason(make_broker):
+    broker = make_broker()
+    order = Order("test-strategy", Asset("BTC", "crypto"), 10, "buy", quote=Asset("USDT", "crypto"))
+    order.identifier = "synthetic-expired"
+    broker._process_new_order(order)
+    broker._apply_ccxt_order_observation(order, {"id": order.identifier, "status": "expired", "filled": 2, "cost": 200, "average": 100})
+    assert order.status == Order.OrderStatus.EXPIRED
+    assert sum(t.quantity for t in order.transactions) == 2
+    broker._apply_ccxt_order_observation(order, {"id": order.identifier, "status": "expired", "filled": 2, "cost": 200, "average": 100})
+    assert sum(t.quantity for t in order.transactions) == 2

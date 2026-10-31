@@ -681,7 +681,7 @@ class Tradovate(Broker):
             elif raw_status in ["rejected"]:
                 status = Order.OrderStatus.ERROR
             elif raw_status in ["expired"]:
-                status = Order.OrderStatus.CANCELED
+                status = Order.OrderStatus.EXPIRED
             elif raw_status in ["submitted", "new", "pending"]:
                 status = Order.OrderStatus.NEW
             else:

@@ -369,7 +369,7 @@ class TestProjectXBroker:
             (1, "open", "Open order on exchange"),
             (2, "fill", "Completely filled"),
             (3, "canceled", "Cancelled order"),
-            (4, "canceled", "Expired (mapped to canceled)"),
+            (4, "expired", "Expired retains its distinct terminal reason"),
             (5, "error", "Rejected (mapped to error)"),
             (6, "new", "Pending/New order"),
             (7, Order.OrderStatus.PARTIALLY_FILLED, "Partially filled"),

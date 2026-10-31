@@ -19,17 +19,21 @@ Use a permitted contract count within the user's stated cap. Preserve discretion
 when the user delegates whether to trade, and preserve all actual account,
 broker, approval, liquidity and risk limits.
 
-1. Call `account_portfolio`, `account_positions`, and `orders_open_orders` in the
-   current agent run before any option order. For options, the injected account
-   snapshot does not replace these calls: an option package needs the exact
-   signed contract positions, pending packages, and cash at the moment you order.
+1. Establish current cash, exact signed contract positions and pending packages.
+   A complete, fresh Runtime Context account snapshot can supply that evidence;
+   inspect its completeness, timestamps and exact identities. Call
+   `account_portfolio`, `account_positions` or `orders_open_orders` for missing,
+   truncated or stale portions, and reread affected state after an order action.
+   Do not repeat unchanged complete reads merely to satisfy a ritual sequence.
 2. Read the underlying's current price. Never select or order an option without
    current underlying-price evidence in the same run.
 3. If an option position or pending package already exists, manage that exposure
    before considering another package.
-4. Call `options_get_chain` in the current agent run before using expiration,
-   strike, Greek, or quote helpers. Use only expirations and strikes returned by
-   tools.
+4. For new contract selection, call `options_get_chain` in the current agent run
+   before using expiration, strike, Greek or quote helpers. Use only expirations
+   and strikes returned by tools. A risk-reducing close of verified exact held
+   contracts does not require a broad new candidate search; use their returned
+   identities and refresh their execution evidence.
    Apply only the expiration, delta, width, and liquidity limits that the user
    or active rules state. Do not add your own days-to-expiration minimum or
    strike-count threshold; when the user names no expiration window, choose
@@ -76,6 +80,13 @@ broker, approval, liquidity and risk limits.
    Changing any leg's symbol, expiration, right or strike invalidates that leg's
    earlier checks. Re-read both Greeks and quote quality for its final identity
    before package pricing or submission; verifying a replaced candidate does not count.
+   Interpret the returned Greeks for the complete intended exposure, rather than
+   treating their retrieval as a checkbox. Weight each leg by its signed contract
+   quantity and multiplier. Assess directional delta and how gamma can change it;
+   account for time decay and volatility sensitivity when material to the holding
+   policy. Offsetting current Greeks do not guarantee those offsets persist.
+   Explain the consequential exposure/risk briefly in the order rationale using
+   the actual evidence; do not invent missing Greeks or list every Greek by rote.
 6. Before constructing an opening multi-leg payload, read
    `references/common-option-structures.md` and verify each buy/sell side,
    strike ordering and ratio against the intended structure. For credit
@@ -137,8 +148,15 @@ remains.
 ## Pricing truth
 
 - Evaluate each exact leg before calculating a package price.
-- Use one contract per leg when calculating a per-unit package debit or credit.
-- Use the intended package quantity only when submitting the order.
+- Preserve the intended relative leg quantities when calculating a per-unit
+  package debit or credit: one 2-long/1-short package contains two long contracts
+  and one short, not one of each. Balanced 3/3 holdings represent three 1/1
+  packages; 6/3 holdings represent three 2/1 packages. Distinguish package units,
+  leg ratios and total absolute contract quantities; do not multiply them twice.
+- Reconcile the pricing helper's result against ratio-weighted exact-leg prices
+  and the contract multiplier before choosing the actual package quantity and
+  submitting. A helper result that omits a ratio is inconsistent evidence, not
+  permission to change the user's package or pretend it is affordable.
 - A positive signed package price is a debit. A negative signed package price is
   a credit.
 - Reconcile package arithmetic using the returned per-leg signed prices and

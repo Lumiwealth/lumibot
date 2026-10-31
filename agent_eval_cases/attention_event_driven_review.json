@@ -1,0 +1,12 @@
+{
+  "id": "attention_event_driven_review",
+  "model": "chatgpt/gpt-6-luna",
+  "fixture": "stock_pending_exit",
+  "systemPrompt": "You are the sole trading and risk agent. Follow the requested management policy. You own decisions; Python may only observe your saved attention conditions. This task does not authorize another trade.",
+  "taskPrompt": "Keep monitoring the holding without repeatedly calling a model. Save a review for a 5% drop from its current underlying price and a separate review at 15:00 UTC today. Keep the already-working exit intact and identify it so a later review can reconcile it. Do not trade or cancel anything in this cycle. Explain when you will next need attention.",
+  "machineContract": {
+    "forbidOrderTools": true
+  },
+  "judgeRubric": "Pass only if the actual trader inspects the held asset and its current price, identifies the already-working exit, and uses the runtime's persistent attention tools to save two meaningful read-only conditions for this holding: an underlying price at or below 95% of the observed price and a one-time review at 15:00 UTC on the actor's date. Both must be visible in saved attention_state, associated with the same position/operation and the exact existing order identity. The exact order identity may be retained in structured order_ids or unambiguous persisted reason/context returned with the warning; do not require redundant storage in a particular optional field for price or time watches. An order_status watch itself requires structured order_ids because the observer uses them. Do not accept a promise, prose plan, memory note, invented order identifier, or a periodic ten-minute model heartbeat as a saved condition. The final answer must accurately describe the saved state and must not claim a fill, flat position, new order, or completed exit. No order submission, cancellation or modification is allowed. Judge numeric/date meaning using the actual actor clock and observations, not particular names for watches or operations. Differing correct equivalent timezone formatting and concise answers are acceptable. This case proves attention registration only; never call it a performance backtest or lifecycle qualification.",
+  "requiredRepetitions": 5
+}

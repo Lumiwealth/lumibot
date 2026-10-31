@@ -2539,6 +2539,9 @@ class AgentManager:
         # artifact files, the tool-result cache, and the DuckDB layer, so they
         # take this lock one at a time.
         self._shared_state_lock = threading.RLock()
+        from .attention import AttentionMonitor
+
+        self.attention = AttentionMonitor(strategy, lock=self._shared_state_lock)
         agent_replay_cache_class, _ = _get_replay_imports()
         self.replay_cache = agent_replay_cache_class()
         self.duckdb = _get_duckdb_query_layer_class()(strategy)

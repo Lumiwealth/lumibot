@@ -98,6 +98,7 @@ def runtime_fingerprint() -> str:
         REPO_ROOT / "lumibot/components/agents/documents.py",
         REPO_ROOT / "lumibot/components/agents/web_tools.py",
         REPO_ROOT / "lumibot/components/agents/asset_resolution.py",
+        REPO_ROOT / "lumibot/components/agents/attention.py",
         REPO_ROOT / "lumibot/components/agents/managed_gateway.py",
         REPO_ROOT / "lumibot/indicators/indicators.py",
         REPO_ROOT / "lumibot/brokers/broker.py",
@@ -1361,6 +1362,8 @@ def execute_repetition(
             "positions_timing": "Post-run positions are captured after final settlement. Use ordered tool_results for positions the agent actually observed before its final answer.",
             "initial_runtime_context": initial_context,
             "initial_runtime_contexts": initial_contexts,
+            "attention_state": (production.manager.attention.snapshot(owner="trader")
+                                if hasattr(production.manager, "attention") else {"watches": [], "pending": []}),
             "execution_outcome": (result.payload or {}).get("execution_outcome"),
             "agent_runs": [
                 {
@@ -1810,6 +1813,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--qualification-receipt", type=Path, default=REPO_ROOT / "ci/agent-evals/qualification.json")
     parser.add_argument("--max-workers", type=int, default=8)
     parser.add_argument("--gate", action="store_true", help="Skip fresh cases and require complete fresh coverage")
+    parser.add_argument("--pilot", action="store_true",
+                        help="Run only the first missing trial per selected case; never qualify or replace the full gate")
     parser.add_argument(
         "--preflight-only", action="store_true", help="Validate fixtures and report freshness without inference"
     )
@@ -1818,6 +1823,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def validate_args(args: argparse.Namespace) -> None:
+    if args.pilot and args.gate:
+        raise RuntimeError("A pilot cannot replace the production gate")
+    if args.pilot and args.repeat != 1:
+        raise RuntimeError("A pilot selects one missing trial; use --repeat only for full qualification")
     if args.repeat < 1:
         raise RuntimeError("--repeat must be at least 1")
     if args.freshness_days < 1:
@@ -1913,6 +1922,16 @@ def main() -> int:
                 resumed_repetitions += 1
             else:
                 work.append((case, repetition, fingerprint))
+
+    deferred_repetitions = 0
+    if args.pilot:
+        selected, seen_cases = [], set()
+        for task in work:
+            if task[0]["id"] not in seen_cases:
+                selected.append(task)
+                seen_cases.add(task[0]["id"])
+        deferred_repetitions = len(work) - len(selected)
+        work = selected
 
     if work:
         from scripts.qualify_agent_evals import invalidate_receipt
@@ -2079,13 +2098,16 @@ def main() -> int:
         "ledger_path": str(ledger_path),
         "freshness_state_path": str(args.freshness_state.resolve()),
         "runtime_fingerprint": runtime_hash,
+        "pilot": args.pilot,
+        "deferred_repetitions": deferred_repetitions,
+        "qualification_complete": len(final_fresh) == len(cases),
     }
     write_json_atomic(summary_path, summary)
     print(json.dumps(summary, indent=2, sort_keys=True))
 
     complete = len(final_fresh) == len(cases)
     clean = fail_count == 0 and error_count == 0 and len(new_rows) == len(work)
-    return 0 if complete and clean else 1
+    return 0 if clean and (complete or args.pilot) else 1
 
 
 if __name__ == "__main__":

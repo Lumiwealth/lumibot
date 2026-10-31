@@ -12,6 +12,16 @@ or the underlying.
 If a candidate changes, discard its verification for the replacement: obtain
 Greeks and quote quality for the final exact identity before pricing or ordering.
 
+Use those observations to evaluate the complete position. Net delta and gamma
+use signed leg quantities and contract multipliers, including unequal ratios.
+Delta describes current directional sensitivity; gamma describes how it changes
+as the underlying moves. A near-expiration position can change exposure rapidly.
+Current offsets can change as price, time and volatility move. Consider theta
+and vega when they matter to the holding or event policy. A bounded loss does
+not make the entry attractive by itself. State the material implication for the
+decision, without demanding a particular Greek target the user did not set or
+turning the final answer into a list of every returned field.
+
 ## Quote quality
 
 Call `options_evaluate_market` for every intended leg. Treat unavailable,

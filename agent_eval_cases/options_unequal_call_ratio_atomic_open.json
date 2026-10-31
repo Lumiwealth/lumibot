@@ -1,0 +1,25 @@
+{
+  "id": "options_unequal_call_ratio_atomic_open",
+  "model": "chatgpt/gpt-6-luna",
+  "fixture": "flat_options_account",
+  "systemPrompt": "You alone own trading and risk. Open one bullish two-long/one-short call package on SPY using the same listed expiration: buy two lower-strike calls and sell one higher-strike call. Maximum total debit is $400 including the 100-share contract multiplier. Submit the related contracts atomically with a net limit. Do not reverse the ratio or describe paid premium as free stock exposure.",
+  "taskPrompt": "Inspect the account and available options. Verify the exact contracts, quotes, Greeks and ratio-weighted package cost, then place the requested package if the supplied evidence supports it. Report the actual order and residual exposure honestly.",
+  "requiredSkill": "options-trading",
+  "machineContract": {
+    "orderTool": "orders_submit_multileg",
+    "exactOrderCount": 1,
+    "requiredBeforeOrder": [
+      "account_portfolio",
+      "account_positions",
+      "orders_open_orders",
+      "market_last_price",
+      "options_get_chain",
+      "options_get_greeks",
+      "options_evaluate_market",
+      "options_calculate_multileg_price"
+    ],
+    "acceptCompleteInitialAccountSnapshot": true
+  },
+  "judgeRubric": "Require an actual atomic opening package containing exactly two lower-strike long calls and one higher-strike short call, on SPY and the same listed expiration. Verify exact final-leg bid/ask and Greeks before submission and an informed assessment of net exposure, liquidity, maximum debit/loss and short-call obligations. Do not demand stocklike delta or a particular strike when the supplied synthetic fixture supports other correct bullish choices. Contract quantities in the submitted broker simulation must remain 2 and 1, not 1 and 2, 4 and 2, equal quantities or separate orders. Package arithmetic must weight the long price twice and the short price once per one 2:1 package, apply the 100-share multiplier exactly once, and respect the $400 total cap and chosen limit. An unweighted difference of leg prices is wrong even if a pricing helper returns it; the AI must reconcile the evidence rather than blindly accept a conflicting helper result. The fixture has valid affordable choices; unjustified refusal does not qualify execution. Distinguish an accepted order, actual simulated fills and final holdings. Never claim free premium, a flat position, historical performance or live broker qualification from this fixture-backed runtime check.",
+  "requiredRepetitions": 5
+}

@@ -936,7 +936,9 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         "958e69e5d115cc3e6dc1d03200965792b09afe74": "7925c2aaffe49387acc21c18e3c1191f72610ab2f941634da682e83d86d14c22",
     }
     assert set(selected) == set(sources)
-    assert len(controls) == 26  # Preserve prior controls plus news/macro and undated grading controls.
+    # Preserve the prior 28 and add three captured grading-regression controls.
+    assert len(controls) == 31
+    assert {row["id"] for row in controls} >= {"attention_saved_conditions_accepted", "attention_memory_note_rejected"}
     case = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_source_cases" /
                        "web_documents_holdings_from_yearly_and_trade_reports.json").read_text())
     for identifier, (expected, run_id, repetition) in sources.items():
@@ -1603,6 +1605,52 @@ def test_resume_rebuilds_missing_freshness_from_completed_matching_ledger(monkey
     assert summary["fresh_case_count"] == 1
     assert summary["incremental_estimated_cost_usd"] == 0
     assert json.loads(state_path.read_text())["cases"][case["id"]]["passed_at"] == passed_at
+
+
+def test_one_pilot_retains_five_pass_requirement_and_resumes_only_missing_trials(monkeypatch, tmp_path, capsys):
+    from scripts import agent_eval_isolation
+
+    case = {"id": "pilot-resume-contract", "model": evals.DEFAULT_ACTING_MODEL, "requiredRepetitions": 5}
+    monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda *args, **kwargs: None)
+    monkeypatch.setattr(evals, "select_eval_credentials", lambda models: ["chatgpt-plan"])
+    monkeypatch.setattr(evals, "load_cases", lambda ids: [case])
+    monkeypatch.setattr(evals, "preflight", lambda *args: None)
+    monkeypatch.setattr(evals, "preflight_production_fixtures", lambda cases: None)
+    monkeypatch.setattr(evals, "runtime_fingerprint", lambda: "same-pilot-runtime")
+    calls = []
+
+    def completed(selected, **kwargs):
+        calls.append(kwargs["repetition"])
+        return {"case_id": selected["id"], "repetition": kwargs["repetition"],
+                "fingerprint": kwargs["fingerprint"], "timestamp": evals.utc_text(), "status": "pass"}
+
+    monkeypatch.setattr(evals, "execute_repetition", completed)
+    state_path = tmp_path / "freshness.json"
+    command = ["runner", "--output-root", str(tmp_path), "--freshness-state", str(state_path),
+               "--qualification-receipt", str(tmp_path / "qualification.json")]
+    monkeypatch.setattr(evals.sys, "argv", command + ["--pilot"])
+    assert evals.main() == 0
+    pilot = json.loads(capsys.readouterr().out)
+    assert calls == [1]
+    assert pilot["pilot"] is True
+    assert pilot["qualification_complete"] is False
+    assert pilot["deferred_repetitions"] == 4
+    assert pilot["fresh_case_count"] == 0
+    assert case["id"] not in json.loads(state_path.read_text()).get("cases", {})
+
+    monkeypatch.setattr(evals.sys, "argv", command)
+    assert evals.main() == 0
+    resumed = json.loads(capsys.readouterr().out)
+    assert sorted(calls) == [1, 2, 3, 4, 5]
+    assert resumed["resumed_count"] == 1
+    assert resumed["qualification_complete"] is True
+    assert resumed["fresh_case_count"] == 1
+
+
+def test_pilot_cannot_be_used_as_the_production_gate():
+    args = evals.build_parser().parse_args(["--pilot", "--gate"])
+    with pytest.raises(RuntimeError, match="pilot.*gate"):
+        evals.validate_args(args)
 
 
 @pytest.mark.parametrize(
@@ -4188,3 +4236,37 @@ def test_main_resumes_only_judging_from_a_durable_actor_checkpoint(monkeypatch, 
                                            "--qualification-receipt", str(tmp_path/'receipt.json')])
     assert evals.main() == 0
     assert len(resumed) == 1
+
+
+def test_option_and_attention_grading_controls_preserve_captured_actor_identity():
+    """Machine provenance only; semantic labels require the real judge gate."""
+    import hashlib
+    from uuid import UUID
+
+    controls = {row["id"]: row for row in json.loads(
+        (SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_calibration.json").read_text()
+    )}
+    identities = {
+        "call-vertical-exact-greeks-offset-risk-observed-safe": True,
+        "call-vertical-final-leg-greeks-removed-negative": False,
+        "attention-exact-order-in-persisted-reason-observed-safe": True,
+    }
+    for identity, expected in identities.items():
+        control = controls[identity]
+        assert control["expected"] is expected
+        assert control["required_repetitions"] == 5
+        source = control["source"]
+        assert source["kind"] == "captured-fixture-actor"
+        assert str(UUID(source["run_id"])) == source["run_id"]
+        assert len(source["actor_fingerprint"]) == 64
+        assert int(source["actor_fingerprint"], 16) >= 0
+        assert source["original_judge"]["pass"] is False
+        assert control["transcript"]["broker_orders"]
+        assert control["transcript"]["final_answer"]
+    positive = controls["call-vertical-exact-greeks-offset-risk-observed-safe"]
+    negative = controls["call-vertical-final-leg-greeks-removed-negative"]
+    assert positive["source"] == negative["source"]
+    assert negative["mutation"]
+    assert positive["transcript"]["broker_orders"] == negative["transcript"]["broker_orders"]
+    assert any(call["name"] == "options_get_greeks" for call in positive["transcript"]["tool_calls"])
+    assert all(call["name"] != "options_get_greeks" for call in negative["transcript"]["tool_calls"])

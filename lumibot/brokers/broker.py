@@ -1230,6 +1230,7 @@ class Broker(ABC):
             if observed is None and observed_status == Order.OrderStatus.FILLED:
                 observed = order.quantity
             processed = sum((Decimal(str(t.quantity)) for t in order.transactions), Decimal(0))
+            importing_history = tracked is None and processed == 0
             cumulative = Decimal(str(observed)) if observed is not None else None
             if processed > 0 and processed >= Decimal(str(order.quantity)) and observed_status != Order.OrderStatus.FILLED:
                 # A cancel or older partial observation cannot undo immutable
@@ -1255,10 +1256,16 @@ class Broker(ABC):
                 if not price.is_finite() or price <= 0:
                     raise ValueError("Broker cumulative fill price is invalid")
                 self._process_new_order(order)
-                if observed_status == Order.OrderStatus.FILLED:
+                if importing_history:
+                    # This execution predates local tracking. The broker's cash
+                    # and net positions already include it (and any fees).
+                    # Seed the execution ledger without charging quote cash again.
+                    order.add_transaction(float(price), float(delta))
+                elif observed_status == Order.OrderStatus.FILLED:
                     self._process_filled_order(order, float(price), float(delta))
                     return
-                self._process_partially_filled_order(order, float(price), float(delta))
+                else:
+                    self._process_partially_filled_order(order, float(price), float(delta))
             if observed_status == Order.OrderStatus.FILLED:
                 # All executions were already recorded, or prices are unknown.
                 # Track the terminal state without inventing another fill.

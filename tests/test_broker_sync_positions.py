@@ -152,7 +152,7 @@ def test_partial_order_hydration_uses_observed_execution_quantity(filled):
     order.filled_quantity = filled
     broker._process_broker_synced_order(order)
     assert sum(t.quantity for t in order.transactions) == filled
-    assert cash.quantity == 1000 - filled * 100
+    assert cash.quantity == 1000
 
 
 def test_partial_order_without_execution_quantity_does_not_invent_fill():
@@ -184,7 +184,7 @@ def test_partial_order_hydration_is_cumulative_and_duplicate_safe():
         order.avg_fill_price = average
         broker._process_broker_synced_order(order)
     assert sum(t.quantity for t in order.transactions) == 5
-    assert cash.quantity == 490
+    assert cash.quantity == 690
 
 @pytest.mark.parametrize('raw,canonical,active', [
     ('filled', 'fill', False), ('partially_filled', 'partial_fill', True),
@@ -213,10 +213,10 @@ def test_terminal_hydration_retains_executions_without_replaying_cash(terminal):
     broker._process_broker_synced_order(order)
     assert order.status == terminal
     assert sum(t.quantity for t in order.transactions) == 2
-    assert cash.quantity == 800
+    assert cash.quantity == 1000
     broker._process_broker_synced_order(order)
     assert sum(t.quantity for t in order.transactions) == 2
-    assert cash.quantity == 800
+    assert cash.quantity == 1000
 
 
 def test_reparsed_duplicate_observations_share_one_execution_ledger():
@@ -231,7 +231,7 @@ def test_reparsed_duplicate_observations_share_one_execution_ledger():
         broker._process_broker_synced_order(order)
     tracked = broker.get_tracked_order('synthetic-same-order')
     assert sum(t.quantity for t in tracked.transactions) == 5
-    assert cash.quantity == 500
+    assert cash.quantity == 700
 
 @pytest.mark.parametrize('status', ['unknown', 'cash_settled', 'assigned', 'exercised'])
 def test_non_working_snapshots_remain_visible_without_synthetic_executions(status):
@@ -256,3 +256,21 @@ def test_a_late_cancel_snapshot_does_not_erase_a_completed_execution():
     broker._process_broker_synced_order(late)
     assert order.status == 'fill'
     assert sum(t.quantity for t in order.transactions) == 10
+
+
+def test_historical_crypto_execution_does_not_recharge_reported_cash_or_replace_net_holdings():
+    cash = Position('strategy', Asset('USD', asset_type='forex'), 9800)
+    coin = Position('strategy', Asset('SYN', asset_type='crypto'), Decimal('1.997'))
+    broker = _BrokerForSyncTest([cash, coin])
+    broker.sync_positions(_Strategy())
+    order = Order('strategy', coin.asset, 10, 'buy', identifier='historical-fee-fill',
+                  quote=cash.asset, avg_fill_price=100)
+    order.status = 'partial_fill'
+    order.filled_quantity = 2  # Gross execution; the broker position is net of its base-unit fee.
+    broker._process_broker_synced_order(order)
+    assert sum(transaction.quantity for transaction in order.transactions) == 2
+    assert cash.quantity == 9800
+    assert Decimal(str(coin.quantity)) == Decimal('1.997')
+    broker._process_broker_synced_order(order)
+    assert cash.quantity == 9800
+    assert Decimal(str(coin.quantity)) == Decimal('1.997')

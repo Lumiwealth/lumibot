@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 import os
 import time
 from collections import Counter
@@ -962,6 +964,10 @@ class Alpaca(Broker):
         filled_qty = resp_raw.get("filled_qty") if "filled_qty" in resp_raw else getattr(response, "filled_qty", None)
         if isinstance(filled_qty, (str, int, float)):
             order.filled_quantity = Decimal(str(filled_qty))
+        for field in ("replaces", "replaced_by"):
+            relation = resp_raw.get(field) or getattr(response, field, None)
+            if isinstance(relation, (str, UUID)):
+                setattr(order, field, str(relation))
         order.update_raw(response)
         return order
 
@@ -977,8 +983,24 @@ class Alpaca(Broker):
         from alpaca.trading.enums import QueryOrderStatus
         from alpaca.trading.requests import GetOrdersRequest
 
-        request = GetOrdersRequest(status=QueryOrderStatus.ALL, limit=100)
-        return self.api.get_orders(filter=request)
+        # Recent terminal executions are needed for callbacks, but they must not
+        # displace older working orders from a bounded recent-history response.
+        recent = self.api.get_orders(filter=GetOrdersRequest(status=QueryOrderStatus.ALL, limit=100))
+        orders = {str(order.id): order for order in recent}
+        until = None
+        while True:
+            page = self.api.get_orders(filter=GetOrdersRequest(
+                status=QueryOrderStatus.OPEN, limit=500, until=until,
+            ))
+            for order in page:
+                orders[str(order.id)] = order
+            if len(page) < 500:
+                break
+            cursor = min(order.submitted_at for order in page if order.submitted_at is not None)
+            if until is not None and cursor >= until:
+                raise ValueError("Alpaca open-order pagination did not advance")
+            until = cursor
+        return list(orders.values())
 
     def _flatten_order(self, order):
         """Some submitted orders may trigger other orders.

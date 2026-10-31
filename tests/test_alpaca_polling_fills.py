@@ -91,3 +91,17 @@ def test_cumulative_partial_observations_only_process_new_executions():
     assert [t.quantity for t in order.transactions] == [2, 3, 5]
     assert sum(t.quantity * t.price for t in order.transactions) == 1030
     assert events == [broker.PARTIALLY_FILLED_ORDER, broker.PARTIALLY_FILLED_ORDER, broker.FILLED_ORDER]
+
+
+def test_order_reads_include_old_working_orders_and_paginate_them():
+    broker = object.__new__(Alpaca)
+    broker.api = MagicMock(spec=TradingClient)
+    recent = SimpleNamespace(id='recent', submitted_at=datetime(2027, 1, 4, tzinfo=timezone.utc))
+    first_page = [SimpleNamespace(id=f'open-{i}', submitted_at=datetime(2026, 1, 4, tzinfo=timezone.utc)) for i in range(500)]
+    older = SimpleNamespace(id='older-open', submitted_at=datetime(2025, 1, 4, tzinfo=timezone.utc))
+    broker.api.get_orders.side_effect = [[recent], first_page, [older]]
+    rows = broker._pull_broker_all_orders()
+    assert {str(row.id) for row in rows} == {'recent', 'older-open', *(f'open-{i}' for i in range(500))}
+    calls = broker.api.get_orders.call_args_list
+    assert calls[1].kwargs['filter'].status.value == 'open'
+    assert calls[2].kwargs['filter'].until == first_page[-1].submitted_at

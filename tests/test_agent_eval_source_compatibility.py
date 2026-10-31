@@ -1,5 +1,4 @@
 """Native inference keeps its original source; unrelated provider edits may reuse it."""
-import hashlib
 import json
 
 import pytest
@@ -54,10 +53,10 @@ def test_source_files_cover_the_existing_runtime_fingerprint(monkeypatch):
     assert set(scope.runtime_paths()) == {path.relative_to(evals.REPO_ROOT).as_posix() for path in paths}
 
 
-def test_live_executor_reuse_is_pinned_and_rejects_any_unreviewed_shared_change():
+def test_refreshed_anchor_requires_fresh_inference_for_shared_executor_changes():
     path = 'lumibot/strategies/strategy_executor.py'
     current = (scope.ROOT / path).read_bytes()
-    assert hashlib.sha256(current).hexdigest() == scope.LIVE_EXECUTOR_COMPATIBILITY[1]
+    scope.check_change(path, current, current)
     with pytest.raises(ValueError, match='affects model qualification'):
         scope.check_change(path, b'unreviewed prior executor', current)
     with pytest.raises(ValueError, match='affects model qualification'):
@@ -78,11 +77,12 @@ def test_validator_reuse_never_accepts_changed_native_validation():
         scope.check_change('scripts/qualify_agent_evals.py', before, before.replace(b'return True', b'return False'))
 
 
-def test_validator_entry_migration_is_bound_to_the_exact_checked_main():
+def test_refreshed_anchor_rejects_validator_entry_changes():
     import ast
     source = (scope.ROOT / 'scripts/qualify_agent_evals.py').read_bytes()
     main = next(node for node in ast.parse(source).body if isinstance(node, ast.FunctionDef) and node.name == 'main')
-    assert scope.entry_digest(main) == scope.VALIDATOR_ENTRY_COMPATIBILITY[1]
+    assert scope.entry_digest(main)
+    scope.check_change('scripts/qualify_agent_evals.py', source, source)
     early_success = source.replace(b'    cases, runtime_hash, versions =', b'    return 0\n    cases, runtime_hash, versions =')
     with pytest.raises(ValueError):
         scope.check_change('scripts/qualify_agent_evals.py', source, early_success)

@@ -347,3 +347,10 @@ remains unknown; it never becomes the full order size. Pending cancellation
 remains active until confirmation; pending replacement is not final cancellation.
 Alpaca parsing retains the provider status and cumulative filled quantity, and
 polling uses the same cumulative reconciliation owner for partial and final fills.
+
+The shared status contract retains pending replacement, done-for-day, suspended,
+and stopped as distinct working states. Replaced is terminal for that order ID;
+it does not erase its executions or imply that its replacement filled. Assignment
+and exercise aliases normalize before validation to assigned and exercised.
+Native status tests qualify this shared mapping; they do not establish that every
+broker's transport or every CCXT exchange has passed live integration testing.

@@ -185,3 +185,18 @@ def test_partial_order_hydration_is_cumulative_and_duplicate_safe():
         broker._process_broker_synced_order(order)
     assert sum(t.quantity for t in order.transactions) == 5
     assert cash.quantity == 490
+
+@pytest.mark.parametrize('raw,canonical,active', [
+    ('filled', 'fill', False), ('partially_filled', 'partial_fill', True),
+    ('cancelled', 'canceled', False), ('canceled', 'canceled', False),
+    ('rejected', 'error', False), ('expired', 'expired', False),
+    ('pending_cancel', 'cancelling', True), ('pending_replace', 'pending_replace', True),
+    ('done_for_day', 'done_for_day', True), ('suspended', 'suspended', True),
+    ('stopped', 'stopped', True), ('replaced', 'replaced', False),
+    ('assignment', 'assigned', False), ('exercise', 'exercised', False),
+])
+def test_broker_lifecycle_normalization_preserves_execution_state(raw, canonical, active):
+    order = Order('strategy', Asset('SYN'), 10, 'buy')
+    order.status = raw
+    assert order.status == canonical
+    assert order.is_active() == active

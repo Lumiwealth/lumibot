@@ -1162,24 +1162,27 @@ class Broker(ABC):
         return broker_identifiers
 
     def _process_broker_synced_order(self, order):
-        """Add a broker-sourced order to the local trackers using its broker status."""
-        if order.status == Order.OrderStatus.FILLED:
-            self._process_new_order(order)
-            self._process_filled_order(order, order.avg_fill_price, order.quantity)
-        elif order.status == Order.OrderStatus.CANCELED:
-            self._process_new_order(order)
-            self._process_canceled_order(order)
-        elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
-            # A broker observation is cumulative; the lifecycle processor takes
-            # an execution delta. Never substitute ordered size for an unknown
-            # partial fill, or debit the crypto quote wallet for that size.
-            observed = getattr(order, "filled_quantity", None)
+        """Hydrate native lifecycle state; broker fill quantities are cumulative."""
+        with self._lock:
+            observed_status = order.status
+            incoming = order
+            tracked = self.get_tracked_order(incoming.identifier)
+            if tracked is not None and tracked is not incoming:
+                order = tracked
+                order.quantity = incoming.quantity
+                order.avg_fill_price = incoming.avg_fill_price
+                order.error_message = incoming.error_message
+            observed = getattr(incoming, "filled_quantity", None)
+            if observed is None and observed_status == Order.OrderStatus.FILLED:
+                observed = order.quantity
             processed = sum((Decimal(str(t.quantity)) for t in order.transactions), Decimal(0))
             cumulative = Decimal(str(observed)) if observed is not None else None
             if cumulative is not None and (
                 not cumulative.is_finite() or cumulative < 0 or cumulative > order.quantity
             ):
                 raise ValueError("Broker cumulative fill quantity is invalid")
+            # Reconcile executions before a terminal transition. A partially
+            # filled canceled/replaced/expired/rejected order keeps its fills.
             if cumulative is not None and cumulative > processed and order.avg_fill_price is not None:
                 prior_value = sum(
                     (Decimal(str(t.quantity)) * Decimal(str(t.price)) for t in order.transactions), Decimal(0)
@@ -1189,20 +1192,34 @@ class Broker(ABC):
                 if not price.is_finite() or price <= 0:
                     raise ValueError("Broker cumulative fill price is invalid")
                 self._process_new_order(order)
+                if observed_status == Order.OrderStatus.FILLED:
+                    self._process_filled_order(order, price, delta)
+                    return
                 self._process_partially_filled_order(order, price, delta)
-            else:
-                # Track the live remainder even when execution details are not
-                # supplied. An observation alone must not invent a transaction.
-                with self._lock:
-                    order.status = Order.OrderStatus.PARTIALLY_FILLED
-                    order.set_partially_filled()
-                    if order not in self._partially_filled_orders:
-                        self._partially_filled_orders.append(order)
-        elif order.status == Order.OrderStatus.ERROR:
-            self._process_new_order(order)
-            self._process_error_order(order, order.error_message)
-        elif order.is_active():
-            self._process_new_order(order)
+            if observed_status == Order.OrderStatus.FILLED:
+                # All executions were already recorded, or prices are unknown.
+                # Track the terminal state without inventing another fill.
+                for bucket in (self._new_orders, self._unprocessed_orders, self._partially_filled_orders):
+                    bucket.remove(order.identifier, key="identifier")
+                order.status = observed_status
+                order.set_filled()
+                if order not in self._filled_orders:
+                    self._filled_orders.append(order)
+            elif observed_status in (Order.OrderStatus.CANCELED, Order.OrderStatus.REPLACED, Order.OrderStatus.EXPIRED):
+                self._process_new_order(order)
+                self._process_canceled_order(order)
+                order.status = observed_status
+            elif observed_status == Order.OrderStatus.ERROR:
+                self._process_new_order(order)
+                self._process_error_order(order, order.error_message)
+            elif observed_status == Order.OrderStatus.PARTIALLY_FILLED:
+                order.status = observed_status
+                order.set_partially_filled()
+                if order not in self._partially_filled_orders:
+                    self._partially_filled_orders.append(order)
+            elif order.is_active():
+                self._process_new_order(order)
+                order.status = observed_status
 
     def _mark_missing_order_unknown(
         self,

@@ -200,3 +200,35 @@ def test_broker_lifecycle_normalization_preserves_execution_state(raw, canonical
     order.status = raw
     assert order.status == canonical
     assert order.is_active() == active
+
+@pytest.mark.parametrize('terminal', ['canceled', 'replaced', 'expired', 'error'])
+def test_terminal_hydration_retains_executions_without_replaying_cash(terminal):
+    broker = _BrokerForSyncTest([])
+    cash = Position('strategy', Asset('USD', asset_type='forex'), 1000)
+    broker._filled_positions.append(cash)
+    order = Order('strategy', Asset('SYN', asset_type='crypto'), 10, 'buy',
+                  quote=Asset('USD', asset_type='forex'), avg_fill_price=100)
+    order.status = terminal
+    order.filled_quantity = Decimal('2')
+    broker._process_broker_synced_order(order)
+    assert order.status == terminal
+    assert sum(t.quantity for t in order.transactions) == 2
+    assert cash.quantity == 800
+    broker._process_broker_synced_order(order)
+    assert sum(t.quantity for t in order.transactions) == 2
+    assert cash.quantity == 800
+
+
+def test_reparsed_duplicate_observations_share_one_execution_ledger():
+    broker = _BrokerForSyncTest([])
+    cash = Position('strategy', Asset('USD', asset_type='forex'), 1000)
+    broker._filled_positions.append(cash)
+    for quantity in (2, 5, 5, 2):
+        order = Order('strategy', Asset('SYN', asset_type='crypto'), 10, 'buy',
+                      identifier='synthetic-same-order', quote=Asset('USD', asset_type='forex'), avg_fill_price=100)
+        order.status = 'partial_fill'
+        order.filled_quantity = quantity
+        broker._process_broker_synced_order(order)
+    tracked = broker.get_tracked_order('synthetic-same-order')
+    assert sum(t.quantity for t in tracked.transactions) == 5
+    assert cash.quantity == 500

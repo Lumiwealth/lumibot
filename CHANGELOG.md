@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.6.35 - 2026-10-31
+
+### Fixed
+- Forward release of account reconciliation and lifecycle repairs with refreshed, source-bound real-model qualification. Version 4.6.34 package publication was blocked by its stale model receipt; its immutable tag is preserved.
+
 ## 4.6.34 - 2026-10-28
 
 Deploy marker: `d326af579d52b2869152e4ee7ff775e0ec1685a3`.

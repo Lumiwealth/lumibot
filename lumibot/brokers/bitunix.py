@@ -663,18 +663,17 @@ class Bitunix(Broker):
             "FILLED":            Order.OrderStatus.FILLED,
             "CANCELED":          Order.OrderStatus.CANCELED,
             "REJECTED":          Order.OrderStatus.ERROR,
-            "EXPIRED":           Order.OrderStatus.CANCELED,
-            "PENDING_CANCEL":    Order.OrderStatus.CANCELED,    # mapped to CANCELED since PENDING_CANCEL isn't defined
+            "EXPIRED":           Order.OrderStatus.EXPIRED,
+            "PENDING_CANCEL":    Order.OrderStatus.CANCELLING,
         }
         mapped_status = status_map.get(status_str)
 
         if mapped_status is None:
             logger.warning(
                 f"Unmapped Bitunix order status received: '{broker_status}' "
-                f"(processed as '{status_str}'). Defaulting to ERROR."
+                f"(processed as '{status_str}'). Preserving UNKNOWN."
             )
-            # Return ERROR status for unrecognized states
-            return Order.OrderStatus.ERROR
+            return Order.OrderStatus.UNKNOWN
         return mapped_status
 
     def _parse_broker_order(
@@ -756,6 +755,7 @@ class Bitunix(Broker):
 
             # Set filled info
             order.reduce_only = is_close or bool(response.get("reduceOnly", False))
+            order.broker_status = status
             order.filled_quantity = qty_executed
             order.avg_fill_price = price_avg
 
@@ -789,73 +789,63 @@ class Bitunix(Broker):
             order = self._parse_broker_order(order_row, strategy_name=self._strategy_name)
             if not order:
                 continue
-            # Process all orders
-            if order.identifier not in stored_orders:
-                if self._first_iteration:
-                    if order.status == Order.OrderStatus.FILLED:
-                        self._process_trade_event(
-                            order, self.FILLED_ORDER, price=order.avg_fill_price, filled_quantity=order.quantity
-                        )
-                    elif order.status == Order.OrderStatus.CANCELED:
-                        self._process_trade_event(order, self.CANCELED_ORDER)
-                    elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
-                        self._process_trade_event(
-                            order,
-                            self.PARTIALLY_FILLED_ORDER,
-                            price=order.avg_fill_price,
-                            filled_quantity=order.quantity,
-                        )
-                    elif order.status == Order.OrderStatus.SUBMITTED:
-                        self._process_trade_event(order, self.NEW_ORDER)
-                    elif order.status == Order.OrderStatus.ERROR:
-                        self._process_trade_event(order, self.ERROR_ORDER, error=order.error_message)
-                else:
-                    self._process_trade_event(order, self.NEW_ORDER)
-            else:
-                stored_order = stored_orders[order.identifier]
-                stored_order.quantity = order.quantity
-                stored_order.broker_create_date = order.broker_create_date
-                stored_order.broker_update_date = order.broker_update_date
-                if order.avg_fill_price:
-                    stored_order.avg_fill_price = order.avg_fill_price
-                # Status has changed since last time we saw it, dispatch the new status.
-                if not order.equivalent_status(stored_order):
-                    if order.status == Order.OrderStatus.SUBMITTED:
-                        self._safe_stream_dispatch(self.NEW_ORDER, order=stored_order)
-                    elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
-                        self._safe_stream_dispatch(
-                            self.PARTIALLY_FILLED_ORDER,
-                            order=stored_order,
-                            price=order.avg_fill_price,
-                            filled_quantity=order.quantity,
-                        )
-                    elif order.status == Order.OrderStatus.FILLED:
-                        self._safe_stream_dispatch(
-                            self.FILLED_ORDER,
-                            order=stored_order,
-                            price=order.avg_fill_price,
-                            filled_quantity=order.quantity,
-                        )
-                    elif order.status == Order.OrderStatus.CANCELED:
-                        self._safe_stream_dispatch(self.CANCELED_ORDER, order=stored_order)
-                    elif order.status == Order.OrderStatus.ERROR:
-                        msg = order_row.get(
-                            "msg", f"{self.name} encountered an error with order {order.identifier} | {order}"
-                        )
-                        self._safe_stream_dispatch(self.ERROR_ORDER, order=stored_order, error_msg=msg)
-                else:
-                    stored_order.status = order.status
-
-        # See if there are any tracked (active) orders that are no longer in the broker's list, dispatch as cancelled
-        tracked_orders = {x.identifier: x for x in self.get_tracked_orders()}
-        broker_ids = [o.get("orderId") for o in raw_orders if "orderId" in o]
-        for order_id, order in tracked_orders.items():
-            if order_id not in broker_ids:
-                logger.debug(
-                    f"Poll Update: {self.name} no longer has order {order}, but Lumibot does. Dispatching as cancelled."
+            # Cumulative executions can advance without a status change.
+            # Reduce them synchronously through the same owner as Alpaca polling;
+            # subscriber callbacks run after the broker tracker lock is released.
+            if order.status in (Order.OrderStatus.PARTIALLY_FILLED, Order.OrderStatus.FILLED):
+                terminal = order.status == Order.OrderStatus.FILLED
+                tracked = stored_orders.get(order.identifier)
+                if tracked is None:
+                    tracked = self._process_new_order(order)
+                self._reconcile_cumulative_execution(
+                    tracked, order.filled_quantity, order.avg_fill_price, terminal=terminal, raw=order_row,
                 )
-                if order.is_active():
-                    self._safe_stream_dispatch(self.CANCELED_ORDER, order=order)
+                continue
+            # Preserve fills when cancellation wins after partial execution.
+            if order.status in (Order.OrderStatus.CANCELED, Order.OrderStatus.ERROR, Order.OrderStatus.EXPIRED):
+                tracked = stored_orders.get(order.identifier)
+                if tracked is not None and order.filled_quantity:
+                    self._reconcile_cumulative_execution(tracked, order.filled_quantity, order.avg_fill_price, raw=order_row)
+            tracked = stored_orders.get(order.identifier)
+            if tracked is None:
+                self._process_broker_synced_order(order)
+            else:
+                tracked.quantity = order.quantity
+                tracked.broker_create_date = order.broker_create_date
+                tracked.broker_update_date = order.broker_update_date
+                tracked.broker_status = order.broker_status
+                if order.avg_fill_price is not None:
+                    tracked.avg_fill_price = order.avg_fill_price
+                if not order.equivalent_status(tracked):
+                    if order.status == Order.OrderStatus.SUBMITTED:
+                        self._safe_stream_dispatch(self.NEW_ORDER, order=tracked)
+                    elif order.status == Order.OrderStatus.CANCELED:
+                        self._safe_stream_dispatch(self.CANCELED_ORDER, order=tracked)
+                    elif order.status == Order.OrderStatus.ERROR:
+                        self._safe_stream_dispatch(self.ERROR_ORDER, order=tracked,
+                            error_msg=order_row.get("msg", f"{self.name} rejected order {order.identifier}"))
+                    else:
+                        # Retain pending cancellation, expiration and unfamiliar
+                        # native states instead of converting them to a cancel.
+                        tracked.status = order.status
+
+        # A broad-list miss is not cancellation evidence. Use the existing
+        # direct-lookup owner and retain working state on missing/failed reads.
+        broker_ids = {str(row.get("orderId")) for row in raw_orders if row.get("orderId") is not None}
+        for order in self.get_tracked_orders():
+            if str(order.identifier) not in broker_ids and order.is_active():
+                self._refresh_missing_active_order_from_broker(
+                    order, self._strategy_name, broker_order_count=len(raw_orders),
+                )
+
+    def _apply_direct_order_observation(self, order_lumi, matched_order):
+        changed = False
+        if getattr(matched_order, "filled_quantity", 0):
+            changed = self._reconcile_cumulative_execution(
+                order_lumi, matched_order.filled_quantity, matched_order.avg_fill_price,
+                terminal=matched_order.status == Order.OrderStatus.FILLED, raw=matched_order._raw,
+            )
+        return super()._apply_direct_order_observation(order_lumi, matched_order) or changed
 
     def _get_stream_object(self):
         """Returns the polling stream object."""

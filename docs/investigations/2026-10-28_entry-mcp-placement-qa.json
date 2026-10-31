@@ -1,0 +1,40 @@
+{
+  "change": "Move full assistant setup after framework benefits and explain research setup inside the AI-native example",
+  "source_commit": "1af1f52eb34e54fc6991080397535afb75f04394",
+  "regression_baseline": {
+    "source_commit": "5bcd55b33e89c81758c54ac06cb1c2bc2beec0da",
+    "failed_checks": 3,
+    "checks": "Assistant section order in README and homepage; research setup inside the AI example"
+  },
+  "documentation_checks": {
+    "passed": 171,
+    "command": "python -m pytest -q tests/docs tests/test_docs_coding_assistant_and_comparisons.py tests/test_docs_broker_faq_callout.py tests/test_growth_entrypoints.py tests/test_public_docs_community_links.py"
+  },
+  "configuration_checks": {
+    "passed": 6,
+    "scope": "Existing synthetic CLI approval/key-save and research auto-attachment tests; no real account or model calls"
+  },
+  "documentation_build": {
+    "result": "passed",
+    "warnings": 34,
+    "changed_page_warnings": 0
+  },
+  "manual_browser_review": {
+    "desktop": "1440x1000",
+    "phone_emulation": "390x844",
+    "themes": ["light", "dark"],
+    "surfaces": ["local Sphinx homepage", "published version-source README on GitHub"],
+    "horizontal_overflow": false,
+    "assistant_setup_buttons_per_homepage": 1,
+    "assistant_setup_destination": "https://botspot.trade/agents",
+    "strategy_research_anchor": "strategy-botspot-research",
+    "strategy_research_parent": "build-an-ai-native-strategy"
+  },
+  "preserved_image": {
+    "path": "docs/assets/readme/botspot_mcp_superpowers.png",
+    "sha256": "318ca3523c3930395236c9edf20ff64d32c52f3ad540cbee0939b7c4438b28a3",
+    "unchanged": true
+  },
+  "localized_readme_summaries_updated": 8,
+  "publication_scope": "Version-branch source only; no package release or deployment"
+}

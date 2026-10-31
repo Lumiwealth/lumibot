@@ -1011,6 +1011,7 @@ HAND_WRITTEN_BROKERS = [
     ("Interactive Brokers (Client Portal REST)", "Stocks, options and futures broker", "Stocks, options, futures and more, by account", "brokers.interactive_brokers"),
     ("Interactive Brokers (legacy TWS)", "Stocks, options and futures broker", "Markets your TWS account can trade", "brokers.interactive_brokers_legacy"),
     ("Kalshi", "Prediction market", "Prediction contracts", "brokers.prediction_markets"),
+    ("MetaMask Agent Wallet (beta)", "Wallet broker", "Exact-input swaps and Hyperliquid perpetuals", "brokers.metamask"),
     ("Polymarket", "Prediction market", "Prediction contracts", "brokers.polymarket"),
     ("TopstepX (ProjectX)", "Futures broker", "CME futures", "brokers.projectx"),
     ("Tradier", "Stocks and options broker", "Stocks, ETFs, options", "brokers.tradier"),

@@ -3,7 +3,7 @@ import json
 import os
 import re
 import time
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -116,9 +116,34 @@ class FREDMacroData:
     def _effective_as_of_date(self, as_of: Any | None) -> date:
         as_of_dt = _as_of_datetime(as_of) if as_of is not None else self._strategy_as_of()
         as_of_date = as_of_dt.date()
+        historical = bool(getattr(self.strategy, "is_backtesting", False))
+        if historical and as_of_dt.tzinfo is not None:
+            as_of_date = as_of_dt.astimezone(FRED_REALTIME_TIMEZONE).date()
         if as_of is None:
             as_of_date = min(as_of_date, _fred_realtime_today())
+        if historical:
+            # ALFRED vintages are calendar days, not release timestamps. A
+            # morning request for today's vintage can include today's close
+            # or a revision published later that day. Use a completed FRED
+            # calendar day and disclose that conservative approximation.
+            decision = self._strategy_as_of()
+            if decision.tzinfo is not None:
+                decision = decision.astimezone(FRED_REALTIME_TIMEZONE)
+            as_of_date = min(as_of_date, decision.date() - timedelta(days=1))
         return as_of_date
+
+    def _temporal_metadata(self) -> dict[str, Any]:
+        historical = bool(getattr(self.strategy, "is_backtesting", False))
+        return {
+            "temporal_policy": "previous_completed_fred_vintage" if historical else "fred_calendar_vintage",
+            "intraday_release_times_verified": False,
+            "temporal_note": (
+                "FRED/ALFRED vintage boundaries are dates, not intraday publication times. "
+                "Backtests use the previous completed FRED calendar day; same-day releases "
+                "may therefore be omitted. This is a conservative availability approximation."
+                if historical else "FRED/ALFRED vintages have calendar-date resolution."
+            ),
+        }
 
     def _cache_path(self, *parts: str) -> Path:
         safe = [re.sub(r"[^A-Za-z0-9_.=-]+", "_", str(part)).strip("_") for part in parts]
@@ -208,7 +233,8 @@ class FREDMacroData:
                 values[series_id.upper()] = self.get_latest(series_id, as_of=as_of)["latest"]
             except Exception as exc:
                 errors[series_id.upper()] = str(exc)
-        return {"source": "fred", "as_of": self._effective_as_of_date(as_of).isoformat(), "values": values, "errors": errors}
+        return {"source": "fred", "as_of": self._effective_as_of_date(as_of).isoformat(),
+                "values": values, "errors": errors, **self._temporal_metadata()}
 
     def _get_series_from_api(
         self,
@@ -244,6 +270,7 @@ class FREDMacroData:
             "as_of": as_of_date.isoformat(),
             "point_in_time_safe": True,
             "uses_revised_data": False,
+            **self._temporal_metadata(),
             "observations": observations,
         }
 

@@ -172,3 +172,12 @@ Documentation
    :members:
    :undoc-members:
    :show-inheritance:
+
+
+Partial execution observations
+------------------------------
+
+Broker partial-fill observations are cumulative. Synchronization applies only
+the newly executed quantity, preserving fractional units and previously processed
+transactions. Unknown execution quantity is not the ordered quantity. Cancellation
+requests remain active until the broker confirms their final outcome.

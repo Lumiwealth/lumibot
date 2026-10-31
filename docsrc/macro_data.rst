@@ -55,8 +55,16 @@ Backtest Date Safety
 
 In a backtest, ``as_of`` defaults to ``self.get_datetime()``.
 
-LumiBot always filters observations to ``observation_date <= as_of`` and
-requests the vintage data known as of that date through the official API.
+FRED vintages identify calendar dates, not intraday release instants. In a
+backtest, the effective vintage and observation boundary are capped at the
+previous completed day in America/Chicago, relative to the simulated clock.
+Timezone-aware explicit ``as_of`` values use their Chicago date. Earlier explicit dates remain earlier; future overrides cannot move
+that boundary forward. Live requests keep their current-date behavior.
+
+The response includes ``as_of``, ``temporal_policy`` and a timing limitation.
+This conservative approximation prevents morning decisions from seeing a same-day
+closing value, but may omit legitimate same-day releases. It does not verify exact
+intraday publication timing; retain that limitation in research handoffs.
 
 Cache
 -----

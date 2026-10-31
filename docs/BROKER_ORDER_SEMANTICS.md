@@ -335,3 +335,22 @@ The existing pre-read position identity check continues to protect new local fil
 from stale pruning and same-asset field/owner overwrites. The next fresh read
 reconciles those positions normally. This ordering is local request ordering; it cannot establish
 the exchange's internal snapshot timestamp or historical incident cause.
+
+
+## Cumulative execution observations (October 31, 2026)
+
+A partial broker observation contains cumulative executed quantity, not ordered
+quantity. Hydrating it records only the unprocessed delta and derives that delta's
+price from cumulative execution value. Repeated or older observations cannot
+replay executions into crypto quote cash. Missing partial execution quantity
+remains unknown; it never becomes the full order size. Pending cancellation
+remains active until confirmation; pending replacement is not final cancellation.
+Alpaca parsing retains the provider status and cumulative filled quantity, and
+Alpaca and Bitunix polling share the cumulative reconciliation owner for partial and final fills. Bitunix preserves pending cancellation, expiration and unknown states instead of reporting cancellation prematurely. A late cancellation snapshot cannot erase a fully recorded execution. Reparsed snapshots bind to the existing execution ledger before applying new quantities.
+
+The shared status contract retains pending replacement, done-for-day, suspended,
+and stopped as distinct working states. Replaced is terminal for that order ID;
+it does not erase its executions or imply that its replacement filled. Assignment
+and exercise aliases normalize before validation to assigned and exercised.
+Native status tests qualify this shared mapping; they do not establish that every
+broker's transport or every CCXT exchange has passed live integration testing.

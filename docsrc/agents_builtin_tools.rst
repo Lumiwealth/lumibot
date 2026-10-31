@@ -236,6 +236,23 @@ Indicator tools expose LumiBot's indicator system to agents:
 - ``get_indicator``
 - ``get_indicators``
 
+In a backtest, known incomplete history needed by an indicator or a single-symbol
+history tool produces a visible tool error rather than a calculated value or a
+registered table. The agent can request an available interval, try another source
+or asset, and explain the limitation. Batch indicator requests retain independent
+results, so one failed candidate does not hide successful candidates. Failed
+research requests remain recorded in data-health warnings and provider coverage
+evidence; they do not by themselves invalidate otherwise complete execution.
+Direct strategy history/indicator reads keep their required-data behavior, and
+missing portfolio-valuation prices still invalidate the backtest. A successful
+fallback never clears a previously recorded required-data failure.
+
+Batch history preserves legitimate shorter data with ``symbols_incomplete`` and
+``bar_counts_by_symbol``. Both raw and DuckDB-table summaries disclose the
+shortfall; available rows do not certify the complete requested window. Known
+invalid interior gaps are reported per symbol in ``symbols_data_errors`` rather
+than registered as healthy history.
+
 Indicator input is restricted to rows at or before strategy time, not just the
 returned value. Noncausal parameters are rejected. Completion of a timestamped
 bar follows the selected data source's contract; see :doc:`indicators`.
@@ -475,3 +492,19 @@ inclusive end cannot exceed strategy time. Only bars inside the window are
 used, including warmup; an insufficient window returns null, not a zero signal.
 For example, use separate result IDs and January/February bounds for independent
 monthly calculations. Source adapters retain ownership of bar completion.
+
+Recoverable research and historical news
+---------------------------------------
+
+Agent history, indicator and quote reads return a visible limitation when a
+candidate lacks data; batch quotes retain available symbols. Execution and
+portfolio valuation still require valid data, and an earlier required failure
+is never erased by a later research read.
+
+A failed feed or page can be followed by another available feed, publisher
+archive or web source. Agents read article bodies before claiming article
+research. Historical ``read_document`` results distinguish publication dates
+from verification of retrieved versions: without retained-original evidence,
+research remains usable with an explicit later-edits limitation. Known future
+versions stay excluded. Real-model release cases cover source recovery and
+conservative macro vintages, with semantic judges and calibration controls.

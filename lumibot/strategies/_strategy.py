@@ -2727,12 +2727,13 @@ class _Strategy:
 
                 # Use daily bars for benchmark across intraday strategies to keep tearsheet cost bounded.
                 timestep = "day"
+                benchmark_start = pd.Timestamp(self._backtesting_start).normalize()
 
                 try:
                     bars = self.broker.data_source.get_historical_prices_between_dates(
                         benchmark_asset,
                         timestep,
-                        start_date=self._backtesting_start,
+                        start_date=benchmark_start,
                         end_date=backtesting_end_adjusted,
                         quote=self._quote_asset,
                     )
@@ -2748,10 +2749,25 @@ class _Strategy:
                     self.logger.error(f"Router benchmark bars empty/invalid: {benchmark_asset}")
                     _fallback_benchmark(benchmark_asset)
                     return
-                df = df.copy()
-                df["return"] = df["close"].pct_change(fill_method=None)
-                df["symbol_cumprod"] = (1 + df["return"]).cumprod()
-                self._benchmark_returns_df = df
+                from lumibot.tools.indicators import benchmark_returns_from_bars
+
+                base_asset = benchmark_asset[0] if isinstance(benchmark_asset, tuple) else benchmark_asset
+                asset_type = str(getattr(base_asset, "asset_type", "stock")).lower()
+                market = {
+                    "crypto": "24/7", "forex": "CME_FX",
+                    "future": "us_futures", "cont_future": "us_futures",
+                }.get(asset_type, getattr(self.broker, "market", "NYSE"))
+                if asset_type in {"stock", "index"} and market in {"24/7", "CME_FX", "us_futures"}:
+                    # A non-equity strategy calendar does not change the cash
+                    # benchmark's sessions. Preserve configured equity markets.
+                    market = "NYSE"
+                try:
+                    self._benchmark_returns_df = benchmark_returns_from_bars(
+                        df, market=market, start_date=self._backtesting_start,
+                        end_date=self._backtesting_end,
+                    )
+                except (TypeError, ValueError, RuntimeError):
+                    _fallback_benchmark(benchmark_asset)
 
             elif type(self.broker.data_source) == AlpacaBacktesting:
                 benchmark_asset = self._benchmark_asset
@@ -3622,16 +3638,21 @@ class _Strategy:
                 from lumibot.backtesting.data_provenance import write_backtest_data_provenance
 
                 write_backtest_data_provenance(data_source, logdir)
-                from lumibot.backtesting.market_input_evidence import write_market_input_evidence
-
-                write_market_input_evidence(data_source, logdir)
-                option_source = getattr(self.broker, "option_source", None)
-                if option_source is not None and option_source is not data_source:
-                    write_market_input_evidence(option_source, logdir, prefix="option_")
             except Exception as exc:
-                # Provenance is diagnostic metadata and must never make an otherwise valid
-                # trading simulation fail at the artifact-writing boundary.
+                # Diagnostics must not make an otherwise valid simulation fail.
                 self.logger.warning("Backtest data provenance artifact could not be written: %s", exc)
+
+            capture_sources = [(data_source, "")]
+            option_source = getattr(strategy.broker, "option_source", None)
+            if option_source is not None and option_source is not data_source:
+                capture_sources.append((option_source, "option_"))
+            for capture_source, prefix in capture_sources:
+                try:
+                    from lumibot.backtesting.market_input_evidence import write_market_input_evidence
+
+                    write_market_input_evidence(capture_source, logdir, prefix=prefix, finalize=True)
+                except Exception as exc:
+                    self.logger.warning("Backtest market-input artifact could not be written: %s", exc)
 
             end = datetime.datetime.now()
             backtesting_length = backtesting_end - backtesting_start

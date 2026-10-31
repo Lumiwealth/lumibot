@@ -156,3 +156,25 @@ When an agent is holding a position and plans to add, reduce, or sell that symbo
 Notification tool:
 
 - `notify_user`
+
+## Recoverable research and historical news
+
+Agent history, indicator and quote reads report incomplete candidate data as a
+visible tool limitation. Batch quote reads retain available symbols and report
+unavailable symbols individually. This does not clear an earlier required-data
+failure or relax execution and portfolio-valuation requirements.
+
+Batch history keeps legitimate shorter observations available, with
+`symbols_incomplete` and `bar_counts_by_symbol` disclosing the requested-window
+shortfall in both raw and DuckDB-table results. Known invalid interior gaps are
+reported per symbol in `symbols_data_errors`; they are not registered as healthy
+history. Availability of a few rows does not certify a complete requested window.
+
+When a news feed or article fails, agents can continue through another available
+feed, publisher archive or web source and read the relevant article body. A
+headline or link is not proof of an article read. Historical `read_document`
+results distinguish a publication date from verification of the retrieved version;
+without retained-original evidence, agents disclose that text may contain later
+edits while continuing with supported approximate research. Known future versions
+remain excluded. Release-gated real-model cases cover fallback research and
+conservative macro vintages, with semantic judges and labeled calibration controls.

@@ -128,6 +128,11 @@ VALID_STATUS = [
     "exercised",
     "expired",
     "unknown",
+    "pending_replace",
+    "done_for_day",
+    "suspended",
+    "stopped",
+    "replaced",
 ]
 STATUS_ALIAS_MAP = {
     "cancelled": "canceled",
@@ -145,13 +150,13 @@ STATUS_ALIAS_MAP = {
     "apipending": "new",  # IBKR status
     "rejected": "error",  # Tradier status
     "submit": "submitted",
-    "done_for_day": "canceled",  # Alpaca status
-    "replaced": "canceled",  # Alpaca status
-    "stopped": "canceled",  # Alpaca status
-    "suspended": "canceled",  # Alpaca status
-    "pending_cancel": "canceled",  # Alpaca status
+    "done_for_day": "done_for_day",  # Alpaca status
+    "replaced": "replaced",  # Alpaca status
+    "stopped": "stopped",  # Alpaca status
+    "suspended": "suspended",  # Alpaca status
+    "pending_cancel": "cancelling",  # Alpaca status
     "pending_new": "new",  # Alpaca status
-    "pending_replace": "canceled",  # Alpaca status
+    "pending_replace": "pending_replace",  # Alpaca status
     "pending_review": "open",  # Alpaca status
     "accepted": "open",  # Alpaca status
     "calculated": "open",  # Alpaca status
@@ -199,6 +204,11 @@ class Order:
         OPEN = "open"
         NEW = "new"
         CANCELLING = "cancelling"
+        PENDING_REPLACE = "pending_replace"
+        DONE_FOR_DAY = "done_for_day"
+        SUSPENDED = "suspended"
+        STOPPED = "stopped"
+        REPLACED = "replaced"
         CANCELED = "canceled"
         FILLED = "fill"
         PARTIALLY_FILLED = "partial_fill"
@@ -211,6 +221,10 @@ class Order:
         UNKNOWN = "unknown"
 
     ACTIVE_STATUSES = (
+        OrderStatus.PENDING_REPLACE,
+        OrderStatus.DONE_FOR_DAY,
+        OrderStatus.SUSPENDED,
+        OrderStatus.STOPPED,
         OrderStatus.UNPROCESSED,
         OrderStatus.SUBMITTED,
         OrderStatus.OPEN,
@@ -1122,10 +1136,10 @@ class Order:
     @status.setter
     def status(self, value):
         if value and isinstance(value, str):
-            if value.lower() in VALID_STATUS:
-                self._status = value.lower()
-            elif value.lower() in STATUS_ALIAS_MAP:
+            if value.lower() in STATUS_ALIAS_MAP:
                 self._status = STATUS_ALIAS_MAP[value.lower()]
+            elif value.lower() in VALID_STATUS:
+                self._status = value.lower()
             else:
                 self._status = value.lower()
                 # Log an error
@@ -1289,7 +1303,7 @@ class Order:
         # ``cancelling`` means the broker has accepted or is processing a cancel
         # request.  It is deliberately active/non-terminal because a fill can
         # still win the race before the broker confirms cancellation.
-        return self.status.lower() in ["cancelled", "canceled", "cancel", "error", "expired"]
+        return self.status.lower() in ["cancelled", "canceled", "cancel", "error", "expired", "replaced"]
 
     def is_filled(self):
         """
@@ -1560,6 +1574,8 @@ class Order:
         if asset_data and isinstance(asset_data, dict):
             # Assuming Asset has its own from_dict method
             asset_obj = entities.Asset.from_dict(asset_data)
+        quote_data = order_dict.get('quote')
+        quote_obj = entities.Asset.from_dict(quote_data) if isinstance(quote_data, dict) else quote_data
 
         # Extract essential arguments, using None if the values are missing
         strategy = order_dict.get('strategy', None)
@@ -1571,6 +1587,7 @@ class Order:
             strategy=strategy,
             side=side,
             asset=asset_obj,  # Pass the constructed asset object
+            quote=quote_obj,
             quantity=quantity
         )
 
@@ -1581,7 +1598,7 @@ class Order:
 
         # Handle additional fields directly after the instance is created
         for key, value in order_dict.items():
-            if key not in ['strategy', 'side', 'asset', 'quantity'] and key not in non_serializable_keys:
+            if key not in ['strategy', 'side', 'asset', 'quote', 'quantity'] and key not in non_serializable_keys:
 
                 # Convert datetime strings back to datetime objects
                 if isinstance(value, str) and "T" in value:

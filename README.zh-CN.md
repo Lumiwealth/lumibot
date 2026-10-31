@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 8ecf9bafe56a350f0394f277d4c890a90762d87262cbda98cad00a25b44b4460 -->
+<!-- entry-source-sha256: 55bfb39676bd80179a30ead48b0344b4a517c92660cfe893494caf76e10dbe31 -->
 
 # LumiBot AI 交易框架
 
@@ -18,9 +18,17 @@ LumiBot 是一个免费、开源的 Python 交易机器人框架。你可以编�
 - **多资产类别：** 支持股票、期权、期货、外汇、加密货币和预测市场，具体取决于[券商支持范围](https://lumibot.lumiwealth.com/brokers.all.html)。
 - **决策会传达到券商。** 查看订单、成交和决策记录。[执行机制说明](https://lumibot.lumiwealth.com/execution_gap.html).
 
-## 借助 BotSpot MCP 更快构建
+## 连接你的 AI 助手
 
-免费连接你的 AI 助手，获取 LumiBot 策略构建技能、研究数据，以及回测和部署工具。[查看助手可以获得什么](#连接你的-ai-助手)。
+**借助 BotSpot MCP 更快构建**
+
+支持 Claude、ChatGPT、Codex、Cursor、VS Code 或其他兼容 MCP 的助手。编程助手帮助你构建和测试代码；策略内的智能体负责运行时的交易决策。
+
+BotSpot MCP 提供策略构建技能、免费研究数据、带图表的回测、定时云托管、社区、策略市场和券商账户连接。连接免费；托管使用额度取决于套餐。
+
+**[连接你的 AI 助手](https://botspot.trade/agents)**
+
+本地编程辅助也可使用免费的 [LumiBot 交易技能](https://github.com/Lumiwealth/lumibot-trading-skills)。策略内的研究工具见 [BotSpot MCP 指南](https://lumibot.lumiwealth.com/botspot_mcp.html)。
 
 ## 三种策略构建方式
 
@@ -39,18 +47,23 @@ lumibot demo
 
 AI 示例需要模型凭据；模型调用可能收费。模拟盘或实盘交易需要相应券商的账户和凭据。查看 [AI 示例](README.md#run-your-first-ai-backtest)、[CLI 配置](https://lumibot.lumiwealth.com/cli.html)和[运行模式](https://lumibot.lumiwealth.com/strategy_run_modes.html)。回测结果不保证未来表现。
 
-## 连接你的 AI 助手
+## 为你的智能体赋予超能力——免费连接
 
-支持 Claude、ChatGPT、Codex、Cursor、VS Code 或其他兼容 MCP 的助手。编程助手帮助你构建和测试代码；策略内的智能体负责运行时的交易决策。
+将 BotSpot MCP 接入 LumiBot 策略，即可使用经济数据、新闻、SEC 文件、Marketplace 策略和 Community 知识。
 
-BotSpot MCP 提供策略构建技能、免费研究数据、带图表的回测、定时云托管、社区、策略市场和券商账户连接。连接免费；托管使用额度取决于套餐。
+![为你的智能体赋予超能力——免费连接](docs/assets/readme/botspot_mcp_superpowers.png)
 
-**[连接你的 AI 助手](https://botspot.trade/agents)**
+你的编程助手已连接 BotSpot？告诉它：“将这个 LumiBot 项目连接到 BotSpot MCP。”助手可以为你创建 API 密钥并保存配置。
 
-本地编程辅助也可使用免费的 [LumiBot 交易技能](https://github.com/Lumiwealth/lumibot-trading-skills)。策略内的研究工具见 [BotSpot MCP 指南](https://lumibot.lumiwealth.com/botspot_mcp.html)。
+**[连接你的智能体](https://lumibot.lumiwealth.com/botspot_mcp.html)**
 
+在策略目录中运行下面的命令，按提示登录并批准连接，然后重新启动策略。连接设置保存在项目的 `.env` 中；创建智能体时，LumiBot 会自动附加研究工具。在 `system_prompt` 中说明要研究什么，并要求注明来源、日期及历史数据的局限。
 
-运行 `lumibot connect botspot`，即可为策略中的智能体添加数据查询、文档检索以及获准的 Marketplace 和 Community 读取工具。LumiBot 也可以独立使用。
+```bash
+lumibot connect botspot
+```
+
+[BotSpot MCP → LumiBot](README.md#strategy-botspot-research)
 
 ## 继续探索
 

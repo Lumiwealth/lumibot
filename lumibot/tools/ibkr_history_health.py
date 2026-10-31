@@ -8,6 +8,8 @@ IBKR orchestration helper so the policy can be unit tested without a gateway.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 import json
@@ -206,6 +208,27 @@ _HEALTH_BY_SERIES: dict[str, dict[str, Any]] = {}
 _HEALTH_EVENT_IDS: set[tuple[str, str]] = set()
 _REQUIRED_FAILURES: dict[tuple, dict[str, Any]] = {}
 _OPTIONAL_ISSUES: dict[tuple, dict[str, Any]] = {}
+_RECOVERABLE_HISTORY_REQUEST: ContextVar[bool] = ContextVar(
+    "lumibot_recoverable_history_request", default=False,
+)
+
+
+class IncompleteResearchHistoryError(ValueError):
+    """A research tool cannot use these inputs, but can choose another request."""
+
+
+@contextmanager
+def recoverable_history_request():
+    """Reject incomplete research inputs without invalidating unrelated decisions.
+
+    This is request-local, including nested calls. Direct strategy reads and
+    portfolio valuation keep their existing required-data semantics.
+    """
+    token = _RECOVERABLE_HISTORY_REQUEST.set(True)
+    try:
+        yield
+    finally:
+        _RECOVERABLE_HISTORY_REQUEST.reset(token)
 
 
 def record_optional_corporate_action_issue(*, symbol, when):
@@ -332,6 +355,29 @@ def record_required_history(*, asset, timestep, requested_bars, frame, when, req
         recovery_cause = ("data_not_yet_available" if requirement == "availability" else
                           "temporary_download_failure" if transient else "unknown")
         key = (symbol, asset_type, str(getattr(base, "expiration", "")), str(timestep), reason)
+        if _RECOVERABLE_HISTORY_REQUEST.get() and requirement != "valuation":
+            # Do not return an indicator computed from known missing inputs.
+            # Keep the failed request as evidence, not a sticky claim that the
+            # strategy necessarily consumed it after the tool reported failure.
+            previous = _OPTIONAL_ISSUES.get(key)
+            if previous:
+                previous["occurrences"] += 1
+                previous["last_observed_at"] = when.isoformat()
+            elif len(_OPTIONAL_ISSUES) < 500:
+                _OPTIONAL_ISSUES[key] = {
+                    "symbol": symbol, "asset_type": asset_type, "timestep": str(timestep),
+                    "reason": reason, "required": False, "operation": "research_history",
+                    "requested_bars": requested, "returned_bars": returned,
+                    "missing_sessions": sorted(set(missing))[:100],
+                    "recovery_cause": recovery_cause, "retryable": transient,
+                    "first_observed_at": when.isoformat(), "last_observed_at": when.isoformat(),
+                    "occurrences": 1,
+                }
+            raise IncompleteResearchHistoryError(
+                f"{symbol} {timestep}: {reason}; requested {requested} bars, returned {returned}. "
+                "No result was calculated from this incomplete request. Retry with available "
+                "history, another source or another asset; disclose the limitation."
+            )
         previous = _REQUIRED_FAILURES.get(key)
         if previous:
             previous["occurrences"] += 1

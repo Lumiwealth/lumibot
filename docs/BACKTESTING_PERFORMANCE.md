@@ -1191,3 +1191,31 @@ See:
 
 - Problem: repeated split/dividend fetches can thrash remote services.
 - Fix: memoize and add negative TTL to avoid retry storms.
+
+## Market-input evidence for long backtests
+
+Framework market-input capture has no default limit on read observations or
+unique rows. It streams deduplicated history and indicator inputs to a temporary
+SQLite spool rather than retaining the complete run in Python objects. The
+serialization cache is independently bounded to 50,000 rows, and CSV export and
+file hashing are streamed. Longer or more complex runs therefore grow disk
+usage, not the retained Python capture history. Available storage and real I/O
+errors remain practical limits; the manifest discloses capture errors instead
+of labeling truncated evidence complete.
+
+Explicit callers can still request a finite row or observation ceiling. Those
+limits affect only diagnostic capture, never the simulation's trading lifetime.
+The recorder is used for backtest inputs; it does not limit how long a live bot
+can trade. It records inputs actually returned by the framework, not quotes,
+broker fills, arbitrary custom data reads or proof of strategy correctness.
+
+Completed backtests export a hash-bound manifest and CSV files and remove their
+owned temporary spool. Export failure also closes that spool, and unrelated
+provenance-export failure does not suppress input export. Consumers may have
+their own transfer or read bounds: persisting a large artifact does not imply
+that every consumer can load the entire artifact at once.
+
+This is generic capture infrastructure for every backtest and indicator input,
+independent of a strategy, ticker, customer or grading outcome. Native regression
+coverage includes both former capture ceilings, bounded-cache eviction,
+concurrent duplicate reads, transaction rollback and actual backtest export.

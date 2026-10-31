@@ -7,6 +7,8 @@ from lumibot.tools.indicators import _prepare_tearsheet_returns
 
 
 def test_create_tearsheet_uses_same_match_dates_for_html_and_metrics_json(monkeypatch, tmp_path):
+    import quantstats_lumi
+
     captured = {}
 
     def fake_html(returns, benchmark, **kwargs):
@@ -27,7 +29,10 @@ def test_create_tearsheet_uses_same_match_dates_for_html_and_metrics_json(monkey
         return {"metadata": {}, "scalar_metrics": {}}
 
     monkeypatch.setattr(
-        indicators.qs,
+        # Patch the concrete module: pytest 9 inspects a module's __dict__
+        # when restoring attributes, while the lazy proxy forwards writes.
+        # Patching the proxy would delete the real reports module on teardown.
+        quantstats_lumi,
         "reports",
         SimpleNamespace(html=fake_html, metrics_json=fake_metrics_json),
     )

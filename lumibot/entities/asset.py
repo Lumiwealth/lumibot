@@ -207,6 +207,9 @@ class Asset:
         auto_expiry: str = None,
         outcome: str | None = None,
         contract_spec=None,
+        chain_id: int | None = None,
+        token_address: str | None = None,
+        decimals: int | None = None,
     ):
         """
         Parameters
@@ -271,6 +274,23 @@ class Asset:
         self.multiplier = multiplier if multiplier is not None else (
             100 if asset_type == self.AssetType.OPTION else 1
         )
+        # Onchain identity is explicit; a ticker alone cannot identify a token.
+        if any(v is not None for v in (chain_id, token_address, decimals)):
+            import re
+
+            if asset_type != self.AssetType.CRYPTO:
+                raise ValueError("Chain identity is supported only for crypto assets")
+            if type(chain_id) is not int or chain_id <= 0:
+                raise ValueError("chain_id must be a positive integer")
+            if not isinstance(token_address, str) or not (
+                token_address == "native" or re.fullmatch(r"0x[0-9a-fA-F]{40}", token_address)
+            ):
+                raise ValueError("token_address must be an EVM address or 'native'")
+            if type(decimals) is not int or not 0 <= decimals <= 36:
+                raise ValueError("decimals must be an integer between 0 and 36")
+        self.chain_id = chain_id
+        self.token_address = token_address.lower() if token_address else None
+        self.decimals = decimals
         self.precision = precision
         self.outcome = str(outcome).strip().casefold() if outcome is not None else None
         self.underlying_asset = underlying_asset
@@ -337,6 +357,8 @@ class Asset:
             self.auto_expiry if (self.asset_type == self.AssetType.FUTURE and self.expiration is None) else None
         )
         identity = (self.symbol, self.asset_type, self.expiration, self.strike, self.right, auto_expiry_key)
+        if self.chain_id is not None:
+            identity = ("evm", self.chain_id, self.token_address)
         self._cached_hash = hash(identity if self.outcome is None else (*identity, self.outcome))
         minimal_type = str(self.asset_type) if self.asset_type else "stock"
         minimal_dict = {
@@ -368,6 +390,8 @@ class Asset:
                 )
             if self.multiplier and self.multiplier != 1:
                 minimal_dict["mult"] = self.multiplier
+        if self.chain_id is not None:
+            minimal_dict.update(chain_id=self.chain_id, token_address=self.token_address, decimals=self.decimals)
         if self.outcome is not None:
             minimal_dict["outcome"] = self.outcome
         self._cached_minimal_dict = minimal_dict
@@ -454,6 +478,16 @@ class Asset:
 
         if self._cached_hash != other._cached_hash:
             return False
+
+        chain_id = getattr(self, "chain_id", None)
+        other_chain_id = getattr(other, "chain_id", None)
+        if chain_id is not None or other_chain_id is not None:
+            return (
+                chain_id == other_chain_id
+                and self.asset_type == other.asset_type
+                and getattr(self, "token_address", None) == getattr(other, "token_address", None)
+                and getattr(self, "outcome", None) == getattr(other, "outcome", None)
+            )
 
         # Optimize: Check symbol first as it's most likely to differ
         # This avoids expensive enum comparisons when symbols don't match
@@ -574,6 +608,8 @@ class Asset:
             "underlying_asset": self.underlying_asset.to_dict() if self.underlying_asset else None,
         }
 
+        if getattr(self, "chain_id", None) is not None:
+            result.update(chain_id=self.chain_id, token_address=self.token_address, decimals=self.decimals)
         if getattr(self, "outcome", None) is not None:
             result["outcome"] = self.outcome
         if getattr(self, "contract_spec", None) is not None:
@@ -590,6 +626,9 @@ class Asset:
             right=data.get("right"),
             multiplier=data.get("multiplier", data.get("mult")),
             leverage=data.get("leverage", 1),
+            chain_id=data.get("chain_id"),
+            token_address=data.get("token_address"),
+            decimals=data.get("decimals"),
             precision=data.get("precision"),
             underlying_asset=cls.from_dict(data["underlying_asset"]) if data.get("underlying_asset") else None,
             outcome=data.get("outcome"),

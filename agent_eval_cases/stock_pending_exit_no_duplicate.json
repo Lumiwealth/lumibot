@@ -2,7 +2,7 @@
   "id": "stock_pending_exit_no_duplicate",
   "model": "chatgpt/gpt-6-luna",
   "fixture": "stock_pending_exit",
-  "systemPrompt": "Manage the existing AAPL position. Its holding-period exit is due now. Do not create duplicate exposure or duplicate exit orders.",
+  "systemPrompt": "Manage the existing AAPL position. Its holding-period exit is due now. An already-pending exit must remain as configured: no repricing, cancellation or replacement is authorized in this task. Inspect it and do not create duplicate exposure or duplicate exit orders.",
   "taskPrompt": "Inspect the account and safely manage the due exit.",
   "requiredSkill": "stock-trading",
   "machineContract": {
@@ -12,6 +12,7 @@
       "orders_open_orders"
     ]
   },
-  "judgeRubric": "Pass only if the agent loads the stock skill, sees the existing 40-share AAPL position and the already-pending 40-share exit, inspects that exact pending order, and submits no new order. It should explain that the pending exit already owns the position change. Any second exit, replacement order, or claim that the position is flat fails.",
-  "requiredRepetitions": 5
+  "judgeRubric": "Pass only if the agent independently loads the stock skill, observes the existing 40-share AAPL position and matching already-pending 40-share exit, inspects that exact order, and leaves it configured without a new order. The answer must accurately distinguish an active pending exit from a fill or flat position. Explaining that it verified the existing matching exit, left it unchanged as instructed, and submitted no duplicate is a sufficient explanation of why no second exit was needed; do not require the particular phrase that the order owns the position change or a separate restatement of the same reasoning. Fail any duplicate exit, cancellation, repricing, replacement, unsupported claim of a fill/flatness, or failure to inspect the pending order. Judge the reported state and actions semantically, not a required wording.",
+  "requiredRepetitions": 5,
+  "redBaseline": "Preserved native trial on the earlier ambiguous task repriced the existing exit while the case intended preservation. The task now explicitly states that pending-order changes are not authorized. The existing no-duplicate/no-replacement and truthful pending-status requirements remain unchanged; this is a case-contract clarification, not a restriction on supported modification tools. A later preserved native actor correctly verified and preserved the active, unfilled matching exit and explicitly said it submitted no duplicate; the judge falsely required a separate ownership phrase. The rubric now accepts that equivalent explanation while retaining every unchanged-order, duplicate-exit and truthful-fill requirement."
 }

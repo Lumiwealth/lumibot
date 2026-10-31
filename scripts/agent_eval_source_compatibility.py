@@ -3,7 +3,7 @@
 The native receipt remains byte-identical. Its original full source hash is rebuilt
 from Git objects, then every model-relevant byte is compared with the candidate.
 Only exact live-provider modules unused by the maintained Pandas fixtures, package
-version metadata, and validator entry-point wiring are outside that comparison.
+version metadata are outside that comparison.
 Any actor, judge, fixture, SDK, case, skill or shared trading change still expires
 proof. This is compatibility verification, never new case freshness.
 """
@@ -17,20 +17,6 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-# Reviewed first-live-iteration handoff only. The maintained catalog uses the
-# Pandas backtesting branch; its inputs and callback behavior are unchanged.
-# Bind the whole file so another shared executor edit can never inherit reuse.
-LIVE_EXECUTOR_COMPATIBILITY = (
-    '3b659b321c10f224eacf95282d3bec1932cfe46892a0ad40ed2c63c24f7b51ed',
-    'eec468ced168bdfe90e56e292ab5110146dc29b89a5ebcc4a2146dfc447bf4b6',
-)
-# Exact entry-point migration for the preserved legacy receipt. This is not a
-# general main() exemption. Remove the pair when the anchor is replaced by fresh
-# native proof under the current verifier; any other entry-point edit is stale.
-VALIDATOR_ENTRY_COMPATIBILITY = (
-    'f38655adfc6ede1098d397949eb99de2b0de37ad7d89daa97141c2d866b38084',
-    'c2b63a8b5b268ea44190d93238769562878fb0d406b32bb55fd83189b58605c9',
-)
 PROVIDER_ONLY_PATHS = frozenset({
     'lumibot/backtesting/routed_backtesting.py',
     'lumibot/tools/ibkr_equity_basis.py',
@@ -113,10 +99,6 @@ def entry_digest(node):
 def check_change(path, before, after):
     if before == after or path in PROVIDER_ONLY_PATHS:
         return
-    if path == 'lumibot/strategies/strategy_executor.py' and (
-        hashlib.sha256(before).hexdigest(), hashlib.sha256(after).hexdigest()
-    ) == LIVE_EXECUTOR_COMPATIBILITY:
-        return
     if path == 'setup.py':
         # Dependency/package changes remain incompatible; only the release
         # version field may differ. Actual model SDK versions are checked too.
@@ -124,19 +106,6 @@ def check_change(path, before, after):
         old, old_count = re.subn(version, b'version="<release>"', before)
         new, new_count = re.subn(version, b'version="<release>"', after)
         if old_count == new_count == 1 and old == new:
-            return
-    if path == 'scripts/qualify_agent_evals.py':
-        def validator_contract(source):
-            tree = ast.parse(source)
-            entries = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'main']
-            if len(entries) != 1:
-                raise ValueError('Validator requires exactly one maintained main entry point')
-            entry_hash = entry_digest(entries[0])
-            tree.body = [node for node in tree.body if not isinstance(node, ast.FunctionDef) or node.name != 'main']
-            return ast.dump(tree), entry_hash
-        old_contract, old_entry = validator_contract(before)
-        new_contract, new_entry = validator_contract(after)
-        if old_contract == new_contract and (old_entry, new_entry) == VALIDATOR_ENTRY_COMPATIBILITY:
             return
     raise ValueError(f'Source change affects model qualification: {path}')
 

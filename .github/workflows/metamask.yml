@@ -1,0 +1,54 @@
+name: MetaMask companion
+
+on:
+  pull_request:
+    paths:
+      - "integrations/metamask/**"
+      - "lumibot/brokers/metamask.py"
+      - "lumibot/data_sources/metamask_data.py"
+      - "lumibot/tools/metamask_client.py"
+      - "lumibot/entities/asset.py"
+      - "lumibot/entities/order.py"
+      - "tests/test_metamask*.py"
+      - ".github/workflows/metamask.yml"
+  push:
+    branches: [dev, "version/**"]
+    paths:
+      - "integrations/metamask/**"
+      - "lumibot/brokers/metamask.py"
+      - "lumibot/data_sources/metamask_data.py"
+      - "lumibot/tools/metamask_client.py"
+      - "lumibot/entities/asset.py"
+      - "lumibot/entities/order.py"
+      - "tests/test_metamask*.py"
+      - ".github/workflows/metamask.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  companion:
+    name: Companion (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22.18.0", "24"]
+    defaults:
+      run:
+        working-directory: integrations/metamask
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: integrations/metamask/package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run build

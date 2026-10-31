@@ -94,13 +94,18 @@ def test_all_localized_entry_summaries_match_current_readme_and_homepage():
             assert destination in text, (language, destination)
         assert "pip install lumibot" in text
         assert "lumibot demo" in text
+        assert "lumibot connect botspot" in text
+        assert "README.md#strategy-botspot-research" in text
+        assert "botspot_mcp_superpowers.png" in text
 
 
 def test_home_strategy_choices_link_to_sections_in_the_same_order():
     home = _read("index")
     labels = ("first-ai-strategy", "first-python-backtest", "first-hybrid-strategy")
     assert home.index("Native AI trading") < home.index("Three ways to build a strategy")
-    assert home.index("See what your assistant gets") < home.index("Three ways to build a strategy")
+    assert home.index("Why build with LumiBot?") < home.index("Connect your AI assistant\n***") < home.index("Three ways to build a strategy")
+    readme = (ROOT / "README.md").read_text()
+    assert readme.index("## Why LumiBot?") < readme.index("## Connect your AI assistant") < readme.index("## Three ways to build a strategy")
     choices = home[home.index("Three ways to build a strategy"):home.index(".. _first-ai-strategy:")]
     for label in labels:
         assert f"<{label}>`" in choices
@@ -159,7 +164,7 @@ def test_home_and_readme_distinguish_strategy_types_from_coding_assistants():
         assert "Same strategy for backtesting and trading" in text
         assert "Multiple asset classes" in text
     assert "How to build an AI trading strategy" not in home
-    assert home.index("Build an AI-native strategy") < home.index("Connect your AI assistant")
+    assert home.index("Connect your AI assistant\n***") < home.index("Build an AI-native strategy")
     assert home.count("Connect your AI assistant\n***") == 1
     assert home.index(CALLOUT) > home.index("Connect your AI assistant\n***")
     assert "or another MCP-compatible" in _read("_snippets/botspot_mcp_callout")
@@ -168,6 +173,22 @@ def test_home_and_readme_distinguish_strategy_types_from_coding_assistants():
     assert home.count(".. _first-python-backtest:") == 1
     assert home.count("Why build with LumiBot?") == 1
     assert "Example: Research, Bull, Bear, and Trader Agents" not in home
+
+
+def test_entry_pages_explain_botspot_research_inside_the_ai_strategy():
+    home = _read("index")
+    readme = (ROOT / "README.md").read_text()
+    for section in (
+        home.split("Build an AI-native strategy\n")[1].split(".. _first-python-backtest:")[0],
+        readme.split("## Run your first AI backtest")[1].split("## Backtest a strategy")[0],
+    ):
+        assert "lumibot connect botspot" in section
+        assert "BOTSPOT_RESEARCH_MCP_URL" in section
+        assert "BOTSPOT_RESEARCH_MCP_TOKEN" in section
+        assert "system_prompt" in section
+        assert "automatically" in section
+    assert ".. _strategy-botspot-research:" in home
+    assert readme.count("## Connect your AI assistant") == 1
 
 
 

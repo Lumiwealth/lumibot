@@ -1,5 +1,42 @@
 # Changelog
 
+## 4.6.34 - 2026-10-28
+
+Deploy marker: `d326af579d52b2869152e4ee7ff775e0ec1685a3`.
+
+### Fixed
+- Reconcile broker-synchronized partial fills using observed cumulative execution deltas instead of full order size; share the reducer across Alpaca, Bitunix, IBKR REST and Tradier polling. Preserve partial executions on terminal transitions, pending cancellation/replacement, expiration reasons and provider sides; an incomplete order list does not prove cancellation.
+
+### Added
+- Update the scoped MetaMask vendor JSON-RPC client to Jayson 5, removing vulnerable stream-json while retaining the SDK's HTTP and browser request contracts. Default to script-free companion installs and refuse the unpatched optional bigint-buffer native addon at provider startup.
+- MetaMask owner setup retains native testnet gas-funding intents and verifies exact transaction details, mined receipt status and two block confirmations. Funding history survives reloads, supports linking a missing hash and explicitly reviewing the same nonce with buffered fees, and distinguishes wallet rejection, chain reversion, mined replacement and unknown outcomes without automatically resending.
+- MetaMask companion CI checks the supported Node 22.18 minimum and Node 24 with a clean install, formatting, tests, and browser bundling, without wallet credentials.
+- MetaMask owner setup displays testnet spot/perps collateral and supports durable same-wallet spot-to-perps funding. Session reconnect preserves sign-in-method context and reports failed refresh or missing agent wallets.
+- Optional MetaMask Agent Wallet broker beta: dedicated server-wallet bindings, scoped runtime tokens, Guard policy checks, durable order reservations and reconciliation, Hyperliquid perpetuals, exact-input onchain swap operations, and local MetaMask Connect setup. Crypto assets retain EVM chain and contract identity.
+- MetaMask qualification supports persisted policy approvals, signature-boundary authority checks, IOC market quotes, explicit unsupported testnet swap routes, and connected broker checks. Funded open/close, multi-fill aggregation, restart recovery and cancellation have been exercised on Hyperliquid testnet; broader qualification remains in progress.
+
+### Fixed
+- MetaMask values USDC unified accounts from HyperCore's pooled spot collateral and holds, without reporting zero equity or adding PnL twice. Standard accounts retain their separate perps accounting; unsupported portfolio-margin modes fail explicitly.
+- MetaMask owner setup can recover an uncertain perpetual submission by linking its exact venue order ID after validating wallet, request and submission time. Recovery reads real status and fills without signing or replaying an order; bot tokens cannot invoke it.
+- MetaMask clean installs on Node 22/npm 10 include the legacy WebSocket optional UTF-8 validation peer that npm 11 omitted from its lockfile.
+- MetaMask honors canonical reduce-only intent from shared close-position/sell-all actions and restores it from venue snapshots; custom parameters cannot turn a closing order into an opening order.
+- MetaMask startup restores cumulative filled and partially filled order snapshots without adding total order quantity again; the adapter registers restored snapshots through its broker hook before shared executor synchronization.
+- MetaMask vendor UUID 8/9 paths use patched CommonJS-compatible UUID 11.1.1. Real managed-wallet signing, browser bundling and vendor JSON-RPC request IDs were verified; unresolved upstream dependency advisories remain documented.
+- MetaMask strategy startup restores terminal order history without duplicating tracked orders. Account synchronization no longer consumes fill deltas before the polling stream can deliver strategy callbacks.
+- Backtest market-input capture streams deduplicated observations to a temporary disk spool instead of stopping at 4,096 reads or 50,000 unique rows. A bounded serialization cache limits memory independently of run length; exports stream their CSV and hashes, disclose actual capture failures, and remove the owned spool on completion or export failure. Optional explicit capture ceilings remain available without limiting trading. Input export also remains independent of unrelated provenance-export failures.
+- The README and documentation homepage put the full coding-assistant connection section directly after the framework benefits. The AI-native example explains its separate BotSpot research connection, with project setup, automatic attachment and prompt instructions. All eight localized summaries follow the same structure and retain the existing superpowers illustration.
+- Incomplete optional agent history, indicator and quote research returns visible, recoverable limitations without invalidating unrelated healthy execution. Direct strategy and portfolio-valuation data remain required.
+- Timezone-aware FRED overrides use their Chicago calendar date. Historical requests use the previous completed Chicago calendar vintage and disclose date-only timing limits, preventing morning decisions from using the same day's closing values.
+- Daily ranges preserve midnight source-calendar labels across timezone conversion, routed cache refresh and aggregation, retain the final available bar and exclude observations before the requested start. Routed daily benchmarks include the first open-to-close move and final close; incomplete coverage is reported instead of filled with invented flat returns.
+- Invalid routed benchmark prices and missing open sessions use the existing benchmark fallback without aborting strategy completion. Daily requests include the start session even when a strategy starts intraday, and coverage checks both requested boundaries. Coverage distinguishes missing sessions from closures using the applicable calendar, preserving configured equity markets and continuous crypto sessions.
+- News research can recover through available alternative sources and read article bodies. Shared document guidance preserves supported approximations, matched retained originals and unchanged baseline holdings. Index discovery includes eligible updates before selecting a baseline, and supplementary indexes add to the original source's updates.
+- Real-model release cases cover news recovery and macro timing, with positive and negative judge calibration for original-version and approximate-source evidence.
+- Research handoffs retain separate source-request windows and complete timestamp offsets. Option selection distinguishes listed contracts from the subset already inspected before reporting missing protective legs.
+- Batch history discloses short-but-usable coverage through per-symbol counts and completeness metadata. Known invalid interior gaps remain visible recoverable limitations.
+- Release checkout verification rejects changed source under an existing immutable version tag while permitting exact-source rechecks.
+- Live Tradier sandbox reads are classified as API integrations, preserving their original assertions and keeping constructor/normalization/default checks in the portable gate.
+- Documentation explains the optional BotSpot research connection before setup steps, with synchronized translated entry pages.
+
 ## 4.6.33 - 2026-10-27
 
 ### Added

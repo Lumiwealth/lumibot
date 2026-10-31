@@ -44,6 +44,44 @@ class TestBitunixBroker(unittest.TestCase):
 
     @patch("lumibot.brokers.bitunix.BitUnixClient")
     @patch("lumibot.brokers.bitunix.BitunixData")
+    def test_polling_cumulative_partial_fills_and_missing_orders(self, MockData, MockClient):
+        MockClient.return_value = self.mock_bitunix_client
+        MockData.return_value.client_symbols = set()
+        broker = Bitunix(self.config, connect_stream=False)
+        broker._strategy_name = 'neutral'
+        broker.sync_positions = MagicMock()
+        broker.stream = broker._get_stream_object()
+        broker._register_stream_events()
+        order = Order('neutral', Asset('BTCUSDT', Asset.AssetType.CRYPTO_FUTURE), 10, 'buy', identifier='synthetic-poll')
+        broker._process_new_order(order)
+        subscriber = SimpleNamespace(name='neutral', PARTIALLY_FILLED_ORDER=broker.PARTIALLY_FILLED_ORDER,
+                                     FILLED_ORDER=broker.FILLED_ORDER, add_event=MagicMock())
+        broker._add_subscriber(subscriber)
+        lock_states = []
+        subscriber.add_event.side_effect = lambda *_: lock_states.append(broker._lock._is_owned())
+        def drain():
+            while not broker.stream._queue.empty():
+                event, payload = broker.stream._queue.get_nowait()
+                broker.stream._process_queue_event(event, payload)
+                broker.stream._queue.task_done()
+        for filled, expected in [(2, 2), (5, 5), (5, 5), (2, 5), (10, 10)]:
+            raw = {'orderId': 'synthetic-poll', 'symbol': 'BTCUSDT', 'status': 'FILLED' if filled == 10 else 'PARTIALLY_FILLED',
+                   'side': 'BUY', 'orderType': 'MARKET', 'qty': '10', 'tradeQty': str(filled), 'avgPrice': '100', 'leverage': '1'}
+            broker._pull_broker_all_orders = lambda: [raw]
+            broker.do_polling()
+            drain()
+            self.assertEqual(sum(t.quantity for t in order.transactions), expected)
+        self.assertEqual(lock_states, [False, False, False])
+        other = Order('neutral', Asset('BTCUSDT', Asset.AssetType.CRYPTO_FUTURE), 1, 'buy', identifier='synthetic-missing')
+        broker._process_new_order(other)
+        broker._pull_broker_all_orders = lambda: []
+        self.mock_bitunix_client.get_order_detail.return_value = {'code': 0, 'data': None}
+        broker.do_polling()
+        drain()
+        self.assertTrue(other.is_active(), 'An incomplete order list is not cancellation evidence')
+
+    @patch("lumibot.brokers.bitunix.BitUnixClient")
+    @patch("lumibot.brokers.bitunix.BitunixData")
     def test_initialization_success(self, MockBitunixData, MockBitUnixClientInstance):
         MockBitUnixClientInstance.return_value = self.mock_bitunix_client
         mock_data_source = MockBitunixData.return_value
@@ -318,9 +356,9 @@ class TestBitunixBroker(unittest.TestCase):
         self.assertEqual(broker._map_status_from_bitunix("FILLED"), Order.OrderStatus.FILLED)
         self.assertEqual(broker._map_status_from_bitunix("CANCELED"), Order.OrderStatus.CANCELED)
         self.assertEqual(broker._map_status_from_bitunix("REJECTED"), Order.OrderStatus.ERROR)
-        self.assertEqual(broker._map_status_from_bitunix("EXPIRED"), Order.OrderStatus.CANCELED)
-        self.assertEqual(broker._map_status_from_bitunix("PENDING_CANCEL"), Order.OrderStatus.CANCELED)
-        self.assertEqual(broker._map_status_from_bitunix("UNKNOWN_STATUS"), Order.OrderStatus.ERROR) # Test default
+        self.assertEqual(broker._map_status_from_bitunix("EXPIRED"), Order.OrderStatus.EXPIRED)
+        self.assertEqual(broker._map_status_from_bitunix("PENDING_CANCEL"), Order.OrderStatus.CANCELLING)
+        self.assertEqual(broker._map_status_from_bitunix("UNKNOWN_STATUS"), Order.OrderStatus.UNKNOWN) # Test default
 
 
     @patch("lumibot.brokers.bitunix.BitUnixClient")

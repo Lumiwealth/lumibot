@@ -1041,11 +1041,6 @@ class ProjectX(Broker):
                 # Downgrade to debug to avoid adapter-level noise
                 self.logger.debug(f"Unknown order status ID: {status_id} for order {broker_order.get('id')}")
 
-            # Broker "expired" is an order-lifecycle terminal cancel state, not option-contract expiration settlement.
-            # Keep adapter behavior stable for ProjectX by treating it as canceled.
-            if status == "expired":
-                status = "cancelled"
-
             # Get the broker's order ID
             broker_order_id = str(broker_order.get("id"))
             # If we have a cached order, reuse critical lifecycle info & prevent status downgrade

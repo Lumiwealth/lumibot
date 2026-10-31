@@ -26,9 +26,29 @@ Read this in [中文](README.zh-CN.md) · [Español](README.es.md) · [Français
 - **Multiple asset classes:** stocks, options, futures, forex, crypto and prediction markets through [supported brokers](https://lumibot.lumiwealth.com/brokers.all.html).
 - **The decision reaches a broker.** Inspect the orders, fills and decision records. [How execution works](https://lumibot.lumiwealth.com/execution_gap.html).
 
-**Build faster with BotSpot MCP.** Connect your assistant for free to get LumiBot
-strategy-building skills, research data and tools for backtests and deployment.
-[See what your assistant gets](#connect-your-ai-assistant).
+## Connect your AI assistant
+
+**Build faster with BotSpot MCP.** Claude, ChatGPT, Codex, Cursor, VS Code or
+another MCP-compatible assistant can help you write and test LumiBot strategies.
+Your coding assistant builds the code; the agents **inside** an AI-native
+strategy make its trading decisions while it runs.
+
+Connect the free [BotSpot MCP](https://botspot.trade/agents?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=top_mcp_free) for:
+
+- **Skills:** build LumiBot strategies.
+- **Free data:** news, economics and SEC filings.
+- **Backtests:** run tests and inspect charts, trades and logs.
+- **Cloud hosting:** run bots on a schedule.
+- **Community:** share ideas and learn from other builders.
+- **Marketplace:** discover and publish strategies.
+- **Broker linking:** connect accounts through BotSpot.
+
+**[Connect your AI assistant](https://botspot.trade/agents)**
+
+Connecting is free; hosted usage depends on your plan.
+For local coding help, install the free [LumiBot trading skills](https://github.com/Lumiwealth/lumibot-trading-skills).
+Your running strategy's agents can get research tools too:
+[give them BotSpot MCP superpowers](#strategy-botspot-research).
 
 ## Three ways to build a strategy
 
@@ -111,9 +131,44 @@ python -m lumibot.example_strategies.ai_researcher_trader
 
 **Recorded run (made with Gemini):** the existing two-agent example has [source, decisions and trade records](docs/assets/ai-trading/spy-20260913/README.md). These are historical results, separate from the single-agent example above.
 
+<a id="strategy-botspot-research"></a>
+
+### Give your agents superpowers—for free
+
+**Add BotSpot MCP to your LumiBot strategy.** Your AI agents get economic data,
+news and SEC documents, Marketplace strategies and Community knowledge through
+one free connection.
+
 <p align="center">
-  <img src="docs/assets/ai-trading/benefit-hero.png" alt="LumiBot combines market data, AI reasoning and trading strategies, with Python rules, AI agents or both" width="640">
+  <img src="docs/assets/readme/botspot_mcp_superpowers.png" alt="BotSpot MCP gives LumiBot agents Research, Marketplace and Community tools. Free to connect." width="640">
 </p>
+
+Already connected BotSpot to Codex, Claude Code or Cursor? Tell it:
+**“Connect this LumiBot project to BotSpot MCP.”** It can create the key and save
+the settings for you. **[Give your agents superpowers](https://lumibot.lumiwealth.com/botspot_mcp.html)**.
+
+Or connect from the directory containing `my_ai_strategy.py`:
+
+```bash
+lumibot connect botspot
+python my_ai_strategy.py
+```
+
+Approve the BotSpot sign-in when prompted. The connection saves
+`BOTSPOT_RESEARCH_MCP_URL` and `BOTSPOT_RESEARCH_MCP_TOKEN` in your project's
+`.env`. LumiBot loads them and attaches research tools **automatically** when
+`self.agents.create(...)` creates an agent. Keep that file out of Git.
+
+Tell the agent what to research. For example, add this to its `system_prompt`:
+
+```text
+Use BotSpot research tools to find evidence relevant to this strategy.
+Cite sources and dates, explain data gaps, and use only information
+available at the strategy time.
+```
+
+The [connection guide](https://lumibot.lumiwealth.com/botspot_mcp.html) explains
+assistant-led setup, manual key settings and available research tools.
 
 ## Backtest a strategy
 
@@ -189,29 +244,6 @@ trader.run_all()
 Start with paper trading. When you are ready for live trading, use the same strategy class and switch your broker account/configuration intentionally.
 
 For full setup guides, broker tutorials, AI-agent docs, examples, and deployment notes, use the **[Lumibot documentation](https://lumibot.lumiwealth.com/)**.
-
-## Connect your AI assistant
-
-Claude, ChatGPT, Codex, Cursor, VS Code or another MCP-compatible assistant can
-help you write and test any of these strategies. Your coding assistant helps
-build the code; the agents **inside** an AI-native strategy run its trading logic.
-
-Connect the free [BotSpot MCP](https://botspot.trade/agents?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=top_mcp_free) for strategy-building skills, free research data and hosted backtests with charts. BotSpot also offers scheduled hosting, a community, a strategy marketplace and broker linking. Hosted usage depends on your plan.
-
-**[Connect your AI assistant](https://botspot.trade/agents)**
-
-For local coding help, install the free [LumiBot trading skills](https://github.com/Lumiwealth/lumibot-trading-skills).
-**Give running strategy agents research tools too:**
-
-```bash
-lumibot connect botspot
-```
-
-They can discover datasets, query economics and SEC observations, retrieve source
-documents, and read permitted Marketplace and Community information. See the
-[LumiBot connection guide](https://lumibot.lumiwealth.com/botspot_mcp.html) for
-source availability, permissions and backtest-date limitations. LumiBot works
-independently; connecting BotSpot adds these tools.
 
 ## Explore LumiBot
 

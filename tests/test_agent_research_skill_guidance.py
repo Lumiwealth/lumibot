@@ -100,7 +100,12 @@ def test_live_discovery_does_not_treat_unqualified_history_as_an_observation_fai
     # mode. Only repetition3 performed the lookup and observed the outage.
     instructions = " ".join(delivered_research_guidance[2]["instructions"].split())
     assert "Historical replay capabilities do not determine live observation availability." in instructions
-    assert "For a live request, query the relevant dataset without `asOf` before reporting its observations unavailable." in instructions
+    # Live calendar-period retrieval is distinct from an explicitly requested
+    # historical replay. The loader must deliver the clarified scope unchanged;
+    # actual live/historical decisions remain covered by real-model cases.
+    assert "In live research, retrieving an older calendar period is still a live retrieval" in instructions
+    assert "omit `asOf` unless historical replay was actually requested" in instructions
+    assert "Query before calling observations unavailable; judge returned data and errors" in instructions
     assert "A catalog flag is not a failed observation query." in instructions
     assert "Keep the historical ceiling for a historical request and prefer original-release values." in instructions
 

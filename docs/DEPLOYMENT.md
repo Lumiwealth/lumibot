@@ -94,6 +94,7 @@ Run this before changing versions, tagging, creating a release, or triggering Bo
 
 ```bash
 set -e
+git fetch origin dev --tags --prune
 
 branch="$(git branch --show-current)"
 setup_version="$(python3 - <<'PY'
@@ -113,7 +114,6 @@ echo "branch=${branch}"
 echo "setup.py=${setup_version}"
 echo "expected_branch=${expected_branch}"
 echo "latest_tag=${latest_tag}"
-git fetch origin dev --tags --prune
 git status --porcelain=v1
 
 test "${branch}" = "${expected_branch}" || {
@@ -132,9 +132,16 @@ git merge-base --is-ancestor origin/dev HEAD || {
 }
 
 git log --oneline "origin/${branch}..HEAD"
+python3 scripts/verify_release_checkout_state.py
 ```
 
 If this preflight fails, the release is blocked. Do not "just bump setup.py" on the old branch. Do not tag from the old branch. Do not deploy BotManager while this is failing.
+
+A canonical checkout can be clean and still be stale. Inspect fetched `dev` and
+tags before trusting its version branch. The checkout verifier rejects changed
+source under an existing package tag; prepare a forward version from current
+`dev`. Reverification of the exact tagged source remains supported for an
+interrupted publication. Never move or replace the old tag.
 
 Known bad state example:
 
@@ -313,6 +320,13 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
    - Rationale: other people may have merged changes to `dev` while the version branch was in flight; this step ensures the release includes those changes.
 
 1) **Verify tests**
+   - Web-enabled native cases can choose the normal optional keyless search tool.
+     Prepare its backend in the owned qualification environment before model calls
+     (`pip install ddgs==9.16.1 primp==2.0.1` for this qualification tuple), then
+     verify `from lumibot.components.agents.builtins import _web_search_backend;
+     _web_search_backend()` imports successfully. Missing optional dependencies
+     are setup failures. Record added versions and preserve compatible passes;
+     never mutate the shared SDK environment while model workers are active.
    - Native inference may retain its actual original source/time through `ci/agent-evals/source-compatibility.json` only when `scripts/qualify_agent_evals.py verify` proves the complete source comparison. This applies to the maintained Pandas fixtures and unused external IBKR modules; actor/judge/fixture/shared-code changes still require normal native qualification. Never rewrite historical fingerprints or timestamps to a candidate.
    - Ensure required CI checks are green (unit + backtest + acceptance gates as applicable).
    - The standard gate is portable: no paid historical-data subscription or shared remote cache is required.

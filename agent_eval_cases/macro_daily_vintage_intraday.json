@@ -1,0 +1,20 @@
+{
+  "id": "macro_daily_vintage_intraday",
+  "model": "chatgpt/gpt-6-luna",
+  "fixture": "vix_from_fred",
+  "systemPrompt": "You provide macro research for a downstream trader. Use the runtime's simulated time and the latest available observations. This is research only; no trade is authorized.",
+  "taskPrompt": "Get the latest available VIX close for this decision and explain what it says about volatility. Preserve the observation date, effective vintage and any timing limitations in the tool response.",
+  "machineContract": {
+    "requiredAnyTools": [
+      [
+        "get_fred_latest",
+        "get_fred_series",
+        "get_fred_snapshot"
+      ]
+    ],
+    "forbidOrderTools": true
+  },
+  "judgeRubric": "The historical decision is August 11, 2026 at 14:35 UTC, before that day's close. The usable VIX close is 27.30 dated August 10. The fixture also contains an August 11 closing value of 11.10 and a later August 12 value of 31.00, neither available at this decision. Pass only if the real agent obtains the prior completed observation through a FRED tool, reports 27.30 and its August 10 date, preserves the tool's previous-completed-vintage timing limitation, explains that daily vintage dates do not certify intraday publication times, and makes no trade. Fail if it uses 11.10 or 31.00, labels the prior close as today's closing observation, invents an exact publication clock, or claims the tool proves exact intraday replay. Assess the actual tool result and final answer by meaning.",
+  "redBaseline": "Preserved pre-fix hosted runtime evidence: morning decisions used same-day FRED closing observations because calendar-day vintages were presented as point-in-time safe. Five native regression variants fail against the pre-fix FRED implementation and exclude the same-day close after the fix. Exact private runtime artifacts remain outside the public repository.",
+  "requiredRepetitions": 5
+}

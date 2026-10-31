@@ -22,7 +22,11 @@ if not TRADIER_TEST_CONFIG['ACCESS_TOKEN'] or TRADIER_TEST_CONFIG['ACCESS_TOKEN'
     pytest.skip(reason="These tests require a Tradier API key", allow_module_level=True)
 
 
-# @pytest.mark.skip()
+# 2026-10-28 classification correction for these March-2025 legacy tests:
+# network reads use the real Tradier sandbox and its current market availability.
+# They belong to explicit `-m apitest` integration runs, not the portable gate.
+# Preserve every API assertion; constructor/normalization/default checks remain
+# offline. A real sandbox SPY quote returning None exposed this in release CI.
 class TestTradierData(BaseDataSourceTester):
 
     def _create_data_source(self, remove_incomplete_current_bar=False) -> DataSource:
@@ -71,6 +75,7 @@ class TestTradierData(BaseDataSourceTester):
             data_source._sanitize_base_and_quote_asset(("AAPL", asset_b), None)
         assert "TradierData doesn't support string assets" in str(exc_info.value)
 
+    @pytest.mark.apitest
     def test_get_chains(self):
         data_source = self._create_data_source()
         asset = Asset("SPY")
@@ -85,6 +90,7 @@ class TestTradierData(BaseDataSourceTester):
         assert strike > 0
         assert chain['Multiplier'] == 100
 
+    @pytest.mark.apitest
     def test_query_greeks(self):
         data_source = self._create_data_source()
         asset = Asset("SPY")
@@ -99,6 +105,7 @@ class TestTradierData(BaseDataSourceTester):
         assert 'gamma' in greeks
         assert greeks['delta'] > 0
 
+    @pytest.mark.apitest
     def test_get_quote(self):
         from lumibot.entities import Quote
 
@@ -121,6 +128,7 @@ class TestTradierData(BaseDataSourceTester):
         assert 'low' in quote.raw_data
         assert 'close' in quote.raw_data
 
+    @pytest.mark.apitest
     def test_get_chain_full_info(self):
         data_source = self._create_data_source()
         asset = Asset("SPY")
@@ -134,6 +142,7 @@ class TestTradierData(BaseDataSourceTester):
         assert 'greeks.delta' in df.columns
         assert len(df)
 
+    @pytest.mark.apitest
     def test_get_last_price_stock(self):
         data_source = self._create_data_source()
         asset = Asset('SPY', asset_type='stock')
@@ -144,6 +153,7 @@ class TestTradierData(BaseDataSourceTester):
         asset_tuple = (asset, quote_asset)
         self.check_get_last_price(data_source, asset_tuple)
 
+    @pytest.mark.apitest
     def test_get_historical_prices_daily_bars_stock(self):
         data_source = self._create_data_source()
         asset = Asset("SPY")
@@ -195,6 +205,7 @@ class TestTradierData(BaseDataSourceTester):
                 market=market,
             )
 
+    @pytest.mark.apitest
     def test_get_historical_prices_daily_bars_stock_remove_incomplete_current_bar(self):
         data_source = self._create_data_source(remove_incomplete_current_bar=True)
         asset = Asset("SPY")
@@ -248,6 +259,7 @@ class TestTradierData(BaseDataSourceTester):
                 remove_incomplete_current_bar=True
             )
 
+    @pytest.mark.apitest
     def test_get_historical_prices_minute_bars_stock_regular_hours(self):
         data_source = self._create_data_source()
         timestep = "minute"
@@ -274,6 +286,7 @@ class TestTradierData(BaseDataSourceTester):
                 market=market,
             )
 
+    @pytest.mark.apitest
     def test_get_historical_prices_minute_bars_stock_regular_hours_remove_incomplete_current_bar(self):
         data_source = self._create_data_source(remove_incomplete_current_bar=True)
         timestep = "minute"
@@ -302,6 +315,7 @@ class TestTradierData(BaseDataSourceTester):
             )
 
 
+    @pytest.mark.apitest
     def test_get_historical_option_prices(self):
         data_source = self._create_data_source()
         length = 30

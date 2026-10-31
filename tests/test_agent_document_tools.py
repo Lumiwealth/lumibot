@@ -264,6 +264,8 @@ def test_read_document_returns_actual_byte_hash_and_absolute_backtest_cutoff():
     result = tool.function(url="https://clerk.example/report.txt")
     assert result["historical_as_of"] == "2026-08-11T14:35:00+00:00"
     assert result["sha256"] == hashlib.sha256(data).hexdigest()
+    assert result["historical_version"]["original_version_verified"] is False
+    assert result["historical_version"]["approximation_required"] is True
 
 
 @pytest.mark.parametrize("clock", [None, datetime(2026, 8, 11, 10, 35), "2026-08-11"])
@@ -340,6 +342,9 @@ def test_document_exact_cutoff_and_original_hash_allow_verified_bytes():
     )
     assert result["ok"] is True and result["text"] == data.decode()
     assert result["available_at"] == result["historical_as_of"]
+    # A supplied original hash and eligible publication instant are matched;
+    # do not label this verified source version as an unverified current page.
+    assert "historical_version" not in result
 
 
 def test_read_document_paginates_long_pages_and_retains_targeted_links():

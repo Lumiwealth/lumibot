@@ -872,8 +872,10 @@ class Ccxt(Broker):
             self._process_trade_event(order, event, price=float(price), filled_quantity=float(delta),
                                       multiplier=order.asset.multiplier)
             changed = True
-        if status in ("canceled", "cancelled", "expired") and not order.is_canceled():
+        if status in ("canceled", "cancelled", "expired") and not order.is_canceled() and not order.is_filled():
             self._process_trade_event(order, self.CANCELED_ORDER)
+            if status == "expired":
+                order.status = Order.OrderStatus.EXPIRED
             changed = True
         elif status in ("rejected", "error") and order.status != "error":
             self._process_trade_event(order, self.ERROR_ORDER, error=response.get("error") or "Exchange rejected order")

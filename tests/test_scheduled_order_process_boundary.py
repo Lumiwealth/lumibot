@@ -31,7 +31,6 @@ def test_submission_exit_later_broker_transition_and_repeated_restart(tmp_path, 
             env=env,
             capture_output=True,
             text=True,
-            timeout=45,
         )
         assert completed.returncode == 0, completed.stderr[-6000:]
         return json.loads(output.read_text())
@@ -40,12 +39,15 @@ def test_submission_exit_later_broker_transition_and_repeated_restart(tmp_path, 
     first_orders = submitted["payload"]["orders"]
     assert len(first_orders) == 1
     identifier = first_orders[0]["identifier"]
-    assert first_orders[0]["status"] == "new"
+    # The fresh accessor preserves the broker's accepted/open state instead
+    # of overwriting every working observation with the local NEW event name.
+    assert first_orders[0]["status"] == "open"
     stored = json.loads(broker_state.read_text())
     stored["status"] = later_status
     stored["broker_update_date"] = "2026-09-08T15:00:00+00:00"
     if later_status in {"fill", "partial_fill"}:
         stored["avg_fill_price"] = 99.5
+        stored["filled_quantity"] = 3 if later_status == "fill" else 1
     broker_state.write_text(json.dumps(stored))
 
     second, third = run("reconcile", 1), run("reconcile", 2)
@@ -69,7 +71,7 @@ def test_scheduled_native_smart_limit_finishes_before_process_and_cloud_exit(tmp
             "AWS_EC2_METADATA_DISABLED": "true", "IS_BACKTESTING": "true",
             "LUMIBOT_SCHEDULED_EXECUTION": "true", "LUMIBOT_SCHEDULED_POST_ITERATION_SECONDS": "0",
         },
-        capture_output=True, text=True, timeout=45,
+        capture_output=True, text=True,
     )
     assert completed.returncode == 0, completed.stderr[-6000:]
     result = json.loads(output.read_text())

@@ -82,6 +82,26 @@ def main() -> int:
         if not remote_branch:
             failures.append(f"origin/{expected_branch} does not exist")
 
+    # A tagged version may be reverified without changing its source, including
+    # retrying an interrupted publication. New source needs a forward version;
+    # a stale version branch must not look releasable merely because setup.py
+    # and the branch still agree.
+    release_tag = f"refs/tags/v{version}"
+    try:
+        tag_rows = run_git(["ls-remote", "--tags", "origin", release_tag, f"{release_tag}^{{}}"])
+        tags = dict((ref, sha) for sha, ref in (line.split() for line in tag_rows.splitlines()))
+        tagged_commit = tags.get(f"{release_tag}^{{}}") or tags.get(release_tag)
+        if tagged_commit:
+            tagged_tree = run_git(["rev-parse", f"{tagged_commit}^{{tree}}"])
+            candidate_tree = run_git(["rev-parse", "HEAD^{tree}"])
+            if tagged_tree != candidate_tree:
+                failures.append(
+                    f"package {version} is already tagged from different source; "
+                    "prepare a forward version from current dev instead of reusing that release version"
+                )
+    except subprocess.CalledProcessError:
+        failures.append("could not verify the existing release tag; fetch origin --tags and rerun preflight")
+
     if failures:
         print("\nFAILED:")
         for failure in failures:

@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 8ecf9bafe56a350f0394f277d4c890a90762d87262cbda98cad00a25b44b4460 -->
+<!-- entry-source-sha256: 55bfb39676bd80179a30ead48b0344b4a517c92660cfe893494caf76e10dbe31 -->
 
 # LumiBot AI Trading
 
@@ -18,9 +18,17 @@ LumiBot は無料のオープンソース Python フレームワークです。P
 - **複数の資産クラス：** [対応ブローカー](https://lumibot.lumiwealth.com/brokers.all.html) に応じて、株式、オプション、先物、外国為替、暗号資産、予測市場に対応します。
 - **判断をブローカーに届けます。** 注文、約定、判断の記録を確認できます。[実行の仕組み](https://lumibot.lumiwealth.com/execution_gap.html).
 
-## BotSpot MCP で構築を効率化
+## AI アシスタントを接続
 
-アシスタントを無料で接続すると、LumiBot の戦略構築スキル、調査データ、バックテストとデプロイのツールを利用できます。[利用できる機能を見る](#ai-アシスタントを接続)。
+**BotSpot MCP で構築を効率化**
+
+Claude、ChatGPT、Codex、Cursor、VS Code、または他の MCP 対応アシスタントを利用できます。コーディングアシスタントはコードの作成とテストを支援し、戦略内のエージェントは実行時の取引判断を行います。
+
+BotSpot MCP では戦略構築スキル、無料の調査データ、チャート付きバックテスト、定期的なクラウド実行、コミュニティ、マーケットプレイス、ブローカー口座の接続を利用できます。接続は無料です。ホストされた機能の利用条件はプランによって異なります。
+
+**[AI アシスタントを接続](https://botspot.trade/agents)**
+
+ローカルでのコーディング支援には無料の [LumiBot トレーディングスキル](https://github.com/Lumiwealth/lumibot-trading-skills) を利用できます。戦略内の調査ツールは [BotSpot MCP ガイド](https://lumibot.lumiwealth.com/botspot_mcp.html) を参照してください。
 
 ## 戦略を作る 3 つの方法
 
@@ -39,18 +47,23 @@ lumibot demo
 
 AI の例にはモデルの認証情報が必要で、呼び出しには料金がかかる場合があります。模擬取引や実取引にはブローカー口座と認証情報が必要です。[AI の例](README.md#run-your-first-ai-backtest)、[CLI 設定](https://lumibot.lumiwealth.com/cli.html)、[実行モード](https://lumibot.lumiwealth.com/strategy_run_modes.html) を参照してください。バックテストは将来の成績を保証しません。
 
-## AI アシスタントを接続
+## エージェントにスーパーパワーを。接続は無料
 
-Claude、ChatGPT、Codex、Cursor、VS Code、または他の MCP 対応アシスタントを利用できます。コーディングアシスタントはコードの作成とテストを支援し、戦略内のエージェントは実行時の取引判断を行います。
+LumiBot戦略にBotSpot MCPを接続すると、経済データ、ニュース、SEC文書、Marketplaceの戦略、Communityの知識を利用できます。
 
-BotSpot MCP では戦略構築スキル、無料の調査データ、チャート付きバックテスト、定期的なクラウド実行、コミュニティ、マーケットプレイス、ブローカー口座の接続を利用できます。接続は無料です。ホストされた機能の利用条件はプランによって異なります。
+![エージェントにスーパーパワーを。接続は無料](docs/assets/readme/botspot_mcp_superpowers.png)
 
-**[AI アシスタントを接続](https://botspot.trade/agents)**
+すでにアシスタントをBotSpotに接続していますか？「このLumiBotプロジェクトをBotSpot MCPに接続して」と伝えてください。アシスタントがAPIキーを作成し、設定を保存できます。
 
-ローカルでのコーディング支援には無料の [LumiBot トレーディングスキル](https://github.com/Lumiwealth/lumibot-trading-skills) を利用できます。戦略内の調査ツールは [BotSpot MCP ガイド](https://lumibot.lumiwealth.com/botspot_mcp.html) を参照してください。
+**[エージェントを接続する](https://lumibot.lumiwealth.com/botspot_mcp.html)**
 
+戦略のフォルダーで次のコマンドを実行し、サインインして接続を承認した後、戦略を再実行します。設定はプロジェクトの `.env` に保存され、エージェントを作成すると LumiBot が調査ツールを自動的に追加します。`system_prompt` に調査内容を記載し、出典、日付、過去データの制約を示すよう指示してください。
 
-戦略内のエージェントに調査ツールを追加するには、`lumibot connect botspot` を実行します。データや文書、権限のある Marketplace・Community 情報を参照できます。LumiBot は単独でも動作します。
+```bash
+lumibot connect botspot
+```
+
+[BotSpot MCP → LumiBot](README.md#strategy-botspot-research)
 
 ## フレームワークを調べる
 

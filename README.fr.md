@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 8ecf9bafe56a350f0394f277d4c890a90762d87262cbda98cad00a25b44b4460 -->
+<!-- entry-source-sha256: 55bfb39676bd80179a30ead48b0344b4a517c92660cfe893494caf76e10dbe31 -->
 
 # LumiBot AI Trading
 
@@ -18,9 +18,17 @@ Cette page résume le README anglais et la page d'accueil de la documentation. L
 - **Plusieurs classes d'actifs :** actions, options, contrats à terme, devises, crypto et marchés prédictifs selon les [courtiers pris en charge](https://lumibot.lumiwealth.com/brokers.all.html).
 - **La décision atteint un courtier.** Consultez les ordres, les exécutions et les journaux de décision. [Fonctionnement de l’exécution](https://lumibot.lumiwealth.com/execution_gap.html).
 
-## Construisez plus vite avec BotSpot MCP
+## Connectez votre assistant IA
 
-Connectez gratuitement votre assistant pour accéder aux compétences de création de stratégies LumiBot, aux données de recherche et aux outils de backtest et de déploiement. [Découvrez ce que reçoit votre assistant](#connectez-votre-assistant-ia).
+**Construisez plus vite avec BotSpot MCP**
+
+Utilisez Claude, ChatGPT, Codex, Cursor, VS Code ou un autre assistant compatible MCP. L'assistant de programmation vous aide à écrire et tester le code ; les agents dans la stratégie prennent ses décisions à l'exécution.
+
+BotSpot MCP propose des compétences de création, des données de recherche gratuites, des backtests avec graphiques, l'hébergement planifié, une communauté, une marketplace et la connexion de comptes de courtage. La connexion est gratuite ; l'utilisation hébergée dépend du forfait.
+
+**[Connectez votre assistant IA](https://botspot.trade/agents)**
+
+Pour l'aide au code en local, installez les [compétences gratuites LumiBot](https://github.com/Lumiwealth/lumibot-trading-skills). Pour les outils de recherche dans une stratégie, voir le [guide BotSpot MCP](https://lumibot.lumiwealth.com/botspot_mcp.html).
 
 ## Trois façons de créer une stratégie
 
@@ -39,18 +47,23 @@ lumibot demo
 
 Les exemples IA nécessitent les identifiants du modèle ; les appels peuvent être facturés. Le trading simulé ou réel nécessite un compte et les identifiants du courtier. Voir l'[exemple IA](README.md#run-your-first-ai-backtest), la [configuration CLI](https://lumibot.lumiwealth.com/cli.html) et les [modes d'exécution](https://lumibot.lumiwealth.com/strategy_run_modes.html). Un backtest ne garantit pas les résultats futurs.
 
-## Connectez votre assistant IA
+## Donnez des superpouvoirs à vos agents — gratuitement
 
-Utilisez Claude, ChatGPT, Codex, Cursor, VS Code ou un autre assistant compatible MCP. L'assistant de programmation vous aide à écrire et tester le code ; les agents dans la stratégie prennent ses décisions à l'exécution.
+Connectez BotSpot MCP à votre stratégie LumiBot : données économiques, actualités, documents SEC, stratégies du Marketplace et connaissances de la communauté.
 
-BotSpot MCP propose des compétences de création, des données de recherche gratuites, des backtests avec graphiques, l'hébergement planifié, une communauté, une marketplace et la connexion de comptes de courtage. La connexion est gratuite ; l'utilisation hébergée dépend du forfait.
+![Donnez des superpouvoirs à vos agents — gratuitement](docs/assets/readme/botspot_mcp_superpowers.png)
 
-**[Connectez votre assistant IA](https://botspot.trade/agents)**
+Votre assistant est déjà connecté à BotSpot ? Dites-lui : « Connecte ce projet LumiBot à BotSpot MCP. » Il peut créer la clé API et enregistrer les paramètres pour vous.
 
-Pour l'aide au code en local, installez les [compétences gratuites LumiBot](https://github.com/Lumiwealth/lumibot-trading-skills). Pour les outils de recherche dans une stratégie, voir le [guide BotSpot MCP](https://lumibot.lumiwealth.com/botspot_mcp.html).
+**[Connecter vos agents](https://lumibot.lumiwealth.com/botspot_mcp.html)**
 
+Exécutez cette commande dans le dossier de la stratégie, connectez-vous et approuvez la connexion, puis relancez la stratégie. Les paramètres sont enregistrés dans le fichier `.env` du projet et LumiBot ajoute automatiquement les outils à la création de l'agent. Précisez dans `system_prompt` les recherches à effectuer et demandez les sources, les dates et les limites des données historiques.
 
-Pour ajouter des outils de recherche aux agents de la stratégie, exécutez `lumibot connect botspot`. Ils peuvent consulter des données et documents et les informations autorisées du marketplace et de la communauté. LumiBot fonctionne aussi de façon autonome.
+```bash
+lumibot connect botspot
+```
+
+[BotSpot MCP → LumiBot](README.md#strategy-botspot-research)
 
 ## Explorer le framework
 

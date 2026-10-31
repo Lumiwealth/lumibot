@@ -107,7 +107,7 @@ def test_readme_leads_with_runnable_ai_before_education():
     assert 'export OPENAI_API_KEY=' in opening
     assert opening.index('```python') < opening.index('Join the free challenge')
     assert 'width="640"' in opening
-    assert 'benefit-hero.png' in opening
+    assert 'botspot_mcp_superpowers.png' in opening
     assert 'learn-with-rob.png' not in opening
 
 

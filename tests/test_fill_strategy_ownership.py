@@ -341,12 +341,9 @@ def test_tradier_polling_still_processes_owned_tagged_fill(tradier_broker, mocke
     local.status = "open"
     broker._new_orders.append(local)
 
-    dispatched = []
-
-    def _capture(event, **kwargs):
-        dispatched.append((event, kwargs))
-
-    mocker.patch.object(broker, "_safe_stream_dispatch", side_effect=_capture)
+    # Confirm the lifecycle callback owner, independent of synchronous polling
+    # versus queued transport dispatch. Keep the actual transaction reducer.
+    process = mocker.patch.object(broker, "_process_trade_event", wraps=broker._process_trade_event)
     mocker.patch.object(
         broker,
         "_pull_broker_all_orders",
@@ -370,9 +367,12 @@ def test_tradier_polling_still_processes_owned_tagged_fill(tradier_broker, mocke
     )
 
     broker.do_polling()
-    fill_events = [d for d in dispatched if d[0] == broker.FILLED_ORDER]
+    fill_events = [call for call in process.call_args_list if call.args[1] == broker.FILLED_ORDER]
     assert len(fill_events) == 1
-    assert fill_events[0][1]["order"].identifier == 9002
+    assert fill_events[0].args[0].identifier == 9002
+    assert sum(transaction.quantity for transaction in local.transactions) == 1
+    broker.do_polling()
+    assert process.call_count == 1
 
 
 def test_sole_subscriber_does_not_claim_foreign_tag(tradier_broker):

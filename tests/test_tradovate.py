@@ -753,6 +753,12 @@ class TestTradovateLifecycle:
             broker = Tradovate(config=base_config)
         return broker
 
+    def test_expired_order_remains_distinct_from_canceled(self):
+        from lumibot.entities import Order
+        broker = self._make_broker()
+        order = broker._parse_broker_order({"id": 42, "orderQty": 10, "action": "Buy", "orderType": "Market", "ordStatus": "Expired"}, "synthetic")
+        assert order.status == Order.OrderStatus.EXPIRED
+
     def test_submit_order_emits_new_event(self):
         from lumibot.entities import Asset, Order
 

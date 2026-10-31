@@ -65,6 +65,12 @@ broker, approval, liquidity and risk limits.
    A contract previously considered as a wing can become a short when its verified
    delta is the appropriate match; rebuild both outer wings for the selected short pair.
    Unchecked outer strikes do not establish that protective wings are absent.
+   Keep the complete listed-strike evidence separate from the subset whose
+   Greeks or quotes you have inspected. If an exact wing is listed but has not
+   been inspected yet, query that contract next. Before reporting a missing
+   wing, reconcile its exact symbol, expiration, right and strike against the
+   returned list; absence from your evaluated-candidate subset is not absence
+   from the market.
    Verify every selected contract individually. Candidate-selection helpers narrow
    the search but do not prove the exact contract's Greeks or quote quality.
    Changing any leg's symbol, expiration, right or strike invalidates that leg's

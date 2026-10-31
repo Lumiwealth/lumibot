@@ -11,6 +11,9 @@ from .asset_resolution import resolve_asset_and_quote
 from .docs_tools import search_lumibot_docs
 from .schemas import BoundTool, ToolDefinition
 from .tool_context import current_agent_tool_context
+from lumibot.tools.ibkr_history_health import (
+    IncompleteResearchHistoryError, record_required_history, recoverable_history_request,
+)
 
 AssetTypeArg = Literal["stock", "option", "future", "cont_future", "forex", "crypto", "index", "multileg", "us_equity"]
 OrderSideArg = Literal[
@@ -1248,6 +1251,7 @@ def _fred_hint(missing: Any) -> dict[str, str]:
 
 
 def _bind_last_price(strategy: Any, manager: Any) -> BoundTool:
+    @recoverable_history_request()
     def last_price(
         *,
         symbol: str,
@@ -1294,6 +1298,7 @@ def _bind_last_price(strategy: Any, manager: Any) -> BoundTool:
 
 
 def _bind_last_prices(strategy: Any, manager: Any) -> BoundTool:
+    @recoverable_history_request()
     def last_prices(
         *,
         symbols: list[str] | tuple[str, ...] | str | None = None,
@@ -1394,6 +1399,7 @@ def _bind_last_prices(strategy: Any, manager: Any) -> BoundTool:
 
 
 def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
+    @recoverable_history_request()
     def historical_prices(
         *,
         symbols: list[str] | tuple[str, ...] | str | None = None,
@@ -1426,6 +1432,23 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
         symbol_list = _parse_symbol_list(symbols=symbols, symbols_json=symbols_json, max_symbols=150)
         length = _require_positive_int("length", length)
         timestep = _require_non_empty_text("timestep", timestep)
+
+        def validated_records(symbol, bars):
+            frame = getattr(bars, "pandas_df", None)
+            if frame is None:
+                frame = getattr(bars, "df", None)
+            if frame is not None and len(frame):
+                asset, _ = resolve_asset_and_quote(
+                    strategy, symbol=symbol, asset_type=asset_type, quote_symbol=quote_symbol,
+                )
+                # Short history is a supported response. Validate the rows we
+                # actually received against known gaps, and disclose counts
+                # separately rather than inventing or rejecting older data.
+                record_required_history(
+                    asset=asset, timestep=timestep, requested_bars=min(length, len(frame)),
+                    frame=frame, when=strategy.get_datetime(),
+                )
+            return _bars_to_records(bars)
         chunk_size = _require_positive_int("chunk_size", chunk_size)
         max_workers = _require_positive_int("max_workers", max_workers)
         chunk_size = min(chunk_size, 150)
@@ -1435,6 +1458,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
         bar_timezones: list[str] = []
         missing: list[str] = []
         interval_mismatch: list[str] = []
+        data_errors: dict[str, str] = {}
         batch_fn = getattr(strategy, "get_historical_prices_for_assets", None)
         batch_result = None
         if callable(batch_fn) and asset_type in {"stock", "us_equity", "index"}:
@@ -1459,7 +1483,11 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
                 if _bars_coarser_than_requested(keyed.get(symbol), timestep):
                     interval_mismatch.append(symbol)
                     keyed[symbol] = None
-                records = _bars_to_records(keyed.get(symbol))
+                try:
+                    records = validated_records(symbol, keyed.get(symbol))
+                except IncompleteResearchHistoryError as exc:
+                    records = []
+                    data_errors[symbol] = str(exc)
                 zone = _bars_timezone_name(keyed.get(symbol))
                 if records and zone:
                     bar_timezones.append(zone)
@@ -1488,19 +1516,33 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
                     if _bars_coarser_than_requested(bars, timestep):
                         interval_mismatch.append(symbol)
                         bars = None
-                    records = _bars_to_records(bars)
+                    records = validated_records(symbol, bars)
                     bars_by_symbol[symbol] = records
                     zone = _bars_timezone_name(bars)
                     if records and zone:
                         bar_timezones.append(zone)
                     if not records:
                         missing.append(symbol)
+                except IncompleteResearchHistoryError as exc:
+                    bars_by_symbol[symbol] = []
+                    missing.append(symbol)
+                    data_errors[symbol] = str(exc)
                 except Exception:
                     bars_by_symbol[symbol] = []
                     missing.append(symbol)
 
         available = [symbol for symbol, records in bars_by_symbol.items() if records]
-        interval_fields: dict[str, Any] = {"symbols_interval_mismatch": interval_mismatch}
+        interval_fields: dict[str, Any] = {
+            "symbols_interval_mismatch": interval_mismatch,
+            "symbols_data_errors": data_errors,
+            "symbols_incomplete": [symbol for symbol, rows in bars_by_symbol.items() if 0 < len(rows) < length],
+            "bar_counts_by_symbol": {symbol: len(rows) for symbol, rows in bars_by_symbol.items()},
+        }
+        if interval_fields["symbols_incomplete"]:
+            interval_fields["history_note"] = (
+                f"Requested {length} bars per symbol. symbols_incomplete contains fewer actual observations; "
+                "those rows remain usable research, but do not establish the complete requested history."
+            )
         if interval_mismatch:
             interval_fields["interval_note"] = (
                 f"The data source returned daily bars, not {timestep} bars, for "
@@ -1563,6 +1605,8 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
             "Cap is 150 symbols per call. Returns bars_by_symbol keyed by symbol with datetime/open/high/low/close/volume rows, "
             "For an indicator value such as an SMA, EMA or RSI, call get_indicator or get_indicators instead of computing it from these bars by hand. "
             "plus symbols_available and symbols_missing. "
+            "Short but usable history remains available with symbols_incomplete and bar_counts_by_symbol; "
+            "do not treat it as the full requested window. Known invalid interior gaps are reported in symbols_data_errors. "
             "Optional table_name loads every returned bar into one DuckDB table with columns "
             "symbol, datetime, open, high, low, close, volume and returns only a summary (row counts per symbol, "
             "first/last datetime, missing symbols) instead of the raw bars. Datetimes in that table are "
@@ -2365,6 +2409,7 @@ def _bind_orders_wait_for_terminal(strategy: Any, manager: Any) -> BoundTool:
 
 
 def _bind_load_history(strategy: Any, manager: Any) -> BoundTool:
+    @recoverable_history_request()
     def load_history_table(
         *,
         symbol: str,
@@ -2637,6 +2682,24 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
                     },
                 }.items()
                 if value is not None
+            }
+        # Preserve a source-indexed retained version whose bytes and availability
+        # were both supplied and matched. Only incomplete version evidence needs
+        # the approximation warning; later retrieval does not negate that proof.
+        if historical_as_of is not None and (expected_sha256 is None or availability is None):
+            result["historical_version"] = {
+                "original_version_verified": False,
+                "approximation_required": True,
+                "expected_bytes_matched": expected_sha256 is not None,
+                "note": (
+                    "Use supported content as a disclosed historical approximation: these bytes may include "
+                    "later edits. Missing publication/version proof alone does not make it unusable. For "
+                    "undated material, estimate public timing from its contents and context, label that "
+                    "assumption and uncertainty, and exclude content known to be after the cutoff."
+                    if expected_sha256 is None else
+                    "Bytes match the supplied expected hash. The source must separately establish when "
+                    "that version became public; a matching hash alone does not certify availability."
+                ),
             }
         document = read_document_bytes(
             content,
@@ -3497,6 +3560,7 @@ def _bind_list_indicators(strategy: Any, manager: Any) -> BoundTool:
 
 
 def _bind_get_indicator(strategy: Any, manager: Any) -> BoundTool:
+    @recoverable_history_request()
     def get_indicator(
         symbol: str,
         indicator: str,

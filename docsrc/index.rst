@@ -22,11 +22,22 @@ Why build with LumiBot?
 * **Multiple asset classes:** stocks, options, futures, forex, crypto and prediction markets through :doc:`supported brokers <brokers.all>`.
 * **The decision reaches a broker.** Inspect orders, fills and decision records. :doc:`How execution works <execution_gap>`.
 
-.. tip::
+.. _connect-your-ai-assistant:
 
-   **Build faster with BotSpot MCP.** Connect your assistant for free to get LumiBot
-   strategy-building skills, research data and tools for backtests and deployment.
-   :ref:`See what your assistant gets <connect-your-ai-assistant>`.
+Connect your AI assistant
+**************************
+
+**Build faster with BotSpot MCP.** Give your coding assistant LumiBot skills,
+research data and tools to build, backtest and deploy strategies. The assistant
+helps write and test your code; agents **inside** your strategy make its trading
+decisions while it runs.
+
+.. include:: _snippets/botspot_mcp_callout.rst
+
+Connecting is free; hosted usage depends on your plan.
+For local coding help, :doc:`install the free LumiBot trading skills <claude_code_codex_cursor>`.
+Your running strategy's agents can get research tools too:
+:ref:`give them BotSpot MCP superpowers <strategy-botspot-research>`.
 
 Three ways to build a strategy
 *******************************
@@ -87,11 +98,47 @@ team. To run that existing example directly:
 
    python -m lumibot.example_strategies.ai_researcher_trader
 
-.. image:: ../docs/assets/ai-trading/benefit-hero.png
-   :alt: LumiBot combines market data, AI reasoning and trading strategies, with Python rules, AI agents or both
+.. _strategy-botspot-research:
+
+Give your agents superpowers—for free
+-------------------------------------
+
+**Add BotSpot MCP to your LumiBot strategy.** Give its AI agents economic data,
+news and SEC documents, Marketplace strategies and Community knowledge through
+one free connection.
+
+.. image:: ../docs/assets/readme/botspot_mcp_superpowers.png
+   :alt: BotSpot MCP gives LumiBot agents Research, Marketplace and Community tools. Free to connect.
    :width: 640px
    :align: center
    :class: lumibot-entry-hero
+
+Already connected BotSpot to your coding assistant? Tell it: **“Connect this
+LumiBot project to BotSpot MCP.”** It can create the key and save the settings
+for you. :doc:`Get your agents connected <botspot_mcp>`.
+
+Or connect from the directory containing ``my_ai_strategy.py``:
+
+.. code-block:: bash
+
+   lumibot connect botspot
+   python my_ai_strategy.py
+
+Approve the BotSpot sign-in when prompted. The connection saves
+``BOTSPOT_RESEARCH_MCP_URL`` and ``BOTSPOT_RESEARCH_MCP_TOKEN`` in your project's
+``.env``. LumiBot loads them and attaches the research tools **automatically**
+when ``self.agents.create(...)`` creates an agent. Keep that file out of Git.
+
+Tell the agent what to research. For example, add this to its ``system_prompt``:
+
+.. code-block:: text
+
+   Use BotSpot research tools to find evidence relevant to this strategy.
+   Cite sources and dates, explain data gaps, and use only information
+   available at the strategy time.
+
+See :doc:`the connection guide <botspot_mcp>` for the assistant-led setup,
+manual key settings and available research tools.
 
 .. _first-python-backtest:
 
@@ -146,21 +193,6 @@ backtest or a broker run: ``Strategy.backtest(...)`` runs historical data;
 ``Trader.run_all()`` runs a strategy with a configured broker.
 ``IS_BACKTESTING=false`` alone cannot change a backtest-only runner.
 See :doc:`strategy_run_modes` and the :doc:`broker guides <brokers>` for setup.
-
-.. _connect-your-ai-assistant:
-
-Connect your AI assistant
-**************************
-
-Use a coding assistant to help write any of these strategies. This is separate
-from the AI agents that run **inside** an AI-native strategy: the assistant
-helps you build and test the code; the strategy's agents make its trading decisions.
-
-.. include:: _snippets/botspot_mcp_callout.rst
-
-For local coding help, :doc:`install the free LumiBot trading skills <claude_code_codex_cursor>`.
-To give agents inside a running strategy BotSpot's research tools, see
-:doc:`LumiBot strategy agents <botspot_mcp>` and ``lumibot connect botspot``.
 
 Explore the framework
 *********************

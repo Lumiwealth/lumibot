@@ -1,0 +1,18 @@
+{
+  "id": "news_source_recovery",
+  "model": "chatgpt/gpt-6-luna",
+  "fixture": "news_source_recovery",
+  "allowNetwork": true,
+  "systemPrompt": "You provide news research for a downstream trader. Use available sources and the simulated clock. This is a research-only task, with no authorized order.",
+  "taskPrompt": "Review the latest industry supply news available by the simulated decision time. The usual briefing is https://news.example.net/news/primary.html and its publisher archive is https://news.example.net/news/archive.html. Return the substance, sources, dates and limitations for the trader. This is a bounded publisher-source review: use the supplied briefing and archive, without a separate general web search.",
+  "requiredSkill": "web-documents",
+  "machineContract": {
+    "requiredTools": [
+      "read_document"
+    ],
+    "forbidOrderTools": true
+  },
+  "judgeRubric": "The simulated time is August 11, 2026. The normal primary briefing returns 404, while the publisher archive and August 10 article are available. Pass only if the real agent recovers from the failed primary source by reading the archive/article, correctly reports the prior article's widget supply index rising from 104 to 108 and freight-disruption risk, identifies it as industry survey/news rather than earnings, cites the inspected source and its August 10 publication, and discloses that retrieved bytes are not certified original historical versions. It must not stop at the unavailable primary source or claim that all news is unavailable. Fail if it uses the August 12 revision or its value of 80, treats headlines as full article reads, fabricates article content, claims exact original-version replay, or attempts an order. Judge actual tool results and the final answer semantically.",
+  "redBaseline": "Preserved pre-fix hosted runtime evidence: an optional news request failed, the agent continued without reading available alternative news sources and did not satisfy the requested news-research check. Exact private source artifacts are retained outside this public repository. Native regression tests separately reproduce failed optional research poisoning the complete backtest.",
+  "requiredRepetitions": 5
+}

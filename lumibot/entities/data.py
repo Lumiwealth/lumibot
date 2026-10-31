@@ -3,7 +3,6 @@ from decimal import Decimal
 from typing import Optional, Union
 
 import numpy as np
-
 import pandas as pd
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
@@ -314,6 +313,14 @@ class Data:
         if timezone is not None:
             self.df.index = self.df.index.tz_localize(timezone)
 
+        # Midnight daily indices are source-calendar labels, not intraday
+        # instants. Retain that calendar for date-range comparisons without
+        # changing the stored timestamps used by pricing and bar lookups.
+        self._day_label_timezone = None
+        if self.timestep == "day":
+            source_index = pd.to_datetime(self.df.index)
+            if (source_index == source_index.normalize()).all():
+                self._day_label_timezone = source_index.tz or DEFAULT_PYTZ
         self.df = self.set_date_format(self.df)
         self.df = self.df.sort_index()
         # PERF: many hot paths (quotes/bars) assume the underlying index is unique. Cache this once.
@@ -435,6 +442,24 @@ class Data:
             df.index = df.index.tz_convert(DEFAULT_PYTZ)
         return df
 
+    def _range_comparison_index(self, index):
+        label_timezone = getattr(self, "_day_label_timezone", None)
+        if label_timezone is None or index.tz is None:
+            return index
+        labels = index.tz_convert(label_timezone).tz_localize(None).normalize()
+        return labels.tz_localize(index.tz, ambiguous=False, nonexistent="shift_forward")
+
+    def _range_comparison_bound(self, value, index):
+        stamp = pd.Timestamp(value)
+        if getattr(self, "_day_label_timezone", None) is not None:
+            # Daily labels describe calendar dates. A caller's aware bound
+            # describes that same calendar window, rather than a UTC instant.
+            # Preserve its wall time, including half-open intraday endpoints.
+            stamp = stamp.tz_localize(None)
+        if stamp.tzinfo is None and index.tz is not None:
+            stamp = stamp.tz_localize(index.tz, ambiguous=False, nonexistent="shift_forward")
+        return stamp
+
     def set_dates(self, date_start, date_end):
         # Set the start and end dates of the data.
         for dt in [date_start, date_end]:
@@ -442,9 +467,9 @@ class Data:
                 raise TypeError(f"Start and End dates must be entries as full datetimes. {dt} " f"was entered")
 
         if not date_start:
-            date_start = self.df.index.min()
+            date_start = self._range_comparison_index(self.df.index).min()
         if not date_end:
-            date_end = self.df.index.max()
+            date_end = self._range_comparison_index(self.df.index).max()
 
         date_start = to_datetime_aware(date_start)
         date_end = to_datetime_aware(date_end)
@@ -460,7 +485,10 @@ class Data:
     def trim_data(self, df, date_start, date_end, trading_hours_start, trading_hours_end):
         # Trim the dataframe to match the desired backtesting dates.
 
-        df = df.loc[(df.index >= date_start) & (df.index <= date_end), :]
+        comparison_index = self._range_comparison_index(df.index)
+        date_start = self._range_comparison_bound(date_start, comparison_index)
+        date_end = self._range_comparison_bound(date_end, comparison_index)
+        df = df.loc[(comparison_index >= date_start) & (comparison_index <= date_end), :]
         if self.timestep in {"minute", "hour"}:
             df = df.between_time(trading_hours_start, trading_hours_end)
         if df.empty:
@@ -1354,15 +1382,7 @@ class Data:
         dict
         """
 
-        end_row = self.get_iter_count(end_date)
-        start_row = self.get_iter_count(start_date)
-
-        if start_row < 0:
-            start_row = 0
-
-        # Cast both start_row and end_row to int
-        start_row = int(start_row)
-        end_row = int(end_row)
+        start_row, end_row = self._date_range_row_bounds(start_date, end_date)
 
         dict = {}
         for dl_name, dl in self.datalines.items():
@@ -1465,15 +1485,24 @@ class Data:
             return None, start_row, end_row, normalized_timeshift
         return df, start_row, end_row, normalized_timeshift
 
+    def _date_range_row_bounds(self, start_date, end_date):
+        # Range endpoints are insertion points, not the last observation at or
+        # before an instant. Flooring the exclusive end drops the final daily
+        # bar when a benchmark ends after its last stored timestamp.
+        if getattr(self, "iter_index_dict", None) is None:
+            self.repair_times_and_fill(self.df.index)
+        index = self._range_comparison_index(self.df.index)
+
+        def bound(value, default):
+            if value is None:
+                return default
+            stamp = self._range_comparison_bound(value, index)
+            return int(index.searchsorted(stamp, side="left"))
+
+        return bound(start_date, 0), bound(end_date, len(index))
+
     def _get_frame_between_dates(self, start_date=None, end_date=None, bars_only=False):
-        end_row = self.get_iter_count(end_date)
-        start_row = self.get_iter_count(start_date)
-
-        if start_row < 0:
-            start_row = 0
-
-        start_row = int(start_row)
-        end_row = int(end_row)
+        start_row, end_row = self._date_range_row_bounds(start_date, end_date)
 
         df_source = self._get_bars_source_frame() if bars_only else self.df
         df = df_source._slice(slice(start_row, end_row))
@@ -1819,5 +1848,11 @@ class Data:
             agg["stock_splits"] = "max"
 
         unit_code = "min" if timestep == "minute" else "h" if timestep == "hour" else "D"
+        label_timezone = getattr(self, "_day_label_timezone", None)
+        if timestep == "day" and self.timestep == "day" and label_timezone is not None:
+            # Daily aggregation must use the same source-calendar labels as
+            # range selection. Flooring converted evening timestamps in the
+            # storage timezone would move each returned session back one day.
+            df = df.tz_convert(label_timezone)
         df_result = resample_ohlcv(df, f"{int(quantity)}{unit_code}", aggregation=agg, dropna="any", sort=False)
         return df_result

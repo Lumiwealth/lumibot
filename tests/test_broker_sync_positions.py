@@ -134,3 +134,143 @@ def test_sync_positions_preserves_fields_on_position_added_during_read():
     assert new_fill.quantity == 1
     assert new_fill.current_price == 210.0
     assert new_fill.strategy == _Strategy.name
+
+
+from decimal import Decimal
+from lumibot.entities import Order
+import pytest
+
+
+@pytest.mark.parametrize("filled", [Decimal("2"), Decimal("0.125")])
+def test_partial_order_hydration_uses_observed_execution_quantity(filled):
+    broker = _BrokerForSyncTest([])
+    cash = Position("strategy", Asset("USD", asset_type="forex"), 1000)
+    broker._filled_positions.append(cash)
+    order = Order("strategy", Asset("SYN", asset_type="crypto"), 10, "buy",
+                  quote=Asset("USD", asset_type="forex"), avg_fill_price=100)
+    order.status = "partially_filled"
+    order.filled_quantity = filled
+    broker._process_broker_synced_order(order)
+    assert sum(t.quantity for t in order.transactions) == filled
+    assert cash.quantity == 1000
+
+
+def test_partial_order_without_execution_quantity_does_not_invent_fill():
+    broker = _BrokerForSyncTest([])
+    order = Order("strategy", Asset("SYN"), 10, "buy", avg_fill_price=100)
+    order.status = "partially_filled"
+    broker._process_broker_synced_order(order)
+    assert order.status == "partial_fill"
+    assert order.transactions == []
+
+
+@pytest.mark.parametrize("raw", ["pending_cancel", "pending_replace", "PendingCancel"])
+def test_pending_cancellation_or_replacement_remains_active(raw):
+    order = Order("strategy", Asset("SYN"), 10, "buy")
+    order.status = raw
+    assert order.is_active()
+    assert not order.is_canceled()
+
+
+def test_partial_order_hydration_is_cumulative_and_duplicate_safe():
+    broker = _BrokerForSyncTest([])
+    cash = Position("strategy", Asset("USD", asset_type="forex"), 1000)
+    broker._filled_positions.append(cash)
+    order = Order("strategy", Asset("SYN", asset_type="crypto"), 10, "buy",
+                  quote=Asset("USD", asset_type="forex"), avg_fill_price=100)
+    for filled, average in [(2, 100), (5, 102), (5, 102), (2, 100)]:
+        order.status = "partial_fill"
+        order.filled_quantity = filled
+        order.avg_fill_price = average
+        broker._process_broker_synced_order(order)
+    assert sum(t.quantity for t in order.transactions) == 5
+    assert cash.quantity == 690
+
+@pytest.mark.parametrize('raw,canonical,active', [
+    ('filled', 'fill', False), ('partially_filled', 'partial_fill', True),
+    ('cancelled', 'canceled', False), ('canceled', 'canceled', False),
+    ('rejected', 'error', False), ('expired', 'expired', False),
+    ('pending_cancel', 'cancelling', True), ('pending_replace', 'pending_replace', True),
+    ('done_for_day', 'done_for_day', True), ('suspended', 'suspended', True),
+    ('stopped', 'stopped', True), ('replaced', 'replaced', False),
+    ('assignment', 'assigned', False), ('exercise', 'exercised', False),
+])
+def test_broker_lifecycle_normalization_preserves_execution_state(raw, canonical, active):
+    order = Order('strategy', Asset('SYN'), 10, 'buy')
+    order.status = raw
+    assert order.status == canonical
+    assert order.is_active() == active
+
+@pytest.mark.parametrize('terminal', ['canceled', 'replaced', 'expired', 'error'])
+def test_terminal_hydration_retains_executions_without_replaying_cash(terminal):
+    broker = _BrokerForSyncTest([])
+    cash = Position('strategy', Asset('USD', asset_type='forex'), 1000)
+    broker._filled_positions.append(cash)
+    order = Order('strategy', Asset('SYN', asset_type='crypto'), 10, 'buy',
+                  quote=Asset('USD', asset_type='forex'), avg_fill_price=100)
+    order.status = terminal
+    order.filled_quantity = Decimal('2')
+    broker._process_broker_synced_order(order)
+    assert order.status == terminal
+    assert sum(t.quantity for t in order.transactions) == 2
+    assert cash.quantity == 1000
+    broker._process_broker_synced_order(order)
+    assert sum(t.quantity for t in order.transactions) == 2
+    assert cash.quantity == 1000
+
+
+def test_reparsed_duplicate_observations_share_one_execution_ledger():
+    broker = _BrokerForSyncTest([])
+    cash = Position('strategy', Asset('USD', asset_type='forex'), 1000)
+    broker._filled_positions.append(cash)
+    for quantity in (2, 5, 5, 2):
+        order = Order('strategy', Asset('SYN', asset_type='crypto'), 10, 'buy',
+                      identifier='synthetic-same-order', quote=Asset('USD', asset_type='forex'), avg_fill_price=100)
+        order.status = 'partial_fill'
+        order.filled_quantity = quantity
+        broker._process_broker_synced_order(order)
+    tracked = broker.get_tracked_order('synthetic-same-order')
+    assert sum(t.quantity for t in tracked.transactions) == 5
+    assert cash.quantity == 700
+
+@pytest.mark.parametrize('status', ['unknown', 'cash_settled', 'assigned', 'exercised'])
+def test_non_working_snapshots_remain_visible_without_synthetic_executions(status):
+    broker = _BrokerForSyncTest([])
+    order = Order('strategy', Asset('SYN'), 10, 'buy', identifier=f'synthetic-{status}')
+    order.status = status
+    broker._process_broker_synced_order(order)
+    assert order.status == status
+    assert order in broker.get_all_orders()
+    assert order.transactions == []
+
+
+def test_a_late_cancel_snapshot_does_not_erase_a_completed_execution():
+    broker = _BrokerForSyncTest([])
+    order = Order('strategy', Asset('SYN'), 10, 'buy', identifier='synthetic-race', avg_fill_price=100)
+    order.status = 'fill'
+    order.filled_quantity = 10
+    broker._process_broker_synced_order(order)
+    late = Order('strategy', Asset('SYN'), 10, 'buy', identifier=order.identifier, avg_fill_price=100)
+    late.status = 'canceled'
+    late.filled_quantity = 2
+    broker._process_broker_synced_order(late)
+    assert order.status == 'fill'
+    assert sum(t.quantity for t in order.transactions) == 10
+
+
+def test_historical_crypto_execution_does_not_recharge_reported_cash_or_replace_net_holdings():
+    cash = Position('strategy', Asset('USD', asset_type='forex'), 9800)
+    coin = Position('strategy', Asset('SYN', asset_type='crypto'), Decimal('1.997'))
+    broker = _BrokerForSyncTest([cash, coin])
+    broker.sync_positions(_Strategy())
+    order = Order('strategy', coin.asset, 10, 'buy', identifier='historical-fee-fill',
+                  quote=cash.asset, avg_fill_price=100)
+    order.status = 'partial_fill'
+    order.filled_quantity = 2  # Gross execution; the broker position is net of its base-unit fee.
+    broker._process_broker_synced_order(order)
+    assert sum(transaction.quantity for transaction in order.transactions) == 2
+    assert cash.quantity == 9800
+    assert Decimal(str(coin.quantity)) == Decimal('1.997')
+    broker._process_broker_synced_order(order)
+    assert cash.quantity == 9800
+    assert Decimal(str(coin.quantity)) == Decimal('1.997')

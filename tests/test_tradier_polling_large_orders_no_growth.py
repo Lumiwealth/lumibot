@@ -4,6 +4,7 @@ from datetime import datetime
 from types import SimpleNamespace
 
 import pandas as pd
+import pytest
 
 from lumibot.brokers.tradier import Tradier
 from lumibot.entities import Asset, Order
@@ -85,3 +86,41 @@ def test_tradier_polling_large_orders_does_not_accumulate_orders_or_events(monke
     # Trade-event history in live is bounded; should not grow here anyway since no dispatch.
     assert len(broker._trade_event_log_rows) == 0
 
+
+
+@pytest.mark.parametrize('final_status,final_quantity', [('canceled', 5), ('expired', 5), ('replaced', 5), ('filled', 10)])
+def test_tradier_partial_polls_and_cancellation_retain_actual_executions(final_status, final_quantity):
+    broker = Tradier(access_token="fake", account_number="fake", paper=True,
+                     connect_stream=False, data_source=_MockDataSource())
+    broker.sync_positions = lambda *_: None
+    broker._safe_stream_dispatch = lambda event, order, **kw: broker._process_trade_event(order, event, **kw)
+    stored = Order('synthetic', Asset('SYN'), 10, 'buy', identifier=123)
+    broker._new_orders.append(stored)
+    broker._first_iteration = False
+    for cumulative, status in [(2, 'partially_filled'), (5, 'partially_filled'), (5, 'partially_filled'), (final_quantity, final_status)]:
+        row = {'id': 123, 'type': 'market', 'side': 'buy', 'symbol': 'SYN', 'class': 'equity',
+               'quantity': 10, 'status': status, 'duration': 'day', 'exec_quantity': cumulative,
+               'avg_fill_price': 100, 'create_date': '2027-01-04T15:00:00Z'}
+        broker.tradier = SimpleNamespace(orders=SimpleNamespace(get_orders=lambda: pd.DataFrame([row])))
+        broker.do_polling()
+        assert sum(float(tx.quantity) for tx in stored.transactions) == cumulative
+    assert stored.status == ('fill' if final_status == 'filled' else final_status)
+
+
+def test_missing_tradier_list_entry_requires_an_exact_lookup_before_canceling():
+    broker = Tradier(access_token="fake", account_number="fake", paper=True,
+                     connect_stream=False, data_source=_MockDataSource())
+    broker.sync_positions = lambda *_: None
+    stored = Order('synthetic', Asset('SYN'), 10, 'buy', identifier=123)
+    broker._new_orders.append(stored)
+    broker._first_iteration = False
+    broker.tradier = SimpleNamespace(orders=SimpleNamespace(get_orders=lambda: pd.DataFrame()))
+    lookups = []
+    def lookup(identifier):
+        lookups.append(identifier)
+        return None
+    broker._pull_broker_order = lookup
+    broker.do_polling()
+    assert lookups == [123]
+    assert stored.is_active()
+    assert not stored.is_canceled()

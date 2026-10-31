@@ -354,3 +354,11 @@ it does not erase its executions or imply that its replacement filled. Assignmen
 and exercise aliases normalize before validation to assigned and exercised.
 Native status tests qualify this shared mapping; they do not establish that every
 broker's transport or every CCXT exchange has passed live integration testing.
+
+IBKR REST and Tradier polling also reconcile cumulative executions when the
+status string has not changed. Tradier retains its historical closed-order
+memory bound and performs an exact lookup before inferring anything from a
+broad-list miss. IBKR REST preserves the provider side and cumulative quantity;
+a combo average is not assigned as a per-leg fill price. Native tests cover
+partial, duplicate, full, canceled, expired, replaced and rejected observations.
+ProjectX, Tradovate and CCXT retain expiration as distinct from cancellation.

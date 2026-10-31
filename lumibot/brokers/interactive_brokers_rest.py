@@ -265,16 +265,18 @@ class InteractiveBrokersREST(Broker):
         order.set_identifier(response["orderId"])
         # Map IB order status to Lumibot status
         order.status = response["status"].lower()
+        order.broker_status = response["status"]
+        if response.get("filledQuantity") is not None:
+            order.filled_quantity = Decimal(str(response["filledQuantity"]))
 
         order.update_raw(response)
         return order
 
     def _parse_order_object(self, strategy_name, response, quantity, conId, parent_identifier=None, child_order_number=None):
+        side = str(response.get("side") or "BUY").upper()
         if quantity < 0:
-            side = "SELL"
+            side = "BUY" if side == "SELL" else "SELL"
             quantity = -quantity
-        else:
-            side = "BUY"
 
         symbol = response["ticker"]
         currency = response["cashCcy"]
@@ -350,6 +352,7 @@ class InteractiveBrokersREST(Broker):
 
         if parent_identifier is not None:
             order.parent_identifier=parent_identifier
+            order.avg_fill_price = None
 
         if child_order_number:
             order.identifier = f'{parent_identifier}-{child_order_number}'
@@ -1214,58 +1217,37 @@ class InteractiveBrokersREST(Broker):
             # Process child orders first so they are tracked in the Lumi system
             all_orders = [child for child in order.child_orders] + [order]
 
-            # Process all parent and child orders
-            for order in all_orders:
-                # First time seeing this order
-                if order.identifier not in stored_orders:
-                    if self._first_iteration:
-                        # Process existing orders on first poll
-                        if order.status == Order.OrderStatus.FILLED:
-                            self._process_new_order(order)
-                            self._process_filled_order(order, order.avg_fill_price, order.quantity)
-                        elif order.status == Order.OrderStatus.CANCELED:
-                            self._process_new_order(order)
-                            self._process_canceled_order(order)
-                        elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
-                            self._process_new_order(order)
-                            self._process_partially_filled_order(order, order.avg_fill_price, order.quantity)
-                        elif order.status == Order.OrderStatus.NEW:
-                            self._process_new_order(order)
-                        elif order.status == Order.OrderStatus.ERROR:
-                            self._process_new_order(order)
-                            self._process_error_order(order, order.error_message)
-                    else:
-                        # Add to orders in lumibot
-                        self._process_new_order(order)
+            # Provider quantities are cumulative, including repeated partial states.
+            for observed in all_orders:
+                tracked = stored_orders.get(observed.identifier)
+                if tracked is None:
+                    self._process_broker_synced_order(observed)
+                    stored_orders[observed.identifier] = observed
+                    continue
+                tracked.quantity = observed.quantity
+                tracked.child_orders = [stored_orders.get(child.identifier, child) for child in observed.child_orders]
+                tracked.broker_status = getattr(observed, "broker_status", observed.status)
+                cumulative = getattr(observed, "filled_quantity", None)
+                if cumulative is None and observed.status == Order.OrderStatus.FILLED:
+                    cumulative = observed.quantity
+                if cumulative is not None and observed.avg_fill_price is not None:
+                    self._reconcile_cumulative_execution(
+                        tracked, cumulative, observed.avg_fill_price,
+                        terminal=Decimal(str(cumulative)) == Decimal(str(observed.quantity)), raw=observed._raw,
+                    )
+                # Late terminal observations cannot erase a completed execution.
+                if tracked.is_filled():
+                    continue
+                if observed.equivalent_status(tracked):
+                    tracked.status = observed.status
+                    continue
+                if observed.status in (Order.OrderStatus.CANCELED, Order.OrderStatus.EXPIRED, Order.OrderStatus.REPLACED):
+                    self._process_trade_event(tracked, self.CANCELED_ORDER)
+                    tracked.status = observed.status
+                elif observed.status == Order.OrderStatus.ERROR:
+                    self._process_trade_event(tracked, self.ERROR_ORDER, error=observed.error_message)
                 else:
-                    # Update existing order
-                    stored_order = stored_orders[order.identifier]
-                    stored_order.quantity = order.quantity
-                    stored_children = [stored_orders[o.identifier] if o.identifier in stored_orders else o
-                                    for o in order.child_orders]
-
-                    if stored_children:
-                        stored_order.child_orders = stored_children
-
-                    # Handle status changes
-                    if not order.equivalent_status(stored_order):
-                        match order.status.lower():
-                            case "submitted" | "open":
-                                self._safe_stream_dispatch(self.NEW_ORDER, order=stored_order)
-                            case "fill":
-                                self._safe_stream_dispatch(
-                                    self.FILLED_ORDER,
-                                    order=stored_order,
-                                    price=order.avg_fill_price,
-                                    filled_quantity=order.quantity
-                                )
-                            case "canceled":
-                                self._safe_stream_dispatch(self.CANCELED_ORDER, order=stored_order)
-                            case "error":
-                                msg = f"IB encountered an error with order {order.identifier}"
-                                self._safe_stream_dispatch(self.ERROR_ORDER, order=stored_order, error_msg=msg)
-                    else:
-                        stored_order.status = order.status
+                    self._process_broker_synced_order(observed)
 
         # Check for disappeared orders
         tracked_orders = {x.identifier: x for x in self.get_tracked_orders()}

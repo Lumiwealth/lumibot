@@ -1256,9 +1256,9 @@ class Broker(ABC):
                     raise ValueError("Broker cumulative fill price is invalid")
                 self._process_new_order(order)
                 if observed_status == Order.OrderStatus.FILLED:
-                    self._process_filled_order(order, price, delta)
+                    self._process_filled_order(order, float(price), float(delta))
                     return
-                self._process_partially_filled_order(order, price, delta)
+                self._process_partially_filled_order(order, float(price), float(delta))
             if observed_status == Order.OrderStatus.FILLED:
                 # All executions were already recorded, or prices are unknown.
                 # Track the terminal state without inventing another fill.

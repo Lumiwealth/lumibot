@@ -1567,7 +1567,7 @@ class Tradier(Broker):
         for key in ("symbol", "option_symbol", "side", "type", "quantity", "duration", "price", "stop_price"):
             if key in entry_leg and not cls._is_missing_broker_value(entry_leg.get(key)):
                 parent_response[key] = entry_leg.get(key)
-        for key in ("status", "create_date", "transaction_date", "avg_fill_price"):
+        for key in ("status", "create_date", "transaction_date", "avg_fill_price", "exec_quantity", "remaining_quantity"):
             if cls._is_missing_broker_value(parent_response.get(key)) and key in entry_leg:
                 parent_response[key] = entry_leg.get(key)
         return parent_response
@@ -1667,6 +1667,13 @@ class Tradier(Broker):
         # Example Tradier Date Value: '2024-10-04T15:46:14.946Z'
         order.broker_create_date = response["create_date"] if "create_date" in response else None
         order.broker_update_date = response["transaction_date"] if "transaction_date" in response else None
+        order.broker_status = response["status"]
+        executed = self._extract_order_value(response, value_order, "exec_quantity")
+        if not self._is_missing_broker_value(executed):
+            order.filled_quantity = executed
+        remaining = self._extract_order_value(response, value_order, "remaining_quantity")
+        if not self._is_missing_broker_value(remaining):
+            order.remaining_quantity = remaining
         order.update_raw(response)  # This marks order as 'transmitted'
         return order
 
@@ -2106,23 +2113,13 @@ class Tradier(Broker):
             # Process child orders first so they are tracked in the Lumi system before the parent order
             all_orders = [child for child in order.child_orders] + [order]
 
-            # Process all parent and child orders
+            # Keep the historical closed-order memory bound; hydrate active partials.
             for order in all_orders:
-                # First time seeing this order, something weird has happened
                 if order.identifier not in stored_orders:
-                    # If it is the brokers first iteration then fully process the order because it is likely
-                    # that the order was filled/canceled/etc before the strategy started.
-                    if self._first_iteration:
-                        # IMPORTANT: Avoid ingesting large historical order lists on startup.
-                        # Tradier can return many closed orders; tracking them all in-memory can OOM long-running
-                        # workers. On the first poll, we only need to reconcile currently-active orders.
-                        if order.is_active() or order.status in {Order.OrderStatus.NEW}:
-                            self._process_new_order(order)
-                        else:
-                            continue
-                    else:
-                        # Add to order in lumibot.
-                        self._process_new_order(order)
+                    if self._first_iteration and not order.is_active() and order.status != Order.OrderStatus.NEW:
+                        continue
+                    self._process_broker_synced_order(order)
+                    stored_orders[order.identifier] = order
                 else:
                     # Always Update Quantity and Children. Children can change as they are assigned an identifier
                     # for the first time.
@@ -2161,19 +2158,26 @@ class Tradier(Broker):
                                        for o in order.child_orders]
                     stored_order.child_orders = stored_children
 
-                    # Status has changed since last time we saw it, dispatch the new status.
-                    #  - Polling methods are unable to track partial fills
-                    #     - Partial fills often happen quickly and it is highly likely that polling will miss some of them
-                    #     - Additionally, Lumi Order objects don't have a way to track quantity status changes and
-                    #        adjusting the average sell price can be tricky
-                    #     - Only dispatch filled orders if they are completely filled.
+                    stored_order.broker_status = getattr(order, "broker_status", order.status)
+                    cumulative = getattr(order, "filled_quantity", None)
+                    if cumulative is None and order.status == Order.OrderStatus.FILLED:
+                        cumulative = order.quantity
+                    if order.order_class != Order.OrderClass.OCO and cumulative is not None and order.avg_fill_price is not None:
+                        reconciled = self._reconcile_cumulative_execution(
+                            stored_order, cumulative, order.avg_fill_price,
+                            terminal=order.status == Order.OrderStatus.FILLED, raw=order._raw,
+                        )
+                        if reconciled and stored_order.is_filled():
+                            continue
+                    if stored_order.is_filled():
+                        continue
+                    # Status changes cannot substitute for cumulative execution progress.
                     if not order.equivalent_status(stored_order):
                         match order.status.lower():
                             case "submitted" | "open":
                                 self._safe_stream_dispatch(self.NEW_ORDER, order=stored_order)
-                            case "partial_filled":
-                                # Not handled for polling, only dispatch completely filled orders
-                                pass
+                            case "partial_fill":
+                                stored_order.status = order.status
                             case "fill":
                                 # Check if the order has an avg_fill_price, if not use the order_row price
                                 if order.avg_fill_price is None:
@@ -2212,33 +2216,29 @@ class Tradier(Broker):
                                 default_msg = f"{self.name} encountered an error with order {order.identifier} | {order}"
                                 msg = order_row["reason_description"] if "reason_description" in order_row else default_msg
                                 self._safe_stream_dispatch(self.ERROR_ORDER, order=stored_order, error_msg=msg)
-                            case "cash_settled":
-                                # Don't know how to detect this case in Tradier.
-                                # Reference: https://documentation.tradier.com/brokerage-api/reference/response/orders
-                                # Theory:
-                                #  - Tradier will auto settle and create a new fill order for cash settled orders. Needs
-                                #    testing to confirm.
-                                pass
+                            case _:
+                                self._process_broker_synced_order(order)
                     else:
                         # Status hasn't changed, but make sure we use the broker's status.
                         # I.e. 'submitted' becomes 'open'
                         stored_order.status = order.status
 
-        # See if there are any tracked (aka active) orders that are no longer in the broker's list,
-        # dispatch them as cancelled
+        # A broad-list miss is not proof of cancellation; resolve the exact order.
         tracked_orders = {x.identifier: x for x in self.get_tracked_orders()}
         broker_ids = self._get_broker_id_from_raw_orders(raw_orders)
         for order_id, order in tracked_orders.items():
             if order_id not in broker_ids:
                 logger.debug(
                     f"Poll Update: {self.name} no longer has order {order}, but Lumibot does. "
-                    f"Dispatching as cancelled."
+                    f"Checking its exact broker status."
                 )
                 # Only dispatch orders that have not been filled or cancelled. Likely the broker has simply
                 # stopped tracking them. This is particularly true with Paper Trading where orders are not tracked
                 # overnight.
                 if order.is_active():
-                    self._safe_stream_dispatch(self.CANCELED_ORDER, order=order)
+                    self._refresh_missing_active_order_from_broker(
+                        order, order.strategy or strategy_name, broker_order_count=len(raw_orders), logger_obj=logger,
+                    )
 
         if self._first_iteration:
             self._first_iteration = False

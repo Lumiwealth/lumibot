@@ -143,5 +143,15 @@
       "failed": 0
     },
     "no_verdict_relabeling": true
+  },
+  "system_level_numeric_reporting_failure": {
+    "source_runtime_fingerprint": "61ea6eff693af13ecff407ad70907f6d9ef568052239fa4e59e6da4b9a8ca047",
+    "run_id": "a32e9f1b-6193-4ad8-b1ab-716aad9ce4a3",
+    "repetition": 1,
+    "machine_pass": true,
+    "judge_pass": false,
+    "loaded_latest_skill": true,
+    "mechanism": "Exact same false ten-dollar comparison persisted with latest skill present. Move tool-calculated final arithmetic requirement into existing manager system prompt, preserving observed values, fills, quantities and broker behavior.",
+    "original_verdict_retained": true
   }
 }

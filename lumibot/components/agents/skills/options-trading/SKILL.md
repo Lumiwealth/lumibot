@@ -223,6 +223,16 @@ fills, remaining exposure and costs; refresh the exact executable quote when it
 fires. Keep a reachable management review. A saved watch with `active=false`
 awaits its condition; it is not disabled.
 
+For a held position, persist an exact-asset quantity-change condition against
+the currently observed signed quantity, normally `position_quantity ne quantity`.
+This covers assignment, exercise, expiry and partial or complete closing; price
+and dated reviews do not replace it. For related working orders, also retain
+terminal-status attention so a fill, cancellation, expiry or rejection wakes
+reconciliation. Before ending a monitoring decision, call `attention_list` again
+and reconcile its actual saved definitions against the required profit, quantity,
+time and any working-order obligations. Repair missing coverage before reporting
+the plan complete; prose promises do not persist a condition.
+
 When attention tools are available, verify each condition's units, sign and
 comparison against the exposure you actually hold. `basket_value` is the signed
 marked value of its supplied quantities times multipliers, not profit/loss or

@@ -40,6 +40,9 @@ the favorable mark threshold from verified entry fills, remaining quantity,
 multiplier and costs; the trigger only requests a decision with a fresh exact
 quote. Keep a reachable dated management review too. A persisted watch whose
 `active` flag is false is waiting for its condition, not disabled.
+Preserve exact-asset quantity-change attention and terminal-status coverage for
+related working orders. Read back the saved definitions before ending the review;
+assignment or a partial close can invalidate an unchanged price-based plan.
 
 ## Cash collateral and stock delivery
 

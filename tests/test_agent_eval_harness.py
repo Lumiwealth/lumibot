@@ -657,13 +657,32 @@ def test_release_runner_rejects_paid_models_despite_credentials(monkeypatch, mod
 
 
 def test_eval_defaults_use_subscription_for_both_roles_with_qualified_role_reasoning():
-    # Both roles started at Low. Recorded Medium actor failures justify High;
-    # High missed critical unsafe controls; XHigh must earn fresh calibration.
+    # Profiles are explicit; the separate labeled controls must qualify them.
     assert evals.DEFAULT_ACTING_MODEL == "chatgpt/gpt-6-luna"
     assert evals.DEFAULT_JUDGE_MODEL == "chatgpt/gpt-6-luna"
     assert evals.EVAL_REASONING_EFFORT == "high"
-    assert evals.JUDGE_REASONING_EFFORT == "xhigh"
+    assert evals.JUDGE_REASONING_EFFORT == "high"
     assert evals.estimate_cost(evals.DEFAULT_ACTING_MODEL, {"input_tokens": 10})["estimated_usd"] == 0
+
+
+def test_pilot_selects_only_one_pending_slot_without_lowering_five_pass_requirement():
+    first, second = {"id": "first", "requiredRepetitions": 5}, {"id": "second", "requiredRepetitions": 5}
+    pending = [(first, 2, "source"), (first, 3, "source"), (second, 1, "source")]
+    assert evals._one_pending_repetition_per_case(pending) == [pending[0], pending[2]]
+    assert evals.case_required_passes(first) == 5
+    assert evals.target_passes(1, 1, required=5) == 5
+    assert evals.build_parser().parse_args(["--pilot"]).pilot is True
+
+
+@pytest.mark.parametrize("price_tool", ["market_quote", "market_quotes", "market_last_price", "market_last_prices"])
+def test_current_price_alternatives_still_must_precede_the_order(price_tool):
+    case = {"id": "price-contract", "machineContract": {"orderTool": "orders_submit_order",
+            "exactOrderCount": 1, "requiredBeforeOrderAny": [["market_quote", "market_quotes", "market_last_price", "market_last_prices"]]}}
+    transcript = {"fixture_calls": [{"name": price_tool}, {"name": "orders_submit_order"}],
+                  "submissions": [{"tool": "orders_submit_order"}], "final_positions": [], "tool_calls": []}
+    assert evals.score_machine_contract(case, transcript)["pass"] is True
+    transcript["fixture_calls"].reverse()
+    assert evals.score_machine_contract(case, transcript)["pass"] is False
 
 
 @pytest.fixture(autouse=True)
@@ -705,7 +724,7 @@ def test_acting_and_judge_requests_use_their_explicit_reasoning_levels(monkeypat
     case = evals.load_cases({"stock_price_before_order"})[0]
     evals.run_judge(case, {"tool_calls": []}, evals.DEFAULT_JUDGE_MODEL, None)
     assert seen[0].model == "chatgpt/gpt-6-luna"
-    assert seen[0].reasoning_effort == "xhigh"
+    assert seen[0].reasoning_effort == "high"
 
 
 def test_judge_contract_projection_uses_actual_builtins_without_private_connection_fields():
@@ -936,7 +955,14 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         "958e69e5d115cc3e6dc1d03200965792b09afe74": "7925c2aaffe49387acc21c18e3c1191f72610ab2f941634da682e83d86d14c22",
     }
     assert set(selected) == set(sources)
-    assert len(controls) == 26  # Preserve prior controls plus news/macro and undated grading controls.
+    # The wrapped-table source fixture adds one observed positive and one missing-bound negative control.
+    assert len(controls) == 28
+    assert {
+        row["id"]: row["expected"] for row in controls if row["case_id"] == "web_documents_wrapped_table_ranges"
+    } == {
+        "wrapped-table-ranges-observed-complete": True,
+        "wrapped-table-ranges-counterfactual-missing-upper": False,
+    }
     case = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_source_cases" /
                        "web_documents_holdings_from_yearly_and_trade_reports.json").read_text())
     for identifier, (expected, run_id, repetition) in sources.items():
@@ -4188,3 +4214,36 @@ def test_main_resumes_only_judging_from_a_durable_actor_checkpoint(monkeypatch, 
                                            "--qualification-receipt", str(tmp_path/'receipt.json')])
     assert evals.main() == 0
     assert len(resumed) == 1
+
+
+def test_managed_research_refusal_exposes_the_runtime_applied_cutoff():
+    """The actor's omitted input is distinct from the actual bounded MCP request."""
+    from lumibot.components.agents.runtime import _wrap_tool_callable
+    from scripts.agent_eval_production_fixture import ProductionFixture
+    production = ProductionFixture(evals.build_fixture("research_available"))
+    try:
+        case = next(c for c in evals.load_cases() if c["id"] == "research_macro_point_in_time")
+        agent = production.create_agent(case, runtime=object())
+        tool = next(t for t in agent._ensure_bound_tools() if t.name == "query_data")
+        result = _wrap_tool_callable(tool, {})(datasetId="bls.public_series", timeRange={"years": 1})
+        assert result["tool_error"] is True
+        assert result["error"]["code"] == "unsupported_capability"
+        assert "asOf" not in result["arguments"]
+        assert result["applied_arguments"]["asOf"] == "2026-08-11T14:35:00Z"
+        assert "details" not in result and "structuredContent" not in result
+    finally:
+        production.close()
+
+
+@pytest.mark.parametrize("history", ["market_historical_prices", "market_load_history_table"])
+@pytest.mark.parametrize("current", ["market_quote", "market_quotes", "market_last_price", "market_last_prices"])
+def test_snapshot_machine_contract_accepts_native_row_selection_without_sql(history, current):
+    case = evals.load_cases({"stock_snapshot_price_from_dated_row"})[0]
+    transcript = {
+        "fixture_calls": [{"name": history, "arguments": {}}, {"name": current, "arguments": {}}],
+        "tool_calls": [{"name": "load_skill", "payload": {"skill_name": "stock-trading"}}],
+        "submissions": [],
+    }
+    assert evals.score_machine_contract(case, transcript)["pass"]
+    transcript["submissions"].append({"tool": "orders_submit_order"})
+    assert not evals.score_machine_contract(case, transcript)["pass"]

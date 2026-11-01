@@ -50,6 +50,13 @@ class _EvalStrategy(Strategy):
 class _FixtureBroker(BacktestingBroker):
     """Recorded Greeks are a broker response; execution uses the real broker."""
 
+    def process_pending_orders(self, strategy):
+        result = super().process_pending_orders(strategy)
+        # These fixtures run synchronously without the Trader executor thread.
+        # Drain its real callbacks so subsequent tools see actual fill cash.
+        strategy._executor.process_queue(skip_first_iteration_events=False)
+        return result
+
     def _get_balances_at_broker(self, quote_asset, strategy):
         """Live-read parity from this strategy's current recorded ledger only.
 
@@ -142,12 +149,24 @@ def _history(asset, fixture, quote_asset=None):
     elif asset.symbol == "BTC":
         price = 10.0
         market_quote = {"bid": 9.95, "ask": 10.05}
+    elif asset.symbol in fixture.stock_markets:
+        market = fixture.stock_markets[asset.symbol]
+        price = market["price"]
+        market_quote = {"bid": market["bid"], "ask": market["ask"]}
     else:
         price = 230.0 if asset.symbol == "AAPL" else fixture.underlying_price
         market_quote = {"bid": price - 0.05, "ask": price + 0.05}
     frame = pd.DataFrame(
         {"open": price, "high": price + 0.05, "low": price - 0.05, "close": price, "volume": 1000, **market_quote}, index=index
     )
+    if asset.symbol in fixture.stock_markets:
+        # Earlier highs deliberately differ from both the snapshot-date close
+        # and the current quote. These are native Data bars, not tool replies.
+        earlier = frame.index < pd.Timestamp("2026-08-10T04:00:00Z")
+        snapshot = (frame.index >= pd.Timestamp("2026-08-10T04:00:00Z")) & (frame.index < pd.Timestamp("2026-08-11T04:00:00Z"))
+        frame.loc[earlier, ["open", "high", "low", "close"]] = [200.0, 201.0, 199.0, 200.0]
+        snapshot_close = fixture.stock_markets[asset.symbol].get("snapshot_close", 100.0)
+        frame.loc[snapshot, ["open", "high", "low", "close"]] = [snapshot_close, snapshot_close + 1, snapshot_close - 1, snapshot_close]
     if asset.symbol == "AAPL" and asset.asset_type == "stock":
         # Earlier sessions step up one dollar a day to 229.00 on August 10, so
         # the premise of stock_price_before_order ("current price and recent
@@ -232,7 +251,7 @@ def _order_call_outcomes(result):
             unmatched.setdefault(event.tool_name, []).append(event)
     outcomes = {}
     for position, call in enumerate(calls):
-        if call.tool_name not in {"orders_submit_order", "orders_submit_multileg"}:
+        if call.tool_name not in {"orders_submit_order", "orders_submit_orders", "orders_submit_multileg"}:
             continue
         outcome = by_id.get(call.call_id) if getattr(call, "call_id", None) else None
         if outcome is None and unmatched.get(call.tool_name):
@@ -686,6 +705,54 @@ def _undated_client(*, request_log=None, pages=None):
     return client
 
 
+_WRAPPED_RANGES = (
+    ("QZX01", 250001, 500000), ("QZX02", 1000001, 5000000),
+    ("QZX03", 500001, 1000000), ("QZX04", 15001, 50000),
+    ("QZX05", 5000001, 25000000), ("QZX06", 100001, 250000),
+    ("QZX07", 1001, 15000), ("QZX08", 25000001, 50000000),
+    ("QZX09", 50001, 100000), ("QZX10", 1000001, 5000000),
+    ("QZX11", 250001, 500000), ("QZX12", 500001, 1000000),
+    ("QZX13", 100001, 250000),
+)
+
+
+def _wrapped_ranges_text():
+    # This reproduces the observed extracted-table shape: an instrument and
+    # lower bound on a matching line, its upper bound on the continuation, and
+    # a different income field. No real person's report or holdings are copied.
+    lines = ["Operating investment portfolio, reporting date March 31, 2026.",
+             "Published June 1, 2026. All monetary values are USD.",
+             "Asset / owner / asset value / income type / income amount"]
+    for number, (symbol, lower, upper) in enumerate(_WRAPPED_RANGES, 1):
+        income = ("None; income amount: None" if number % 2 else
+                  "Dividends; income amount: $15,001 - $50,000")
+        lines += [f"Industrial Equipment and Distribution Group {number:02d}",
+                  f"Ordinary common shares ({symbol}) [EQ] Owner A ${lower:,} -",
+                  f"${upper:,}",
+                  f"Income type: {income}. This income field is separate from asset value.",
+                  "Instrument classification: listed common equity; reporting currency: US dollars."]
+    lines += ["Dormant Equipment Group (QZXZERO) [EQ] Owner A asset value None; income None.",
+              "Cash reserve [CASH] Owner A asset value $50,001 - $100,000; income $1 - $200."]
+    return "\n".join(lines)
+
+
+def _wrapped_ranges_client():
+    import httpx
+    from lumibot.components.agents.web_tools import WebClient
+
+    requests = []
+
+    def handler(request):
+        requests.append({"method": request.method, "url": str(request.url)})
+        if request.url.path == "/reports/portfolio.txt":
+            return httpx.Response(200, text=_wrapped_ranges_text(), headers={"content-type": "text/plain"})
+        return httpx.Response(404, text="Not found")
+
+    client = WebClient(transport=httpx.MockTransport(handler), resolver=lambda host: ["93.184.216.34"])
+    client.web_requests = requests
+    return client
+
+
 def _recorded_fred(strategy, cache_dir):
     """Real FRED client and point-in-time filtering, fed recorded VIX closes instead of the network.
 
@@ -717,6 +784,7 @@ class ProductionFixture:
         self.root = Path(self.directory.name)
         self.closed = False
         assets = [Asset("AAPL"), Asset("SPY")]
+        assets.extend(Asset(symbol) for symbol, market in fixture.stock_markets.items() if market is not None)
         for right, strikes in (("put", (592, 594, 596, 598)), ("call", (602, 604, 606, 608))):
             assets.extend(
                 Asset(
@@ -753,7 +821,7 @@ class ProductionFixture:
         self.broker._first_iteration = False
         self.strategy = _EvalStrategy(
             broker=self.broker,
-            budget=100_000.0,
+            budget=fixture.initial_cash,
             name=f"eval_{uuid.uuid4().hex}",
             risk_free_rate=0.04,
             analyze_backtest=False,
@@ -808,6 +876,9 @@ class ProductionFixture:
             self.fixture.web_requests = self.strategy._agent_web_client.web_requests
         if fixture.name == "web_documents_approximate_portfolio":
             self.strategy._agent_web_client = _undated_client(pages=_APPROXIMATE_PORTFOLIO_PAGES)
+            self.fixture.web_requests = self.strategy._agent_web_client.web_requests
+        if fixture.name == "web_documents_wrapped_ranges":
+            self.strategy._agent_web_client = _wrapped_ranges_client()
             self.fixture.web_requests = self.strategy._agent_web_client.web_requests
         if fixture.name == "vix_from_fred":
             self.strategy.macro = _recorded_fred(self.strategy, self.root / "fred")
@@ -915,6 +986,11 @@ class ProductionFixture:
         self._capture_memory_events()
         self.orders_before_settlement = [_capture_broker_order(order) for order in self.strategy.get_orders()]
         self.settle()
+        self.fixture.final_account = {
+            "cash": float(self.strategy.get_cash()),
+            "portfolio_value": float(self.strategy.get_portfolio_value()),
+        }
+        self.fixture.broker_trade_events = json.loads(self.broker._trade_event_log_df.to_json(orient="records", date_format="iso"))
         self.fixture.calls = [{"name": event.tool_name, "arguments": event.payload} for event in result.tool_calls]
         self.fixture.positions = [
             _position_to_dict(p) for p in self.strategy.get_positions() if p.asset.symbol != "USD"
@@ -924,9 +1000,18 @@ class ProductionFixture:
         outcomes = _order_call_outcomes(result)
         rejected = _rejected_order_calls(result)
         for position, event in enumerate(result.tool_calls):
-            if event.tool_name not in {"orders_submit_order", "orders_submit_multileg"}:
+            if event.tool_name not in {"orders_submit_order", "orders_submit_orders", "orders_submit_multileg"}:
                 continue
             args = event.payload or {}
+            if event.tool_name == "orders_submit_orders":
+                try:
+                    specifications = json.loads(args.get("orders_json", "[]"))
+                except (TypeError, json.JSONDecodeError):
+                    specifications = []
+                target = self.fixture.rejected_submissions if position in rejected else self.fixture.submissions
+                if isinstance(specifications, list):
+                    target.extend({"tool": event.tool_name, **row} for row in specifications if isinstance(row, dict))
+                continue
             if event.tool_name == "orders_submit_multileg":
                 legs = args.get("legs_json", "[]")
                 try:
@@ -955,7 +1040,7 @@ class ProductionFixture:
         self.closed = True
         self.broker.stream.stop()
         try:
-            if self.fixture.name in {"web_documents", "web_documents_date_only", "web_documents_approximate_portfolio", *_UNDATED_FIXTURES}:
+            if self.fixture.name in {"web_documents", "web_documents_date_only", "web_documents_approximate_portfolio", "web_documents_wrapped_ranges", *_UNDATED_FIXTURES}:
                 self.strategy._agent_web_client.close()
         finally:
             self.directory.cleanup()

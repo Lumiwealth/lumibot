@@ -90,7 +90,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "whitebit",
        "apiKey": os.environ.get("WHITEBIT_API_KEY"),
        "secret": os.environ.get("WHITEBIT_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -108,7 +108,7 @@ WhiteBIT has no sandbox, and CCXT lists no test URL for it, so test with a very 
 Algorithmic trading example: a simple WhiteBit bot
 --------------------------------------------------
 
-This bot buys about 50 USDT of BTC on WhiteBit once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount.
+This bot buys about 50 USDT of BTC on WhiteBit once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. WhiteBit accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -130,7 +130,8 @@ This bot buys about 50 USDT of BTC on WhiteBit once and then holds it. It is a s
            price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
                quantity = round(50 / price, 6)  # about 50 USDT worth
-               order = self.create_order(coin, quantity, "buy", quote=self.quote_asset)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
@@ -205,14 +206,14 @@ What you can trade on WhiteBit
    * - Options
      - No
 
-CCXT lists these order features for WhiteBit: market orders, limit orders, stop orders, editing open orders, canceling orders.
+CCXT lists these order features for WhiteBit: stop orders, editing open orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDT:USDT``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
 
 Perpetual futures example on WhiteBit
 -------------------------------------
 
-WhiteBit also lists perpetual swaps. This bot opens one small long position in ``BTC/USDT:USDT`` worth about 50 USDT and then holds it. LumiBot treats a perpetual as ``asset_type="crypto_future"`` and sizes it in contracts, the same model as LumiBot's Bitunix futures broker. Contract symbols can differ by exchange, so check the symbol in ``self.broker.api.markets`` before going live. In hedge mode, add ``position_side="long"`` to ``create_order``.
+WhiteBit also lists perpetual swaps. This bot opens one small long position in ``BTC/USDT:USDT`` worth about 50 USDT and then holds it. LumiBot treats a perpetual as ``asset_type="crypto_future"`` and sizes it in contracts, the same model as LumiBot's Bitunix futures broker. Contract symbols can differ by exchange, so check the symbol in ``self.broker.api.markets`` before going live. In hedge mode, add ``position_side="long"`` to ``create_order``. WhiteBit accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -236,7 +237,8 @@ WhiteBit also lists perpetual swaps. This bot opens one small long position in `
            if price:
                # Each contract covers contract.multiplier BTC; size the order to about 50 USDT.
                quantity = round(50 / (price * contract.multiplier), 6)
-               order = self.create_order(contract, quantity, "buy")
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(contract, quantity, "buy", limit_price=price * 1.002)
                self.submit_order(order)
 
 
@@ -299,8 +301,8 @@ Related guides
 * :doc:`AI agents quickstart <agents_quickstart>`
 * :doc:`Backpack trading bot <brokers.ccxt.backpack>`
 * :doc:`Bitfinex trading bot <brokers.ccxt.bitfinex>`
-* :doc:`BitMart trading bot <brokers.ccxt.bitmart>`
-* :doc:`CoinEx trading bot <brokers.ccxt.coinex>`
+* :doc:`Bitget trading bot <brokers.ccxt.bitget>`
+* :doc:`DigiFinex trading bot <brokers.ccxt.digifinex>`
 
 Sources
 -------
@@ -312,4 +314,4 @@ Sources
 * `WhiteBIT Help Center: What is Demo Token and how to get it? <https://help.whitebit.com/hc/en-gb/articles/15721321138461-What-is-Demo-Token-and-how-to-get-it>`_ (read 2026-10-23)
 * `WhiteBIT Help Center: About WhiteBIT <https://help.whitebit.com/hc/en-gb/articles/9787464144925-About-WhiteBIT>`_ (read 2026-10-23)
 * `WhiteBIT Help Center: How to pass the identity verification (KYC)? <https://help.whitebit.com/hc/en-gb/articles/13648869290269-How-to-pass-the-identity-verification-KYC>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

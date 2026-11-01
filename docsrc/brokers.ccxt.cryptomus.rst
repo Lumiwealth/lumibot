@@ -90,7 +90,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "cryptomus",
        "secret": os.environ.get("CRYPTOMUS_API_SECRET"),
        "uid": os.environ.get("CRYPTOMUS_UID"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -206,7 +206,7 @@ What you can trade on Cryptomus
    * - Options
      - No
 
-CCXT lists these order features for Cryptomus: limit orders, editing open orders, canceling orders.
+CCXT lists these order features for Cryptomus: editing open orders, canceling orders.
 
 Fees and partner IDs on Cryptomus
 ---------------------------------
@@ -270,4 +270,4 @@ Sources
 * `Cryptomus API docs: Getting API keys <https://doc.cryptomus.com/methods/getting-api-keys>`_ (read 2026-10-23)
 * `Cryptomus API docs: Request format (userId and sign headers) <https://doc.cryptomus.com/methods/request-format>`_ (read 2026-10-23)
 * `Cryptomus API docs: Limit order creation <https://doc.cryptomus.com/methods/exchange/limit-order-creation>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

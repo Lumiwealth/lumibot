@@ -210,7 +210,7 @@ What you can trade on Gemini
    * - Options
      - No
 
-CCXT lists these order features for Gemini: limit orders, editing open orders, canceling orders.
+CCXT lists these order features for Gemini: editing open orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDT:USDT``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
 
@@ -269,7 +269,7 @@ Related guides
 * :doc:`BigONE trading bot <brokers.ccxt.bigone>`
 * :doc:`BingX trading bot <brokers.ccxt.bingx>`
 * :doc:`Bitrue trading bot <brokers.ccxt.bitrue>`
-* :doc:`Bullish trading bot <brokers.ccxt.bullish>`
+* :doc:`HashKey Global trading bot <brokers.ccxt.hashkey>`
 
 Sources
 -------
@@ -282,4 +282,4 @@ Sources
 * `Gemini Developer docs: API key authentication <https://docs.gemini.com/authentication/api-key>`_ (read 2026-10-23)
 * `Gemini Developer docs: Demo environment (sandbox) <https://docs.gemini.com/get-started/sandbox>`_ (read 2026-10-23)
 * `Gemini Developer docs: Spot crypto <https://docs.gemini.com/products/spot>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

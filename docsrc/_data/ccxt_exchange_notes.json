@@ -1,76 +1,6 @@
 {
  "_about": "Hand-checked, per-exchange facts for the CCXT exchange pages. Every entry cites official exchange pages (or a named practitioner source) with the date it was read. Facts that come from CCXT metadata live in ccxt_exchange_facts.json instead. Do not add region or country labels (Rob, 2026-10-23). No 'tested by us' or 'community supported' labels (Rob, 2026-10-23).",
  "exchanges": {
-  "aftermath": {
-   "summary": "Aftermath Perpetuals is a fully onchain perpetual futures exchange on the Sui blockchain, run by Aftermath Finance. Every order, cancel, trade and liquidation runs onchain, and positions use USDC as collateral.",
-   "signup_url": "https://aftermath.finance",
-   "signup_steps": [
-    "There is no account form. Open aftermath.finance, click Login / Connect, and connect a Sui wallet (Aftermath suggests Sui Wallet, Nightly or Phantom), or log in with zkLogin.",
-    "Hold a little SUI for gas and native USDC on Sui for collateral.",
-    "Create a Perpetuals account and deposit USDC into it. One wallet can own several Perpetuals accounts (sub-accounts)."
-   ],
-   "api_key_steps": [
-    "Aftermath has no API key and secret. Transactions are signed with a Sui wallet's private key. Aftermath says to always use an agent wallet for automation, never your main (admin) wallet.",
-    "Create a new Sui wallet just for the bot and save its address and private key.",
-    "With your main wallet connected, open the Agent Wallets page (https://aftermath.finance/automation) and authorize the bot wallet as an agent on your Perpetuals account.",
-    "Give the bot wallet a small amount of SUI for gas, or set up a GasPool from your main wallet to pay its gas.",
-    "Give LumiBot the bot wallet's address as ``walletAddress`` and its private key as ``privateKey``."
-   ],
-   "permissions": "There are no permission boxes to set. Aftermath says an agent wallet can do everything except withdraw collateral, grant or revoke other agent wallets, and revoke builder code approvals. So the agent wallet can trade but cannot withdraw. The admin wallet can revoke it at any time.",
-   "testnet_note": "CCXT points the sandbox at Aftermath's testnet API on https://testnet.aftermath.finance. Set ``AFTERMATH_SANDBOX=true`` (or ``\"sandbox\": True`` in a code config) to use it. Aftermath's docs do not include a testnet guide, so check the testnet site for how to get test funds.",
-   "quote_symbol": "USDC",
-   "example_base": "BTC",
-   "example_notional": 50,
-   "example_symbol": "BTC/USD:USDC",
-   "extra_notes": [
-    "CCXT symbols for Aftermath look like ``BTC/USD:USDC`` (priced in USD, settled in USDC). There are no spot markets in CCXT for Aftermath.",
-    "Trading needs a Perpetuals account. CCXT's position and open order calls ask for an ``accountNumber``, which ``fetch_accounts`` returns for the wallet.",
-    "An account can have up to 10 active agent wallets at once. Use one agent wallet per bot so you can revoke one without stopping the others.",
-    "Collateral must be allocated from the account to a market before it can back a position. Liquidation on one sub-account does not affect your other sub-accounts."
-   ],
-   "sources": [
-    [
-     "Aftermath Docs: Agent Wallets",
-     "https://docs.aftermath.finance/perpetuals/architecture/account/agent-wallets",
-     "2026-10-23"
-    ],
-    [
-     "Aftermath Docs: CCXT API",
-     "https://docs.aftermath.finance/for-developers/api/ccxt",
-     "2026-10-23"
-    ],
-    [
-     "Aftermath Docs: Perpetuals overview",
-     "https://docs.aftermath.finance/perpetuals/aftermath-perpetuals",
-     "2026-10-23"
-    ],
-    [
-     "Aftermath Docs: Account",
-     "https://docs.aftermath.finance/perpetuals/architecture/account",
-     "2026-10-23"
-    ],
-    [
-     "Aftermath Docs: Sub-Accounts",
-     "https://docs.aftermath.finance/perpetuals/architecture/account/sub-accounts",
-     "2026-10-23"
-    ],
-    [
-     "Aftermath Docs: Gasless Trading (GasPool)",
-     "https://docs.aftermath.finance/perpetuals/architecture/account/gasless-trading",
-     "2026-10-23"
-    ],
-    [
-     "Aftermath Docs: Native Sui wallets",
-     "https://docs.aftermath.finance/getting-started/creating-a-sui-account-with-zklogin/native-sui-wallets",
-     "2026-10-23"
-    ],
-    [
-     "Aftermath app: Agent Wallets page",
-     "https://aftermath.finance/automation",
-     "2026-10-23"
-    ]
-   ]
-  },
   "alpaca": {
    "summary": "Alpaca is a trading platform with an API for stocks and crypto. Its crypto API lets you trade coins such as BTC around the clock against USD, USDT and USDC.",
    "signup_url": "https://alpaca.markets/",
@@ -904,65 +834,6 @@
     ]
    ]
   },
-  "bitmart": {
-   "summary": "BitMart is a crypto exchange that offers spot trading, margin trading and futures (USDⓈ-M and COIN-M contracts). It also has a REST API and WebSocket feeds for automated trading.",
-   "signup_url": "https://www.bitmart.com/register/en",
-   "signup_steps": [
-    "Create a BitMart account at https://www.bitmart.com/register/en.",
-    "Finish identity verification (KYC). BitMart says full access to spot and futures trading needs the KYC 2 level.",
-    "Turn on two-factor authentication under Security (phone and Google Authenticator)."
-   ],
-   "api_key_steps": [
-    "Log in on the BitMart website and click the Account tab.",
-    "Open API Management (https://www.bitmart.com/en-US/api-config).",
-    "Enter a Memo. This is any text you choose, and BitMart uses it when it checks each request.",
-    "Add your bot's IP address (optional, but BitMart recommends it) and pick the permissions below.",
-    "Create the key. BitMart shows the Secret Key only once, so copy and save it, then click Confirm."
-   ],
-   "permissions": "New BitMart keys start as Read-Only. Add Spot-Trade for spot trading (and Future-Trade if your bot trades futures). Leave Withdraw off. A bot never needs to move money out of your account.",
-   "testnet_note": "CCXT lists no test URL for BitMart, so LumiBot cannot use a BitMart sandbox. Test with a very small amount. With environment variables, leave ``BITMART_SANDBOX`` unset. In a code config, set ``\"sandbox\": False``.",
-   "quote_symbol": "USDT",
-   "example_base": "BTC",
-   "example_notional": 50,
-   "extra_notes": [
-    "BitMart needs three values: the API key (Access Key), the Secret Key and the Memo. Put the Memo in ``BITMART_UID`` (CCXT's ``uid`` field). BitMart's own FAQ says the ccxt ``uid`` must be the API memo, not your BitMart user ID. A wrong memo gives the error ``Header X-BM-SIGN is wrong``.",
-    "If you set an IP whitelist, BitMart rejects requests from any other IP that use that key.",
-    "If a key leaks, BitMart says to delete it right away and create a new one. A lost Secret Key cannot be shown again, so you would need a new key.",
-    "Sub-account API endpoints need Institution Verification. Sub-account keys also start as Read-only."
-   ],
-   "sources": [
-    [
-     "BitMart Support: How to Create An API",
-     "https://bitmart.zendesk.com/hc/en-us/articles/360016076854-How-to-Create-An-API",
-     "2026-10-23"
-    ],
-    [
-     "BitMart Support: API Key Creation and Broker Trading Guide (FAQ on memo and ccxt uid)",
-     "https://bitmart.zendesk.com/hc/en-us/articles/17855610619803-API-Key-Creation-and-Broker-Trading-Guide",
-     "2026-10-23"
-    ],
-    [
-     "BitMart API docs: spot (keys, permissions, IP whitelist)",
-     "https://developer-pro.bitmart.com/en/spot/",
-     "2026-10-23"
-    ],
-    [
-     "BitMart API page",
-     "https://www.bitmart.com/en-US/bitmart-api",
-     "2026-10-23"
-    ],
-    [
-     "BitMart Support: Identity Verification (KYC) Tutorial",
-     "https://bitmart.zendesk.com/hc/en-us/articles/360053944573-Identity-Verification-KYC-Tutorial",
-     "2026-10-23"
-    ],
-    [
-     "BitMart Support: How to Add Two-Factor Authentication",
-     "https://bitmart.zendesk.com/hc/en-us/articles/360002940174-How-to-Add-Two-Factor-Authentication",
-     "2026-10-23"
-    ]
-   ]
-  },
   "bitopro": {
    "summary": "BitoPro is a crypto exchange for spot trading in BTC, ETH, USDT and other coins. It supports deposits in New Taiwan dollars (TWD).",
    "signup_url": "https://www.bitopro.com/",
@@ -1605,7 +1476,8 @@
     "The private key is several lines long. Keep the line breaks: either paste it as a multi-line value in quotes, or write it on one line with ``\\n`` where each line break goes. Coinbase's docs say the newlines must be kept for the key to work.",
     "Each CDP key is tied to one portfolio. If you want a bot to trade a separate portfolio, make a key for that portfolio. This also keeps bot trades apart from your manual trades.",
     "New CDP keys do not use a passphrase. ``COINBASE_API_PASSPHRASE`` is only for old legacy keys, so leave it unset.",
-    "This page is for Coinbase Advanced (CCXT id ``coinbase``). Coinbase Exchange and Coinbase International Exchange are separate CCXT ids (``coinbaseexchange`` and ``coinbaseinternational``) with their own key systems that use a passphrase."
+    "This page is for Coinbase Advanced (CCXT id ``coinbase``). Coinbase Exchange and Coinbase International Exchange are separate CCXT ids (``coinbaseexchange`` and ``coinbaseinternational``) with their own key systems that use a passphrase.",
+    "CCXT 4.5.91 also lists futures and perpetual-style US contracts through Coinbase Advanced. These require an eligible derivatives account; the ``BTC/USD:USD`` example is separate from spot. International perpetuals use the separate ``coinbaseinternational`` adapter."
    ],
    "sources": [
     [
@@ -1632,6 +1504,11 @@
      "Coinbase Help: New customer resource guide",
      "https://help.coinbase.com/new-customer-guide",
      "2026-10-23"
+    ],
+    [
+     "CCXT 4.5.91 coinbase adapter source",
+     "https://github.com/ccxt/ccxt/blob/v4.5.91/python/ccxt/coinbase.py",
+     "2026-11-01"
     ]
    ]
   },
@@ -1735,61 +1612,6 @@
     [
      "Coincheck FAQ: アプリから口座開設する方法を教えてください (Open an account in the app)",
      "https://faq.coincheck.com/answer/6886c199d5225ee0cf695a6a",
-     "2026-10-23"
-    ]
-   ]
-  },
-  "coinex": {
-   "summary": "CoinEx is a crypto exchange for spot trading and futures. Its v2 API serves both spot and futures markets from one base address.",
-   "signup_url": "https://www.coinex.com/",
-   "signup_steps": [
-    "Create a CoinEx account on the website or app.",
-    "Turn on two-factor authentication (SMS, an authenticator app or a passkey). CoinEx asks for a 2FA code when you create an API key.",
-    "CoinEx has no testnet, so plan to start with a very small trade."
-   ],
-   "api_key_steps": [
-    "Log in at https://www.coinex.com, click your avatar in the top right corner and pick API Management.",
-    "Click Create API.",
-    "Enter an API Remark (a name for the key) and the Applicable IP address: the public IP of the machine running your bot. You can list up to 50 addresses, one per line.",
-    "Tick Trade. Leave Withdraw unticked.",
-    "Enter your 2FA code (SMS, authenticator app or passkey) and click Create.",
-    "Copy the Access ID (your API key) and Secret Key. The key starts working within 10 to 15 minutes."
-   ],
-   "permissions": "Tick Trade so the bot can place and cancel orders. Leave Withdraw unticked. A trading bot never needs to move money out of your account.",
-   "testnet_note": "CoinEx has no sandbox. Test with a very small amount, leave ``COINEX_SANDBOX`` unset, and in a code config set ``\"sandbox\": False``.",
-   "quote_symbol": "USDT",
-   "example_base": "BTC",
-   "example_notional": 50,
-   "extra_notes": [
-    "Bind a fixed IP address. CoinEx says a key with no fixed IP expires after 90 days, and you must click Renew on the API Management page to keep it working.",
-    "If you see an IP Prohibited error, your bot's IP is not on the key's list. If you see access_id not exist right after making a key, wait about 10 minutes and try again.",
-    "CoinEx calls the API key the Access ID. Put it in ``COINEX_API_KEY`` and the Secret Key in ``COINEX_API_SECRET``. No passphrase is needed.",
-    "A main account can create up to 20 sub-accounts. CoinEx suggests them for running separate strategies, so each bot can have its own sub-account and key."
-   ],
-   "sources": [
-    [
-     "CoinEx Help: What's API, How to Set it Up and Extend Its Validity Period",
-     "https://support.coinex.com/hc/en-us/articles/900004316323-What-s-API-How-to-Set-it-Up-and-Extend-Its-Validity-Period",
-     "2026-10-23"
-    ],
-    [
-     "CoinEx Help: API FAQs",
-     "https://support.coinex.com/hc/en-us/articles/44802223055257-API-FAQs",
-     "2026-10-23"
-    ],
-    [
-     "CoinEx Help: Introduction to CoinEx Sub-account",
-     "https://support.coinex.com/hc/en-us/articles/900003402526-Introduction-to-CoinEx-Sub-account",
-     "2026-10-23"
-    ],
-    [
-     "CoinEx API v2: Integration Guide",
-     "https://docs.coinex.com/api/v2/guide",
-     "2026-10-23"
-    ],
-    [
-     "CoinEx API v2: FAQ (IP Prohibited)",
-     "https://docs.coinex.com/api/v2/faq",
      "2026-10-23"
     ]
    ]
@@ -2301,7 +2123,7 @@
    ]
   },
   "extended": {
-   "summary": "Extended is a decentralized exchange with leveraged perpetual markets on crypto and real-world assets, plus crypto spot trading against USDC. You sign in with your own crypto wallet.",
+   "summary": "Extended is a decentralized exchange with leveraged perpetual markets on crypto and real-world assets. You sign in with your own crypto wallet. CCXT 4.5.91 exposes its perpetual markets; this guide uses that adapter capability.",
    "signup_url": "https://extended.exchange/",
    "signup_steps": [
     "Open Extended and connect a wallet. Extended works with EVM and Starknet wallets.",
@@ -2322,7 +2144,7 @@
    "example_notional": 50,
    "extra_notes": [
     "Each Extended sub-account has its own API key and Stark key. Use a separate sub-account for each bot so its money and trades stay apart.",
-    "Perpetual symbols use the full CCXT form, for example ``BTC/USDC:USDC``. Spot is plain ``BTC/USDC``. Spot always trades at 1x leverage.",
+    "Perpetual symbols use the full CCXT form, for example ``BTC/USDC:USDC``. CCXT 4.5.91 does not advertise spot trading for Extended.",
     "Extended moved its settlement network from Starknet to Arc (a blockchain from Circle) starting 22 October 2026. Extended says you keep the same wallet and keys. If your bot cannot connect after the move, check that your CCXT version is current."
    ],
    "sources": [
@@ -2350,8 +2172,14 @@
      "Extended Docs: Trading",
      "https://docs.extended.exchange/extended-resources/trading",
      "2026-10-23"
+    ],
+    [
+     "CCXT 4.5.91 extended adapter source",
+     "https://github.com/ccxt/ccxt/blob/v4.5.91/python/ccxt/extended.py",
+     "2026-11-01"
     ]
-   ]
+   ],
+   "example_symbol": "BTC/USDC:USDC"
   },
   "fmfwio": {
    "summary": "FMFW.io is a crypto exchange for spot trading, margin trading and perpetual futures. Its API v3 covers spot, margin and futures trading plus wallet management.",
@@ -3665,7 +3493,8 @@
     "MyOKX keys need three values: the API key, the secret key and the passphrase. Set ``MYOKX_API_KEY``, ``MYOKX_API_SECRET`` and ``MYOKX_API_PASSPHRASE``.",
     "Bind an IP address to the key. OKX says keys with trade or withdraw permission and no bound IP expire after 14 days of inactivity (demo keys are not deleted).",
     "Use the ``myokx`` id for accounts on my.okx.com. The ``okx`` id talks to the main okx.com API host instead, so a my.okx.com key belongs with ``myokx``.",
-    "Spot symbols look like ``BTC/EUR``. MyOKX also lists ``BTC/USDC`` and ``BTC/USDT``."
+    "Spot symbols look like ``BTC/EUR``. MyOKX also lists ``BTC/USDC`` and ``BTC/USDT``.",
+    "CCXT 4.5.91 also lists perpetual swaps. The contract example uses ``BTC/USDC:USDC`` and USDC collateral, separately from the EUR spot example. Available products depend on the account and jurisdiction."
    ],
    "sources": [
     [
@@ -3687,8 +3516,15 @@
      "MyOKX home page",
      "https://my.okx.com/",
      "2026-10-23"
+    ],
+    [
+     "CCXT 4.5.91 myokx adapter source",
+     "https://github.com/ccxt/ccxt/blob/v4.5.91/python/ccxt/myokx.py",
+     "2026-11-01"
     ]
-   ]
+   ],
+   "perp_example_symbol": "BTC/USDC:USDC",
+   "perp_quote_symbol": "USDC"
   },
   "ndax": {
    "summary": "NDAX is a crypto trading platform with a website and mobile app. Its public API lets you get market data, manage your account and place trades.",
@@ -3956,7 +3792,7 @@
    ]
   },
   "pacifica": {
-   "summary": "Pacifica is a decentralized, self-custody trading platform on Solana that launched in June 2025. It offers perpetual futures on crypto and other markets, plus spot markets quoted in USDC. In CCXT, Pacifica is set up for its perpetual markets.",
+   "summary": "Pacifica is a decentralized, self-custody trading platform on Solana that launched in June 2025. It offers perpetual futures on crypto and other markets, plus spot markets quoted in USDC. CCXT 4.5.91 lists both spot and perpetual markets.",
    "signup_url": "https://app.pacifica.fi",
    "signup_steps": [
     "There is no account form. Open app.pacifica.fi and connect a Solana wallet such as Phantom, Solflare or Backpack.",
@@ -4023,11 +3859,17 @@
      "CCXT Pacifica adapter source (credential and agentAddress options)",
      "https://github.com/ccxt/ccxt/blob/master/python/ccxt/pacifica.py",
      "2026-10-23"
+    ],
+    [
+     "CCXT 4.5.91 pacifica adapter source",
+     "https://github.com/ccxt/ccxt/blob/v4.5.91/python/ccxt/pacifica.py",
+     "2026-11-01"
     ]
    ],
    "extra_credentials": [
     "walletAddress"
-   ]
+   ],
+   "perp_example_symbol": "BTC/USDC:USDC"
   },
   "paradex": {
    "summary": "Paradex is a trading venue that runs on its own appchain on Starknet. It says you can trade perps, options and spot from one account with zero fees.",
@@ -4051,7 +3893,7 @@
    "example_notional": 50,
    "example_symbol": "BTC/USD:USDC",
    "extra_notes": [
-    "In CCXT, Paradex lists perpetuals (and options) but no spot markets. The BTC perpetual is ``BTC/USD:USDC``, settled in USDC.",
+    "CCXT 4.5.91 lists spot, perpetuals and options for Paradex. The BTC perpetual is ``BTC/USD:USDC``, settled in USDC; use its full symbol to distinguish it from spot.",
     "Paradex login tokens (JWTs) expire every 5 minutes. CCXT gets new ones for you.",
     "Paradex supports sub-accounts. A separate sub-account per bot keeps bot trades apart from manual trades."
    ],
@@ -4075,8 +3917,14 @@
      "Paradex Docs: Mobile Access Guide",
      "https://docs.paradex.trade/docs/mobile-access-guide",
      "2026-10-23"
+    ],
+    [
+     "CCXT 4.5.91 paradex adapter source",
+     "https://github.com/ccxt/ccxt/blob/v4.5.91/python/ccxt/paradex.py",
+     "2026-11-01"
     ]
-   ]
+   ],
+   "perp_example_symbol": "BTC/USD:USDC"
   },
   "paymium": {
    "summary": "Paymium is a crypto exchange with a wallet, trading in euros (for example BTC/EUR) and a payment gateway. It offers REST and WebSocket APIs for market data and automated trading.",
@@ -4338,7 +4186,7 @@
    "signup_steps": [
     "Create a WEEX account on the website.",
     "Set up your account security. WEEX asks you to pass a security verification when you create an API key.",
-    "WEEX has no testnet, so plan to start with a very small trade."
+    "The spot example places live orders. WEEX futures simulation is a separate mode; do not use it as a spot testnet."
    ],
    "api_key_steps": [
     "Log in to WEEX on the website and go to Account, then API Management (https://www.weex.com/account/newapi).",
@@ -4349,7 +4197,7 @@
     "Finish the security check, then copy the API key and secret key and store them with the passphrase."
    ],
    "permissions": "Keep read access and add the Spot trading permission so the bot can place spot orders. Leave any withdrawal setting off. New WEEX keys start as Read Only, so a key will not trade until you add the trading permission.",
-   "testnet_note": "WEEX has no sandbox. Test with a very small amount, leave ``WEEX_SANDBOX`` unset, and in a code config set ``\"sandbox\": False``.",
+   "testnet_note": "CCXT 4.5.91 supports WEEX futures simulation on shared API hosts, using simulated contract endpoints. It rejects private spot requests in sandbox mode. The spot example here is live: leave ``WEEX_SANDBOX`` unset and set ``\"sandbox\": False``. Futures simulation requires a separate configuration and supported swap operations; it does not make spot orders simulated.",
    "sandbox_env": null,
    "quote_symbol": "USDT",
    "example_base": "BTC",
@@ -4380,8 +4228,14 @@
      "WEEX API Management page",
      "https://www.weex.com/account/newapi",
      "2026-10-23"
+    ],
+    [
+     "CCXT 4.5.91 weex adapter source",
+     "https://github.com/ccxt/ccxt/blob/v4.5.91/python/ccxt/weex.py",
+     "2026-11-01"
     ]
-   ]
+   ],
+   "sandbox_label": "Futures simulation only; spot example is live"
   },
   "whitebit": {
    "summary": "WhiteBIT is a centralized crypto exchange with 350+ trading pairs. It offers spot trading, margin trading and futures.",
@@ -4733,5 +4587,35 @@
   "kucoineu": "KuCoin EU's own site (https://www.kucoin.com/en-eu/support and https://www.kucoin.com/en-eu/announcement, read 2026-10-23) shows a banner saying KuCoin EU trading and deposit services were suspended at 14:30 (UTC+1) on February 4, 2026. The newest related announcement listed is 'KuCoin EU Update' (June 30, 2026), which thanks users for waiting for services to resume, and the suspension banner is still shown today. A setup page telling people to sign up and trade would be wrong. The EU API key help article (https://www.kucoin.com/en-eu/support/48142946141376) now redirects to the help center home, so the steps could not be read. Note: CCXT's public load_markets still returns 789 markets from api.kucoin.eu, so CCXT metadata alone does not show the suspension. Revisit when KuCoin EU announces it has resumed.",
   "modetrade": "Mode's own sites do not document API access. trade.mode.network is a JS app; docs.mode.network and mode.network (read via search 2026-10-23) cover the chain, tokens, AI Terminal and a start guide, but nothing on creating trading keys, the account id or permissions. CCXT's modetrade adapter runs on Orderly Network (api-evm.orderly.org, broker id 'mode', needs accountId + Orderly ed25519 key + secret, and tags orders with order_tag CCXTMODE), and only Orderly's generic docs explain that key flow, which is not Mode's own domain.",
   "tokocrypto": "No official page explains how to create a Tokocrypto API key. Checked on 2026-10-23: the Tokocrypto API docs (https://www.tokocrypto.com/apidocs/) only say keys go in the X-MBX-APIKEY header, can be limited to certain endpoint types and access all secure routes by default, and that CCXT is the authorized SDK; they give no creation steps, menu names or permission names. Searching the Tokocrypto help center (support.tokocrypto.com, English and Indonesian, queries 'API key', 'API management', 'create API', 'kunci API', 'manajemen API') found only CryptoHero bot articles, whose 'enable API Management' step links to a third-party CryptoHero docs page, plus an engine-migration notice. Sign-up, KYC and 2FA help articles exist (360024826252, 31034171556237, 360053178571), but without official key steps the page cannot be completed. Also note: the API moved spot pairs to a new MBX engine in late 2025 with a market-data base URL of https://www.tokocrypto.site, while CCXT facts list only https://www.tokocrypto.com; CCXT also now shows odd quote assets such as BTC/U and BTC/USD1 next to BTC/IDR and BTC/USDT."
+ },
+ "retired": {
+  "aftermath": {
+   "reason": "Removed from current CCXT; see guide",
+   "source": "https://github.com/ccxt/ccxt/pull/29125",
+   "reviewed_at": "2026-11-01",
+   "name": "AftermathFinance",
+   "dex": true
+  },
+  "bitmart": {
+   "reason": "Removed from current CCXT; see guide",
+   "source": "https://github.com/ccxt/ccxt/pull/29376",
+   "reviewed_at": "2026-11-01",
+   "name": "BitMart",
+   "dex": false
+  },
+  "bitmex": {
+   "reason": "Removed from current CCXT; see guide",
+   "source": "https://github.com/ccxt/ccxt/pull/30612",
+   "reviewed_at": "2026-11-01",
+   "name": "BitMEX",
+   "dex": false
+  },
+  "coinex": {
+   "reason": "Removed from current CCXT; see guide",
+   "source": "https://github.com/ccxt/ccxt/pull/30737",
+   "reviewed_at": "2026-11-01",
+   "name": "CoinEx",
+   "dex": false
+  }
  }
 }

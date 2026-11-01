@@ -1,0 +1,17 @@
+{
+  "kind": "preserved-native-source-ledger-failure",
+  "version": 1,
+  "source_runtime_fingerprint": "03d1ebf13ac5783201ba023fa952387353ee52e6ebe8be4be5fc82e349d63a6a",
+  "native_run_id": "e1cc86e0-3043-41c2-8447-df82b7ca54a0",
+  "private_trace_sha256": "b11078d915158a5323f94c86b5c2a6f129604bda5dedb90c08ecfa7a79dcc4d9",
+  "failure": "Required upper asset-value bounds were reported unavailable after unfiltered tool results had returned their wrapped continuation lines.",
+  "downstream_outcome": "Trader interrupted after the known upstream functional failure; no final portfolio verdict.",
+  "generic_case": "web_documents_wrapped_table_ranges",
+  "generic_pre_instruction_pilot": {
+    "run_id": "0e331348-9d56-48c3-8897-cc1482b29f05",
+    "status": "pass",
+    "interpretation": "Coverage pass on a smaller neutral source. It is not evidence that the motivating native failure was already repaired."
+  },
+  "judge_negative_control": "wrapped-table-ranges-counterfactual-missing-upper",
+  "no_strategy_specific_fixture": true
+}

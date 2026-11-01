@@ -46,7 +46,7 @@ theta_jar_path = PROJECT_ROOT / "lumibot" / "resources" / "ThetaTerminal.jar"
 
 setuptools.setup(
     name="lumibot",
-    version="4.6.34",
+    version="4.6.40",
     author="Robert Grzesik",
     author_email="rob@botspot.trade",
     description="Python framework for algorithmic trading: backtesting and live deployment for stocks, options, crypto, futures, and forex. Same code for backtest and live trading.",
@@ -62,7 +62,7 @@ setuptools.setup(
     license="GPL-3.0",
     include_package_data=True,
     install_requires=[
-        "polygon-api-client>=1.13.3",
+        "massive>=2.9.1,<3",
         "alpaca-py>=0.42.0",
         "alpha_vantage",
         "ibapi==9.81.1.post1",
@@ -132,6 +132,12 @@ setuptools.setup(
         ] + (["resources/ThetaTerminal.jar"] if theta_jar_path.exists() else []),
     },
     extras_require={
+        "metamask": [
+            "hyperliquid-python-sdk==0.24.0",
+            "PyYAML>=6.0.2,<7",
+            "urllib3>=2.8.0,<3",
+            "certifi>=2026.10.19",
+        ],
         "browser": [
             "patchright>=1.62.3,<2",
         ],

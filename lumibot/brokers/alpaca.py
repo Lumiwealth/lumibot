@@ -931,14 +931,26 @@ class Alpaca(Broker):
             )
             return None
 
+        legs_raw = resp_raw.get("legs") if isinstance(resp_raw, dict) else None
+        if legs_raw is None:
+            legs_raw = getattr(response, "legs", None)
+        child_orders = [
+            child for leg in legs_raw or []
+            if (child := self._parse_broker_order(leg, strategy_name, strategy_object=strategy_object)) is not None
+        ] if isinstance(legs_raw, list) else []
+        if order_class_value == Order.OrderClass.MULTILEG:
+            underlying = child_orders[0].asset.symbol if child_orders else symbol
+            asset = Asset(underlying, asset_type=Asset.AssetType.MULTILEG)
+        elif mapped_asset_type == Asset.AssetType.OPTION:
+            asset = Asset.symbol2asset(symbol)
+        else:
+            asset = Asset(symbol=symbol, asset_type=mapped_asset_type)
+
         # Construct Order object
         order = Order(
             strategy_name,
-            Asset(
-                symbol=symbol,
-                asset_type=mapped_asset_type,
-            ),
-            quantity=float(Decimal(qty_value)),
+            asset,
+            quantity=Decimal(str(qty_value)),
             side=side_value,
             avg_fill_price=avg_fill_price_value,
             limit_price=limit_price_value if order_type_value != Order.OrderType.STOP_LIMIT else None,
@@ -948,6 +960,7 @@ class Alpaca(Broker):
             trail_percent=trail_percent_value if trail_percent_value else None,
             time_in_force=time_in_force_value,
             order_class=order_class_value,
+            child_orders=child_orders,
             order_type=order_type_value if order_type_value != "trailing_stop" else Order.OrderType.TRAIL,
             # Prefer raw first to avoid MagicMock traps
             date_created=(resp_raw.get('created_at') if isinstance(resp_raw, dict) else None) or getattr(response, 'created_at', None),
@@ -973,7 +986,9 @@ class Alpaca(Broker):
 
     def _pull_broker_order(self, identifier):
         """Get a broker order representation by its id"""
-        response = self.api.get_order_by_id(identifier)
+        from alpaca.trading.requests import GetOrderByIdRequest
+
+        response = self.api.get_order_by_id(identifier, filter=GetOrderByIdRequest(nested=True))
         return response
 
     def _pull_broker_all_orders(self):
@@ -985,12 +1000,12 @@ class Alpaca(Broker):
 
         # Recent terminal executions are needed for callbacks, but they must not
         # displace older working orders from a bounded recent-history response.
-        recent = self.api.get_orders(filter=GetOrdersRequest(status=QueryOrderStatus.ALL, limit=100))
+        recent = self.api.get_orders(filter=GetOrdersRequest(status=QueryOrderStatus.ALL, limit=100, nested=True))
         orders = {str(order.id): order for order in recent}
         until = None
         while True:
             page = self.api.get_orders(filter=GetOrdersRequest(
-                status=QueryOrderStatus.OPEN, limit=500, until=until,
+                status=QueryOrderStatus.OPEN, limit=500, until=until, nested=True,
             ))
             for order in page:
                 orders[str(order.id)] = order
@@ -1835,54 +1850,30 @@ class Alpaca(Broker):
             logger.debug(f"OAuth Polling: Found {len(raw_orders)} raw orders from Alpaca, {len(stored_orders)} stored orders in Lumibot")
 
             for alpaca_order in raw_orders:
-                # Use strategy name if available, otherwise use a default
-                strategy_name = strategy.name if strategy else "default"
-                order = self._parse_broker_order(alpaca_order, strategy_name=strategy_name)
+                try:
+                    # Use strategy name if available, otherwise use a default
+                    strategy_name = strategy.name if strategy else "default"
+                    order = self._parse_broker_order(alpaca_order, strategy_name=strategy_name)
 
-                # Skip if parsing returned None (invalid order data)
-                if order is None:
-                    logger.warning(f"OAuth Polling: Skipping invalid order from Alpaca - _parse_broker_order returned None")
-                    continue
+                    # Skip if parsing returned None (invalid order data)
+                    if order is None:
+                        logger.warning(f"OAuth Polling: Skipping invalid order from Alpaca - _parse_broker_order returned None")
+                        continue
 
-                logger.debug(f"OAuth Polling: Processing Alpaca order {order.identifier} with status {order.status}")
+                    logger.debug(f"OAuth Polling: Processing Alpaca order {order.identifier} with status {order.status}")
 
-                # Check if this order exists in our stored orders
-                if str(order.identifier) in stored_orders:
-                    stored_order = stored_orders[str(order.identifier)]
+                    # Check if this order exists in our stored orders
+                    if str(order.identifier) in stored_orders:
+                        stored_order = stored_orders[str(order.identifier)]
 
-                    # Check if the status has changed
-                    if (stored_order.status != order.status
-                            or (order.is_filled() and not stored_order._filled_event.is_set())):
-                        logger.debug(f"OAuth Polling: Order status changed - {order.identifier}: {stored_order.status} -> {order.status}")
-
-                        # Update the stored order with new data and dispatch the event
-                        stored_order.update_raw(alpaca_order)
-
-                        # Capture and propagate average filled price from Alpaca into the stored order
-                        try:
-                            avg_price = (
-                                getattr(alpaca_order, 'filled_avg_price', None)
-                                or getattr(alpaca_order, 'avg_fill_price', None)
-                            )
-                            if avg_price is not None:
-                                stored_order.avg_fill_price = avg_price
-                        except Exception:
-                            pass
-
-                        # Dispatch the appropriate event based on the new status
-                        if order.status == "filled" or order.status == "fill": 
-                            if not self._reconcile_confirmed_fill(stored_order, alpaca_order):
-                                raise ValueError("Alpaca fill observation has inconsistent quantity or price")
-                        elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
-                            if not self._reconcile_confirmed_fill(stored_order, alpaca_order):
-                                raise ValueError("Alpaca partial fill observation has inconsistent quantity or price")
-                        elif order.status == "canceled":
-                            self.stream.dispatch(self.CANCELED_ORDER, order=stored_order)
-                        elif order.status == "new":
-                            self.stream.dispatch(self.NEW_ORDER, order=stored_order)
-                    else:
-                        # Status hasn't changed, but update the status to match broker's
-                        stored_order.status = order.status
+                        # Quantity can advance while the status remains partial,
+                        # including an execution reported with a cancellation.
+                        self._apply_direct_order_observation(stored_order, order)
+                except (ValueError, ArithmeticError) as exc:
+                    logger.error(
+                        "OAuth Polling: Could not reconcile order %s (%s)",
+                        getattr(alpaca_order, "id", "unknown"), type(exc).__name__,
+                    )
 
             # Check for orders that are no longer in the broker's list
             tracked_orders = {str(x.identifier): x for x in self.get_tracked_orders()}
@@ -1899,36 +1890,14 @@ class Alpaca(Broker):
                         individual_order = self.api.get_order_by_id(order_id)
                         logger.debug(f"OAuth Polling: Individual lookup found order {order_id} with status {individual_order.status}")
 
-                        # Update status based on individual lookup
-                        if (individual_order.status != order.status
-                                or (str(individual_order.status) in ("filled", "fill")
-                                    and not order._filled_event.is_set())):
-                            logger.debug(f"OAuth Polling: Individual order status changed - {order_id}: {order.status} -> {individual_order.status}")
-                            order.update_raw(individual_order)
-
-                            # Capture and propagate average filled price for individual lookup
-                            try:
-                                avg_price = (
-                                    getattr(individual_order, 'filled_avg_price', None)
-                                    or getattr(individual_order, 'avg_fill_price', None)
-                                )
-                                if avg_price is not None:
-                                    order.avg_fill_price = avg_price
-                            except Exception:
-                                pass
-
-                            # Dispatch appropriate event based on new status
-                            if individual_order.status in ["filled", "fill"]:
-                                if not self._reconcile_confirmed_fill(order, individual_order):
-                                    raise ValueError("Alpaca fill observation has inconsistent quantity or price")
-                            elif individual_order.status == "canceled":
-                                self.stream.dispatch(self.CANCELED_ORDER, order=order)
+                        observed = self._parse_broker_order(individual_order, strategy_name=order.strategy)
+                        if observed is not None:
+                            self._apply_direct_order_observation(order, observed)
 
                     except Exception as e:
                         if "404" in str(e) or "not found" in str(e).lower():
-                            # Order truly doesn't exist - it was cancelled/rejected
-                            logger.debug(f"OAuth Polling: Order {order_id} not found at broker, marking as cancelled")
-                            self.stream.dispatch(self.CANCELED_ORDER, order=order)
+                            # Missing history is not evidence of cancellation.
+                            logger.debug(f"OAuth Polling: Order {order_id} not found at broker; retaining last confirmed state")
                         else:
                             # Network/API error - don't assume anything, just log and continue
                             logger.debug(f"OAuth Polling: Could not verify order {order_id}: {e}")

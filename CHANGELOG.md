@@ -1,5 +1,64 @@
 # Changelog
 
+## 4.6.40 - Unreleased
+
+### Added
+- AI agents can use native single and batch quotes, including exact option contracts, supplied source timestamps and multipliers. Shared trading guidance uses executable quote sides for immediate orders and current last prices when usable quote fields are unavailable.
+- AI agents can submit explicit independent baskets through the existing `Strategy.submit_orders` method. Each row retains its explanation and actual broker result; partial or uncertain results require reconciliation before retrying. Atomic option packages keep their existing multi-leg tool.
+- Release-gated portfolio behavior covers complete large and small baskets, funding sells before dependent buys, current-quote sizing, exact dated-row selection, and completing supported holdings when one is unavailable. Assertions reconcile native positions, fills, quantities and cash alongside a real-model judge.
+
+### Changed
+- Reconcile live MetaMask partial fills from current open-order remainders, retain late terminal execution deltas without reopening orders, and fence new spending while fill evidence disagrees. Share wallet observation reads, avoid unchanged historical status queries, and use a 10-second default polling interval.
+- Harden native MetaMask signing-domain/network binding, final authority handoff, uncertain cancellation and leverage recovery, cumulative accessor fills, exact token arithmetic, reverted-gas budgets, and OP Stack L1/operator fee accounting. Preserve actual overrun charges pending explicit owner review. Native funded qualification remains in progress.
+- Replace the retired Polygon SDK dependency with maintained Massive while retaining Polygon keys and endpoint behavior; require patched MetaMask HTTP and CA-store dependencies and reject unsafe session lock files.
+- MetaMask now runs in Python through the normal LumiBot broker and data source. The optional Python extra replaces the required Node service, npm install and localhost transport. Browser sign-in and durable OAuth refresh use native Python.
+- Breaking configuration change: replace MetaMask BROKER_URL/BROKER_TOKEN with an explicit native session, durable journal, agent and wallet identity. Preserve old journals and pending receipts; local limits and expiry never reset at startup. Native cancellation, signing checkpoints and fill recovery retain separate operation identities.
+- Native same-chain ERC20-output swap code verifies bounded approvals and actual receipts. HIP3 writes, native-output swaps and unsupported fee/delegation variants remain explicit holds. Native funded swap qualification remains pending; previous JavaScript receipts do not qualify this replacement.
+
+### Fixed
+- Preserve parametrized test IDs containing spaces when CI launches collected test shards.
+- Refresh exchange documentation from CCXT 4.5.91, including current market capabilities, contract examples and WEEX futures-only simulation. Retire the removed Aftermath, BitMart, BitMEX and CoinEx setup guides while preserving their URLs, historical guides and older installed-adapter behavior.
+- Preserve numeric fields across wrapped document rows and filtered inventory audits. Real-model coverage distinguishes complete asset-value ranges from continuation lines, unrelated income fields and truly unavailable data.
+- Simulated stock market orders use the execution bar at the simulated time when intraday data is already loaded, including strategies with daily cadence. Daily-only sources and limit/stop behavior retain their existing data path; this change does not force minute-data downloads.
+- Keep Polygon daily research history and minute execution data in independent interval-aware entries. Repeated history/price reads reuse loaded data without replacing daily bars or downloading minute history for a daily request. Memory limits count each dataset once and retire every alias when it is evicted.
+
+## 4.6.39 - 2026-11-01
+
+Deploy marker: `9a7df5f32220c56524446efe62f276f200e4364e`.
+
+### Fixed
+- Alpaca daily stock and option valuations use the session open until the actual close is available, including shortened sessions and premarket lookbacks. Daily crypto close availability remains aligned with its completed bar.
+- Alpaca daily benchmarks cover the requested first-open through final-close window, retain dividends, and use the benchmark asset's calendar. Stock benchmarks omit synthetic weekend rows even when the strategy trades continuously.
+- Preserve source-compatible native agent qualifications for the exact provider-only changes; changes to shared trading or research behavior still require fresh qualification.
+
+## 4.6.37 - 2026-11-01
+
+Deploy marker: `5eea4abaf6b659b2d9931c9189f3c1c8ece5170d`.
+
+### Fixed
+- Reconcile multi-leg package orders using finite signed net prices while preserving positive individual execution prices. Package containers retain cumulative callbacks without creating fictitious positions or charging cash independently of their legs.
+- Read and normalize nested Alpaca option legs with complete contract metadata and parent links. Repeated and warm order synchronization retains each leg's execution receipt and enriches legacy package identities without replaying historical cash.
+
+## 4.6.36 - 2026-11-01
+
+### Fixed
+- Isolate invalid cumulative order observations so healthy sibling orders and missing-order lookups still reconcile; report incomplete reads and always release held lifecycle notifications after failed synchronization.
+- Preserve runtime-applied temporal bounds in public failed-tool evidence without exposing private provider diagnostics.
+- Route executor restoration through the shared broker lifecycle owner; retain cumulative executions and replacement metadata on warm reads and same-status Alpaca partial/cancel polling without replaying startup cash. Delayed working observations cannot reopen terminal orders; newly confirmed executions remain recorded and complete fills win cancellation races.
+- Verify each evidence-packet date window against its own request, including failed requests.
+- Keep baseline ownership evidence and later updates distinct when describing a reconstructed result.
+- Normalize typed SQL timestamp results to UTC instants while retaining source strings, naive market wall clocks, and configured SQL timezone semantics.
+- Clarify final protective-leg evidence before option package pricing and keep missing provider retrieval timestamps distinct from the agent runtime clock.
+- Put the per-document backtest eligibility check at the document-tool decision point, keeping diagnostic excluded rows out of linked reads while preserving live reads and disclosed undated-source approximations.
+- Preserve decimal broker order quantities and validate fractional cumulative executions using consistent decimal units. Repeated high-precision snapshots retain their exact execution receipt without replaying rounding dust; real overfills remain invalid.
+
+- Apply configured taker fees to trailing-stop executions, including the executed quantity of partial fills, consistently with ordinary market and stop orders.
+
+## 4.6.35 - 2026-10-31
+
+### Fixed
+- Forward release of account reconciliation and lifecycle repairs with refreshed, source-bound real-model qualification. Version 4.6.34 package publication was blocked by its stale model receipt; its immutable tag is preserved.
+
 ## 4.6.34 - 2026-10-28
 
 Deploy marker: `d326af579d52b2869152e4ee7ff775e0ec1685a3`.

@@ -9,7 +9,10 @@ and date-bound every source during backtests.
 
 ## Sizing
 
-Use portfolio value, cash, current exposure, price, and the user's risk rules.
+Use portfolio value, cash, current exposure, a current quote, and the user's risk rules.
+Use a valid ask to budget an immediate buy and the intended price for a limit
+order. A current last-price fallback is usable when quote sides are missing;
+a historical close is an analysis input, not the execution-cost estimate.
 When a stop level exists, estimate per-share risk and size from that distance. Do
 not buy token positions merely to be active, and do not create accidental leverage
 because cash is invested in an existing or defensive position.
@@ -19,6 +22,12 @@ because cash is invested in an existing or defensive position.
 Manage current exposure before adding another position that would violate limits.
 When rotating, close or reduce the old position first, verify the result, then size
 the replacement from the updated account state.
+
+For a requested basket plan the full inventory jointly and finish every
+feasible target difference. Preserve the specified capital basis and allocation
+caps. Refresh actual account state after fills without restarting all unexecuted
+sizing calculations. Already-correct positions need no duplicate purchases.
+One unavailable constituent does not prevent completing the supported remainder.
 
 ## Verification
 

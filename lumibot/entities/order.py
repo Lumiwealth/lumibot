@@ -766,7 +766,7 @@ class Order:
         bool
             True if the order is a parent order, False otherwise.
         """
-        return bool(self.child_orders)
+        return bool(self.child_orders) or getattr(self, "order_class", None) == self.OrderClass.MULTILEG
 
     def add_child_order(self, o):
         """
@@ -1384,7 +1384,7 @@ class Order:
             logger.error(f"Cannot create position from order {self.identifier} - asset is None")
             return None
 
-        position_qty = Decimal(quantity)
+        position_qty = Decimal(str(quantity)) if isinstance(quantity, float) else Decimal(quantity)
         if self.is_sell_order():
             position_qty = -position_qty
 

@@ -1421,6 +1421,8 @@ class Broker(ABC):
         also serves adapters without a venue-specific reducer.
         """
 
+        previous_status = order_lumi.status
+        previously_closed = order_lumi._closed_event.is_set()
         changed = False
         if order_lumi.quantity != matched_order.quantity:
             order_lumi.quantity = matched_order.quantity
@@ -1464,6 +1466,15 @@ class Broker(ABC):
         if matched_order._raw is not None:
             order_lumi.update_raw(matched_order._raw)
         if order_lumi.is_filled() and order_lumi._filled_event.is_set():
+            if previously_closed:
+                self._clean_order_trackers(order_lumi)
+            return changed
+        if previously_closed and matched_order.is_active():
+            # A delayed working snapshot cannot reopen a terminal order. Its
+            # newly reported executions still belong to that closed order;
+            # a complete execution above takes precedence over cancellation.
+            order_lumi.status = previous_status
+            self._clean_order_trackers(order_lumi)
             return changed
         if not order_lumi.equivalent_status(matched_order.status):
             if matched_order.status in (Order.OrderStatus.CANCELED, Order.OrderStatus.EXPIRED, Order.OrderStatus.REPLACED):

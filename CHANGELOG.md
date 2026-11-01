@@ -4,7 +4,7 @@
 
 ### Fixed
 - Preserve runtime-applied temporal bounds in public failed-tool evidence without exposing private provider diagnostics.
-- Route executor restoration through the shared broker lifecycle owner; retain cumulative executions and replacement metadata on warm reads and same-status Alpaca partial/cancel polling without replaying startup cash.
+- Route executor restoration through the shared broker lifecycle owner; retain cumulative executions and replacement metadata on warm reads and same-status Alpaca partial/cancel polling without replaying startup cash. Delayed working observations cannot reopen terminal orders; newly confirmed executions remain recorded and complete fills win cancellation races.
 - Verify each evidence-packet date window against its own request, including failed requests.
 - Keep baseline ownership evidence and later updates distinct when describing a reconstructed result.
 - Normalize typed SQL timestamp results to UTC instants while retaining source strings, naive market wall clocks, and configured SQL timezone semantics.

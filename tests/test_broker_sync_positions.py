@@ -333,3 +333,25 @@ def test_warm_order_sync_keeps_cumulative_receipts_and_relations(status):
         broker._on_canceled_order.assert_called_once_with(order)
     if status == "error":
         assert order.error_message == "provider reason"
+
+
+@pytest.mark.parametrize("terminal", ["canceled", "replaced", "expired", "error"])
+@pytest.mark.parametrize("later_filled", [5, 6, 10])
+def test_late_working_snapshot_keeps_terminal_receipt_and_new_executions(terminal, later_filled):
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+    broker = _BrokerForSyncTest([])
+    broker.data_source = SimpleNamespace(get_datetime=lambda: datetime(2027, 1, 4, tzinfo=timezone.utc))
+    order = Order("strategy", Asset("SYN"), 10, "buy", identifier="late-working", avg_fill_price=100)
+    order.status = terminal
+    order.filled_quantity = 5
+    broker._process_broker_synced_order(order)
+    observed = Order("strategy", Asset("SYN"), 10, "buy", identifier=order.identifier, avg_fill_price=100)
+    observed.status = "partial_fill" if later_filled < 10 else "fill"
+    observed.filled_quantity = later_filled
+    broker._pull_all_orders = lambda *_: [observed]
+    broker.sync_orders(_Strategy())
+    assert sum(t.quantity for t in order.transactions) == later_filled
+    assert order.status == ("fill" if later_filled == 10 else terminal)
+    assert len(broker.get_all_orders()) == 1
+    assert not order.is_active()

@@ -87,6 +87,17 @@ broker, approval, liquidity and risk limits.
    policy. Offsetting current Greeks do not guarantee those offsets persist.
    Explain the consequential exposure/risk briefly in the order rationale using
    the actual evidence; do not invent missing Greeks or list every Greek by rote.
+   Assess exercise, assignment and settlement for the selected contracts too.
+   A short option can create an obligation even when another leg bounds the
+   package's expiry payoff. Identify the actual contract multiplier, deliverable,
+   exercise style and cash or physical settlement where available. For a short
+   physically settled call, explain the potential delivery or resulting short
+   underlying position and how the held longs, account capacity and planned exit
+   would address it. Do not assume an offsetting long exercises automatically or
+   eliminates early-assignment, expiration mismatch or cash/position consequences.
+   Apply this assessment to the actual instrument; do not assume every option is
+   a standard equity contract. Disclose unavailable contract terms and decide
+   whether they are material under the mandate.
 6. Before constructing an opening multi-leg payload, read
    `references/common-option-structures.md` and verify each buy/sell side,
    strike ordering and ratio against the intended structure. For credit
@@ -215,6 +226,12 @@ For example, a $200 opening debit with a $50 loss review uses a $150 holdings
 value boundary; a full $200 loss uses zero. A negative $200 holdings mark would
 mean a $400 loss before fees, not loss of only that original premium. State the
 entry cash, chosen loss and resulting holdings-value boundary before saving it.
+For a credit example, $50 received and a $20 loss review require a -$70 signed
+holdings boundary: $50 + (-$70) = -$20. A -$30 boundary instead gives a $20
+profit and cannot represent that loss. Substitute your actual numbers back
+into the equation and reconcile the result with the explanation before saving;
+knowing the formula does not establish that your chosen number satisfies it.
+Keep the chosen review loss distinct from maximum possible package loss.
 Marks request attention; refresh executable prices before ordering.
 
 After a confirmed close, inspect your attention conditions and remove those

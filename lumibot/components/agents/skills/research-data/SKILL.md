@@ -65,7 +65,8 @@ claiming it was published. A visible authorization error means it was not publis
    response's provenance and describe the correction separately.
 4. During a backtest, treat the simulated datetime as a hard wall. Pass an aware
    UTC `asOf` no later than that wall. The runtime also clamps managed research.
-   Observation periods, release dates and retrieval times are different facts.
+   Observation dates do not prove publication. Report release dates only when
+   returned; otherwise label any availability estimate explicitly as an estimate.
    Prefer original-version values and article bodies; calendar bounds or current
    revised tables do not prove a value's original version. When a source you can
    actually read has no release or version date, you may still use it for a

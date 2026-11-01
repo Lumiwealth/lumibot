@@ -17,9 +17,21 @@ def test_qualification_rejects_unsafe_configs_before_evidence_or_wallet_use(tmp_
     path = tmp_path / "configs.json"
     path.write_text(json.dumps(configs))
     evidence = tmp_path / "evidence.json"
-    script = Path(__file__).resolve().parents[1] / "scripts" / "qualify_metamask_native.py"
+    root = Path(__file__).resolve().parents[1]
+    # Module execution resolves the checkout in CI without relying on an editable install.
     result = subprocess.run(
-        [sys.executable, "-O", str(script), "--config", str(path), "--evidence", str(evidence), "--execute"],
+        [
+            sys.executable,
+            "-O",
+            "-m",
+            "scripts.qualify_metamask_native",
+            "--config",
+            str(path),
+            "--evidence",
+            str(evidence),
+            "--execute",
+        ],
+        cwd=root,
         capture_output=True,
         text=True,
         timeout=30,

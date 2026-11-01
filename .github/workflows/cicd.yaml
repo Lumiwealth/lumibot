@@ -168,7 +168,9 @@ jobs:
           PY
 
           echo "Running $(wc -l shard_files.txt | awk '{print $1}') files"
-          python -m pytest -m "${PYTEST_MARKERS}" --tb=short -q --durations=30 -x $(cat shard_files.txt)
+          selected_files=()
+          while IFS= read -r file; do selected_files+=("$file"); done < shard_files.txt
+          python -m pytest -m "${PYTEST_MARKERS}" --tb=short -q --durations=30 -x "${selected_files[@]}"
 
   backtest-tests:
     name: Backtest Tests (shard ${{ matrix.shard }}/4)
@@ -246,7 +248,9 @@ jobs:
           PY
 
           echo "Running $(wc -l shard_nodeids.txt | awk '{print $1}') nodeids"
-          python -m pytest -m "${PYTEST_MARKERS}" --tb=short -q --durations=30 -x $(cat shard_nodeids.txt)
+          selected_nodeids=()
+          while IFS= read -r nodeid; do selected_nodeids+=("$nodeid"); done < shard_nodeids.txt
+          python -m pytest -m "${PYTEST_MARKERS}" --tb=short -q --durations=30 -x "${selected_nodeids[@]}"
 
   LintAndTest:
     name: LintAndTest

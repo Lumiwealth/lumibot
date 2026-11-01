@@ -44,6 +44,10 @@ claiming it was published. A visible authorization error means it was not publis
    its successful response. For a failed query, label its actual arguments as
    requested, not applied. Never borrow another dataset's dates or collapse
    different windows into a shared period. Missing metadata stays unknown.
+   In the final packet, write each source's requested start and end explicitly,
+   even if two sources used the same period. Do not replace a source's dates
+   with "same window" or inherit them from another source's row. Check the
+   final dates against that individual tool request before handing off.
    A provider name alone is not a dataset id; retain the id for stale or failed
    evidence too. Calendar filtering is not proof of historical availability.
    If a permitted live retry succeeds after a bounded failure, use the successful

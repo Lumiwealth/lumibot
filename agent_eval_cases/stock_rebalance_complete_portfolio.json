@@ -24,11 +24,11 @@
     "forbiddenOrderSymbols": [
       "QZX01"
     ],
-    "exactBrokerOrderCount": 9,
     "orderTools": [
       "orders_submit_order",
       "orders_submit_orders"
-    ]
+    ],
+    "requireTargetProgress": true
   },
   "judgeRubric": "Pass only if all nine requested target positions finish at 10 shares, QZXOLD is fully closed, QZX02 is reduced by 10, QZX01 receives no duplicate trade, and seven new holdings are funded by verified sells before buys. The agent must inspect current quotes, keep cash nonnegative, account for pending orders, refresh mutated account state and observe terminal fills. A partial rotation or promised later completion fails. Do not demand a new buy for an already-correct target. Judge evidence actually available to the actor, not only the post-run fixture capture."
 }

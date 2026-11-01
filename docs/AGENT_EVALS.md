@@ -215,6 +215,20 @@ Actor, judge and rubric calibration need the same attempt
 ledger. CI verifies the completed evidence without inference. No prompt or credential
 is written to the per-call ledger.
 
+Portfolio completion cases score actual target holdings and progress toward them,
+not an unstated number of orders. Verified top-ups may complete a feasible residual.
+The machine gate rejects wrong-side or unrelated trades, overshoot and round trips,
+unfinished or unobserved terminal orders, inconsistent fill ledgers, and cumulative
+execution above an allocation cap. Final cash reserves, quote evidence, and semantic
+verification remain required. Cases that explicitly require an order count retain
+that contract. A canceled order with partial executions remains unqualified when
+its status receipt lacks the cumulative filled quantity; an unchanged average price
+cannot prove the actor observed a late fill. Status tools expose cumulative and
+remaining quantities from actual retained transactions when available, without
+inventing zero for missing history. Earlier receipts keep their original verdict
+and fingerprint; a changed contract requires fresh qualification rather than
+relabeling old results.
+
 Fingerprints include indicator and broker code plus installed ADK, GenAI,
 LiteLLM, pandas-ta, pandas, NumPy, Alpaca, HTTPX, OpenAI, PyJWT, FileLock, Pydantic and Massive
 versions. Install `requirements_dev.txt` with `-c requirements_agent_evals.txt`

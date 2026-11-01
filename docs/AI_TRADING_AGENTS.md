@@ -41,6 +41,8 @@ A provider error can interrupt inference after an order action. Failed runs reta
 
 Custom tools that submit, change or cancel orders must declare `@agent_tool(mutates_trading=True)`. Research permissions and retry protection use this bound metadata, including when model-facing tool names are aliased.
 
+ChatGPT credential and run-usage files validate regular-file identity, single-link ownership and private permissions before use. POSIX authentication/run locks also validate their directory ancestry before every acquisition; root-owned sticky system temporary directories remain permitted. This blocks planted linked lock files before FileLock can truncate them. Existing owner-controlled readable locks remain compatible. Windows directory ACL restrictions remain the operator's responsibility. These checks do not remove the underlying dependency advisories.
+
 Report purchase cost from confirmed fill quantities, execution prices and fees. Current portfolio equity uses position marks, which can differ from those execution prices. Calculate comparisons with a tool; otherwise report returned cash and equity without inventing a gain or loss explanation.
 
 Failure summaries start with `RESULT: Agent decision incomplete.` Observed events and an execution outcome remain available. An uncached failure is not permission to replay an order; inspect retryability and reconcile unknown broker effects first.

@@ -10,8 +10,10 @@ import hashlib
 import json
 import os
 import secrets
+import stat
 import time
 import webbrowser
+from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlsplit
@@ -39,8 +41,43 @@ def config_root() -> Path:
     return Path(os.environ.get("LUMIBOT_CHATGPT_HOME") or str(Path.home() / ".config" / "lumibot-chatgpt")).expanduser()
 
 
+def _private_parent(path: Path) -> None:
+    if os.name != "posix":
+        return
+    parent = path.parent.absolute()
+    resolved = parent.resolve(strict=True)
+    for directory in {parent, *parent.parents, resolved, *resolved.parents}:
+        info = directory.lstat()
+        trusted_owner = info.st_uid in (0, os.getuid())
+        # Sticky system temp directories cannot rename another owner's child.
+        sticky_system = info.st_uid == 0 and bool(info.st_mode & stat.S_ISVTX)
+        if not trusted_owner or (
+            not stat.S_ISLNK(info.st_mode) and info.st_mode & 0o022 and not sticky_system
+        ):
+            raise ChatGPTAuthorizationError("ChatGPT directory must be writable only by its owner")
+
+
+def _private_metadata(info: os.stat_result, *, permission_mask: int = 0o077) -> None:
+    if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or (
+        os.name == "posix" and (info.st_uid != os.getuid() or info.st_mode & permission_mask)
+    ):
+        raise ChatGPTAuthorizationError("ChatGPT file must be an owner-only regular file with one link")
+
+
+@contextmanager
+def private_lock(path: Path, *, timeout: int = 60):
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    _private_parent(path)
+    if path.exists() or path.is_symlink():
+        # Legacy locks can be readable; only their owner may write or replace them.
+        _private_metadata(path.lstat(), permission_mask=0o022)
+    with FileLock(str(path), mode=0o600, timeout=timeout):
+        yield
+
+
 def save_private(path: Path, value: dict) -> None:
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    _private_parent(path)
     temporary = path.with_name(path.name + "." + secrets.token_hex(8))
     descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
@@ -54,9 +91,12 @@ def save_private(path: Path, value: dict) -> None:
 
 
 def read_private(path: Path) -> dict:
-    if os.name == "posix" and path.stat().st_mode & 0o077:
-        raise ChatGPTAuthorizationError("ChatGPT credential file must be owner-only")
-    value = json.loads(path.read_text())
+    _private_parent(path)
+    _private_metadata(path.lstat())
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    with os.fdopen(descriptor) as stream:
+        _private_metadata(os.fstat(stream.fileno()))
+        value = json.load(stream)
     if not isinstance(value, dict):
         raise RuntimeError("Invalid ChatGPT profile")
     return value
@@ -94,7 +134,7 @@ def _account_key(path: Path) -> str:
 
 def _pool_cooldowns() -> dict:
     try:
-        cooldowns = json.loads((config_root() / "pool.json").read_text()).get("cooldowns", {})
+        cooldowns = read_private(config_root() / "pool.json").get("cooldowns", {})
     except (OSError, ValueError, AttributeError):
         return {}
     return cooldowns if isinstance(cooldowns, dict) else {}
@@ -106,9 +146,9 @@ def is_cooling(path: Path) -> bool:
 
 def mark_exhausted(path: Path) -> None:
     pool = config_root() / "pool.json"
-    with FileLock(str(config_root() / "pool.lock"), timeout=60):
+    with private_lock(config_root() / "pool.lock"):
         try:
-            state = json.loads(pool.read_text())
+            state = read_private(pool)
         except (OSError, ValueError):
             state = {}
         if not isinstance(state, dict):
@@ -138,8 +178,9 @@ def next_connected_profile(current: Path) -> Path | None:
 def access_token(path: Path) -> str:
     """Serialize rotating refresh tokens, including across independent workers."""
     # Check permissions before opening a sibling lock or contacting OpenAI.
-    read_private(path)
-    with FileLock(str(path) + ".lock", timeout=60):
+    _private_parent(path)
+    _private_metadata(path.lstat())
+    with private_lock(Path(str(path) + ".lock")):
         record = read_private(path)
         if record.get("credential_kind") == "run":
             from .chatgpt_run import run_profile
@@ -197,7 +238,7 @@ def login(*, root: Path | None = None, profile_id: str | None = None, new_profil
     root = root or config_root()
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
     host_path = root / "host.json"
-    with FileLock(str(host_path) + ".lock", timeout=30):
+    with private_lock(Path(str(host_path) + ".lock"), timeout=30):
         if not host_path.exists():
             save_private(host_path, {"ext_agent_host_id": "urn:uuid:" + str(uuid4())})
         host = read_private(host_path)["ext_agent_host_id"]
@@ -263,7 +304,7 @@ def login(*, root: Path | None = None, profile_id: str | None = None, new_profil
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     # Exchange/reconnect and rotating refresh share the same write owner. Do not
     # replace a working connection until the new identity/grant is validated.
-    with FileLock(str(path) + ".lock", timeout=60):
+    with private_lock(Path(str(path) + ".lock")):
         current = read_private(path) if path.exists() else {}
         if current.get("client_id") and current["client_id"] != client_id:
             raise ValueError("ChatGPT registration changed during sign-in")
@@ -301,7 +342,7 @@ def login(*, root: Path | None = None, profile_id: str | None = None, new_profil
 
 def logout(path: Path | None = None) -> bool:
     path = path or profile_path()
-    with FileLock(str(path) + ".lock", timeout=60):
+    with private_lock(Path(str(path) + ".lock")):
         record = read_private(path)
         revoked = False
         try:

@@ -50,6 +50,17 @@ Use Python 3.10 or later in your own virtual environment:
 
    python -m pip install lumibot
 
+Keep dependency resolution enabled when installing or upgrading. This source candidate requires
+``PyJWT[crypto]>=2.15.1``, ``setuptools>=84.1.0`` and
+``pandas-ta-classic>=0.6.52``. The newer indicator library works without the
+removed ``pkg_resources`` interface, so the former ``setuptools<81`` workaround
+is no longer needed. Published packages may use older dependency bounds.
+Run ``python -m pip check`` after updating an existing
+environment. These minimums do not resolve the remaining upstream constraints
+on filelock, msgpack and OpenTelemetry; do not force incompatible versions to
+make an audit report appear clean. Python 3.10 also retains a Pillow advisory
+blocker because its patched release requires Python 3.11 or later.
+
 The :doc:`AI quickstart <agents_quickstart>` includes the source-version install
 command for its newest example. Follow that page's complete commands if you
 choose the AI route.

@@ -235,7 +235,8 @@ falls back to independent orders.
 
 After submission, agents can call ``orders_get_status`` or
 ``orders_wait_for_terminal`` to verify identifiers. Never treat a submitted
-status as a fill unless ``is_filled`` is true.
+status as a full fill unless ``is_filled`` is true. Report partial execution from
+observed cumulative fill quantities; cancellation does not erase prior fills.
 
 ``account_positions`` and ``orders_open_orders`` return compact, deterministic
 pages with 50 records by default and at most 100 per call. Every response
@@ -548,3 +549,15 @@ An empty observation window does not establish that a dataset is unavailable.
 For latest-available research, agents can widen or omit a lower date bound they
 chose themselves while preserving the historical ceiling and any user-required
 date range. Older observations retain their actual dates and limitations.
+
+For a requested portfolio allocation, compare calculated quantities with actual
+fills and finish affordable residuals within the original caps and cash reserve.
+Conservative initial execution does not make an affordable missing share a rounding
+constraint. Completion evaluations permit verified top-ups while rejecting excess
+exposure, round trips, unrelated trades and unobserved fills; they do not impose an
+order count absent from the user's task.
+
+``orders_get_status`` and ``orders_wait_for_terminal`` include ``filled_quantity``
+and ``remaining_quantity`` when backed by retained order transactions. These fields
+allow a later partial fill to be distinguished from an older canceled receipt at the
+same average price. Missing history leaves the fields absent, not zero.

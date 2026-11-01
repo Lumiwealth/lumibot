@@ -90,6 +90,8 @@ tools and backtesting broker. Market observations and research responses are
 fixtures; actor and judge calls use real models. Execution scenarios require a
 broker-observed simulated fill, not merely an order claim in model prose.
 Historical research fixtures also exercise MCP schema discovery and as-of binding.
+Each production evaluation fixture releases its own database and stream
+resources after use, including failed runs.
 
 How ``@agent_tool`` Works
 -------------------------

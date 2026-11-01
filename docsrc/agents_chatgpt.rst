@@ -63,6 +63,12 @@ directory private too. On Windows, keep the user-profile directory's access
 controls restricted to your account. Never commit profiles, share them with
 other users, or copy credentials into a public issue or workflow artifact.
 
+POSIX credential reads reject symlinks, hard links and unsafe file ownership or
+permissions. Authentication and run-usage locks recheck their paths before each
+acquisition, including containing directories and ancestors. Writable ancestors
+are rejected except root-owned sticky system temporary directories. Legacy
+owner-controlled readable locks remain usable; new locks are owner-only.
+
 Login reconnects the active registration. Use ``login --profile <profile-id>``
 to reconnect another existing profile or ``login --new-profile`` to create a
 separate registration for another account. Returning registrations validate

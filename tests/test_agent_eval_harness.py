@@ -2029,6 +2029,192 @@ def test_native_repetition_preserves_typed_actor_error_without_spending_a_judge_
     assert "judge" not in row["usage"]
 
 
+def _target_progress_transcript(actions, *, initial=None, targets=None):
+    initial, targets = initial or {}, targets or {"ALFA": 10}
+    holdings = dict(initial)
+    orders, trades = [], []
+    for index, (symbol, side, quantity) in enumerate(actions):
+        order = {"identifier": f"order-{index}", "asset": {"symbol": symbol, "type": "stock"},
+                 "side": side, "quantity": quantity, "status": "fill", "avg_fill_price": 100}
+        orders.append(order)
+        trades.append({"identifier": order["identifier"], "symbol": symbol, "side": side,
+                       "status": "fill", "filled_quantity": quantity, "price": 100})
+        holdings[symbol] = holdings.get(symbol, 0) + quantity * (1 if side == "buy" else -1)
+    case = {"machineContract": {"targetPositions": targets, "requireTargetProgress": True}}
+    transcript = {
+        "fixture_calls": [], "tool_calls": [], "submissions": [],
+        "initial_runtime_context": {"account_snapshot": {"positions_complete": True}, "positions": [
+            {"asset": {"symbol": symbol, "type": "stock"}, "quantity": quantity}
+            for symbol, quantity in initial.items()
+        ]},
+        "broker_orders": orders, "broker_trade_events": trades,
+        "tool_results": [{"name": "orders_get_status", "payload": {"orders": copy.deepcopy(orders)}}],
+        "final_positions": [{"asset": {"symbol": symbol, "type": "stock"}, "quantity": quantity}
+                            for symbol, quantity in holdings.items() if quantity],
+    }
+    return case, transcript
+
+
+@pytest.mark.parametrize("parts", [[10], [9, 1], [3, 4, 3]])
+def test_target_progress_accepts_verified_split_execution(parts):
+    case, transcript = _target_progress_transcript([("ALFA", "buy", quantity) for quantity in parts])
+    assert evals.score_machine_contract(case, transcript)["pass"]
+
+
+def test_target_progress_accepts_reduction_and_verified_topup():
+    case, transcript = _target_progress_transcript(
+        [("ALFA", "sell", 5), ("BETA", "buy", 9), ("BETA", "buy", 1)],
+        initial={"ALFA": 15}, targets={"ALFA": 10, "BETA": 10},
+    )
+    assert evals.score_machine_contract(case, transcript)["pass"]
+
+
+@pytest.mark.parametrize("actions", [
+    [("ALFA", "buy", 11), ("ALFA", "sell", 1)],  # Overshoot followed by repair.
+    [("ALFA", "buy", 5), ("ALFA", "sell", 5), ("ALFA", "buy", 10)],
+    [("OTHER", "buy", 1), ("OTHER", "sell", 1), ("ALFA", "buy", 10)],
+    [("ALFA", "sell", 1), ("ALFA", "buy", 11)],
+])
+def test_target_progress_rejects_churn_wrong_side_and_unrelated_trades(actions):
+    case, transcript = _target_progress_transcript(actions)
+    # Every path ends at the target: final holdings alone cannot detect these violations.
+    assert transcript["final_positions"] == [{"asset": {"symbol": "ALFA", "type": "stock"}, "quantity": 10}]
+    assert not evals.score_machine_contract(case, transcript)["pass"]
+
+
+@pytest.mark.parametrize("mutation", ["missing_observation", "ack_only", "wrong_observed_quantity",
+                                     "wrong_observed_asset", "wrong_observed_price", "missing_fills",
+                                     "active_order", "duplicate_id", "incomplete_initial_snapshot"])
+def test_target_progress_requires_consistent_observed_terminal_execution(mutation):
+    case, transcript = _target_progress_transcript([("ALFA", "buy", 9), ("ALFA", "buy", 1)])
+    observed = transcript["tool_results"][0]
+    if mutation == "missing_observation":
+        observed["payload"]["orders"].pop()
+    elif mutation == "ack_only":
+        observed["name"] = "orders_submit_orders"
+    elif mutation == "wrong_observed_quantity":
+        observed["payload"]["orders"][-1]["quantity"] = 2
+    elif mutation == "wrong_observed_asset":
+        observed["payload"]["orders"][-1]["asset"]["type"] = "option"
+    elif mutation == "wrong_observed_price":
+        observed["payload"]["orders"][-1]["avg_fill_price"] = 99
+    elif mutation == "missing_fills":
+        transcript["broker_trade_events"].pop()
+    elif mutation == "active_order":
+        transcript["broker_orders"][-1]["status"] = "new"
+    elif mutation == "duplicate_id":
+        transcript["broker_orders"][-1]["identifier"] = "order-0"
+    else:
+        transcript["initial_runtime_context"]["account_snapshot"]["positions_complete"] = False
+    assert not evals.score_machine_contract(case, transcript)["pass"]
+
+
+def test_target_progress_preserves_cumulative_allocation_cap_across_split_orders():
+    case, transcript = _target_progress_transcript([("ALFA", "buy", 9), ("ALFA", "buy", 1)])
+    case["machineContract"]["maximumOrderNotional"] = 1000
+    transcript["broker_trade_events"][-1]["price"] = 101
+    transcript["broker_orders"][-1]["avg_fill_price"] = 101
+    transcript["tool_results"][0]["payload"]["orders"][-1]["avg_fill_price"] = 101
+    assert not evals.score_machine_contract(case, transcript)["pass"]
+
+
+def test_target_progress_does_not_infer_late_canceled_fill_quantity_from_same_average():
+    case, transcript = _target_progress_transcript([("ALFA", "buy", 4), ("ALFA", "buy", 6)])
+    # A canceled ten-share order may first expose one fill, then four, at the same
+    # average price. A restored receipt can lack cumulative filled quantity, so
+    # an old canceled receipt cannot prove that the actor observed the final delta.
+    for row in (transcript["broker_orders"][0], transcript["tool_results"][0]["payload"]["orders"][0]):
+        row.update(status="canceled", quantity=10)
+    assert not evals.score_machine_contract(case, transcript)["pass"]
+
+
+def test_target_progress_allows_verified_zero_fill_cancellation_before_replacement():
+    case, transcript = _target_progress_transcript([("ALFA", "buy", 10)])
+    canceled = {"identifier": "canceled-order", "asset": {"symbol": "ALFA", "type": "stock"},
+                "quantity": 10, "side": "buy", "status": "canceled"}
+    transcript["broker_orders"].insert(0, canceled)
+    transcript["tool_results"][0]["payload"]["orders"].insert(0, copy.deepcopy(canceled))
+    assert evals.score_machine_contract(case, transcript)["pass"]
+
+
+def test_target_progress_requires_refreshed_real_order_cumulative_fill_evidence():
+    from lumibot.components.agents.builtins import _order_status_payload, _order_to_dict
+    from lumibot.entities import Asset, Order
+
+    case, transcript = _target_progress_transcript([("ALFA", "buy", 4), ("ALFA", "buy", 6)])
+    order = Order("offline", Asset("ALFA"), 10, "buy", identifier="order-0")
+    order.add_transaction(100, 1)
+    order.status = "canceled"
+    order.avg_fill_price = 100
+    old = _order_status_payload(order)
+    order.add_transaction(100, 3)
+    transcript["broker_orders"][0] = _order_to_dict(order)
+    transcript["tool_results"][0]["payload"]["orders"][0] = old
+    assert not evals.score_machine_contract(case, transcript)["pass"]
+    fresh = _order_status_payload(order)
+    assert (old["filled_quantity"], fresh["filled_quantity"], fresh["remaining_quantity"]) == (1, 4, 6)
+    transcript["tool_results"][0]["payload"]["orders"][0] = fresh
+    assert evals.score_machine_contract(case, transcript)["pass"]
+
+
+@pytest.mark.parametrize("quantity,transactions,expected", [
+    ("0.3", ["0.1", "0.2"], (0.3, 0)),
+    ("1", ["1.1"], (1.1, -0.1)),  # Expose an actual overfill; never clamp it away.
+    ("1", [], None),  # A restored status without transactions is not a zero-fill proof.
+    ("1", ["NaN"], None),
+])
+def test_order_status_exposes_only_actual_finite_cumulative_quantities(quantity, transactions, expected):
+    from decimal import Decimal
+    from lumibot.components.agents.builtins import _order_status_payload
+    from lumibot.entities import Asset, Order
+
+    order = Order("offline", Asset("ALFA"), Decimal(quantity), "buy")
+    order.status = "canceled"
+    for amount in transactions:
+        order.add_transaction(100, Decimal(amount))
+    payload = _order_status_payload(order)
+    if expected is None:
+        assert "filled_quantity" not in payload and "remaining_quantity" not in payload
+    else:
+        assert (payload["filled_quantity"], payload["remaining_quantity"]) == expected
+
+
+@pytest.mark.parametrize("parts,expected", [([110], True), ([109, 1], True), ([109], False)])
+def test_completion_case_scores_actual_fixture_topups_without_an_order_count_cap(parts, expected):
+    from lumibot.entities import Asset
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    fixture = evals.build_fixture("portfolio_initial_9")
+    production = ProductionFixture(fixture)
+    try:
+        tools = {tool.name: tool for tool in production.tools()}
+        initial = tools["account_positions"].function()
+        observations = []
+        for quantity in parts:
+            identifiers = []
+            for number in range(1, 10):
+                order = production.strategy.create_order(Asset(f"QZX{number:02d}"), quantity, "buy")
+                production.strategy.submit_order(order)
+                identifiers.append(str(order.identifier))
+            production.settle()
+            observations.append({"name": "orders_get_status", "payload": tools["orders_get_status"].function(
+                identifiers_json=json.dumps(identifiers))})
+        result = AgentRunResult(summary="Offline actual fixture evidence", model=evals.DEFAULT_ACTING_MODEL, events=[])
+        orders = production.capture(result)
+        transcript = {**evals.compact_transcript(result, fixture), "broker_orders": orders,
+                      "initial_runtime_context": {"positions": initial["positions"],
+                                                  "account_snapshot": {"positions_complete": initial["complete"]}},
+                      "tool_results": observations,
+                      "tool_calls": [{"name": "load_skill", "payload": {"skill_name": "stock-trading"}}],
+                      "fixture_calls": [{"name": "market_quotes"}]}
+        # The task specifies nine final holdings, not nine total orders. The old count
+        # rejected the fully verified 109+1 repair while the 109-only failure remains real.
+        case = evals.load_cases({"stock_complete_portfolio_9"})[0]
+        assert evals.score_machine_contract(case, transcript)["pass"] is expected
+    finally:
+        production.close()
+
+
 @pytest.mark.parametrize("mutation_marker", [False, True, None])
 @pytest.mark.parametrize("retain_events", [False, True])
 def test_native_failure_keeps_actual_broker_violations_even_when_effect_marker_disagrees(

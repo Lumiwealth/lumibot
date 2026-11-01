@@ -114,6 +114,23 @@ def test_core_polled_fill_spawns_protective_orders(broker, mes):
     assert set(parent._synthetic_bracket['children']) == {'tp', 'sl'}
 
 
+def test_accepted_child_is_not_reported_as_submission_failure(broker, mes, caplog):
+    parent = _make_bracket_entry(mes, tp=5050, sl=4975)
+    child = broker._create_bracket_child(parent, 'tp', 5050, 'BASE')
+    assert child.identifier
+    assert 'Bracket child submission failed' not in caplog.text
+
+
+def test_bracket_meta_restores_using_real_order_identifier(broker, mes):
+    from lumibot.tools.projectx_helpers import create_bracket_meta, restore_bracket_meta_if_needed
+    parent = Order(strategy='Strat', asset=mes, quantity=1, side='buy', identifier='1001')
+    meta = create_bracket_meta(5050, 4975)
+    broker._bracket_meta[parent.identifier] = meta
+    assert broker._is_bracket_parent(parent)
+    assert restore_bracket_meta_if_needed(parent, {}, broker._bracket_meta)
+    assert parent._synthetic_bracket['tp_price'] == 5050
+
+
 def test_fill_before_acknowledgement_protects_the_tracked_parent(broker, mes):
     parent = _make_bracket_entry(mes, tp=5050, sl=4975)
     original = broker.client.order_place

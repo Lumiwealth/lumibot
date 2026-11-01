@@ -1344,13 +1344,22 @@ def normalize_bracket_entry_tag(tag: str):
     return f"BRK_ENTRY_{base}", base
 
 # ================= Additional Low-Risk Helpers =================
+def projectx_strategy_identity(strategy_name):
+    """A stable complete-name identity that fits the provider's 64-character tags."""
+    import base64
+    import hashlib
+    digest = hashlib.sha256(str(strategy_name).encode('utf-8')).digest()[:24]
+    return base64.urlsafe_b64encode(digest).decode('ascii')
+
+
 def build_unique_order_tag(order):
     """Generate (or normalize) a unique order tag.
 
-    Preserve the complete strategy identity and append a unique order suffix.
+    Preserve a complete-name strategy identity and append a unique order suffix.
     Explicit non-empty user tags remain unchanged.
     """
     try:
+        import base64
         import uuid
         if not str(getattr(order, 'tag', '') or '').strip():
             strat_part = ''
@@ -1360,8 +1369,10 @@ def build_unique_order_tag(order):
                     strat_part = strat_name or 'LB'
             except Exception:
                 strat_part = 'LB'
-            unique_suffix = uuid.uuid4().hex
-            order.tag = f"{strat_part}-{unique_suffix}"
+            unique_suffix = base64.urlsafe_b64encode(uuid.uuid4().bytes).decode('ascii').rstrip('=')
+            # 32 owner characters + 22 random characters, plus the longest
+            # BRK_ENTRY_ prefix, is exactly the provider's 64-character limit.
+            order.tag = projectx_strategy_identity(strat_part) + unique_suffix
     except Exception:
         # Silent; caller already logs on failure in original logic
         pass
@@ -1481,7 +1492,7 @@ def restore_bracket_meta_if_needed(order, cache, meta_map, logger=None):
     try:
         if hasattr(order, '_synthetic_bracket'):
             return False
-        broker_id = getattr(order, 'id', None)
+        broker_id = getattr(order, 'identifier', None) or getattr(order, 'id', None)
         # Check cached order first
         if cache and broker_id in cache:
             cached = cache.get(broker_id)

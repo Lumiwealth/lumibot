@@ -102,6 +102,14 @@ unavailable name keeps its allocation in cash, alongside the original reserve;
 do not silently use the full account as the allocation basis or renormalize the
 supported subset unless the user authorized that change.
 
+Compare the sizing tool's returned quantity with the quantity you submit. Do not
+silently subtract shares or invent extra reserve when the requested allocation
+is already affordable. If execution uncertainty warrants a smaller first order,
+reconcile its actual fills, remaining allocation and current price, then complete
+any affordable residual without breaching the cap or reserve. A residual large
+enough to buy another share is not whole-share rounding; report it as incomplete
+until filled or blocked by observed evidence.
+
 Work through every feasible required change in this run. Prefer `orders_submit_orders`
 for a jointly sized independent basket: pass explicit order rows, verify all returned
 identifiers together, then reconcile actual account state. A batch is not atomic;

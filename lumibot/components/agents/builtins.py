@@ -2308,6 +2308,23 @@ def _order_status_payload(order: Any) -> dict[str, Any]:
     is_active = bool(getattr(order, "is_active", lambda: not (is_filled or is_canceled))())
     is_terminal = bool(is_filled or is_canceled or not is_active)
     payload = _order_to_dict(order)
+    # A terminal status alone cannot reconstruct a partial execution. Expose
+    # only quantities backed by the retained transaction snapshot, including
+    # late fills after cancellation; missing history remains unknown.
+    transactions = getattr(order, "transactions", None)
+    if isinstance(transactions, (list, tuple)) and transactions:
+        from fractions import Fraction
+
+        try:
+            quantities = [Fraction(str(item.quantity)) for item in tuple(transactions)]
+            requested = Fraction(str(order.quantity))
+            if requested >= 0 and all(quantity >= 0 for quantity in quantities):
+                filled = sum(quantities, Fraction(0))
+                values = float(filled), float(requested - filled)
+                if all(math.isfinite(value) for value in values):
+                    payload.update(filled_quantity=values[0], remaining_quantity=values[1])
+        except (AttributeError, TypeError, ValueError, OverflowError, ZeroDivisionError):
+            pass
     payload.update(
         {
             "status_normalized": status or None,
@@ -2394,8 +2411,10 @@ def _bind_orders_get_status(strategy: Any, manager: Any) -> BoundTool:
         description=(
             "Get current status for one or more tracked order identifiers. "
             "Arguments: optional identifier, optional identifiers_json as a JSON array of identifiers. "
-            "Reuse this after orders_submit_order, orders_submit_orders or orders_submit_multileg. Never claim a fill unless "
+            "Reuse this after orders_submit_order, orders_submit_orders or orders_submit_multileg. Never claim a full fill unless "
             "is_filled is true for the exact identifier. Missing identifiers are returned with available=false. "
+            "When retained execution history is available, filled_quantity and remaining_quantity expose cumulative "
+            "execution even after cancellation. Missing quantities are unknown, not zero. "
             "Example: orders_get_status(identifier='bt_1') or orders_get_status(identifiers_json='[\"bt_1\",\"bt_2\"]')."
         ),
         function=get_status,
@@ -2519,7 +2538,7 @@ def _bind_orders_wait_for_terminal(strategy: Any, manager: Any) -> BoundTool:
             "Arguments: optional identifier, optional identifiers_json, optional timeout_seconds (default 30, max 120), "
             "optional poll_interval_seconds (default 1). Uses strategy.sleep so pending broker fills can process. "
             "In backtests, use one short bounded wait immediately after your own market-order submission when the simulator must process the pending fill. The wait advances simulated time and is capped, so do not use it as an open-ended polling loop. "
-            "Never claim a fill unless is_filled is true. "
+            "Never claim a full fill unless is_filled is true. "
             "Example: orders_wait_for_terminal(identifiers_json='[\"bt_1\"]', timeout_seconds=15)."
         ),
         function=wait_for_terminal,

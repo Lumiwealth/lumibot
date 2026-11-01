@@ -674,12 +674,10 @@ class Alpaca(Broker):
         timedelta : int | None
             Optional buffer in minutes before the official close to wake up.
         strategy : Strategy | None
-            The calling strategy; forwarded so pending orders can be processed
-            the same way BacktestingBroker does.
+            The calling strategy. Unused here: pending-order processing is a
+            backtesting-broker step (simulated fills); live fills arrive via the
+            trade stream.
         """
-        # First, handle any orders waiting to be processed.
-        self.process_pending_orders(strategy=strategy)
-
         # Seconds until the bell rings
         time_to_close = self.get_time_to_close()
 

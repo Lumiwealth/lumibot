@@ -165,9 +165,9 @@ def native_wait(broker, item, states, timeout=TIMEOUT):
 
 
 def book(venue):
-    value = venue.info({"type": "l2Book", "coin": "BTC"})
+    value = venue.info({"type": "l2Book", "coin": "ETH"})
     require(
-        value["coin"] == "BTC" and abs(int(time.time() * 1000) - value["time"]) < 10_000, "Book is stale or unrelated"
+        value["coin"] == "ETH" and abs(int(time.time() * 1000) - value["time"]) < 10_000, "Book is stale or unrelated"
     )
     return Decimal(value["levels"][0][0]["px"]), Decimal(value["levels"][1][0]["px"])
 
@@ -181,14 +181,14 @@ def wait_for_eligible_book(venue, market, timeout=60):
         with localcontext(Context(prec=160)):
             price = venue.normalize_price((bid + ask) / 2, market)
             tick = Decimal(1).scaleb(-min(6 - market.size_decimals, 4 - price.adjusted()))
-            eligible = price - bid >= 5 * tick and ask - price >= 5 * tick
+            eligible = price - bid >= tick and ask - price >= tick
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             break
         if eligible:
             return bid, ask, price, tick
         time.sleep(min(1, remaining))
-    raise TimeoutError("No public book with five ticks of room on each side within the eligibility wait")
+    raise TimeoutError("No public book with one tick of room on each side within the eligibility wait")
 
 
 def owned_residual(operations, positions, open_orders, owned_ids):
@@ -200,7 +200,7 @@ def owned_residual(operations, positions, open_orders, owned_ids):
         known = Decimal(0)
         for operation in operations:
             request = operation["request"]
-            require(request["symbol"] == "BTC" and request["side"] in {"buy", "sell"}, "Unexpected cleanup intent")
+            require(request["symbol"] == "ETH" and request["side"] in {"buy", "sell"}, "Unexpected cleanup intent")
             filled = Decimal(operation["filledQuantity"])
             require(filled.is_finite() and 0 <= filled <= Decimal(request["quantity"]), "Invalid cumulative fill")
             known += filled if request["side"] == "buy" else -filled
@@ -208,7 +208,7 @@ def owned_residual(operations, positions, open_orders, owned_ids):
         require(not positions, "Unowned position prevents cleanup")
     else:
         require(
-            len(positions) == 1 and positions[0]["symbol"] == "BTC" and Decimal(positions[0]["quantity"]) == known,
+            len(positions) == 1 and positions[0]["symbol"] == "ETH" and Decimal(positions[0]["quantity"]) == known,
             "Authoritative position differs from this run's exact known fills",
         )
     return known
@@ -217,7 +217,7 @@ def owned_residual(operations, positions, open_orders, owned_ids):
 def order(identifier, quantity, side, **values):
     return Order(
         STRATEGY,
-        Asset("BTC", asset_type="crypto_future", leverage=1),
+        Asset("ETH", asset_type="crypto_future", leverage=1),
         quantity,
         side,
         quote=Asset("USDC", asset_type="crypto"),
@@ -304,11 +304,21 @@ def run(configs, evidence):
         recorders = [CallbackRecorder(), CallbackRecorder()]
         for broker, recorder in zip(brokers, recorders):
             broker._add_subscriber(recorder)
-        market = maker.client.venue.market("BTC")
-        evidence.stage("book_wait", timeout_seconds=60, minimum_ticks_each_side=5)
+        market = maker.client.venue.market("ETH")
+        evidence.stage("book_wait", timeout_seconds=60, minimum_ticks_each_side=1)
         bid, ask, price, tick = wait_for_eligible_book(maker.client.venue, market)
-        evidence.stage("book_eligible", bid=str(bid), ask=str(ask), price=str(price), tick=str(tick))
-        mark = maker.client.price("BTC")
+        with localcontext(Context(prec=160)):
+            evidence.stage(
+                "book_eligible",
+                symbol="ETH",
+                bid=str(bid),
+                ask=str(ask),
+                price=str(price),
+                tick=str(tick),
+                bid_margin_ticks=str((price - bid) / tick),
+                ask_margin_ticks=str((ask - price) / tick),
+            )
+        mark = maker.client.price("ETH")
         with localcontext(Context(prec=160)):
             half = (Decimal(12) / mark).quantize(Decimal(1).scaleb(-market.size_decimals), rounding=ROUND_DOWN)
             require(bid < price < ask, "Book has no safe inside-spread maker price")
@@ -372,7 +382,7 @@ def run(configs, evidence):
             require(current["status"] == "open", "Maker left the book before partial cancellation")
             venue_order = current["order"]
             require(
-                venue_order["coin"] == "BTC"
+                venue_order["coin"] == "ETH"
                 and venue_order["side"] == "B"
                 and venue_order["oid"] == int(maker_open["providerOrderId"])
                 and Decimal(venue_order["origSz"]) == half * 2,
@@ -385,7 +395,7 @@ def run(configs, evidence):
                 )
                 if row["oid"] == int(maker_open["providerOrderId"])
             ]
-            require(all(row["coin"] == "BTC" and row["side"] == "B" for row in fills), "Unexpected maker fill identity")
+            require(all(row["coin"] == "ETH" and row["side"] == "B" for row in fills), "Unexpected maker fill identity")
             with localcontext(Context(prec=160)):
                 quantity = sum((Decimal(row["sz"]) for row in fills), Decimal(0))
             require(quantity <= half, "Maker received excess fills; aborting qualification")
@@ -405,7 +415,7 @@ def run(configs, evidence):
         require(
             {(row["tid"], Decimal(row["sz"]), Decimal(row["px"])) for row in fills}
             == {(row["tid"], Decimal(row["sz"]), Decimal(row["px"])) for row in taker_fills}
-            and all(row["coin"] == "BTC" and row["side"] == "A" for row in taker_fills),
+            and all(row["coin"] == "ETH" and row["side"] == "A" for row in taker_fills),
             "Independent fills do not prove the intended two-wallet match",
         )
         evidence.stage("independent_partial", status=status, fills=fills, taker_fills=taker_fills)

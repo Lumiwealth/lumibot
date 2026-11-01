@@ -114,10 +114,10 @@ def public_venue(clock, spreads):
     values = iter(spreads)
 
     def info(query):
-        assert query == {"type": "l2Book", "coin": "BTC"}
+        assert query == {"type": "l2Book", "coin": "ETH"}
         bid, ask = next(values)
         return {
-            "coin": "BTC",
+            "coin": "ETH",
             "time": int((1_000 + clock.elapsed) * 1_000),
             "levels": [[{"px": bid}], [{"px": ask}]],
         }
@@ -127,26 +127,28 @@ def public_venue(clock, spreads):
     return venue
 
 
-def test_public_book_wait_accepts_only_normalized_price_with_five_ticks_each_side(public_book_clock):
-    venue = public_venue(public_book_clock, [("77352", "77353"), ("77352", "77361"), ("77352", "77363")])
-    bid, ask, price, tick = qualification.wait_for_eligible_book(venue, SimpleNamespace(size_decimals=5))
-    # The nine-tick spread has an inside midpoint but insufficient room after rounding.
-    assert (bid, ask, price, tick) == tuple(map(Decimal, ("77352", "77363", "77358", "1")))
-    assert venue.info.call_count == 3
-    assert public_book_clock.sleeps == [1, 1]
+@pytest.mark.parametrize("ask", ["2260.7", "2260.8"])
+def test_public_book_wait_accepts_only_normalized_price_with_one_tick_each_side(public_book_clock, ask):
+    venue = public_venue(public_book_clock, [("2260.5", "2260.6"), ("2260.5", ask)])
+    bid, ask, price, tick = qualification.wait_for_eligible_book(venue, SimpleNamespace(size_decimals=4))
+    # ETH permits an inside tick in two/three-tick spreads; one-tick spreads cannot qualify.
+    assert (bid, price, tick) == tuple(map(Decimal, ("2260.5", "2260.6", "0.1")))
+    assert bid + tick <= price <= ask - tick
+    assert venue.info.call_count == 2
+    assert public_book_clock.sleeps == [1]
 
 
 def test_public_book_wait_times_out_without_freezing_an_ineligible_intent(public_book_clock):
-    venue = public_venue(public_book_clock, [("77352", "77353")] * 3)
-    with pytest.raises(TimeoutError, match="five ticks"):
-        qualification.wait_for_eligible_book(venue, SimpleNamespace(size_decimals=5), timeout=2.5)
+    venue = public_venue(public_book_clock, [("2260.5", "2260.6")] * 3)
+    with pytest.raises(TimeoutError, match="one tick"):
+        qualification.wait_for_eligible_book(venue, SimpleNamespace(size_decimals=4), timeout=2.5)
     assert public_book_clock.elapsed == 2.5
     assert public_book_clock.sleeps == [1, 1, 0.5]
     assert venue.info.call_count == 3
 
 
 def test_public_book_wait_does_not_accept_a_response_arriving_after_deadline(public_book_clock):
-    venue = public_venue(public_book_clock, [("77352", "77415")])
+    venue = public_venue(public_book_clock, [("2260.5", "2260.8")])
     read = venue.info.side_effect
 
     def late_info(query):
@@ -154,18 +156,18 @@ def test_public_book_wait_does_not_accept_a_response_arriving_after_deadline(pub
         return read(query)
 
     venue.info.side_effect = late_info
-    with pytest.raises(TimeoutError, match="five ticks"):
-        qualification.wait_for_eligible_book(venue, SimpleNamespace(size_decimals=5))
+    with pytest.raises(TimeoutError, match="one tick"):
+        qualification.wait_for_eligible_book(venue, SimpleNamespace(size_decimals=4))
     assert venue.info.call_count == 1
     assert public_book_clock.sleeps == []
 
 
-def operation(state="canceled", filled="0.00015"):
+def operation(state="canceled", filled="0.0053"):
     return {
         "id": "owned-maker",
         "state": state,
         "filledQuantity": filled,
-        "request": {"symbol": "BTC", "quantity": "0.00030", "side": "buy"},
+        "request": {"symbol": "ETH", "quantity": "0.0106", "side": "buy"},
     }
 
 
@@ -177,15 +179,22 @@ def test_even_zero_fills_cannot_hide_an_unresolved_order(state):
 
 def test_cleanup_requires_exact_ownership_and_matching_authoritative_position():
     owned = {"owned-maker"}
-    position = [{"symbol": "BTC", "quantity": "0.00015"}]
-    assert qualification.owned_residual([operation()], position, [], owned) == Decimal("0.00015")
+    position = [{"symbol": "ETH", "quantity": "0.0053"}]
+    assert qualification.owned_residual([operation()], position, [], owned) == Decimal("0.0053")
     for operations, positions, orders in (
-        ([operation()], [{"symbol": "BTC", "quantity": "0.00030"}], []),
+        ([operation()], [{"symbol": "ETH", "quantity": "0.0106"}], []),
         ([operation()], position, [{"oid": 777}]),
         ([{**operation(), "id": "unowned"}], position, []),
+        ([operation()], [{"symbol": "BTC", "quantity": "0.0053"}], []),
     ):
         with pytest.raises(RuntimeError):
             qualification.owned_residual(operations, positions, orders, owned)
+
+
+def test_qualification_order_uses_only_approved_eth_market():
+    item = qualification.order("offline-eth", Decimal("0.0106"), "buy")
+    assert item.asset.symbol == "ETH"
+    assert item.asset.leverage == 1
 
 
 def test_cleanup_does_not_cancel_foreign_orders_or_close_unowned_position():
@@ -193,7 +202,7 @@ def test_cleanup_does_not_cancel_foreign_orders_or_close_unowned_position():
     broker.client.config = {"AGENT_ID": "agent", "WALLET_ADDRESS": "0x" + "1" * 40}
     broker.client.journal.get.return_value = operation()
     broker.client.get_order.return_value = operation()
-    broker.client.account.return_value = {"positions": [{"symbol": "BTC", "quantity": "0.00030"}]}
+    broker.client.account.return_value = {"positions": [{"symbol": "ETH", "quantity": "0.0106"}]}
     broker.client.venue.info.return_value = []
     item = SimpleNamespace(identifier="owned-maker")
     with pytest.raises(RuntimeError, match="Authoritative position differs"):

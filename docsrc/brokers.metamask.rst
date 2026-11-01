@@ -194,6 +194,9 @@ validates the originally recorded origin, without alternate-origin retries.
 Guard Mode and exact policy checks stay enabled.
 
 Actual native testnet ALO placement/cancellation and market opening/reduce-only
-closing have passed on two dedicated wallets. Partial-fill, restart, real
-Strategy callbacks and exact-wheel qualification remain required. Earlier
-JavaScript receipts cannot qualify this implementation.
+closing have passed on two dedicated wallets. A real Strategy/Trader ETH round
+trip delivered unique callbacks and reconciled ending cash exactly, including
+fees. The installed wheel passed native regression tests on Python 3.10 and
+3.12 without JavaScript runtimes in PATH. Funded partial-fill/cancel and subsequent
+restart qualification remain open. This is not production or mainnet-swap
+qualification. Earlier JavaScript receipts cannot qualify this implementation.

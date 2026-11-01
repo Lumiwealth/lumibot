@@ -373,36 +373,67 @@ def test_tracker_transition_is_atomic_for_concurrent_identifier_lookup(monkeypat
     broker._unprocessed_orders.append(submitted)
     broker._new_orders.append(callback_copy)
 
-    append_entered = Event()
-    allow_append = Event()
+    from threading import current_thread
+
+    append_entered, allow_append, lookup_attempted = Event(), Event(), Event()
     original_append = broker._filled_orders.append
+    original_lock = broker._lock
+    blocked, observed, errors = [], [], []
+
+    class ObservedLock:
+        def __enter__(self):
+            if current_thread().name == "atomic-order-lookup":
+                acquired = original_lock.acquire(blocking=False)
+                if acquired:
+                    original_lock.release()
+                blocked.append(not acquired)
+                lookup_attempted.set()
+            original_lock.acquire()
+            return self
+
+        def __exit__(self, *_exc):
+            original_lock.release()
 
     def paused_append(order):
         append_entered.set()
-        assert allow_append.wait(timeout=2)
+        allow_append.wait()
         original_append(order)
 
-    monkeypatch.setattr(broker._filled_orders, "append", paused_append)
-    cleanup = Thread(target=broker._clean_order_trackers, args=(authoritative,))
-    cleanup.start()
-    assert append_entered.wait(timeout=2)
-
-    observed = []
-    lookup_done = Event()
+    def clean():
+        try:
+            broker._clean_order_trackers(authoritative)
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            append_entered.set()
 
     def lookup():
-        observed.append(broker.get_tracked_order("atomic-1"))
-        lookup_done.set()
+        try:
+            observed.append(broker.get_tracked_order("atomic-1"))
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            # Also release the main thread if a broken lookup bypasses the lock.
+            lookup_attempted.set()
 
-    reader = Thread(target=lookup)
+    monkeypatch.setattr(broker, "_lock", ObservedLock())
+    monkeypatch.setattr(broker._filled_orders, "append", paused_append)
+    cleanup = Thread(target=clean)
+    reader = Thread(target=lookup, name="atomic-order-lookup")
+    cleanup.start()
+    append_entered.wait()
     reader.start()
-    assert lookup_done.wait(timeout=0.05) is False
-    allow_append.set()
-    cleanup.join(timeout=2)
-    reader.join(timeout=2)
+    try:
+        lookup_attempted.wait()
+        # A real nonblocking acquisition observes contention, independent of
+        # scheduling speed or a negative wait with an arbitrary deadline.
+        assert blocked == [True]
+    finally:
+        allow_append.set()
+        cleanup.join()
+        reader.join()
 
-    assert cleanup.is_alive() is False
-    assert reader.is_alive() is False
+    assert errors == []
     assert observed == [submitted]
     assert submitted.status == Order.OrderStatus.FILLED
 
@@ -556,3 +587,14 @@ def test_executor_startup_uses_broker_cumulative_fills_without_recharging_cash(s
     assert sum(t.quantity for t in tracked.transactions) == filled
     assert strategy.cash == 2000 - filled * 100
     assert tracked.status == observed.status
+
+
+def test_tracker_concurrency_checks_have_no_elapsed_acceptance_deadlines():
+    import ast
+    from pathlib import Path
+    for node in ast.walk(ast.parse(Path(__file__).read_text())):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in {"wait", "join"}:
+            deadlines = list(node.args) + [kw.value for kw in node.keywords if kw.arg == "timeout"]
+            assert all(isinstance(value, ast.Constant) and value.value is None for value in deadlines), (
+                "Tracker concurrency proof must use deterministic events and actual completion, not elapsed deadlines"
+            )

@@ -607,6 +607,45 @@ def test_live_fixture_balances_follow_tracked_cash_and_recorded_positions(fixtur
     assert refreshed["account"]["portfolio_value"] == pytest.approx(100.5 - 2 * float(last_price))
 
 
+def test_fixture_settlement_delivers_fill_accounting_before_the_next_decision():
+    from lumibot.entities import Asset
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    fixture = evals.build_fixture("flat_options_account")
+    fixture.production = ProductionFixture(fixture)
+    production = fixture.production
+    strategy = production.strategy
+    asset = Asset("AAPL")
+    initial_cash = strategy.get_cash()
+    entry = strategy.create_order(asset, 2, "buy", order_type="market")
+    strategy.submit_order(entry)
+    production.settle()
+    assert entry.is_filled()
+    entry_cash = initial_cash - 2 * float(entry.get_fill_price())
+    assert strategy.get_cash() == pytest.approx(entry_cash)
+    cash_position = production.broker.get_tracked_position(strategy.name, strategy.quote_asset)
+    assert float(cash_position.quantity) == pytest.approx(entry_cash)
+
+    # Settlement does not turn a genuinely working limit order into a fill.
+    pending = strategy.create_order(asset, 1, "buy", order_type="limit", limit_price=1)
+    strategy.submit_order(pending)
+    production.settle()
+    assert not pending.is_filled()
+    assert strategy.get_cash() == pytest.approx(entry_cash)
+    strategy.cancel_order(pending)
+
+    exit_order = strategy.create_order(asset, 2, "sell", order_type="market")
+    strategy.submit_order(exit_order)
+    production.settle()
+    assert exit_order.is_filled()
+    final_cash = entry_cash + 2 * float(exit_order.get_fill_price())
+    assert strategy.get_cash() == pytest.approx(final_cash)
+    assert float(cash_position.quantity) == pytest.approx(final_cash)
+    assert strategy.get_position(asset) is None
+    production.settle()
+    assert strategy.get_cash() == pytest.approx(final_cash)
+
+
 def test_fixture_balance_values_recorded_signed_option_positions_with_native_multiplier():
     from scripts.agent_eval_production_fixture import ProductionFixture
 

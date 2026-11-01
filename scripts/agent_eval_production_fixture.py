@@ -893,6 +893,11 @@ class ProductionFixture:
 
     def settle(self):
         self.broker.process_pending_orders(self.strategy)
+        # Direct agent runs do not start StrategyExecutor's iteration loop.
+        # Deliver the broker's real fill/cancel callbacks, as that loop does,
+        # before the next role sees positions and the associated cash ledger.
+        # Do not simulate another bar or manufacture a pending order's fill.
+        self.strategy._executor.process_queue()
 
     def _capture_memory_events(self):
         """Read committed synthetic audit rows, preserving original bytes and linkage.

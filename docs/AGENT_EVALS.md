@@ -39,6 +39,12 @@ The judge sees broker-observed order states separately from the model's claims.
 Execution cases fail if no simulated fill exists; provider/runtime failures
 cannot pass as completed decisions.
 
+Each production fixture explicitly closes its owned DuckDB connection and
+registered tables during final cleanup, including broker/web cleanup errors.
+Completed fixtures may remain referenced by captured tools; database worker
+release does not rely on garbage collection. Parallel workers and other fixtures
+retain independent connections.
+
 Each repetition receives a unique strategy identity and local replay directory;
 remote replay reads/writes are disabled at the cache transport boundary. Live
 hosted gateway and broker credentials never enter the fixture process. The CLI

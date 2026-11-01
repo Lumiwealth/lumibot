@@ -3,8 +3,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from packaging.requirements import Requirement
 import pytest
+from packaging.requirements import Requirement
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_NUMPY_REQUIREMENT = "numpy>=1.20.0,<2.5.0"

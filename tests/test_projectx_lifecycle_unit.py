@@ -796,3 +796,23 @@ class TestOrderUpdateLock:
         # Restore original
         projectx_broker._dispatch_status_change = original_dispatch
 
+
+
+def test_order_recovery_keeps_cumulative_average_instead_of_last_execution(projectx_broker):
+    row = {'id': 789, 'accountId': 1, 'contractId': 'CON.F.US.EP.U25', 'status': 2,
+           'type': 1, 'side': 0, 'size': 3, 'fillVolume': 3, 'filledPrice': 2101.}
+    projectx_broker.client.order_search = Mock(return_value=[row])
+    first = {'id': 1, 'orderId': 789, 'accountId': 1, 'contractId': row['contractId'],
+             'size': 1, 'price': 2100., 'side': 0, 'voided': False}
+    projectx_broker._search_recent_trades = Mock(return_value=[first, {**first, 'id': 2, 'size': 2, 'price': 2101.5}])
+    orders = projectx_broker._pull_broker_all_orders()
+    assert orders[0]['fillVolume'] == 3
+    assert orders[0]['filledPrice'] == 2101.
+
+
+def test_order_recovery_does_not_invent_missing_original_order(projectx_broker):
+    projectx_broker.client.order_search = Mock(return_value=[])
+    projectx_broker._search_recent_trades = Mock(return_value=[
+        {'id': 1, 'orderId': 789, 'accountId': 1, 'contractId': 'CON.F.US.EP.U25',
+         'size': 1, 'price': 2100., 'side': 0, 'voided': False}])
+    assert projectx_broker._pull_broker_all_orders() == []

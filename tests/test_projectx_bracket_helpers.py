@@ -151,7 +151,7 @@ def test_early_store_and_restore_bracket_meta():
     ],
 )
 def test_should_spawn_bracket_children(meta, already_submitted, expected):
-    parent = SimpleNamespace(_bracket_children_submitted=already_submitted, side='buy')
+    parent = SimpleNamespace(_bracket_children_submitted=already_submitted, side='buy', status='filled', quantity=1)
     eligible, reason = should_spawn_bracket_children(meta, parent)
     assert (eligible, reason) == expected
 
@@ -170,3 +170,10 @@ def test_build_bracket_child_spec_shapes():
 
     with pytest.raises(ValueError):
         build_bracket_child_spec(parent, 'bad', 1.0, 'BASE')
+
+
+@pytest.mark.parametrize('status', ['unprocessed', 'new', 'submitted', 'canceled', 'error'])
+def test_unfilled_parent_cannot_spawn_exit_orders(status):
+    parent = SimpleNamespace(status=status, _bracket_children_submitted=False)
+    eligible, _ = should_spawn_bracket_children(create_bracket_meta(110, 90), parent)
+    assert eligible is False

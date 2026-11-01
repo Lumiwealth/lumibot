@@ -3,6 +3,7 @@
 ## 4.6.40 - Unreleased
 
 ### Added
+- ProjectX historical backtesting through the existing PandasData and BacktestingBroker engine, with paginated provider bars, normal strategy entry points and preserved bar-completion semantics. Historical trade bars do not invent bid/ask quotes.
 - AI agents can use native single and batch quotes, including exact option contracts, supplied source timestamps and multipliers. Shared trading guidance uses executable quote sides for immediate orders and current last prices when usable quote fields are unavailable.
 - AI agents can submit explicit independent baskets through the existing `Strategy.submit_orders` method. Each row retains its explanation and actual broker result; partial or uncertain results require reconciliation before retrying. Atomic option packages keep their existing multi-leg tool.
 - Release-gated portfolio behavior covers complete large and small baskets, funding sells before dependent buys, current-quote sizing, exact dated-row selection, and completing supported holdings when one is unavailable. Assertions reconcile native positions, fills, quantities and cash alongside a real-model judge.
@@ -17,6 +18,9 @@
 
 ### Fixed
 - Classify typed retryable inference failures wrapped by LiteLLM as infrastructure errors when no actor decision completed. Preserve ordinary grading for completed decisions and tool failures, along with every prior attempt and usage reservation.
+- ProjectX uses actual streamed bid/ask prices and source times, exact configured account selection, expiration-aware contract lookup, provider contract multipliers and the documented single-contract response. Reject fractional/invalid contract sizes instead of truncating or defaulting them.
+- ProjectX reconciles partial executions and duplicate/reordered events through the shared cumulative-fill owner, preserves cancellation after partial fills, and restores accepted protective-order links after restart. Account read failures remain visible; older working orders are retained.
+- ProjectX verifies stream connection/subscription success, renews rejected/expiring sessions, updates reconnect credentials and redacts SDK authentication diagnostics. Its SignalR dependency is installed with the package.
 - Preserve parametrized test IDs containing spaces when CI launches collected test shards.
 - Refresh exchange documentation from CCXT 4.5.91, including current market capabilities, contract examples and WEEX futures-only simulation. Retire the removed Aftermath, BitMart, BitMEX and CoinEx setup guides while preserving their URLs, historical guides and older installed-adapter behavior.
 - Preserve numeric fields across wrapped document rows and filtered inventory audits. Real-model coverage distinguishes complete asset-value ranges from continuation lines, unrelated income fields and truly unavailable data.

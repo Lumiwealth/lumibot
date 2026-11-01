@@ -114,6 +114,7 @@ setuptools.setup(
         "Flask>=2.3",
         "free-proxy",
         "requests-oauthlib",
+        "signalrcore>=1.0.2,<2",  # ProjectX authenticated market and account streams
         "boto3>=1.40.64",
         "httpx",
         "filelock>=3.0",

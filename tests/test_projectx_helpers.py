@@ -10,6 +10,79 @@ from lumibot.tools.projectx_helpers import ProjectXAuth, ProjectXClient, Project
 from lumibot.entities import Asset
 
 
+def test_explicit_missing_account_does_not_select_another_account(mock_client):
+    mock_client.get_accounts = Mock(return_value=[
+        {"id": 7, "name": "OtherAccount", "balance": 200000},
+    ])
+    with pytest.raises(ValueError, match="TestAccount"):
+        mock_client.get_preferred_account_id()
+
+
+def test_explicit_account_wins_over_higher_balance(mock_client):
+    mock_client.get_accounts = Mock(return_value=[
+        {"id": 7, "name": "OtherAccount", "balance": 200000},
+        {"id": 8, "name": "TestAccount", "balance": 100000},
+    ])
+    assert mock_client.get_preferred_account_id() == 8
+
+
+def test_default_account_selection_remains_compatible(mock_client):
+    mock_client.config.pop("preferred_account_name", None)
+    mock_client.get_accounts = Mock(return_value=[
+        {"id": 7, "name": "First", "balance": 50000},
+        {"id": 8, "name": "Second", "balance": 100000},
+    ])
+    assert mock_client.get_preferred_account_id() == 8
+
+
+def test_session_rejection_refreshes_token_once(mock_projectx_config):
+    api = ProjectX(mock_projectx_config, 'expired-token')
+    api.token_refresher = Mock(return_value='renewed-token')
+    rejected = requests.Response()
+    rejected.status_code = 401
+    rejected.reason = 'Unauthorized'
+    rejected._content = b'{}'
+    accepted = requests.Response()
+    accepted.status_code = 200
+    accepted._content = b'{"success":true,"accounts":[]}'
+    with patch('requests.post', side_effect=[rejected, accepted]) as post:
+        assert api.account_search() == {'success': True, 'accounts': []}
+    assert api.token_refresher.call_count == 1
+    assert post.call_count == 2
+
+
+def test_expired_session_is_renewed_before_account_read(mock_projectx_config):
+    import base64
+    expired = 'header.' + base64.urlsafe_b64encode(b'{"exp":0}').decode().rstrip('=') + '.signature'
+    response = requests.Response()
+    response.status_code = 200
+    response._content = b'{"success":true,"accounts":[]}'
+    with patch.object(ProjectXAuth, 'get_auth_token', side_effect=[expired, 'renewed-token']) as auth, \
+         patch('requests.post', return_value=response):
+        client = ProjectXClient(mock_projectx_config)
+        assert client.get_accounts() == []
+        assert auth.call_count == 2
+
+
+def test_failed_stream_connection_is_not_assumed_connected(mock_projectx_config):
+    from types import SimpleNamespace
+    from lumibot.tools.projectx_helpers import ProjectXStreaming
+
+    connection = Mock(transport=SimpleNamespace(state="disconnected"))
+    connection.send.side_effect = RuntimeError("connection unavailable")
+    builder = Mock()
+    builder.with_url.return_value = builder
+    builder.with_automatic_reconnect.return_value = builder
+    builder.build.return_value = connection
+    with patch('lumibot.tools.projectx_helpers.SIGNALR_AVAILABLE', True), \
+         patch('lumibot.tools.projectx_helpers.HubConnectionBuilder', return_value=builder, create=True), \
+         patch('time.time', side_effect=[0, 11]), \
+         patch('threading.Event.wait', return_value=False):
+        streaming = ProjectXStreaming(mock_projectx_config, "test-token", 7)
+        assert streaming.start_user_hub() is False
+        assert streaming.is_user_connected is False
+
+
 @pytest.fixture
 def mock_projectx_config():
     """Mock ProjectX configuration for testing"""
@@ -122,7 +195,7 @@ class TestProjectXClient:
         
         # Mock accounts response with practice account names
         mock_accounts = [
-            {"id": 12345, "name": "PracAccount", "balance": 100000.0},
+            {"id": 12345, "name": "TestAccount", "balance": 100000.0},
             {"id": 67890, "name": "OtherAccount", "balance": 50000.0}
         ]
         mock_client.api.account_search = MagicMock(return_value={"success": True, "accounts": mock_accounts})
@@ -299,10 +372,10 @@ class TestProjectXClient:
             contract_id = mock_client.find_contract_by_symbol("MES")
             assert contract_id == "CON.F.US.MES.Z25"
 
-            # No API info found, fallback to asset logic
+            # Asset-generated candidates alone are not verified provider contracts.
             mock_client.api.contract_search.return_value = {"success": True, "contracts": []}
             contract_id = mock_client.find_contract_by_symbol("MES")
-            assert contract_id == "CON.F.US.MES.U25"  # From mocked Asset
+            assert contract_id == ""
 
     def test_contract_id_conversion_no_hardcoded_mappings(self, mock_client):
         """
@@ -599,7 +672,7 @@ class TestProjectXErrorHandling:
 class TestProjectXDatetime:
     def test_to_utc_iso_from_z_string(self):
         res = _to_utc_iso("2025-01-02T09:30:00Z", is_est=True)
-        assert res == "2025-01-02T14:30:00+00:00"
+        assert res == "2025-01-02T09:30:00+00:00"
 
     def test_to_utc_iso_from_naive_dt(self):
         start_dt = dt.datetime(2025, 1, 2, 9, 30)
@@ -614,3 +687,92 @@ class TestProjectXDatetime:
     def test_to_utc_iso_string_without_z(self):
         res = _to_utc_iso("2025-01-02T09:30:00", is_est=True)
         assert res == "2025-01-02T14:30:00+00:00"
+
+
+def test_positions_cache_is_scoped_to_account(mock_client):
+    first = {'id': 123, 'accountId': 1, 'contractId': 'CON.F.US.EP.U25', 'type': 1,
+             'size': 1, 'averagePrice': 2100.75}
+    second = {**first, 'id': 124, 'accountId': 2, 'size': 2}
+    mock_client.api.position_search_open = Mock(side_effect=[
+        {'success': True, 'positions': [first]}, {'success': True, 'positions': [second]}])
+    assert mock_client.get_positions(1) == [first]
+    assert mock_client.get_positions(2) == [second]
+
+
+def test_orders_cache_is_scoped_to_account_and_dates(mock_client):
+    order = {'id': 789, 'accountId': 1, 'contractId': 'CON.F.US.EP.U25', 'type': 1,
+             'side': 0, 'size': 1, 'status': 1, 'fillVolume': 0}
+    mock_client.api.order_search = Mock(side_effect=[
+        {'success': True, 'orders': [order]}, {'success': True, 'orders': []},
+        {'success': True, 'orders': []}])
+    assert mock_client.get_orders(1, '2026-10-30T00:00Z') == [order]
+    assert mock_client.get_orders(2, '2026-10-30T00:00Z') == []
+    assert mock_client.get_orders(1, '2026-10-29T00:00Z') == []
+
+
+def test_stream_reconnect_resubscribes_user_and_market(mock_projectx_config):
+    from lumibot.tools.projectx_helpers import ProjectXStreaming
+    stream = ProjectXStreaming(mock_projectx_config, 'test-token', 123)
+    stream.user_connection = Mock()
+    stream.market_connection = Mock()
+    stream.is_user_connected = True
+    assert stream.subscribe_all(123)
+    stream._quote_contracts.add('CON.F.US.EP.U25')
+    stream._on_user_hub_close()
+    stream._on_user_hub_open()
+    stream._on_market_hub_open()
+    assert stream.user_connection.send.call_count == 8
+    stream.market_connection.send.assert_any_call('SubscribeContractQuotes', ['CON.F.US.EP.U25'])
+    stream._handle_quote(['CON.F.US.EP.U25', {'lastPrice': 2100.25, 'bestBid': 2100., 'bestAsk': 2100.5}])
+    assert stream._quotes['CON.F.US.EP.U25']['bestBid'] == 2100.
+    stream._on_market_hub_close()
+    assert not stream._quotes
+    stream.stop()
+    assert not stream.is_user_connected and not stream.is_market_connected
+
+
+@pytest.mark.parametrize('size', [1.5, 'bad', 0, -1])
+def test_api_never_truncates_or_defaults_invalid_contract_size(mock_api_client, size):
+    with patch('lumibot.tools.projectx_helpers.requests.post') as post:
+        with pytest.raises(ValueError, match='whole contracts'):
+            mock_api_client.order_place(123, 'CON.F.US.EP.U25', 2, 0, size)
+    post.assert_not_called()
+
+
+def test_utc_z_timestamp_is_not_reinterpreted_as_new_york():
+    from lumibot.tools.projectx_helpers import _to_utc_iso
+    assert pd.Timestamp(_to_utc_iso('2024-12-20T14:00:00Z')) == pd.Timestamp('2024-12-20T14:00Z')
+
+
+def test_stream_library_diagnostics_do_not_print_authentication_tokens(mock_projectx_config, caplog):
+    import logging
+    from lumibot.tools.projectx_helpers import ProjectXStreaming
+    secret = 'synthetic-token-for-log-redaction'
+    stream = ProjectXStreaming(mock_projectx_config, secret, 123)
+    with caplog.at_level(logging.DEBUG, logger='SignalRCoreClient'):
+        logging.getLogger('SignalRCoreClient').debug('auth function result %s', secret)
+    assert secret not in caplog.text
+    assert 'redacted' in caplog.text.lower()
+
+
+def test_contract_details_accepts_provider_single_contract_response(mock_client):
+    # Official Contract/searchById example uses singular contract, not contracts[].
+    contract = {'id': 'CON.F.US.ENQ.H25', 'name': 'NQH5',
+        'description': 'E-mini NASDAQ-100: March 2025', 'tickSize': .25,
+        'tickValue': 5, 'activeContract': False, 'symbolId': 'F.US.ENQ'}
+    mock_client.api.contract_search_id.return_value = {
+        'success': True, 'contract': contract, 'errorCode': 0, 'errorMessage': None}
+    assert mock_client.get_contract_details(contract['id']) == contract
+
+
+def test_renewal_updates_connected_hub_and_reconnect_headers(mock_projectx_config):
+    from types import SimpleNamespace
+    with patch.object(ProjectXAuth, 'get_auth_token', side_effect=['initial-token', 'new-token']):
+        client = ProjectXClient(mock_projectx_config)
+        hub = SimpleNamespace(headers={'Authorization': 'Bearer initial-token'},
+                              transport=SimpleNamespace(headers={'Authorization': 'Bearer initial-token'}, token='initial-token'),
+                              token='initial-token')
+        client.streaming = SimpleNamespace(token='initial-token', user_connection=hub, market_connection=None)
+        client._refresh_auth_token()
+        assert hub.headers['Authorization'] == 'Bearer new-token'
+        assert hub.transport.headers['Authorization'] == 'Bearer new-token'

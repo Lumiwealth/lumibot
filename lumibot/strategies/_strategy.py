@@ -207,6 +207,7 @@ def __getattr__(name):
 STATS_TABLE_NAME = "strategy_tracker"
 
 _BACKTESTING_CLASS_MODULES = {
+    "ProjectXBacktesting": "lumibot.backtesting.projectx_backtesting",
     "KalshiBacktesting": "lumibot.backtesting.kalshi_backtesting",
     "AlpacaBacktesting": "lumibot.backtesting.alpaca_backtesting",
     "BacktestingBroker": "lumibot.backtesting.backtesting_broker",
@@ -3368,6 +3369,8 @@ class _Strategy:
 
         if env_override_name is not None:
             datasource_map = {
+                "projectx": "ProjectXBacktesting",
+                "topstepx": "ProjectXBacktesting",
                 "polygon": "PolygonDataBacktesting",
                 "thetadata": "ThetaDataBacktesting",
                 "yahoo": "YahooDataBacktesting",

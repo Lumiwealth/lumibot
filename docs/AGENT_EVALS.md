@@ -198,6 +198,12 @@ double-counting. A zero API-spend field does not establish the connected
 account's separate subscription-credit setting. Keep the same append-only
 ledger across actor work, judge-only recovery, calibration and resumed batches.
 
+Typed retryable inference failures before a decision completes, including
+LiteLLM `InternalServerError` wrappers around DNS errors, are infrastructure
+errors rather than actor decisions for the semantic judge. Completed decisions
+and tool failures retain their ordinary grading. Preserve every failed attempt
+and unknown usage reservation; this classification does not replay live orders.
+
 SDK retries are disabled; outer retries require another ledger reservation.
 No paid token-counting endpoint is used. Subscription quota and revoked grants
 produce visible failures, not successful decisions. A corrupt ledger fails visibly; compatible technical window amendments preserve all historical records. Do not switch output directories to reset usage history.

@@ -16,6 +16,7 @@
 - Native same-chain ERC20-output swap code verifies bounded approvals and actual receipts. HIP3 writes, native-output swaps and unsupported fee/delegation variants remain explicit holds. Native funded swap qualification remains pending; previous JavaScript receipts do not qualify this replacement.
 
 ### Fixed
+- Classify typed retryable inference failures wrapped by LiteLLM as infrastructure errors when no actor decision completed. Preserve ordinary grading for completed decisions and tool failures, along with every prior attempt and usage reservation.
 - Preserve parametrized test IDs containing spaces when CI launches collected test shards.
 - Refresh exchange documentation from CCXT 4.5.91, including current market capabilities, contract examples and WEEX futures-only simulation. Retire the removed Aftermath, BitMart, BitMEX and CoinEx setup guides while preserving their URLs, historical guides and older installed-adapter behavior.
 - Preserve numeric fields across wrapped document rows and filtered inventory audits. Real-model coverage distinguishes complete asset-value ranges from continuation lines, unrelated income fields and truly unavailable data.

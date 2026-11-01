@@ -1956,7 +1956,10 @@ def test_harness_error_rows_name_where_the_error_happened_without_its_message():
     assert "secret-looking-key" not in json.dumps(row)
 
 
-@pytest.mark.parametrize("error_class", ["SubscriptionModelResponseError", "ManagedAiGatewayError", "Timeout"])
+# LiteLLM wraps actual no-decision DNS failures as InternalServerError.
+@pytest.mark.parametrize(
+    "error_class", ["SubscriptionModelResponseError", "ManagedAiGatewayError", "Timeout", "InternalServerError"]
+)
 def test_retryable_subscription_actor_failure_is_infrastructure_not_a_judged_decision(error_class):
     # Actual RC4 expiration repetition4: no tools, typed subscription failure,
     # runtime_error/transient/retryable and an incomplete decision.
@@ -1977,22 +1980,28 @@ def test_retryable_subscription_actor_failure_is_infrastructure_not_a_judged_dec
     assert "private provider request" not in json.dumps(observed)
 
 
+@pytest.mark.parametrize("error_class", ["SubscriptionModelResponseError", "InternalServerError"])
 @pytest.mark.parametrize("change", [
     {"runtime_error": False},
+    {"execution_outcome": {}},
+    {"execution_outcome": {
+        "status": "runtime_error", "error_category": "transient",
+        "retryability": "retryable", "decision_completed": True,
+    }},
     {"error_class": "ValueError"},
     {"execution_outcome": {"status": "tool_error", "error_category": "transient", "retryability": "retryable", "decision_completed": False}},
     {"execution_outcome": {"status": "runtime_error", "error_category": "authentication", "retryability": "non_retryable", "decision_completed": False}},
     {"execution_outcome": {"status": "completed_no_action", "error_category": None, "retryability": "not_applicable", "decision_completed": True}},
 ])
-def test_actor_failure_classification_preserves_semantic_and_tool_failure_judging(change):
+def test_actor_failure_classification_preserves_semantic_and_tool_failure_judging(change, error_class):
     payload = {
-        "runtime_error": True, "error_class": "SubscriptionModelResponseError",
+        "runtime_error": True, "error_class": error_class,
         "execution_outcome": {"status": "runtime_error", "error_category": "transient", "retryability": "retryable", "decision_completed": False},
     }
     assert evals.actor_infrastructure_failure([SimpleNamespace(payload={**payload, **change})]) is None
 
 
-@pytest.mark.parametrize("error_class", ["SubscriptionModelResponseError", "Timeout"])
+@pytest.mark.parametrize("error_class", ["SubscriptionModelResponseError", "Timeout", "InternalServerError"])
 def test_native_repetition_preserves_typed_actor_error_without_spending_a_judge_call(monkeypatch, error_class):
     from scripts.agent_eval_production_fixture import ProductionFixture
 

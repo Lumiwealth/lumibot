@@ -124,6 +124,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
             show_progress_bar: bool = True,
             delay: int | None = None,
             pandas_data: dict | list = None,
+            stock_client=None,
+            crypto_client=None,
+            option_client=None,
+            trading_client=None,
             **kwargs
     ):
         """
@@ -137,7 +141,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             datetime_end (tz aware datetime): The ending datetime for the backtesting process. Inclusive.
             backtesting_started (datetime | None): Represents the datetime when backtesting started. Defaults to None.
             config (dict | None): API_KEY/API_SECRET or OAUTH_TOKEN, PAPER and optional MARKET. When None
-                ("environment mode", how BotSpot selects this source through BACKTESTING_DATA_SOURCE=alpaca),
+                ("environment mode", selected through BACKTESTING_DATA_SOURCE=alpaca),
                 credentials are read from ALPACA_API_KEY, ALPACA_API_SECRET, ALPACA_OAUTH_TOKEN and
                 ALPACA_IS_PAPER, bars default to minute, and the backtest runs through backtesting_end.
             api_key (str | None): API key for authorized data access. Optional as it can typically be found 
@@ -148,6 +152,14 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 Defaults to None.
             pandas_data (dict | list): Data to be loaded directly into pandas, allowing analysis or backtesting 
                 without requiring external API calls.
+            stock_client, crypto_client, option_client: Optional caller-owned Alpaca
+                historical-data SDK clients. Their authentication and transport remain
+                caller-owned. STOCK_CLIENT, CRYPTO_CLIENT and OPTION_CLIENT in config
+                are also supported; explicit arguments take precedence. Without account
+                credentials, only the supplied product clients are available.
+            trading_client: Optional SDK client implementing get_option_contracts for
+                contract metadata. Config may provide TRADING_CLIENT. Backtests do not
+                submit provider orders, and never switch a supplied client's endpoint.
             **kwargs: Additional keyword arguments, such as:
                 - timestep (str): Interval for data ("day" or "minute"). Defaults to "day" with an explicit
                   config and to "minute" in environment mode. A default (not explicit) timestep is switched to
@@ -195,12 +207,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
             progress_csv_path=kwargs.get("progress_csv_path"),
         )
 
-        # Environment mode: no config was passed, so credentials come from the process
-        # environment. This is how BotSpot runs Alpaca backtests: the strategy calls
-        # backtest(datasource_class=None), BotSpot Node sets BACKTESTING_DATA_SOURCE=alpaca and
-        # ALPACA_IS_PAPER=true, and the customer's ALPACA_API_KEY/ALPACA_API_SECRET or
-        # ALPACA_OAUTH_TOKEN are injected. Before 2026-09-23 config=None raised, so no existing
-        # caller depends on the defaults below.
+        # Without an explicit config, read the ordinary account environment and
+        # retain the environment-mode history/window defaults.
         environment_mode = config is None
         if environment_mode:
             config = self._config_from_environment()
@@ -248,30 +256,41 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if not config.get("PAPER", True):
             raise ValueError("Backtesting is restricted to paper accounts. Pass in a paper account config.")
 
-        # Initialize clients based on available authentication method
+        # Caller-owned SDK clients retain their own transport and authentication.
+        # Explicit arguments take precedence over their configuration equivalents.
+        def configured_client(supplied, name):
+            return supplied if supplied is not None else config.get(name)
+
+        self._provided_clients = (
+            configured_client(stock_client, "STOCK_CLIENT"),
+            configured_client(crypto_client, "CRYPTO_CLIENT"),
+            configured_client(option_client, "OPTION_CLIENT"),
+        )
+        self._provided_trading_client = configured_client(trading_client, "TRADING_CLIENT")
         oauth_token = config.get("OAUTH_TOKEN")
         api_key = config.get("API_KEY")
         api_secret = config.get("API_SECRET")
         
-        if api_key and api_secret:
-            self._crypto_client = CryptoHistoricalDataClient(
-                api_key=api_key,
-                secret_key=api_secret
-            )
-            self._stock_client = StockHistoricalDataClient(
-                api_key=api_key,
-                secret_key=api_secret
-            )
-            self._option_client = OptionHistoricalDataClient(
-                api_key=api_key,
-                secret_key=api_secret,
-            )
-        elif oauth_token:
-            self._crypto_client = CryptoHistoricalDataClient(oauth_token=oauth_token)
-            self._stock_client = StockHistoricalDataClient(oauth_token=oauth_token)
-            self._option_client = OptionHistoricalDataClient(oauth_token=oauth_token)
-        else:
+        if not ((api_key and api_secret) or oauth_token or any(
+            client is not None for client in (*self._provided_clients, self._provided_trading_client)
+        )):
             raise ValueError("Either OAuth token or API key/secret must be provided for Alpaca authentication")
+
+        def historical_client(supplied, client_type):
+            if supplied is not None:
+                return supplied
+            if api_key and api_secret:
+                return client_type(api_key=api_key, secret_key=api_secret)
+            if oauth_token:
+                return client_type(oauth_token=oauth_token)
+            return None
+
+        self._stock_client, self._crypto_client, self._option_client = (
+            historical_client(client, client_type)
+            for client, client_type in zip(self._provided_clients, (
+                StockHistoricalDataClient, CryptoHistoricalDataClient, OptionHistoricalDataClient
+            ))
+        )
 
         # Option chains come from the Trading API. Create that client lazily with the same
         # credentials and the same precedence as the live Alpaca broker: key/secret first,
@@ -282,11 +301,14 @@ class AlpacaBacktesting(DataSourceBacktesting):
             "oauth_token": oauth_token,
             "paper": bool(config.get("PAPER", True)),
         }
-        self._trading_client = None
+        self._trading_client = self._provided_trading_client
         self._option_chain_max_days = int(kwargs.get("option_chain_max_days") or self.OPTION_CHAIN_MAX_DAYS)
 
         # Create an AlpacaData instance for internal use
-        self._alpaca_data = AlpacaData(config)
+        self._alpaca_data = AlpacaData(
+            config, stock_client=self._stock_client, crypto_client=self._crypto_client,
+            option_client=self._option_client,
+        )
 
         # Ensure datetime_start and datetime_end have the same tzinfo
         if str(datetime_start.tzinfo) != str(datetime_end.tzinfo):
@@ -694,7 +716,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
     @staticmethod
     def _config_from_environment() -> dict:
-        """Alpaca credentials from the environment, the variables BotSpot and Bot Manager set."""
+        """Read the public Alpaca account environment variables."""
         paper_raw = os.environ.get("ALPACA_IS_PAPER")
         return {
             "API_KEY": (os.environ.get("ALPACA_API_KEY") or "").strip() or None,
@@ -716,7 +738,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
     def _switch_trading_endpoint(self):
         """Use the other Trading API endpoint (paper vs live) for the read-only contract list.
 
-        BotSpot always sends ALPACA_IS_PAPER=true, but a customer's connection can hold a live
+        A caller can select the paper endpoint while supplying a live account
         key, which paper-api rejects with 401 (and a paper key is rejected by the live API).
         Both endpoints serve the same contract master list. Backtests never send orders.
         """
@@ -894,7 +916,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
                         what=f"{symbol} option contracts ({status.value})",
                     )
                 except Exception as exc:
-                    if not self._is_unauthorized(exc) or self.__dict__.get("_trading_endpoint_switched"):
+                    if (not self._is_unauthorized(exc) or self.__dict__.get("_trading_endpoint_switched")
+                            or self.__dict__.get("_provided_trading_client") is not None):
                         raise
                     client = self._switch_trading_endpoint()
                     response = self._alpaca_request(
@@ -1266,6 +1289,12 @@ class AlpacaBacktesting(DataSourceBacktesting):
             end = max(latest_allowed, data_datetime_start + timedelta(minutes=1))
         timeframe = self._get_alpaca_timeframe(timestep)
         asset_type = str(getattr(base_asset, "asset_type", "")).lower()
+        client = getattr(self, {
+            "crypto": "_crypto_client",
+            "option": "_option_client",
+        }.get(asset_type, "_stock_client"), None)
+        if client is None:
+            raise ValueError(f"Alpaca {asset_type} history needs a caller-owned client or account credentials")
         if asset_type == "crypto":
             request = CryptoBarsRequest(
                 symbol_or_symbols=f"{base_asset.symbol}/{quote_asset.symbol}",

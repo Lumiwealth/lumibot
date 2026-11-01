@@ -7,6 +7,13 @@
 - AI agents can submit explicit independent baskets through the existing `Strategy.submit_orders` method. Each row retains its explanation and actual broker result; partial or uncertain results require reconciliation before retrying. Atomic option packages keep their existing multi-leg tool.
 - Release-gated portfolio behavior covers complete large and small baskets, funding sells before dependent buys, current-quote sizing, exact dated-row selection, and completing supported holdings when one is unavailable. Assertions reconcile native positions, fills, quantities and cash alongside a real-model judge.
 
+### Changed
+- Harden native MetaMask signing-domain/network binding, final authority handoff, uncertain cancellation and leverage recovery, cumulative accessor fills, exact token arithmetic, reverted-gas budgets, and OP Stack L1/operator fee accounting. Preserve actual overrun charges pending explicit owner review. Native funded qualification remains in progress.
+- Replace the retired Polygon SDK dependency with maintained Massive while retaining Polygon keys and endpoint behavior; require patched MetaMask HTTP and CA-store dependencies and reject unsafe session lock files.
+- MetaMask now runs in Python through the normal LumiBot broker and data source. The optional Python extra replaces the required Node service, npm install and localhost transport. Browser sign-in and durable OAuth refresh use native Python.
+- Breaking configuration change: replace MetaMask BROKER_URL/BROKER_TOKEN with an explicit native session, durable journal, agent and wallet identity. Preserve old journals and pending receipts; local limits and expiry never reset at startup. Native cancellation, signing checkpoints and fill recovery retain separate operation identities.
+- Native same-chain ERC20-output swap code verifies bounded approvals and actual receipts. HIP3 writes, native-output swaps and unsupported fee/delegation variants remain explicit holds. Native funded swap qualification remains pending; previous JavaScript receipts do not qualify this replacement.
+
 ### Fixed
 - Simulated stock market orders use the execution bar at the simulated time when intraday data is already loaded, including strategies with daily cadence. Daily-only sources and limit/stop behavior retain their existing data path; this change does not force minute-data downloads.
 - Keep Polygon daily research history and minute execution data in independent interval-aware entries. Repeated history/price reads reuse loaded data without replacing daily bars or downloading minute history for a daily request. Memory limits count each dataset once and retire every alias when it is evicted.

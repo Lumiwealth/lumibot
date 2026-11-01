@@ -1,6 +1,6 @@
-"""MetaMask Agent Wallet broker backed by the optional local Node service."""
+"""Native Python MetaMask managed-wallet broker."""
 
-from decimal import Decimal
+from decimal import Context, Decimal
 from threading import RLock
 from uuid import uuid4
 
@@ -18,7 +18,8 @@ class MetaMask(Broker):
 
     ``MODE='perp'`` routes Hyperliquid orders. ``MODE='spot'`` exposes exact-input
     swaps via :meth:`swap`; token buys cannot promise an exact output quantity.
-    Owner credentials and browser wallet access remain outside the strategy.
+    MetaMask retains wallet keys. Local limits are cooperative process controls;
+    provider Guard Mode enforces the remote wallet policy.
     """
 
     IS_BACKTESTING_BROKER = False
@@ -75,7 +76,7 @@ class MetaMask(Broker):
             request["limitPrice"] = format(decimal_value(order.limit_price), "f")
         self.client.verify()
         try:
-            response = self.client.request("POST", "/v1/orders", payload=request)
+            response = self.client.submit(request)
         except (requests.Timeout, requests.ConnectionError):
             response = {
                 "id": str(order.identifier),
@@ -113,7 +114,7 @@ class MetaMask(Broker):
             "slippageBps": slippage_bps,
         }
         try:
-            return self.client.call("POST", "/v1/orders", payload=request)
+            return self.client.submit(request)
         except (requests.Timeout, requests.ConnectionError):
             return {
                 "id": request["id"],
@@ -124,16 +125,12 @@ class MetaMask(Broker):
 
     def get_swap(self, identifier):
         return next(
-            (
-                op
-                for op in self.client.call("GET", "/v1/orders")
-                if op["id"] == identifier and op["request"]["kind"] == "swap"
-            ),
+            (op for op in self.client.orders() if op["id"] == identifier and op["request"]["kind"] == "swap"),
             None,
         )
 
     def _pull_broker_all_orders(self):
-        return [op for op in self.client.call("GET", "/v1/orders") if op["request"]["kind"] == "perp"]
+        return [op for op in self.client.orders() if op["request"]["kind"] == "perp"]
 
     def _pull_broker_order(self, identifier):
         return next((op for op in self._pull_broker_all_orders() if op["id"] == str(identifier)), None)
@@ -174,7 +171,7 @@ class MetaMask(Broker):
             identifier = str(order.identifier)
             if identifier not in self._observations and self.get_tracked_order(identifier) is None:
                 # Seed restored history once. Parsing a newer snapshot must not consume pending callbacks.
-                value = quantity * decimal_value(response.get("averagePrice", "0"))
+                value = Context(prec=160).multiply(quantity, decimal_value(response.get("averagePrice", "0")))
                 self._observations[identifier] = (quantity, value, response["state"])
                 # Register cumulative snapshots before shared executor synchronization
                 # can treat them as new fills and add the full order size again.
@@ -184,6 +181,12 @@ class MetaMask(Broker):
 
     def _flatten_order(self, order):
         return [order]
+
+    def _apply_direct_order_observation(self, order_lumi, matched_order):
+        with self._event_lock:
+            previous = self._observations.get(str(order_lumi.identifier))
+            self._observe(order_lumi, matched_order._raw)
+            return previous != self._observations.get(str(order_lumi.identifier))
 
     def _process_broker_synced_order(self, order):
         """Restore a cumulative snapshot without replaying fills into account state."""
@@ -212,7 +215,7 @@ class MetaMask(Broker):
         raise NotImplementedError("Cancel and confirm cancellation before placing a replacement order")
 
     def cancel_order(self, order):
-        response = self.client.call("POST", "/v1/cancel", payload={"id": str(order.identifier)})
+        response = self.client.cancel(str(order.identifier))
         self._observe(order, response)
         return order
 
@@ -223,19 +226,16 @@ class MetaMask(Broker):
         """Read funding ledger (Unix milliseconds); balances already include these cash flows."""
         if self.mode != "perp":
             raise ValueError("Funding payments apply to perpetuals only")
-        params = {"startTime": start_time, "endTime": end_time}
-        if symbol is not None:
-            params["symbol"] = symbol
-        return self.client.call("GET", "/v1/funding", params=params)
+        return self.client.funding(start_time, end_time, symbol)
 
     def _get_balances_at_broker(self, quote_asset, strategy):
-        balance = self.client.call("GET", "/v1/account", params={"kind": self.mode})
+        balance = self.client.account(self.mode)
         if quote_asset is not None and quote_asset.symbol != balance["currency"]:
             raise ValueError(f"MetaMask account valuation is denominated in {balance['currency']}")
         return tuple(float(decimal_value(balance[k])) for k in ("cash", "positionsValue", "equity"))
 
     def _pull_positions(self, strategy):
-        balance = self.client.call("GET", "/v1/account", params={"kind": self.mode})
+        balance = self.client.account(self.mode)
         result = []
         for row in balance["positions"]:
             if self.mode == "perp":
@@ -287,6 +287,7 @@ class MetaMask(Broker):
 
     def _observe(self, order, response):
         with self._event_lock:
+            money = Context(prec=160)
             state = response["state"]
             previous = self._observations.get(str(order.identifier), (Decimal(0), Decimal(0), None))
             quantity = decimal_value(response["filledQuantity"])
@@ -296,10 +297,10 @@ class MetaMask(Broker):
                 )
             if previous[2] in ("filled", "canceled", "rejected"):
                 return
-            value = quantity * decimal_value(response.get("averagePrice", "0"))
+            value = money.multiply(quantity, decimal_value(response.get("averagePrice", "0")))
             if quantity > previous[0]:
-                delta = quantity - previous[0]
-                price = (value - previous[1]) / delta
+                delta = money.subtract(quantity, previous[0])
+                price = money.divide(money.subtract(value, previous[1]), delta)
                 if price <= 0:
                     raise MetaMaskAPIError("INVALID_FILL", "Fill price must be positive")
                 event = self.FILLED_ORDER if state == "filled" else self.PARTIALLY_FILLED_ORDER

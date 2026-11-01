@@ -1,220 +1,202 @@
-MetaMask Agent Wallet
-=====================
+MetaMask
+========
 
-.. meta::
-   :description: Connect LumiBot to MetaMask Agent Wallet with scoped bot tokens, Hyperliquid testnet perpetuals, owner collateral setup, and durable order recovery.
+The ``MetaMask`` broker runs inside LumiBot's Python process and uses MetaMask
+Agent Wallet managed signing. It calls MetaMask and Hyperliquid directly. No
+Node, Bun, npm, MetaMask CLI or localhost service is required.
 
-.. include:: _snippets/botspot_mcp_callout.rst
+Install and connect
+-------------------
 
-.. warning::
+.. code-block:: bash
 
-   This optional broker is a local beta. Offline tests and public testnet market
-   reads do not establish authenticated wallet execution. Qualify your funded
-   testnet wallet before using unattended trading.
+   pip install 'lumibot[metamask]'
 
-``MetaMask`` connects LumiBot to dedicated MetaMask Agent Wallet server wallets.
-Each agent receives a separate funded wallet and a scoped runtime token.
-Normal browser connection uses MetaMask Connect, the successor to the older
-MetaMask SDK. Browser-wallet delegation redemption is not implemented.
+Authorize through the official `MetaMask Agent Wallet sign-in page
+<https://developer.metamask.io/agentic/login>`_. Use the original Google/email
+method to retain the same wallet identity. The optional Python login function
+opens that page, accepts the copied browser token through a hidden prompt,
+verifies its identity, and writes an owner-only session file:
 
-Setup
------
+.. code-block:: python
 
-Use the ``integrations/metamask`` directory from the same LumiBot revision.
-Node 24 is recommended. Node 22 releases from 22.18 onward are also supported.
-The checked-in lockfile supports their bundled npm 10 and npm 11 installers.
+   from lumibot.tools.metamask.owner import login
 
-.. code-block:: console
+   login("<private-directory>/session.json")
 
-   cd integrations/metamask
-   npm ci --ignore-scripts
-   npm run build
-   npm start
-
-Open the localhost URL printed by the service. Unlock with its local admin token,
-sign in through the official MetaMask Agent Wallet login link, and import the CLI
-token into the local page. Never give a strategy your CLI session, admin token,
-seed phrase, or private key.
-
-Create a dedicated wallet, review its Guard Mode policy, and set its allowed
-markets/chains/tokens and limits. Setup defaults to testnet, BTC/ETH markets, a $25
-trade-notional ceiling per order, $100 per rolling 24 hours, 1x leverage, 50 bps slippage, and a
-24-hour token lifetime. These editable defaults exclude gas, funding, and losses.
-Save the scoped broker configuration in your secret manager. The browser wallet
-can request user-approved testnet ETH funding; Hyperliquid collateral is separate.
-
-Use the original Google, email, or QR sign-in method when reconnecting. Each
-method has separate wallets, even for the same email. Setup reports session
-refresh failures and warns when existing agent wallets are missing.
-
-After creating a binding, use **Hyperliquid testnet collateral** to read actual
-spot USDC and perps equity. **Move USDC to perps** moves mock collateral within
-that same bound wallet. Only owner credentials can request this testnet action;
-bot tokens cannot transfer collateral or select a recipient. Unified accounts
-already pool collateral and do not need this move. Verify balances after
-submission. Funding IDs and pending signing jobs survive restart; uncertain
-submissions block further wallet execution and are never automatically replayed.
-
-Python configuration
---------------------
-
-``Order(..., reduce_only=True)`` remains reduce-only through submission and
-restoration, including orders created by ``close_position()`` and ``sell_all()``.
-The older ``custom_params={"reduce_only": True}`` spelling remains supported;
-custom parameters cannot weaken canonical closing intent.
+Login never creates a wallet, changes policy or funds an account. Select an
+existing dedicated managed EVM wallet and review its Guard Mode policy in
+MetaMask. Before trading, deliberately authorize its local registry, limits and
+expiry using ``MetaMaskClient.authorize()``. Broker startup does not renew or
+broaden authority. See the complete binding example in the repository's
+`MetaMask setup guide
+<https://github.com/Lumiwealth/lumibot/blob/dev/docs/METAMASK.md>`_.
 
 .. code-block:: python
 
    from lumibot.brokers import MetaMask
+   from lumibot.entities import Asset
 
-   broker = MetaMask({
-       "BROKER_URL": "http://127.0.0.1:8766",
-       "BROKER_TOKEN": "<agent-scoped-token>",
-       "WALLET_ADDRESS": "<agent-wallet-address>",
+   config = {
+       "SESSION_FILE": "<private-directory>/session.json",
+       "STATE_FILE": "<private-directory>/broker.sqlite",
+       "AGENT_ID": "strategy-wallet",
+       "WALLET_ADDRESS": "<dedicated-managed-wallet-address>",
        "NETWORK": "testnet",
        "MODE": "perp",
-   })
+   }
+   broker = MetaMask(config)
+   quote_asset = Asset("USDC", asset_type="crypto")
 
-Environment selection supports ``TRADING_BROKER=metamask`` and
-``DATA_SOURCE=metamask`` with ``METAMASK_BROKER_URL``,
-``METAMASK_BROKER_TOKEN``, ``METAMASK_WALLET_ADDRESS``, ``METAMASK_NETWORK``, and
-``METAMASK_MODE``. No wallet is created by the Python constructor.
+Pass ``broker`` and ``quote_asset`` to your normal LumiBot strategy. Use
+``self.create_order()`` and ``self.submit_order()`` for perpetual orders. The
+asset type is ``crypto_future``, the quantity is base units and multiplier is 1.
+Leverage defaults to 1 and remains bounded by the reviewed binding.
 
-Perpetuals use ``Asset("BTC", asset_type="crypto_future")`` and USDC settlement.
-Market and limit orders support explicit leverage/reduce-only settings. Limit
-orders require ``gtc``, ``ioc``, or ``alo``; unsupported order types fail explicitly.
-Perpetual marks, closed candles, balances, positions, fill fees, and funding
-ledger reads use the same configured testnet/mainnet environment.
+Headless authentication can use explicit ``PROJECT_ID`` and ``ACCESS_TOKEN``.
+Automatic refresh requires a durable ``SESSION_FILE``. Rotation is locked and
+saved before reuse; an uncertain refresh requires reconnect instead of retrying
+a potentially consumed token. Keep credentials outside strategy source.
 
-For spot swaps, set ``MODE="spot"`` and call
-``broker.swap(input_asset, output_asset, input_amount, identifier="stable-id")``.
-Each crypto asset must provide ``chain_id``, ``token_address`` (or ``"native"``),
-and ``decimals``. The amount is exact input, not an exact output buy quantity.
-Poll with ``broker.get_swap(identifier)``. Both tokens must be owner-allowlisted,
-on the same chain, and supported by the provider. Unpriced test tokens and
-missing routes do not trigger a mainnet fallback.
-Agent SDK 7.3.0's swap router supports mainnet chains only; testnet swaps are
-explicitly refused before pricing or signing. Testnet balances and signatures
-remain supported.
+Perpetual execution
+-------------------
 
-Recovery and scope
-------------------
+The native candidate supports Hyperliquid's default USDC perpetual DEX with
+market and limit buy/sell orders. ``reduce_only=True`` survives shared closing
+methods and restored snapshots. Legacy ``custom_params={"reduce_only": True}``
+cannot turn off canonical reduce-only intent. Limit orders require ``gtc``,
+``ioc`` or ``alo``. Market orders become frozen slippage-bounded IOC limits.
+Conditional, bracket, OCO and automatic cancel/replace orders are unsupported.
 
-The service stores durable order IDs and reservations. Broadcasts and approvals
-are not fills. Unknown submissions block new orders and are never automatically
-retried. Interrupted allowance approval can be resumed from setup after its
-receipt confirms, under the original budget and current policy checks.
-Restored terminal orders are not replayed as new cancellation/error events.
-Account snapshots retain unprocessed fill deltas for normal strategy callbacks.
-Funded testnet qualification verified explicit cancellation after a real partial
-fill. Venue history and the broker journal agreed on fills, the canceled
-remainder and fees; normal restart restored that terminal snapshot without
-replaying its historical fill.
-Policy requests persist separately and expose approved, denied and expired
-states after restart. Perpetual openings check authority before each SDK
-signature and again before releasing it to the venue. Interrupted pending
-signatures retain their recovery IDs and never automatically replay an order.
+Duplicate IDs reuse the same journaled operation. A different request under an
+existing ID is rejected. Uncertain mutations keep their original request IDs
+and block new execution until reconciliation. Pending signatures are never
+replayed after restart. Cancellation has a separate lifecycle and cannot erase
+fills or reject the original live order merely because cancellation failed.
 
-Revoking a runtime token stops new bot access. It does not cancel pending venue
-orders, revoke onchain allowances, or undo signatures. Setup supports cancellation
-of known perpetual orders after revocation. Keep the service state directory.
+Standard account cash uses actual withdrawable funds and margin. Unified
+accounts use pooled HyperCore spot USDC once, without adding perpetual PnL
+again. Portfolio margin is unsupported. HIP3 writes are held until native
+collateral-aware valuation and effective DEX fee inputs are qualified.
 
-Run the service under a separate OS identity/container when strategies are
-untrusted. Its MetaMask owner session can control multiple wallets: application
-scopes are not cryptographic provider-issued subwallet credentials. Separate
-funding and provider Guard policies remain necessary.
+``MetaMaskData`` provides actual perpetual marks and closed minute/hour/day
+candles from the selected network. Public perpetual data needs only an explicit
+``NETWORK``. The venue retains at most 5,000 bars per interval. Spot candles
+and historical account equity are not provided.
 
-Unsupported features include arbitrary signing/transfers, cross-chain bridges,
-gasless delegation execution, browser-wallet delegation redemption, conditional
-orders, spot candle history, and historical account equity. Missing spot cost
-basis/PnL remains unavailable rather than estimated silently.
+Same-chain swaps
+----------------
 
-Each journal permits one companion process. A second process fails with
-``STATE_IN_USE`` even if it uses a different port. Crash-safe SQLite ownership
-and session locks release when the process exits; keep state on a local
-filesystem and never delete lock files while running. Stop older companion
-versions before upgrading. Multi-host active/active operation is unsupported.
+``MODE="spot"`` exposes exact-input ``broker.swap()`` and
+``broker.get_swap(identifier)``. It does not turn an input amount into a claimed
+exact-output buy. Assets require explicit ``chain_id``, ``token_address`` and
+``decimals``. Register both assets and the native gas asset in the reviewed
+binding. Configure ``CHAIN_RPC_URLS`` and explicit ``GAS_LIMITS`` when quote gas
+ceilings are absent.
 
-For examples, failure states, qualification steps and primary sources, see
-`the full MetaMask integration guide <https://github.com/Lumiwealth/lumibot/blob/dev/docs/METAMASK.md>`__.
+The native implementation verifies quote identity, fee-net source amount,
+slippage, bounded allowances, sequential simulation and durable managed
+transaction requests. MetaMask signs and broadcasts; Python never rebroadcasts
+the signed transaction. Completion requires matching mined transaction identity,
+nonce, bounded gas, canonical receipt and actual net ERC20 output transfers.
+Quote estimates are not fill receipts.
 
-Qualification limits
---------------------
+Testnet swap routes, native output without qualified trace proof, gasless or
+delegated routes, bridges and non-source-denominated fees are unsupported and
+refused before execution. Spot account valuation covers the approved registry
+using real provider USD prices. Missing prices fail explicitly; no test-token
+peg or synthetic cash balance is invented. Native mainnet swaps remain
+unqualified.
 
-Companion CI checks formatting, tests, and browser bundling on Node 22.18 and
-Node 24 without wallet credentials. Connected wallet execution and public venue
-API checks remain separate opt-in qualification steps.
+Migration and recovery
+----------------------
 
-Connected identity, balances, market data, harmless signing, policy expiry and
-token revocation have been verified. A dedicated Hyperliquid testnet wallet
-has also passed market open/close, multiple-fill accounting, resting-order
-cancellation, restart recovery and a full strategy-executor iteration with fill
-callbacks. Restored cumulative fills are not replayed into order transactions.
-Connected read-only checks also verify strategy startup and polling against
-real saved history without placing orders.
-Qualify your own funded wallet and its approval/recovery paths. The
-pinned MetaMask dependency tree also has unresolved upstream security advisories;
-this beta is not production-qualified. See the engineering guide for the audit,
-trust boundary, and test checklist. Configure strategies with
-``quote_asset=Asset("USDC", asset_type="crypto")`` for perpetual account valuation.
+Preserve the old complete ``broker.sqlite`` and use it as ``STATE_FILE`` with
+the exact original agent, wallet and network. Stop the retired service through
+its runtime owner before migration. Never copy an active database or run
+independent journal copies for one wallet.
 
-Frequently asked questions
---------------------------
+An explicitly selected ``LEGACY_SESSION_FILE`` can import the old session into
+a distinct new ``SESSION_FILE``. Its old owner fence remains held during native
+use. The original file is retained; subsequent OAuth rotations belong to the
+native session. Do not restart the old service with stale credentials.
 
-Which MetaMask wallet does a strategy use?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``BROKER_URL`` and ``BROKER_TOKEN`` are retired and raise migration guidance.
+The former agent-scoped token is not a MetaMask access token. Known legacy
+venue orders retain order/fill recovery. Old unused signatures are never
+released. Expired uncertain native leverage is resolved by verified venue reads without
+replaying the unsubmitted order. Legacy swaps without sufficient native
+transaction evidence remain explicit reconciliation holds.
 
-Each agent uses a dedicated, separately funded MetaMask Agent Wallet server wallet. MetaMask manages its signing keys. The strategy receives a scoped local broker token, while the owner protects the CLI session and setup credentials.
+``client.owner_operations()`` exposes retained policy, gas-funding and
+collateral-transfer receipts. These operations are never automatically replayed.
+Funding and provider-policy changes belong in MetaMask's owner surfaces; the
+old local funding UI is historical, not a Python runtime prerequisite.
 
-Why does the same email show different wallets?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Trust boundary and qualification
+--------------------------------
 
-Google, email-code, and QR sign-in methods have separate wallet identities. Reconnect using the method that created the wallets. Setup warns when existing agent wallets are absent from the current session.
+Keys stay with MetaMask. Local Python checks are cooperative process controls;
+strategy code can access its process credentials. Dedicated funding and
+provider-enforced Guard policy are the actual boundaries. MetaMask's
+`outflow policy
+<https://docs.metamask.io/agent-wallet/reference/outflow-policy/>`_ does not make
+a local notional limit a provider-enforced cap on typed-data signatures.
 
-Does testnet ETH fund Hyperliquid perpetuals?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Native offline regression tests and connected Python wallet, policy, account,
+market-data and ordinary strategy-startup checks have passed. Funded native
+order/fill/cancel qualification still requires a valid owner grant. Old
+JavaScript receipts do not qualify the new path. No production or mainnet
+trading qualification is claimed.
 
-No. ETH pays EVM gas; Hyperliquid positions need mock USDC collateral in HyperCore. Refresh collateral balances in setup and move spot USDC to perps within the agent wallet when needed. Unified accounts pool collateral. Faucet eligibility is separate from wallet creation.
+Environment configuration uses ``TRADING_BROKER=metamask``, optional
+``DATA_SOURCE=metamask``, ``METAMASK_SESSION_FILE``, ``METAMASK_STATE_FILE``,
+``METAMASK_AGENT_ID``, ``METAMASK_PROJECT_ID``, ``METAMASK_ACCESS_TOKEN``,
+``METAMASK_REFRESH_TOKEN``, ``METAMASK_WALLET_ADDRESS``, ``METAMASK_NETWORK`` and
+``METAMASK_MODE``.
 
-Optional browser gas funding has a separate receipt history. It confirms the
-testnet, sender, recipient and exact ETH amount, then waits for a successful
-mined receipt and two block confirmations. Refreshing after a reload resumes
-read-only checks. A missing hash can be linked from MetaMask Activity.
-Alternatively, **Review pending funding** keeps the original nonce, sender,
-recipient and amount while refreshing the fee estimate. A consumed nonce
-requires receipt reconciliation. A mined cancellation is shown as
-**replaced**, without claiming that funding arrived. Unknown funding is
-retained and never automatically resent.
+Execution and dependency review
+-------------------------------
 
-Can a strategy transfer funds to another wallet?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Managed Hyperliquid signing uses domain chain ID 1337 on both networks;
+the signed source binds testnet or mainnet. Bridge chain IDs must not replace
+the signing domain. Provider validation and Shield failures remain rejected
+without automatic retry or venue submission. Guard Mode remains enabled.
 
-Bot tokens cannot request arbitrary transfers, withdrawals, or raw signatures. The owner-only setup collateral action moves testnet USDC within the same bound wallet. Protect the provider session separately because it can control multiple managed wallets.
+Owner revocation is checked after remote preparation and serialized with final
+handoff. An expired uncertain cancel can retry only after fresh reads confirm
+the same order remains live. Expired uncertain leverage reconciles current
+venue settings and rejects the unsubmitted intent; a fresh order ID is needed.
+Accessor refresh and polling share cumulative fill, callback and terminal-event
+handling. Atomic quantities remain exact under caller decimal contexts.
 
-What should I do after an interrupted order?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Managed swaps cannot be canceled locally. Receipt reconciliation includes gas
+spent by reverted transactions and earlier approvals. OP Stack estimates and
+actual fees include separate L1-data and operator charges. The execution-gas
+ceiling is distinct from estimated rollup charges, which cannot be capped by
+the transaction signer. Actual overruns preserve fills and block further spend.
+After reviewing the exact recorded overrun, explicitly call
+``client.acknowledge_fee_overrun(operation_id, expected_overrun)``. This retains
+the adjusted daily charge. Legacy overruns without verified USD valuation stay
+held.
 
-Keep the journal and reuse the original request ID. Check the saved order and provider approval status. Unknown submissions require independent reconciliation; the service does not automatically replay a signature or guess that a timeout means failure.
+Use a clean environment or remove retired ``polygon-api-client`` before
+upgrading. Its certificate constraint prevents current CA-store fixes. The
+maintained Massive SDK preserves existing ``POLYGON_API_KEY`` configuration and
+Polygon endpoint behavior. The MetaMask extra requires patched ``urllib3`` and
+``certifi``. Private state directories and owner-only regular session locks
+remain mandatory. This is not a claim that the entire optional dependency tree
+has no advisories.
 
-For an uncertain perpetual submission, owner setup offers **Link venue order**.
-Enter the exact ID from the same wallet's Hyperliquid history. The service checks
-the wallet, network, request details and submission time, then reads actual venue
-status and fills. A mismatched or already-linked order is refused. Recovery never
-signs another order and is unavailable to bot tokens.
+New managed requests match MetaMask's high-level wallet-adapter provider origin,
+while readable intent and durable client provenance identify LumiBot. Recovery
+validates the originally recorded origin, without alternate-origin retries.
+Guard Mode and exact policy checks stay enabled.
 
-Can I test spot swaps on testnet?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The pinned provider SDK has no testnet spot swap route. The broker refuses that route before signing. Funded perpetual tests do not qualify spot swap receipts, and the setup flow does not switch to mainnet automatically.
-
-Is this integration production-qualified?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-This is a local beta with funded perpetual and recovery checks. Standard and
-USDC unified accounts have been exercised against real testnet collateral and
-positions. Unified equity uses the spot collateral ledger without adding PnL
-twice; portfolio margin is explicitly unsupported. Upstream dependency advisories
-and broader funded approval and partial-fill cancellation qualification remain
-open. MetaMask's outflow limits exclude typed-data signatures, so they do not
-force an approval challenge for perpetual orders. Review the engineering guide
-before operational use.
+Actual native testnet ALO placement/cancellation and market opening/reduce-only
+closing have passed on two dedicated wallets. A real Strategy/Trader ETH round
+trip delivered unique callbacks and reconciled ending cash exactly, including
+fees. The installed wheel passed native regression tests on Python 3.10 and
+3.12 without JavaScript runtimes in PATH. Funded partial-fill/cancel and subsequent
+restart qualification remain open. This is not production or mainnet-swap
+qualification. Earlier JavaScript receipts cannot qualify this implementation.

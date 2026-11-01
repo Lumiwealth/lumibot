@@ -1,7 +1,7 @@
-"""Recover judging with original actors after a proved judge-only source repair.
+"""Recover grading with original actors after a proved grading-only source repair.
 
 Uses the canonical runner, ledger, model profile and freshness owner. It never
-executes an actor or changes a case's user request, policies or machine contract.
+executes an actor or changes its user request, policies, fixtures or runtime.
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def _git(root: Path, *arguments: str) -> bytes:
     return subprocess.check_output(["git", "-C", str(root), *arguments])
 
 
-def compare_source(root: Path, commit: str, paths: list[Path]) -> tuple[dict[str, bytes], dict]:
+def compare_source(root: Path, commit: str, paths: list[Path], *, machine_only=False) -> tuple[dict[str, bytes], dict]:
     if re.fullmatch(r"[0-9a-f]{40}", commit) is None:
         raise ValueError("Original source must be an immutable full Git commit")
     root = root.resolve()
@@ -53,19 +53,20 @@ def compare_source(root: Path, commit: str, paths: list[Path]) -> tuple[dict[str
             def acting_ast(content):
                 module = ast.parse(content)
                 module.body = [node for node in module.body if not (
-                    isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "run_judge")]
+                    isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and
+                    node.name in ({"score_machine_contract"} if machine_only else {"run_judge"}))]
                 return ast.dump(module, include_attributes=False)
             if acting_ast(prior) != acting_ast(current):
                 raise ValueError("Acting runner or profile changed outside run_judge")
         elif name != JUDGE_CONTROLS:
             raise ValueError(f"Acting input changed: {name}")
-    proof = {"kind": "judge-only-source-compatibility", "originalSourceCommit": commit,
+    proof = {"kind": "machine-only-source-compatibility" if machine_only else "judge-only-source-compatibility", "originalSourceCommit": commit,
              "changedPaths": changed, "fileHashes": hashes}
     return originals, proof
 
 
 
-def compare_case(root: Path, commit: str, case: dict) -> tuple[dict, dict]:
+def compare_case(root: Path, commit: str, case: dict, *, machine_only=False) -> tuple[dict, dict]:
     """Permit a rubric correction only; preserve the exact original actor mandate."""
     if re.fullmatch(r"[0-9a-f]{40}", commit) is None:
         raise ValueError("Original source must be an immutable full Git commit")
@@ -81,7 +82,17 @@ def compare_case(root: Path, commit: str, case: dict) -> tuple[dict, dict]:
         raise ValueError("Acting case no longer matches its saved source")
     changed = sorted(key for key in original.keys() | current.keys()
                      if original.get(key) != current.get(key))
-    if set(changed) - {"judgeRubric"}:
+    if machine_only:
+        if set(changed) - {"machineContract"}:
+            raise ValueError("Machine recovery changed actor inputs or judge rubric")
+        prior_contract = original.get("machineContract") or {}
+        current_contract = current.get("machineContract") or {}
+        quantity = current_contract.get("singleOptionQuantity")
+        if ("singleOptionQuantity" in prior_contract or type(quantity) is not int or quantity < 1
+                or prior_contract.get("singleOptionOrder") is not True
+                or {key: value for key, value in current_contract.items() if key != "singleOptionQuantity"} != prior_contract):
+            raise ValueError("Machine recovery permits only an explicit single-option quantity correction")
+    elif set(changed) - {"judgeRubric"}:
         raise ValueError("Acting case changed outside its judge rubric")
     return original, {"path": name, "changedFields": changed,
         "originalSourceSha256": hashlib.sha256(prior_bytes).hexdigest(),
@@ -90,10 +101,10 @@ def compare_case(root: Path, commit: str, case: dict) -> tuple[dict, dict]:
         "currentCaseDigest": evals.actor_case_digest(current)}
 
 
-def source_compatibility(commit: str) -> dict:
+def source_compatibility(commit: str, *, machine_only=False) -> dict:
     captured = {}
     def old_source_hash(paths):
-        originals, proof = compare_source(evals.REPO_ROOT, commit, paths)
+        originals, proof = compare_source(evals.REPO_ROOT, commit, paths, machine_only=machine_only)
         captured.update(proof)
         digest = hashlib.sha256()
         for path in sorted(paths):
@@ -108,12 +119,12 @@ def source_compatibility(commit: str) -> dict:
             "sdkVersions": evals.sdk_versions()}
 
 
-def recover(cases, *, source_commit: str, output_root: Path, repetitions: list[int], workers: int):
+def recover(cases, *, source_commit: str, output_root: Path, repetitions: list[int], workers: int, machine_only=False):
     output_root = output_root.resolve()
     configure_fixture_environment(evals.REPO_ROOT, artifact_root=output_root)
     evals.preflight(cases, evals.DEFAULT_JUDGE_MODEL, 0)
-    proof = source_compatibility(source_commit)
-    original_cases = {case["id"]: compare_case(evals.REPO_ROOT, source_commit, case) for case in cases}
+    proof = source_compatibility(source_commit, machine_only=machine_only)
+    original_cases = {case["id"]: compare_case(evals.REPO_ROOT, source_commit, case, machine_only=machine_only) for case in cases}
     proof["caseDefinitions"] = {identity: pair[1] for identity, pair in original_cases.items()}
     proof["recoveryToolSha256"] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     proof_bytes = (json.dumps(proof, sort_keys=True, indent=2) + "\n").encode()
@@ -143,11 +154,13 @@ def recover(cases, *, source_commit: str, output_root: Path, repetitions: list[i
             actor = next((row for row in reversed(rows) if row.get("case_id") == case["id"]
                 and row.get("fingerprint") == prior_fp and row.get("repetition") == repetition
                 and row.get("status") == "actor_completed"), None)
+            expected_machine = evals.score_machine_contract(original_case if machine_only else case,
+                                                            actor["transcript"]) if actor else None
             if (not actor or actor.get("actor_case_digest") != evals.actor_case_digest(original_case)
                     or actor.get("acting_model") != case["model"]
                     or actor.get("judge_model") != evals.DEFAULT_JUDGE_MODEL
-                    or actor.get("machine") != evals.score_machine_contract(case, actor["transcript"])
-                    or not actor["machine"]["pass"]):
+                    or actor.get("machine") != expected_machine
+                    or (not machine_only and not actor["machine"]["pass"])):
                 raise ValueError("Missing unchanged completed actor with passing original machine evidence")
             if not any(row.get("scope", {}).get("run_id") == actor["run_id"]
                        and row["scope"].get("fingerprint") == prior_fp
@@ -161,17 +174,34 @@ def recover(cases, *, source_commit: str, output_root: Path, repetitions: list[i
                 "judge_recovery_started_at": evals.utc_text(),
                 "source_compatibility": {"sha256": proof_hash, "path": str(proof_path),
                                          "originalSourceCommit": source_commit}}
+            if machine_only:
+                judged = next((row for row in reversed(rows) if row.get("run_id") == actor["run_id"]
+                    and row.get("fingerprint") == prior_fp and row.get("judge", {}).get("pass") is True), None)
+                if not judged or not any(row.get("scope", {}).get("run_id") == actor["run_id"]
+                        and row["scope"].get("fingerprint") == prior_fp
+                        and row["scope"].get("role") == "judge" for row in reservations):
+                    raise ValueError("Machine recovery requires an unchanged completed native judge pass")
+                machine = evals.score_machine_contract(case, actor["transcript"])
+                if not machine["pass"]:
+                    raise ValueError("Corrected machine contract still fails; retain the original result")
+                checkpoint.update(machine=machine, judge=judged["judge"], judge_reused=True,
+                    usage=judged["usage"], timing_seconds=judged["timing_seconds"],
+                    grading_correction={"original_status": judged["status"],
+                        "original_machine": actor["machine"], "original_judged_at": judged["timestamp"],
+                        "product_behavior_changed": False})
             pending.append((case, checkpoint))
     budget = SubscriptionCallBudget(output_root / "model_calls.jsonl", max_calls=1500)
     def run(item):
         case, checkpoint = item
         evals.append_jsonl(ledger_path, checkpoint)
-        result = evals.resume_judge(case, checkpoint, judge_model=evals.DEFAULT_JUDGE_MODEL, budget=budget)
+        result = ({**checkpoint, "timestamp": evals.utc_text(), "status": "pass"} if machine_only else
+                  evals.resume_judge(case, checkpoint, judge_model=evals.DEFAULT_JUDGE_MODEL, budget=budget))
         evals.append_jsonl(ledger_path, result)
         return result
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
         completed = list(executor.map(run, pending))
-    summary = {"kind": "judge-only-recovery", "actorRuns": 0, "retained": retained,
+    summary = {"kind": "machine-only-recovery" if machine_only else "judge-only-recovery",
+        "actorRuns": 0, "judgeRuns": 0 if machine_only else len(completed), "retained": retained,
         "passed": sum(row["status"] == "pass" for row in completed),
         "failed": sum(row["status"] == "fail" for row in completed),
         "errors": sum(row["status"] == "error" for row in completed),
@@ -187,11 +217,14 @@ def main():
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--repetition", type=int, action="append", default=[])
     parser.add_argument("--max-workers", type=int, default=20)
+    parser.add_argument("--machine-only", action="store_true",
+                        help="Correct only a declared single-option quantity check; reuse the unchanged native judge")
     args = parser.parse_args()
     if args.max_workers < 1 or any(value < 1 for value in args.repetition):
         parser.error("Workers and repetition identities must be positive")
     result = recover(evals.load_cases(set(args.case_id)), source_commit=args.original_source_commit,
-                     output_root=args.output_root, repetitions=args.repetition, workers=args.max_workers)
+                     output_root=args.output_root, repetitions=args.repetition, workers=args.max_workers,
+                     machine_only=args.machine_only)
     print(json.dumps(result))
     raise SystemExit(0 if not result["failed"] and not result["errors"] else 1)
 

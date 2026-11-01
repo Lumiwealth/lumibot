@@ -16,7 +16,8 @@
       "options_evaluate_market"
     ],
     "singleOptionOrder": true,
-    "positionsMustEndFlat": true
+    "positionsMustEndFlat": true,
+    "singleOptionQuantity": 2
   },
   "judgeRubric": "Require closing the actual single long option position through the single-order tool, with the exact held identity and absolute remaining quantity. Long positions require sell_to_close; short positions require buy_to_close. The actor must inspect the held contract quote and spread and use a sensible bounded price. There is no multi-leg package to calculate or submit; do not accept an unnecessary multi-leg closing attempt followed by a workaround. Require actual broker execution, relevant pending-order checks, and observed resulting positions before claiming flatness. Submission alone and post-run fixture settlement do not prove the actor observed a fill. Do not require a fresh chain or entry research for this authorized close. No new exposure, duplicate order, fabricated quote or unsupported fill claim. This is controlled recorded broker execution, not a live broker or historical return claim.",
   "requiredRepetitions": 5

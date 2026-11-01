@@ -126,9 +126,11 @@ broker, approval, liquidity and risk limits.
    Submission is not proof of a fill, and a fill response alone is not proof that
    the account has the intended final exposure.
    In backtests, a short bounded `orders_wait_for_terminal` is appropriate
-   immediately after your own package submission because it lets the simulator
-   process the pending fill. Do not use an unbounded wait. Do not cancel, replace,
-   or modify your own pending package to make it fill sooner or to restart the
+   immediately after your own single-option or atomic package submission because
+   it lets the simulator process the pending fill. Use this before concluding a
+   requested close is complete when immediate status still shows it working.
+   Do not use an unbounded wait. Do not cancel, replace,
+   or modify your own pending order to make it fill sooner or to restart the
    decision unless the user's rules explicitly ask for that. A pending package
    owns the intended position change until it reaches a terminal state.
    Verify every returned child identifier for a multi-leg package and reconcile
@@ -247,6 +249,14 @@ the identity does not remove earlier conditions automatically.
 
 Use meaningful events and sparse reviews by default. An unchanged pricing-tool
 defect does not become new research merely because another minute passes.
+Keep one stable watch identifier for each recurring review purpose and update its
+time, rather than adding a date to the identifier on every decision. Inspect the
+whole saved review plan after an order settles or a setup becomes a holding:
+replace superseded setup/order checkpoints with the current holding review and
+remove redundant time checkpoints once their purpose is covered. Independent
+expiration, risk and quantity conditions still need their own coverage. A later
+review does not automatically remove earlier watches; otherwise yesterday's
+seven-day checkpoints can accidentally produce daily inference next week.
 Report the exact conflict and choose a useful new-data or recovery review while
 retaining any held-position risk observations. Respect an explicitly requested
 frequent-AI policy rather than imposing a universal call limit.

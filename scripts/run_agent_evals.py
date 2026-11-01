@@ -981,8 +981,13 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
 
     if contract.get("singleOptionOrder") and relevant:
         order = relevant[0]
-        if str(order.get("asset_type")).lower() != "option" or abs(float(order.get("quantity") or 0)) != 1:
-            failures.append("single-leg option order was not exactly one option contract")
+        expected_quantity = contract.get("singleOptionQuantity", 1)
+        if type(expected_quantity) is not int or expected_quantity < 1:
+            failures.append("singleOptionQuantity must be a positive integer")
+        elif str(order.get("asset_type")).lower() != "option" or abs(float(order.get("quantity") or 0)) != expected_quantity:
+            failures.append("single-leg option order was not exactly one option contract"
+                            if "singleOptionQuantity" not in contract else
+                            f"single-leg option order did not contain the required {expected_quantity} contracts")
         if not order.get("expiration") or order.get("strike") is None or not order.get("right"):
             failures.append("single-leg option order omitted exact contract fields")
         if str(order.get("order_type")).lower() != "limit" or order.get("limit_price") is None:

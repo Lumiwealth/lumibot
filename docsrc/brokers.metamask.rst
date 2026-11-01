@@ -5,6 +5,8 @@ The ``MetaMask`` broker runs inside LumiBot's Python process and uses MetaMask
 Agent Wallet managed signing. It calls MetaMask and Hyperliquid directly. No
 Node, Bun, npm, MetaMask CLI or localhost service is required.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Install and connect
 -------------------
 
@@ -212,3 +214,40 @@ fees. The installed wheel passed native regression tests on Python 3.10 and
 3.12 without JavaScript runtimes in PATH. Funded partial-fill/cancel and subsequent
 restart qualification remain open. This is not production or mainnet-swap
 qualification. Earlier JavaScript receipts cannot qualify this implementation.
+
+Frequently asked questions
+--------------------------
+
+Do I need Node or a local MetaMask service?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. Install ``lumibot[metamask]`` and configure the native session, wallet and
+journal. Managed signing and venue requests run through Python.
+
+Who holds the wallet keys and enforces spending limits?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+MetaMask retains wallet keys. Guard Mode enforces its reviewed provider policy;
+local notional limits are cooperative process controls. Use a dedicated wallet
+with bounded funding, and keep Guard Mode enabled.
+
+Can I preserve the previous integration's journal?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. Retain the exact state file, agent and wallet identity. Known venue orders
+can reconcile; ambiguous legacy effects remain explicit holds. Old service
+tokens are not MetaMask access tokens, and startup never renews authority.
+
+What should I do after an approval timeout or unknown outcome?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Inspect the recorded operation with ``broker.client.get_order(operation_id)``.
+Reuse its identity and reconcile the original request before creating another
+trade. Do not bypass Guard Mode or increase permissions to clear a failure.
+
+Does testnet qualification establish production swap readiness?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. Native perps have funded testnet evidence, with the remaining qualification
+limits recorded above. Mainnet trading and funded native swaps remain
+unqualified; earlier JavaScript receipts do not establish Python readiness.

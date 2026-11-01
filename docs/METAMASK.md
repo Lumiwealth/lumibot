@@ -147,3 +147,25 @@ Install in a clean environment, or remove the retired `polygon-api-client` befor
 New signature requests use the same fixed provider-origin metadata as MetaMask's high-level wallet adapter, with LumiBot identified separately in the durable client provenance and readable intent. Recovery validates each request's original provider origin. There is no alternate-origin retry after a failure. Guard Mode and exact policy checks remain enabled.
 
 Native broker qualification has exercised actual testnet ALO placement/cancellation and market opening/reduce-only closing through Python on two dedicated wallets. A real Strategy/Trader ETH round trip delivered unique fill callbacks and reconciled ending cash exactly, including fees. The installed wheel passed the native regression suite on Python 3.10 and 3.12 with JavaScript runtimes absent from PATH. Funded partial-fill/cancel and subsequent restart qualification remain open; no production or mainnet-swap qualification is claimed. Earlier JavaScript receipts remain historical evidence only.
+
+## Frequently asked questions
+
+### Do I need Node or a local MetaMask service?
+
+No. Install `lumibot[metamask]` and configure the native session, wallet and journal. Managed signing and venue requests run through Python.
+
+### Who holds the wallet keys and enforces spending limits?
+
+MetaMask retains wallet keys. Guard Mode enforces its reviewed provider policy; local notional limits are cooperative process controls. Use a dedicated wallet with bounded funding and keep Guard Mode enabled.
+
+### Can I preserve the previous integration's journal?
+
+Yes. Retain the exact state file, agent and wallet identity. Known venue orders can reconcile; ambiguous legacy effects remain explicit holds. Old service tokens are not MetaMask access tokens, and startup never renews authority.
+
+### What should I do after an approval timeout or unknown outcome?
+
+Inspect the recorded operation with `broker.client.get_order(operation_id)`. Reuse its identity and reconcile the original request before creating another trade. Do not bypass Guard Mode or increase permissions to clear a failure.
+
+### Does testnet qualification establish production swap readiness?
+
+No. Native perps have funded testnet evidence, with the remaining limits recorded above. Mainnet trading and funded native swaps remain unqualified; earlier JavaScript receipts do not establish Python readiness.

@@ -2761,6 +2761,10 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
     return BoundTool(
         name="read_document",
         description=(
+            "Before each linked read in a backtest, compare that exact row's first-public/version instant "
+            "with the simulated UTC cutoff. A diagnostic query may include excluded rows: they are not read "
+            "candidates. Omit known post-cutoff URLs entirely, including from parallel calls; do not call this "
+            "tool to test their refusal. Live reads and undated-source approximations remain supported. "
             "Read any file or web page at a URL: PDF, Word, Excel, CSV, tab-separated text, ZIP (every file "
             "inside), HTML (text plus the links on the page), JSON, or plain text. Arguments: url, optional "
             "find (keep only the lines and links that contain this text), start and max_chars (at most 2500) "

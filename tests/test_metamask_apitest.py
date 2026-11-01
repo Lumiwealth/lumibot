@@ -82,6 +82,7 @@ def test_connected_expired_authority_never_signs(connected):
     import time
     from unittest.mock import patch
 
+    checked = 0
     for broker in brokers:
         before = broker.client.journal.operations(broker.client.config["AGENT_ID"])
         binding = broker.client.journal.binding(broker.client.config["AGENT_ID"])
@@ -102,6 +103,9 @@ def test_connected_expired_authority_never_signs(connected):
                     }
                 )
         assert broker.client.journal.operations(broker.client.config["AGENT_ID"]) == before
+        checked += 1
+    if checked == 0:
+        pytest.skip("Connected grants are active; live expiry rejection was not exercised")
 
 
 def test_connected_strategy_restores_history_without_replaying_fills(connected):

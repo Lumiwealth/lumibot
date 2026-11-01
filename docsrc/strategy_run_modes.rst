@@ -65,7 +65,7 @@ execution**, not the capability of the importable strategy class.
 ``ai_nancy_pelosi_trading_bot.py``, ``ai_nancy_pelosi_copy_trading_bot.py``,
 ``ai_insider_trading_bot.py``, ``ai_fear_and_greed_trading_bot.py``,
 ``ai_iron_condor.py``, ``ai_bull_call_spread.py``,
-``ai_call_stock_replacement.py``, ``ai_credit_spread.py``,
+``ai_call_stock_replacement.py``, ``ai_wheel.py``, ``ai_credit_spread.py``,
 ``ai_0dte_options_trading_bot.py``, ``ai_vwap.py``,
 ``ai_opening_range_breakout.py``, ``ai_trading_team_warren_buffett_value.py``,
 ``ai_trading_team_bill_ackman_concentrated.py``,

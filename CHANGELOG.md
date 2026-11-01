@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Add a candidate AI wheel example with a configurable underlying, one researcher,
+  one trading/risk owner and shared attention monitoring. Public-package installation,
+  hosted execution, longer AI comparisons and Marketplace qualification remain pending.
+
+### Fixed
+- Clarify single-option closing sides, actual held quantity and pending-fill observation
+  separately from atomic multi-leg closes. Consolidate superseded scheduled attention
+  reviews while preserving independent expiry and risk conditions.
+- Preserve original actor and judge evidence when correcting an exact-quantity machine
+  grading contract, with source compatibility checks and an append-only correction.
+
 ## 4.6.37 - 2026-11-01
 
 Deploy marker: `5eea4abaf6b659b2d9931c9189f3c1c8ece5170d`.

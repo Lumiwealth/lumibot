@@ -7,7 +7,8 @@ AI Trading Bot Examples
 Pick a bot, read how it works, and run it. Each bot is a few sentences of plain
 English. The agents fit the strategy: one agent for simple rules, a researcher
 and a trader for most bots, and a debate or a team where that is the point.
-Every page shows the full code and a real backtest tear sheet.
+Example pages show source and the available validation evidence. A candidate
+without completed qualification is labeled explicitly.
 
 .. include:: _snippets/botspot_mcp_callout.rst
 
@@ -46,6 +47,50 @@ Options
 * :doc:`agents_example_iron_condor_ai_trading_bot`: sells a one-day SPY iron condor at 3:45 PM and closes early if SPY runs toward a strike.
 * :doc:`agents_example_put_credit_spread_ai_trading_bot`: sells a SPY put credit spread about a month out and manages the exit.
 * :doc:`agents_example_0dte_options_ai_trading_bot`: sells a same-day SPY call spread and watches it every 15 minutes.
+
+AI wheel candidate
+~~~~~~~~~~~~~~~~~~
+
+:download:`AI wheel source <../lumibot/example_strategies/ai_wheel.py>` starts
+with SPY. Change the ``symbol`` parameter for another supported optionable ETF.
+One researcher supplies compact dated evidence; the sole trader chooses contracts,
+size, prices and risk actions. Cash-secured puts may deliver shares on assignment;
+covered calls may call those shares away, returning the strategy to cash.
+
+The example prefers 30–45 days to expiry, approximately 0.25 absolute delta,
+one short contract, collateral within 90% of equity and 90% premium capture.
+It accepts assignment and uses bounded limit orders. These are configurable
+policy choices. Premium does not remove underlying downside or guarantee profit.
+
+Initial setup is 15 minutes before the close. Shared attention polls quietly
+between decisions; the trader schedules daily entry opportunities when flat,
+meaningful management events and a holding review within seven calendar days.
+Management can reuse dated research. One decision can still involve many model
+and tool calls: measure actual usage rather than assuming one request per day.
+
+**Qualification is incomplete.** This source needs the shared
+``self.agents.attention`` API in the actual installed SDK. The November 1 Manager
+smoke used LumiBot 4.6.37 but that installation lacked the API and failed before
+trading. A matching version label alone does not establish capability. The local
+candidate has a completed two-week diagnostic; longer AI comparisons, full AI
+lifecycle and Marketplace installation remain pending. No Marketplace availability
+or trading readiness is claimed.
+
+Once the runtime is qualified and installed, configure an options-history source
+and follow :doc:`agents_chatgpt` for local Login with ChatGPT. This example selects
+``chatgpt/gpt-6-luna`` with Medium reasoning and Standard/default service. Optional
+web research requires ``ddgs``. Model login and market-data permissions are separate.
+Set ``IS_BACKTESTING=true`` and your historical dates before executing:
+
+.. code-block:: bash
+
+   python -m lumibot.example_strategies.ai_wheel
+
+Without backtest mode, the module invokes its configured broker runner; that path
+has not been qualified for this example. Historical trade-bar limits do not prove
+historical executable bid/ask spreads. Smart limits are deliberately not the default
+while missing-quote fallback and repricing behavior remain under qualification.
+See :doc:`strategy_run_modes` for runner and account selection.
 
 Day trading
 -----------

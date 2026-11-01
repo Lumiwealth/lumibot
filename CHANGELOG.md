@@ -12,7 +12,6 @@
 - Put the per-document backtest eligibility check at the document-tool decision point, keeping diagnostic excluded rows out of linked reads while preserving live reads and disclosed undated-source approximations.
 - Preserve decimal broker order quantities and validate fractional cumulative executions using consistent decimal units. Repeated high-precision snapshots retain their exact execution receipt without replaying rounding dust; real overfills remain invalid.
 
-### Fixed
 - Apply configured taker fees to trailing-stop executions, including the executed quantity of partial fills, consistently with ordinary market and stop orders.
 
 ## 4.6.35 - 2026-10-31

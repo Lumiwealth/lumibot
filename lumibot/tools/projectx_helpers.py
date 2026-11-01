@@ -1347,25 +1347,21 @@ def normalize_bracket_entry_tag(tag: str):
 def build_unique_order_tag(order):
     """Generate (or normalize) a unique order tag.
 
-    Mirrors existing inline logic in ProjectX broker: if tag absent or blank create
-    STRAT-<millis><rand2>. Keeps existing tag if non-empty. Returns tag string.
-    Pure with respect to broker state (only uses order + time/random).
+    Preserve the complete strategy identity and append a unique order suffix.
+    Explicit non-empty user tags remain unchanged.
     """
     try:
-        import time, random
-        if not getattr(order, 'tag', None):
+        import uuid
+        if not str(getattr(order, 'tag', '') or '').strip():
             strat_part = ''
             try:
                 if hasattr(order, 'strategy') and order.strategy:
                     strat_name = order.strategy if isinstance(order.strategy, str) else getattr(order.strategy, 'name', '')
-                    strat_part = (strat_name or 'LB')[:8].upper()
+                    strat_part = strat_name or 'LB'
             except Exception:
                 strat_part = 'LB'
-            unique_suffix = f"{int(time.time()*1000)%100000000:08d}{random.randint(10,99)}"
+            unique_suffix = uuid.uuid4().hex
             order.tag = f"{strat_part}-{unique_suffix}"
-        else:
-            if not str(order.tag).strip():
-                order.tag = f"LB-{int(time.time()*1000)}"
     except Exception:
         # Silent; caller already logs on failure in original logic
         pass

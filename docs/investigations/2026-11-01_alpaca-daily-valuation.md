@@ -43,3 +43,21 @@ coverage. Intraday benchmarks retain their existing observation basis.
 
 These deterministic regression tests do not constitute new real-model runs.
 Local passing checks are not evidence of a package publication or hosted rollout.
+
+## Review follow-up
+
+The SDK transport regression reproduced a missing first-session preopen mark:
+the prior close existed before the loaded window, but the lookup suppressed
+history extension. The lookup now permits the ordinary bounded provider history
+path and resolves the earlier session calendar. Session-aware recursion remains
+necessary when a timezone-shifted daily label initially selects an unstarted
+session; returning that bar's close directly would reveal a future closing price.
+
+Equity benchmarks now request an equity calendar even on a strategy source
+configured for continuous trading. Non-session rows are excluded before daily
+return calculation; crypto retains all calendar days. Native tests separately
+verify the two asset classes and the actual requested provider calendar.
+
+The combined affected provider, benchmark, accounting, real-engine and inference
+compatibility inventory passed 154 checks locally. The existing 23-case native
+actor/judge receipt remains source-compatible, with original records unchanged.

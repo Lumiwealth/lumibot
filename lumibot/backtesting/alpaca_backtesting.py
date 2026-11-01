@@ -432,6 +432,15 @@ class AlpacaBacktesting(DataSourceBacktesting):
             # when the caller requested another display timezone.
             session_date = stamp.tz_convert("America/New_York").date()
             matched = sessions[sessions["market_open"].dt.tz_convert("America/New_York").dt.date == session_date]
+            if matched.empty or self.market in ("24/7", "24/5"):
+                # Warmup may precede the loaded backtest calendar. Stock marks
+                # also retain equity sessions when the strategy trades crypto.
+                matched = get_trading_days(
+                    market="NYSE" if self.market in ("24/7", "24/5") else self.market,
+                    start_date=pd.Timestamp(session_date),
+                    end_date=pd.Timestamp(session_date) + pd.Timedelta(days=1),
+                    tzinfo=self.tzinfo,
+                )
             if matched.empty:
                 return None
             opened = max(pd.Timestamp(matched.iloc[0]["market_open"]), stamp)
@@ -440,13 +449,12 @@ class AlpacaBacktesting(DataSourceBacktesting):
             previous = self.get_historical_prices(
                 asset=asset, quote=quote, length=1, timestep="day",
                 timeshift=now - stamp.normalize(),
-                remove_incomplete_current_bar=True, _extend_history=False,
+                remove_incomplete_current_bar=True,
             )
             if previous is None or previous.df.empty or previous.df.index[-1] >= stamp.normalize():
                 return None
             return self._daily_bar_mark(previous.df, asset, quote)
-        else:
-            price = frame["close" if now >= closed else "open"].iloc[-1]
+        price = frame["close" if now >= closed else "open"].iloc[-1]
         if price is None or pd.isna(price):
             return None
         return quantize_to_num_decimals(price, get_decimals(price))

@@ -11,14 +11,19 @@ from lumibot.entities import Asset
 from lumibot.strategies._strategy import _Strategy
 
 
-def report(monkeypatch, bars, *, timestep="day", start="2025-01-06", end="2025-01-08"):
+def report(monkeypatch, bars, *, timestep="day", start="2025-01-06", end="2025-01-08",
+           market="NYSE", asset_type="stock", requests=None):
     source = object.__new__(AlpacaBacktesting)
     source._timestep = timestep
-    source.market = "NYSE"
-    monkeypatch.setattr(source, "get_historical_prices_between_dates", lambda **kwargs: bars.copy())
+    source.market = market
+    def history(**kwargs):
+        if requests is not None:
+            requests.append(kwargs)
+        return bars.copy()
+    monkeypatch.setattr(source, "get_historical_prices_between_dates", history)
     strategy = SimpleNamespace(
         is_backtesting=True,
-        _benchmark_asset=Asset("BENCH"),
+        _benchmark_asset=Asset("BENCH", asset_type=asset_type),
         _backtesting_start=pd.Timestamp(start, tz="America/New_York"),
         _backtesting_end=pd.Timestamp(end, tz="America/New_York"),
         _benchmark_returns_df=None,
@@ -67,3 +72,20 @@ def test_intraday_report_keeps_its_existing_observation_basis(monkeypatch):
     result = report(monkeypatch, bars, timestep="minute")
     assert result.index.equals(bars.index)
     assert result.symbol_cumprod.iloc[-1] == pytest.approx(110 / 105)
+
+
+@pytest.mark.parametrize("asset_type,expected_calendar,expected_rows", [
+    ("stock", "NYSE", 2), ("crypto", "24/7", 4),
+])
+def test_daily_benchmark_calendar_belongs_to_the_asset(monkeypatch, asset_type, expected_calendar, expected_rows):
+    bars = pd.DataFrame(
+        {"open": [100., 105., 105., 106.], "close": [105., 105., 105., 110.]},
+        index=pd.date_range("2025-01-03", periods=4, tz="America/New_York"),
+    )
+    requests = []
+    result = report(monkeypatch, bars, start="2025-01-03", end="2025-01-07",
+                    market="24/7", asset_type=asset_type, requests=requests)
+    assert result.attrs["benchmark_calendar"] == expected_calendar
+    assert len(result.close.dropna()) == expected_rows
+    assert result.symbol_cumprod.iloc[-1] == pytest.approx(1.10)
+    assert requests[0]["market"] == expected_calendar

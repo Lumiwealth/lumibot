@@ -1,5 +1,7 @@
 """Daily marks must follow exchange sessions without revealing future prices."""
 
+from types import SimpleNamespace
+
 import pandas as pd
 import pytest
 
@@ -79,3 +81,36 @@ def test_daily_marks_preserve_provider_session_across_timezones(monkeypatch, zon
     monkeypatch.setattr(data, "get_historical_prices_between_dates", lambda **kwargs: provider.copy())
     data._datetime = pd.Timestamp(f"2025-01-07 {clock}", tz=zone)
     assert data.get_last_price(Asset("TEST")) == expected
+
+
+def test_first_session_preopen_can_fetch_the_real_previous_close(monkeypatch, tmp_path):
+    from lumibot.backtesting import alpaca_backtesting
+
+    monkeypatch.setattr(alpaca_backtesting, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    requests = []
+
+    class Client:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def get_stock_bars(self, request):
+            requests.append(request)
+            frame = pd.DataFrame(
+                {"open": [90., 100., 120.], "high": [96., 111., 131.],
+                 "low": [89., 99., 119.], "close": [95., 110., 130.], "volume": 1000.},
+                index=pd.date_range("2025-01-06", periods=3, tz="America/New_York"),
+            )
+            frame.index.name = "timestamp"
+            frame["symbol"] = "TEST"
+            return SimpleNamespace(df=frame.reset_index().set_index(["symbol", "timestamp"]))
+
+    monkeypatch.setattr(alpaca_backtesting, "StockHistoricalDataClient", Client)
+    data = AlpacaBacktesting(
+        pd.Timestamp("2025-01-07", tz="America/New_York").to_pydatetime(),
+        pd.Timestamp("2025-01-09", tz="America/New_York").to_pydatetime(),
+        config={"API_KEY": "fixture", "API_SECRET": "fixture", "PAPER": True},
+        timestep="day", full_window=True, history_before_start=True,
+    )
+    data._datetime = pd.Timestamp("2025-01-07 08:30", tz="America/New_York")
+    assert data.get_last_price(Asset("TEST")) == 95.
+    assert len(requests) == 2

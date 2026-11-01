@@ -44,7 +44,8 @@ claiming it was published. A visible authorization error means it was not publis
 3. Build the final evidence packet from one compact row or entry per source
    request. Keep these fields together: dataset id and source/attribution;
    requested calendar start/end; returned effective `asOf`, release and retrieval
-   dates when supplied; observations or error; and remaining limitations.
+   dates when supplied; observations with units when known, or error; and
+   remaining limitations.
    Copy each window from that request's arguments and each effective bound from
    its successful response. For a failed query, label its actual arguments as
    requested, not applied. Never borrow another dataset's dates or collapse

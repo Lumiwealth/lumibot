@@ -42,8 +42,13 @@ def isolated_runtime(monkeypatch, tmp_path):
     monkeypatch.setattr("time.sleep", lambda _: None)
 
 
-MUTATIONS = ["orders_submit_order", "orders_submit_orders", "orders_submit_multileg",
-             "orders_cancel_order", "orders_modify_order"]
+MUTATIONS = [
+    "orders_submit_order",
+    "orders_submit_orders",
+    "orders_submit_multileg",
+    "orders_cancel_order",
+    "orders_modify_order",
+]
 
 
 @pytest.mark.parametrize("tool", MUTATIONS)
@@ -90,7 +95,11 @@ def test_pre_mutation_failure_keeps_bounded_retries(monkeypatch, read_only, allo
         raise InternalServerError("DNS transport failed")
 
     monkeypatch.setattr(runtime, "_run_async", fails)
-    result = AgentManager(Strategy()).create(name="agent", allow_trading=allow_trading, _runtime=runtime).run(task_prompt="Inspect.")
+    result = (
+        AgentManager(Strategy())
+        .create(name="agent", allow_trading=allow_trading, _runtime=runtime)
+        .run(task_prompt="Inspect.")
+    )
     assert len(attempts) == 3
     assert result.payload["broker_mutation_attempted"] is False
     assert result.payload["execution_outcome"]["retryability"] == "retryable"
@@ -102,7 +111,11 @@ def test_missing_runtime_mutation_trace_is_unknown():
         def run(self, request):
             raise InternalServerError("DNS transport failed")
 
-    result = AgentManager(Strategy()).create(name="trader", allow_trading=True, _runtime=AlternateRuntime()).run(task_prompt="Inspect.")
+    result = (
+        AgentManager(Strategy())
+        .create(name="trader", allow_trading=True, _runtime=AlternateRuntime())
+        .run(task_prompt="Inspect.")
+    )
     assert result.payload["broker_mutation_attempted"] is None
     assert result.payload["execution_outcome"]["broker_state_certainty"] == "unknown"
     assert result.payload["execution_outcome"]["retryability"] == "non_retryable"
@@ -112,6 +125,7 @@ def test_missing_runtime_mutation_trace_is_unknown():
 @pytest.mark.parametrize("observe_mutation_result", [False, True])
 def test_real_fixture_fill_and_observed_events_survive_later_dns_failure(monkeypatch, observe_mutation_result):
     from google.genai import types
+
     from scripts.agent_eval_production_fixture import ProductionFixture
     from scripts.run_agent_evals import build_fixture
 
@@ -129,24 +143,54 @@ def test_real_fixture_fill_and_observed_events_survive_later_dns_failure(monkeyp
 
         async def run_async(self, **kwargs):
             invocations.append(1)
-            yield SimpleNamespace(usage_metadata={"prompt_token_count": 7, "candidates_token_count": 3, "total_token_count": 10})
+            yield SimpleNamespace(
+                usage_metadata={"prompt_token_count": 7, "candidates_token_count": 3, "total_token_count": 10}
+            )
             tools = {tool.__name__: tool for tool in self.agent.tools if callable(tool)}
             calls = [
                 ("market_quote", {"symbol": "AAPL"}),
-                ("orders_submit_order", {"symbol": "AAPL", "quantity": 2, "side": "buy", "order_type": "market",
-                                         "reason": "Use the current quoted equity price and complete account evidence for the authorized two-share purchase. The small allocation fits available cash. Confirm the exact broker identifier and actual fills before reporting execution or taking another action."}),
+                (
+                    "orders_submit_order",
+                    {
+                        "symbol": "AAPL",
+                        "quantity": 2,
+                        "side": "buy",
+                        "order_type": "market",
+                        "reason": (
+                            "Use the current quoted equity price and complete account evidence for the authorized "
+                            "two-share purchase. The small allocation fits available cash. Confirm the exact broker "
+                            "identifier and actual fills before reporting execution or taking another action."
+                        ),
+                    },
+                ),
             ]
             for name, args in calls:
                 call_id = f"observed-{name}"
-                yield SimpleNamespace(content=types.Content(parts=[types.Part(function_call=types.FunctionCall(name=name, args=args, id=call_id))]))
-                response = tools[name](**args, agent_purpose="Execute this bounded fixture operation and inspect its actual result.")
+                yield SimpleNamespace(
+                    content=types.Content(
+                        parts=[types.Part(function_call=types.FunctionCall(name=name, args=args, id=call_id))]
+                    )
+                )
+                response = tools[name](
+                    **args, agent_purpose="Execute this bounded fixture operation and inspect its actual result."
+                )
                 assert response.get("tool_error") is not True, response
                 if name == "orders_submit_order" and not observe_mutation_result:
                     production.settle()
                     raise InternalServerError("Response lost after the actual order action")
                 observed.append(response)
                 response_name = "orders_submit_ order" if name == "orders_submit_order" else name
-                yield SimpleNamespace(content=types.Content(parts=[types.Part(function_response=types.FunctionResponse(name=response_name, response=response, id=call_id))]))
+                yield SimpleNamespace(
+                    content=types.Content(
+                        parts=[
+                            types.Part(
+                                function_response=types.FunctionResponse(
+                                    name=response_name, response=response, id=call_id
+                                )
+                            )
+                        ]
+                    )
+                )
             production.settle()
             raise InternalServerError("DNS transport failed after the order response")
 
@@ -154,7 +198,9 @@ def test_real_fixture_fill_and_observed_events_survive_later_dns_failure(monkeyp
     monkeypatch.setattr(runtime, "_ensure_adk", lambda: (SimpleNamespace, Runner, types, lambda function: function))
     monkeypatch.setattr(runtime_module, "_resolve_model_for_adk", lambda *args, **kwargs: "offline-model")
     try:
-        handle = production.manager.create(name="trader", allow_trading=True, _runtime=runtime, include_builtin_skills=False)
+        handle = production.manager.create(
+            name="trader", allow_trading=True, _runtime=runtime, include_builtin_skills=False
+        )
         result = handle.run(task_prompt="Execute the authorized fixture trade.")
         orders = production.capture(result)
         assert len(invocations) == len(orders) == 1
@@ -163,7 +209,9 @@ def test_real_fixture_fill_and_observed_events_survive_later_dns_failure(monkeyp
         assert [event.tool_name for event in result.tool_calls] == ["market_quote", "orders_submit_order"]
         assert [event.payload for event in result.tool_results] == observed
         assert result.usage["total_token_count"] == 10
-        assert [event.tool_name for event in result.tool_results] == (["market_quote", "orders_submit_order"] if observe_mutation_result else ["market_quote"])
+        assert [event.tool_name for event in result.tool_results] == (
+            ["market_quote", "orders_submit_order"] if observe_mutation_result else ["market_quote"]
+        )
         assert all(event.timestamp and event.call_id for event in result.tool_calls + result.tool_results)
         assert result.payload["broker_mutation_attempted"] is True
         assert result.payload["execution_outcome"]["retryability"] == "non_retryable"
@@ -206,10 +254,18 @@ def test_declared_custom_tool_mutation_controls_replay(monkeypatch, mutates_trad
         raise InternalServerError("DNS transport failed")
 
     monkeypatch.setattr(runtime, "_run_async", fails)
-    result = AgentManager(Strategy()).create(
-        name="custom_trader", tools=[custom_action], include_builtin_tools=False,
-        include_builtin_skills=False, allow_trading=True, _runtime=runtime,
-    ).run(task_prompt="Perform the declared operation.")
+    result = (
+        AgentManager(Strategy())
+        .create(
+            name="custom_trader",
+            tools=[custom_action],
+            include_builtin_tools=False,
+            include_builtin_skills=False,
+            allow_trading=True,
+            _runtime=runtime,
+        )
+        .run(task_prompt="Perform the declared operation.")
+    )
     touched = mutates_trading and phase != "before_invocation"
     expected_attempts = 1 if touched else 3
     assert len(attempts) == expected_attempts

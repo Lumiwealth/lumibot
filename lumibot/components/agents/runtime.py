@@ -2020,7 +2020,9 @@ class GoogleADKRuntime:
                 if normalized_event.tool_name:
                     normalized_event.tool_name = tool_name_map.get(
                         normalized_event.tool_name,
-                        tool_name_map.get(_normalize_tool_name_typo(normalized_event.tool_name), normalized_event.tool_name),
+                        tool_name_map.get(
+                            _normalize_tool_name_typo(normalized_event.tool_name), normalized_event.tool_name
+                        ),
                     )
             events.extend(normalized_events)
         summary = None

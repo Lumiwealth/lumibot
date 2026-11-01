@@ -2374,7 +2374,8 @@ class AgentHandle:
                     self.allow_trading and broker_mutation_attempted is None
                 )
                 recovery_guidance = (
-                    "Prior order actions may have taken effect; reconcile orders and account state before further action."
+                    "Prior order actions may have taken effect; "
+                    "reconcile orders and account state before further action."
                     if requires_reconciliation
                     else "This agent decision did not complete."
                 )
@@ -2420,7 +2421,10 @@ class AgentHandle:
                     model=model_name,
                     events=[*partial_events, error_event],
                     usage=_aggregate_usage_metadata(
-                        [event.payload for event in partial_events if event.kind == "usage" and isinstance(event.payload, dict)]
+                        [
+                            event.payload for event in partial_events
+                            if event.kind == "usage" and isinstance(event.payload, dict)
+                        ]
                     ),
                 )
                 # Mark it so downstream code and the user can easily filter/count

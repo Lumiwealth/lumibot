@@ -131,6 +131,10 @@ setuptools.setup(
         ] + (["resources/ThetaTerminal.jar"] if theta_jar_path.exists() else []),
     },
     extras_require={
+        "metamask": [
+            "hyperliquid-python-sdk==0.24.0",
+            "PyYAML>=6.0.2,<7",
+        ],
         "browser": [
             "patchright>=1.62.3,<2",
         ],

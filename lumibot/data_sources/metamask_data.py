@@ -1,7 +1,7 @@
-"""Market data from the same wallet service and network used for execution."""
+"""Native Python market data on the network configured for execution."""
 
 from lumibot.data_sources.data_source import DataSource
-from lumibot.tools.metamask_client import MetaMaskClient, decimal_value, token_payload
+from lumibot.tools.metamask_client import MetaMaskClient, token_payload
 
 
 class MetaMaskData(DataSource):
@@ -17,19 +17,11 @@ class MetaMaskData(DataSource):
         if asset.asset_type == "crypto_future":
             if quote is not None and quote.symbol != "USDC":
                 raise ValueError("Hyperliquid prices are denominated in USDC")
-            response = self.client.call("GET", "/v1/price", params={"symbol": asset.symbol})
+            return self.client.price(asset.symbol)
         elif asset.asset_type == "crypto":
-            response = self.client.call(
-                "POST",
-                "/v1/token-price",
-                payload={
-                    "asset": token_payload(asset),
-                    **({"quote": token_payload(quote)} if quote is not None else {}),
-                },
-            )
+            return self.client.token_price(token_payload(asset), token_payload(quote) if quote is not None else None)
         else:
             raise ValueError("MetaMask supports onchain crypto and Hyperliquid crypto_future assets")
-        return decimal_value(response["price"])
 
     def get_historical_prices(
         self,
@@ -57,15 +49,11 @@ class MetaMaskData(DataSource):
             raise ValueError("Use minute/hour/day and 1–5000 bars")
         interval, seconds = intervals[timestep]
         end = datetime.now(timezone.utc) - (timeshift or timedelta())
-        response = self.client.call(
-            "GET",
-            "/v1/candles",
-            params={
-                "symbol": asset.symbol,
-                "interval": interval,
-                "start": int((end - timedelta(seconds=seconds * (length + 1))).timestamp() * 1000),
-                "end": int(end.timestamp() * 1000),
-            },
+        response = self.client.candles(
+            asset.symbol,
+            interval,
+            int((end - timedelta(seconds=seconds * min(length + 1, 5000))).timestamp() * 1000),
+            int(end.timestamp() * 1000),
         )
         frame = pd.DataFrame(response, columns=["timestamp", "open", "high", "low", "close", "volume"])
         frame["timestamp"] = pd.to_datetime(frame["timestamp"], unit="ms", utc=True)

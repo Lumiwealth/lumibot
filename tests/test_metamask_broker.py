@@ -13,7 +13,7 @@ from lumibot.strategies.strategy import Strategy
 from lumibot.tools.metamask_client import MetaMaskAPIError, MetaMaskClient
 
 WALLET = "0x" + "1" * 40
-CONFIG = {"BROKER_TOKEN": "test-runtime-token", "WALLET_ADDRESS": WALLET, "NETWORK": "testnet"}
+CONFIG = {"WALLET_ADDRESS": WALLET, "NETWORK": "testnet", "AGENT_ID": "agent"}
 
 
 @pytest.fixture
@@ -89,9 +89,9 @@ def test_invalid_token_identity(overrides):
 
 def test_perp_submission_uses_base_quantity_and_durable_id(broker):
     item = order()
-    broker.client.request.return_value = observation(item, "submitted")
+    broker.client.submit.return_value = observation(item, "submitted")
     assert broker._submit_order(item) is item
-    payload = broker.client.request.call_args.kwargs["payload"]
+    payload = broker.client.submit.call_args.args[0]
     assert payload["quantity"] == "0.001"
     assert payload["id"] == str(item.identifier)
     assert payload["reduceOnly"] is False
@@ -100,24 +100,24 @@ def test_perp_submission_uses_base_quantity_and_durable_id(broker):
 
 def test_lost_response_stays_transmitted_and_does_not_retry(broker):
     item = order()
-    broker.client.request.side_effect = requests.Timeout()
+    broker.client.submit.side_effect = requests.Timeout()
     broker._submit_order(item)
     assert item.was_transmitted()
     assert item._raw["state"] == "unknown"
-    assert broker.client.request.call_count == 1
+    assert broker.client.submit.call_count == 1
 
 
 def test_unsupported_order_rejected_before_transport(broker):
     with pytest.raises(ValueError, match="conditional"):
         broker._submit_order(order(order_type="stop", stop_price=100))
-    broker.client.request.assert_not_called()
+    broker.client.submit.assert_not_called()
 
 
 def test_spot_buy_not_reinterpreted_as_exact_input(broker):
     item = Order("test", Asset("ETH", asset_type="crypto"), 1, "buy", quote=Asset("USDC", asset_type="crypto"))
     with pytest.raises(ValueError, match="swap"):
         broker._submit_order(item)
-    broker.client.request.assert_not_called()
+    broker.client.submit.assert_not_called()
 
 
 def test_fill_deltas_and_prices_are_not_double_counted(broker):
@@ -145,10 +145,10 @@ def test_incomplete_fill_history_cannot_reverse_fill(broker):
 def test_cancel_sends_even_when_lumibot_status_is_cancelling(broker):
     item = order()
     item.status = "cancelling"
-    broker.client.call.return_value = observation(item, "canceled")
+    broker.client.cancel.return_value = observation(item, "canceled")
     broker._process_trade_event = Mock()
     broker.cancel_order(item)
-    broker.client.call.assert_called_once_with("POST", "/v1/cancel", payload={"id": str(item.identifier)})
+    broker.client.cancel.assert_called_once_with(str(item.identifier))
     assert broker._process_trade_event.call_args.args[1] == broker.CANCELED_ORDER
 
 
@@ -162,25 +162,29 @@ def test_pending_approval_does_not_emit_fill_or_error(broker):
 @pytest.mark.parametrize("custom", [{}, {"reduce_only": False}])
 def test_canonical_reduce_only_cannot_be_weakened_by_custom_params(broker, custom):
     item = order(reduce_only=True, custom_params=custom)
-    broker.client.request.return_value = observation(item, "awaiting_approval")
+    broker.client.submit.return_value = observation(item, "awaiting_approval")
     broker.submit_order(item)
-    assert broker.client.request.call_args.kwargs["payload"]["reduceOnly"] is True
+    assert broker.client.submit.call_args.args[0]["reduceOnly"] is True
 
 
 def test_shared_close_position_keeps_reduce_only_on_wire_and_restore(broker):
     item = order()
     broker._filled_positions.append(Position(item.strategy, item.asset, item.quantity))
     broker.quote_assets = {item.quote}
-    broker.client.request.side_effect = lambda method, path, payload: {
-        "id": payload["id"], "request": payload, "state": "submitted", "filledQuantity": "0",
+    broker.client.submit.side_effect = lambda payload: {
+        "id": payload["id"],
+        "request": payload,
+        "state": "submitted",
+        "filledQuantity": "0",
     }
     closed = broker.close_position(item.strategy, item.asset)
     assert closed is not None and closed.reduce_only is True
-    request = broker.client.request.call_args.kwargs["payload"]
+    request = broker.client.submit.call_args.args[0]
     assert request["reduceOnly"] is True
     assert request["side"] == "sell"
-    restored = broker._parse_broker_order({"id": "restored-close", "request": request,
-                                            "state": "open", "filledQuantity": "0"}, item.strategy)
+    restored = broker._parse_broker_order(
+        {"id": "restored-close", "request": request, "state": "open", "filledQuantity": "0"}, item.strategy
+    )
     assert restored.reduce_only is True
 
 
@@ -215,7 +219,8 @@ def test_restored_terminal_order_is_not_processed_again_by_polling(broker, state
         assert path == "/v1/orders"
         return [response]
 
-    broker.client.call.side_effect = read
+    broker.client.account.side_effect = lambda kind: read("GET", "/v1/account")
+    broker.client.orders.side_effect = lambda: read("GET", "/v1/orders")
     strategy = RestoreStrategy(
         broker=broker,
         name="restore-strategy",
@@ -243,24 +248,49 @@ def test_executor_restores_exact_fill_history_without_replaying_quantity(broker,
     response = {
         "id": "restored-fill",
         "request": {
-            "kind": "perp", "symbol": "BTC", "side": "buy", "quantity": "0.001",
-            "orderType": "limit", "limitPrice": "40000", "leverage": 1, "tif": "gtc",
+            "kind": "perp",
+            "symbol": "BTC",
+            "side": "buy",
+            "quantity": "0.001",
+            "orderType": "limit",
+            "limitPrice": "40000",
+            "leverage": 1,
+            "tif": "gtc",
         },
-        "state": state, "filledQuantity": filled, "averagePrice": "40000",
+        "state": state,
+        "filledQuantity": filled,
+        "averagePrice": "40000",
     }
 
     def read(method, path, **kwargs):
         if path == "/v1/account":
-            return {"cash": "60", "positionsValue": "40", "equity": "100", "currency": "USDC",
-                    "positions": [{"symbol": "BTC", "quantity": filled, "entryPrice": "40000",
-                                   "marketValue": "40", "unrealizedPnl": "0"}]}
+            return {
+                "cash": "60",
+                "positionsValue": "40",
+                "equity": "100",
+                "currency": "USDC",
+                "positions": [
+                    {
+                        "symbol": "BTC",
+                        "quantity": filled,
+                        "entryPrice": "40000",
+                        "marketValue": "40",
+                        "unrealizedPnl": "0",
+                    }
+                ],
+            }
         assert path == "/v1/orders"
         return [response]
 
-    broker.client.call.side_effect = read
-    strategy = RestoreStrategy(broker=broker, name="restore-strategy",
-                               quote_asset=Asset("USDC", asset_type="crypto"),
-                               benchmark_asset=None, analyze_backtest=False)
+    broker.client.account.side_effect = lambda kind: read("GET", "/v1/account")
+    broker.client.orders.side_effect = lambda: read("GET", "/v1/orders")
+    strategy = RestoreStrategy(
+        broker=broker,
+        name="restore-strategy",
+        quote_asset=Asset("USDC", asset_type="crypto"),
+        benchmark_asset=None,
+        analyze_backtest=False,
+    )
     strategy._executor.sync_broker()
     restored = broker.get_tracked_order(response["id"])
     assert restored is not None
@@ -284,7 +314,7 @@ def test_order_snapshot_cannot_consume_unprocessed_fill_delta(broker):
         FILLED_ORDER="fill",
     )
     broker._add_subscriber(subscriber)
-    broker.client.request.return_value = observation(item, "partial_fill", "0.0004", "50000")
+    broker.client.submit.return_value = observation(item, "partial_fill", "0.0004", "50000")
     broker.submit_order(item)
     final = {
         **observation(item, "filled", "0.001", "50600"),
@@ -301,7 +331,7 @@ def test_order_snapshot_cannot_consume_unprocessed_fill_delta(broker):
 
     # Executor synchronization parses snapshots before the stream processes callbacks.
     broker._parse_broker_order(final, item.strategy)
-    broker.client.call.return_value = [final]
+    broker.client.orders.return_value = [final]
     broker.do_polling()
 
     assert item.is_filled()
@@ -316,7 +346,7 @@ def test_swap_retains_request_id_on_uncertain_response(broker):
     broker.mode = "spot"
     source = Asset("ETH", asset_type="crypto", chain_id=11155111, token_address="native", decimals=18)
     dest = Asset("TOKEN", asset_type="crypto", chain_id=11155111, token_address="0x" + "2" * 40, decimals=6)
-    broker.client.call.side_effect = requests.Timeout()
+    broker.client.submit.side_effect = requests.Timeout()
     result = broker.swap(source, dest, "0.001", identifier="durable-swap")
     assert result["id"] == "durable-swap"
     assert result["state"] == "unknown"
@@ -337,13 +367,9 @@ def test_transport_cannot_redirect_credentials_to_other_hosts(url):
         MetaMaskClient({**CONFIG, "BROKER_URL": url})
 
 
-def test_wallet_or_network_mismatch_blocks_request():
-    client = MetaMaskClient(CONFIG)
-    client.request = Mock(return_value={"wallet": WALLET, "network": "mainnet"})
-    with pytest.raises(MetaMaskAPIError, match="IDENTITY_MISMATCH"):
-        client.call("POST", "/v1/orders", payload={})
-    assert client.request.call_count == 1
-    client.close()
+def test_legacy_service_configuration_is_rejected_without_network_calls():
+    with pytest.raises(ValueError, match="runs in Python"):
+        MetaMaskClient({**CONFIG, "BROKER_TOKEN": "retired-token"})
 
 
 def test_real_broker_fill_lifecycle(broker):
@@ -356,14 +382,14 @@ def test_real_broker_fill_lifecycle(broker):
         FILLED_ORDER="fill",
     )
     broker._add_subscriber(subscriber)
-    broker.client.request.return_value = observation(item, "open")
+    broker.client.submit.return_value = observation(item, "open")
     broker.submit_order(item)
     assert broker.get_tracked_order(item.identifier) is item
     for response in (
         observation(item, "partial_fill", "0.0004", "50000"),
         observation(item, "filled", "0.001", "50600"),
     ):
-        broker.client.call.return_value = [response]
+        broker.client.orders.return_value = [response]
         broker.do_polling()
     assert item.is_filled()
     assert item.get_fill_price() == pytest.approx(50600)
@@ -372,7 +398,7 @@ def test_real_broker_fill_lifecycle(broker):
     fills = [call for call in subscriber.add_event.call_args_list if call.args[0] in ("partial_fill", "fill")]
     assert [call.args[1]["quantity"] for call in fills] == pytest.approx([0.0004, 0.0006])
     # Live positions are reconciled from provider balances, not invented from fills.
-    broker.client.call.return_value = {
+    broker.client.account.return_value = {
         "positions": [
             {"symbol": "BTC", "quantity": "0.001", "entryPrice": "50600", "marketValue": "50.6", "unrealizedPnl": "0"}
         ]
@@ -383,7 +409,7 @@ def test_real_broker_fill_lifecycle(broker):
 def test_limit_day_is_not_silently_changed_to_gtc(broker):
     with pytest.raises(ValueError, match="time_in_force"):
         broker._submit_order(order(order_type="limit", limit_price=100))
-    broker.client.request.assert_not_called()
+    broker.client.submit.assert_not_called()
 
 
 def test_terminal_status_after_final_partial_closes_order(broker):
@@ -415,15 +441,15 @@ def test_small_token_amounts_use_plain_decimal_wire_values(broker):
     broker.mode = "spot"
     source = Asset("ETH", asset_type="crypto", chain_id=11155111, token_address="native", decimals=18)
     dest = Asset("TOKEN", asset_type="crypto", chain_id=11155111, token_address="0x" + "2" * 40, decimals=6)
-    broker.client.call.return_value = {"state": "submitted"}
+    broker.client.submit.return_value = {"state": "submitted"}
     broker.swap(source, dest, Decimal("1e-10"))
-    assert broker.client.call.call_args.kwargs["payload"]["inputAmount"] == "0.0000000001"
+    assert broker.client.submit.call_args.args[0]["inputAmount"] == "0.0000000001"
 
 
 @pytest.mark.parametrize("state", ["filled", "rejected", "canceled"])
 def test_terminal_submission_response_updates_public_order(broker, state):
     item = order()
-    broker.client.request.return_value = observation(
+    broker.client.submit.return_value = observation(
         item, state, "0.001" if state == "filled" else "0", "50000" if state == "filled" else None
     )
     broker.submit_order(item)
@@ -434,11 +460,11 @@ def test_terminal_submission_response_updates_public_order(broker, state):
 def test_batch_rejects_atomic_legs_before_submission(broker):
     with pytest.raises(NotImplementedError, match="independent"):
         broker.submit_orders([order(), order()], is_multileg=True)
-    broker.client.request.assert_not_called()
+    broker.client.submit.assert_not_called()
 
 
 def test_batch_independent_orders_register_in_input_order(broker):
     items = [order(), order()]
-    broker.client.request.side_effect = [observation(item, "open") for item in items]
+    broker.client.submit.side_effect = [observation(item, "open") for item in items]
     assert broker.submit_orders(items, is_multileg=False) == items
     assert all(broker.get_tracked_order(item.identifier) is item for item in items)

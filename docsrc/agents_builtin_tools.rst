@@ -235,7 +235,8 @@ falls back to independent orders.
 
 After submission, agents can call ``orders_get_status`` or
 ``orders_wait_for_terminal`` to verify identifiers. Never treat a submitted
-status as a fill unless ``is_filled`` is true.
+status as a full fill unless ``is_filled`` is true. Report partial execution from
+observed cumulative fill quantities; cancellation does not erase prior fills.
 
 ``account_positions`` and ``orders_open_orders`` return compact, deterministic
 pages with 50 records by default and at most 100 per call. Every response

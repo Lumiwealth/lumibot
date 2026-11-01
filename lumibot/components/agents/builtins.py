@@ -2411,7 +2411,7 @@ def _bind_orders_get_status(strategy: Any, manager: Any) -> BoundTool:
         description=(
             "Get current status for one or more tracked order identifiers. "
             "Arguments: optional identifier, optional identifiers_json as a JSON array of identifiers. "
-            "Reuse this after orders_submit_order, orders_submit_orders or orders_submit_multileg. Never claim a fill unless "
+            "Reuse this after orders_submit_order, orders_submit_orders or orders_submit_multileg. Never claim a full fill unless "
             "is_filled is true for the exact identifier. Missing identifiers are returned with available=false. "
             "When retained execution history is available, filled_quantity and remaining_quantity expose cumulative "
             "execution even after cancellation. Missing quantities are unknown, not zero. "
@@ -2538,7 +2538,7 @@ def _bind_orders_wait_for_terminal(strategy: Any, manager: Any) -> BoundTool:
             "Arguments: optional identifier, optional identifiers_json, optional timeout_seconds (default 30, max 120), "
             "optional poll_interval_seconds (default 1). Uses strategy.sleep so pending broker fills can process. "
             "In backtests, use one short bounded wait immediately after your own market-order submission when the simulator must process the pending fill. The wait advances simulated time and is capped, so do not use it as an open-ended polling loop. "
-            "Never claim a fill unless is_filled is true. "
+            "Never claim a full fill unless is_filled is true. "
             "Example: orders_wait_for_terminal(identifiers_json='[\"bt_1\"]', timeout_seconds=15)."
         ),
         function=wait_for_terminal,

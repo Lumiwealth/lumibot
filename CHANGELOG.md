@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.37 - Unreleased
+## 4.6.37 - 2026-11-01
 
 ### Fixed
 - Reconcile multi-leg package orders using finite signed net prices while preserving positive individual execution prices. Package containers retain cumulative callbacks without creating fictitious positions or charging cash independently of their legs.

@@ -1423,6 +1423,17 @@ class BacktestingBroker(Broker):
                 continue
             self.cancel_order(child)
 
+        # Child cancellations (including DAY expiry) must reconcile their
+        # package just as fills do. Keep working siblings and filled exposure;
+        # the existing parent-status owner decides when the package is closed.
+        if order.parent_identifier:
+            parent = self.get_tracked_order(order.parent_identifier, use_placeholders=True)
+            if (parent is not None
+                    and parent.order_class is Order.OrderClass.MULTILEG
+                    and not parent.is_canceled()
+                    and not parent.is_filled()):
+                self._update_parent_order_status(parent)
+
     def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
                       stop_price: Union[float, None] = None):
         """Modify an order. Only limit/stop price is allowed to be modified by most brokers."""

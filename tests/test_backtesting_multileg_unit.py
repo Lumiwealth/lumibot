@@ -147,7 +147,6 @@ def test_canceled_incomplete_package_does_not_claim_a_complete_parent_fill():
     strategy._executor.process_queue()
     broker.cancel_order(sell_child)
     strategy._executor.process_queue()
-    broker._update_parent_order_status(parent)
     assert not parent.is_filled()
     assert parent.is_canceled()
     assert buy_child.is_filled()
@@ -155,6 +154,59 @@ def test_canceled_incomplete_package_does_not_claim_a_complete_parent_fill():
     assert strategy.cash == pytest.approx(99_500.0)
     assert any(position.asset == asset and position.quantity == 10
                for position in broker._filled_positions.get_list())
+
+
+@pytest.mark.parametrize("expire_day_orders", [False, True])
+def test_child_cancellation_reconciles_package_parent(expire_day_orders):
+    strategy, broker, asset, quote = _build_stock_strategy()
+    children = [
+        _make_child_order(strategy, asset, quote, "10", Order.OrderSide.BUY),
+        _make_child_order(strategy, asset, quote, "5", Order.OrderSide.SELL),
+    ]
+    for child in children:
+        child.time_in_force = "day"
+    parent = broker._submit_orders(children, is_multileg=True)[0]
+    if expire_day_orders:
+        broker.data_source._update_datetime(pd.Timestamp("2025-01-14 09:30", tz="America/New_York"))
+    for child in children:
+        if expire_day_orders:
+            assert broker._cancel_order_if_time_in_force_elapsed(child)
+        else:
+            broker.cancel_order(child)
+    strategy._executor.process_queue()
+    assert all(child.is_canceled() for child in children)
+    assert parent.is_canceled()
+    assert not parent.is_active()
+    assert not parent.is_filled()
+    assert strategy.cash == pytest.approx(100_000)
+
+
+def test_canceling_one_child_preserves_working_package_sibling():
+    strategy, broker, asset, quote = _build_stock_strategy()
+    children = [
+        _make_child_order(strategy, asset, quote, "10", Order.OrderSide.BUY),
+        _make_child_order(strategy, asset, quote, "5", Order.OrderSide.SELL),
+    ]
+    parent = broker._submit_orders(children, is_multileg=True)[0]
+    broker.cancel_order(children[0])
+    strategy._executor.process_queue()
+    assert parent.is_active()
+    assert children[1].is_active()
+
+
+def test_canceling_package_parent_records_each_cancellation_once():
+    strategy, broker, asset, quote = _build_stock_strategy()
+    children = [
+        _make_child_order(strategy, asset, quote, "10", Order.OrderSide.BUY),
+        _make_child_order(strategy, asset, quote, "5", Order.OrderSide.SELL),
+    ]
+    parent = broker._submit_orders(children, is_multileg=True)[0]
+    broker.cancel_order(parent)
+    strategy._executor.process_queue()
+    canceled = broker._canceled_orders.get_list()
+    for order in [parent, *children]:
+        assert order.is_canceled()
+        assert sum(item.identifier == order.identifier for item in canceled) == 1
 
 
 def test_multileg_child_fills_adjust_cash_once_and_parent_is_cash_neutral():

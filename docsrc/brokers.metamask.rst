@@ -1,6 +1,9 @@
 MetaMask
 ========
 
+.. meta::
+   :description: Set up MetaMask managed wallets in LumiBot with native Python, Guard Mode, durable order recovery, and explicit testnet qualification limits.
+
 The ``MetaMask`` broker runs inside LumiBot's Python process and uses MetaMask
 Agent Wallet managed signing. It calls MetaMask and Hyperliquid directly. No
 Node, Bun, npm, MetaMask CLI or localhost service is required.
@@ -10,9 +13,12 @@ Node, Bun, npm, MetaMask CLI or localhost service is required.
 Install and connect
 -------------------
 
+The native candidate is unreleased. For source testing, use the shared version
+branch in a clean environment:
+
 .. code-block:: bash
 
-   pip install 'lumibot[metamask]'
+   pip install 'lumibot[metamask] @ git+https://github.com/Lumiwealth/lumibot.git@version/4.6.38'
 
 Authorize through the official `MetaMask Agent Wallet sign-in page
 <https://developer.metamask.io/agentic/login>`_. Use the original Google/email
@@ -32,7 +38,7 @@ MetaMask. Before trading, deliberately authorize its local registry, limits and
 expiry using ``MetaMaskClient.authorize()``. Broker startup does not renew or
 broaden authority. See the complete binding example in the repository's
 `MetaMask setup guide
-<https://github.com/Lumiwealth/lumibot/blob/dev/docs/METAMASK.md>`_.
+<https://github.com/Lumiwealth/lumibot/blob/version/4.6.38/docs/METAMASK.md>`_.
 
 .. code-block:: python
 
@@ -210,10 +216,13 @@ Guard Mode and exact policy checks stay enabled.
 Actual native testnet ALO placement/cancellation and market opening/reduce-only
 closing have passed on two dedicated wallets. A real Strategy/Trader ETH round
 trip delivered unique callbacks and reconciled ending cash exactly, including
-fees. The installed wheel passed native regression tests on Python 3.10 and
-3.12 without JavaScript runtimes in PATH. Funded partial-fill/cancel and subsequent
-restart qualification remain open. This is not production or mainnet-swap
-qualification. Earlier JavaScript receipts cannot qualify this implementation.
+fees. The installed wheel passed native regression and connected-history tests
+on Python 3.10 and 3.12 without JavaScript runtimes in PATH; connected checks
+also denied child processes. The current wheel recovered an actual
+canceled-partial receipt with matching venue fills and fees and no replayed
+callbacks. Fresh live partial-flow attempts remain inconclusive. This is not
+production or mainnet-swap qualification. Earlier JavaScript receipts cannot
+qualify this implementation.
 
 Frequently asked questions
 --------------------------

@@ -2207,7 +2207,9 @@ class BacktestingBroker(Broker):
             trading_fees = sell_fees
 
         for trading_fee in trading_fees:
-            if trading_fee.taker is True and order_type_value in {"market", "stop"}:
+            # A trailing stop becomes a market execution when its trigger fires.
+            # It pays the same configured taker fees as an ordinary stop.
+            if trading_fee.taker is True and order_type_value in {"market", "stop", "trailing_stop"}:
                 trade_cost += trading_fee.flat_fee
                 trade_cost += notional * trading_fee.percent_fee
                 trade_cost += Decimal(str(quantity)) * trading_fee.per_contract_fee

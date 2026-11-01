@@ -1418,7 +1418,8 @@ class ProjectX(Broker):
     def _is_bracket_parent(self, order: Order) -> bool:
         if getattr(order, '_is_bracket_parent', False):
             return True
-        return bool(getattr(self, '_bracket_meta', {}).get(getattr(order, 'id', None)))
+        key = getattr(order, 'identifier', None) or getattr(order, 'id', None)
+        return bool(getattr(self, '_bracket_meta', {}).get(key))
 
     def _is_bracket_child(self, order: Order) -> bool:
         return getattr(order, '_is_bracket_child', False)
@@ -1523,7 +1524,8 @@ class ProjectX(Broker):
             child.stop_price = spec['price_value']
         # Submit
         submitted = self._submit_order(child)
-        if not submitted or not getattr(submitted, 'id', None):
+        if (not submitted or not getattr(submitted, 'identifier', None)
+                or str(submitted.status).lower() in {'error', 'rejected'}):
             self.logger.error(f"Bracket child submission failed (kind={kind}) for parent {parent.identifier}")
         else:
             self.logger.debug(f"Bracket child submitted: parent={parent.identifier} kind={kind} id={submitted.identifier} price={price}")

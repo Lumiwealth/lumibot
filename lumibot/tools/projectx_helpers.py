@@ -1492,7 +1492,7 @@ def restore_bracket_meta_if_needed(order, cache, meta_map, logger=None):
     try:
         if hasattr(order, '_synthetic_bracket'):
             return False
-        broker_id = getattr(order, 'id', None)
+        broker_id = getattr(order, 'identifier', None) or getattr(order, 'id', None)
         # Check cached order first
         if cache and broker_id in cache:
             cached = cache.get(broker_id)

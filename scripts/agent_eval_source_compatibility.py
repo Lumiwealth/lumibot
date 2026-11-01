@@ -2,8 +2,8 @@
 
 The native receipt remains byte-identical. Its original full source hash is rebuilt
 from Git objects, then every model-relevant byte is compared with the candidate.
-Only exact live-provider modules unused by the maintained Pandas fixtures, package
-version metadata, and validator entry-point wiring are outside that comparison.
+Only exact live-provider modules, guarded live-sync method bodies unused by the
+maintained Pandas fixtures, and package version metadata are outside that comparison.
 Any actor, judge, fixture, SDK, case, skill or shared trading change still expires
 proof. This is compatibility verification, never new case freshness.
 """
@@ -17,20 +17,6 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-# Reviewed first-live-iteration handoff only. The maintained catalog uses the
-# Pandas backtesting branch; its inputs and callback behavior are unchanged.
-# Bind the whole file so another shared executor edit can never inherit reuse.
-LIVE_EXECUTOR_COMPATIBILITY = (
-    '3b659b321c10f224eacf95282d3bec1932cfe46892a0ad40ed2c63c24f7b51ed',
-    'eec468ced168bdfe90e56e292ab5110146dc29b89a5ebcc4a2146dfc447bf4b6',
-)
-# Exact entry-point migration for the preserved legacy receipt. This is not a
-# general main() exemption. Remove the pair when the anchor is replaced by fresh
-# native proof under the current verifier; any other entry-point edit is stale.
-VALIDATOR_ENTRY_COMPATIBILITY = (
-    'f38655adfc6ede1098d397949eb99de2b0de37ad7d89daa97141c2d866b38084',
-    'c2b63a8b5b268ea44190d93238769562878fb0d406b32bb55fd83189b58605c9',
-)
 PROVIDER_ONLY_PATHS = frozenset({
     'lumibot/backtesting/routed_backtesting.py',
     'lumibot/tools/ibkr_equity_basis.py',
@@ -51,6 +37,12 @@ NON_PACKAGE_PATHS = (
     'tests/fixtures/agent_judge_calibration.json', 'requirements_agent_evals.txt',
     'requirements.txt', 'requirements_dev.txt', 'setup.py', 'scripts/run_agent_evals.py',
 )
+LIVE_METHOD_SCOPES = {
+    'lumibot/brokers/broker.py': ('Broker', 'sync_orders', 'self.IS_BACKTESTING_BROKER'),
+    'lumibot/strategies/strategy_executor.py': (
+        'StrategyExecutor', 'sync_broker', 'self.broker.IS_BACKTESTING_BROKER'),
+    'lumibot/brokers/alpaca.py': ('Alpaca', 'do_polling', None),
+}
 
 
 def _git(*args, root=ROOT, data=None):
@@ -110,12 +102,48 @@ def entry_digest(node):
                                     separators=(",", ":")).encode()).hexdigest()
 
 
+def _without_unused_live_body(source, owner, method, guard):
+    """Preserve exact bytes except a body that no native fixture can execute.
+
+    Shared methods retain their signature, docstring, and unchanged immediate
+    backtesting return. The catalog's real binding test proves every broker is a
+    BacktestingBroker. Alpaca is never instantiated by any native fixture.
+    """
+    try:
+        classes = [n for n in ast.parse(source).body if isinstance(n, ast.ClassDef) and n.name == owner]
+        if len(classes) != 1:
+            return None
+        methods = [n for n in classes[0].body if isinstance(n, ast.FunctionDef) and n.name == method]
+        if len(methods) != 1:
+            return None
+        fn = methods[0]
+        body = fn.body
+        prefix_end = fn.lineno
+        if isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
+            prefix_end = body[0].end_lineno
+            body = body[1:]
+        if guard:
+            guards = [n for n in body if isinstance(n, ast.If)
+                      and ast.dump(n.test) == ast.dump(ast.parse(guard, mode='eval').body)]
+            if len(guards) != 1:
+                return None
+            first = guards[0]
+            if not (len(first.body) == 1 and isinstance(first.body[0], ast.Return)
+                    and first.body[0].value is None and not first.orelse):
+                return None
+            prefix_end = first.end_lineno
+        elif fn.decorator_list:
+            # No decorators exist on the unused adapter poller; don't allow a
+            # newly decorated method to acquire import-time behavior.
+            return None
+        lines = source.splitlines(keepends=True)
+        return b''.join(lines[:prefix_end]) + b'<unused-live-body>\n' + b''.join(lines[fn.end_lineno:])
+    except (SyntaxError, IndexError, ValueError):
+        return None
+
+
 def check_change(path, before, after):
     if before == after or path in PROVIDER_ONLY_PATHS:
-        return
-    if path == 'lumibot/strategies/strategy_executor.py' and (
-        hashlib.sha256(before).hexdigest(), hashlib.sha256(after).hexdigest()
-    ) == LIVE_EXECUTOR_COMPATIBILITY:
         return
     if path == 'setup.py':
         # Dependency/package changes remain incompatible; only the release
@@ -125,18 +153,10 @@ def check_change(path, before, after):
         new, new_count = re.subn(version, b'version="<release>"', after)
         if old_count == new_count == 1 and old == new:
             return
-    if path == 'scripts/qualify_agent_evals.py':
-        def validator_contract(source):
-            tree = ast.parse(source)
-            entries = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'main']
-            if len(entries) != 1:
-                raise ValueError('Validator requires exactly one maintained main entry point')
-            entry_hash = entry_digest(entries[0])
-            tree.body = [node for node in tree.body if not isinstance(node, ast.FunctionDef) or node.name != 'main']
-            return ast.dump(tree), entry_hash
-        old_contract, old_entry = validator_contract(before)
-        new_contract, new_entry = validator_contract(after)
-        if old_contract == new_contract and (old_entry, new_entry) == VALIDATOR_ENTRY_COMPATIBILITY:
+    if path in LIVE_METHOD_SCOPES:
+        old = _without_unused_live_body(before, *LIVE_METHOD_SCOPES[path])
+        new = _without_unused_live_body(after, *LIVE_METHOD_SCOPES[path])
+        if old is not None and old == new:
             return
     raise ValueError(f'Source change affects model qualification: {path}')
 

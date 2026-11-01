@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased - 2026-11-01
+## 4.6.38 - Unreleased
 
 ### Changed
 - Harden native MetaMask signing-domain/network binding, final authority handoff, uncertain cancellation and leverage recovery, cumulative accessor fills, exact token arithmetic, reverted-gas budgets, and OP Stack L1/operator fee accounting. Preserve actual overrun charges pending explicit owner review. Native funded qualification remains incomplete while provider security scans fail.
@@ -9,6 +9,33 @@
 - Breaking configuration change: replace MetaMask BROKER_URL/BROKER_TOKEN with an explicit native session, durable journal, agent and wallet identity. Preserve old journals and pending receipts; local limits and expiry never reset at startup. Native cancellation, signing checkpoints and fill recovery retain separate operation identities.
 - Native same-chain ERC20-output swap code verifies bounded approvals and actual receipts. HIP3 writes, native-output swaps and unsupported fee/delegation variants remain explicit holds. Native funded trading qualification is pending; previous JavaScript receipts do not qualify this replacement.
 
+## 4.6.37 - 2026-11-01
+
+Deploy marker: `5eea4abaf6b659b2d9931c9189f3c1c8ece5170d`.
+
+### Fixed
+- Reconcile multi-leg package orders using finite signed net prices while preserving positive individual execution prices. Package containers retain cumulative callbacks without creating fictitious positions or charging cash independently of their legs.
+- Read and normalize nested Alpaca option legs with complete contract metadata and parent links. Repeated and warm order synchronization retains each leg's execution receipt and enriches legacy package identities without replaying historical cash.
+
+## 4.6.36 - 2026-11-01
+
+### Fixed
+- Isolate invalid cumulative order observations so healthy sibling orders and missing-order lookups still reconcile; report incomplete reads and always release held lifecycle notifications after failed synchronization.
+- Preserve runtime-applied temporal bounds in public failed-tool evidence without exposing private provider diagnostics.
+- Route executor restoration through the shared broker lifecycle owner; retain cumulative executions and replacement metadata on warm reads and same-status Alpaca partial/cancel polling without replaying startup cash. Delayed working observations cannot reopen terminal orders; newly confirmed executions remain recorded and complete fills win cancellation races.
+- Verify each evidence-packet date window against its own request, including failed requests.
+- Keep baseline ownership evidence and later updates distinct when describing a reconstructed result.
+- Normalize typed SQL timestamp results to UTC instants while retaining source strings, naive market wall clocks, and configured SQL timezone semantics.
+- Clarify final protective-leg evidence before option package pricing and keep missing provider retrieval timestamps distinct from the agent runtime clock.
+- Put the per-document backtest eligibility check at the document-tool decision point, keeping diagnostic excluded rows out of linked reads while preserving live reads and disclosed undated-source approximations.
+- Preserve decimal broker order quantities and validate fractional cumulative executions using consistent decimal units. Repeated high-precision snapshots retain their exact execution receipt without replaying rounding dust; real overfills remain invalid.
+
+- Apply configured taker fees to trailing-stop executions, including the executed quantity of partial fills, consistently with ordinary market and stop orders.
+
+## 4.6.35 - 2026-10-31
+
+### Fixed
+- Forward release of account reconciliation and lifecycle repairs with refreshed, source-bound real-model qualification. Version 4.6.34 package publication was blocked by its stale model receipt; its immutable tag is preserved.
 
 ## 4.6.34 - 2026-10-28
 

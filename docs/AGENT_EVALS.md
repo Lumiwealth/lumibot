@@ -2,7 +2,7 @@
 
 > Real-model release gates for LumiBot's built-in trading-agent behavior.
 
-**Last Updated:** 2026-10-16
+**Last Updated:** 2026-10-31
 **Status:** Active
 **Audience:** Both
 
@@ -162,34 +162,24 @@ Each run writes:
 - fixture versus real external-write classification;
 - case and runtime fingerprints used by the freshness gate.
 
-The call ledger owns one cumulative allowance across actors, judges, nested
-calls, retries, calibration, resumes and concurrent workers. New ledgers bind the
-token policy in their header: 60 million input tokens and 1 million output tokens
-(including reasoning). Before each call it reserves the full provider context and
-128,000 output tokens because the subscription endpoint rejects a requested
-output-token limit. Missing usage retains that entire reservation. Settled calls
-release only unused capacity; API-equivalent usage is reported separately from
-zero API spend and unknown subscription-credit debits. Conservative Standard
-Luna rates verified October 16, 2026 bound this token envelope at $15.75 equivalent,
-below the $20 task allowance, which remains the binding limit. The earlier 10 million
-input cap could not fit one full release catalog (4.6.20, 2026-10-17). See https://developers.openai.com/api/docs/pricing.
-The call limit remains an additional independent ceiling. Raising it does not
-raise or reset the cumulative token allowance. Existing v2 ledgers are read
-without rewriting past usage; unknown legacy calls retain the full envelope.
-ADK's OpenAI completion count already includes reasoning, so settlement splits
-visible output and thinking before summing them once.
-Mixed-model historical ledgers remain readable with their original usage and
-model names. If their prices have not been qualified by this budget owner, their
-equivalent estimate is unknown and new requests are refused. Reconcile that
-existing allowance before continuing; do not create another ledger to reset it. Unknown usage after timeout or process death retains that request's
-reservation; it is never treated as an unused call. The ledger records actual
-input, cached-input, output and reasoning usage when the provider supplies it.
-Zero API spend is not proof that ChatGPT's separate paid-credit setting is off.
+The call ledger records actors, judges, nested calls, retries, calibration and
+resumes together. Login with ChatGPT usage and API-equivalent estimates are
+informational, not API cash charges or deployment approval limits. Technical
+call and token reporting windows replenish automatically without resetting
+history or stopping inference. Actual provider quota, authentication and
+network failures remain real errors. Do not purchase credits, enable reload,
+switch to an API key or replace the existing subscription connection.
+
+Before each request the ledger records the provider's possible envelope. Unknown
+usage after interruption retains its reservation; it is never counted as zero.
+Actual input, cached input, output and reasoning counts are retained without
+double-counting. A zero API-spend field does not establish the connected
+account's separate subscription-credit setting. Keep the same append-only
+ledger across actor work, judge-only recovery, calibration and resumed batches.
 
 SDK retries are disabled; outer retries require another ledger reservation.
 No paid token-counting endpoint is used. Subscription quota and revoked grants
-produce visible failures, not successful decisions. A corrupt ledger or changed
-call cap fails closed. Do not switch output directories to reset an approved
+produce visible failures, not successful decisions. A corrupt ledger fails visibly; compatible technical window amendments preserve all historical records. Do not switch output directories to reset an approved
 release-attempt allowance. Actor, judge and rubric calibration need the same attempt
 ledger. CI verifies the completed evidence without inference. No prompt or credential
 is written to the per-call ledger.
@@ -417,3 +407,13 @@ again on that source, with normal fixtures in separate processes and no model
 calls. The preserved 77-judgment calibration retains its original `19fac6f3`
 source; it is not a qualification of the new actor/runtime candidate. Package
 publication still requires the normal exact-candidate release gates.
+
+## Verify before tagging
+
+Run `python scripts/qualify_agent_evals.py verify` in the exact pinned SDK
+environment before merging a release PR and again before creating its tag.
+The branch/version checkout check does not verify model qualification. The
+receipt must cover the complete current catalog and calibration controls,
+with original model-call provenance. Do not broaden source-compatibility
+exemptions to make an incompatible receipt pass. After fresh inference replaces
+an anchor, retire obsolete one-time executor or validator exceptions.

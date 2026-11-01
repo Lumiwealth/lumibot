@@ -641,232 +641,83 @@ class StrategyExecutor(Thread):
         # Trapped at the broker._process_trade_event method
         self.broker._hold_trade_events = True
 
-        # Get the snapshot.
-        # If the _held_trades list is not empty, process these and then snapshot again
-        # ensuring that the lumibot broker and the real broker should match.
-        held_trades_len = 1
-        cash_broker_max_retries = 3
-        cash_broker_retries = 0
-        orders_broker = []
-        positions_broker = []
-        while held_trades_len > 0:
-            # Snapshot for the broker and lumibot:
-            self.strategy
-            try:
-                broker_balances = self.broker._get_balances_at_broker(self.strategy.quote_asset, self.strategy)
-            except Exception as balance_exc:
-                # Gracefully handle rate-limit style failures by falling back to cached values when available
-                status_code = getattr(balance_exc, "status_code", None)
-                message = str(balance_exc)
-                cached_balances = getattr(self.broker, "_cached_balances", None)
+        try:
+            # Get the snapshot.
+            # If the _held_trades list is not empty, process these and then snapshot again
+            # ensuring that the lumibot broker and the real broker should match.
+            held_trades_len = 1
+            cash_broker_max_retries = 3
+            cash_broker_retries = 0
+            orders_broker = []
+            positions_broker = []
+            while held_trades_len > 0:
+                # Snapshot for the broker and lumibot:
+                self.strategy
+                try:
+                    broker_balances = self.broker._get_balances_at_broker(self.strategy.quote_asset, self.strategy)
+                except Exception as balance_exc:
+                    # Gracefully handle rate-limit style failures by falling back to cached values when available
+                    status_code = getattr(balance_exc, "status_code", None)
+                    message = str(balance_exc)
+                    cached_balances = getattr(self.broker, "_cached_balances", None)
 
-                if status_code == 429 or "rate limit" in message.lower():
-                    if cached_balances is not None:
-                        self.strategy.logger.warning(
-                            "Broker balance refresh hit rate limit; using cached values and continuing"
-                        )
-                        broker_balances = cached_balances
+                    if status_code == 429 or "rate limit" in message.lower():
+                        if cached_balances is not None:
+                            self.strategy.logger.warning(
+                                "Broker balance refresh hit rate limit; using cached values and continuing"
+                            )
+                            broker_balances = cached_balances
+                        else:
+                            self.strategy.logger.warning(
+                                "Broker balance refresh hit rate limit and no cached value is available; retrying"
+                            )
+                            broker_balances = None
                     else:
+                        # Unexpected failure follows legacy retry path
                         self.strategy.logger.warning(
-                            "Broker balance refresh hit rate limit and no cached value is available; retrying"
+                            f"Broker balance refresh failed with {balance_exc}; retrying"
                         )
                         broker_balances = None
-                else:
-                    # Unexpected failure follows legacy retry path
-                    self.strategy.logger.warning(
-                        f"Broker balance refresh failed with {balance_exc}; retrying"
-                    )
-                    broker_balances = None
 
-            if broker_balances is None:
-                if cash_broker_retries < cash_broker_max_retries:
-                    self.strategy.logger.info("Unable to get cash from broker, trying again.")
-                    cash_broker_retries += 1
-                    continue
-                else:
-                    self.strategy.logger.info(
-                        f"Unable to get the cash balance after {cash_broker_max_retries} "
-                        f"tries; leaving last known cash and portfolio values unchanged."
-                    )
-                    break
-            else:
-                cash_balance = broker_balances[0]
-                portfolio_value = broker_balances[2]
-                self.strategy._set_cash_position(cash_balance)
-                self.strategy.portfolio_value = portfolio_value
-                self.strategy.logger.debug(f"Got Cash Balance: ${cash_balance:.2f}, Portfolio: ${portfolio_value:.2f}")
-
-
-            held_trades_len = len(self.broker._held_trades)
-            if held_trades_len > 0:
-                self.broker._hold_trade_events = False
-                self.broker.process_held_trades()
-                self.broker._hold_trade_events = True
-
-        # POSITIONS
-        # Update Lumibot positions to match broker positions.
-        # Any new trade notifications will not affect the sync as they
-        # are being held pending the completion of the sync.
-        self.broker.sync_positions(self.strategy)
-
-        # ORDERS
-        orders_broker = self.broker._pull_all_orders(self.name, self.strategy)
-        # Filter out None orders to prevent crashes
-        orders_broker = [order for order in orders_broker if order is not None]
-        if len(orders_broker) > 0 or self.broker.get_all_orders():
-            orders_lumi = self.broker.get_all_orders()
-            orders_lumi_by_identifier = self._index_orders_by_identifier(orders_lumi)
-
-            # Check orders at the broker against those in lumibot.
-            for order in orders_broker:
-                # Check against existing orders.
-                order_lumi = orders_lumi_by_identifier.get(order.identifier)
-                if isinstance(order_lumi, list):
-                    self.strategy.logger.warning(
-                        f"Multiple orders found in lumibot with the same identifier {order.identifier}. "
-                        f"This should not happen and indicates a bug in the order tracking. This is manifesting as "
-                        f"a race condition with ProjectX where a 'new' order event is being added along with a 'fill' "
-                        f"and the 'new' queue never gets cleared causing duplicate orders to be added to lumibot. "
-                        f"Orders: {order_lumi}"
-                    )
-                    order_lumi = self.broker._clean_order_trackers(order)
-
-                if order_lumi:
-                    # Compare the orders.
-                    if not order_lumi.equivalent_status(order.status):
-                        order_lumi.status = order.status
-                    if order_lumi.quantity != order.quantity:
-                        order_lumi.quantity = order.quantity
-                    order_attrs = [
-                        # "position_filled",
-                        # "status",
-                        "limit_price",
-                        "stop_price",
-                    ]
-                    for order_attr in order_attrs:
-                        olumi = getattr(order_lumi, order_attr)
-                        obroker = getattr(order, order_attr)
-                        if olumi is not None and obroker is not None:  # Ensure both values are not None
-                            if isinstance(olumi, float) and isinstance(obroker, float):
-                                # check if both are floats
-                                if not math.isclose(olumi, obroker, abs_tol=1e-9):
-                                    setattr(order_lumi, order_attr, obroker)
-                                    self.strategy.logger.warning(
-                                        f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
-                                        f"to be {obroker} because what we have in memory does not match the broker "
-                                        f"and both are floats"
-                                    )
-                            elif isinstance(olumi, (int, float, Decimal)) and isinstance(obroker, (int, float, Decimal)):
-                                # check if both are ints
-                                if isinstance(olumi, int) and isinstance(obroker, int):
-                                    if olumi != obroker:
-                                        setattr(order_lumi, order_attr, obroker)
-                                        self.strategy.logger.warning(
-                                            f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
-                                            f"to be {obroker} because what we have in memory does not match the broker "
-                                            f"and both are ints."
-                                        )
-                                elif not math.isclose(float(olumi), float(obroker), abs_tol=1e-9):
-                                    # Convert to float for comparison
-                                    setattr(order_lumi, order_attr, obroker)
-                                    self.strategy.logger.warning(
-                                        f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
-                                        f"to be {obroker} because what we have in memory does not match the broker "
-                                        f"and one is float and one is int."
-                                    )
-
-                            elif type(olumi) == type(obroker):  # Compare if types are the same
-                                if olumi != obroker:
-                                    setattr(order_lumi, order_attr, obroker)
-                                    self.strategy.logger.warning(
-                                        f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
-                                        f"to be {obroker} because what we have in memory does not match the broker "
-                                        f"and they are both the same type: {type(olumi)}."
-                                    )
-                            else:
-                                setattr(order_lumi, order_attr, obroker)  # Update if types are different
-                                self.strategy.logger.warning(
-                                    f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
-                                    f"to be {obroker} because what we have in memory does not match the broker "
-                                    f"and the types are different. olumi:{type(olumi)} obroker: {type(obroker)}."
-                                )
-                        elif olumi != obroker:  # Handle cases where one or both are None
-                            setattr(order_lumi, order_attr, obroker)
-                            self.strategy.logger.warning(
-                                f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
-                                f"to be {obroker} because what we have in memory does not match the broker "
-                                f" and one or both are none."
-                            )
-
-                else:
-                    # If it is the brokers first iteration then fully process the order because it is likely
-                    # that the order was filled/canceled/etc before the strategy started. This is also a recovery
-                    # mechanism for bot restarts where the broker has orders that lumibot does not.
-                    if self.broker._first_iteration:
-                        if order.status == Order.OrderStatus.FILLED:
-                            self.broker._process_new_order(order)
-                            self.broker._process_filled_order(order, order.avg_fill_price, order.quantity)
-                        elif order.status == Order.OrderStatus.CANCELED:
-                            self.broker._process_new_order(order)
-                            self.broker._process_canceled_order(order)
-                        elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
-                            self.broker._process_new_order(order)
-                            self.broker._process_partially_filled_order(order, order.avg_fill_price, order.quantity)
-                        elif order.status == Order.OrderStatus.NEW:
-                            self.broker._process_new_order(order)
-                        elif order.status == Order.OrderStatus.ERROR:
-                            self.broker._process_new_order(order)
-                            self.broker._process_error_order(order, order.error_message)
-                    else:
-                        # Some brokers return broad recent history from the order-list endpoint.
-                        # Do not promote old filled/canceled/error history into a fresh active order.
-                        if order.is_active():
-                            self.broker._process_new_order(order)
-
-            broker_identifiers = self._get_all_order_identifiers(orders_broker)
-            for order_lumi in orders_lumi:
-                # Remove lumibot orders if not in broker.
-                # Check both main order IDs and child order IDs from broker
-                if order_lumi.identifier not in broker_identifiers:
-                    # Filled or canceled orders can be dropped by the broker as they no longer have any effect.
-                    # However, active orders should not be dropped as they are still in effect and if they can't
-                    # be found in the broker, they should be canceled because something went wrong.
-
-                    # Skip auto-cancellation for orders that were synced from broker to prevent false cancellations
-                    if hasattr(order_lumi, '_synced_from_broker') and order_lumi._synced_from_broker:
-                        self.strategy.logger.debug(
-                            f"Skipping auto-cancellation for synced order {order_lumi} (id={order_lumi.identifier}) - "
-                            f"was synced from broker and may have been filled/canceled between sync and validation"
-                        )
+                if broker_balances is None:
+                    if cash_broker_retries < cash_broker_max_retries:
+                        self.strategy.logger.info("Unable to get cash from broker, trying again.")
+                        cash_broker_retries += 1
                         continue
-
-                    if order_lumi.is_active():
-                        # Add grace period for newly submitted orders (especially market orders)
-                        # Market orders might fill instantly and not appear in order search
-                        from datetime import datetime, timedelta
-                        if hasattr(order_lumi, 'created_at') and order_lumi.created_at:
-                            age = datetime.now() - order_lumi.created_at.replace(tzinfo=None)
-                            if age < timedelta(seconds=10):
-                                self.strategy.logger.debug(
-                                    f"Order {order_lumi} (id={order_lumi.identifier}) is only {age.seconds}s old, "
-                                    f"skipping auto-cancel (might be filling)"
-                                )
-                                continue
-                        
-                        self.broker._refresh_missing_active_order_from_broker(
-                            order_lumi,
-                            self.strategy.name,
-                            strategy_object=self.strategy,
-                            broker_order_count=len(orders_broker),
-                            logger_obj=self.strategy.logger,
-                            terminalize_missing=(
-                                order_lumi.order_type and order_lumi.order_type == Order.OrderType.MARKET
-                            ),
+                    else:
+                        self.strategy.logger.info(
+                            f"Unable to get the cash balance after {cash_broker_max_retries} "
+                            f"tries; leaving last known cash and portfolio values unchanged."
                         )
+                        break
+                else:
+                    cash_balance = broker_balances[0]
+                    portfolio_value = broker_balances[2]
+                    self.strategy._set_cash_position(cash_balance)
+                    self.strategy.portfolio_value = portfolio_value
+                    self.strategy.logger.debug(f"Got Cash Balance: ${cash_balance:.2f}, Portfolio: ${portfolio_value:.2f}")
 
-        self.broker._invalidate_order_caches()
-        self.broker._hold_trade_events = False
-        self.broker.process_held_trades()
+
+                held_trades_len = len(self.broker._held_trades)
+                if held_trades_len > 0:
+                    self.broker._hold_trade_events = False
+                    self.broker.process_held_trades()
+                    self.broker._hold_trade_events = True
+
+            # POSITIONS
+            # Update Lumibot positions to match broker positions.
+            # Any new trade notifications will not affect the sync as they
+            # are being held pending the completion of the sync.
+            self.broker.sync_positions(self.strategy)
+
+            # Use the broker's normalization/reconciliation owner. The former
+            # duplicate executor path restored an order's requested quantity as its
+            # executed quantity and charged cash already included in the snapshot.
+            self.broker.sync_orders(self.strategy)
+        finally:
+            self.broker._invalidate_order_caches()
+            self.broker._hold_trade_events = False
+            self.broker.process_held_trades()
 
     @staticmethod
     def _index_orders_by_identifier(orders: list[Order]) -> dict:

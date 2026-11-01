@@ -724,10 +724,12 @@ def _wrapped_ranges_text():
              "Published June 1, 2026. All monetary values are USD.",
              "Asset / owner / asset value / income type / income amount"]
     for number, (symbol, lower, upper) in enumerate(_WRAPPED_RANGES, 1):
+        income = ("None; income amount: None" if number % 2 else
+                  "Dividends; income amount: $15,001 - $50,000")
         lines += [f"Industrial Equipment and Distribution Group {number:02d}",
                   f"Ordinary common shares ({symbol}) [EQ] Owner A ${lower:,} -",
                   f"${upper:,}",
-                  "Income type: None; income amount: None. This income field is separate from asset value.",
+                  f"Income type: {income}. This income field is separate from asset value.",
                   "Instrument classification: listed common equity; reporting currency: US dollars."]
     lines += ["Dormant Equipment Group (QZXZERO) [EQ] Owner A asset value None; income None.",
               "Cash reserve [CASH] Owner A asset value $50,001 - $100,000; income $1 - $200."]

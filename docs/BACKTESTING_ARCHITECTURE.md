@@ -1007,3 +1007,12 @@ OHLCV raises an error rather than fabricating prices. Local publication is atomi
 Each concurrent writer publishes a complete month, never a partial window.
 `historyCache` dataframe attributes expose lookup, provider, and write timing
 separately from cache hits and original fetch time.
+
+### Polygon mixed-interval history
+
+Polygon stores native datasets by asset, quote currency and bar interval. Daily
+research and minute prices can therefore coexist without either replacing the
+other. A daily request reuses its native dataset rather than expanding the
+request into minute history. Compatible callers without an interval use the
+finest loaded dataset. Daily-only history requests do not download minute bars.
+Memory limits count an aliased dataset once and evict all of its keys together.

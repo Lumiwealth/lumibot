@@ -2,6 +2,9 @@
 
 ## 4.6.38 - Unreleased
 
+### Fixed
+- Keep Polygon daily research history and minute execution data in independent interval-aware entries. Repeated history/price reads reuse loaded data without replacing daily bars or downloading minute history for a daily request. Memory limits count each dataset once and retire every alias when it is evicted.
+
 ## 4.6.37 - 2026-11-01
 
 Deploy marker: `5eea4abaf6b659b2d9931c9189f3c1c8ece5170d`.

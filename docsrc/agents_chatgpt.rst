@@ -160,11 +160,14 @@ and your authorized ChatGPT usage policy, then run:
        --output-root /your/private/eval-run \
        --freshness-state /your/private/eval-freshness.json
 
-The append-only call and repetition ledgers permit resume without repaying
-passed repetitions. The call cap covers continuations and judge requests as
-well as initial actor requests. Missing authoritative usage retains the
-reservation. Reports distinguish subscription usage from API spend; zero API
-spend is not proof of the account's credit setting.
+The append-only call and repetition ledgers permit resume without rerunning
+passed repetitions. ``--max-model-calls`` sets an informational reporting
+window covering actors, continuations and judges. The runner automatically
+extends that window without resetting history; it is not a hard spending or
+request limit. Actual provider quota and account credit settings still apply.
+Missing authoritative usage retains the reservation. Reports distinguish
+subscription usage from API spend; zero API spend is not proof of the
+account's credit setting.
 
 Private CI funding must have its own authorized registration, host identity,
 protected storage and serialized refresh owner. Public forks receive no

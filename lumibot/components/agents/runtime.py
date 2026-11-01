@@ -1981,6 +1981,8 @@ class GoogleADKRuntime:
             parts=[genai_types.Part(text=self._build_user_text(request))],
         )
         events: list[AgentTraceEvent] = []
+        # Preserve only events actually received if a later provider call fails.
+        request._attempt_events = events
         run_config = run_config_module.RunConfig(max_llm_calls=sys.maxsize - 1)
         async for event in runner.run_async(
             user_id=user_id,
@@ -2004,13 +2006,12 @@ class GoogleADKRuntime:
             timestamp = _utc_iso_timestamp()
             for normalized_event in normalized_events:
                 normalized_event.timestamp = timestamp
+                if normalized_event.tool_name:
+                    normalized_event.tool_name = tool_name_map.get(
+                        normalized_event.tool_name,
+                        tool_name_map.get(_normalize_tool_name_typo(normalized_event.tool_name), normalized_event.tool_name),
+                    )
             events.extend(normalized_events)
-        for event in events:
-            if event.tool_name:
-                mapped = tool_name_map.get(event.tool_name)
-                if mapped is None:
-                    mapped = tool_name_map.get(_normalize_tool_name_typo(event.tool_name), event.tool_name)
-                event.tool_name = mapped
         summary = None
         text_chunks = [event.text for event in events if event.kind == "text" and event.text]
         if text_chunks:
@@ -2178,6 +2179,7 @@ class GoogleADKRuntime:
             attempt += 1
             # Fresh per-attempt record of tool calls (see _attempt_tool_call_log).
             request._attempt_tool_calls = []
+            request._attempt_events = []
             try:
                 if timeout_seconds is None:
                     return asyncio.run(self._run_async(request))

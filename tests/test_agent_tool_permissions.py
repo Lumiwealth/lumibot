@@ -383,6 +383,9 @@ class _CaptureRuntime:
 
 class _MissingProviderCredentialRuntime:
     def run(self, request):
+        # This failure precedes tool invocation, as recorded by the native runtime.
+        # An alternate runtime with no trace must instead preserve unknown effects.
+        request._attempt_tool_calls = []
         raise ValueError("No API key was provided")
 
 

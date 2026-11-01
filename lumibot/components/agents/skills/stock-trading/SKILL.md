@@ -81,7 +81,8 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    reads. If an order tool returned a submitted identifier, never say that no
    order was entered. Report the exact observed status instead.
    Reconcile cash from confirmed fill quantities, execution prices and fees.
-   Portfolio value uses current position marks, not the gross purchase debit.
+   Portfolio value already includes cash and current position valuation; do not
+   add cash again or equate that total with the gross purchase debit.
    Compute any equity or profit/loss comparison with a tool on that same price
    basis. If it was not computed, report the returned cash/equity without adding
    an unsupported discrepancy or gain/loss explanation.

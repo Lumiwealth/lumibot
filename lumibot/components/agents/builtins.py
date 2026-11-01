@@ -1169,9 +1169,13 @@ def _bind_portfolio(strategy: Any, manager: Any) -> BoundTool:
     return BoundTool(
         name="account_portfolio",
         description=(
-            "Return current cash and total portfolio value for sizing decisions. "
-            "Use this before placing orders when you need to calculate a sensible whole-share quantity or compare a risky asset against a defensive parking asset. "
-            "Example: call this before buying TQQQ so you can size a near-fully-invested position intentionally instead of buying one share."
+            "Return current cash and portfolio_value for sizing and reconciliation. "
+            "portfolio_value is total account equity INCLUDING cash; never add cash to it again. "
+            "It reflects current position valuation, not the gross amount spent on purchases. "
+            "Execution cost, current position value, remaining cash and total equity are different quantities. "
+            "Use portfolio_value as the account-capital basis and cash as the spending constraint. "
+            "Calculate any claimed difference or gain/loss on a consistent observed price basis; "
+            "report the returned cash and equity without an extra comparison when it was not calculated."
         ),
         function=portfolio,
         metadata={"kind": "builtin"},
@@ -4989,7 +4993,7 @@ class _AccountTools:
     def portfolio(self) -> ToolDefinition:
         return ToolDefinition(
             name="account_portfolio",
-            description="Return current cash and portfolio value for sizing decisions.",
+            description="Return cash and total account equity, which already includes cash, for sizing and reconciliation.",
             binder=_bind_portfolio,
         )
 

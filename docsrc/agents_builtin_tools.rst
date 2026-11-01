@@ -543,3 +543,8 @@ from verification of retrieved versions: without retained-original evidence,
 research remains usable with an explicit later-edits limitation. Known future
 versions stay excluded. Real-model release cases cover source recovery and
 conservative macro vintages, with semantic judges and calibration controls.
+
+An empty observation window does not establish that a dataset is unavailable.
+For latest-available research, agents can widen or omit a lower date bound they
+chose themselves while preserving the historical ceiling and any user-required
+date range. Older observations retain their actual dates and limitations.

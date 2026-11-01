@@ -25,7 +25,7 @@ def _recorded_research_server():
         command=sys.executable,
         args=[
             str(Path(__file__).resolve().parents[1] / "scripts/agent_eval_research_server.py"),
-            "research_available",
+            "research_unavailable",
         ],
         transport="stdio",
         exposed_tools=["query_data"],
@@ -43,11 +43,11 @@ def test_native_stdio_tool_refusal_survives_anyio_teardown_as_typed_failure():
     failure = raised.value
     assert failure.__class__.__name__ == "RemoteMCPToolError"
     assert failure.tool_name == "query_data"
-    assert failure.code == "unsupported_capability"
-    assert "cannot verify original versions" in failure.message
+    assert failure.code == "provider_unavailable"
+    assert "temporarily unavailable" in failure.message
     assert failure.result["isError"] is True
     assert failure.original_result.isError is True
-    assert failure.structured_result["errorCode"] == "unsupported_capability"
+    assert failure.structured_result["errorCode"] == "provider_unavailable"
     assert failure.structured_result["details"]["asOf"] == arguments["asOf"]
     assert failure.result["content"][0]["text"]
 
@@ -71,8 +71,8 @@ def test_native_stdio_refusal_remains_a_visible_failed_actor_tool_record():
     assert result["tool_error"] is True
     assert result["isError"] is True
     assert result["error"]["type"] == "RemoteMCPToolError"
-    assert result["error"]["code"] == "unsupported_capability"
-    assert "cannot verify original versions" in result["error"]["message"]
+    assert result["error"]["code"] == "provider_unavailable"
+    assert "temporarily unavailable" in result["error"]["message"]
     assert "TaskGroup" not in result["error"]["message"]
     assert "details" not in result
     assert "structuredContent" not in result

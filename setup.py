@@ -107,7 +107,9 @@ setuptools.setup(
         "setuptools<81",
         "google-adk[extensions]>=2.9.1,<3.0.0",
         "google-genai>=2.24.0,<3.0.0",
-        "litellm>=1.105.0",
+        # LiteLLM 1.106 imports MCP 2 catalog types on the Responses path;
+        # the remote-tool SDK here uses MCP 1.
+        "litellm>=1.105.0,<1.106.0",
         "anyio>=4.10.0",
         "mcp>=1.26.0,<2",
         "schwab-py>=1.5.0",

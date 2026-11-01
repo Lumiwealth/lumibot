@@ -21,6 +21,9 @@
 - Reconcile reported purchase cost from actual fills and fees while keeping current marked equity distinct from execution cost.
 - Preserve observed agent tool events and usage when inference fails after order actions. Report attempted or unknown broker effects honestly and require reconciliation without replaying the attempt; retain deterministic broker grading for every failed evaluation.
 - Classify typed retryable inference failures wrapped by LiteLLM as infrastructure errors when no actor decision completed. Preserve ordinary grading for completed decisions and tool failures, along with every prior attempt and usage reservation.
+- Keep clean agent installations on the compatible LiteLLM 1.105 and MCP 1 SDK generations; LiteLLM 1.106 requires MCP 2 catalog types on its Responses path.
+- Exercise usable, explicitly unqualified historical research in recorded agent tests while retaining known-future exclusions and visible provider failures.
+- Grade historical research by its meaning and returned fields, with a retained real-answer control and a separate fabricated-answer control.
 - ProjectX uses actual streamed bid/ask prices and source times, exact configured account selection, expiration-aware contract lookup, provider contract multipliers and the documented single-contract response. Reject fractional/invalid contract sizes instead of truncating or defaulting them.
 - ProjectX reconciles partial executions and duplicate/reordered events through the shared cumulative-fill owner, preserves cancellation after partial fills, and restores accepted protective-order links after restart. Account read failures remain visible; older working orders are retained.
 - ProjectX verifies stream connection/subscription success, renews rejected/expiring sessions, updates reconnect credentials and redacts SDK authentication diagnostics. Its SignalR dependency is installed with the package.

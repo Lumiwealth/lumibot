@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import re
-from math import gcd
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
@@ -783,14 +782,14 @@ class InteractiveBrokersREST(Broker):
                 if order_type == "credit":
                     if price is not None:
                         order_type = "limit"
-                        if price < 0:
-                            price = -price
+                        price = -abs(price)
                     else:
                         order_type = "market"
 
                 elif order_type == "debit":
                     if price is not None:
                         order_type = "limit"
+                        price = abs(price)
                     else:
                         order_type = "market"
 
@@ -1044,17 +1043,18 @@ class InteractiveBrokersREST(Broker):
             ratios.append((conid, quantity))
 
         # Calculate the greatest common divisor (GCD) of the quantities to simplify the conidex
-        quantities = [quant for _, quant in ratios]
-        order_quantity = gcd(*quantities)
+        from lumibot.tools.helpers import get_multileg_quantity_units
+
+        order_quantity, leg_ratios = get_multileg_quantity_units(quant for _, quant in ratios)
 
         # Build the conidex string with the simplified quantities
         first_order = True
-        for conid, quantity in ratios:
+        for (conid, quantity), ratio in zip(ratios, leg_ratios):
             if first_order:
                 first_order = False
             else:
                 conidex += ","
-            conidex += f"{conid}/{quantity // order_quantity}"
+            conidex += f"{conid}/{ratio if quantity > 0 else -ratio}"
 
         if not orders:
             logger.error("Orders list cannot be empty")
@@ -1069,15 +1069,17 @@ class InteractiveBrokersREST(Broker):
 
         rules = self.data_source.get_contract_rules(conid)
         increment = rules['rules']['increment'] # 0.05 for example
-        price = (price // increment) * increment if price is not None else None
+        price = float((Decimal(str(price)) / Decimal(str(increment))).to_integral_value(
+            rounding="ROUND_FLOOR") * Decimal(str(increment))) if price is not None else None
         aux_price = (order.stop_price // increment) * increment if order.stop_price is not None else None
 
         # Build the order data dictionary
         data = {
             "conidex": conidex,
-            "quantity": round(order_quantity, 2),
+            "quantity": float(order_quantity),
             "orderType": ORDERTYPE_MAPPING.get(order_type_value),
-            "side": side,
+            # The signed conidex ratios already encode every requested leg side.
+            "side": "BUY",
             "tif": duration.upper()
             if duration is not None
             else order.time_in_force.upper(),

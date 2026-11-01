@@ -20,7 +20,7 @@ from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, SmartLimitConfig, TradingFee
 from lumibot.tools.smart_limit_utils import build_price_ladder, compute_final_price, compute_mid, expected_fill_price, infer_tick_size, round_to_tick
 from lumibot.tools.lumibot_logger import get_logger
-from lumibot.tools.helpers import parse_timestep_qty_and_unit
+from lumibot.tools.helpers import get_multileg_quantity_units, parse_timestep_qty_and_unit
 from lumibot.trading_builtins import CustomStream
 
 try:
@@ -4633,9 +4633,10 @@ class BacktestingBroker(Broker):
             net_bid = 0.0
             net_ask = 0.0
             order_side = "buy" if order.is_buy_order() else "sell"
+            _, ratios = get_multileg_quantity_units(leg.quantity for leg in order.child_orders)
             if audit_enabled:
                 legs_audit = []
-            for leg in order.child_orders:
+            for leg, ratio in zip(order.child_orders, ratios):
                 try:
                     quote = self.get_quote(leg.asset, quote=leg.quote)
                 except Exception:
@@ -4659,6 +4660,8 @@ class BacktestingBroker(Broker):
                 if leg_bid is None or leg_ask is None:
                     net_bid = net_ask = None
                     break
+                leg_bid *= ratio
+                leg_ask *= ratio
                 if order_side == "buy":
                     if leg.is_buy_order():
                         net_bid += leg_bid
@@ -4796,8 +4799,9 @@ class BacktestingBroker(Broker):
         legs = []
         total_slack = 0.0
         net_mid = 0.0
+        _, leg_ratios = get_multileg_quantity_units(leg.quantity for leg in order.child_orders)
 
-        for leg in order.child_orders:
+        for leg, leg_ratio in zip(order.child_orders, leg_ratios):
             try:
                 quote = self.get_quote(leg.asset, quote=leg.quote)
             except Exception:
@@ -4809,10 +4813,10 @@ class BacktestingBroker(Broker):
 
             leg_mid = round(compute_mid(bid, ask), 6)
             slack = max(0.0, (ask - bid) / 2.0)
-            total_slack += slack
+            total_slack += leg_ratio * slack
 
             sign = 1.0 if (leg.is_buy_order() if side == "buy" else leg.is_sell_order()) else -1.0
-            net_mid += sign * leg_mid
+            net_mid += leg_ratio * sign * leg_mid
 
             legs.append({"order": leg, "bid": bid, "ask": ask, "mid": leg_mid, "slack": slack})
 
@@ -4998,10 +5002,10 @@ class BacktestingBroker(Broker):
             if price is None:
                 return False
             prices.append(price)
-        unit = min(abs(float(leg.quantity)) for leg in legs) or 1.0
+        _, ratios = get_multileg_quantity_units(leg.quantity for leg in legs)
         net = sum(
-            (price if leg.is_buy_order() else -price) * abs(float(leg.quantity)) / unit
-            for leg, price in zip(legs, prices)
+            (price if leg.is_buy_order() else -price) * ratio
+            for leg, price, ratio in zip(legs, prices, ratios)
         )
         if net > float(order._package_net_limit) + 1e-9:
             return False

@@ -14,6 +14,7 @@ from .tool_context import current_agent_tool_context
 from lumibot.tools.ibkr_history_health import (
     IncompleteResearchHistoryError, record_required_history, recoverable_history_request,
 )
+from lumibot.tools.helpers import get_multileg_quantity_units
 
 AssetTypeArg = Literal["stock", "option", "future", "cont_future", "forex", "crypto", "index", "multileg", "us_equity"]
 OrderSideArg = Literal[
@@ -1917,7 +1918,10 @@ def _backtest_last_trade_multileg_price(
     helper = _options_helper_for_strategy(strategy)
     total = 0.0
     details = []
-    for order in orders:
+    if not orders:
+        return None
+    _, ratios = get_multileg_quantity_units(order.quantity for order in orders)
+    for order, ratio in zip(orders, ratios):
         evaluation = helper.evaluate_option_market(order.asset)
         if evaluation.has_bid_ask and evaluation.bid is not None and evaluation.ask is not None:
             price = (float(evaluation.bid) + float(evaluation.ask)) / 2
@@ -1929,7 +1933,7 @@ def _backtest_last_trade_multileg_price(
             return None
         if not math.isfinite(price) or price <= 0:
             return None
-        signed_price = price if order.is_buy_order() else -price
+        signed_price = ratio * (price if order.is_buy_order() else -price)
         total += signed_price
         if price_details is not None:
             details.append(
@@ -1939,6 +1943,7 @@ def _backtest_last_trade_multileg_price(
                     "ask": evaluation.ask,
                     "last_price": evaluation.last_price,
                     "price": price,
+                    "ratio": ratio,
                     "signed_price": signed_price,
                 }
             )

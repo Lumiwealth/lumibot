@@ -1058,21 +1058,23 @@ class Alpaca(Broker):
         - Tradier uses "credit" for net credit (receive premium) and "debit" for net debit (pay premium).
         - Alpaca only supports "market" and "limit" for multi-leg orders.
         - We convert "credit", "debit", and "even" to "limit" for Alpaca, as both are limit orders in Alpaca's API.
-        - The sign of the limit price (positive/negative) is not used by Alpaca to distinguish credit/debit.
+        - Alpaca uses a positive net limit for a debit and a negative limit for a credit.
         - Alpaca requires that the leg ratio quantities are relatively prime (GCD == 1).
         """
         requested_multileg_type = order_type if order_type in ("credit", "debit", "even") else None
+        from lumibot.tools.helpers import get_multileg_quantity_units
+
+        package_quantity, leg_ratios = get_multileg_quantity_units(order.quantity for order in orders)
 
         # Convert Tradier-specific order types to Alpaca-supported types
         if requested_multileg_type is not None:
             order_type = "limit"
         # All legs must have the same underlying symbol
         symbol = orders[0].asset.symbol
-        qty = str(orders[0].quantity)
+        qty = str(package_quantity)
         # Compose legs
         legs = []
-        leg_quantities = []
-        for order in orders:
+        for order, ratio in zip(orders, leg_ratios):
             self.resolve_option_order_intent(order)
             # Format option symbol
             if order.asset.asset_type == Asset.AssetType.OPTION:
@@ -1091,27 +1093,12 @@ class Alpaca(Broker):
                 leg_side = "sell"
             else:
                 raise ValueError(f"Alpaca option leg requires explicit position intent, got {raw_side}")
-            # Collect leg quantities for GCD check
-            leg_qty = int(abs(order.quantity))
-            leg_quantities.append(leg_qty)
             legs.append({
                 "symbol": option_symbol,
-                "ratio_qty": str(order.quantity),
+                "ratio_qty": str(ratio),
                 "side": leg_side,
                 "position_intent": str(raw_side)
             })
-        # Ensure leg ratio quantities are relatively prime (GCD == 1)
-        from functools import reduce
-        from math import gcd
-        if len(leg_quantities) > 1:
-            leg_gcd = reduce(gcd, leg_quantities)
-            if leg_gcd > 1:
-                # Divide all ratio_qty by GCD to make them relatively prime
-                for i, leg in enumerate(legs):
-                    orig_qty = int(leg["ratio_qty"])
-                    new_qty = int(orig_qty // leg_gcd)
-                    leg["ratio_qty"] = str(new_qty)
-                qty = str(int(qty) // leg_gcd)
         # For multi-leg orders, we need to set the primary asset info from the first leg
         first_order = orders[0]
         
@@ -1147,6 +1134,12 @@ class Alpaca(Broker):
         if price is not None:
             # Ensure limit price is at most 2 decimal places (Alpaca requirement)
             limit_price = round(float(price), 2)
+            if requested_multileg_type == "credit":
+                limit_price = -abs(limit_price)
+            elif requested_multileg_type == "debit":
+                limit_price = abs(limit_price)
+            elif requested_multileg_type == "even":
+                limit_price = 0.0
             kwargs["limit_price"] = limit_price
         # Submit order
         try:
@@ -1158,10 +1151,10 @@ class Alpaca(Broker):
                 strategy=orders[0].strategy,
                 order_class=Order.OrderClass.MULTILEG,
                 side=orders[0].side,
-                quantity=orders[0].quantity,
+                quantity=package_quantity,
                 order_type=orders[0].order_type,
                 time_in_force=duration,
-                limit_price=price,
+                limit_price=kwargs.get("limit_price"),
                 tag=tag,
                 status=Order.OrderStatus.SUBMITTED
             )
@@ -1475,6 +1468,12 @@ class Alpaca(Broker):
             # Gather only provided fields
             update_kwargs: dict[str, float] = {}
             if limit_price is not None:
+                if order.order_class == Order.OrderClass.MULTILEG:
+                    package_type = (getattr(order, "_smart_limit_state", None) or {}).get("multileg_order_type")
+                    if package_type == "credit":
+                        limit_price = -abs(limit_price)
+                    elif package_type == "debit":
+                        limit_price = abs(limit_price)
                 update_kwargs["limit_price"] = limit_price
             if stop_price is not None:
                 update_kwargs["stop_price"] = stop_price

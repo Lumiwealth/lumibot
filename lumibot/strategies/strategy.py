@@ -2235,6 +2235,11 @@ class Strategy(_Strategy):
         - For sell legs: best=-ask, fastest=-bid (negative contribution)
         """
 
+        from lumibot.tools.helpers import get_multileg_quantity_units
+
+        if not child_orders:
+            return None
+        _, ratios = get_multileg_quantity_units(leg.quantity for leg in child_orders)
         quote_data: list[tuple[Order, float | None, float | None]] = []
         for leg in child_orders:
             try:
@@ -2251,13 +2256,13 @@ class Strategy(_Strategy):
 
         net_best = 0.0
         net_fastest = 0.0
-        for leg, bid, ask in quote_data:
+        for (leg, bid, ask), ratio in zip(quote_data, ratios):
             if leg.is_buy_order():
-                net_best += float(bid)
-                net_fastest += float(ask)
+                net_best += ratio * float(bid)
+                net_fastest += ratio * float(ask)
             else:
-                net_best -= float(ask)
-                net_fastest -= float(bid)
+                net_best -= ratio * float(ask)
+                net_fastest -= ratio * float(bid)
 
         return net_best, net_fastest
 

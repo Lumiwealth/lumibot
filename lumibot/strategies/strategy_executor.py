@@ -1001,13 +1001,16 @@ class StrategyExecutor(Thread):
 
                 net_best = 0.0
                 net_fastest = 0.0
-                for leg, leg_bid, leg_ask in quote_data:
+                from lumibot.tools.helpers import get_multileg_quantity_units
+
+                _, ratios = get_multileg_quantity_units(leg.quantity for leg in order.child_orders)
+                for (leg, leg_bid, leg_ask), ratio in zip(quote_data, ratios):
                     if leg.is_buy_order():
-                        net_best += float(leg_bid)
-                        net_fastest += float(leg_ask)
+                        net_best += ratio * float(leg_bid)
+                        net_fastest += ratio * float(leg_ask)
                     else:
-                        net_best -= float(leg_ask)
-                        net_fastest -= float(leg_bid)
+                        net_best -= ratio * float(leg_ask)
+                        net_fastest -= ratio * float(leg_bid)
 
                 tick = infer_tick_size(net_best, net_fastest)
                 mid = compute_mid(net_best, net_fastest)

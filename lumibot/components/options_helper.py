@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from lumibot.entities import Asset, Order, Quote
 from lumibot.entities.chains import Chains
+from lumibot.tools.helpers import get_multileg_quantity_units
 
 logger = logging.getLogger(__name__)
 
@@ -1626,7 +1627,9 @@ class OptionsHelper:
         Returns
         -------
         Optional[float]
-            The aggregated limit price, or None if quotes are missing.
+            Net price per reduced package, or None if quotes are missing.
+            For example, six long and three short contracts price one 2:1
+            package; three such packages preserve the requested quantities.
         """
         if limit_type not in {"best", "mid", "fastest"}:
             raise ValueError("limit_type must be best, mid, or fastest.")
@@ -1635,7 +1638,10 @@ class OptionsHelper:
         self.strategy.log_message("Calculating multi-leg limit price.", color="blue")
         quotes: List[float] = []
         details = []
-        for order in orders:
+        if not orders:
+            return None
+        _, ratios = get_multileg_quantity_units(order.quantity for order in orders)
+        for order, ratio in zip(orders, ratios):
             asset = order.asset
             if asset.asset_type != Asset.AssetType.OPTION:
                 # A partial package price can reverse debit/credit economics.
@@ -1664,10 +1670,12 @@ class OptionsHelper:
                 quotes.append(bid if order.is_buy_order() else -ask)
             elif limit_type == "fastest":
                 quotes.append(ask if order.is_buy_order() else -bid)
+            leg_price = abs(quotes[-1])
+            quotes[-1] *= ratio
             if price_details is not None:
                 details.append({
                     "price_basis": "bid_ask", "bid": bid, "ask": ask,
-                    "price": abs(quotes[-1]), "signed_price": quotes[-1],
+                    "price": leg_price, "ratio": ratio, "signed_price": quotes[-1],
                 })
         if not quotes:
             self.strategy.log_message("No valid quotes for calculating limit price.", color="red")

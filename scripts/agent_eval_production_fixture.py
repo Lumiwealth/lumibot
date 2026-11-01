@@ -114,6 +114,7 @@ class _FixtureBroker(BacktestingBroker):
 def _capture_broker_order(order):
     """Capture actual signed package bounds without interpreting parent side/size."""
     from lumibot.components.agents.builtins import _order_to_dict
+    from lumibot.tools.helpers import get_multileg_quantity_units
 
     payload = _order_to_dict(order)
     limit = getattr(order, "_package_net_limit", None)
@@ -121,11 +122,9 @@ def _capture_broker_order(order):
     if limit is not None and children:
         net = None
         if all(child.is_filled() and child.avg_fill_price is not None for child in children):
-            unit = min(abs(float(child.quantity)) for child in children)
-            if unit <= 0:
-                raise ValueError("Filled package contains a nonpositive execution quantity")
-            net = sum(float(child.avg_fill_price) * abs(float(child.quantity)) / unit
-                      * (1 if child.is_buy_order() else -1) for child in children)
+            _, ratios = get_multileg_quantity_units(child.quantity for child in children)
+            net = sum(float(child.avg_fill_price) * ratio * (1 if child.is_buy_order() else -1)
+                      for child, ratio in zip(children, ratios))
         payload["package_execution"] = {"signed_limit_price": float(limit), "signed_fill_price": net}
     return payload
 

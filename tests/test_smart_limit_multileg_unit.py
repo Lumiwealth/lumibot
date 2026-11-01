@@ -167,7 +167,8 @@ def test_multileg_inference_allows_zero_bid(mocker):
     assert broker.submit_orders.called
 
 
-def test_smart_limit_multileg_reprice_uses_submit_orders_on_modify_failure(mocker):
+@pytest.mark.parametrize('buy_quantity,sell_quantity,minimum', [(1, 1, .2), (6, 3, .7), (3, 2, .9)])
+def test_smart_limit_multileg_reprice_uses_submit_orders_on_modify_failure(mocker, buy_quantity, sell_quantity, minimum):
     broker = _BrokerStub(name="tradier")
     broker.IS_BACKTESTING_BROKER = False
 
@@ -188,6 +189,7 @@ def test_smart_limit_multileg_reprice_uses_submit_orders_on_modify_failure(mocke
     # Build a parent multileg order with 2 legs (enough to exercise the path).
     leg_buy = _leg("unit", _option("SPY", 500), Order.OrderSide.BUY_TO_OPEN)
     leg_sell = _leg("unit", _option("SPY", 505), Order.OrderSide.SELL_TO_OPEN)
+    leg_buy.quantity, leg_sell.quantity = buy_quantity, sell_quantity
     parent = Order(
         "unit",
         asset=Asset("SPY"),
@@ -226,9 +228,11 @@ def test_smart_limit_multileg_reprice_uses_submit_orders_on_modify_failure(mocke
     assert broker.cancel_order.called
     assert broker.submit_orders.called
     assert not broker.submit_order.called
+    assert broker.submit_orders.call_args.kwargs['price'] > minimum
 
 
-def test_alpaca_modify_order_updates_identifier_and_child_parent(mocker):
+@pytest.mark.parametrize('package_type,expected', [(None, 1.23), ('debit', 1.23), ('credit', -1.23)])
+def test_alpaca_modify_order_updates_identifier_and_child_parent(mocker, package_type, expected):
     alpaca = Alpaca.__new__(Alpaca)  # Avoid Alpaca.__init__ (no network / credentials required).
 
     old_id = "old"
@@ -242,6 +246,7 @@ def test_alpaca_modify_order_updates_identifier_and_child_parent(mocker):
         def replace_order_by_id(self, order_id, order_data):
             assert order_id == old_id
             assert hasattr(order_data, "limit_price")
+            assert order_data.limit_price == expected
             return SimpleNamespace(id=new_id, status="accepted", limit_price=getattr(order_data, "limit_price", None))
 
     alpaca.api = _Api()
@@ -249,6 +254,9 @@ def test_alpaca_modify_order_updates_identifier_and_child_parent(mocker):
     child = Order("unit", asset=Asset("SPY"), quantity=1, side=Order.OrderSide.BUY)
     child.parent_identifier = old_id
     parent = Order("unit", asset=Asset("SPY"), quantity=1, side=Order.OrderSide.BUY, identifier=old_id, child_orders=[child])
+    if package_type is not None:
+        parent.order_class = Order.OrderClass.MULTILEG
+        parent._smart_limit_state = {'multileg_order_type': package_type}
 
     alpaca._modify_order(parent, limit_price=1.23)
 

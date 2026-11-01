@@ -64,6 +64,32 @@ def compare_source(root: Path, commit: str, paths: list[Path]) -> tuple[dict[str
     return originals, proof
 
 
+
+def compare_case(root: Path, commit: str, case: dict) -> tuple[dict, dict]:
+    """Permit a rubric correction only; preserve the exact original actor mandate."""
+    if re.fullmatch(r"[0-9a-f]{40}", commit) is None:
+        raise ValueError("Original source must be an immutable full Git commit")
+    root = root.resolve()
+    path = Path(case["_path"]).resolve()
+    name = path.relative_to(root).as_posix()
+    if path.parent != root / "agent_eval_cases" or path.suffix != ".json":
+        raise ValueError("Acting case must use the canonical case owner")
+    prior_bytes = _git(root, "show", f"{commit}:{name}")
+    original = json.loads(prior_bytes)
+    current = {key: value for key, value in case.items() if not key.startswith("_")}
+    if json.loads(path.read_bytes()) != current:
+        raise ValueError("Acting case no longer matches its saved source")
+    changed = sorted(key for key in original.keys() | current.keys()
+                     if original.get(key) != current.get(key))
+    if set(changed) - {"judgeRubric"}:
+        raise ValueError("Acting case changed outside its judge rubric")
+    return original, {"path": name, "changedFields": changed,
+        "originalSourceSha256": hashlib.sha256(prior_bytes).hexdigest(),
+        "currentSourceSha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "originalCaseDigest": evals.actor_case_digest(original),
+        "currentCaseDigest": evals.actor_case_digest(current)}
+
+
 def source_compatibility(commit: str) -> dict:
     captured = {}
     def old_source_hash(paths):
@@ -87,6 +113,9 @@ def recover(cases, *, source_commit: str, output_root: Path, repetitions: list[i
     configure_fixture_environment(evals.REPO_ROOT, artifact_root=output_root)
     evals.preflight(cases, evals.DEFAULT_JUDGE_MODEL, 0)
     proof = source_compatibility(source_commit)
+    original_cases = {case["id"]: compare_case(evals.REPO_ROOT, source_commit, case) for case in cases}
+    proof["caseDefinitions"] = {identity: pair[1] for identity, pair in original_cases.items()}
+    proof["recoveryToolSha256"] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     proof_bytes = (json.dumps(proof, sort_keys=True, indent=2) + "\n").encode()
     proof_hash = hashlib.sha256(proof_bytes).hexdigest()
     proof_path = output_root / f"judge-recovery-source-{proof_hash}.json"
@@ -98,7 +127,8 @@ def recover(cases, *, source_commit: str, output_root: Path, repetitions: list[i
     reservations = [row for row in native if row.get("kind") == "reserve" and row.get("id") in settled]
     pending, retained = [], 0
     for case in cases:
-        prior_fp = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL,
+        original_case, case_proof = original_cases[case["id"]]
+        prior_fp = evals.case_fingerprint(original_case, judge_model=evals.DEFAULT_JUDGE_MODEL,
                                          runtime_hash=proof["originalRuntimeFingerprint"])
         current_fp = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL,
                                            runtime_hash=proof["currentRuntimeFingerprint"])
@@ -113,7 +143,7 @@ def recover(cases, *, source_commit: str, output_root: Path, repetitions: list[i
             actor = next((row for row in reversed(rows) if row.get("case_id") == case["id"]
                 and row.get("fingerprint") == prior_fp and row.get("repetition") == repetition
                 and row.get("status") == "actor_completed"), None)
-            if (not actor or actor.get("actor_case_digest") != evals.actor_case_digest(case)
+            if (not actor or actor.get("actor_case_digest") != evals.actor_case_digest(original_case)
                     or actor.get("acting_model") != case["model"]
                     or actor.get("judge_model") != evals.DEFAULT_JUDGE_MODEL
                     or actor.get("machine") != evals.score_machine_contract(case, actor["transcript"])
@@ -125,6 +155,8 @@ def recover(cases, *, source_commit: str, output_root: Path, repetitions: list[i
                        for row in reservations):
                 raise ValueError("Original actor has no settled native model-call evidence")
             checkpoint = {**actor, "fingerprint": current_fp, "actor_reused": True,
+                "actor_case_digest": case_proof["currentCaseDigest"],
+                "actor_original_case_digest": case_proof["originalCaseDigest"],
                 "actor_original_fingerprint": prior_fp, "actor_original_completed_at": actor["timestamp"],
                 "judge_recovery_started_at": evals.utc_text(),
                 "source_compatibility": {"sha256": proof_hash, "path": str(proof_path),

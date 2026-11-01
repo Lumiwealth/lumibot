@@ -300,3 +300,36 @@ def test_fractional_cumulative_fill_still_rejects_invalid_executions(quantity):
     with pytest.raises(ValueError, match="cumulative fill quantity"):
         broker._process_broker_synced_order(order)
     assert order.transactions == []
+
+
+@pytest.mark.parametrize("status", ["partial_fill", "canceled", "replaced", "expired", "error"])
+def test_warm_order_sync_keeps_cumulative_receipts_and_relations(status):
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+    broker = _BrokerForSyncTest([])
+    broker.data_source = SimpleNamespace(get_datetime=lambda: datetime(2027, 1, 4, tzinfo=timezone.utc))
+    order = Order("strategy", Asset("SYN"), 10, "buy", identifier="synthetic", avg_fill_price=100)
+    order.status = "partial_fill"
+    order.filled_quantity = Decimal("2")
+    broker._process_broker_synced_order(order)
+    observed = Order("strategy", Asset("SYN"), 10, "buy", identifier="synthetic", avg_fill_price=102)
+    observed.status = status
+    observed.filled_quantity = Decimal("5")
+    observed.replaced_by = "replacement"
+    observed.error_message = "provider reason"
+    observed.broker_status = status
+    from unittest.mock import MagicMock
+    broker._on_canceled_order = MagicMock()
+    broker._pull_all_orders = lambda *_: [observed]
+    for _ in range(2):
+        broker.sync_orders(_Strategy())
+    assert sum(t.quantity for t in order.transactions) == 5
+    assert sum(t.quantity * t.price for t in order.transactions) == 510
+    assert order.filled_quantity == 5
+    assert order.status == observed.status
+    assert order.replaced_by == "replacement"
+    assert order.broker_status == status
+    if status in ("canceled", "replaced", "expired"):
+        broker._on_canceled_order.assert_called_once_with(order)
+    if status == "error":
+        assert order.error_message == "provider reason"

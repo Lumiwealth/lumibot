@@ -1850,39 +1850,9 @@ class Alpaca(Broker):
                 if str(order.identifier) in stored_orders:
                     stored_order = stored_orders[str(order.identifier)]
 
-                    # Check if the status has changed
-                    if (stored_order.status != order.status
-                            or (order.is_filled() and not stored_order._filled_event.is_set())):
-                        logger.debug(f"OAuth Polling: Order status changed - {order.identifier}: {stored_order.status} -> {order.status}")
-
-                        # Update the stored order with new data and dispatch the event
-                        stored_order.update_raw(alpaca_order)
-
-                        # Capture and propagate average filled price from Alpaca into the stored order
-                        try:
-                            avg_price = (
-                                getattr(alpaca_order, 'filled_avg_price', None)
-                                or getattr(alpaca_order, 'avg_fill_price', None)
-                            )
-                            if avg_price is not None:
-                                stored_order.avg_fill_price = avg_price
-                        except Exception:
-                            pass
-
-                        # Dispatch the appropriate event based on the new status
-                        if order.status == "filled" or order.status == "fill": 
-                            if not self._reconcile_confirmed_fill(stored_order, alpaca_order):
-                                raise ValueError("Alpaca fill observation has inconsistent quantity or price")
-                        elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
-                            if not self._reconcile_confirmed_fill(stored_order, alpaca_order):
-                                raise ValueError("Alpaca partial fill observation has inconsistent quantity or price")
-                        elif order.status == "canceled":
-                            self.stream.dispatch(self.CANCELED_ORDER, order=stored_order)
-                        elif order.status == "new":
-                            self.stream.dispatch(self.NEW_ORDER, order=stored_order)
-                    else:
-                        # Status hasn't changed, but update the status to match broker's
-                        stored_order.status = order.status
+                    # Quantity can advance while the status remains partial,
+                    # including an execution reported with a cancellation.
+                    self._apply_direct_order_observation(stored_order, order)
 
             # Check for orders that are no longer in the broker's list
             tracked_orders = {str(x.identifier): x for x in self.get_tracked_orders()}
@@ -1899,36 +1869,14 @@ class Alpaca(Broker):
                         individual_order = self.api.get_order_by_id(order_id)
                         logger.debug(f"OAuth Polling: Individual lookup found order {order_id} with status {individual_order.status}")
 
-                        # Update status based on individual lookup
-                        if (individual_order.status != order.status
-                                or (str(individual_order.status) in ("filled", "fill")
-                                    and not order._filled_event.is_set())):
-                            logger.debug(f"OAuth Polling: Individual order status changed - {order_id}: {order.status} -> {individual_order.status}")
-                            order.update_raw(individual_order)
-
-                            # Capture and propagate average filled price for individual lookup
-                            try:
-                                avg_price = (
-                                    getattr(individual_order, 'filled_avg_price', None)
-                                    or getattr(individual_order, 'avg_fill_price', None)
-                                )
-                                if avg_price is not None:
-                                    order.avg_fill_price = avg_price
-                            except Exception:
-                                pass
-
-                            # Dispatch appropriate event based on new status
-                            if individual_order.status in ["filled", "fill"]:
-                                if not self._reconcile_confirmed_fill(order, individual_order):
-                                    raise ValueError("Alpaca fill observation has inconsistent quantity or price")
-                            elif individual_order.status == "canceled":
-                                self.stream.dispatch(self.CANCELED_ORDER, order=order)
+                        observed = self._parse_broker_order(individual_order, strategy_name=order.strategy)
+                        if observed is not None:
+                            self._apply_direct_order_observation(order, observed)
 
                     except Exception as e:
                         if "404" in str(e) or "not found" in str(e).lower():
-                            # Order truly doesn't exist - it was cancelled/rejected
-                            logger.debug(f"OAuth Polling: Order {order_id} not found at broker, marking as cancelled")
-                            self.stream.dispatch(self.CANCELED_ORDER, order=order)
+                            # Missing history is not evidence of cancellation.
+                            logger.debug(f"OAuth Polling: Order {order_id} not found at broker; retaining last confirmed state")
                         else:
                             # Network/API error - don't assume anything, just log and continue
                             logger.debug(f"OAuth Polling: Could not verify order {order_id}: {e}")

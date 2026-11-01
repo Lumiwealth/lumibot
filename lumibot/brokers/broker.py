@@ -1175,16 +1175,19 @@ class Broker(ABC):
                 prior_quantity = sum(
                     (Decimal(str(transaction.quantity)) for transaction in order.transactions), Decimal(0)
                 )
+                prior_quantity = max(prior_quantity, getattr(order, "_broker_synced_filled_quantity", Decimal(0)))
                 prior_value = sum(
                     (Decimal(str(transaction.quantity)) * Decimal(str(transaction.price))
                      for transaction in order.transactions), Decimal(0)
                 )
                 remaining_quantity = total_quantity - prior_quantity
                 if not terminal and total_quantity.is_finite() and 0 <= total_quantity <= prior_quantity:
+                    order.filled_quantity = prior_quantity
                     return True
                 if (order.is_filled() and total_quantity.is_finite() and price.is_finite()
                         and total_quantity == Decimal(str(order.quantity)) == prior_quantity
                         and price > 0):
+                    order.filled_quantity = prior_quantity
                     return True
                 remaining_price = (total_quantity * price - prior_value) / remaining_quantity
                 valid_fill = (
@@ -1212,6 +1215,9 @@ class Broker(ABC):
                 order, self.FILLED_ORDER if terminal else self.PARTIALLY_FILLED_ORDER, price=float(remaining_price),
                 filled_quantity=float(remaining_quantity), multiplier=order.asset.multiplier,
             )
+            with self._lock:
+                order.filled_quantity = total_quantity
+                order._broker_synced_filled_quantity = total_quantity
             return True
         finally:
             with self._lock:
@@ -1293,6 +1299,8 @@ class Broker(ABC):
                 self._process_new_order(order)
                 self._process_error_order(order, order.error_message)
             elif observed_status == Order.OrderStatus.PARTIALLY_FILLED:
+                self._new_orders.remove(order.identifier, key="identifier")
+                self._unprocessed_orders.remove(order.identifier, key="identifier")
                 order.status = observed_status
                 order.set_partially_filled()
                 if order not in self._partially_filled_orders:
@@ -1406,13 +1414,14 @@ class Broker(ABC):
         return changed
 
     def _apply_direct_order_observation(self, order_lumi, matched_order):
-        """Apply a lookup observation; adapters with lifecycle reducers override this."""
+        """Reduce a normalized observation before copying its terminal status.
+
+        A working order can acquire executions without changing status, and a
+        cancellation can include the last partial execution. This common owner
+        also serves adapters without a venue-specific reducer.
+        """
 
         changed = False
-        if not order_lumi.equivalent_status(matched_order.status):
-            order_lumi.status = matched_order.status
-            changed = True
-
         if order_lumi.quantity != matched_order.quantity:
             order_lumi.quantity = matched_order.quantity
             changed = True
@@ -1424,6 +1433,45 @@ class Broker(ABC):
                 setattr(order_lumi, order_attr, broker_value)
                 changed = True
 
+        cumulative = getattr(matched_order, "filled_quantity", None)
+        if cumulative is None and matched_order.is_filled():
+            cumulative = matched_order.quantity
+        if cumulative is not None:
+            total = Decimal(str(cumulative))
+            if not total.is_finite() or total < 0 or total > Decimal(str(matched_order.quantity)):
+                raise ValueError("Broker cumulative fill quantity is invalid")
+            processed = sum((Decimal(str(t.quantity)) for t in order_lumi.transactions), Decimal(0))
+            processed = max(processed, getattr(order_lumi, "_broker_synced_filled_quantity", Decimal(0)))
+            if total < processed:
+                # Older observations cannot erase immutable execution receipts.
+                return changed
+            if total > processed and matched_order.avg_fill_price is not None:
+                if not self._reconcile_cumulative_execution(
+                    order_lumi, total, matched_order.avg_fill_price,
+                    terminal=total == Decimal(str(matched_order.quantity)), raw=matched_order._raw,
+                ):
+                    raise ValueError("Broker cumulative fill observation is inconsistent")
+                changed = True
+            if getattr(order_lumi, "filled_quantity", None) != total:
+                order_lumi.filled_quantity = total
+                changed = True
+
+        for attr in ("broker_status", "broker_create_date", "broker_update_date", "replaces", "replaced_by", "parent_identifier"):
+            value = getattr(matched_order, attr, None)
+            if value is not None and getattr(order_lumi, attr, None) != value:
+                setattr(order_lumi, attr, value)
+                changed = True
+        if matched_order._raw is not None:
+            order_lumi.update_raw(matched_order._raw)
+        if order_lumi.is_filled() and order_lumi._filled_event.is_set():
+            return changed
+        if not order_lumi.equivalent_status(matched_order.status):
+            if matched_order.status in (Order.OrderStatus.CANCELED, Order.OrderStatus.EXPIRED, Order.OrderStatus.REPLACED):
+                self._process_trade_event(order_lumi, self.CANCELED_ORDER)
+            elif matched_order.status == Order.OrderStatus.ERROR:
+                self._process_trade_event(order_lumi, self.ERROR_ORDER, error=matched_order.error_message)
+            order_lumi.status = matched_order.status
+            changed = True
         return changed
 
     def sync_orders(self, strategy):
@@ -1450,7 +1498,7 @@ class Broker(ABC):
                     f"Multiple orders found in lumibot with the same identifier {order.identifier}. "
                     f"This should not happen and indicates a bug in the order tracking. Orders: {matches}"
                 )
-                order_lumi = self._clean_order_trackers(order)
+                order_lumi = self._clean_order_trackers(matches[0])
             else:
                 order_lumi = matches[0] if len(matches) > 0 else None
 

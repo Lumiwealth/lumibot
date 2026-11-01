@@ -3,6 +3,8 @@
 ## 4.6.36 - 2026-11-01
 
 ### Fixed
+- Route executor restoration through the shared broker lifecycle owner; retain cumulative executions and replacement metadata on warm reads and same-status Alpaca partial/cancel polling without replaying startup cash.
+- Verify each evidence-packet date window against its own request, including failed requests.
 - Keep baseline ownership evidence and later updates distinct when describing a reconstructed result.
 - Normalize typed SQL timestamp results to UTC instants while retaining source strings, naive market wall clocks, and configured SQL timezone semantics.
 - Clarify final protective-leg evidence before option package pricing and keep missing provider retrieval timestamps distinct from the agent runtime clock.

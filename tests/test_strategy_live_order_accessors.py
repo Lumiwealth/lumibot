@@ -537,3 +537,22 @@ def test_get_cash_and_portfolio_value_return_none_without_overwriting_cached_val
     assert strategy.get_portfolio_value() is None
     assert strategy.cash == 5000.0
     assert strategy.portfolio_value == 5100.0
+
+
+@pytest.mark.parametrize("status,filled", [("partial_fill", 2), ("canceled", 2), ("fill", 10)])
+def test_executor_startup_uses_broker_cumulative_fills_without_recharging_cash(status, filled):
+    strategy, broker = _strategy()
+    broker._first_iteration = True
+    quote = Asset("USD", asset_type="forex")
+    asset = Asset("SYN", asset_type="crypto")
+    observed = Order(strategy.name, asset, 10, "buy", identifier="startup", quote=quote, avg_fill_price=100)
+    observed.status = status
+    observed.filled_quantity = filled
+    broker.broker_orders = [observed]
+    broker.broker_positions = [Position(strategy.name, asset, filled)]
+    broker.broker_balances = (2000 - filled * 100, {}, 2000)
+    strategy._executor.sync_broker()
+    tracked = broker.get_tracked_order("startup")
+    assert sum(t.quantity for t in tracked.transactions) == filled
+    assert strategy.cash == 2000 - filled * 100
+    assert tracked.status == observed.status

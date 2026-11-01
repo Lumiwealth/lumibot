@@ -43,7 +43,10 @@ claiming it was published. A visible authorization error means it was not publis
    Copy each window from that request's arguments and each effective bound from
    its successful response. For a failed query, label its actual arguments as
    requested, not applied. Never borrow another dataset's dates or collapse
-   different windows into a shared period. Missing metadata stays unknown.
+   different windows into a shared period. Before returning the packet, compare
+   every row's requested dates against that exact tool call, including failed
+   calls: two requests can return the same error with different date windows.
+   Missing metadata stays unknown.
    Only report a provider retrieval/capture timestamp when that successful
    response returns it. If it is absent, say retrieval time was not returned.
    The runtime clock can be labeled separately as the runtime clock; it is

@@ -33,7 +33,7 @@
       "id": "management",
       "title": "Management",
       "status": "active",
-      "interpretation": "Accept expiry and assignment. Consider buying to close after capturing 90 percent of the actual entry premium after costs. Manage residual orders and exposure before another entry.",
+      "interpretation": "Accept expiry and assignment. Persist a favorable review trigger at 90 percent capture of the actual entry premium after costs, even while it is not met; a weekly review alone does not cover that target. The trigger requests a fresh trader decision about buying to close, not an automatic order. Manage residual orders and exposure before another entry.",
       "raw_quote": "Ok please get all this done right now"
     },
     {

@@ -374,10 +374,40 @@ class ProjectX(Broker):
             self.logger.error(f"Error disconnecting: {e}")
 
     # --- Logging dedupe override ---
+    @classmethod
+    def strategy_tag_matches(cls, tag, strategy_name):
+        if super().strategy_tag_matches(tag, strategy_name):
+            return True
+        base = derive_base_tag(str(tag or ''))
+        name, separator, suffix = base.rpartition('-')
+        if not separator:
+            return False
+        if len(suffix) == 32 and all(c in '0123456789abcdef' for c in suffix):
+            return super().strategy_tag_matches(name, strategy_name)
+        # Older tags retained up to eight upper-case characters. Only exact
+        # complete names are identifiable; a truncated shared prefix is ambiguous.
+        return (len(suffix) == 10 and suffix.isdigit() and len(str(strategy_name)) <= 8
+                and name == str(strategy_name).upper())
+
+    def _reconcile_protective_fill(self, order, terminal):
+        order.filled_quantity = sum(float(tx.quantity) for tx in order.transactions)
+        if self._is_bracket_parent(order):
+            self._maybe_spawn_bracket_children(order)
+        if terminal and self._is_bracket_child(order):
+            self._handle_bracket_child_fill(order)
+
+    def _on_filled_order(self, position, order, price, quantity, multiplier):
+        self._reconcile_protective_fill(order, terminal=True)
+        super()._on_filled_order(position, order, price, quantity, multiplier)
+
+    def _on_partially_filled_order(self, position, order, price, quantity, multiplier):
+        self._reconcile_protective_fill(order, terminal=False)
+        super()._on_partially_filled_order(position, order, price, quantity, multiplier)
+
     def _on_new_order(self, order):  # override to suppress duplicates
         if not hasattr(self, '_creation_log_ids'):
             self._creation_log_ids = set()
-        oid = getattr(order, 'identifier', None) or getattr(order, 'id', None) or id(order)
+        oid = str(getattr(order, 'identifier', None) or getattr(order, 'id', None) or id(order))
         if oid not in self._creation_log_ids:
             self._creation_log_ids.add(oid)
             # replicate original log format
@@ -385,6 +415,7 @@ class ProjectX(Broker):
         else:
             # silent or debug-level suppression; keep a trace
             self.logger.debug(f"[dedupe] suppressed duplicate creation log for order {oid}")
+            return
         # Continue normal event dispatch via base behavior (manual copy since not calling super())
         payload = dict(order=order)
         subscriber = self._get_subscriber(order.strategy)
@@ -608,7 +639,7 @@ class ProjectX(Broker):
                                     cached._is_bracket_parent = True
                                 self.logger.debug(f"[BRACKET SPAWN IMMEDIATE] "
                                                   f"parent_id={order.identifier} status={order.status}")
-                                self._maybe_spawn_bracket_children(order)
+                                self._maybe_spawn_bracket_children(cached or order)
                         except Exception as ie:
                             self.logger.error(f"[BRACKET SPAWN IMMEDIATE ERROR] parent_id={order.identifier} err={ie}")
                     except Exception:
@@ -635,9 +666,11 @@ class ProjectX(Broker):
                     else:
                         self._unprocessed_orders.append(order)
 
-                    # Step 5: Process the NEW_ORDER event (moves from unprocessed to new)
+                    # An execution may have reached the canonical tracked order
+                    # before the REST acknowledgement. Do not reopen it.
                     try:
-                        self._process_trade_event(order, self.NEW_ORDER)
+                        if not existing_order or str(existing_order.status).lower() in {'unprocessed', 'submitted'}:
+                            self._process_trade_event(order, self.NEW_ORDER)
                         self.logger.debug(f"Order submitted successfully with ID: {order.identifier} - NEW_ORDER event dispatched")
                     except Exception as e:
                         self.logger.error(f"Error dispatching NEW_ORDER event for {order.identifier}: {e}")
@@ -1108,17 +1141,15 @@ class ProjectX(Broker):
             if not getattr(order, 'strategy', None):
                 # 1. Tag prefix heuristic (tag generated like STRATNAME-XXXXXXXX)
                 if order.tag and hasattr(self, '_subscribers') and self._subscribers:
-                    tag_prefix = order.tag.split('-')[0].upper()
                     try:
-                        for sub in self._subscribers:
-                            sub_name = getattr(sub, 'name', '') or str(sub)
-                            if sub_name.upper().startswith(tag_prefix):
-                                order.strategy = sub_name
-                                break
+                        owners = [getattr(sub, 'name', '') or str(sub) for sub in self._subscribers]
+                        owners = [name for name in owners if self.strategy_tag_matches(order.tag, name)]
+                        if len(owners) == 1:
+                            order.strategy = owners[0]
                     except Exception:
                         pass
                 # 2. Single subscriber shortcut
-                if not getattr(order, 'strategy', None) and hasattr(self, '_subscribers') and len(self._subscribers) == 1:
+                if not order.tag and not getattr(order, 'strategy', None) and hasattr(self, '_subscribers') and len(self._subscribers) == 1:
                     only_sub = self._subscribers[0]
                     order.strategy = getattr(only_sub, 'name', '') or str(only_sub)
                 # 3. Fallback to cached order even if strategy empty string above
@@ -1326,10 +1357,6 @@ class ProjectX(Broker):
                     self.logger.warning(f"Invalid or incomplete execution data for order {new_order.identifier}")
                     return
                 cached_order.filled_quantity = total
-                if self._is_bracket_parent(cached_order):
-                    self._maybe_spawn_bracket_children(cached_order)
-                if self._is_bracket_child(cached_order) and event == self.FILLED_ORDER:
-                    self._handle_bracket_child_fill(cached_order)
                 if previous_status in {"canceled", "error"} and event == self.PARTIALLY_FILLED_ORDER:
                     cached_order.status = previous_status
         if status in {"fill", "filled", "partial_fill", "new", "open"}:

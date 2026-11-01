@@ -586,6 +586,12 @@ class TestProjectXApiClient:
             
             assert isinstance(df, pd.DataFrame)
 
+    def test_get_streaming_client_without_optional_dependency(self, mock_api_client, monkeypatch):
+        # Exercise missing-dependency compatibility even when the SDK is installed.
+        monkeypatch.setattr("lumibot.tools.projectx_helpers.SIGNALR_AVAILABLE", False)
+        with pytest.raises(ImportError, match="signalrcore library is required"):
+            mock_api_client.get_streaming_client(12345)
+
     def test_get_streaming_client(self, mock_api_client):
         """Test streaming client creation"""
         

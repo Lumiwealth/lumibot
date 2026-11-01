@@ -102,6 +102,57 @@ def projectx_broker():
 def mes_asset():
     return Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
 
+
+def test_duplicate_acknowledgement_and_stream_new_notify_strategy_once(projectx_broker, mes_asset):
+    subscriber = Mock()
+    projectx_broker._get_subscriber = Mock(return_value=subscriber)
+    order = Order(strategy="Strat", asset=mes_asset, quantity=1, side="buy", identifier="100001")
+    projectx_broker._on_new_order(order)
+    projectx_broker._on_new_order(order)
+    subscriber.add_event.assert_called_once_with(subscriber.NEW_ORDER, {"order": order})
+
+
+def test_generated_tags_preserve_exact_long_strategy_ownership(projectx_broker, mes_asset):
+    from lumibot.tools.projectx_helpers import build_unique_order_tag, normalize_bracket_entry_tag
+    name = "SyntheticLifecycleStrategy"
+    order = Order(strategy=name, asset=mes_asset, quantity=1, side="buy")
+    tag = build_unique_order_tag(order)
+    bracket_tag, _ = normalize_bracket_entry_tag(tag)
+    for candidate in (tag, bracket_tag):
+        assert projectx_broker.strategy_tag_matches(candidate, name)
+        assert not projectx_broker.strategy_tag_matches(candidate, "SyntheticLifecycleDifferent")
+
+
+def test_generated_tag_delivers_fill_to_its_own_strategy(projectx_broker, mes_asset):
+    from lumibot.tools.projectx_helpers import build_unique_order_tag
+    name = "SyntheticLifecycleStrategy"
+    subscriber = Mock(name=name)
+    subscriber.name = name
+    projectx_broker._subscribers = [subscriber]
+    order = Order(strategy=name, asset=mes_asset, quantity=1, side="buy")
+    build_unique_order_tag(order)
+    projectx_broker._on_filled_order(Mock(), order, 5000, 1, 5)
+    assert subscriber.add_event.call_count == 1
+
+
+def test_executor_uses_broker_ownership_for_unique_order_tags(projectx_broker, mes_asset):
+    from types import SimpleNamespace
+    from lumibot.strategies.strategy_executor import StrategyExecutor
+    from lumibot.tools.projectx_helpers import build_unique_order_tag
+    name = "SyntheticLifecycleStrategy"
+    callback = Mock()
+    executor = object.__new__(StrategyExecutor)
+    executor.stop_event = threading.Event()
+    executor.strategy = SimpleNamespace(name=name, on_partially_filled_order=callback)
+    executor.broker = projectx_broker
+    order = Order(strategy=name, asset=mes_asset, quantity=2, side='buy')
+    build_unique_order_tag(order)
+    executor._on_partially_filled_order(None, order, 5000, 1, 5)
+    callback.assert_called_once()
+    executor.strategy.name = 'SyntheticLifecycleDifferent'
+    executor._on_partially_filled_order(None, order, 5000, 1, 5)
+    callback.assert_called_once()
+
 def test_submit_and_cancel(projectx_broker, mes_asset, caplog):
     """Test basic order submission and cancellation"""
     order = Order(asset=mes_asset, quantity=1, order_type="limit", side="buy", limit_price=5000.0, strategy="Strat")

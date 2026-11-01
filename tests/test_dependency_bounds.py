@@ -47,3 +47,18 @@ def test_litellm_and_mcp_requirements_share_the_supported_sdk_generation():
         assert "1.105.0" in dependencies["litellm"].specifier
         assert "1.106.0" not in dependencies["litellm"].specifier
         assert "1.30.0" in dependencies["mcp"].specifier
+
+
+def test_projectx_streaming_dependency_matches_wheel_and_source_installs():
+    declared = []
+    for values in [_install_requires_from_setup_py(), (ROOT / "requirements.txt").read_text().splitlines()]:
+        dependencies = {
+            req.name: req
+            for value in values
+            if value.strip() and not value.lstrip().startswith("#")
+            for req in [Requirement(value.split("#", 1)[0].strip())]
+        }
+        declared.append(dependencies["signalrcore"].specifier)
+    assert declared[0] == declared[1]
+    assert "1.0.2" in declared[0]
+    assert "2.0.0" not in declared[0]

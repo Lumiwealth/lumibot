@@ -692,12 +692,16 @@ Every skipped agent call is counted and reported in three places:
 Skipped iteration result shape
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-When the safety net returns a graceful skip, the ``AgentRunResult`` includes:
+When the safety net returns an incomplete decision, the ``AgentRunResult`` includes:
 
-- ``summary`` starting with ``"RESULT: Skipped this iteration. Agent call failed (category=...)"``
+- ``summary`` starting with ``"RESULT: Agent decision incomplete. Agent call failed (category=...)"``
 - a text event with payload ``{"runtime_error": True, "error_category": "...", "error_class": "...", "error_message": "...", "traceback": "..."}``
 - a warning in ``result.warnings`` with ``kind="agent_runtime_failure_skipped"`` and the category
-- ``cache_key = None`` (failures are never cached — next iteration retries fresh)
+- observed tool events and usage, plus an execution outcome describing broker certainty and retryability
+- ``cache_key = None`` because failures are never cached
+
+Inspect the execution outcome before further action. An uncached result does
+not authorize replaying orders; unknown effects require reconciliation.
 
 Strategy authors can count skipped iterations with ``len([w for w in result.warnings if w.get("kind") == "agent_runtime_failure_skipped"])`` for post-run analysis.
 

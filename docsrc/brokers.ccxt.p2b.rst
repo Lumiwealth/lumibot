@@ -89,7 +89,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "p2b",
        "apiKey": os.environ.get("P2B_API_KEY"),
        "secret": os.environ.get("P2B_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -205,7 +205,7 @@ What you can trade on p2b
    * - Options
      - No
 
-CCXT lists these order features for p2b: limit orders, editing open orders, canceling orders.
+CCXT lists these order features for p2b: editing open orders, canceling orders.
 
 Fees and partner IDs on p2b
 ---------------------------
@@ -270,4 +270,4 @@ Sources
 * `P2B API documentation (GitHub, official P2B team) <https://github.com/P2B-team/p2b-api-docs/blob/master/api-doc.md>`_ (read 2026-10-23)
 * `P2B blog: How to Register on a Cryptocurrency Exchange? <https://p2pb2b.com/blog/how-to-register-on-a-cryptocurrency-exchange/>`_ (read 2026-10-23)
 * `P2B home page <https://p2pb2b.com/>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

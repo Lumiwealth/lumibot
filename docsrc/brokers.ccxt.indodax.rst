@@ -89,7 +89,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "indodax",
        "apiKey": os.environ.get("INDODAX_API_KEY"),
        "secret": os.environ.get("INDODAX_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -107,7 +107,7 @@ INDODAX has no sandbox, and CCXT lists no test URL for it, so test with a very s
 Algorithmic trading example: a simple INDODAX bot
 -------------------------------------------------
 
-This bot buys about 800000 IDR of BTC on INDODAX once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount.
+This bot buys about 800000 IDR of BTC on INDODAX once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. INDODAX accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -129,7 +129,8 @@ This bot buys about 800000 IDR of BTC on INDODAX once and then holds it. It is a
            price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
                quantity = round(800000 / price, 6)  # about 800000 IDR worth
-               order = self.create_order(coin, quantity, "buy", quote=self.quote_asset)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
@@ -204,7 +205,7 @@ What you can trade on INDODAX
    * - Options
      - No
 
-CCXT lists these order features for INDODAX: market orders, limit orders, editing open orders, canceling orders.
+CCXT lists these order features for INDODAX: editing open orders, canceling orders.
 
 Fees and partner IDs on INDODAX
 -------------------------------
@@ -270,4 +271,4 @@ Sources
 * `INDODAX Help Center: Is the Trade API feature available on the Indodax App? <https://help.indodax.com/hc/en-us/articles/40132563821977-Is-the-Trade-API-feature-available-on-the-Indodax-App>`_ (read 2026-10-23)
 * `INDODAX Help Center: What needs to be considered in the Trade API activation process? <https://help.indodax.com/hc/en-us/articles/40133819047065-What-needs-to-be-considered-in-the-Trade-API-activation-process>`_ (read 2026-10-23)
 * `INDODAX official API docs: Private REST API <https://github.com/btcid/indodax-official-api-docs/blob/master/Private-RestAPI.md>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

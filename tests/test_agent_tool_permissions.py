@@ -18,7 +18,7 @@ PRIVATE_TOOL_PURPOSE = (
 
 
 @pytest.mark.parametrize(
-    "name", ["orders_submit_order", "orders_submit_multileg", "orders_cancel_order", "orders_modify_order"]
+    "name", ["orders_submit_order", "orders_submit_orders", "orders_submit_multileg", "orders_cancel_order", "orders_modify_order"]
 )
 def test_public_order_descriptions_keep_account_relative_sizing_private(name):
     # Actual rc3 stock rep4 supplied a portfolio-relative cap in public_reason;

@@ -127,7 +127,9 @@ class Position:
 
     @quantity.setter
     def quantity(self, value):
-        self._quantity = Decimal(value)
+        # Match Order.quantity: a broker float represents its decimal units,
+        # rather than the float's full binary expansion.
+        self._quantity = Decimal(str(value)) if isinstance(value, float) else Decimal(value)
         self._quantity_float = float(self._quantity)
 
     @property
@@ -208,7 +210,7 @@ class Position:
         return order
 
     def add_order(self, order: entities.Order, quantity: Decimal = Decimal(0)):
-        qty = Decimal(quantity)
+        qty = Decimal(str(quantity)) if isinstance(quantity, float) else Decimal(quantity)
 
         if order.is_buy_order():
             increment = qty

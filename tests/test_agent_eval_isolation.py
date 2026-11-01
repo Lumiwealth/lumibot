@@ -161,3 +161,15 @@ def test_boundary_lets_an_in_memory_fixture_website_answer_but_not_the_real_web(
         assert fake_site.request("GET", "https://filings.example.gov/2026FD.zip")["text"] == "index"
         with pytest.raises(RuntimeError, match="external boundary"):
             real_web.request("GET", "https://filings.example.gov/2026FD.zip")
+
+
+def test_fixture_search_uses_empty_external_response_without_optional_backend(monkeypatch):
+    from lumibot.components.agents import builtins
+
+    def unavailable():
+        raise RuntimeError("Optional external search backend is not installed")
+    monkeypatch.setattr(builtins, "_web_search_backend", unavailable)
+    with fixture_network_boundary():
+        result = builtins._run_web_search(query="site:notes.example.net widget demand")
+    assert result == {"query": "site:notes.example.net widget demand", "region": "wt-wt", "count": 0, "results": []}
+    assert builtins._web_search_backend is unavailable

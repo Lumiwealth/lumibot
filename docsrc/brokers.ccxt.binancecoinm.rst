@@ -111,7 +111,7 @@ CCXT sends sandbox requests to: https://testnet.binancefuture.com/dapi/v1, https
 Algorithmic trading example: a simple Binance COIN-M bot
 --------------------------------------------------------
 
-CCXT lists no spot market for Binance COIN-M, so this example trades a perpetual contract. It opens one small long BTC position worth about 100 USD and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. If your account uses hedge mode, add ``position_side="long"`` to ``create_order``.
+CCXT lists no spot market for Binance COIN-M, so this example trades a perpetual contract. It opens one small long BTC position worth about 100 USD and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. If your account uses hedge mode, add ``position_side="long"`` to ``create_order``. Binance COIN-M accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -135,7 +135,8 @@ CCXT lists no spot market for Binance COIN-M, so this example trades a perpetual
            if price:
                # Inverse contract: each contract is worth contract.multiplier USD.
                quantity = max(1, round(100 / contract.multiplier))
-               order = self.create_order(contract, quantity, "buy")
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(contract, quantity, "buy", limit_price=price * 1.002)
                self.submit_order(order)
 
 
@@ -210,7 +211,7 @@ What you can trade on Binance COIN-M
    * - Options
      - Not listed by CCXT
 
-CCXT lists these order features for Binance COIN-M: market orders, limit orders, stop orders, stop-loss orders, take-profit orders, reduce-only orders, editing open orders, canceling orders.
+CCXT lists these order features for Binance COIN-M: stop orders, stop-loss orders, take-profit orders, reduce-only orders, editing open orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USD:BTC``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
 
@@ -269,7 +270,7 @@ Related guides
 * :doc:`Binance USDⓈ-M trading bot <brokers.ccxt.binanceusdm>`
 * :doc:`Kraken Futures trading bot <brokers.ccxt.krakenfutures>`
 * :doc:`KuCoin Futures trading bot <brokers.ccxt.kucoinfutures>`
-* :doc:`AftermathFinance trading bot <brokers.ccxt.aftermath>`
+* :doc:`Apex trading bot <brokers.ccxt.apex>`
 
 Sources
 -------
@@ -277,4 +278,4 @@ Sources
 * `Binance FAQ: How to Create API Keys on Binance? <https://www.binance.com/en/support/faq/detail/360002502072>`_ (read 2026-10-23)
 * `Binance Developer Docs: COIN-M futures general info <https://developers.binance.com/en/docs/products/derivatives-trading-coin-futures/general-info>`_ (read 2026-10-23)
 * `Binance Developer Docs: Derivatives quick start (Futures Testnet and Demo Trading) <https://developers.binance.com/docs/derivatives/quick-start>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

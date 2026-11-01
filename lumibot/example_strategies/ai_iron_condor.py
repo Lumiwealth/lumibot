@@ -9,7 +9,7 @@ from lumibot.strategies import Strategy
 
 
 class AIIronCondorStrategy(Strategy):
-    parameters = {"symbol": "SPY", "model": None}
+    parameters = {"symbol": "SPY", "model": None, "estimated_contract_fee": 0.65}
 
     def initialize(self):
         self.sleeptime = "1M"
@@ -24,7 +24,10 @@ class AIIronCondorStrategy(Strategy):
                 "date matters. Identify calendar approximations when original-vintage availability is "
                 "unknown. Do not seek an exhaustive certification that no event can occur. "
                 "Focus event risks on the intended overnight holding window, through the next session's "
-                "close; a distant event is not an imminent risk. Return a compact dated market/thesis "
+                "close; a distant event is not an imminent risk. Separate a verified scheduled release "
+                "inside that window from general background news and an unavailable calendar. Give the "
+                "trader evidence and uncertainty, not an unconditional safe/unsafe verdict. A mixed news "
+                "day is ordinary, not by itself a reason to remain in cash. Return a compact dated market/thesis "
                 "packet and limitations. Leave account checks, "
                 "contract selection, exact-leg quotes/Greeks and package pricing to the trader; do not "
                 "duplicate that execution checklist. Do not trade."
@@ -40,14 +43,22 @@ class AIIronCondorStrategy(Strategy):
                 "is above 25 or that prior close cannot be obtained. Exact contracts and usable execution "
                 "evidence are also required before submission. An incomplete event calendar is a "
                 "research limitation, not proof of an imminent event or an automatic entry prohibition. "
-                "You may decline a concretely unsuitable "
-                "regime or an imminent event during the holding window. Ordinary mixed headlines alone "
-                "do not establish an unsuitable regime. When the regime permits consideration, compare "
-                "the actual candidate premiums and risk before concluding that no suitable package exists. "
+                "The mandate is routine defined-risk premium collection when the stated risk limits and "
+                "priced range are reasonable, not waiting for an exceptionally strong tactical signal. "
+                "You may decline a verified major scheduled release during the holding window or a "
+                "demonstrated directional breakout/gap risk that makes the candidate's range unsuitable. "
+                "Explain the specific evidence and why the actual strikes/credit do not compensate that risk. "
+                "Ordinary mixed headlines, the researcher's cautious adjective, a missing calendar, or the "
+                "disclosed historical price approximation alone are not independent entry vetoes. "
+                "Unless an explicit hard limit or verified imminent major release blocks entry, compare "
+                "the actual candidate premiums and risk before deciding. Do not invent a new confidence "
+                "certification requirement or demand proof of a profitable future outcome. "
                 "Contract/quote/Greek/pricing details absent from the research packet are your work "
                 "to obtain, not an unmet research prerequisite. "
                 "Use a listed next-trading-day expiration, short put/call near 0.14 absolute delta and "
-                "one-dollar outer protective wings. Maximum package loss must fit 3% of current account value; "
+                "one-dollar outer protective wings. Include the supplied estimated per-contract/per-side fee "
+                "for entry and closing when comparing net credit and maximum loss; the estimate is configurable, "
+                "not a broker fee claim. Maximum package loss including those fees must fit 3% of current account value; "
                 "you choose the integer package count. Submit related legs atomically with a net limit. "
                 "Compare at most three useful packages and obtain exact-leg quotes and Greeks. "
                 "Minute-bar backtests permit the data source's usable last-trade price proxy when "
@@ -85,7 +96,8 @@ class AIIronCondorStrategy(Strategy):
     def on_trading_iteration(self):
         self.agents.attention.poll()
         self.agents.attention.dispatch_team(decision_agent="trader", research_agents=["researcher"],
-            context={"symbol": self.parameters["symbol"]})
+            context={"symbol": self.parameters["symbol"],
+                     "estimated_contract_fee": self.parameters.get("estimated_contract_fee", 0.65)})
 
     def on_strategy_end(self):
         self.agents.attention.join()

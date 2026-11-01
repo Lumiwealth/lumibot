@@ -159,3 +159,57 @@ Can ProjectX supply market data while another broker places trades?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Yes. Set ``DATA_SOURCE=projectx`` to use ProjectX prices with a different trading broker. The :doc:`brokers.tradovate` guide shows this setup, because Tradovate does not supply market data to LumiBot.
+
+
+Data and backtesting
+--------------------
+
+``get_quote`` returns the provider's actual bid, ask and source timestamp. If
+only historical trades are available, bid and ask remain unavailable. A stream
+connection alone does not mean a quote is fresh; inspect its source time.
+
+Use ``ProjectXBacktesting`` with an account's existing history entitlement:
+
+.. code-block:: python
+
+   from datetime import datetime
+   from lumibot.backtesting import ProjectXBacktesting
+   from lumibot.entities import Asset
+
+   # Set the usual PROJECTX_<FIRM> credentials in your environment.
+   MyStrategy.run_backtest(
+       ProjectXBacktesting,
+       datetime(2026, 10, 26),
+       datetime(2026, 10, 30),
+       assets=[Asset("MES", asset_type="cont_future")],
+       benchmark_asset=None,
+   )
+
+The equivalent environment selection is ``BACKTESTING_DATA_SOURCE=projectx``.
+The normal backtest engine simulates fills from actual trade bars; historical
+spreads, queue position and execution certainty are not supplied by those bars.
+Configure trading fees and slippage for the intended account. Data coverage and
+historical contract availability are limited by the provider entitlement.
+
+Continuous futures resolve the provider's current active contract and its
+available history. They are not a point-in-time reconstructed continuous roll
+series. A dated futures asset selects its requested expiration; a missing
+expiration match never silently selects another contract.
+
+Execution and recovery
+----------------------
+
+Always set ``PROJECTX_<FIRM>_PREFERRED_ACCOUNT_NAME`` when the login can access
+multiple accounts. An explicitly configured missing account fails visibly.
+Futures quantities must be positive whole contracts. Price multipliers come
+from the provider's tick value divided by tick size.
+
+Bracket exits with absolute target/stop prices remain synthetic: LumiBot submits
+resting protective orders after confirmed entry executions and cancels the
+sibling after an exit fill. Partial entries protect only their filled quantity;
+accepted exits resize as further entry fills arrive. Restart recovery links
+already accepted exits by their persisted tags and does not place them again.
+Sibling cancellation requires the client to be running; these are not atomic
+server-side OCO orders. A restart cannot reconstruct a protection instruction
+that never reached the provider. Review accepted protective orders before
+leaving an automated strategy unattended.

@@ -1,93 +1,71 @@
-:seo_title: BitMEX Trading Bot in Python: AI Agent and Algorithmic Trading
+:seo_title: BitMEX adapter status in LumiBot
 
-BitMEX Trading Bot in Python
-============================
+BitMEX adapter status
+=====================
 
 .. meta::
-   :description: Build a BitMEX trading bot in Python with LumiBot. Connect your BitMEX API key, use the testnet, and run an algorithmic or AI agent strategy.
+   :description: CCXT removed its BitMEX adapter. Check installed adapter availability and find current LumiBot crypto exchange guides.
 
-Build a BitMEX trading bot in Python with LumiBot, for algorithmic trading or an
-AI agent. LumiBot talks to BitMEX through CCXT, the open source library behind
-its crypto broker. BitMEX is not one of the auto-detected credential paths, so
-use an explicit ``Ccxt`` config and validate exchange-specific behavior
-carefully.
+CCXT removed its ``bitmex`` adapter in its upstream
+`delisting change <https://github.com/ccxt/ccxt/pull/30612>`_.
+Current CCXT installations do not provide this adapter, so this page no longer
+offers connection or trading examples. The page stays at its existing URL for
+users following older links.
 
 .. include:: _snippets/botspot_mcp_callout.rst
-
-Status
-------
-
-* **Live trading path:** explicit ``Ccxt`` config
-* **Credential style:** API key and secret
-* **Backtesting:** documented CCXT backtesting exchange id: ``bitmex``
-* **Asset class:** crypto derivatives exchange; verify product support before live use
-
-Manual Config
--------------
-
-.. code-block:: python
-
-   from lumibot.brokers import Ccxt
-
-   BITMEX_CONFIG = {
-       "exchange_id": "bitmex",
-       "apiKey": "your_api_key",
-       "secret": "your_api_secret",
-       "margin": False,
-       "sandbox": False,
-   }
-
-   broker = Ccxt(BITMEX_CONFIG)
-
-Backtesting
------------
-
-.. code-block:: bash
-
-   export BACKTESTING_DATA_SOURCE=ccxt
-
-Then pass ``exchange_id="bitmex"`` to ``CcxtBacktesting``, as in
-``lumibot/example_strategies/ccxt_backtesting_example.py``. ``bitmex`` itself is
-not a valid ``BACKTESTING_DATA_SOURCE`` value.
-
-BitMEX products can involve leverage, contract multipliers, and derivative
-semantics that differ from spot crypto. Validate the exact asset, quantity,
-margin, and PnL behavior before live trading.
 
 Frequently asked questions
 --------------------------
 
-Can I trade on BitMEX with LumiBot?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Why is the BitMEX setup guide no longer here?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Yes, through LumiBot's shared ``Ccxt`` broker with the exchange ID ``bitmex``. BitMEX is a crypto derivatives exchange, so check that the exact product you want behaves as you expect before you trade with real money.
+CCXT removed the adapter from its distributed package. The preserved CCXT
+4.5.64 metadata describes an older installation. Instructions to install LumiBot and select
+``bitmex`` would no longer work with current CCXT.
 
-How do I connect BitMEX with environment variables?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Can a current CCXT installation connect to BitMEX through LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Set ``TRADING_BROKER=bitmex``, ``BITMEX_API_KEY`` and ``BITMEX_API_SECRET``. BitMEX only needs an API key and secret. LumiBot does not pick BitMEX on its own from the keys alone, so ``TRADING_BROKER`` is required. You can also pass an explicit ``Ccxt`` config, as shown in `Manual Config`_ above.
+No. LumiBot's shared crypto broker needs an adapter supplied by the installed
+CCXT package. The upstream removal does not establish whether BitMEX's own
+services remain available; it means this CCXT connection is no longer provided.
 
-Where do I create a BitMEX API key?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Does this documentation change disable an older installed adapter?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Create it in your BitMEX account settings. The `BitMEX API overview <https://www.bitmex.com/app/apiOverview>`__ explains how the API and its keys work.
+No. LumiBot still discovers the adapters in the installed CCXT package and has
+no exchange allowlist. An older installation that includes ``bitmex`` keeps
+that runtime path. Adapter presence alone does not verify that the exchange's
+current API accepts its requests.
 
-Can I test on the BitMEX testnet first?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The `earlier guide <https://github.com/Lumiwealth/lumibot/blob/71c21d231ee9a64170458b087a8076a24ead95f1/docsrc/brokers.ccxt.bitmex.rst>`_
+remains available as historical documentation for those installations.
 
-Yes. Set ``BITMEX_SANDBOX=true``, or use ``"sandbox": True`` in an explicit config, and LumiBot connects to the `BitMEX testnet <https://testnet.bitmex.com/>`__. Testnet keys are separate from live keys, so create them on the testnet site.
+How do I check which adapters my installation provides?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-How do I backtest a strategy with BitMEX data?
+This reads installed package metadata without connecting to an exchange:
+
+.. code-block:: python
+
+   import ccxt
+
+   print(ccxt.__version__)
+   print("bitmex" in ccxt.exchanges)
+   print(ccxt.exchanges)
+
+Where can I find other crypto exchange guides?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Run your backtest with ``CcxtBacktesting`` and pass ``exchange_id="bitmex"``. The ``ccxt_backtesting_example.py`` strategy in ``lumibot/example_strategies`` shows how. Backtesting perpetual contracts with margin, funding and liquidation is not finished yet, so treat derivative backtests with care.
+See :doc:`brokers.crypto` for exchange guides and :doc:`brokers.ccxt` for the
+shared broker configuration. Each guide describes its exchange's credentials
+and supported market types.
 
-How do I trade a BitMEX perpetual contract?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Sources
+-------
 
-Use the full CCXT symbol, which includes the settlement currency after the colon (the ``BASE/QUOTE:SETTLE`` form). Look up the exact symbol in CCXT's BitMEX market list before you trade. Contract quantities are CCXT contract units, and the contract size comes from the exchange. See the perpetual contracts section of :doc:`brokers.ccxt` for leverage, margin mode and long and short legs.
-
-Is the BitMEX path fully tested in LumiBot?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-No. BitMEX is available through CCXT and has documented examples, but it has not been exchange tested for live trading by LumiBot. Start with very small orders and check balances, fills, positions and cancels yourself.
+* `CCXT BitMEX delisting change <https://github.com/ccxt/ccxt/pull/30612>`_
+  (reviewed 2026-11-01).
+* The `CCXT 4.5.64 facts snapshot <https://github.com/Lumiwealth/lumibot/blob/71c21d231ee9a64170458b087a8076a24ead95f1/docsrc/_data/ccxt_exchange_facts.json>`_
+  was generated 2026-10-23. It is historical metadata, not a current availability claim.

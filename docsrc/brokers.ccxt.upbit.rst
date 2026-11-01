@@ -91,7 +91,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "upbit",
        "apiKey": os.environ.get("UPBIT_API_KEY"),
        "secret": os.environ.get("UPBIT_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -206,7 +206,7 @@ What you can trade on Upbit
    * - Options
      - No
 
-CCXT lists these order features for Upbit: market orders, limit orders, editing open orders, canceling orders.
+CCXT lists these order features for Upbit: market orders, editing open orders, canceling orders.
 
 Fees and partner IDs on Upbit
 -----------------------------
@@ -273,4 +273,4 @@ Sources
 * `Upbit Global Developer Center: Issue an API Key <https://global-docs.upbit.com/docs/api-key>`_ (read 2026-10-23)
 * `Upbit Global Developer Center: Authentication (API key permission groups) <https://global-docs.upbit.com/reference/auth>`_ (read 2026-10-23)
 * `Upbit Global Developer Center: REST API Usage and Error Guide (regional endpoints) <https://global-docs.upbit.com/reference/rest-api-guide>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

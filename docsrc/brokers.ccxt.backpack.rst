@@ -28,7 +28,7 @@ Backpack at a glance
    * - Credentials
      - API key, API secret
    * - Live data streams
-     - prices, order book, trades, candles, your orders, your positions
+     - prices, order book, trades, candles, your orders, your balance, your positions
    * - CCXT request spacing
      - about 50 ms between requests
    * - Official site
@@ -89,7 +89,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "backpack",
        "apiKey": os.environ.get("BACKPACK_API_KEY"),
        "secret": os.environ.get("BACKPACK_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -297,9 +297,9 @@ Related guides
 * :doc:`How crypto exchange setup works <brokers.ccxt>`
 * :doc:`AI agents quickstart <agents_quickstart>`
 * :doc:`Bitfinex trading bot <brokers.ccxt.bitfinex>`
-* :doc:`BitMart trading bot <brokers.ccxt.bitmart>`
-* :doc:`CoinEx trading bot <brokers.ccxt.coinex>`
+* :doc:`Bitget trading bot <brokers.ccxt.bitget>`
 * :doc:`DigiFinex trading bot <brokers.ccxt.digifinex>`
+* :doc:`FMFW.io trading bot <brokers.ccxt.fmfwio>`
 
 Sources
 -------
@@ -309,4 +309,4 @@ Sources
 * `Backpack Exchange API docs <https://docs.backpack.exchange/>`_ (read 2026-10-23)
 * `Backpack Help Center: create a new account FAQs <https://support.backpack.exchange/exchange/exchange-account/create-a-new-account/faqs>`_ (read 2026-10-23)
 * `Backpack home page <https://backpack.exchange/>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

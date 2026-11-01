@@ -90,7 +90,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "bequant",
        "apiKey": os.environ.get("BEQUANT_API_KEY"),
        "secret": os.environ.get("BEQUANT_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -108,7 +108,7 @@ Bequant's own API docs and help center describe no sandbox or demo site. CCXT's 
 Algorithmic trading example: a simple Bequant bot
 -------------------------------------------------
 
-This bot buys about 50 USDT of BTC on Bequant once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount.
+This bot buys about 50 USDT of BTC on Bequant once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. Bequant accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -130,7 +130,8 @@ This bot buys about 50 USDT of BTC on Bequant once and then holds it. It is a st
            price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
                quantity = round(50 / price, 6)  # about 50 USDT worth
-               order = self.create_order(coin, quantity, "buy", quote=self.quote_asset)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
@@ -205,7 +206,7 @@ What you can trade on Bequant
    * - Options
      - Not listed by CCXT
 
-CCXT lists these order features for Bequant: market orders, limit orders, stop orders, reduce-only orders, editing open orders, canceling orders.
+CCXT lists these order features for Bequant: stop orders, reduce-only orders, editing open orders, canceling orders.
 
 Fees and partner IDs on Bequant
 -------------------------------
@@ -272,4 +273,4 @@ Sources
 * `Bequant Help Center: How to protect your account from intruders <https://support.bequant.io/en/articles/6435936-how-to-protect-your-account-from-intruders>`_ (read 2026-10-23)
 * `Bequant Help Center: How to create Sub-Account? <https://support.bequant.io/en/articles/6436216-how-to-create-sub-account>`_ (read 2026-10-23)
 * `Bequant Global home page <https://bequant.io/>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

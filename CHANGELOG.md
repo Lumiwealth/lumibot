@@ -11,6 +11,7 @@
 - Native same-chain ERC20-output swap code verifies bounded approvals and actual receipts. HIP3 writes, native-output swaps and unsupported fee/delegation variants remain explicit holds. Native funded swap qualification remains pending; previous JavaScript receipts do not qualify this replacement.
 
 ### Fixed
+- Refresh exchange documentation from CCXT 4.5.91, including current market capabilities, contract examples and WEEX futures-only simulation. Retire the removed Aftermath, BitMart, BitMEX and CoinEx setup guides while preserving their URLs, historical guides and older installed-adapter behavior.
 - Keep Polygon daily research history and minute execution data in independent interval-aware entries. Repeated history/price reads reuse loaded data without replacing daily bars or downloading minute history for a daily request. Memory limits count each dataset once and retire every alias when it is evicted.
 
 ## 4.6.37 - 2026-11-01

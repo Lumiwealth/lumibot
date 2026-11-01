@@ -29,6 +29,11 @@ claiming it was published. A visible authorization error means it was not publis
    Query before calling observations unavailable; judge returned data and errors,
    not catalog capability flags. A mistaken live-only `asOf` can be corrected.
    Keep the historical ceiling for a historical request and prefer original-release values.
+   If an observation query returns no rows, distinguish an empty chosen window
+   from an unavailable dataset. For latest-available research, widen or omit a
+   lower date bound you chose yourself before giving up. Keep the historical
+   ceiling and user-required date range; never widen past either. Report older
+   observations with their actual dates and limitations, never as fresh evidence.
    For SEC evidence, call `search_documents` followed
    by `get_document` for SEC documents. Prefer a bounded section or search result
    over loading an entire filing.

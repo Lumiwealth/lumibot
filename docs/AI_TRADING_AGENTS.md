@@ -43,6 +43,10 @@ Custom tools that submit, change or cancel orders must declare `@agent_tool(muta
 
 Report purchase cost from confirmed fill quantities, execution prices and fees. Current portfolio equity uses position marks, which can differ from those execution prices. Calculate comparisons with a tool; otherwise report returned cash and equity without inventing a gain or loss explanation.
 
+Failure summaries start with `RESULT: Agent decision incomplete.` Observed events and an execution outcome remain available. An uncached failure is not permission to replay an order; inspect retryability and reconcile unknown broker effects first.
+
+For latest-available research, an empty observation window calls for widening or omitting a self-chosen lower date bound before declaring the dataset unavailable. Preserve the historical ceiling and any user-required date range. Older observations remain older evidence with disclosed limitations.
+
 ---
 
 ## Why LumiBot Is Different

@@ -36,6 +36,13 @@ lookup, not a safe way to inspect metadata; use the discovery metadata already
 returned to explain the exclusion. Apply this check to supplements as well as
 the main index.
 
+After filtering a discovery table, replace its preview with the returned
+eligible rows as your read worklist. Read each selected row once with its own
+URL, timestamp and hash; do not append adjacent rows from the earlier preview.
+If a supplement query returns one eligible row, that authorizes one row's
+linked documents, not every document visible in the unfiltered supplement.
+Find additional eligible rows with another query before extending the list.
+
 Use the simulated datetime from the runtime, not today's date. Find a relevant
 baseline and available updates, read their contents, and provide the best
 supported reconstruction. An exhaustive index or original-version archive is

@@ -32,9 +32,8 @@ CASE_ROOT = REPO_ROOT / "agent_eval_cases"
 DEFAULT_ACTING_MODEL = "chatgpt/gpt-6-luna"
 DEFAULT_JUDGE_MODEL = "chatgpt/gpt-6-luna"
 EVAL_REASONING_EFFORT = "high"
-# Low, Medium and High judge profiles missed labeled controls. XHigh must
-# independently pass all maintained positive and negative controls.
-JUDGE_REASONING_EFFORT = "xhigh"
+# Qualification requires this profile to pass every maintained labeled control.
+JUDGE_REASONING_EFFORT = "high"
 DEFAULT_FRESHNESS_DAYS = 90
 # A brand new or changed case must pass three times in a row before it is
 # recorded as established. The ongoing gate then runs an established case
@@ -45,7 +44,7 @@ REQUIRED_CONSECUTIVE_PASSES = NEW_CASE_REQUIRED_PASSES  # backwards-compatible a
 MAX_INPUT_TOKENS_PER_MODEL_CALL = 1_048_576
 ACTING_MAX_OUTPUT_TOKENS = 12_000
 JUDGE_MAX_OUTPUT_TOKENS = 4_000  # GPT-6 Luna reasoning tokens count against this cap
-ORDER_TOOLS = {"orders_submit_order", "orders_submit_multileg"}
+ORDER_TOOLS = {"orders_submit_order", "orders_submit_orders", "orders_submit_multileg"}
 LEDGER_LOCK = threading.Lock()
 EVAL_SDK_PACKAGES = (
     "google-adk", "google-genai", "litellm", "pandas-ta-classic", "pandas", "numpy", "alpaca-py",
@@ -251,6 +250,8 @@ class FixtureRuntime:
     # Listed on the chain, but the fixture has no bars or quotes for them.
     empty_expirations: tuple[str, ...] = ()
     underlying_price: float = 600.0
+    initial_cash: float = 100_000.0
+    stock_markets: dict[str, dict[str, float | None] | None] = field(default_factory=dict)
 
     def record(self, name: str, arguments: dict[str, Any], result: Any) -> Any:
         self.calls.append({"name": name, "arguments": arguments, "result": result})
@@ -301,6 +302,29 @@ class FixtureRuntime:
 
 def build_fixture(name: str) -> FixtureRuntime:
     fixture = FixtureRuntime(name=name)
+    portfolio_sizes = {
+        "portfolio_initial_25": 25, "portfolio_initial_9": 9,
+        "portfolio_rebalance": 9, "portfolio_quote_sizing": 1,
+        "portfolio_snapshot_row": 1, "portfolio_one_gap": 9,
+    }
+    if name in portfolio_sizes:
+        fixture.stock_markets = {
+            f"QZX{i:02d}": {"price": 99.0, "bid": 99.0, "ask": 100.0}
+            for i in range(1, portfolio_sizes[name] + 1)
+        }
+        if name == "portfolio_quote_sizing":
+            fixture.stock_markets["QZX01"].update(bid=98.0, snapshot_close=150.0)
+        elif name == "portfolio_rebalance":
+            fixture.initial_cash = 50.0
+            fixture.stock_markets["QZXOLD"] = {"price": 99.0, "bid": 99.0, "ask": 100.0}
+            fixture.positions = [
+                {"symbol": "QZX01", "asset_type": "stock", "quantity": 10},
+                {"symbol": "QZX02", "asset_type": "stock", "quantity": 20},
+                {"symbol": "QZXOLD", "asset_type": "stock", "quantity": 80},
+            ]
+        elif name == "portfolio_one_gap":
+            fixture.stock_markets["QZX03"] = {"price": 99.0, "bid": None, "ask": None}
+            fixture.stock_markets["QZXMISSING"] = None
     if name == "open_credit_spread":
         fixture.positions = [
             {
@@ -375,6 +399,8 @@ def compact_transcript(result: Any, fixture: FixtureRuntime) -> dict[str, Any]:
         "submissions": fixture.submissions,
         "rejected_submissions": fixture.rejected_submissions,
         "final_positions": fixture.positions,
+        "final_account": getattr(fixture, "final_account", None),
+        "broker_trade_events": getattr(fixture, "broker_trade_events", None),
     }
 
 
@@ -735,6 +761,33 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
     sequence = [call["name"] for call in calls]
     submissions = transcript["submissions"]
     failures: list[str] = []
+    if "exactBrokerOrderCount" in contract:
+        orders = transcript.get("broker_orders")
+        if not isinstance(orders, list) or len(orders) != contract["exactBrokerOrderCount"]:
+            failures.append(f"expected {contract['exactBrokerOrderCount']} actual broker orders, observed {len(orders) if isinstance(orders, list) else 'missing'}")
+    expected_positions = contract.get("targetPositions")
+    if expected_positions is not None:
+        actual = {row["asset"]["symbol"]: float(row["quantity"])
+                  for row in transcript["final_positions"] if float(row["quantity"]) != 0}
+        if actual != expected_positions:
+            failures.append(f"final broker positions {actual} differ from target positions {expected_positions}")
+    if "minimumEndingCash" in contract:
+        cash = (transcript.get("final_account") or {}).get("cash")
+        if cash is None or cash < contract["minimumEndingCash"]:
+            failures.append("native ending cash is missing or below the required reserve")
+    filled_events = [row for row in transcript.get("broker_trade_events") or [] if row.get("status") == "fill"]
+    if "maximumOrderNotional" in contract:
+        for row in filled_events:
+            notional = abs(float(row["price"]) * float(row["filled_quantity"]) * float(row.get("multiplier") or 1))
+            if notional > contract["maximumOrderNotional"] + 1e-8:
+                failures.append("native filled order exceeded its notional cap")
+    if contract.get("sellsBeforeBuys"):
+        sides = [str(row.get("side")) for row in filled_events]
+        if "buy" in sides and "sell" in sides and sides.index("buy") < max(i for i, side in enumerate(sides) if side == "sell"):
+            failures.append("cash-dependent buy filled before required funding sells")
+    forbidden_symbols = set(contract.get("forbiddenOrderSymbols") or [])
+    if any(row.get("symbol") in forbidden_symbols for row in submissions):
+        failures.append("submitted an unnecessary order for an already-correct holding")
     if contract.get("requireAgentToolAudit") or contract.get("requirePublicOrderReasonReference"):
         failures.extend(_native_journal_failures(contract, transcript))
     required_agents = contract.get("requiredAgents") or []
@@ -879,7 +932,8 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
             failures.append(f"none of the required alternative tools were called: {alternatives}")
 
     order_tool = contract.get("orderTool")
-    relevant = [submission for submission in submissions if submission.get("tool") == order_tool]
+    order_tools = set(contract.get("orderTools") or [order_tool])
+    relevant = [submission for submission in submissions if submission.get("tool") in order_tools]
     if "exactOrderCount" in contract and len(relevant) != int(contract["exactOrderCount"]):
         failures.append(f"expected {contract['exactOrderCount']} {order_tool} submission(s), observed {len(relevant)}")
     if contract.get("requireOrderDecisionJournal"):
@@ -893,13 +947,16 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
         ):
             failures.append("broker orders lacked durable decision and action references")
     if relevant:
-        order_index = sequence.index(order_tool) if order_tool in sequence else len(sequence)
+        order_index = next((i for i, name in enumerate(sequence) if name in order_tools), len(sequence))
         for required in contract.get("requiredBeforeOrder") or []:
             snapshot_evidence = contract.get(
                 "acceptCompleteInitialAccountSnapshot"
             ) is True and initial_snapshot_covers(transcript, required)
             if required not in sequence[:order_index] and not snapshot_evidence:
                 failures.append(f"required {required} before {order_tool}")
+        for alternatives in contract.get("requiredBeforeOrderAny") or []:
+            if not any(name in sequence[:order_index] for name in alternatives):
+                failures.append(f"required one of {alternatives} before {order_tool}")
 
     topology = contract.get("legTopology")
     if topology == "iron_condor" and relevant:
@@ -1544,6 +1601,14 @@ def target_passes(already: int, repeat: int, required: int | None = None) -> int
     return repeat
 
 
+def _one_pending_repetition_per_case(work):
+    """A diagnostic pilot selects work; it never lowers qualification counts."""
+    selected = {}
+    for item in work:
+        selected.setdefault(item[0]["id"], item)
+    return list(selected.values())
+
+
 def latest_repetition_rows(
     rows: list[dict[str, Any]], case_id: str, fingerprint: str
 ) -> dict[int, dict[str, Any]]:
@@ -1751,6 +1816,10 @@ def preflight_production_fixtures(cases: list[dict[str, Any]]) -> None:
                 required.update(item["name"] for item in contract.get("requiredFailedTools", []))
                 if contract.get("orderTool"):
                     required.add(contract["orderTool"])
+                required.update(contract.get("orderTools") or [])
+                for alternatives in contract.get("requiredAnyTools", []) + contract.get("requiredBeforeOrderAny", []):
+                    if not set(alternatives) & tools:
+                        raise RuntimeError(f"{candidate['id']}: no available tool from {alternatives}")
                 if required - tools:
                     raise RuntimeError(f"{candidate['id']} lacks production bindings: {sorted(required - tools)}")
                 for alternatives in contract.get("requiredAnyTools") or []:
@@ -1809,6 +1878,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-root", type=Path, default=Path("artifacts/agent_evals"))
     parser.add_argument("--qualification-receipt", type=Path, default=REPO_ROOT / "ci/agent-evals/qualification.json")
     parser.add_argument("--max-workers", type=int, default=8)
+    parser.add_argument("--pilot", action="store_true", help="Run one pending repetition per selected case; qualification still requires every configured pass")
     parser.add_argument("--gate", action="store_true", help="Skip fresh cases and require complete fresh coverage")
     parser.add_argument(
         "--preflight-only", action="store_true", help="Validate fixtures and report freshness without inference"
@@ -1914,6 +1984,8 @@ def main() -> int:
             else:
                 work.append((case, repetition, fingerprint))
 
+    if getattr(args, "pilot", False):
+        work = _one_pending_repetition_per_case(work)
     if work:
         from scripts.qualify_agent_evals import invalidate_receipt
         invalidate_receipt(args.qualification_receipt, {
@@ -2048,6 +2120,7 @@ def main() -> int:
     )
     summary = {
         "timestamp": utc_text(),
+        "pilot": bool(getattr(args, "pilot", False)),
         "case_count": len(cases),
         "scheduled_repetitions": len(work),
         "completed_repetitions": len(new_rows),

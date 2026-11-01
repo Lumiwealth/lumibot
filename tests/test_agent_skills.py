@@ -277,7 +277,9 @@ def test_stock_skill_prices_limits_from_current_price_and_loads_rule_bars_with_h
     instructions = " ".join(stock_skill.instructions.split())
     intraday = " ".join(stock_skill.resources.references["intraday-setups.md"].split())
 
-    assert "Price a limit order from the current `market_last_price` result" in instructions
+    # The authorized quote-first workflow supersedes last-price-only sizing;
+    # retain the original protection against using a historical signal close.
+    assert "Price a limit order from the current quote or current last-price fallback" in instructions
     assert "never from a historical bar's close" in instructions
     # The limit-price rule is for a new order. It made agents reprice an
     # already-pending exit (release eval stock_pending_exit_no_duplicate).

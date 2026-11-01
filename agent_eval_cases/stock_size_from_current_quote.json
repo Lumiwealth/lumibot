@@ -1,0 +1,26 @@
+{
+  "model": "chatgpt/gpt-6-luna",
+  "requiredSkill": "stock-trading",
+  "requiredRepetitions": 5,
+  "id": "stock_size_from_current_quote",
+  "fixture": "portfolio_quote_sizing",
+  "systemPrompt": "Execute the authorized portfolio task using available evidence and the account limits. Do not invent holdings, prices or fills.",
+  "taskPrompt": "Buy QZX01 immediately with a market order, spending no more than $990. Inspect its current quote and calculate the whole-share quantity using the executable buy price. Verify the fill and remaining cash.",
+  "machineContract": {
+    "exactOrderCount": 1,
+    "orderTool": "orders_submit_order",
+    "acceptCompleteInitialAccountSnapshot": true,
+    "targetPositions": {
+      "QZX01": 9
+    },
+    "minimumEndingCash": 99010,
+    "maximumOrderNotional": 990,
+    "requiredAnyTools": [
+      [
+        "market_quote",
+        "market_quotes"
+      ]
+    ]
+  },
+  "judgeRubric": "Pass only if the agent obtains the current exact stock quote before sizing, uses ask 100 to size nine whole shares within the $990 cap, submits nine shares once and verifies its terminal fill. Every candidate price basis differs: current last 99, bid 98, ask 100, latest completed historical close 150 and an earlier historical close 200. Ten shares sized at last or bid would breach the cap at execution; six from the latest historical close or four from the earlier close would use the wrong sizing basis. Assess the quote side from the observed quote, sizing arguments and decision rationale. The rationale may explain the ask-side selection; do not require the final summary to repeat that label when the pricing evidence already establishes it. The final answer must accurately report observed fill evidence and cash, not an intended cost or an unsupported fill."
+}

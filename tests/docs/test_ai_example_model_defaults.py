@@ -8,6 +8,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = ROOT / "lumibot" / "example_strategies"
 LUNA = "openai/gpt-6-luna"
+LUNA_PROFILES = {LUNA, "chatgpt/gpt-6-luna"}
 SOURCES = sorted(path for path in EXAMPLES.glob("*.py") if path.name.startswith(("ai_", "agent_")))
 
 
@@ -16,6 +17,13 @@ def _default_model(value, assignments):
         return value.value
     if isinstance(value, ast.Name):
         return _default_model(assignments[value.id], assignments)
+    if (isinstance(value, ast.Subscript) and ast.unparse(value.value) == "self.parameters"
+            and isinstance(assignments.get("parameters"), ast.Dict)):
+        key = ast.literal_eval(value.slice)
+        parameters = assignments["parameters"]
+        for name, configured in zip(parameters.keys, parameters.values):
+            if ast.literal_eval(name) == key:
+                return _default_model(configured, assignments)
     if isinstance(value, ast.Call) and ast.unparse(value.func) == "os.environ.get":
         # Explicit user overrides stay supported; the no-override path is the contract.
         return _default_model(value.args[1], assignments)
@@ -35,7 +43,19 @@ def test_every_explicit_example_model_defaults_to_luna(path):
     for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
         for keyword in call.keywords:
             if keyword.arg in {"model", "default_model"}:
-                assert _default_model(keyword.value, assignments) == LUNA, path.name
+                # Parameter-owned defaults and Login with ChatGPT are valid;
+                # the contract is the Luna model, independent of funding prefix.
+                assert _default_model(keyword.value, assignments) in LUNA_PROFILES, path.name
+
+
+@pytest.mark.parametrize("profile,allowed", [
+    ("openai/gpt-6-luna", True), ("chatgpt/gpt-6-luna", True),
+    ("chatgpt/gpt-6.1-sol", False), ("openai/gpt-6-sol", False),
+])
+def test_parameter_owned_defaults_preserve_the_luna_model_contract(profile, allowed):
+    parameters = ast.parse(repr({"model": profile}), mode="eval").body
+    selection = ast.parse("self.parameters['model']", mode="eval").body
+    assert (_default_model(selection, {"parameters": parameters}) in LUNA_PROFILES) is allowed
 
 
 @pytest.mark.parametrize("variant", ["", "_leveraged"])

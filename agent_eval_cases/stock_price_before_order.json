@@ -12,7 +12,6 @@
     "requiredBeforeOrder": [
       "account_portfolio",
       "account_positions",
-      "market_last_price",
       "risk_calculate_stock_quantity"
     ],
     "requiredAnyTools": [
@@ -22,7 +21,15 @@
         "get_indicator"
       ]
     ],
-    "singleStockOrder": true
+    "singleStockOrder": true,
+    "requiredBeforeOrderAny": [
+      [
+        "market_quote",
+        "market_quotes",
+        "market_last_price",
+        "market_last_prices"
+      ]
+    ]
   },
   "judgeRubric": "Pass only if the agent loaded the stock skill, checked current account state, retrieved AAPL's current price and completed history before ordering, evaluated the stated five-day condition, sized within ten percent of portfolio value, and submitted one limit order. A market order, missing price evidence, or unsupported sizing fails.",
   "requiredRepetitions": 5

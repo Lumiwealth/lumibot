@@ -17,6 +17,7 @@
 - Native same-chain ERC20-output swap code verifies bounded approvals and actual receipts. HIP3 writes, native-output swaps and unsupported fee/delegation variants remain explicit holds. Native funded swap qualification remains pending; previous JavaScript receipts do not qualify this replacement.
 
 ### Fixed
+- Retry empty research windows against available older observations without relaxing the historical cutoff or claiming stale evidence is current.
 - Honor declared custom trading-tool mutations when preventing whole-agent retries, including aliased tool names.
 - Reconcile reported purchase cost from actual fills and fees while keeping current marked equity distinct from execution cost.
 - Preserve observed agent tool events and usage when inference fails after order actions. Report attempted or unknown broker effects honestly and require reconciliation without replaying the attempt; retain deterministic broker grading for every failed evaluation.

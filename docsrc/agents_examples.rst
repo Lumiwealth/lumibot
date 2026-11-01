@@ -75,10 +75,13 @@ and tool calls: measure actual usage rather than assuming one request per day.
 ``self.agents.attention`` API in the actual installed SDK. The November 1 Manager
 smoke used LumiBot 4.6.37 but that installation lacked the API and failed before
 trading. A matching version label alone does not establish capability. The local
-candidate has an earlier completed two-week diagnostic, followed by failed cadence
-trials. Longer AI comparisons, full AI lifecycle and Marketplace installation
-remain pending. The inspected Alpaca backtesting path also skips automatic option
-expiry delivery; the native Pandas settlement checks do not qualify that path.
+candidate has completed short diagnostics, but actual-executor holding checks
+passed only four of five trials: one incorrect profit threshold caused unnecessary
+research. The latest historical candidate placed no trades. The current schedule
+wording permits disclosed approximations, but has not had new model qualification.
+Longer AI comparisons, full AI lifecycle and Marketplace installation remain pending.
+The inspected Alpaca backtesting path also skips automatic option expiry delivery;
+the native Pandas settlement checks do not qualify that path.
 No Marketplace availability
 or trading readiness is claimed.
 

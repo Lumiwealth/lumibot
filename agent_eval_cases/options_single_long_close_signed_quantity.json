@@ -1,0 +1,23 @@
+{
+  "id": "options_single_long_close_signed_quantity",
+  "model": "chatgpt/gpt-6-luna",
+  "fixture": "single_long_option_account",
+  "systemPrompt": "You are the sole trader and risk owner. Follow the shared options skill and the actual user instruction. Reconcile positions, related working orders and exact contract prices before acting. Report only observed execution and any remaining obligation.",
+  "taskPrompt": "Close my held option position with a sensible limit order. Do not open a replacement. Check what actually filled and whether anything remains.",
+  "requiredSkill": "options-trading",
+  "machineContract": {
+    "acceptCompleteInitialAccountSnapshot": true,
+    "orderTool": "orders_submit_order",
+    "exactOrderCount": 1,
+    "requiredBeforeOrder": [
+      "account_positions",
+      "orders_open_orders",
+      "market_last_price",
+      "options_evaluate_market"
+    ],
+    "singleOptionOrder": true,
+    "positionsMustEndFlat": true
+  },
+  "judgeRubric": "Require closing the actual single long option position through the single-order tool, with the exact held identity and absolute remaining quantity. Long positions require sell_to_close; short positions require buy_to_close. The actor must inspect the held contract quote and spread and use a sensible bounded price. There is no multi-leg package to calculate or submit; do not accept an unnecessary multi-leg closing attempt followed by a workaround. Require actual broker execution, relevant pending-order checks, and observed resulting positions before claiming flatness. Submission alone and post-run fixture settlement do not prove the actor observed a fill. Do not require a fresh chain or entry research for this authorized close. No new exposure, duplicate order, fabricated quote or unsupported fill claim. This is controlled recorded broker execution, not a live broker or historical return claim.",
+  "requiredRepetitions": 5
+}

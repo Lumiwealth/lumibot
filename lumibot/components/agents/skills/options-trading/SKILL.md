@@ -140,13 +140,18 @@ broker, approval, liquidity and risk limits.
 Treat current signed quantities as authoritative. Positive is long, negative
 is short, zero is flat.
 
-To close held option contracts, always pass `action='close'` to
+For a single held option, use `orders_submit_order`: a positive long quantity
+closes with `sell_to_close`, and a negative short quantity closes with
+`buy_to_close`. Use the absolute current quantity, reduced only for an intended
+partial close, and verify the exact contract's current quote and related orders.
+One contract is not a multi-leg package.
+
+For a multi-leg position, pass `action='close'` to
 `options_calculate_multileg_price` and `orders_submit_multileg`. List only
 `symbol`, `expiration`, `strike`, and `right` for each held leg. LumiBot derives
-each closing side from the current signed position (long becomes
-`sell_to_close`, short becomes `buy_to_close`) and defaults the quantity to the
-full held amount. Never write closing sides yourself. Pass `quantity` only for
-a per-unit price check or an intended partial close.
+each closing side and defaults the quantity to the full held amount. Do not
+manually assign package closing sides. Pass `quantity` only for a per-unit
+price check or an intended partial package close.
 
 - Never multiply a cleanup quantity or repeat a close without rereading positions.
 - Do not report flatness until every relevant signed quantity is zero.

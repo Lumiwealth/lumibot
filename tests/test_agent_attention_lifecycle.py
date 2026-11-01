@@ -13,6 +13,7 @@ from lumibot.components.agents.attention import AttentionMonitor
 from lumibot.example_strategies.ai_iron_condor import AIIronCondorStrategy
 from lumibot.example_strategies.ai_bull_call_spread import AIBullCallSpreadStrategy
 from lumibot.example_strategies.ai_call_stock_replacement import AICallStockReplacementStrategy
+from lumibot.example_strategies.ai_wheel import AIWheelStrategy
 from lumibot.strategies._strategy import Vars
 
 
@@ -45,7 +46,7 @@ def example(strategy_class):
     return strategy, created, calls, handles
 
 
-@pytest.fixture(params=[AIIronCondorStrategy, AIBullCallSpreadStrategy, AICallStockReplacementStrategy])
+@pytest.fixture(params=[AIIronCondorStrategy, AIBullCallSpreadStrategy, AICallStockReplacementStrategy, AIWheelStrategy])
 def strategy_class(request):
     return request.param
 

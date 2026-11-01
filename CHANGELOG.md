@@ -8,6 +8,7 @@
 - Release-gated portfolio checks cover complete large and small baskets, reductions/exits/additions, quote-based sizing, correct historical-row selection and supported holdings when one is unavailable. Native positions, fills, quantities and cash are checked alongside a real-model judge.
 
 ### Fixed
+- Keep empty IBKR history-health reports scoped to IBKR data sources; preserve actual IBKR series, warnings and failures when another source is also used.
 - Value CCXT wallets and settlement PnL through available exchange cross rates when the reporting currency has no direct pair. Prefer spot routes, keep contract reference prices distinct from option premiums, and retain direct/inverse conversion behavior.
 - Preserve decimal units across fractional position creation, synchronization and fills, so matched closing quantities leave no artificial residual while genuine tiny positions remain intact.
 - Preserve complete numeric fields and instrument identities across wrapped source rows, standalone type markers, filtered inventory audits and distinct income columns.

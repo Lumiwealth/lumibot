@@ -23,6 +23,10 @@ Prerequisites
 1. **Account**: Demo or live futures trading account with TopstepX
 2. **API Credentials**: Username and API key from your broker
 
+Authenticated streaming requires ``signalrcore>=1.0.2,<2``, installed with
+LumiBot. Source checkouts must install ``requirements.txt`` as well. If the SDK
+is absent, streaming raises an ``ImportError`` rather than reporting a connection.
+
 Documented Broker
 -----------------
 

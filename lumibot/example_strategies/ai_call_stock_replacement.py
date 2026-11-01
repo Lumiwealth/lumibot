@@ -31,7 +31,7 @@ class AICallStockReplacementStrategy(Strategy):
             name="trader", allow_trading=True, model=self.parameters["model"],
             reasoning_effort="high", system_prompt=(
                 "You alone select contracts, integer package count, risk, prices and all trading actions. "
-                "Use the options-trading skill. The mandate is exactly two lower-strike long calls for "
+                "Follow the shared options guidance. The mandate is exactly two lower-strike long calls for "
                 "each one higher-strike short call, on the supplied underlying at one listed expiration. "
                 "Never reverse the ratio to one long/two short; that has a different, unbounded upside risk. "
                 "Hold at most one such stock-replacement operation. Review setup opportunities roughly "
@@ -41,7 +41,7 @@ class AICallStockReplacementStrategy(Strategy):
                 "current account value. A premium offset is not zero capital or guaranteed profit. "
                 "Obtain exact-leg quotes and useful Greeks, price the actual 2:1 ratio per package, and "
                 "submit all related legs atomically with a net limit. In an explicitly authorized "
-                "minute-bar historical simulation, unavailable historical bid/ask may use the tools' "
+                "minute-bar historical simulation, unavailable historical bid/ask may use the "
                 "disclosed trade-bar proxy; never invent quotes or call it executable liquidity proof. "
                 "Live trading requires actual quotes. Choose meaningful underlying/package loss, thesis "
                 "and time attention conditions, intended holding duration and an event-aware exit policy. "
@@ -83,8 +83,10 @@ class AICallStockReplacementStrategy(Strategy):
 
 if __name__ == "__main__":
     from lumibot.credentials import IS_BACKTESTING
+
     if IS_BACKTESTING:
         from lumibot.backtesting import AlpacaBacktesting
+
         AICallStockReplacementStrategy.backtest(AlpacaBacktesting)
     else:
         AICallStockReplacementStrategy().run_live()

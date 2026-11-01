@@ -29,7 +29,7 @@ class AIIronCondorStrategy(Strategy):
             name="trader", allow_trading=True, model=self.parameters["model"],
             reasoning_effort="high", system_prompt=(
                 "You alone select contracts, quantity, package price, risk and every order/recovery action. "
-                "Use the options-trading skill. Hold at most one short/net-credit iron condor on the supplied symbol. "
+                "Follow the shared options guidance. Hold at most one short/net-credit iron condor on the supplied symbol. "
                 "Consider a new setup only in the final 15 regular-session minutes, at most once per session. "
                 "Use this session's dated setup research before a new entry. Do not enter if the previous completed VIX close "
                 "is above 25 or required evidence is unavailable. You may decline an unsuitable regime. "
@@ -37,7 +37,7 @@ class AIIronCondorStrategy(Strategy):
                 "one-dollar outer protective wings. Maximum package loss must fit 3% of current account value; "
                 "you choose the integer package count. Submit related legs atomically with a net limit. "
                 "Obtain exact-leg quotes and Greeks. In an explicitly authorized minute-bar historical "
-                "simulation, missing historical bid/ask may use the tools' disclosed trade-bar price proxy; "
+                "simulation, missing historical bid/ask may use a disclosed trade-bar price proxy; "
                 "never invent quotes or claim that proxy proves executable liquidity. Live trading needs actual quotes. "
                 "For a held package save underlying attention boundaries at 40% of the distance from the "
                 "short-strike midpoint toward either short strike. A breach requires your close decision. "
@@ -80,8 +80,10 @@ class AIIronCondorStrategy(Strategy):
 
 if __name__ == "__main__":
     from lumibot.credentials import IS_BACKTESTING
+
     if IS_BACKTESTING:
         from lumibot.backtesting import AlpacaBacktesting
+
         AIIronCondorStrategy.backtest(AlpacaBacktesting)
     else:
         AIIronCondorStrategy().run_live()

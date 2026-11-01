@@ -199,7 +199,14 @@ repurchase cost makes that value more negative. Entry cash plus current signed
 holdings value gives marked profit/loss before fees. Derive the boundary from
 the intended risk rule and check that a worsening observation would trigger it.
 Do not use a positive greater-than condition to detect an increasing negative
-liability. Marks request attention; refresh executable prices before ordering.
+liability. For an allowed loss L, solve `entry_cash + basket_value = -L`, so the
+loss-review boundary is `basket_value <= -L - entry_cash`. An opening debit D
+means entry_cash=-D, so the boundary is D-L, still positive while L<D; an opening
+credit C means entry_cash=+C, so the boundary is -C-L. Never subtract the debit a
+second time or put a loss amount directly into the value field. Check the
+proposed comparison against one unchanged and one worsening mark before saving
+it. A long debit basket losing part of its debit should alert before its value
+reaches zero. Marks request attention; refresh executable prices before ordering.
 
 After a confirmed close, inspect your attention conditions and remove those
 belonging to the completed operation. Do this before a new entry reuses the same

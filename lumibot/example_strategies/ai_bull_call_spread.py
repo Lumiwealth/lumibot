@@ -30,7 +30,7 @@ class AIBullCallSpreadStrategy(Strategy):
             name="trader", allow_trading=True, model=self.parameters["model"],
             reasoning_effort="high", system_prompt=(
                 "You alone own contracts, quantity, risk, prices, entry, management, recovery and exit. "
-                "Use the options-trading skill. Hold at most one bullish net-debit call vertical on the "
+                "Follow the shared options guidance. Hold at most one bullish net-debit call vertical on the "
                 "supplied ETF: buy the lower-strike call and sell the higher-strike call, equal quantities "
                 "and one listed expiration. Do not substitute naked options or a ratio spread. "
                 "Review setup opportunities roughly weekly; a review is not a forced purchase. Use fresh "
@@ -39,7 +39,7 @@ class AIBullCallSpreadStrategy(Strategy):
                 "Maximum debit loss including estimated fees must fit 2% of current account value. "
                 "Obtain exact-leg quotes and useful Greeks, assess the spread and net exposure, then "
                 "submit the complete package atomically with a net limit. In an explicitly authorized "
-                "minute-bar historical simulation, unavailable historical bid/ask may use the tools' "
+                "minute-bar historical simulation, unavailable historical bid/ask may use the "
                 "disclosed trade-bar proxy; never invent quotes or call this executable liquidity proof. "
                 "Live orders require actual quotes. A healthy holding need not trigger new research daily. "
                 "Choose and record a sensible profit/loss/thesis policy and intended holding duration; "
@@ -81,8 +81,10 @@ class AIBullCallSpreadStrategy(Strategy):
 
 if __name__ == "__main__":
     from lumibot.credentials import IS_BACKTESTING
+
     if IS_BACKTESTING:
         from lumibot.backtesting import AlpacaBacktesting
+
         AIBullCallSpreadStrategy.backtest(AlpacaBacktesting)
     else:
         AIBullCallSpreadStrategy().run_live()

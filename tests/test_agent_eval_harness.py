@@ -4452,3 +4452,21 @@ def test_judge_recovery_checks_real_git_source_and_rejects_actor_changes(tmp_pat
     else:
         with pytest.raises(ValueError, match="Acting"):
             compare_source(root, commit, paths)
+
+def test_managed_research_refusal_exposes_the_runtime_applied_cutoff():
+    """The actor's omitted input is distinct from the actual bounded MCP request."""
+    from lumibot.components.agents.runtime import _wrap_tool_callable
+    from scripts.agent_eval_production_fixture import ProductionFixture
+    production = ProductionFixture(evals.build_fixture("research_available"))
+    try:
+        case = next(c for c in evals.load_cases() if c["id"] == "research_macro_point_in_time")
+        agent = production.create_agent(case, runtime=object())
+        tool = next(t for t in agent._ensure_bound_tools() if t.name == "query_data")
+        result = _wrap_tool_callable(tool, {})(datasetId="bls.public_series", timeRange={"years": 1})
+        assert result["tool_error"] is True
+        assert result["error"]["code"] == "unsupported_capability"
+        assert "asOf" not in result["arguments"]
+        assert result["applied_arguments"]["asOf"] == "2026-08-11T14:35:00Z"
+        assert "details" not in result and "structuredContent" not in result
+    finally:
+        production.close()

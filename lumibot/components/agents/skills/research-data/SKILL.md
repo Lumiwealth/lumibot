@@ -43,11 +43,17 @@ claiming it was published. A visible authorization error means it was not publis
    Copy each window from that request's arguments and each effective bound from
    its successful response. For a failed query, label its actual arguments as
    requested, not applied. Never borrow another dataset's dates or collapse
-   different windows into a shared period. Missing metadata stays unknown.
-   In the final packet, write each source's requested start and end explicitly,
-   even if two sources used the same period. Do not replace a source's dates
-   with "same window" or inherit them from another source's row. Check the
-   final dates against that individual tool request before handing off.
+   different windows into a shared period. In the final packet, write each
+   source's requested start and end explicitly, even when periods match; do
+   not replace them with "same window" or inherit another source's dates.
+   Compare every row against that exact tool call, including failed calls:
+   identical errors can come from different requested windows. Missing
+   metadata stays unknown.
+   Only report a provider retrieval/capture timestamp when that successful
+   response returns it. If it is absent, say retrieval time was not returned.
+   The runtime clock can be labeled separately as the runtime clock; it is
+   neither a returned provider retrieval time nor an applied `asOf` ceiling.
+   Continue using the permitted evidence with that limitation.
    A provider name alone is not a dataset id; retain the id for stale or failed
    evidence too. Calendar filtering is not proof of historical availability.
    If a permitted live retry succeeds after a bounded failure, use the successful

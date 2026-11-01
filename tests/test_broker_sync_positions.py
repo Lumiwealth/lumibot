@@ -274,3 +274,84 @@ def test_historical_crypto_execution_does_not_recharge_reported_cash_or_replace_
     broker._process_broker_synced_order(order)
     assert cash.quantity == 9800
     assert Decimal(str(coin.quantity)) == Decimal('1.997')
+
+
+@pytest.mark.parametrize("quantity", [0.3, 0.7, Decimal("0.123456789123456789")])
+def test_fractional_cumulative_fill_uses_decimal_requested_quantity(quantity):
+    broker = _BrokerForSyncTest([])
+    order = Order("strategy", Asset("SYN", asset_type="crypto"), quantity, "buy",
+                  identifier="fractional-history", quote=Asset("USD", asset_type="forex"), avg_fill_price=100)
+    order.status = "fill"
+    order.filled_quantity = Decimal(str(quantity))
+    broker._process_broker_synced_order(order)
+    assert order.status == "fill"
+    assert sum(Decimal(str(tx.quantity)) for tx in order.transactions) == Decimal(str(float(quantity)))
+    assert order._broker_synced_filled_quantity == Decimal(str(quantity))
+    broker._process_broker_synced_order(order)
+    assert len(order.transactions) == 1
+
+
+@pytest.mark.parametrize("quantity", [Decimal("0.300000000000000001"), Decimal("-0.1"), Decimal("NaN")])
+def test_fractional_cumulative_fill_still_rejects_invalid_executions(quantity):
+    broker = _BrokerForSyncTest([])
+    order = Order("strategy", Asset("SYN"), 0.3, "buy", avg_fill_price=100)
+    order.status = "fill"
+    order.filled_quantity = quantity
+    with pytest.raises(ValueError, match="cumulative fill quantity"):
+        broker._process_broker_synced_order(order)
+    assert order.transactions == []
+
+
+@pytest.mark.parametrize("status", ["partial_fill", "canceled", "replaced", "expired", "error"])
+def test_warm_order_sync_keeps_cumulative_receipts_and_relations(status):
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+    broker = _BrokerForSyncTest([])
+    broker.data_source = SimpleNamespace(get_datetime=lambda: datetime(2027, 1, 4, tzinfo=timezone.utc))
+    order = Order("strategy", Asset("SYN"), 10, "buy", identifier="synthetic", avg_fill_price=100)
+    order.status = "partial_fill"
+    order.filled_quantity = Decimal("2")
+    broker._process_broker_synced_order(order)
+    observed = Order("strategy", Asset("SYN"), 10, "buy", identifier="synthetic", avg_fill_price=102)
+    observed.status = status
+    observed.filled_quantity = Decimal("5")
+    observed.replaced_by = "replacement"
+    observed.error_message = "provider reason"
+    observed.broker_status = status
+    from unittest.mock import MagicMock
+    broker._on_canceled_order = MagicMock()
+    broker._pull_all_orders = lambda *_: [observed]
+    for _ in range(2):
+        broker.sync_orders(_Strategy())
+    assert sum(t.quantity for t in order.transactions) == 5
+    assert sum(t.quantity * t.price for t in order.transactions) == 510
+    assert order.filled_quantity == 5
+    assert order.status == observed.status
+    assert order.replaced_by == "replacement"
+    assert order.broker_status == status
+    if status in ("canceled", "replaced", "expired"):
+        broker._on_canceled_order.assert_called_once_with(order)
+    if status == "error":
+        assert order.error_message == "provider reason"
+
+
+@pytest.mark.parametrize("terminal", ["canceled", "replaced", "expired", "error"])
+@pytest.mark.parametrize("later_filled", [5, 6, 10])
+def test_late_working_snapshot_keeps_terminal_receipt_and_new_executions(terminal, later_filled):
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+    broker = _BrokerForSyncTest([])
+    broker.data_source = SimpleNamespace(get_datetime=lambda: datetime(2027, 1, 4, tzinfo=timezone.utc))
+    order = Order("strategy", Asset("SYN"), 10, "buy", identifier="late-working", avg_fill_price=100)
+    order.status = terminal
+    order.filled_quantity = 5
+    broker._process_broker_synced_order(order)
+    observed = Order("strategy", Asset("SYN"), 10, "buy", identifier=order.identifier, avg_fill_price=100)
+    observed.status = "partial_fill" if later_filled < 10 else "fill"
+    observed.filled_quantity = later_filled
+    broker._pull_all_orders = lambda *_: [observed]
+    broker.sync_orders(_Strategy())
+    assert sum(t.quantity for t in order.transactions) == later_filled
+    assert order.status == ("fill" if later_filled == 10 else terminal)
+    assert len(broker.get_all_orders()) == 1
+    assert not order.is_active()

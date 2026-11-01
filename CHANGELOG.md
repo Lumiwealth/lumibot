@@ -1,6 +1,19 @@
 # Changelog
 
-## 4.6.36 - Unreleased
+## 4.6.36 - 2026-11-01
+
+### Fixed
+- Isolate invalid cumulative order observations so healthy sibling orders and missing-order lookups still reconcile; report incomplete reads and always release held lifecycle notifications after failed synchronization.
+- Preserve runtime-applied temporal bounds in public failed-tool evidence without exposing private provider diagnostics.
+- Route executor restoration through the shared broker lifecycle owner; retain cumulative executions and replacement metadata on warm reads and same-status Alpaca partial/cancel polling without replaying startup cash. Delayed working observations cannot reopen terminal orders; newly confirmed executions remain recorded and complete fills win cancellation races.
+- Verify each evidence-packet date window against its own request, including failed requests.
+- Keep baseline ownership evidence and later updates distinct when describing a reconstructed result.
+- Normalize typed SQL timestamp results to UTC instants while retaining source strings, naive market wall clocks, and configured SQL timezone semantics.
+- Clarify final protective-leg evidence before option package pricing and keep missing provider retrieval timestamps distinct from the agent runtime clock.
+- Put the per-document backtest eligibility check at the document-tool decision point, keeping diagnostic excluded rows out of linked reads while preserving live reads and disclosed undated-source approximations.
+- Preserve decimal broker order quantities and validate fractional cumulative executions using consistent decimal units. Repeated high-precision snapshots retain their exact execution receipt without replaying rounding dust; real overfills remain invalid.
+
+- Apply configured taker fees to trailing-stop executions, including the executed quantity of partial fills, consistently with ordinary market and stop orders.
 
 ## 4.6.35 - 2026-10-31
 

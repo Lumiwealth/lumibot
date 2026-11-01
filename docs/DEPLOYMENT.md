@@ -68,7 +68,7 @@ Release order for tearsheet metric changes:
 
 ## Dependency security and compatibility
 
-The public source and wheel requirements use `PyJWT[crypto]>=2.15.1`,
+This source candidate requires `PyJWT[crypto]>=2.15.1`,
 `setuptools>=84.1.0` and `pandas-ta-classic>=0.6.52`. The evaluation tuple pins
 PyJWT to 2.15.1. The old `setuptools<81` cap supported an older pandas-ta release
 that imported `pkg_resources`; the modern indicator minimum removes that reason

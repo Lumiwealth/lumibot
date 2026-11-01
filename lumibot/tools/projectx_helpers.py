@@ -1344,28 +1344,35 @@ def normalize_bracket_entry_tag(tag: str):
     return f"BRK_ENTRY_{base}", base
 
 # ================= Additional Low-Risk Helpers =================
+def projectx_strategy_identity(strategy_name):
+    """A stable complete-name identity that fits the provider's 64-character tags."""
+    import base64
+    import hashlib
+    digest = hashlib.sha256(str(strategy_name).encode('utf-8')).digest()[:24]
+    return base64.urlsafe_b64encode(digest).decode('ascii')
+
+
 def build_unique_order_tag(order):
     """Generate (or normalize) a unique order tag.
 
-    Mirrors existing inline logic in ProjectX broker: if tag absent or blank create
-    STRAT-<millis><rand2>. Keeps existing tag if non-empty. Returns tag string.
-    Pure with respect to broker state (only uses order + time/random).
+    Preserve a complete-name strategy identity and append a unique order suffix.
+    Explicit non-empty user tags remain unchanged.
     """
     try:
-        import time, random
-        if not getattr(order, 'tag', None):
+        import base64
+        import uuid
+        if not str(getattr(order, 'tag', '') or '').strip():
             strat_part = ''
             try:
                 if hasattr(order, 'strategy') and order.strategy:
                     strat_name = order.strategy if isinstance(order.strategy, str) else getattr(order.strategy, 'name', '')
-                    strat_part = (strat_name or 'LB')[:8].upper()
+                    strat_part = strat_name or 'LB'
             except Exception:
                 strat_part = 'LB'
-            unique_suffix = f"{int(time.time()*1000)%100000000:08d}{random.randint(10,99)}"
-            order.tag = f"{strat_part}-{unique_suffix}"
-        else:
-            if not str(order.tag).strip():
-                order.tag = f"LB-{int(time.time()*1000)}"
+            unique_suffix = base64.urlsafe_b64encode(uuid.uuid4().bytes).decode('ascii').rstrip('=')
+            # 32 owner characters + 22 random characters, plus the longest
+            # BRK_ENTRY_ prefix, is exactly the provider's 64-character limit.
+            order.tag = projectx_strategy_identity(strat_part) + unique_suffix
     except Exception:
         # Silent; caller already logs on failure in original logic
         pass
@@ -1485,7 +1492,7 @@ def restore_bracket_meta_if_needed(order, cache, meta_map, logger=None):
     try:
         if hasattr(order, '_synthetic_bracket'):
             return False
-        broker_id = getattr(order, 'id', None)
+        broker_id = getattr(order, 'identifier', None) or getattr(order, 'id', None)
         # Check cached order first
         if cache and broker_id in cache:
             cached = cache.get(broker_id)

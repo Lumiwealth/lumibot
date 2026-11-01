@@ -3,6 +3,7 @@
 from importlib import import_module as _import_module
 
 _NAME_TO_MODULE = {
+    "ProjectXBacktesting": "projectx_backtesting",
     "KalshiBacktesting": "kalshi_backtesting",
     "AlpacaBacktesting": "alpaca_backtesting",
     "AlphaVantageBacktesting": "alpha_vantage_backtesting",

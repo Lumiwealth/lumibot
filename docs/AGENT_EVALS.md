@@ -200,8 +200,8 @@ ledger across actor work, judge-only recovery, calibration and resumed batches.
 
 SDK retries are disabled; outer retries require another ledger reservation.
 No paid token-counting endpoint is used. Subscription quota and revoked grants
-produce visible failures, not successful decisions. A corrupt ledger fails visibly; compatible technical window amendments preserve all historical records. Do not switch output directories to reset an approved
-release-attempt allowance. Actor, judge and rubric calibration need the same attempt
+produce visible failures, not successful decisions. A corrupt ledger fails visibly; compatible technical window amendments preserve all historical records. Do not switch output directories to reset usage history.
+Actor, judge and rubric calibration need the same attempt
 ledger. CI verifies the completed evidence without inference. No prompt or credential
 is written to the per-call ledger.
 
@@ -232,7 +232,9 @@ python scripts/qualify_agent_evals.py verify
 ```
 
 Before exporting, resume the full actor catalog and judge controls using the
-same owned directories and immutable call allowance. `--gate --repeat 1` still
+same owned directories and append-only call ledger. `--max-model-calls` sets an
+automatically replenished reporting window, not a hard request or spending cap.
+`--gate --repeat 1` still
 requires every new or changed case's configured three or five consecutive passes;
 it preserves completed matching repetitions and only schedules missing or failed
 work. Avoid `--force` when resuming a qualification. Set `TMPDIR` to a dedicated
@@ -241,15 +243,15 @@ path, including failures.
 
 ```bash
 python scripts/run_agent_evals.py --preflight-only --gate --repeat 1 \
-  --max-cost-usd 0 --max-model-calls <existing-call-cap> \
+  --max-cost-usd 0 --max-model-calls <reporting-window-calls> \
   --output-root <owned-actor-output> --freshness-state <owned-freshness-file>
 python scripts/run_agent_evals.py --gate --repeat 1 --max-workers 5 \
-  --max-cost-usd 0 --max-model-calls <existing-call-cap> \
+  --max-cost-usd 0 --max-model-calls <reporting-window-calls> \
   --output-root <owned-actor-output> --freshness-state <owned-freshness-file>
 python scripts/check_agent_judge_calibration.py \
   --model-call-ledger <owned-actor-output>/model_calls.jsonl \
   --output-root <owned-calibration-output> \
-  --max-model-calls <existing-call-cap> --max-cost-usd 0
+  --max-model-calls <reporting-window-calls> --max-cost-usd 0
 ```
 
 Normal release qualification runs on the version branch's pull request into

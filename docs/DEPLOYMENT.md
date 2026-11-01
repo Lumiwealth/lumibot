@@ -75,6 +75,10 @@ Release order for tearsheet metric changes:
 
 ---
 
+## CI shard arguments
+
+Pass collected test paths and node IDs as quoted Bash array elements. Parametrized IDs can contain spaces; unquoted command substitution splits those IDs and prevents the selected tests from running.
+
 ## Branch + Version Rules (STRICT)
 
 - Active work happens on a shared version branch: `version/X.Y.Z` (example: `version/4.4.31`).

@@ -787,9 +787,7 @@ def test_batch_discovery_returns_concurrently_updated_terminal_receipt(engine):
     def discover(*args):
         fill = partial_fill()
         operation = engine.journal.get("agent", "one")
-        engine.journal.save_effect(
-            operation, "fills", {"wallet": WALLET, "network": "testnet", "items": [fill]}
-        )
+        engine.journal.save_effect(operation, "fills", {"wallet": WALLET, "network": "testnet", "items": [fill]})
         engine.journal.save({**operation, "filledQuantity": "0.0004", "averagePrice": "19999"})
         return [fill]
 

@@ -205,8 +205,13 @@ means entry_cash=-D, so the boundary is D-L, still positive while L<D; an openin
 credit C means entry_cash=+C, so the boundary is -C-L. Never subtract the debit a
 second time or put a loss amount directly into the value field. Check the
 proposed comparison against one unchanged and one worsening mark before saving
-it. A long debit basket losing part of its debit should alert before its value
-reaches zero. Marks request attention; refresh executable prices before ordering.
+it. A chosen partial-debit loss limit L<D requires a positive D-L boundary and
+should alert before the basket reaches zero. If the mandate deliberately allows
+loss of the full bounded debit, L=D gives a zero boundary: that is a review at
+full-premium loss, not a partial-loss stop or zero economic risk. Preserve any
+earlier loss review the user requested or the trader promised; do not silently
+replace it with a full-loss boundary. Retain the chosen thesis and time reviews.
+Marks request attention; refresh executable prices before ordering.
 
 After a confirmed close, inspect your attention conditions and remove those
 belonging to the completed operation. Do this before a new entry reuses the same

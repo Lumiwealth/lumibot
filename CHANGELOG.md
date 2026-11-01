@@ -17,6 +17,7 @@
 - Native same-chain ERC20-output swap code verifies bounded approvals and actual receipts. HIP3 writes, native-output swaps and unsupported fee/delegation variants remain explicit holds. Native funded swap qualification remains pending; previous JavaScript receipts do not qualify this replacement.
 
 ### Fixed
+- Reconcile reported purchase cost from actual fills and fees while keeping current marked equity distinct from execution cost.
 - Preserve observed agent tool events and usage when inference fails after order actions. Report attempted or unknown broker effects honestly and require reconciliation without replaying the attempt; retain deterministic broker grading for every failed evaluation.
 - Classify typed retryable inference failures wrapped by LiteLLM as infrastructure errors when no actor decision completed. Preserve ordinary grading for completed decisions and tool failures, along with every prior attempt and usage reservation.
 - ProjectX uses actual streamed bid/ask prices and source times, exact configured account selection, expiration-aware contract lookup, provider contract multipliers and the documented single-contract response. Reject fractional/invalid contract sizes instead of truncating or defaulting them.

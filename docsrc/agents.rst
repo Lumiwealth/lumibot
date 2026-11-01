@@ -655,6 +655,10 @@ unknown broker certainty, a non-retryable outcome and operator attention.
 Reconcile actual orders and account state before further action. The runtime
 does not replay the whole agent attempt after a broker mutation.
 
+Report purchase cost from confirmed fills and fees. Current equity uses position
+marks, which can differ from execution prices. Calculate comparisons with a tool;
+otherwise report returned cash and equity without an invented gain or loss.
+
 **Backtest philosophy**: surface bugs loudly. A silent +0% tearsheet caused by a wrong API key is worse than a clear error message — the user just started the run, can fix it, and re-run. Transient errors (including rate limits that outlast their retries) skip the bar, but never silently: a backtest with skipped bars ran with missing AI decisions, and its results must say so.
 
 Skipped bars in backtest results

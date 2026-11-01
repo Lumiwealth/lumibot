@@ -22,5 +22,13 @@ affected entity, cash, futures, CCXT, Bitunix and perpetual-accounting selection
 passed 952 tests and 26 subtests, with two existing skips, on the repaired
 candidate before reconciling subsequent version-branch changes.
 
+After reconciliation, the affected compatibility selection retained 980 passes
+and four subtests, with two existing skips and five opt-in API cases excluded.
+Two subprocess checks required the source checkout on PYTHONPATH; both passed
+after correcting that setup, completing 982 compatible checks. The eight public
+Phemex WebSocket/history cases also passed on the reconciled candidate. The
+normal real-data fractional short run then closed exactly flat and reconciled
+its fees, funding and ending collateral.
+
 These are native and simulated-execution checks. They do not establish actual
 exchange fills, live private-stream recovery or a deployed package release.

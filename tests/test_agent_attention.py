@@ -55,6 +55,18 @@ def test_quiet_team_dispatch_does_not_run_any_role():
     assert calls == []
 
 
+def test_reason_is_not_an_additional_predicate_for_a_due_time_watch():
+    # Existing machine contract, not an instruction-compliance/model test.
+    strategy, monitor, calls, _ = team()
+    monitor.watch(owner="decision", watch_id="time-review", operation_id="operation-a",
+        metric="time", comparison="gte", value=strategy.now.isoformat(),
+        reason="Review only if the position quantity becomes zero", review_scope="management")
+    events = monitor.poll()
+    assert len(events) == 1
+    assert events[0]["metric"] == "time"
+    assert events[0]["kind"] == "condition_met"
+
+
 def test_setup_scope_refreshes_research_without_requiring_a_magic_watch_name():
     strategy, monitor, calls, _ = team()
     team_watch(monitor, "setup", "a-name-with-no-routing-significance")

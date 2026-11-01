@@ -223,6 +223,14 @@ fills, remaining exposure and costs; refresh the exact executable quote when it
 fires. Keep a reachable management review. A saved watch with `active=false`
 awaits its condition; it is not disabled.
 
+An attention watch has one actual condition. Its reason does not add another
+condition: a timer described as "only if capacity is free" still fires at its
+time while a position is held. When eligibility depends on a position or order
+transition, monitor that transition first, reconcile it, then schedule the
+eligible review. Do not preserve an unwanted daily timer by writing a conditional
+explanation around it. No related working order means no order-status watch;
+never invent an empty placeholder list of order IDs.
+
 For a held position, persist an exact-asset quantity-change condition against
 the currently observed signed quantity, normally `position_quantity ne quantity`.
 This covers assignment, exercise, expiry and partial or complete closing; price

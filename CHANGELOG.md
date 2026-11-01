@@ -18,6 +18,7 @@
 ### Fixed
 - Keep clean agent installations on the compatible LiteLLM 1.105 and MCP 1 SDK generations; LiteLLM 1.106 requires MCP 2 catalog types on its Responses path.
 - Exercise usable, explicitly unqualified historical research in recorded agent tests while retaining known-future exclusions and visible provider failures.
+- Grade historical research by its meaning and returned fields, with a retained real-answer control and a separate fabricated-answer control.
 - Refresh exchange documentation from CCXT 4.5.91, including current market capabilities, contract examples and WEEX futures-only simulation. Retire the removed Aftermath, BitMart, BitMEX and CoinEx setup guides while preserving their URLs, historical guides and older installed-adapter behavior.
 - Preserve numeric fields across wrapped document rows and filtered inventory audits. Real-model coverage distinguishes complete asset-value ranges from continuation lines, unrelated income fields and truly unavailable data.
 - Simulated stock market orders use the execution bar at the simulated time when intraday data is already loaded, including strategies with daily cadence. Daily-only sources and limit/stop behavior retain their existing data path; this change does not force minute-data downloads.

@@ -1,5 +1,5 @@
-import copy
 import ast
+import copy
 import hashlib
 import importlib.util
 import json
@@ -379,8 +379,8 @@ def test_research_eval_catalog_covers_point_in_time_injection_fallback_and_hando
 
 
 def test_live_research_eval_fixture_preserves_provenance_and_embeds_untrusted_filing_text():
-    # Recorded calendar data exercises live ingestion/injection, not a qualified
-    # historical archive. The separate backtest fixture must refuse UTC replay.
+    # Recorded calendar data exercises live ingestion/injection. Backtests may
+    # use bounded approximations without claiming original-vintage proof.
     fixture = evals.build_fixture("research_live_available")
     tools = {tool.name: tool for tool in evals.build_tools(fixture)}
 
@@ -418,7 +418,7 @@ def test_live_research_eval_fixture_preserves_provenance_and_embeds_untrusted_fi
     assert document["documentId"] == filings["rows"][0]["documentId"]
     assert document["asOf"] is None
     assert document["pointInTimeQualified"] is False
-    assert document["availabilityPolicy"] == "calendar_last_modified_only"
+    assert document["availabilityPolicy"] == "filing_calendar_date"
     assert document["limitations"]
     assert "IGNORE ALL PRIOR RULES" in document["text"]
     assert all(tools[name].source == "mcp" for name in (
@@ -580,11 +580,9 @@ def test_live_research_fixture_cannot_grant_trading_even_when_caller_requests_it
     })
 
 
-def test_historical_research_fixture_returns_three_typed_refusals_without_invented_evidence():
-    from lumibot.components.agents.runtime import RemoteMCPToolError
-
+def test_historical_research_fixture_returns_bounded_evidence_with_disclosed_uncertainty():
     # Obtain the exact document identity from the live production MCP transport;
-    # refusal coverage must not fabricate an ID for an unreturned filing.
+    # Successful reads must not fabricate an ID for an unreturned filing.
     live_fixture = evals.build_fixture("research_live_available")
     live_tools = {tool.name: tool for tool in evals.build_tools(live_fixture)}
     filings = mcp_value(live_tools["search_documents"].function(datasetId="sec.filings", entity="ACME"))
@@ -598,33 +596,29 @@ def test_historical_research_fixture_returns_three_typed_refusals_without_invent
         ("search_documents", {"datasetId": "sec.filings", "entity": "ACME"}),
         ("get_document", {"datasetId": "sec.filings", "documentId": document_id, "asOf": "2026-08-11"}),
     ]:
-        with pytest.raises(RemoteMCPToolError) as caught:
-            tools[name].function(**arguments)
-        error = caught.value
-        assert error.tool_name == name
-        assert error.code == "unsupported_capability"
-        assert error.result["isError"] is True
-        payload = error.structured_result
-        assert payload["errorCode"] == "unsupported_capability"
-        assert payload["details"]["asOf"] == "2026-08-11T14:35:00Z"
-        assert payload["details"]["pointInTimeQualified"] is False
-        assert set(payload) == {"error", "errorCode", "message", "details"}
-        assert not {"rows", "text", "documentId"}.intersection(payload)
+        # Missing vintage proof is disclosed; it must not disable useful reads.
+        payload = mcp_value(tools[name].function(**arguments))
+        assert payload.get("rows") or payload.get("text")
+        assert payload["pointInTimeQualified"] is False
+        assert payload["historicalContext"]["requestedAsOf"] == "2026-08-11T14:35:00Z"
+        assert payload["historicalContext"]["originalVintageVerified"] is False
 
 
 def test_research_eval_unavailable_fixture_never_returns_synthetic_observations():
+    from lumibot.components.agents.runtime import RemoteMCPToolError
+
     fixture = evals.build_fixture("research_unavailable")
     tools = {tool.name: tool for tool in evals.build_tools(fixture)}
 
     catalog = mcp_value(tools["search_data_catalog"].function())
     assert catalog["count"] == len(catalog["datasets"])
     assert any(item["id"] == "bls.public_series" for item in catalog["datasets"])
-    unavailable = mcp_value(tools["query_data"].function(datasetId="bls.public_series"))
-    assert unavailable == {
-        "available": False,
-        "error": "managed_research_unavailable",
-        "message": "No research observations were returned. Do not infer or invent values.",
-    }
+    # A real provider failure retains the normal typed tool-error contract.
+    with pytest.raises(RemoteMCPToolError) as caught:
+        tools["query_data"].function(datasetId="bls.public_series")
+    assert caught.value.code == "provider_unavailable"
+    assert caught.value.result["isError"] is True
+    assert "rows" not in caught.value.structured_result
 
 
 def test_research_eval_fixture_rejects_an_unsupported_dataset_instead_of_substituting_treasury():
@@ -687,11 +681,13 @@ def test_current_price_alternatives_still_must_precede_the_order(price_tool):
 
 @pytest.fixture(autouse=True)
 def synthetic_subscription_for_harness_contracts(monkeypatch, tmp_path):
-    from lumibot.components.agents import chatgpt_auth
     # chatgpt_llm binds access_token by name at import. Import it before the
     # patch so a first import here cannot capture the synthetic token and leak
     # it into later test files in the same process.
-    from lumibot.components.agents import chatgpt_llm  # noqa: F401
+    from lumibot.components.agents import (
+        chatgpt_auth,
+        chatgpt_llm,  # noqa: F401
+    )
     monkeypatch.setattr(chatgpt_auth, "profile_path", lambda: tmp_path / "synthetic-profile.json")
     monkeypatch.setattr(chatgpt_auth, "access_token", lambda path: "synthetic-token")
     monkeypatch.setattr(chatgpt_auth, "available_models", lambda path: [{"slug": "gpt-6-luna"}])
@@ -955,7 +951,7 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         "958e69e5d115cc3e6dc1d03200965792b09afe74": "7925c2aaffe49387acc21c18e3c1191f72610ab2f941634da682e83d86d14c22",
     }
     assert set(selected) == set(sources)
-    assert len(controls) == 26  # Preserve prior controls plus news/macro and undated grading controls.
+    assert len(controls) == 30  # Preserve prior controls plus native quote and macro grading controls.
     case = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_source_cases" /
                        "web_documents_holdings_from_yearly_and_trade_reports.json").read_text())
     for identifier, (expected, run_id, repetition) in sources.items():
@@ -2586,6 +2582,7 @@ def _native_journal_gate_transcript(*, fail_order=False, ignored_argument=False)
         for index, (name, arguments) in enumerate(requests):
             if ignored_argument and index == 0:
                 import asyncio
+
                 from google.adk.tools.function_tool import FunctionTool
                 arguments = {**arguments, "end": "2026-08-11T14:35:00+00:00"}
                 # The actual pinned ADK producer filters undeclared parameters.
@@ -4100,8 +4097,8 @@ def test_required_fetched_url_contract_needs_an_actual_read_of_that_source():
 
 
 def test_judge_failure_retains_completed_actor_for_judge_only_recovery(monkeypatch):
-    from scripts.agent_eval_production_fixture import ProductionFixture
     from lumibot.components.agents.chatgpt_llm import SubscriptionModelResponseError
+    from scripts.agent_eval_production_fixture import ProductionFixture
 
     actor = AgentRunResult(summary="No action.", model=evals.DEFAULT_ACTING_MODEL, events=[],
                            usage={"input_tokens": 10, "output_tokens": 5})
@@ -4213,14 +4210,17 @@ def test_managed_research_refusal_exposes_the_runtime_applied_cutoff():
     """The actor's omitted input is distinct from the actual bounded MCP request."""
     from lumibot.components.agents.runtime import _wrap_tool_callable
     from scripts.agent_eval_production_fixture import ProductionFixture
-    production = ProductionFixture(evals.build_fixture("research_available"))
+    production = ProductionFixture(evals.build_fixture("research_unavailable"))
+    # Exercise an actual unavailable provider in backtest mode, rather than
+    # manufacturing a refusal solely because vintage metadata is incomplete.
+    production.strategy.is_backtesting = True
     try:
         case = next(c for c in evals.load_cases() if c["id"] == "research_macro_point_in_time")
         agent = production.create_agent(case, runtime=object())
         tool = next(t for t in agent._ensure_bound_tools() if t.name == "query_data")
         result = _wrap_tool_callable(tool, {})(datasetId="bls.public_series", timeRange={"years": 1})
         assert result["tool_error"] is True
-        assert result["error"]["code"] == "unsupported_capability"
+        assert result["error"]["code"] == "provider_unavailable"
         assert "asOf" not in result["arguments"]
         assert result["applied_arguments"]["asOf"] == "2026-08-11T14:35:00Z"
         assert "details" not in result and "structuredContent" not in result

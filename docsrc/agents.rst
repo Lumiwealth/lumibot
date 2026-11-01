@@ -655,6 +655,10 @@ unknown broker certainty, a non-retryable outcome and operator attention.
 Reconcile actual orders and account state before further action. The runtime
 does not replay the whole agent attempt after a broker mutation.
 
+Mark custom tools that submit, change or cancel orders with
+``@agent_tool(mutates_trading=True)``. Research permissions and retry protection
+use this bound metadata even when model-facing tool names are aliased.
+
 Report purchase cost from confirmed fills and fees. Current equity uses position
 marks, which can differ from execution prices. Calculate comparisons with a tool;
 otherwise report returned cash and equity without an invented gain or loss.

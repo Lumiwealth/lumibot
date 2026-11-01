@@ -202,7 +202,9 @@ Typed retryable inference failures with explicit no-mutation evidence, including
 LiteLLM `InternalServerError` wrappers around DNS errors, are infrastructure
 errors rather than actor decisions for the semantic judge. Captured broker
 receipts must not contradict that evidence. Deterministic machine checks always
-run and remain on error rows. Post-mutation failures, unknown effects, completed
+run and remain on error rows. Every failed actor must satisfy these conditions;
+one actor's pre-mutation error cannot hide another actor's unknown effects.
+Post-mutation failures, unknown effects, completed
 decisions and tool failures retain ordinary grading. Preserve every failed
 attempt and unknown usage reservation; this classification does not replay live orders.
 

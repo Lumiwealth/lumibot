@@ -39,6 +39,8 @@ Related docs:
 
 A provider error can interrupt inference after an order action. Failed runs retain observed tool events and usage instead of claiming no trades occurred. The failed result payload exposes `broker_mutation_attempted` as `True`, `False`, or `None` when evidence is unavailable. Attempted mutations or unknown trading effects produce unknown broker certainty, a non-retryable outcome and operator attention. Reconcile actual orders and account state before further action. The existing runtime guard prevents replaying an entire attempt after a broker mutation; failure results are not cached.
 
+Custom tools that submit, change or cancel orders must declare `@agent_tool(mutates_trading=True)`. Research permissions and retry protection use this bound metadata, including when model-facing tool names are aliased.
+
 Report purchase cost from confirmed fill quantities, execution prices and fees. Current portfolio equity uses position marks, which can differ from those execution prices. Calculate comparisons with a tool; otherwise report returned cash and equity without inventing a gain or loss explanation.
 
 ---

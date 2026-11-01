@@ -57,6 +57,24 @@ def test_profile_rejects_writable_ancestor_before_opening_lock(tmp_path):
     assert not path.with_name(path.name + ".lock").exists()
 
 
+@pytest.mark.parametrize("shared_writable", [False, True])
+def test_symlink_chain_checks_intermediate_directories(tmp_path, shared_writable):
+    target = tmp_path / "private" / "profile.json"
+    profile(target)
+    shared = tmp_path / "intermediate"
+    shared.mkdir(mode=0o700)
+    (shared / "entry").symlink_to(target.parent, target_is_directory=True)
+    alias = tmp_path / "alias"
+    alias.symlink_to(shared / "entry", target_is_directory=True)
+    path = alias / target.name
+    if shared_writable:
+        shared.chmod(0o777)
+        with pytest.raises(auth.ChatGPTAuthorizationError):
+            auth.access_token(path)
+    else:
+        assert auth.access_token(path) == "synthetic"
+
+
 def test_owner_controlled_legacy_readable_lock_still_works(tmp_path):
     path = tmp_path / "profile.json"
     profile(path)

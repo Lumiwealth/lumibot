@@ -46,7 +46,13 @@ def _private_parent(path: Path) -> None:
         return
     parent = path.parent.absolute()
     resolved = parent.resolve(strict=True)
-    for directory in {parent, *parent.parents, resolved, *resolved.parents}:
+    pending = [parent, *parent.parents, resolved, *resolved.parents]
+    checked = set()
+    while pending:
+        directory = pending.pop()
+        if directory in checked:
+            continue
+        checked.add(directory)
         info = directory.lstat()
         trusted_owner = info.st_uid in (0, os.getuid())
         # Sticky system temp directories cannot rename another owner's child.
@@ -55,6 +61,11 @@ def _private_parent(path: Path) -> None:
             not stat.S_ISLNK(info.st_mode) and info.st_mode & 0o022 and not sticky_system
         ):
             raise ChatGPTAuthorizationError("ChatGPT directory must be writable only by its owner")
+        if stat.S_ISLNK(info.st_mode):
+            target = Path(os.readlink(directory))
+            if not target.is_absolute():
+                target = directory.parent / target
+            pending.extend([target, *target.parents])
 
 
 def _private_metadata(info: os.stat_result, *, permission_mask: int = 0o077) -> None:

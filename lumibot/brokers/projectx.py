@@ -379,6 +379,9 @@ class ProjectX(Broker):
         if super().strategy_tag_matches(tag, strategy_name):
             return True
         base = derive_base_tag(str(tag or ''))
+        if len(base) == 54 and all(c in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-' for c in base):
+            from lumibot.tools.projectx_helpers import projectx_strategy_identity
+            return base[:32] == projectx_strategy_identity(strategy_name)
         name, separator, suffix = base.rpartition('-')
         if not separator:
             return False

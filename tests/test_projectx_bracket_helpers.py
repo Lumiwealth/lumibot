@@ -86,7 +86,10 @@ def test_bracket_child_tag_variants():
 def test_build_unique_order_tag_generates_and_preserves():
     o = SimpleNamespace(tag=None, strategy="MyStrat")
     t1 = build_unique_order_tag(o)
-    assert t1 and t1.upper().startswith("MYSTRAT-"[:8])
+    from lumibot.brokers.projectx import ProjectX
+    assert t1 and len(t1) == 54
+    assert ProjectX.strategy_tag_matches(t1, 'MyStrat')
+    assert not ProjectX.strategy_tag_matches(t1, 'OtherStrat')
     # preserve non-empty
     o.tag = "KEEP"
     t2 = build_unique_order_tag(o)
@@ -95,6 +98,17 @@ def test_build_unique_order_tag_generates_and_preserves():
     o.tag = "  "
     t3 = build_unique_order_tag(o)
     assert t3 and t3 != "  "
+
+
+@pytest.mark.parametrize('name', ['SyntheticLifecycleStrategy', 'Research-' * 30, 'Strategy Ω ' * 20])
+def test_generated_bracket_tags_fit_provider_limit_without_losing_owner(name):
+    from lumibot.brokers.projectx import ProjectX
+    order = SimpleNamespace(tag=None, strategy=name)
+    tag = build_unique_order_tag(order)
+    for prefix in ('', 'BRK_ENTRY_', 'BRK_STOP_', 'BRK_TP_'):
+        assert len((prefix + tag).encode('utf-8')) <= 64
+        assert ProjectX.strategy_tag_matches(prefix + tag, name)
+        assert not ProjectX.strategy_tag_matches(prefix + tag, name + 'Other')
 
 
 def test_select_effective_prices_precedence_and_rounding():

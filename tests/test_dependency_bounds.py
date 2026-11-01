@@ -4,6 +4,7 @@ import ast
 from pathlib import Path
 
 from packaging.requirements import Requirement
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_NUMPY_REQUIREMENT = "numpy>=1.20.0,<2.5.0"
@@ -62,3 +63,28 @@ def test_projectx_streaming_dependency_matches_wheel_and_source_installs():
     assert declared[0] == declared[1]
     assert "1.0.2" in declared[0]
     assert "2.0.0" not in declared[0]
+
+
+@pytest.mark.parametrize("name,old,patched", [
+    ("PyJWT", "2.13.0", "2.15.1"),
+    ("setuptools", "80.10.2", "84.1.0"),
+    ("pandas-ta-classic", "0.3.14b0", "0.6.52"),
+])
+def test_security_dependency_floors_match_source_and_wheel(name, old, patched):
+    for values in [_install_requires_from_setup_py(), (ROOT / "requirements.txt").read_text().splitlines()]:
+        requirements = {
+            req.name: req for value in values if value.strip() and not value.lstrip().startswith("#")
+            for req in [Requirement(value.split("#", 1)[0].strip())]
+        }
+        # Old pandas-ta used pkg_resources; its modern floor permits removing
+        # the setuptools cap without breaking the supported indicator imports.
+        assert old not in requirements[name].specifier
+        assert patched in requirements[name].specifier
+        if name == "PyJWT":
+            assert "crypto" in requirements[name].extras
+
+
+def test_evaluation_jwt_pin_matches_the_patched_public_floor():
+    requirements = [Requirement(line) for line in (ROOT / "requirements_agent_evals.txt").read_text().splitlines()
+                    if line.strip() and not line.startswith("#")]
+    assert str(next(req for req in requirements if req.name == "PyJWT").specifier) == "==2.15.1"

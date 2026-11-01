@@ -74,7 +74,7 @@ setuptools.setup(
         "pandas>=2.2.0",
         "polars>=1.32.3",
         "pandas_market_calendars>=5.4.0",
-        "pandas-ta-classic>=0.3.14b0",
+        "pandas-ta-classic>=0.6.52",
         "plotly>=5.18.0",
         "sqlalchemy",
         "bcrypt",
@@ -104,7 +104,7 @@ setuptools.setup(
         "holidays",
         "psutil",
         "openai",
-        "setuptools<81",
+        "setuptools>=84.1.0",
         "google-adk[extensions]>=2.9.1,<3.0.0",
         "google-genai>=2.24.0,<3.0.0",
         # LiteLLM 1.106 imports MCP 2 catalog types on the Responses path;
@@ -120,7 +120,7 @@ setuptools.setup(
         "boto3>=1.40.64",
         "httpx",
         "filelock>=3.0",
-        "PyJWT[crypto]>=2.0",
+        "PyJWT[crypto]>=2.15.1",
         "pypdf>=5.0.0",
     ],
     # Include configuration files, and only include ThetaTerminal.jar if present

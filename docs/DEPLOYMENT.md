@@ -2,7 +2,7 @@
 
 > Release/deployment workflow for LumiBot (version branches, changelog, tags, and GitHub releases).
 
-**Last Updated:** 2026-06-03
+**Last Updated:** 2026-11-02
 **Status:** Active
 **Audience:** Developers + AI Agents
 
@@ -65,6 +65,40 @@ Release order for tearsheet metric changes:
 2. Update LumiBot's dependency floor and tests/docs.
 3. Validate the released QuantStats package against the local LumiBot source in a clean environment.
 4. Only then release LumiBot and roll downstream consumers.
+
+## Dependency security and compatibility
+
+The public source and wheel requirements use `PyJWT[crypto]>=2.15.1`,
+`setuptools>=84.1.0` and `pandas-ta-classic>=0.6.52`. The evaluation tuple pins
+PyJWT to 2.15.1. The old `setuptools<81` cap supported an older pandas-ta release
+that imported `pkg_resources`; the modern indicator minimum removes that reason
+to retain vulnerable packaging tools. These versions support Python 3.10.
+See the primary release metadata for [PyJWT](https://pypi.org/pypi/PyJWT/2.15.1/json),
+[setuptools](https://pypi.org/pypi/setuptools/84.1.0/json) and
+[pandas-ta-classic](https://pypi.org/pypi/pandas-ta-classic/0.6.52/json).
+
+Validate dependency changes through ordinary resolution in clean Python 3.10
+and 3.12 environments, installed wheel tests, `pip check`, and an unsuppressed
+dependency audit. Exercise real signed-token rejection as well as successful
+login/refresh and indicator calculations. A dependency change also invalidates
+affected real-model qualification fingerprints; offline compatibility checks
+do not renew those receipts.
+
+As of 2026-11-02, three upstream constraints still prevent a fully patched
+resolved environment: SignalRCore 1.0.2 pins msgpack 1.1.2; the supported LiteLLM
+line requires filelock below 4 (the patched filelock 4 line also drops Python
+3.10); and the qualified ADK/telemetry tuple caps OpenTelemetry API/SDK below
+the patched API release. Keep these audit findings visible. Do not force
+incompatible versions, remove broker capabilities, suppress advisories, or
+describe these three minimum-version changes as resolving all dependency risk.
+An upstream-compatible release or a separately reviewed migration is required
+for those remaining dependencies.
+
+Python 3.10 additionally resolves Pillow 12.3.0, whose audit fixes require
+Pillow 13.0.0 and Python 3.11 or later. Python 3.12 can resolve the patched
+release. Keep the Python 3.10 finding visible while preserving the supported
+Python floor; do not install an incompatible wheel or silently drop Python
+3.10. See [Pillow's supported Python versions](https://pillow.readthedocs.io/en/stable/installation/python-support.html).
 
 ## Goals
 

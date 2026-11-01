@@ -7,7 +7,8 @@ reasoning effort; qualification follows that recorded configuration. Market and
 broker responses are deterministic fixtures, so the eval measures agent behavior
 without placing a trade or requiring paid market data.
 
-Semantic quality is scored by a real ChatGPT GPT-6.1 Sol judge. Both roles use
+Semantic quality is scored by a real ChatGPT GPT-6 Luna judge with its qualified
+Extra High profile. Both roles use
 the developer's own authenticated ChatGPT connection with no API-key billing.
 Private login credentials stay outside the repository and CI.
 

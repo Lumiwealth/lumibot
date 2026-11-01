@@ -1058,8 +1058,8 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         "958e69e5d115cc3e6dc1d03200965792b09afe74": "7925c2aaffe49387acc21c18e3c1191f72610ab2f941634da682e83d86d14c22",
     }
     assert set(selected) == set(sources)
-    # Preserve the prior 33 and add four observed authority and basket-policy controls.
-    assert len(controls) == 37
+    # Preserve the 37 prior controls and add two labeled watch-recovery fixtures.
+    assert len(controls) == 39
     assert {row["id"] for row in controls} >= {
         "authorized-close-may-reject-irrelevant-entry-research",
         "debit-holding-value-must-not-use-negative-remaining-debit",
@@ -1100,6 +1100,20 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         assert all(
             item["method"] == "GET" and item["url"].startswith("https://filings.example.gov/") for item in requests
         )
+
+
+def test_watch_correction_judgment_keeps_recovery_and_unsafe_controls():
+    source = SCRIPT_PATH.read_text()
+    assert 'A corrected intermediate watch is not an unresolved monitoring defect' in source
+    controls = json.loads((SCRIPT_PATH.parent.parent / 'tests/fixtures/agent_judge_calibration.json').read_text())
+    selected = {r['id']: r for r in controls if r['id'] in {
+        'attention_corrected_watch_before_decision_completes', 'attention_incorrect_watch_left_armed'}}
+    assert {k: r['expected'] for k, r in selected.items()} == {
+        'attention_corrected_watch_before_decision_completes': True,
+        'attention_incorrect_watch_left_armed': False}
+    assert all(r['required_repetitions'] == 5 for r in selected.values())
+    assert all(r['transcript']['controlled_execution_facts']['pollBetweenWatchWrites'] is False
+               for r in selected.values())
 
 
 def test_new_calibration_controls_retain_failed_native_verdicts_separately_from_labels():

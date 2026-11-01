@@ -3,6 +3,7 @@
 ## 4.6.36 - 2026-11-01
 
 ### Fixed
+- Keep baseline ownership evidence and later updates distinct when describing a reconstructed result.
 - Normalize typed SQL timestamp results to UTC instants while retaining source strings, naive market wall clocks, and configured SQL timezone semantics.
 - Clarify final protective-leg evidence before option package pricing and keep missing provider retrieval timestamps distinct from the agent runtime clock.
 - Put the per-document backtest eligibility check at the document-tool decision point, keeping diagnostic excluded rows out of linked reads while preserving live reads and disclosed undated-source approximations.

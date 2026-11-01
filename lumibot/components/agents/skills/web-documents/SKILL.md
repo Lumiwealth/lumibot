@@ -23,6 +23,12 @@ useful source, or switch to a worse one, only because it has no date.
 
 ## Practical historical research
 
+A reconstructed table combines its baseline with eligible later updates. Keep
+that provenance explicit: attribute original entries to the baseline and each
+addition, removal or change to its update. Describe the final table as the
+reconciled result; do not say that the original baseline reported the whole
+updated table. Keep transaction amounts distinct from current valuations.
+
 Before **each** linked-document call, compare its known publication/version
 instant with the simulated cutoff. If it is later, omit the call entirely.
 Passing a later `available_at` to test the reader's refusal is still a failed

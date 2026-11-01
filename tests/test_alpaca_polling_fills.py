@@ -105,3 +105,21 @@ def test_order_reads_include_old_working_orders_and_paginate_them():
     calls = broker.api.get_orders.call_args_list
     assert calls[1].kwargs['filter'].status.value == 'open'
     assert calls[2].kwargs['filter'].until == first_page[-1].submitted_at
+
+
+@pytest.mark.parametrize("quantity", ["0.3", "0.123456789123456789"])
+def test_alpaca_order_parser_preserves_provider_decimal_quantity(quantity):
+    from decimal import Decimal
+    response = ProviderOrder(
+        id=UUID(int=3), client_order_id="fractional-order", asset_id=UUID(int=4),
+        created_at=datetime(2027, 1, 4, tzinfo=timezone.utc), symbol="BTCUSD",
+        updated_at=datetime(2027, 1, 4, tzinfo=timezone.utc),
+        submitted_at=datetime(2027, 1, 4, tzinfo=timezone.utc),
+        asset_class="crypto", qty=quantity, filled_qty=quantity, filled_avg_price="100",
+        order_class="simple", type="market", side="buy", time_in_force="gtc",
+        status="filled", extended_hours=False,
+    )
+    broker = object.__new__(Alpaca)
+    parsed = broker._parse_broker_order(response, "neutral")
+    assert isinstance(parsed.quantity, Decimal)
+    assert parsed.quantity == Decimal(quantity)

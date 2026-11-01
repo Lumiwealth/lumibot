@@ -274,3 +274,29 @@ def test_historical_crypto_execution_does_not_recharge_reported_cash_or_replace_
     broker._process_broker_synced_order(order)
     assert cash.quantity == 9800
     assert Decimal(str(coin.quantity)) == Decimal('1.997')
+
+
+@pytest.mark.parametrize("quantity", [0.3, 0.7, Decimal("0.123456789123456789")])
+def test_fractional_cumulative_fill_uses_decimal_requested_quantity(quantity):
+    broker = _BrokerForSyncTest([])
+    order = Order("strategy", Asset("SYN", asset_type="crypto"), quantity, "buy",
+                  identifier="fractional-history", quote=Asset("USD", asset_type="forex"), avg_fill_price=100)
+    order.status = "fill"
+    order.filled_quantity = Decimal(str(quantity))
+    broker._process_broker_synced_order(order)
+    assert order.status == "fill"
+    assert sum(Decimal(str(tx.quantity)) for tx in order.transactions) == Decimal(str(float(quantity)))
+    assert order._broker_synced_filled_quantity == Decimal(str(quantity))
+    broker._process_broker_synced_order(order)
+    assert len(order.transactions) == 1
+
+
+@pytest.mark.parametrize("quantity", [Decimal("0.300000000000000001"), Decimal("-0.1"), Decimal("NaN")])
+def test_fractional_cumulative_fill_still_rejects_invalid_executions(quantity):
+    broker = _BrokerForSyncTest([])
+    order = Order("strategy", Asset("SYN"), 0.3, "buy", avg_fill_price=100)
+    order.status = "fill"
+    order.filled_quantity = quantity
+    with pytest.raises(ValueError, match="cumulative fill quantity"):
+        broker._process_broker_synced_order(order)
+    assert order.transactions == []

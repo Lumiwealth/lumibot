@@ -1230,6 +1230,10 @@ class Broker(ABC):
             if observed is None and observed_status == Order.OrderStatus.FILLED:
                 observed = order.quantity
             processed = sum((Decimal(str(t.quantity)) for t in order.transactions), Decimal(0))
+            # Execution callbacks retain their compatible numeric ledger. Keep
+            # the exact broker receipt too, so float serialization cannot turn
+            # a repeated high-precision observation into another tiny execution.
+            processed = max(processed, getattr(order, "_broker_synced_filled_quantity", Decimal(0)))
             importing_history = tracked is None and processed == 0
             cumulative = Decimal(str(observed)) if observed is not None else None
             if processed > 0 and processed >= Decimal(str(order.quantity)) and observed_status != Order.OrderStatus.FILLED:
@@ -1242,7 +1246,7 @@ class Broker(ABC):
                 order.avg_fill_price = incoming.avg_fill_price
                 order.error_message = incoming.error_message
             if cumulative is not None and (
-                not cumulative.is_finite() or cumulative < 0 or cumulative > order.quantity
+                not cumulative.is_finite() or cumulative < 0 or cumulative > Decimal(str(order.quantity))
             ):
                 raise ValueError("Broker cumulative fill quantity is invalid")
             # Reconcile executions before a terminal transition. A partially
@@ -1263,9 +1267,15 @@ class Broker(ABC):
                     order.add_transaction(float(price), float(delta))
                 elif observed_status == Order.OrderStatus.FILLED:
                     self._process_filled_order(order, float(price), float(delta))
+                    order._broker_synced_filled_quantity = cumulative
                     return
                 else:
                     self._process_partially_filled_order(order, float(price), float(delta))
+            if (
+                cumulative is not None and cumulative >= processed
+                and (cumulative == processed or order.avg_fill_price is not None)
+            ):
+                order._broker_synced_filled_quantity = cumulative
             if observed_status == Order.OrderStatus.FILLED:
                 # All executions were already recorded, or prices are unknown.
                 # Track the terminal state without inventing another fill.

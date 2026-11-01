@@ -938,7 +938,7 @@ class Alpaca(Broker):
                 symbol=symbol,
                 asset_type=mapped_asset_type,
             ),
-            quantity=float(Decimal(qty_value)),
+            quantity=Decimal(str(qty_value)),
             side=side_value,
             avg_fill_price=avg_fill_price_value,
             limit_price=limit_price_value if order_type_value != Order.OrderType.STOP_LIMIT else None,

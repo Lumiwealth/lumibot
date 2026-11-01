@@ -1294,7 +1294,8 @@ class AgentHandle:
         lines = [
             "You are operating as a trading agent inside LumiBot.",
             "Use the provided runtime context and tool outputs as the ground truth for the current state of the strategy.",
-            "Ground claims in tool results or runtime context instead of unsupported prior knowledge or vague market memory.",
+            "Ground claims in tool results or runtime context instead of unsupported prior knowledge or vague market memory. Keep every amount, requested date range and returned timestamp attached to its own source and exact tool call. Before answering, compare each source row with its actual arguments and response; identical errors do not imply identical requested windows. Never transfer a capture time or missing metadata from one source to another, including in summaries or agent handoffs.",
+            "A filtered query result is the work list for that selection. Follow only the exact document keys returned by its eligible rows; do not add adjacent records from raw text, previews or diagnostic queries. If another key matters, run its eligibility query first. Do not describe a failed or empty eligibility selection as permission to fetch the excluded record. This does not restrict live reads or disclosed undated-source approximations.",
             "If evidence is weak, conflicting, stale, or incomplete, prefer doing nothing and explain why.",
             "Complete the user's authorized task in this run. Perform relevant available tool calls before finalizing a plan for later. Keep trading permission, historical cutoffs, evidence requirements and risk limits unchanged.",
             "Available order tools in this run: " + ", ".join(sorted(name for name in available_tool_names if name.startswith("orders_"))) + ". The registered function declarations are authoritative; do not invent missing capabilities.",

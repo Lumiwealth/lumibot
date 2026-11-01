@@ -36,6 +36,23 @@ def test_price_reads_fixed_testnet_endpoint_without_wallet_credentials(venue):
     assert "Authorization" not in kwargs.get("headers", {})
 
 
+def test_live_open_order_snapshot_is_read_from_bound_wallet_with_exact_remaining_size(venue):
+    rows = [{"coin": "ETH", "oid": 42, "sz": "0.0002", "origSz": "0.0106", "reduceOnly": False}]
+    venue.session.request.return_value = reply(rows)
+    assert venue.frontend_open_orders(WALLET) == rows
+    args, kwargs = venue.session.request.call_args
+    assert args == ("POST", "https://api.hyperliquid-testnet.xyz/info")
+    assert kwargs["json"] == {"type": "frontendOpenOrders", "user": WALLET}
+    assert "Authorization" not in kwargs.get("headers", {})
+
+
+@pytest.mark.parametrize("value", [None, {}, [None], ["not-an-order"]])
+def test_malformed_live_open_order_snapshot_is_not_treated_as_empty(venue, value):
+    venue.session.request.return_value = reply(value)
+    with pytest.raises(MetaMaskError, match="INVALID_RESPONSE"):
+        venue.frontend_open_orders(WALLET)
+
+
 @pytest.mark.parametrize("value", ["NaN", "Infinity", "0", "-1", None])
 def test_unavailable_or_invalid_mark_is_not_a_synthetic_price(venue, value):
     venue.session.request.return_value = reply([META, [{"markPx": value}]])

@@ -143,6 +143,18 @@ def test_unknown_effect_blocks_other_orders_across_restart(journal, tmp_path):
         restored.close()
 
 
+@pytest.mark.parametrize("state", ["canceled", "rejected"])
+def test_terminal_reconciliation_error_fences_new_spending_until_resolved(journal, state):
+    first, _ = _reserve(journal, request(), "20", now=NOW)
+    unresolved = {**first, "state": state, "reconciliationErrorCode": "FILL_HISTORY_INCOMPLETE"}
+    journal.save(unresolved)
+    with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+        _reserve(journal, request("two"), "1", now=NOW + 1)
+    assert journal.get("agent", "two") is None
+    journal.save({**unresolved, "reconciliationErrorCode": None})
+    assert _reserve(journal, request("two"), "1", now=NOW + 2)[1] is True
+
+
 def test_open_orders_retain_budget_even_outside_rolling_day(journal):
     operation, _ = _reserve(journal, request(), "25", now=NOW)
     journal.save({**operation, "state": "open"})

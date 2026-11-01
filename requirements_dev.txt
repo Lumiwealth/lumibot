@@ -5,6 +5,7 @@ pytest
 pytest-cov
 pytest-mock
 coverage
+hyperliquid-python-sdk==0.24.0
 
 # Technical Analysis (needed for VixHelper and other TA components)
 pandas-ta-classic

@@ -415,6 +415,44 @@ def test_order_refresh_reconciles_fills_before_terminal_state(broker, state):
     assert subscriber.add_event.call_count == event_count
 
 
+@pytest.mark.parametrize("state,tracker", [("canceled", "_canceled_orders"), ("rejected", "_error_orders")])
+@pytest.mark.parametrize("reconstructed", [False, True])
+def test_late_terminal_fills_emit_only_new_delta_without_reopening(broker, state, tracker, reconstructed):
+    item = order()
+    delivered_statuses = []
+    subscriber = SimpleNamespace(
+        name=item.strategy,
+        add_event=Mock(side_effect=lambda event, payload: delivered_statuses.append(payload["order"].status)),
+        NEW_ORDER="new",
+        PARTIALLY_FILLED_ORDER="partial_fill",
+        FILLED_ORDER="fill",
+        CANCELED_ORDER="canceled",
+        ERROR_ORDER="error",
+    )
+    broker._add_subscriber(subscriber)
+    broker._unprocessed_orders.append(item)
+    broker._observe(item, observation(item, state))
+    terminal_calls = subscriber.add_event.call_count
+    late = observation(item, state, "0.0004", "50000")
+    broker._observe(order(identifier=item.identifier) if reconstructed else item, late)
+    broker._observe(item, late)
+    broker._observe(item, {**late, "state": "open"})
+    assert sum(Decimal(str(t.quantity)) for t in item.transactions) == Decimal("0.0004")
+    assert subscriber.add_event.call_count == terminal_calls + 1
+    call = subscriber.add_event.call_args
+    assert call.args[0] == "partial_fill" and Decimal(str(call.args[1]["quantity"])) == Decimal("0.0004")
+    assert item.status == ("canceled" if state == "canceled" else "error")
+    assert item._closed_event.is_set()
+    assert list(getattr(broker, tracker)) == [item]
+    assert item not in broker._partially_filled_orders
+    assert item not in broker._new_orders
+    assert item._raw["state"] == state
+    assert delivered_statuses == [item.status, item.status]
+    broker.client.submit.return_value = late
+    assert broker.submit_order(order(identifier=item.identifier)) is item
+    assert delivered_statuses == [item.status, item.status]
+
+
 def test_swap_retains_request_id_on_uncertain_response(broker):
     broker.mode = "spot"
     source = Asset("ETH", asset_type="crypto", chain_id=11155111, token_address="native", decimals=18)

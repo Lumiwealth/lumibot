@@ -172,3 +172,64 @@ def test_real_fixture_fill_and_observed_events_survive_later_dns_failure(monkeyp
         assert not any(event.tool_name == "orders_get_status" for event in result.events)
     finally:
         production.close()
+
+
+@pytest.mark.parametrize("mutates_trading", [False, True])
+@pytest.mark.parametrize("phase", ["before_invocation", "after_response", "lost_response"])
+@pytest.mark.parametrize("alias", ["canonical", "sanitized", "space_alias"])
+def test_declared_custom_tool_mutation_controls_replay(monkeypatch, mutates_trading, phase, alias):
+    from lumibot.components.agents.tools import agent_tool
+
+    calls = []
+    attempts = []
+    tool_name = "rebalance-positions" if alias == "sanitized" else "rebalance_positions"
+
+    @agent_tool(name=tool_name, mutates_trading=mutates_trading)
+    def custom_action():
+        calls.append("invoked")
+        if phase == "lost_response":
+            raise ConnectionError("Effect occurred but its acknowledgement was lost")
+        return {"completed": True}
+
+    runtime = GoogleADKRuntime()
+
+    async def fails(request):
+        attempts.append(request)
+        if phase != "before_invocation":
+            context = {"tool_calls": request._attempt_tool_calls}
+            declared = runtime_module._function_tools_with_name_aliases(lambda fn: fn, request.bound_tools, context)[0]
+            if alias == "space_alias":
+                declared = runtime_module._clone_tool_callable(declared, "rebalance_ positions")
+            response = declared(agent_purpose="Perform the declared custom operation.")
+            assert response.get("tool_error", False) is (phase == "lost_response")
+            assert request._attempt_tool_calls[-1]["tool_name"] == tool_name
+        raise InternalServerError("DNS transport failed")
+
+    monkeypatch.setattr(runtime, "_run_async", fails)
+    result = AgentManager(Strategy()).create(
+        name="custom_trader", tools=[custom_action], include_builtin_tools=False,
+        include_builtin_skills=False, allow_trading=True, _runtime=runtime,
+    ).run(task_prompt="Perform the declared operation.")
+    touched = mutates_trading and phase != "before_invocation"
+    expected_attempts = 1 if touched else 3
+    assert len(attempts) == expected_attempts
+    assert len(calls) == (0 if phase == "before_invocation" else expected_attempts)
+    assert result.payload["broker_mutation_attempted"] is touched
+    assert result.payload["execution_outcome"]["retryability"] == ("non_retryable" if touched else "retryable")
+    assert result.payload["execution_outcome"]["broker_state_certainty"] == ("unknown" if touched else "not_observed")
+
+
+@pytest.mark.parametrize("mutates_trading", [False, True])
+@pytest.mark.parametrize("mode", ["live", "backtesting"])
+def test_custom_tool_metadata_selects_default_attempt_budget(monkeypatch, mutates_trading, mode):
+    from lumibot.components.agents.tools import agent_tool, bind_callable_tool
+
+    @agent_tool(name="custom-allocation", mutates_trading=mutates_trading)
+    def custom_action():
+        return {"completed": True}
+
+    monkeypatch.delenv("LUMIBOT_AGENT_MAX_RUN_ATTEMPTS")
+    tool = bind_callable_tool(custom_action).binder(None, None)
+    request = SimpleNamespace(bound_tools=[tool], runtime_context={"mode": mode})
+    expected = 1 if mutates_trading else 2 if mode == "backtesting" else GoogleADKRuntime._MAX_RUN_ATTEMPTS
+    assert GoogleADKRuntime._max_attempts_for_request(request) == expected

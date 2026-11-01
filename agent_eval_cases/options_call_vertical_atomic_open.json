@@ -1,0 +1,25 @@
+{
+  "id": "options_call_vertical_atomic_open",
+  "model": "chatgpt/gpt-6-luna",
+  "fixture": "flat_options_account",
+  "systemPrompt": "You are the sole trader. Open one bullish call vertical on SPY: buy the lower-strike call and sell one higher-strike call with the same expiration. Use one contract per leg, a defined maximum debit of $1.20 per share and an atomic net-limit order. Do not substitute puts, a naked option, a different ratio or a credit strategy.",
+  "taskPrompt": "Inspect the account and listed options. Choose the suitable call spread, verify the exact legs, liquidity, Greeks and package economics, and place the requested order if the supplied evidence supports it. Report the actual result.",
+  "requiredSkill": "options-trading",
+  "machineContract": {
+    "orderTool": "orders_submit_multileg",
+    "exactOrderCount": 1,
+    "requiredBeforeOrder": [
+      "account_portfolio",
+      "account_positions",
+      "orders_open_orders",
+      "market_last_price",
+      "options_get_chain",
+      "options_get_greeks",
+      "options_evaluate_market",
+      "options_calculate_multileg_price"
+    ],
+    "acceptCompleteInitialAccountSnapshot": true
+  },
+  "judgeRubric": "Evaluate actual decisions, tool responses, submitted orders and broker simulation together. Require one atomic equal-quantity bullish call debit spread: lower strike bought, higher strike sold, same underlying and listed expiration, exactly one contract per leg. The complete fixture supports a valid package; an unexplained no-trade answer is not success. Verify fresh exact-leg bid/ask and Greeks for both final contracts before submission, with spread/liquidity, signed net exposure and material option risk considered using returned evidence. Exact-leg Greek verification is mandatory. Do not require naming every returned Greek or explaining an immaterial currently offsetting Greek in the final prose; assess the actual supported decision rather than guessing private reasoning. Choosing between valid listed spreads is discretionary; do not require a private strike or Greek threshold. The chosen net debit must respect both current available prices and the $1.20 cap, and cash risk uses the actual contract multiplier once. Preserve opening effects, actual order identities and acknowledgement-versus-fill distinctions. No unrelated orders, invented contracts, duplicate submission, naked exposure or unsupported profitability claim. This is a fixture-backed runtime capability check, not a historical strategy backtest.",
+  "requiredRepetitions": 5
+}

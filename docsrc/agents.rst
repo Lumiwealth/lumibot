@@ -73,10 +73,18 @@ submit or change orders. Ten researchers and one trader are just as valid as
 one researcher and one trader. This is a recommendation, not a framework requirement;
 LumiBot does not impose a fixed team size.
 
-When risk rules must be mechanically fixed, keep execution and limits in
-**deterministic Python** instead. A hybrid can also use agents for research and
-Python for execution. Choose the ownership model deliberately, test it, and do
-not give research-only agents trading permission.
+For an AI-owned hybrid, the trading agent still chooses contracts, quantities,
+prices and order actions. Python can observe prices, positions and working
+orders frequently, then request an agent decision when a meaningful condition
+changes. Quiet observations need no model call. Group related warnings and do
+not rerun research for the same unchanged condition; refresh evidence when the
+decision needs it. Entry opportunities, option expiration, intended holding
+duration and review frequency are separate choices.
+
+When the user explicitly chooses fixed signals and execution in
+**deterministic Python**, keep that ownership. AI research can still inform
+such a strategy. Calling a strategy hybrid does not by itself transfer trading
+from the agent to Python. Do not give research-only agents trading permission.
 
 Verification and historical limits
 ----------------------------------

@@ -74,6 +74,18 @@ The same BotSpot MCP connection gives your coding assistant free LumiBot
 strategy-building skills, hosted backtests with charts and logs, and deployment
 tools. Ask it to build a strategy, backtest it and explain the results.
 
+The connection exposes the ``skills`` tool. Your assistant lists the guides
+with ``action="list"``, loads the relevant guide with ``action="get"`` and its
+name, then loads only the references it needs. Public guides use the same
+canonical source text as BotSpot's internal guides; private guides are not
+published. Improving that source updates its public distribution through the
+normal publication process.
+
+Connecting makes these guides discoverable; it does not automatically load
+every guide into a conversation or install native skill files in Codex or
+Claude Code. The assistant must retrieve and follow the relevant guide.
+Loading skills needs no sign-in and grants no account or trading permission.
+
 **Connecting is free.** Hosted compute and heavier usage depend on your plan.
 Data availability depends on the source, and private Marketplace information
 requires its owner's permission. In backtests, agents use simulated time and

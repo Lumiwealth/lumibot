@@ -4,8 +4,9 @@ No replacement agent-facing trading functions live here. Orders are real LumiBot
 orders, and fills are produced by BacktestingBroker against fixture OHLCV data.
 
 research_live_available exercises live research transport on recorded calendar
-data, never original-version historical source qualification. Its agent cannot
-trade. research_unavailable covers current observations being unavailable;
+data, never original-version historical source qualification. Each role retains
+its declared trading permissions; the user request determines authorized actions.
+research_unavailable covers current observations being unavailable;
 research_available retains the backtest clock and actual historical refusals.
 """
 
@@ -838,6 +839,21 @@ class ProductionFixture:
             # is live research evidence, not a qualified historical replay.
             self.strategy.is_backtesting = False
         self.manager = self.strategy.agents
+        self.agent_runs = []
+        original_observer = self.manager._record_agent_observability
+
+        def record_actual_run(**kwargs):
+            from copy import deepcopy
+
+            original_observer(**kwargs)
+            handle = kwargs["handle"]
+            self.agent_runs.append({
+                "role": handle.name, "allow_trading": handle.allow_trading,
+                "result": kwargs["result"],
+                "runtime_context": deepcopy(kwargs["runtime_context"]),
+            })
+
+        self.manager._record_agent_observability = record_actual_run
         self.manager.replay_cache.root = self.root / "replay"
         self.manager.replay_cache.remote_cache = _NoRemoteCache()
 
@@ -863,9 +879,11 @@ class ProductionFixture:
             rules_path=rules,
             _runtime=runtime,
             mcp_servers=servers,
-            allow_trading=False if self.fixture.name == "research_live_available" else allow_trading,
+            allow_trading=allow_trading,
             allow_network=bool(case.get("allowNetwork")),
             reasoning_effort=None if str(case["model"]).startswith("gemini") else EVAL_REASONING_EFFORT,
+            model_request_timeout_seconds=0,
+            run_timeout_seconds=0,
         )
 
     def tools(self):

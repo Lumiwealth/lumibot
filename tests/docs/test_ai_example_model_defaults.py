@@ -4,6 +4,7 @@ import ast
 from pathlib import Path
 
 import pytest
+from lumibot.components.agents.manager import DEFAULT_AGENT_MODEL
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = ROOT / "lumibot" / "example_strategies"
@@ -19,6 +20,11 @@ def _default_model(value, assignments):
     if isinstance(value, ast.Call) and ast.unparse(value.func) == "os.environ.get":
         # Explicit user overrides stay supported; the no-override path is the contract.
         return _default_model(value.args[1], assignments)
+    if isinstance(value, ast.Subscript) and ast.unparse(value.value) == "self.parameters":
+        key = ast.literal_eval(value.slice)
+        parameters = assignments["parameters"]
+        values = dict(zip(map(ast.literal_eval, parameters.keys), parameters.values))
+        return _default_model(values[key], assignments)
     raise AssertionError(f"Unreviewed example model selection: {ast.unparse(value)}")
 
 
@@ -35,7 +41,15 @@ def test_every_explicit_example_model_defaults_to_luna(path):
     for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
         for keyword in call.keywords:
             if keyword.arg in {"model", "default_model"}:
-                assert _default_model(keyword.value, assignments) == LUNA, path.name
+                configured = _default_model(keyword.value, assignments)
+                assert (DEFAULT_AGENT_MODEL if configured is None else configured) == LUNA, path.name
+
+
+@pytest.mark.parametrize("configured", [None, LUNA, "openai/different-model"])
+def test_parameter_resolution_preserves_the_actual_configured_default(configured):
+    assignment = ast.parse(f"parameters = {{'model': {configured!r}}}").body[0].value
+    value = ast.parse("self.parameters['model']", mode="eval").body
+    assert _default_model(value, {"parameters": assignment}) == configured
 
 
 @pytest.mark.parametrize("variant", ["", "_leveraged"])

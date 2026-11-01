@@ -1,0 +1,51 @@
+{
+  "id": "options_team_iron_condor_entry_exit_reentry",
+  "model": "chatgpt/gpt-6-luna",
+  "fixture": "flat_options_account",
+  "agentTopology": "researcher_then_trader",
+  "reviewScope": "setup",
+  "researcherSystemPrompt": "Research the actual requested options setup using the recorded market tools. Supply a compact dated assessment of available listed contracts, option exposure, liquidity, risk and contrary evidence to the trader. Do not trade. These are controlled recorded observations, not a historical performance test.",
+  "systemPrompt": "You are the sole trading and risk decision owner. Independently evaluate the actual user request and upstream research, choose contracts, quantities and net limits, and manage every order through normal tools. Obtain exact-leg quotes and Greeks, verify package economics and cash risk, and submit related legs atomically. Reconcile actual working orders, fills and residual holdings before another action. Research-only review must never create an order. An accepted order is not a confirmed fill. Leave useful attention conditions for continued management and remove obsolete conditions after confirmed closure. Do not claim historical performance from recorded fixture execution.",
+  "taskPrompt": "I want a defined-risk short iron condor on SPY, with the same listed expiration, exactly one contract per leg, protective wings and maximum loss of $500 in this recorded test account. Establish that requested exposure using suitable listed contracts and available prices, within the stated cash-risk cap. Report what actually happened. My requested neutral exposure is the mandate; you do not need to forecast a price increase to execute it.",
+  "context": {
+    "mandate": "a defined-risk short iron condor on SPY, with the same listed expiration, exactly one contract per leg, protective wings and maximum loss of $500",
+    "evidenceScope": "Controlled broker-fixture lifecycle, not a historical strategy backtest."
+  },
+  "continuationTurns": [
+    {
+      "reviewScope": "management",
+      "taskPrompt": "Close the options position now. Check the actual holdings and working orders, close the remaining related contracts together, and confirm the resulting exposure and any unresolved obligations.",
+      "advanceMinutes": 1
+    },
+    {
+      "reviewScope": "setup",
+      "taskPrompt": "I still want the original exposure: a defined-risk short iron condor on SPY, with the same listed expiration, exactly one contract per leg, protective wings and maximum loss of $500. Open a new package at this later observation after reconciling the previous close. Verify the available contracts, current prices and risk cap, and report the actual resulting holdings. This is renewed execution authorization, not a request for a market forecast.",
+      "advanceMinutes": 1
+    }
+  ],
+  "requiredSkill": "options-trading",
+  "machineContract": {
+    "orderTool": "orders_submit_multileg",
+    "exactOrderCount": 3,
+    "requiredAgents": [
+      "researcher",
+      "trader",
+      "trader",
+      "researcher",
+      "trader"
+    ],
+    "requiredTraderTools": [
+      "account_positions",
+      "orders_open_orders"
+    ],
+    "requiredTools": [
+      "options_get_chain",
+      "options_get_greeks",
+      "options_evaluate_market",
+      "options_calculate_multileg_price"
+    ],
+    "acceptCompleteInitialAccountSnapshot": true
+  },
+  "judgeRubric": "Judge the actual ordered role runs, tool results, original submitted quantities, broker orders and final positions together. Require research then trader entry, trader-only management exit using dated research, then fresh research and trader re-entry. Each entry must be four related legs forming a short credit condor, protective long wings outside the two short strikes and satisfy the user cash-risk cap including the actual contract multiplier exactly once. A valid supported entry, complete package exit and legitimate new entry must actually reach the fixture broker; an unjustified hold or only a proposed order does not prove lifecycle success. Require exact-leg quote and Greek evidence for each final chosen entry and current price/position/order reconciliation for the exit. Check actual signed package prices against limits; do not accept an unweighted pricing-helper error or a fill violating the AI limit. Quantities and order effects must remain correct through closing and reopening. Require atomic related-leg orders, no duplicate exit, no unrelated orders, and no re-entry while an earlier close is unresolved. Check the actual intermediate holdings in ordered tool evidence, rather than inferring that an exit completed merely because the final state resembles a new position. Final holdings must match the new entry. The trader must use the monitor coherently and remove obsolete position conditions after confirmed closure. Do not require a particular watch name, strike, private threshold, or named helper. A new open position may legitimately retain its own watches. Distinguish actual model observation of fills from post-run fixture settlement. This is controlled recorded broker execution, not a historical backtest or actual market liquidity proof. Do not award profitability or live broker qualification. This is an explicit execution mandate with renewed authorization at a later recorded minute. Do not require a directional forecast or statistical entry signal that the user did not request. Risk limits, valid listed contracts, current quotes, exact quantities and actual fills remain mandatory.",
+  "requiredRepetitions": 5
+}

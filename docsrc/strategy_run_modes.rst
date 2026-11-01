@@ -64,13 +64,14 @@ execution**, not the capability of the importable strategy class.
 ``agent_momentum_allocator.py``, ``agent_news_sentiment.py``,
 ``ai_nancy_pelosi_trading_bot.py``, ``ai_nancy_pelosi_copy_trading_bot.py``,
 ``ai_insider_trading_bot.py``, ``ai_fear_and_greed_trading_bot.py``,
-``ai_iron_condor.py``, ``ai_credit_spread.py``,
+``ai_iron_condor.py``, ``ai_bull_call_spread.py``,
+``ai_call_stock_replacement.py``, ``ai_credit_spread.py``,
 ``ai_0dte_options_trading_bot.py``, ``ai_vwap.py``,
 ``ai_opening_range_breakout.py``, ``ai_trading_team_warren_buffett_value.py``,
 ``ai_trading_team_bill_ackman_concentrated.py``,
 ``ai_trading_team_bull_bear_large_cap_stocks.py``, and
-``ai_trading_team_bull_bear_leveraged_etf.py``. Each ends with the same block
-as a BotSpot ``main.py``:
+``ai_trading_team_bull_bear_leveraged_etf.py``. Each uses the same environment
+choice as a BotSpot ``main.py``; the data source differs by example:
 
 .. code-block:: python
 
@@ -88,6 +89,13 @@ Set ``IS_BACKTESTING=true`` in your ``.env`` file to backtest, with
 ``BACKTESTING_START`` and ``BACKTESTING_END`` for the dates. Otherwise
 ``run_live()`` trades with the broker in your ``.env`` file (paper or live, as
 that file says).
+
+The iron-condor, bull-call-spread and call-stock-replacement sources use Alpaca
+for their direct backtests and require the attention API in the installed
+LumiBot version. Confirm that capability and your account's historical options
+data access before running. Source availability alone does not establish a
+qualified historical backtest or broker integration. Historical trade bars do
+not establish executable historical bid/ask prices.
 
 **Backtest and broker, chosen by the environment (BotSpot copies):**
 ``ai_trading_team_citadel_sector_pods.py``,

@@ -78,6 +78,7 @@ def test_daily_limit_cannot_round_down_in_strategy_decimal_context(journal):
     journal.bind({**binding(), "maxOrderUsd": "100", "maxDailyUsd": "100"})
     with localcontext() as context:
         context.prec = 6
+        context.Emax = 1
         first, _ = _reserve(journal, request(), "99.9999", now=NOW)
         journal.save({**first, "state": "canceled"})
         with pytest.raises(MetaMaskError, match="DAILY_LIMIT"):

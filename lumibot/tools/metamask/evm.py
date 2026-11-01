@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import time
-from decimal import ROUND_CEILING, Decimal, localcontext
+from decimal import ROUND_CEILING, Context, Decimal, localcontext
 from urllib.parse import urlsplit
 from uuid import uuid4
 
@@ -139,7 +139,8 @@ class EvmWallet:
         prices = [
             decimal(json_object(result.get(item.caip), "token price").get("usd"), positive=True) for item in assets
         ]
-        return prices[0] / prices[1] if quote is not None else prices[0]
+        with localcontext(Context(prec=160)):
+            return prices[0] / prices[1] if quote is not None else prices[0]
 
     def _balance(self, wallet, asset, block="latest"):
         if asset.address == "native":
@@ -164,20 +165,21 @@ class EvmWallet:
     def account(self):
         binding, _ = self._binding()
         positions, equity = [], Decimal(0)
-        for asset in binding.assets:
-            quantity = self._balance(binding.wallet, asset)
-            if quantity == 0:
-                continue
-            value = quantity * self.price(asset)
-            equity += value
-            positions.append(
-                {
-                    "symbol": asset.symbol,
-                    "asset": asset.record(),
-                    "quantity": format(quantity, "f"),
-                    "marketValue": format(value, "f"),
-                }
-            )
+        with localcontext(Context(prec=160)):
+            for asset in binding.assets:
+                quantity = self._balance(binding.wallet, asset)
+                if quantity == 0:
+                    continue
+                value = quantity * self.price(asset)
+                equity += value
+                positions.append(
+                    {
+                        "symbol": asset.symbol,
+                        "asset": asset.record(),
+                        "quantity": format(quantity, "f"),
+                        "marketValue": format(value, "f"),
+                    }
+                )
         # USD is the valuation unit, not an invented spendable cash balance.
         return {
             "cash": "0",
@@ -227,7 +229,7 @@ class EvmWallet:
                 "srcTokenAddress": ZERO if intent.source.address == "native" else intent.source.address,
                 "destTokenAddress": ZERO if intent.destination.address == "native" else intent.destination.address,
                 "srcTokenAmount": str(atomic),
-                "slippage": float(Decimal(intent.slippage_bps) / 100),
+                "slippage": intent.slippage_bps / 100,
                 "resetApproval": "false",
                 "insufficientBal": "false",
                 "gasIncluded": "false",
@@ -379,9 +381,7 @@ class EvmWallet:
                 raise MetaMaskError("ASSET_DENIED", "Register the chain's native gas token before swap execution")
             quote["feeEstimates"] = [estimate_fees(self._rpc, tx) for tx in [*quote["approvals"], quote["trade"]]]
             gas = sum(integer(fee["totalEstimate"]) for fee in quote["feeEstimates"])
-            with localcontext() as context:
-                context.prec = 160
-                context.rounding = ROUND_CEILING
+            with localcontext(Context(prec=160, rounding=ROUND_CEILING)):
                 native_price = self.price(native)
                 source_price = native_price if intent.source.identity == native.identity else self.price(intent.source)
                 reservation = intent.amount * source_price + native.from_atomic(gas) * native_price
@@ -613,9 +613,7 @@ class EvmWallet:
                     },
                 }
                 if plan.get("nativeUsdPrice") is not None:
-                    with localcontext() as context:
-                        context.prec = 160
-                        context.rounding = ROUND_CEILING
+                    with localcontext(Context(prec=160, rounding=ROUND_CEILING)):
                         # Native EVM accounting already requires 18 decimals at balance validation.
                         extra_usd = Decimal(spent - fee_budget).scaleb(-18) * decimal(
                             plan["nativeUsdPrice"], positive=True

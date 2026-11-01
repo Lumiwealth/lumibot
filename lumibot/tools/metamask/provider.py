@@ -18,6 +18,7 @@ import requests
 
 SERVER_WALLET_URL = "https://agentic-mimir-service.api.cx.metamask.io"
 HYPERLIQUID_SIGNING_CHAIN = 1337
+METAMASK_WALLET_ORIGIN = "metamask"
 NETWORK_SOURCE = {"testnet": "b", "mainnet": "a"}
 _ADDRESS = re.compile(r"0x[0-9a-fA-F]{40}\Z")
 _IDENTIFIER = re.compile(r"[a-zA-Z0-9_-]{1,128}\Z")
@@ -250,7 +251,7 @@ class MetaMaskProvider:
         request_id: str,
         wallet: str,
         network: str,
-        origin: str = "lumibot",
+        origin: str = METAMASK_WALLET_ORIGIN,
     ) -> SignatureJob:
         if payload.get("requestId") != request_id or str(payload.get("walletAddress", "")).lower() != address(wallet):
             raise MetaMaskError("JOB_MISMATCH", "Signature job identity differs from the persisted request")
@@ -310,14 +311,17 @@ class MetaMaskProvider:
             "chainId": HYPERLIQUID_SIGNING_CHAIN,
             "walletAddress": address(wallet),
             "method": "eth_signTypedData_v4",
-            "origin": "lumibot",
+            "origin": METAMASK_WALLET_ORIGIN,
+            "intent": f"LumiBot Hyperliquid {action.get('type')} on {network}",
             "payload": {"typedData": typed_data, "protocol": "hyperliquid", "protocolPayload": action},
         }
         return self._signature_job(
             self._request("POST", "signature-requests", payload=body), request_id, wallet, network
         )
 
-    def signature(self, request_id: str, wallet: str, network: str, *, origin: str = "lumibot") -> SignatureJob:
+    def signature(
+        self, request_id: str, wallet: str, network: str, *, origin: str = METAMASK_WALLET_ORIGIN
+    ) -> SignatureJob:
         identifier(request_id, "request_id")
         if network not in NETWORK_SOURCE:
             raise ValueError("NETWORK must be explicitly testnet or mainnet")

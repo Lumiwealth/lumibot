@@ -8,7 +8,7 @@ import sqlite3
 import stat
 import time
 from contextlib import contextmanager
-from decimal import ROUND_CEILING, Decimal, localcontext
+from decimal import ROUND_CEILING, Context, Decimal, localcontext
 from pathlib import Path
 from threading import Lock, RLock
 
@@ -250,9 +250,7 @@ class Journal:
         now = int(time.time() * 1000) if now is None else now
         operation_id = identifier(request.get("id"), "operation ID")
         amount = decimal(usd, positive=True)
-        with self._lock, localcontext() as context:
-            context.prec = 160
-            context.rounding = ROUND_CEILING
+        with self._lock, localcontext(Context(prec=160, rounding=ROUND_CEILING)):
             self.db.execute("BEGIN IMMEDIATE")
             try:
                 binding = self.binding(agent)
@@ -331,6 +329,7 @@ class Journal:
                 for key in (
                     "requestId",
                     "origin",
+                    "clientOrigin",
                     "nonce",
                     "action",
                     "typedData",

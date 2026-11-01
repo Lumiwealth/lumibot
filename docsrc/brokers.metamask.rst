@@ -124,7 +124,8 @@ native session. Do not restart the old service with stale credentials.
 ``BROKER_URL`` and ``BROKER_TOKEN`` are retired and raise migration guidance.
 The former agent-scoped token is not a MetaMask access token. Known legacy
 venue orders retain order/fill recovery. Old unused signatures are never
-released. Uncertain leverage and legacy swaps without sufficient native
+released. Expired uncertain native leverage is resolved by verified venue reads without
+replaying the unsubmitted order. Legacy swaps without sufficient native
 transaction evidence remain explicit reconciliation holds.
 
 ``client.owner_operations()`` exposes retained policy, gas-funding and
@@ -187,5 +188,12 @@ Polygon endpoint behavior. The MetaMask extra requires patched ``urllib3`` and
 remain mandatory. This is not a claim that the entire optional dependency tree
 has no advisories.
 
-Native funded qualification remains incomplete while provider security scanning
-fails. Earlier JavaScript trading receipts cannot qualify this implementation.
+New managed requests match MetaMask's high-level wallet-adapter provider origin,
+while readable intent and durable client provenance identify LumiBot. Recovery
+validates the originally recorded origin, without alternate-origin retries.
+Guard Mode and exact policy checks stay enabled.
+
+Actual native testnet ALO placement/cancellation and market opening/reduce-only
+closing have passed on two dedicated wallets. Partial-fill, restart, real
+Strategy callbacks and exact-wheel qualification remain required. Earlier
+JavaScript receipts cannot qualify this implementation.

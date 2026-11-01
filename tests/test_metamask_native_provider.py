@@ -84,7 +84,7 @@ def test_signature_request_preserves_original_provider_id_and_full_protocol_cont
             "status": "AWAITING_MFA",
             "walletAddress": WALLET,
             "method": "eth_signTypedData_v4",
-            "origin": "lumibot",
+            "origin": "metamask",
             "chainId": 1337,
         }
     )
@@ -100,7 +100,8 @@ def test_signature_request_preserves_original_provider_id_and_full_protocol_cont
         "chainId": 1337,
         "walletAddress": WALLET,
         "method": "eth_signTypedData_v4",
-        "origin": "lumibot",
+        "origin": "metamask",
+        "intent": "LumiBot Hyperliquid cancel on testnet",
         "payload": {"typedData": typed, "protocol": "hyperliquid", "protocolPayload": action},
     }
     assert sent["payload"]["typedData"]["domain"]["chainId"] == 1337
@@ -113,7 +114,7 @@ def test_approved_without_managed_signature_is_not_signed(provider):
             "status": "APPROVED",
             "walletAddress": WALLET,
             "method": "eth_signTypedData_v4",
-            "origin": "lumibot",
+            "origin": "metamask",
             "chainId": 1337,
         }
     )
@@ -178,7 +179,7 @@ def test_missing_guard_mode_or_policy_blocks_authorization(provider):
             "projectId": "test-project",
             "walletAddress": WALLET,
             "method": "eth_signTypedData_v4",
-            "origin": "lumibot",
+            "origin": "metamask",
             "chainId": 1337,
         }
     )
@@ -194,7 +195,7 @@ def test_missing_guard_mode_or_policy_blocks_authorization(provider):
                 "projectId": "test-project",
                 "walletAddress": WALLET,
                 "method": "eth_signTypedData_v4",
-                "origin": "lumibot",
+                "origin": "metamask",
                 "chainId": 1337,
             }
         ),
@@ -218,7 +219,7 @@ def test_guard_policy_uses_yaml_wire_format_and_exact_text_digest(provider):
                 "projectId": "test-project",
                 "walletAddress": WALLET,
                 "method": "eth_signTypedData_v4",
-                "origin": "lumibot",
+                "origin": "metamask",
                 "chainId": 1337,
             }
         ),

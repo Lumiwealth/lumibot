@@ -1,7 +1,7 @@
 """Native EVM exact-input, allowance and managed-transaction recovery contracts."""
 
 import time
-from decimal import Decimal, localcontext
+from decimal import Decimal, Inexact, localcontext
 from unittest.mock import Mock
 
 import pytest
@@ -192,6 +192,20 @@ def test_missing_token_price_is_never_assumed_one_dollar(wallet):
         wallet.price(TokenAsset.parse(DEST))
 
 
+def test_account_and_quote_prices_ignore_strategy_decimal_context(wallet):
+    native, token = TokenAsset.parse(SOURCE), TokenAsset.parse(DEST)
+    wallet._proxy = Mock(return_value={native.caip: {"usd": "2000.25"}, token.caip: {"usd": "0.5"}})
+    wallet._balance = Mock(return_value=Decimal("1.0000001"))
+    with localcontext() as context:
+        context.prec = 6
+        context.Emax = 2
+        context.traps[Inexact] = True
+        assert wallet.price(native, token) == Decimal("4000.5")
+        account = wallet.account()
+    assert account["equity"] == "2000.750200075"
+    assert account["positions"][0]["marketValue"] == "2000.250200025"
+
+
 def test_managed_swap_cancel_cannot_hide_pending_provider_execution(wallet):
     from lumibot.tools.metamask_client import MetaMaskClient
 
@@ -316,6 +330,8 @@ def test_large_receipt_output_one_atomic_below_minimum_never_rounds_into_fill(wa
     )
     with localcontext() as context:
         context.prec = 6
+        context.Emax = 2
+        context.traps[Inexact] = True
         result = wallet.submit({**intent(), "output": destination})
     assert result["state"] == "unknown" and result["filledQuantity"] == "0"
     assert "minimum" in result["message"]
@@ -361,7 +377,11 @@ def test_rollup_fee_overrun_preserves_fill_and_requires_budget_review(wallet):
             ],
         }
     )
-    result = wallet.submit(intent())
+    with localcontext() as context:
+        context.prec = 6
+        context.Emax = 2
+        context.traps[Inexact] = True
+        result = wallet.submit(intent())
     assert result["state"] == "filled" and result["outputAmount"] == "0.999000"
     assert result["budgetReviewRequired"] is True
     assert result["feeBudgetOverrun"] == {

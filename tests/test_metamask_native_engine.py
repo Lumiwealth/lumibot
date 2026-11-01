@@ -125,6 +125,20 @@ def test_checkpoint_before_each_external_mutation_and_duplicate_id_never_resends
         engine.submit(intent(quantity="0.0005"))
 
 
+def test_normal_mark_movement_during_signing_fits_reviewed_reservation(engine):
+    engine.venue.price.side_effect = [Decimal("20000"), Decimal("20010"), Decimal("20010")]
+    result = engine.submit(intent())
+    assert result["state"] == "open"
+    assert engine.venue.submit_action.call_count == 2
+    assert engine.journal.effect("agent", "one", "plan")["action"]["orders"][0]["p"] == "20000"
+
+
+def test_mark_movement_beyond_reviewed_reservation_never_releases_signature(engine):
+    engine.venue.price.side_effect = [Decimal("20000"), Decimal("20200")]
+    assert engine.submit(intent())["state"] == "rejected"
+    engine.venue.submit_action.assert_not_called()
+
+
 @pytest.mark.parametrize("restart", [False, True])
 def test_expired_uncertain_cancel_can_retry_only_cancel(engine, monkeypatch, restart):
     engine.submit(intent())
@@ -211,6 +225,24 @@ def test_invalid_provider_request_is_rejected_without_polling_missing_job(engine
     assert engine.provider.submit_signature.call_count == 1
     engine.provider.signature.assert_not_called()
     engine.venue.submit_action.assert_not_called()
+
+
+def test_actual_venue_order_rejection_is_durable_and_never_replayed(engine):
+    original = engine.venue.submit_action.side_effect
+    reason = "Post only order would have immediately matched"
+
+    def rejected(action, *args):
+        if action["type"] == "order":
+            return {"status": "ok", "response": {"type": "order", "data": {"statuses": [{"error": reason}]}}}
+        return original(action, *args)
+
+    engine.venue.submit_action.side_effect = rejected
+    result = engine.submit(intent())
+    assert result["state"] == "rejected" and result["rejectionReason"] == reason
+    effect = engine.journal.effect("agent", "one", "order")
+    assert effect["state"] == "rejected" and effect["response"]["response"]["data"]["statuses"] == [{"error": reason}]
+    assert engine.order("one") == result
+    assert engine.venue.submit_action.call_count == 2
 
 
 def test_revocation_after_provider_signing_prevents_release(engine):
@@ -383,7 +415,8 @@ def test_perp_reservation_is_not_rounded_by_strategy_decimal_context(engine):
         context.prec = 6
         context.Emax = 2
         result = engine.submit(intent())
-    assert Decimal(result["reservedUsd"]) == Decimal("20.00902469135780")
+    # The reviewed 50-bps mark cushion covers movement while managed signing waits.
+    assert Decimal(result["reservedUsd"]) == Decimal("20.10906981481458900")
 
 
 def test_cumulative_fill_values_and_fees_ignore_strategy_decimal_context(engine):

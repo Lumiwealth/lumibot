@@ -4,7 +4,7 @@ MetaMask managed-wallet execution through ordinary LumiBot strategies, without a
 
 Last Updated: 2026-11-01
 
-Status: Native candidate; managed signing and funded qualification in progress
+Status: Native candidate; funded execution qualification in progress
 
 Audience: LumiBot users and maintainers
 
@@ -118,7 +118,7 @@ Use the existing `broker.sqlite` as `STATE_FILE` and its exact agent and wallet 
 
 `BROKER_URL` and `BROKER_TOKEN` configurations now raise migration guidance. The former agent-scoped token is not a MetaMask access token. Never put it in `ACCESS_TOKEN`.
 
-Known legacy venue orders reconcile their recorded venue IDs and retained fills. Old unused signatures are never released after restart. Uncertain leverage remains unresolved rather than freeing its reservation. Legacy swaps without native transaction evidence remain held for explicit owner reconciliation. `client.owner_operations()` exposes preserved policy, native-funding and collateral-transfer receipts; these are not automatically replayed. Funding and policy changes belong in MetaMask's owner surfaces. The retired local funding UI and its old qualification receipts remain historical reference in `METAMASK_LEGACY_SERVICE_HISTORY.md`.
+Known legacy venue orders reconcile their recorded venue IDs and retained fills. Old unused signatures are never released after restart. Expired uncertain native leverage reconciles current venue settings and rejects its unsubmitted intent without replay; a fresh order ID is required. Legacy swaps without native transaction evidence remain held for explicit owner reconciliation. `client.owner_operations()` exposes preserved policy, native-funding and collateral-transfer receipts; these are not automatically replayed. Funding and policy changes belong in MetaMask's owner surfaces. The retired local funding UI and its old qualification receipts remain historical reference in `METAMASK_LEGACY_SERVICE_HISTORY.md`.
 
 ## Qualification
 
@@ -140,4 +140,6 @@ OP Stack fee estimates include L1 data and operator charges from block-pinned or
 
 Install in a clean environment, or remove the retired `polygon-api-client` before upgrading. Its old CA-store constraint prevents current certificate fixes. LumiBot now uses the maintained Massive SDK while retaining `POLYGON_API_KEY` and `api.polygon.io`. The MetaMask extra requires patched `urllib3` and `certifi`. Session locks reject unsafe ownership, symlinks and hardlinks before acquisition; private owner-controlled state directories remain required. This does not claim that every optional or base dependency advisory is resolved.
 
-The native funded qualification is not complete while provider security scanning fails. Keep Guard Mode enabled; never omit signing context or change policy to turn a failed security scan into a passing test. Earlier JavaScript receipts remain historical evidence only.
+New signature requests use the same fixed provider-origin metadata as MetaMask's high-level wallet adapter, with LumiBot identified separately in the durable client provenance and readable intent. Recovery validates each request's original provider origin. There is no alternate-origin retry after a failure. Guard Mode and exact policy checks remain enabled.
+
+Native broker qualification has exercised actual testnet ALO placement/cancellation and market opening/reduce-only closing through Python on two dedicated wallets. Full partial-fill, restart, Strategy callback and exact-wheel qualification must also pass before production use. Earlier JavaScript receipts remain historical evidence only.

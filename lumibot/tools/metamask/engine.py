@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from .journal import Journal
 from .models import Binding, PerpIntent, decimal, positive_integer
-from .provider import HYPERLIQUID_SIGNING_CHAIN, MetaMaskError, MetaMaskProvider, json_object
+from .provider import HYPERLIQUID_SIGNING_CHAIN, METAMASK_WALLET_ORIGIN, MetaMaskError, MetaMaskProvider, json_object
 from .venue import HyperliquidVenue, action_typed_data, signature_parts, typed_data_hash
 
 _TERMINAL = {"filled", "canceled", "rejected"}
@@ -94,7 +94,8 @@ class ExecutionEngine:
             execution_price = decimal(json_object(orders[0]).get("p"), positive=True)
             fee_rate = self.venue.fee_rate(binding.wallet)
             with localcontext(Context(prec=160, rounding=ROUND_CEILING)):
-                valuation = intent.quantity * max(execution_price, self.venue.price(intent.symbol)) * (1 + fee_rate)
+                mark_ceiling = self.venue.price(intent.symbol) * (1 + Decimal(binding.max_slippage_bps) / 10000)
+                valuation = intent.quantity * max(execution_price, mark_ceiling) * (1 + fee_rate)
             operation, created = self.journal.reserve(
                 self.agent_id,
                 canonical,
@@ -156,7 +157,10 @@ class ExecutionEngine:
                 if effect and effect.get("phase") == "provider":
                     try:
                         job = self.provider.signature(
-                            str(effect["requestId"]), str(plan["wallet"]), str(plan["network"])
+                            str(effect["requestId"]),
+                            str(plan["wallet"]),
+                            str(plan["network"]),
+                            origin=str(effect["origin"]),
                         )
                     except MetaMaskError:
                         return operation
@@ -212,7 +216,13 @@ class ExecutionEngine:
             if not cancellation:
                 return self._change(current, **values)
             # Never write cancellation lifecycle into the original order state.
-            return self._change(current, cancelState=values.get("state"), cancelMessage=values.get("message", ""))
+            return self._change(
+                current,
+                cancelState=values.get("state"),
+                cancelMessage=values.get("message", ""),
+                cancelErrorCode=values.get("lastErrorCode"),
+                cancelRejectionReason=values.get("rejectionReason"),
+            )
 
         operation_id = str(operation["id"])
         effect = self.journal.effect(self.agent_id, operation_id, step)
@@ -236,7 +246,8 @@ class ExecutionEngine:
                     "wallet": binding.wallet,
                     "projectId": self.provider.credentials().project_id,
                     "network": binding.network,
-                    "origin": "lumibot",
+                    "origin": METAMASK_WALLET_ORIGIN,
+                    "clientOrigin": "lumibot",
                     "method": "eth_signTypedData_v4",
                     "chainId": HYPERLIQUID_SIGNING_CHAIN,
                     "action": action,
@@ -259,7 +270,9 @@ class ExecutionEngine:
                     str(effect["requestId"]), binding.wallet, binding.network, data, action
                 )
             else:
-                job = self.provider.signature(str(effect["requestId"]), binding.wallet, binding.network)
+                job = self.provider.signature(
+                    str(effect["requestId"]), binding.wallet, binding.network, origin=str(effect["origin"])
+                )
         except MetaMaskError as error:
             if error.code == "REQUEST_REJECTED":
                 if effect is not None:
@@ -343,9 +356,22 @@ class ExecutionEngine:
         except MetaMaskError as error:
             self.journal.save_effect(operation, step, {**effect, "state": "rejected", "failureCode": error.code})
             return change(operation, state="rejected", message=str(error)), False
-        if response.get("status") == "err":
+
+        def reject(reason):
+            if not isinstance(reason, str) or not 0 < len(reason) <= 2000:
+                raise MetaMaskError("INVALID_RESPONSE", "Venue rejection reason is malformed")
             self.journal.save_effect(operation, step, {**effect, "state": "rejected", "response": response})
-            return change(operation, state="rejected", message="Venue explicitly rejected the action"), False
+            return change(
+                operation,
+                state="rejected",
+                lastErrorCode="VENUE_REJECTED",
+                rejectionReason=reason,
+                message=f"Venue rejected {action['type']}: {reason}",
+            ), False
+
+        if response.get("status") == "err":
+            reason = response.get("response")
+            return reject(reason if isinstance(reason, str) else "Venue explicitly rejected the action")
         if response.get("status") != "ok":
             return operation, False
         body = response.get("response")
@@ -361,7 +387,7 @@ class ExecutionEngine:
                 return operation, False
             status = json_object(statuses[0])
             if "error" in status:
-                return change(operation, state="rejected", message="Venue explicitly rejected the order"), False
+                return reject(status["error"])
             accepted = status.get("resting") or status.get("filled")
             if not isinstance(accepted, dict):
                 return operation, False
@@ -384,12 +410,7 @@ class ExecutionEngine:
                     and isinstance(statuses[0], dict)
                     and "error" in statuses[0]
                 ):
-                    self.journal.save_effect(operation, step, {**effect, "state": "rejected", "response": response})
-                    return change(
-                        operation,
-                        state="rejected",
-                        message="Venue rejected cancellation; original order requires reconciliation",
-                    ), False
+                    return reject(statuses[0]["error"])
                 return operation, False
         self.journal.save_effect(operation, step, {**effect, "state": "confirmed", "response": response})
         return operation, True
@@ -578,7 +599,9 @@ class ExecutionEngine:
             if effect is not None and effect.get("ownerEpoch") != self.epoch:
                 # Read only after restart. An unused old cancellation signature is never released.
                 if effect.get("phase") == "provider":
-                    job = self.provider.signature(str(effect["requestId"]), binding.wallet, binding.network)
+                    job = self.provider.signature(
+                        str(effect["requestId"]), binding.wallet, binding.network, origin=str(effect["origin"])
+                    )
                     if job.terminal:
                         self.journal.save_effect(
                             operation, step, {**effect, "state": "rejected", "providerState": job.state}

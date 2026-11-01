@@ -871,7 +871,7 @@ def _managed_ai_execution_outcome(
 
 
 def _managed_ai_terminal_status(result: AgentRunResult, *, allow_trading: bool) -> str:
-    """Classify a successful ADK run from structural tool events only."""
+    """Classify a successful ADK run from structural role and trace evidence."""
 
     mutating_order_tools = {
         "orders_submit_order",
@@ -892,6 +892,7 @@ def _managed_ai_terminal_status(result: AgentRunResult, *, allow_trading: bool) 
         return "completed_decision"
     later_successes: set[str] = set()
     has_unrecovered_tool_error = False
+    has_unrecovered_critical_error = False
     for event in reversed(tool_results):
         tool_name = str(event.tool_name or "")
         payload = _unwrap_tool_payload(event.payload)
@@ -903,9 +904,24 @@ def _managed_ai_terminal_status(result: AgentRunResult, *, allow_trading: bool) 
         if is_error:
             if tool_name not in later_successes:
                 has_unrecovered_tool_error = True
+                outcome = payload.get("execution_outcome")
+                if isinstance(outcome, dict) and outcome.get("requiredness") == "decision_critical":
+                    has_unrecovered_critical_error = True
         else:
             later_successes.add(tool_name)
     if has_unrecovered_tool_error:
+        # A researcher may finish useful evidence with a disclosed optional
+        # gap. Keep its tool errors; the decision agent judges sufficiency.
+        # Earlier narration is not a final answer after a failed tool.
+        answer_after_tools = False
+        for event in reversed(result.events):
+            if event.kind == "tool_result":
+                break
+            if event.kind == "text" and (event.text or "").strip():
+                answer_after_tools = True
+        if (not allow_trading and not has_unrecovered_critical_error
+                and (result.summary or "").strip() and answer_after_tools):
+            return "completed_decision"
         return "tool_error"
     return "completed_no_action" if allow_trading else "completed_decision"
 

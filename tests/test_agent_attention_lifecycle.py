@@ -81,6 +81,31 @@ def test_shared_team_passes_the_actual_answer_without_interpreting_it(strategy_c
     assert [name for name, _ in calls] == ['researcher', 'trader']
 
 
+def test_research_warnings_reach_trader_and_survive_monitor_restart(strategy_class):
+    strategy, _, calls, handles = example(strategy_class)
+    warnings = [{'code': 'tool_error', 'tool_name': 'optional_measure',
+                 'error': {'type': 'ValueError', 'message': 'Measure unavailable.'}}]
+    handles['researcher'].run = lambda **kwargs: AgentRunResult(
+        summary='Dated evidence; optional measure unavailable.',
+        model='synthetic', events=[], warnings=warnings,
+        payload={'execution_outcome': {'decision_completed': True}})
+    strategy.before_market_closes()
+    expected = {'researcher': {
+        'at': strategy.now.isoformat(), 'answer': 'Dated evidence; optional measure unavailable.',
+        'warnings': warnings}}
+    assert calls[-1][1]['context']['dated_research'] == expected
+    warnings[0]['code'] = 'mutated-outside-monitor'
+    restored = AttentionMonitor(strategy)
+    restored.watch(owner='trader', watch_id='later-review', operation_id='a',
+        metric='time', comparison='gte', value=strategy.now.isoformat(),
+        reason='Review existing evidence.', review_scope='management')
+    restored.poll()
+    restored.dispatch_team(decision_agent='trader', research_agents=['researcher'])
+    handed = calls[-1][1]['context']['dated_research']
+    assert handed['researcher']['warnings'][0]['code'] == 'tool_error'
+    assert handed == strategy.vars.get('_agent_attention')['research_answers']
+
+
 def test_management_reuses_research_and_explicit_research_watch_refreshes_both_roles(strategy_class):
     strategy, _, calls, _ = example(strategy_class)
     strategy.before_market_closes()

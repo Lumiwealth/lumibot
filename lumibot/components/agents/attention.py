@@ -342,7 +342,8 @@ class AttentionMonitor:
                     with self._lock:
                         state = self._state()
                         state.setdefault("research_answers", {})[name] = {
-                            "at": self.strategy.get_datetime().isoformat(), "answer": result.summary}
+                            "at": self.strategy.get_datetime().isoformat(), "answer": result.summary,
+                            **({"warnings": deepcopy(result.warnings)} if result.warnings else {})}
                         self._save(state)
             result = decision.run(
                 task_prompt=("Review the attention evidence and dated research under your policy. "

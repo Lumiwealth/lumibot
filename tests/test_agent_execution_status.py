@@ -94,6 +94,53 @@ def test_non_trading_research_agent_can_complete_without_an_order():
     assert _managed_ai_terminal_status(result, allow_trading=False) == "completed_decision"
 
 
+def _research_with_optional_gap(*, summary="Dated evidence; optional measure unavailable.",
+                                final_answer=True, critical=False):
+    payload = {"tool_error": True, "error": {"type": "ValueError"}}
+    if critical:
+        payload["execution_outcome"] = {"requiredness": "decision_critical"}
+    events = [AgentTraceEvent(kind="text", text="I will inspect the evidence."),
+              AgentTraceEvent(kind="tool_result", tool_name="optional_measure", payload=payload)]
+    if final_answer:
+        events.append(AgentTraceEvent(kind="text", text=summary))
+    return AgentRunResult(summary=summary, model="synthetic", events=events)
+
+
+def test_non_trading_final_answer_can_disclose_an_unrecovered_optional_gap():
+    result = _research_with_optional_gap()
+    assert _managed_ai_terminal_status(result, allow_trading=False) == "completed_decision"
+    assert result.tool_results[0].payload["tool_error"] is True
+
+
+def test_same_optional_gap_does_not_complete_a_trading_decision():
+    assert _managed_ai_terminal_status(
+        _research_with_optional_gap(), allow_trading=True) == "tool_error"
+
+
+def test_missing_final_research_answer_does_not_complete():
+    assert _managed_ai_terminal_status(
+        _research_with_optional_gap(summary="", final_answer=False),
+        allow_trading=False) == "tool_error"
+
+
+def test_research_preamble_before_failed_tool_is_not_a_final_answer():
+    assert _managed_ai_terminal_status(
+        _research_with_optional_gap(final_answer=False),
+        allow_trading=False) == "tool_error"
+
+
+def test_explicit_decision_critical_research_failure_remains_incomplete():
+    assert _managed_ai_terminal_status(
+        _research_with_optional_gap(critical=True), allow_trading=False) == "tool_error"
+
+
+def test_successful_retry_of_research_tool_preserves_existing_completion():
+    result = _research_with_optional_gap()
+    result.events.insert(-1, AgentTraceEvent(
+        kind="tool_result", tool_name="optional_measure", payload={"value": 12.5}))
+    assert _managed_ai_terminal_status(result, allow_trading=False) == "completed_decision"
+
+
 def test_typed_gateway_errors_remain_distinguishable_from_runtime_errors():
     assert (
         _managed_ai_error_status(ManagedAiGatewayError("bad parts", code="protocol_integrity_error"))

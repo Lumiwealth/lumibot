@@ -22,7 +22,10 @@ BUILTIN_SKILL_LOADING_INSTRUCTION = (
     "`options-trading` for options, and `research-data` for managed research "
     "tools. Before reading websites or files (PDF, Word, Excel, CSV, ZIP) with "
     "network tools, load `web-documents` and follow it. Skill loading supplies knowledge; it does not choose a trade or "
-    "override active strategy rules."
+    "override active strategy rules. Skill tools are registered separately from domain tools. "
+    "If skill availability is uncertain, call list_skills or attempt load_skill with the exact built-in name "
+    "before claiming it is unavailable. An omitted name in a domain-tool summary is not a failed skill lookup; "
+    "report an unavailable skill only from an observed catalog or loading result."
 )
 
 

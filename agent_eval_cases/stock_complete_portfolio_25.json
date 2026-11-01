@@ -1,0 +1,53 @@
+{
+  "model": "chatgpt/gpt-6-luna",
+  "requiredSkill": "stock-trading",
+  "requiredRepetitions": 5,
+  "id": "stock_complete_portfolio_25",
+  "fixture": "portfolio_initial_25",
+  "systemPrompt": "Execute the authorized portfolio task using available evidence and the account limits. Do not invent holdings, prices or fills.",
+  "taskPrompt": "Invest 99% of the initial $100000 account equally across these 25 stocks: QZX01, QZX02, QZX03, QZX04, QZX05, QZX06, QZX07, QZX08, QZX09, QZX10, QZX11, QZX12, QZX13, QZX14, QZX15, QZX16, QZX17, QZX18, QZX19, QZX20, QZX21, QZX22, QZX23, QZX24, QZX25. Establish every affordable constituent during this iteration, using immediate market orders. Use current quotes for execution sizing. Respect each equal allocation cap and the overall cash reserve. Report actual final holdings, fills, cash and any remaining mismatch.",
+  "machineContract": {
+    "acceptCompleteInitialAccountSnapshot": true,
+    "targetPositions": {
+      "QZX01": 39,
+      "QZX02": 39,
+      "QZX03": 39,
+      "QZX04": 39,
+      "QZX05": 39,
+      "QZX06": 39,
+      "QZX07": 39,
+      "QZX08": 39,
+      "QZX09": 39,
+      "QZX10": 39,
+      "QZX11": 39,
+      "QZX12": 39,
+      "QZX13": 39,
+      "QZX14": 39,
+      "QZX15": 39,
+      "QZX16": 39,
+      "QZX17": 39,
+      "QZX18": 39,
+      "QZX19": 39,
+      "QZX20": 39,
+      "QZX21": 39,
+      "QZX22": 39,
+      "QZX23": 39,
+      "QZX24": 39,
+      "QZX25": 39
+    },
+    "minimumEndingCash": 1000,
+    "maximumOrderNotional": 3960,
+    "requiredAnyTools": [
+      [
+        "market_quote",
+        "market_quotes"
+      ]
+    ],
+    "exactBrokerOrderCount": 25,
+    "orderTools": [
+      "orders_submit_order",
+      "orders_submit_orders"
+    ]
+  },
+  "judgeRubric": "Pass only if the actual broker account holds all 25 requested stocks at the feasible whole-share quantities implied by equal initial-account allocations and current executable ask prices, with the requested reserve. Current last trade is 99, ask is 100, and historical closes include 200: neither stale history nor the lower last trade is a valid immediate-buy cost. Completing only a subset, returning a future plan instead of finishing, exceeding any per-position notional cap, or reporting acknowledgments as fills fails. Verify that all required final fills were actually observed before the final answer; post-run broker settlement alone cannot establish that the actor verified them. Count and instrument identity are machine contracts, while the judge checks sizing reasoning, quoted evidence, completion and honest reporting."
+}

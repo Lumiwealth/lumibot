@@ -1,0 +1,15 @@
+{
+  "id": "web_documents_wrapped_table_ranges",
+  "model": "chatgpt/gpt-6-luna",
+  "fixture": "web_documents_wrapped_ranges",
+  "allowNetwork": true,
+  "systemPrompt": "Prepare a complete numeric source ledger for another portfolio analyst from the supplied public report at the simulated time. Distinguish asset values from income and preserve the source's instrument identities. Do not trade.",
+  "taskPrompt": "Read https://reports.example.net/reports/portfolio.txt and return every positive common-stock holding with its ticker and actual numeric lower and upper asset-value bounds in USD. List zero-value and non-stock exclusions separately. Explain any source limitations. Another analyst needs this entire ledger to estimate portfolio weights; an inventory without its numeric ranges is incomplete. Do not place orders.",
+  "requiredSkill": "web-documents",
+  "machineContract": {
+    "requiredTools": ["read_document"],
+    "forbidOrderTools": true
+  },
+  "judgeRubric": "Judge the complete ledger against the actual source text returned by read_document. All 13 positive common stocks must have BOTH their correct numeric asset-value bounds: QZX01 250001-500000; QZX02 1000001-5000000; QZX03 500001-1000000; QZX04 15001-50000; QZX05 5000001-25000000; QZX06 100001-250000; QZX07 1001-15000; QZX08 25000001-50000000; QZX09 50001-100000; QZX10 1000001-5000000; QZX11 250001-500000; QZX12 500001-1000000; QZX13 100001-250000. The issuer heading continues into the instrument line and is not a second holding. The upper asset-value bound is on the next line after the ticker/lower bound. The later Income None is a separate field and cannot erase a positive asset value. QZXZERO has None asset value and is excluded; the cash reserve is not common stock. Unfiltered text contains all upper bounds. A find-filtered line list can omit those continuation lines, but that omission does not establish missing data or authorize replacing the requested bounds with a lower-only estimate. Fail missing constituents, unsupported values, declaring visible bounds unavailable, assigning one row another row's numbers, treating income as asset value, or any order. Publication is June 1, 2026 and the reporting date is March 31; both precede the August 11 simulated cutoff. Historical byte-version uncertainty may be disclosed and must not turn usable dated source text into a blanket refusal. Do not require a particular search, SQL query or exact formatting when the source-complete ledger is correct.",
+  "requiredRepetitions": 5
+}

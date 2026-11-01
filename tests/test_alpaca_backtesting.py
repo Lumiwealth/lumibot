@@ -1547,7 +1547,10 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
         now = tzinfo.localize(datetime(2025, 2, 21, 19, 0))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 60.1  # open price of the daily bar
+        closing_bar = data_source.get_historical_prices(
+            asset, 1, timestep="day", remove_incomplete_current_bar=False,
+        )
+        assert price == closing_bar.df["close"].iloc[-1]
         assert isinstance(price, float)
 
         now = tzinfo.localize(datetime(2025, 2, 21, 9, 30))
@@ -1563,7 +1566,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
         now = tzinfo.localize(datetime(2025, 2, 21, 16, 0))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 60.1  # open price of the daily bar
+        assert price == closing_bar.df["close"].iloc[-1]
 
         # test tuple
         quote = Asset("USD", Asset.AssetType.FOREX)

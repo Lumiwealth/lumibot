@@ -10,6 +10,7 @@ from getpass import getpass
 from pathlib import Path
 
 from .auth import TokenManager
+from .journal import sqlite_busy
 from .provider import Credentials, MetaMaskError, identifier, json_object
 
 LOGIN_URL = "https://developer.metamask.io/agentic/login"
@@ -103,7 +104,7 @@ def migrate_session(source_file, session_file):
         return manager
     except sqlite3.OperationalError as error:
         owner.close()
-        if (getattr(error, "sqlite_errorcode", 0) & 0xFF) in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
+        if sqlite_busy(error):
             raise MetaMaskError(
                 "STATE_IN_USE", "Retired service still owns its session; preserve its active runtime"
             ) from None

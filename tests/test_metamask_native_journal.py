@@ -5,11 +5,17 @@ import sqlite3
 
 import pytest
 
-from lumibot.tools.metamask.journal import Journal
+from lumibot.tools.metamask.journal import Journal, sqlite_busy
 from lumibot.tools.metamask.provider import MetaMaskError
 
 NOW = 2_000_000
 WALLET = "0x" + "1" * 40
+
+
+def test_python_310_lock_errors_are_distinguished_from_storage_failures():
+    assert sqlite_busy(sqlite3.OperationalError("database is locked"))
+    assert sqlite_busy(sqlite3.OperationalError("database table is locked: owner"))
+    assert not sqlite_busy(sqlite3.OperationalError("disk I/O error"))
 
 
 def binding():

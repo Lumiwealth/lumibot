@@ -49,6 +49,17 @@ def _json(value: object) -> str:
     return json.dumps(value, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
 
 
+def sqlite_busy(error: sqlite3.OperationalError) -> bool:
+    """Recognize ownership contention on Python 3.10 and newer SQLite APIs."""
+    code = getattr(error, "sqlite_errorcode", None)
+    if isinstance(code, int):
+        return code & 0xFF in (5, 6)  # SQLITE_BUSY and SQLITE_LOCKED.
+    message = str(error).lower()
+    return any(
+        message == text or message.startswith(text + ":") for text in ("database is locked", "database table is locked")
+    )
+
+
 class Journal:
     """One execution owner per journal, with locks released by process death.
 
@@ -81,7 +92,7 @@ class Journal:
             )
         except sqlite3.OperationalError as error:
             self._owner.close()
-            if (getattr(error, "sqlite_errorcode", 0) & 0xFF) in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
+            if sqlite_busy(error):
                 raise MetaMaskError(
                     "STATE_IN_USE", "Another execution owner already holds this wallet journal"
                 ) from None

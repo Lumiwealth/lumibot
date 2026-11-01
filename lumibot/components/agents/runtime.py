@@ -1738,7 +1738,13 @@ class GoogleADKRuntime:
             lines.append(f"- Available tool names for this run: {tool_names}.")
             lines.append("- Only call tool names that appear in the available tool list for this run.")
         lines.append("- Use DuckDB when the decision requires time-series analysis and historical tables are available. A current-evidence execution mandate does not require an additional history-based signal unless the user or active rules require one.")
-        lines.append("- Return a short final summary after you finish using tools.")
+        lines.append(
+            "- Return a short final summary of the requested outcome, observed state and any unresolved task exceptions. "
+            "Do not add an unsolicited valuation reconciliation, profit/loss estimate or other optional numeric comparison to a completed action. "
+            "If a derived number is required for the task or a material exception, calculate it with a tool and copy the latest returned value exactly, including its sign and decimal magnitude. "
+            "The returned result overrides earlier reasoning or a drafted answer; update conflicting draft numbers before finalizing. "
+            "Otherwise report the observed quantities, fills, cash and equity separately."
+        )
         return "\n".join(lines).strip()
 
     def _before_model_context_pruning_callback(self, request: RuntimeRequest):

@@ -3,7 +3,8 @@
 The native receipt remains byte-identical. Its original full source hash is rebuilt
 from Git objects, then every model-relevant byte is compared with the candidate.
 Only exact live-provider modules, guarded live-sync method bodies unused by the
-maintained Pandas fixtures, and package version metadata are outside that comparison.
+maintained Pandas fixtures, package version metadata, and AST-identical comments
+in unexecuted examples are outside that comparison.
 Any actor, judge, fixture, SDK, case, skill or shared trading change still expires
 proof. This is compatibility verification, never new case freshness.
 """
@@ -155,6 +156,17 @@ def check_change(path, before, after):
         new, new_count = re.subn(version, b'version="<release>"', after)
         if old_count == new_count == 1 and old == new:
             return
+    if path.startswith('lumibot/example_strategies/') and path.endswith('.py'):
+        # The maintained catalog instantiates its own Pandas-fixture strategies,
+        # never an example. Retain only comment/formatting edits whose complete
+        # executable AST, including every docstring and prompt, is unchanged.
+        try:
+            old_tree = ast.parse(before, type_comments=True)
+            new_tree = ast.parse(after, type_comments=True)
+            if ast.dump(old_tree, include_attributes=False) == ast.dump(new_tree, include_attributes=False):
+                return
+        except (SyntaxError, ValueError, UnicodeError):
+            pass
     if path in LIVE_METHOD_SCOPES:
         old = _without_unused_live_body(before, *LIVE_METHOD_SCOPES[path])
         new = _without_unused_live_body(after, *LIVE_METHOD_SCOPES[path])

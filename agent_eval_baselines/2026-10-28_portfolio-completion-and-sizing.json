@@ -153,5 +153,25 @@
     "loaded_latest_skill": true,
     "mechanism": "Exact same false ten-dollar comparison persisted with latest skill present. Move tool-calculated final arithmetic requirement into existing manager system prompt, preserving observed values, fills, quantities and broker behavior.",
     "original_verdict_retained": true
+  },
+  "calculated_value_changed_in_final_prose": {
+    "source_runtime_fingerprint": "e19f04102c152ba39ea4f09eb84475351caf393d4e00aa1330c91b2ec4b89466",
+    "run_id": "7c9e8ffd-7423-4ccd-951c-b6ead1a48f55",
+    "repetition": 3,
+    "machine_pass": true,
+    "judge_pass": false,
+    "calculation_tool_returned": -990.0,
+    "incorrect_final_difference": 10,
+    "native_wire_owning_checks": {
+      "tests": 70,
+      "passed": 70,
+      "scope": "Exact signed decimals and nested table rows reach actual ADK/LiteLLM subscription wire payloads. No model inference in these native checks."
+    },
+    "discovery_results": {
+      "passed": 29,
+      "failed": 0
+    },
+    "repair": "Consolidate exact numeric reporting at the runtime instruction footer; focus final answers on requested outcome and actual exceptions, without gratuitous valuation comparisons. Make recent history thesis-dependent for explicit quote-based execution mandates. No numeric rewriting or new tool guards.",
+    "original_verdicts_retained": true
   }
 }

@@ -4,7 +4,7 @@ Nancy Pelosi Stock Trading Bot
 .. meta::
    :description: Estimate Nancy Pelosi's disclosed household stock portfolio with research and trading agents. Free Python code to backtest with LumiBot.
 
-.. image:: ../docs/assets/ai-agent-workflows/nancy-pelosi-two-agent-workflow.png
+.. image:: ../docs/assets/ai-agent-workflows/nancy-pelosi-stock-workflow.png
    :alt: Research agent works out what Pelosi owns from her House reports, trading agent makes your account match
    :width: 100%
 

@@ -327,7 +327,7 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
      _web_search_backend()` imports successfully. Missing optional dependencies
      are setup failures. Record added versions and preserve compatible passes;
      never mutate the shared SDK environment while model workers are active.
-   - Native inference may retain its actual original source/time through `ci/agent-evals/source-compatibility.json` only when `scripts/qualify_agent_evals.py verify` proves the complete source comparison. This applies to the maintained Pandas fixtures and unused external IBKR modules; actor/judge/fixture/shared-code changes still require normal native qualification. Never rewrite historical fingerprints or timestamps to a candidate.
+   - Native inference may retain its actual original source/time through `ci/agent-evals/source-compatibility.json` only when `scripts/qualify_agent_evals.py verify` proves the complete source comparison. This applies to the maintained Pandas fixtures, unused external IBKR modules, and comment-only edits in unexecuted examples when the complete Python syntax tree (including prompts and docstrings) is identical. Actor/judge/fixture/shared-code changes still require normal native qualification. Never rewrite historical fingerprints or timestamps to a candidate.
    - Ensure required CI checks are green (unit + backtest + acceptance gates as applicable).
    - The standard gate is portable: no paid historical-data subscription or shared remote cache is required.
      `tests/backtest/test_alpaca_release_backtest.py` runs the real Alpaca adapter and backtest engine with

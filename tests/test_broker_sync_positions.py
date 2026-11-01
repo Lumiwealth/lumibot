@@ -302,6 +302,143 @@ def test_fractional_cumulative_fill_still_rejects_invalid_executions(quantity):
     assert order.transactions == []
 
 
+@pytest.mark.parametrize("net_price", [Decimal("0"), Decimal("-0.8")])
+def test_multileg_history_keeps_signed_net_price_without_replaying_cash(net_price):
+    """The package container is not a positive-price individual execution."""
+    broker = _BrokerForSyncTest([])
+    quote = Asset("USD", asset_type="forex")
+    cash = Position("strategy", quote, 1000)
+    broker._filled_positions.append(cash)
+    legs = [Order("strategy", Asset("SYN"), 1, side) for side in ("buy", "sell")]
+    parent = Order("strategy", Asset("SYN", asset_type="multileg"), 1, "buy",
+                   identifier="synthetic-package", order_class="multileg", child_orders=legs,
+                   quote=quote, avg_fill_price=net_price)
+    parent.status = "fill"
+    parent.filled_quantity = Decimal("1")
+    for _ in range(2):
+        broker._process_broker_synced_order(parent)
+    assert parent.is_filled()
+    assert len(parent.transactions) == 1
+    assert Decimal(str(parent.transactions[0].price)) == net_price
+    assert Decimal(str(parent.transactions[0].quantity)) == Decimal("1")
+    assert broker._filled_positions.get_list() == [cash]
+    assert cash.quantity == 1000
+
+
+def test_multileg_container_without_nested_legs_is_still_a_parent():
+    parent = Order("strategy", Asset("SYN"), 1, "buy", order_class="multileg")
+    assert parent.is_parent()
+
+
+@pytest.mark.parametrize("status", ["partial_fill", "fill"])
+def test_multileg_execution_never_creates_a_package_position(status):
+    broker = _BrokerForSyncTest([])
+    parent = Order("strategy", Asset("SYN", asset_type="multileg"), 2, "buy",
+                   identifier="synthetic-package", order_class="multileg")
+    broker._process_new_order(parent)
+    if status == "partial_fill":
+        _, position = broker._process_partially_filled_order(parent, 1, 1)
+    else:
+        position = broker._process_filled_order(parent, 1, 2)
+    assert position is None
+    assert broker._filled_positions.get_list() == []
+    assert broker._position_for_order(parent) is None
+
+
+@pytest.mark.parametrize("nested_initially", [False, True])
+def test_nested_package_history_tracks_each_leg_once_and_binds_parent(nested_initially):
+    broker = _BrokerForSyncTest([])
+    cash = Position("strategy", Asset("USD", asset_type="forex"), 1000)
+    broker._filled_positions.append(cash)
+
+    def observation(with_legs):
+        legs = []
+        if with_legs:
+            for identifier, side, price in [("entry-leg", "buy", 2), ("credit-leg", "sell", 2.8)]:
+                child = Order("strategy", Asset("SYN"), 1, side, identifier=identifier, avg_fill_price=price)
+                child.status = "fill"
+                child.filled_quantity = Decimal("1")
+                legs.append(child)
+        parent = Order("strategy", Asset("SYN", asset_type="multileg"), 1, "buy", identifier="package",
+                       order_class="multileg", child_orders=legs, avg_fill_price=-0.8)
+        parent.status = "fill"
+        parent.filled_quantity = Decimal("1")
+        return parent
+
+    first = observation(nested_initially)
+    broker._pull_all_orders = lambda *_: [first]
+    broker.sync_orders(_Strategy())
+    broker._pull_all_orders = lambda *_: [observation(True)]
+    for _ in range(2):
+        broker.sync_orders(_Strategy())
+    parent = broker.get_tracked_order("package")
+    assert len(parent.child_orders) == 2
+    for identifier in ("entry-leg", "credit-leg"):
+        child = broker.get_tracked_order(identifier)
+        assert child is not None and child.is_filled()
+        assert child.parent_identifier == parent.identifier
+        assert child in parent.child_orders
+        assert len(child.transactions) == 1
+        assert child.transactions[0].quantity == 1
+    assert cash.quantity == 1000
+    assert broker._filled_positions.get_list() == [cash]
+
+
+def test_signed_package_callbacks_keep_deltas_without_a_fictitious_position():
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    broker = _BrokerForSyncTest([])
+    broker.data_source = SimpleNamespace(get_datetime=lambda: datetime(2027, 1, 4, tzinfo=timezone.utc))
+    subscriber = SimpleNamespace(name="strategy", add_event=Mock(),
+                                 FILLED_ORDER=broker.FILLED_ORDER, PARTIALLY_FILLED_ORDER=broker.PARTIALLY_FILLED_ORDER)
+    broker._subscribers.append(subscriber)
+    parent = Order("strategy", Asset("SYN", asset_type="multileg"), 2, "buy",
+                   identifier="package", order_class="multileg")
+    broker._process_new_order(parent)
+    assert broker._reconcile_cumulative_execution(parent, 1, 0, terminal=False)
+    assert broker._reconcile_cumulative_execution(parent, 2, -0.4, terminal=True)
+    assert broker._reconcile_cumulative_execution(parent, 2, -0.4, terminal=True)
+    events = subscriber.add_event.call_args_list
+    assert len(events) == 2
+    assert [event.args[0] for event in events] == [broker.PARTIALLY_FILLED_ORDER, broker.FILLED_ORDER]
+    assert [event.args[1]["quantity"] for event in events] == [1, 1]
+    assert [event.args[1]["price"] for event in events] == [0, -0.8]
+    assert all(event.args[1]["position"] is None for event in events)
+    assert broker._filled_positions.get_list() == []
+
+
+@pytest.mark.parametrize("price", [0, -1, float("nan"), float("inf")])
+def test_individual_execution_prices_remain_positive_and_finite(price):
+    broker = _BrokerForSyncTest([])
+    order = Order("strategy", Asset("SYN"), 1, "buy", avg_fill_price=price)
+    order.status = "fill"
+    order.filled_quantity = 1
+    with pytest.raises(ValueError, match="cumulative fill price"):
+        broker._process_broker_synced_order(order)
+    assert order.transactions == []
+
+
+@pytest.mark.parametrize("path", ["direct", "hydration"])
+def test_warm_package_refresh_replaces_legacy_first_leg_asset_with_container(path):
+    broker = _BrokerForSyncTest([])
+    old = Order("strategy", Asset("SYN270115C00100000", asset_type="option"), 1, "buy",
+                identifier="package", order_class="multileg", avg_fill_price=-0.8)
+    old.status = "fill"
+    old.filled_quantity = 1
+    broker._process_broker_synced_order(old)
+    current = Order("strategy", Asset("SYN", asset_type="multileg"), 1, "buy",
+                    identifier="package", order_class="multileg", avg_fill_price=-0.8)
+    current.status = "fill"
+    current.filled_quantity = 1
+    if path == "direct":
+        broker._apply_direct_order_observation(old, current)
+    else:
+        broker._process_broker_synced_order(current)
+    assert old.asset == current.asset
+    assert len(old.transactions) == 1
+
+
 @pytest.mark.parametrize("status", ["partial_fill", "canceled", "replaced", "expired", "error"])
 def test_warm_order_sync_keeps_cumulative_receipts_and_relations(status):
     from datetime import datetime, timezone

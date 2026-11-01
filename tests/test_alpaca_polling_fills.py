@@ -14,6 +14,55 @@ from lumibot.data_sources.alpaca_data import AlpacaData
 from lumibot.entities import Asset, Order
 
 
+def test_credit_package_read_normalizes_its_child_contracts_and_links():
+    """SDK schema plus the signed mleg response demonstrated in synthetic Dev."""
+    at = datetime(2027, 1, 4, tzinfo=timezone.utc)
+
+    def leg(number, symbol, side, price):
+        return ProviderOrder(
+            id=UUID(int=number), client_order_id=f"neutral-leg-{number}", asset_id=UUID(int=number + 10),
+            created_at=at, updated_at=at, submitted_at=at,
+            symbol=symbol, asset_class="us_option", qty="1", filled_qty="1", filled_avg_price=price,
+            side=side, order_class="simple", type="market", time_in_force="day", status="filled", extended_hours=False,
+        )
+
+    response = ProviderOrder(
+        id=UUID(int=100), client_order_id="neutral-package", created_at=at, updated_at=at, submitted_at=at,
+        qty="1", filled_qty="1", filled_avg_price="-0.8", side="buy", order_class="mleg", type="market",
+        time_in_force="day", status="filled", extended_hours=False, legs=[
+            leg(1, "SYN270115C00100000", "buy", "2"),
+            leg(2, "SYN270115C00105000", "sell", "2.8"),
+        ],
+    )
+    broker = object.__new__(Alpaca)
+    parent = broker._parse_broker_order(response, "strategy")
+    assert parent.is_parent()
+    assert parent.asset.asset_type == Asset.AssetType.MULTILEG
+    assert parent.asset.symbol == "SYN"
+    from decimal import Decimal
+    assert Decimal(str(parent.avg_fill_price)) == Decimal("-0.8")
+    assert len(parent.child_orders) == 2
+    assert [child.parent_identifier for child in parent.child_orders] == [parent.identifier] * 2
+    assert [child.asset.strike for child in parent.child_orders] == [100, 105]
+    assert all(child.asset.multiplier == 100 and child.asset.symbol == "SYN" for child in parent.child_orders)
+    assert [child.filled_quantity for child in parent.child_orders] == [1, 1]
+
+
+def test_direct_order_read_requests_the_complete_nested_provider_order():
+    at = datetime(2027, 1, 4, tzinfo=timezone.utc)
+    response = ProviderOrder(
+        id=UUID(int=1), client_order_id="neutral-order", asset_id=UUID(int=2),
+        created_at=at, submitted_at=at, updated_at=at,
+        symbol="SYN", asset_class="us_equity", qty="1", filled_qty="0",
+        side="buy", order_class="simple", type="market", time_in_force="day", status="new", extended_hours=False,
+    )
+    broker = object.__new__(Alpaca)
+    broker.api = MagicMock(spec=TradingClient)
+    broker.api.get_order_by_id.return_value = response
+    assert broker._pull_broker_order(response.id) is response
+    assert broker.api.get_order_by_id.call_args.kwargs["filter"].nested is True
+
+
 @pytest.mark.parametrize("string_identifier", [False, True])
 @pytest.mark.parametrize("prior_partial", [False, True])
 @pytest.mark.parametrize("lookup_only", [False, True])
@@ -103,6 +152,7 @@ def test_order_reads_include_old_working_orders_and_paginate_them():
     rows = broker._pull_broker_all_orders()
     assert {str(row.id) for row in rows} == {'recent', 'older-open', *(f'open-{i}' for i in range(500))}
     calls = broker.api.get_orders.call_args_list
+    assert all(call.kwargs["filter"].nested is True for call in calls)
     assert calls[1].kwargs['filter'].status.value == 'open'
     assert calls[2].kwargs['filter'].until == first_page[-1].submitted_at
 

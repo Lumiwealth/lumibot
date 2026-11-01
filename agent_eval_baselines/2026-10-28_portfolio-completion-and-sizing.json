@@ -126,5 +126,22 @@
     "new_skill_instructions_observed": true,
     "definition_gap": "The tool returned correct cash-inclusive account equity, but its description did not define the inclusion of cash or its distinction from purchase cost.",
     "judge_control_failures": "Three of five judgments accepted the same observed arithmetic error. The case rubric must explicitly check derived comparisons even when fills and cash are correct."
+  },
+  "expected_mark_difference_reporting_failure": {
+    "source_runtime_fingerprint": "5a53e82d21c452941cf2f9bc96945e3e3f6b2b77e5d432d1bb00bb59fecb8663",
+    "run_id": "cc347324-5b3e-4bf3-8b81-ad4b036a90ef",
+    "repetition": 3,
+    "machine_pass": true,
+    "judge_pass": false,
+    "mechanism": "All quantities/fills/cash correct; final answer called current equity versus gross purchase-cost difference unreconciled despite current-last versus ask evidence. Instruction now states that expected marking difference is not an account or target mismatch.",
+    "original_actor_repetitions": {
+      "passed": 4,
+      "failed": 1
+    },
+    "judge_controls": {
+      "passed": 10,
+      "failed": 0
+    },
+    "no_verdict_relabeling": true
   }
 }

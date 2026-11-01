@@ -86,6 +86,10 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    Compute any equity or profit/loss comparison with a tool on that same price
    basis. If it was not computed, report the returned cash/equity without adding
    an unsupported discrepancy or gain/loss explanation.
+   Purchase cost plus remaining cash need not equal current equity: positions
+   are marked at current prices, which can differ from fills. That expected
+   difference is not an unreconciled account or target mismatch. Flag a mismatch
+   only after comparing quantities, reserves or values on the same basis.
 
 ## Complete portfolio work
 

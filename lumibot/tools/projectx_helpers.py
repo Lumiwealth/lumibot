@@ -104,7 +104,7 @@ class ProjectXStreaming:
 
     def __init__(self, config: dict, token: str, account_id: int = None):
         if not SIGNALR_AVAILABLE:
-            raise ImportError("signalrcore is required for ProjectX streaming")
+            raise ImportError("signalrcore library is required for ProjectX streaming")
         sdk_logger = logging.getLogger("SignalRCoreClient")
         if not any(isinstance(item, _SignalRCredentialFilter) for item in sdk_logger.filters):
             sdk_logger.addFilter(_SignalRCredentialFilter())

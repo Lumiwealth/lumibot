@@ -216,6 +216,13 @@ remains.
 
 ## Monitoring an operation
 
+Preserve attention for every mandated exit condition, including favorable profit
+capture as well as adverse risk and time reviews. A worsening-price alert does
+not cover a profit target. Derive the favorable mark boundary from verified entry
+fills, remaining exposure and costs; refresh the exact executable quote when it
+fires. Keep a reachable management review. A saved watch with `active=false`
+awaits its condition; it is not disabled.
+
 When attention tools are available, verify each condition's units, sign and
 comparison against the exposure you actually hold. `basket_value` is the signed
 marked value of its supplied quantities times multipliers, not profit/loss or

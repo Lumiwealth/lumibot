@@ -63,17 +63,21 @@ It accepts assignment and uses bounded limit orders. These are configurable
 policy choices. Premium does not remove underlying downside or guarantee profit.
 
 Initial setup is 15 minutes before the close. Shared attention polls quietly
-between decisions; the trader schedules daily entry opportunities when flat,
-meaningful management events and a holding review within seven calendar days.
-Management can reuse dated research. One decision can still involve many model
+between decisions. When option capacity is free, cash can secure a put or shares
+can cover a call, with a daily entry opportunity. An occupied option or working
+order uses meaningful management events and a review within seven calendar days,
+without daily setup research. Management can reuse dated research. One decision can still involve many model
 and tool calls: measure actual usage rather than assuming one request per day.
 
 **Qualification is incomplete.** This source needs the shared
 ``self.agents.attention`` API in the actual installed SDK. The November 1 Manager
 smoke used LumiBot 4.6.37 but that installation lacked the API and failed before
 trading. A matching version label alone does not establish capability. The local
-candidate has a completed two-week diagnostic; longer AI comparisons, full AI
-lifecycle and Marketplace installation remain pending. No Marketplace availability
+candidate has an earlier completed two-week diagnostic, followed by failed cadence
+trials. Longer AI comparisons, full AI lifecycle and Marketplace installation
+remain pending. The inspected Alpaca backtesting path also skips automatic option
+expiry delivery; the native Pandas settlement checks do not qualify that path.
+No Marketplace availability
 or trading readiness is claimed.
 
 Once the runtime is qualified and installed, configure an options-history source

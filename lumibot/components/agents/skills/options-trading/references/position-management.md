@@ -33,6 +33,14 @@ Use strategy rules for profit targets, loss limits, time exits, delta exits, and
 roll decisions. Write the relevant condition against current evidence before
 acting. If the rule cannot be evaluated, do not invent a trigger.
 
+When using attention between decisions, preserve each exit condition required by
+the mandate, including a favorable profit target as well as adverse-risk and time
+conditions. A worsening-price alert alone does not cover profit capture. Derive
+the favorable mark threshold from verified entry fills, remaining quantity,
+multiplier and costs; the trigger only requests a decision with a fresh exact
+quote. Keep a reachable dated management review too. A persisted watch whose
+`active` flag is false is waiting for its condition, not disabled.
+
 ## Cash collateral and stock delivery
 
 For physically settled short puts, reserve the full strike times actual

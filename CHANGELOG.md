@@ -9,6 +9,9 @@
 - Breaking configuration change: replace MetaMask BROKER_URL/BROKER_TOKEN with an explicit native session, durable journal, agent and wallet identity. Preserve old journals and pending receipts; local limits and expiry never reset at startup. Native cancellation, signing checkpoints and fill recovery retain separate operation identities.
 - Native same-chain ERC20-output swap code verifies bounded approvals and actual receipts. HIP3 writes, native-output swaps and unsupported fee/delegation variants remain explicit holds. Native funded trading qualification is pending; previous JavaScript receipts do not qualify this replacement.
 
+### Fixed
+- Keep Polygon daily research history and minute execution data in independent interval-aware entries. Repeated history/price reads reuse loaded data without replacing daily bars or downloading minute history for a daily request. Memory limits count each dataset once and retire every alias when it is evicted.
+
 ## 4.6.37 - 2026-11-01
 
 Deploy marker: `5eea4abaf6b659b2d9931c9189f3c1c8ece5170d`.

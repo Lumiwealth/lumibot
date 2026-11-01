@@ -1160,6 +1160,16 @@ class BacktestingBroker(Broker):
         """
         super()._process_cash_settlement(order, price, quantity)
 
+    @staticmethod
+    def _multileg_fill_summary(children):
+        """Summarize actual leg fills in the same units as package limits."""
+        quantity, ratios = get_multileg_quantity_units(child.quantity for child in children)
+        price = sum(
+            Decimal(str(child.get_fill_price())) * ratio * (1 if child.is_buy_order() else -1)
+            for child, ratio in zip(children, ratios) if child.get_fill_price() is not None
+        )
+        return quantity, price
+
     def _update_parent_order_status(self, order: Order):
         """Update the status of a parent order based on the status of its child orders."""
         if order is None or not order.is_parent():
@@ -1174,6 +1184,13 @@ class BacktestingBroker(Broker):
             return
 
         if all(cancelled for _, _, cancelled in child_states):
+            self.cancel_order(order)
+            return
+
+        if (order.order_class is Order.OrderClass.MULTILEG
+                and not all(filled for _, filled, _ in child_states)):
+            # Terminal incomplete legs leave residual exposure, not a complete
+            # package fill. Cancellation preserves already-filled children.
             self.cancel_order(order)
             return
 
@@ -1198,6 +1215,8 @@ class BacktestingBroker(Broker):
                         signed *= Decimal("-1")
                     net_price += signed
 
+                if order.order_class is Order.OrderClass.MULTILEG:
+                    aggregated_qty, net_price = self._multileg_fill_summary(filled_children)
                 order.quantity = aggregated_qty
                 order.avg_fill_price = net_price
                 order.trade_cost = 0.0
@@ -1352,7 +1371,7 @@ class BacktestingBroker(Broker):
                 strategy=orders[0].strategy,
                 order_class=Order.OrderClass.MULTILEG,
                 side=orders[0].side,
-                quantity=orders[0].quantity,
+                quantity=get_multileg_quantity_units(child.quantity for child in orders)[0],
                 order_type=parent_order_type,
                 limit_price=parent_limit_price if parent_order_type == Order.OrderType.LIMIT else None,
                 tag=orders[0].tag,
@@ -2368,10 +2387,7 @@ class BacktestingBroker(Broker):
                         self._fill_package_at_net_limit(order, strategy)
                 # If this is the final fill for a multileg order, mark the parent order as filled
                 if all([o.is_filled() for o in order.child_orders]):
-                    parent_qty = sum([abs(o.quantity) for o in order.child_orders])
-                    child_prices = [o.get_fill_price() if o.is_buy_order() else -o.get_fill_price()
-                                    for o in order.child_orders]
-                    parent_price = sum(child_prices)
+                    parent_qty, parent_price = self._multileg_fill_summary(order.child_orders)
                     parent_multiplier = 1
                     if hasattr(order, "asset") and getattr(order.asset, "multiplier", None):
                         parent_multiplier = order.asset.multiplier
@@ -2911,12 +2927,7 @@ class BacktestingBroker(Broker):
                                 # timing out and canceling the entire combo.
                                 filled = self._fill_multileg_children_at_market_open(order, strategy)
                                 if filled:
-                                    parent_qty = sum(abs(o.quantity) for o in order.child_orders)
-                                    child_prices = [
-                                        o.get_fill_price() if o.is_buy_order() else -o.get_fill_price()
-                                        for o in order.child_orders
-                                    ]
-                                    parent_price = sum(child_prices)
+                                    parent_qty, parent_price = self._multileg_fill_summary(order.child_orders)
                                     parent_multiplier = getattr(getattr(order, "asset", None), "multiplier", 1) or 1
 
                                     if audit_enabled:
@@ -2961,12 +2972,7 @@ class BacktestingBroker(Broker):
                                 filled = self._fill_multileg_children_at_market_open(order, strategy)
 
                             if filled:
-                                parent_qty = sum(abs(o.quantity) for o in order.child_orders)
-                                child_prices = [
-                                    o.get_fill_price() if o.is_buy_order() else -o.get_fill_price()
-                                    for o in order.child_orders
-                                ]
-                                parent_price = sum(child_prices)
+                                parent_qty, parent_price = self._multileg_fill_summary(order.child_orders)
                                 parent_multiplier = getattr(getattr(order, "asset", None), "multiplier", 1) or 1
 
                                 if audit_enabled:
@@ -3281,12 +3287,7 @@ class BacktestingBroker(Broker):
                         filled = self._fill_multileg_children_at_market_open(order, strategy)
 
                     if filled:
-                        parent_qty = sum(abs(o.quantity) for o in order.child_orders)
-                        child_prices = [
-                            o.get_fill_price() if o.is_buy_order() else -o.get_fill_price()
-                            for o in order.child_orders
-                        ]
-                        parent_price = sum(child_prices)
+                        parent_qty, parent_price = self._multileg_fill_summary(order.child_orders)
                         parent_multiplier = getattr(getattr(order, "asset", None), "multiplier", 1) or 1
 
                         if audit_enabled:

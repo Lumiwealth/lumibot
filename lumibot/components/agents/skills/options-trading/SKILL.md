@@ -211,6 +211,10 @@ loss of the full bounded debit, L=D gives a zero boundary: that is a review at
 full-premium loss, not a partial-loss stop or zero economic risk. Preserve any
 earlier loss review the user requested or the trader promised; do not silently
 replace it with a full-loss boundary. Retain the chosen thesis and time reviews.
+For example, a $200 opening debit with a $50 loss review uses a $150 holdings
+value boundary; a full $200 loss uses zero. A negative $200 holdings mark would
+mean a $400 loss before fees, not loss of only that original premium. State the
+entry cash, chosen loss and resulting holdings-value boundary before saving it.
 Marks request attention; refresh executable prices before ordering.
 
 After a confirmed close, inspect your attention conditions and remove those

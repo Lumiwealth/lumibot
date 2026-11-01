@@ -5358,6 +5358,7 @@ def _bind_attention_watch(strategy: Any, manager: Any) -> BoundTool:
         "becomes MORE negative as its repurchase cost rises: use the appropriate negative boundary and lte for that risk. "
         "For allowed loss L, solve entry_cash + basket_value = -L: the lte threshold is -L - entry_cash. "
         "A debit D has entry_cash=-D, giving threshold D-L (positive for a partial-debit loss); a credit C gives -C-L. "
+        "For full-premium debit loss L=D, use zero, not -D; -D would represent a 2D loss before fees. "
         "Do not substitute P&L or a negative remaining debit for holdings value. Check unchanged and worsening observations "
         "against your proposed threshold before registering it. "
         "Order status: comparison=in, value_json a JSON status array and exact order_ids. Normal LumiBot/broker status aliases "

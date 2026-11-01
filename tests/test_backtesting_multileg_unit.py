@@ -101,7 +101,8 @@ def test_multileg_parent_fills_after_all_children_complete():
 
     assert parent.is_filled()
     assert parent not in broker._new_orders.get_list()
-    assert parent.quantity == Decimal("20")
+    # Ten 1:1 packages preserve both requested ten-unit child fills.
+    assert parent.quantity == Decimal("10")
     assert parent.avg_fill_price == pytest.approx(0.0, abs=1e-9)
     assert parent.trade_cost == pytest.approx(0.0, abs=1e-9)
 
@@ -135,6 +136,25 @@ def test_multileg_parent_waits_if_any_child_pending():
 
     dispatch_mock.assert_not_called()
     assert not parent.is_filled()
+
+
+def test_canceled_incomplete_package_does_not_claim_a_complete_parent_fill():
+    strategy, broker, asset, quote = _build_stock_strategy(price=50.0)
+    buy_child = _make_child_order(strategy, asset, quote, "10", Order.OrderSide.BUY)
+    sell_child = _make_child_order(strategy, asset, quote, "5", Order.OrderSide.SELL)
+    parent = broker._submit_orders([buy_child, sell_child], is_multileg=True)[0]
+    broker._execute_filled_order(buy_child, price=50.0, filled_quantity=Decimal("10"), strategy=strategy)
+    strategy._executor.process_queue()
+    broker.cancel_order(sell_child)
+    strategy._executor.process_queue()
+    broker._update_parent_order_status(parent)
+    assert not parent.is_filled()
+    assert parent.is_canceled()
+    assert buy_child.is_filled()
+    assert sell_child.is_canceled()
+    assert strategy.cash == pytest.approx(99_500.0)
+    assert any(position.asset == asset and position.quantity == 10
+               for position in broker._filled_positions.get_list())
 
 
 def test_multileg_child_fills_adjust_cash_once_and_parent_is_cash_neutral():
@@ -176,6 +196,9 @@ def test_multileg_child_fills_adjust_cash_once_and_parent_is_cash_neutral():
     # Expected cash: initial 100k - (10*50) + (5*55)
     expected_cash = 100_000.0 - 500.0 + 275.0
     assert strategy.cash == pytest.approx(expected_cash, rel=1e-9)
+    # Five 2:1 packages: 2*50 - 55 = 45 per package, not 50 - 55.
+    assert parent.quantity == Decimal("5")
+    assert parent.get_fill_price() == pytest.approx(45.0)
 
     # Ensure both children are recorded as filled positions where appropriate.
     filled_positions = {pos.asset.symbol: float(pos.quantity) for pos in broker._filled_positions.get_list()}

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import time
 from collections import Counter
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
@@ -692,7 +691,7 @@ class Alpaca(Broker):
             return
 
         logger.info(f"Sleeping {time_to_close:.0f} seconds until market close")
-        time.sleep(time_to_close)
+        self._sleep_unless_stopped(time_to_close, strategy)
 
     # =========Positions functions==================
 

@@ -152,10 +152,12 @@ provider-enforced Guard policy are the actual boundaries. MetaMask's
 a local notional limit a provider-enforced cap on typed-data signatures.
 
 Native offline regression tests and connected Python wallet, policy, account,
-market-data and ordinary strategy-startup checks have passed. Funded native
-order/fill/cancel qualification still requires a valid owner grant. Old
-JavaScript receipts do not qualify the new path. No production or mainnet
-trading qualification is claimed.
+market-data and ordinary strategy-startup checks have passed. Native testnet
+opening, reduce-only closing and cancellation have funded receipts. Fresh live
+partial-flow and connected expiry rejection remain unqualified; active grants
+explicitly skip the connected expiry check. Managed swaps require separate
+funded proof. Old JavaScript receipts do not qualify the new path. No production
+or mainnet trading qualification is claimed.
 
 Environment configuration uses ``TRADING_BROKER=metamask``, optional
 ``DATA_SOURCE=metamask``, ``METAMASK_SESSION_FILE``, ``METAMASK_STATE_FILE``,

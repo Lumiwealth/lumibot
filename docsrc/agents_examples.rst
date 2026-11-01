@@ -62,8 +62,10 @@ one short contract, collateral within 90% of equity and 90% premium capture.
 It accepts assignment and uses bounded limit orders. These are configurable
 policy choices. Premium does not remove underlying downside or guarantee profit.
 
-Initial setup is 15 minutes before the close. Shared attention polls quietly
-between decisions. When option capacity is free, cash can secure a put or shares
+Startup planning runs once at the session start; the trader schedules entries
+15 minutes before the actual session close by default. A planned entry can reuse
+still-current planning research. Shared attention polls quietly through the closing
+observation. When option capacity is free, cash can secure a put or shares
 can cover a call, with a daily entry opportunity. An occupied option or working
 order uses meaningful management events and a review within seven calendar days,
 without daily setup research. Management can reuse dated research. One decision can still involve many model

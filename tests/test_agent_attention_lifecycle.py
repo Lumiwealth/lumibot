@@ -46,6 +46,13 @@ def example(strategy_class):
     return strategy, created, calls, handles
 
 
+def initial_review(strategy):
+    if isinstance(strategy, AIWheelStrategy):
+        strategy.before_starting_trading()
+    else:
+        strategy.before_market_closes()
+
+
 @pytest.fixture(params=[AIIronCondorStrategy, AIBullCallSpreadStrategy, AICallStockReplacementStrategy, AIWheelStrategy])
 def strategy_class(request):
     return request.param
@@ -63,19 +70,19 @@ def test_quiet_minutes_make_no_model_calls_and_initial_schedule_runs_once(strate
     for _ in range(390):
         strategy.on_trading_iteration()
     assert calls == []
-    strategy.before_market_closes()
+    initial_review(strategy)
     assert [name for name, _ in calls] == ['researcher', 'trader']
     for _ in range(390):
         strategy.now += timedelta(minutes=1)
         strategy.on_trading_iteration()
-    strategy.before_market_closes()
+    initial_review(strategy)
     assert len(calls) == 2
     strategy.on_strategy_end()
 
 
 def test_shared_team_passes_the_actual_answer_without_interpreting_it(strategy_class):
     strategy, _, calls, _ = example(strategy_class)
-    strategy.before_market_closes()
+    initial_review(strategy)
     expected = {'researcher': {'at': strategy.now.isoformat(), 'answer': 'Dated research answer.'}}
     assert strategy.vars.get('_agent_attention')['research_answers'] == expected
     assert calls[-1][1]['context']['dated_research'] == expected
@@ -90,7 +97,7 @@ def test_research_warnings_reach_trader_and_survive_monitor_restart(strategy_cla
         summary='Dated evidence; optional measure unavailable.',
         model='synthetic', events=[], warnings=warnings,
         payload={'execution_outcome': {'decision_completed': True}})
-    strategy.before_market_closes()
+    initial_review(strategy)
     expected = {'researcher': {
         'at': strategy.now.isoformat(), 'answer': 'Dated evidence; optional measure unavailable.',
         'warnings': warnings}}
@@ -109,7 +116,7 @@ def test_research_warnings_reach_trader_and_survive_monitor_restart(strategy_cla
 
 def test_management_reuses_research_and_explicit_research_watch_refreshes_both_roles(strategy_class):
     strategy, _, calls, _ = example(strategy_class)
-    strategy.before_market_closes()
+    initial_review(strategy)
     for scope in ['management', 'research']:
         identity = 'any-name-' + scope
         strategy.agents.attention.watch(owner='trader', watch_id=identity, operation_id='a',
@@ -124,6 +131,6 @@ def test_incomplete_model_result_retains_original_attention(strategy_class):
     handles['trader'].run = lambda **kwargs: AgentRunResult(summary=None,
         model='chatgpt/gpt-6-luna', events=[], payload={'execution_outcome': {'decision_completed': False}})
     with pytest.raises(RuntimeError, match='Incomplete decision'):
-        strategy.before_market_closes()
+        initial_review(strategy)
     assert len(strategy.agents.attention.pending()) == 1
     assert strategy.vars.get('attention_started') is True

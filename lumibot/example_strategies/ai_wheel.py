@@ -13,12 +13,12 @@ class AIWheelStrategy(Strategy):
         "symbol": "SPY", "model": "chatgpt/gpt-6-luna", "reasoning_effort": "medium",
         "min_dte": 30, "max_dte": 45, "target_delta": 0.25,
         "max_contracts": 1, "max_collateral_pct": 90, "profit_capture_pct": 90,
-        "time_in_force": "day", "holding_review_days": 7,
+        "time_in_force": "day", "holding_review_days": 7, "entry_minutes_before_close": 15,
     }
 
     def initialize(self):
         self.sleeptime = "1M"
-        self.minutes_before_closing = 15
+        self.minutes_before_closing = 0
         settings = {
             "model": self.parameters.get("model", "chatgpt/gpt-6-luna"),
             "reasoning_effort": self.parameters.get("reasoning_effort", "medium"),
@@ -31,7 +31,8 @@ class AIWheelStrategy(Strategy):
                 "Research willingness to own the supplied ETF for a cash-secured-put/covered-call wheel. "
                 "Return at most 250 words: dated trend/volatility evidence, relevant known distribution "
                 "or market events, material risks, contrary evidence, missing inputs and when the thesis "
-                "needs review. Use at most three useful sources and only information available at the "
+                "needs review. Include the applicable session calendar/close when available for entry planning. "
+                "Use at most three useful sources and only information available at the "
                 "strategy time in a backtest. Reuse dated evidence when it still applies. Leave exact "
                 "contract comparisons, account checks and execution to the trader. Do not trade."
             ),
@@ -56,11 +57,15 @@ class AIWheelStrategy(Strategy):
                 "of actual entry premium, allowing for costs. While holding, profit_capture_pct is a "
                 "required favorable review trigger: persist that condition even when the target is "
                 "not met today. A weekly review alone does not cover it. Reaching the trigger requests "
-                "a fresh trader decision, not an automatic close. Use price-bounded DAY limits with the "
-                "configured time_in_force; smart limits are not this example's default. "
+                "a fresh trader decision, not an automatic close. Use price-bounded limits with the "
+                "configured time_in_force (DAY by default); smart limits are not this example's default. "
                 "Cadence follows available option capacity. With no short wheel option and no related "
                 "working option order, consider an entry once per eligible session near the close: "
                 "cash can secure a put, and unencumbered shares can cover a call. Preserve the next "
+                "entry opportunity entry_minutes_before_close before the exchange's actual session close, "
+                "including shortened sessions. Startup establishes this plan; do not enter early merely "
+                "because startup research is complete. A scheduled entry can reuse still-current research "
+                "from its planning review through management scope, without researching it twice. Preserve the next "
                 "eligible session's setup watch after declining an entry. While a short option or "
                 "related working order occupies that capacity, remove obsolete daily setup watches; "
                 "do not schedule daily setup/research just because another session opens. "
@@ -71,7 +76,8 @@ class AIWheelStrategy(Strategy):
                 "if capacity is then free, preserve the next eligible near-close setup opportunity. "
                 "Finish obsolete-watch cleanup before saving a future recurring review; never remove "
                 "its updated definition as if it were the consumed one. Use review_scope=setup for "
-                "an eligible entry, research for needed fresh evidence, and management to reuse it. "
+                "an entry needing refreshed research, research for needed fresh evidence, and management "
+                "to reuse still-current evidence, including a previously researched scheduled entry. "
                 "Retain each obligation and "
                 "its own symbol when the configured ticker changes. Remove obsolete watches only "
                 "after reconciliation. Leave a reachable next review without minute AI heartbeats. "
@@ -79,14 +85,20 @@ class AIWheelStrategy(Strategy):
             ),
         )
 
-    def before_market_closes(self):
+    def before_starting_trading(self):
         if not self.vars.get("attention_started", False):
             self.agents.attention.watch(
                 owner="lifecycle", watch_id="initial_review", operation_id="initial_setup",
                 metric="time", comparison="gte", value=self.get_datetime().isoformat(),
-                reason="First scheduled setup opportunity", review_scope="setup",
+                reason="Initial planning; trader schedules the eligible near-close entry review", review_scope="setup",
             )
             self.vars.set("attention_started", True)
+        self.on_trading_iteration()
+
+    def before_market_closes(self):
+        self.on_trading_iteration()
+
+    def after_market_closes(self):
         self.on_trading_iteration()
 
     def on_trading_iteration(self):

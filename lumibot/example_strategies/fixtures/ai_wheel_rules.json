@@ -19,35 +19,35 @@
       "id": "coverage",
       "title": "Coverage",
       "status": "active",
-      "interpretation": "Hold at most one short option. Puts remain fully cash secured including costs, within 90 percent of equity; calls require enough unencumbered deliverable shares. No borrowing, naked options, automatic rolls or disposal of unrelated holdings.",
+      "interpretation": "Use the configured max_contracts and max_collateral_pct (defaults one short option and 90 percent of equity). Puts remain fully cash secured including costs; calls require enough unencumbered deliverable shares. No borrowing, naked options, automatic rolls or disposal of unrelated holdings.",
       "raw_quote": "Ok please get all this done right now"
     },
     {
       "id": "contracts",
       "title": "Contracts",
       "status": "active",
-      "interpretation": "Prefer listed expirations 30 to 45 days away and absolute delta near 0.25. Prefer covered-call strikes at or above verified share acquisition cost. Hold when no suitable contract exists.",
+      "interpretation": "Use the configured min_dte, max_dte and target_delta (defaults 30 to 45 days and absolute delta near 0.25). Prefer covered-call strikes at or above verified share acquisition cost. Hold when no suitable listed contract exists.",
       "raw_quote": "Ok please get all this done right now"
     },
     {
       "id": "management",
       "title": "Management",
       "status": "active",
-      "interpretation": "Accept expiry and assignment. Persist a favorable review trigger at 90 percent capture of the actual entry premium after costs, even while it is not met; a weekly review alone does not cover that target. The trigger requests a fresh trader decision about buying to close, not an automatic order. Manage residual orders and exposure before another entry.",
+      "interpretation": "Accept expiry and assignment. Persist a favorable review trigger at the configured profit_capture_pct (default 90 percent) of actual entry premium after costs, even while it is not met; a weekly review alone does not cover that target. The trigger requests a fresh trader decision about buying to close, not an automatic order. Manage residual orders and exposure before another entry.",
       "raw_quote": "Ok please get all this done right now"
     },
     {
       "id": "attention",
       "title": "Attention",
       "status": "active",
-      "interpretation": "First setup opportunity is 15 minutes before the session close. With no short wheel option or related working option order, consider an entry once per eligible session near the close, whether cash can secure a put or shares can cover a call. While an option or related working order occupies that capacity, remove obsolete daily setup watches; do not schedule daily setup or research merely because another session opens. Observe cheaply each minute; use meaningful profit, quantity, order, expiry and thesis conditions plus one recurring management review within seven calendar days. Reuse relevant dated research for management; refresh only for an eligible setup or a decision needing fresh evidence. Reconcile assignment, call-away, closing and terminal orders as management first, then preserve the next eligible setup if capacity is free. Clean obsolete watches before saving an updated future review; never delete its newly updated definition.",
+      "interpretation": "Plan once at startup, then observe cheaply each minute through the closing observation. Schedule entries entry_minutes_before_close before the actual exchange session close (default 15 minutes, including shortened sessions); startup planning does not authorize an early entry. A planned entry can reuse still-current planning research via management scope. With no short wheel option or related working option order, preserve one entry opportunity per eligible session, whether cash can secure a put or shares can cover a call. While an option or order occupies that capacity, remove obsolete daily setup timers; do not schedule daily setup/research merely because another session opens. Persist meaningful profit, quantity, order, expiry and thesis conditions plus one recurring management review within holding_review_days (default seven calendar days). Reconcile assignment, call-away, closing and terminal orders as management first, then preserve the next eligible setup if capacity is free. Clean obsolete watches before saving an updated future review; never delete its newly updated definition. A watch reason is explanatory text, not another condition.",
       "raw_quote": "Ok please get all this done right now"
     },
     {
       "id": "pricing",
       "title": "Pricing",
       "status": "active",
-      "interpretation": "Use price-bounded limit orders, DAY by default. Smart limits are not the default. Inspect exact option market evidence; disclose historical trade-bar approximation and never replace it with future or current quotes.",
+      "interpretation": "Use price-bounded limit orders with the configured time_in_force (DAY by default). Smart limits are not the default. Inspect exact option market evidence; disclose historical trade-bar approximation and never replace it with future or current quotes.",
       "raw_quote": "Ok please get all this done right now"
     },
     {

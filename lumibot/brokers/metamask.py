@@ -32,7 +32,7 @@ class MetaMask(Broker):
         self.client = MetaMaskClient(config)
         self._observations = {}
         self._event_lock = RLock()
-        self._poll_interval = float(config.get("POLL_INTERVAL", 5))
+        self._poll_interval = float(config.get("POLL_INTERVAL", 10))
         data_source = data_source or MetaMaskData(config, client=self.client)
         super().__init__(
             name="metamask", config=config, data_source=data_source, connect_stream=connect_stream, **kwargs
@@ -89,7 +89,7 @@ class MetaMask(Broker):
             if str(order.identifier) not in self._observations and self.get_tracked_order(order.identifier) is None:
                 self._unprocessed_orders.append(order)
             self._observe(order, response)
-        return order
+        return self.get_tracked_order(order.identifier) or order
 
     def _submit_orders(self, orders, **kwargs):
         if kwargs.pop("is_multileg", False) or kwargs:
@@ -285,8 +285,19 @@ class MetaMask(Broker):
             if order is not None:
                 self._observe(order, response)
 
+    def _process_partially_filled_order(self, order, price, quantity):
+        with self._lock:
+            terminal_status = order.status if order.is_canceled() or order.status == self.ERROR_ORDER else None
+            result = super()._process_partially_filled_order(order, price, quantity)
+            if terminal_status is not None:
+                # Late execution evidence must reach callbacks without reopening the order.
+                order.status = terminal_status
+                self._clean_order_trackers(order)
+            return result
+
     def _observe(self, order, response):
         with self._event_lock:
+            order = self.get_tracked_order(order.identifier) or order
             money = Context(prec=160)
             state = response["state"]
             previous = self._observations.get(str(order.identifier), (Decimal(0), Decimal(0), None))
@@ -295,8 +306,14 @@ class MetaMask(Broker):
                 raise MetaMaskAPIError(
                     "FILL_REGRESSION", "Provider fill history is incomplete; refusing to overwrite known fills"
                 )
+            if quantity > decimal_value(order.quantity):
+                raise MetaMaskAPIError("INVALID_FILL", "Cumulative fills exceed the original order quantity")
             if previous[2] in ("filled", "canceled", "rejected"):
-                return
+                state = previous[2]
+                response = {**response, "state": state}
+                if quantity == previous[0]:
+                    order.update_raw(response)
+                    return
             value = money.multiply(quantity, decimal_value(response.get("averagePrice", "0")))
             if quantity > previous[0]:
                 delta = money.subtract(quantity, previous[0])
@@ -311,9 +328,9 @@ class MetaMask(Broker):
                 )
             elif state == "open" and previous[2] in (None, "submitted", "awaiting_approval", "unknown"):
                 self._process_trade_event(order, self.NEW_ORDER)
-            if state == "canceled":
+            if state == "canceled" and previous[2] != "canceled":
                 self._process_trade_event(order, self.CANCELED_ORDER)
-            elif state == "rejected":
+            elif state == "rejected" and previous[2] != "rejected":
                 self._process_trade_event(
                     order,
                     self.ERROR_ORDER,

@@ -3,6 +3,7 @@
 ## 4.6.38 - Unreleased
 
 ### Changed
+- Reconcile live MetaMask partial fills from current open-order remainders, retain late terminal execution deltas without reopening orders, and fence new spending while fill evidence disagrees. Share wallet observation reads, avoid unchanged historical status queries, and use a 10-second default polling interval.
 - Harden native MetaMask signing-domain/network binding, final authority handoff, uncertain cancellation and leverage recovery, cumulative accessor fills, exact token arithmetic, reverted-gas budgets, and OP Stack L1/operator fee accounting. Preserve actual overrun charges pending explicit owner review. Native funded qualification remains in progress.
 - Replace the retired Polygon SDK dependency with maintained Massive while retaining Polygon keys and endpoint behavior; require patched MetaMask HTTP and CA-store dependencies and reject unsafe session lock files.
 - MetaMask now runs in Python through the normal LumiBot broker and data source. The optional Python extra replaces the required Node service, npm install and localhost transport. Browser sign-in and durable OAuth refresh use native Python.

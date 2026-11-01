@@ -168,7 +168,19 @@ handoff. An expired uncertain cancel can retry only after fresh reads confirm
 the same order remains live. Expired uncertain leverage reconciles current
 venue settings and rejects the unsubmitted intent; a fresh order ID is needed.
 Accessor refresh and polling share cumulative fill, callback and terminal-event
-handling. Atomic quantities remain exact under caller decimal contexts.
+handling. Live partial remainders use identity-checked open-order snapshots;
+``orderStatus`` may retain the original size. Closed order refresh is read-only,
+preserves lifecycle, and emits only new fill deltas. Inconsistent execution
+evidence blocks new reservations until reconciliation succeeds.
+
+Polling defaults to 10 seconds and shares fill/live-order reads within a wallet
+sweep. Increase ``POLL_INTERVAL`` for large histories or multiple brokers sharing
+an IP; Hyperliquid limits `aggregate weighted requests per IP
+<https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/rate-limits-and-user-limits>`_. Unified-account
+cash is unheld USDC collateral, without promising order capacity or valuing
+unrelated spot assets.
+
+Atomic quantities remain exact under caller decimal contexts.
 
 Managed swaps cannot be canceled locally. Receipt reconciliation includes gas
 spent by reverted transactions and earlier approvals. OP Stack estimates and

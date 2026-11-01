@@ -385,6 +385,12 @@ class HyperliquidVenue:
     def order_status(self, wallet: str, venue_id: str | int) -> dict[str, object]:
         return json_object(self.info({"type": "orderStatus", "user": address(wallet), "oid": venue_id}), "order status")
 
+    def frontend_open_orders(self, wallet: str) -> list[dict[str, object]]:
+        rows = self.info({"type": "frontendOpenOrders", "user": address(wallet)})
+        if not isinstance(rows, list):
+            raise MetaMaskError("INVALID_RESPONSE", "Live open-order snapshot is missing")
+        return [json_object(row, "live open order") for row in rows]
+
     def fills(self, wallet: str, start: int, end: int) -> list[dict[str, object]]:
         if (
             isinstance(start, bool)

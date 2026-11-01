@@ -126,21 +126,35 @@ class ExecutionEngine:
         finally:
             self._execution.release()
 
-    def _advance(self, operation: dict[str, object]) -> dict[str, object]:
+    def _advance(self, operation: dict[str, object], *, observation=None) -> dict[str, object]:
         try:
-            return self._advance_inner(operation)
+            return self._advance_inner(operation, observation=observation)
         except MetaMaskError as error:
             current = self._operation(str(operation["id"]))
             return self._change(current, state="unknown", lastErrorCode=error.code, message=str(error))
 
-    def _advance_inner(self, operation: dict[str, object]) -> dict[str, object]:
-        if operation["state"] in _TERMINAL:
+    def _advance_inner(self, operation: dict[str, object], *, observation=None) -> dict[str, object]:
+        if operation["state"] == "filled":
             return operation
         operation_id = str(operation["id"])
         plan = self.journal.effect(self.agent_id, operation_id, "plan")
-        if plan is None:
-            return self._reconcile_legacy(operation)
         order_effect = self.journal.effect(self.agent_id, operation_id, "order")
+        if operation["state"] in _TERMINAL:
+            if operation.get("providerOrderId") is not None or (
+                order_effect is not None
+                and order_effect.get("phase") == "venue"
+                and order_effect.get("state") in {"released", "confirmed"}
+            ):
+                # Closed venue orders can acquire delayed fill receipts. Refresh only;
+                # never resume signing or release an earlier mutation, including after restart.
+                return self._reconcile_order(operation, plan or {"clientOrderId": None}, observation=observation)
+            return operation
+        if plan is None:
+            return self._reconcile_legacy(operation, observation=observation)
+        if observation is not None and order_effect is not None and order_effect.get("phase") == "venue":
+            # This order was already released before this polling sweep. No new
+            # submission may consume a snapshot captured before its mutation.
+            return self._reconcile_order(operation, plan, observation=observation)
         if plan.get("ownerEpoch") != self.epoch:
             if order_effect is not None and order_effect.get("phase") == "venue":
                 return self._reconcile_order(operation, plan)
@@ -415,28 +429,36 @@ class ExecutionEngine:
         self.journal.save_effect(operation, step, {**effect, "state": "confirmed", "response": response})
         return operation, True
 
-    def _reconcile_order(self, operation, plan):
+    def _reconcile_order(self, operation, plan, *, observation=None):
         try:
             with localcontext(Context(prec=160)):
-                return self._read_order(operation, plan)
+                return self._read_order(operation, plan, observation=observation)
         except MetaMaskError as error:
-            return self._change(operation, state="unknown", lastErrorCode=error.code, message=str(error))
+            return self._change(
+                operation,
+                state=operation["state"] if operation["state"] in _TERMINAL else "unknown",
+                lastErrorCode=error.code,
+                reconciliationErrorCode=error.code,
+                reconciliationMessage=str(error),
+                message=str(error),
+            )
 
-    def _read_order(self, operation, plan):
+    def _read_order(self, operation, plan, *, observation=None):
         binding = Binding.parse(self.journal.binding(self.agent_id))
+        if observation is not None and observation["wallet"] != binding.wallet:
+            observation = None
         reference = operation.get("providerOrderId")
         reference = int(reference) if isinstance(reference, str) and reference.isdecimal() else plan["clientOrderId"]
         result = self.venue.order_status(binding.wallet, reference)
         if result.get("status") != "order":
-            return self._change(
-                operation, state="unknown", message="Venue has not resolved the original order; no retransmission"
-            )
+            raise MetaMaskError("ORDER_UNRESOLVED", "Venue has not resolved the original order; no retransmission")
         status = json_object(result.get("order"), "venue order status")
         order = json_object(status.get("order"), "venue order")
         intent = PerpIntent.parse(json_object(operation["request"]))
         venue_id = positive_integer(order.get("oid"), "venue order ID")
         if (
-            order.get("coin") != intent.symbol
+            (isinstance(reference, int) and venue_id != reference)
+            or order.get("coin") != intent.symbol
             or order.get("side") != ("B" if intent.side == "buy" else "A")
             or decimal(order.get("origSz"), positive=True) != intent.quantity
             or (plan.get("clientOrderId") is not None and order.get("cloid") != plan["clientOrderId"])
@@ -474,16 +496,45 @@ class ExecutionEngine:
         }
         state = "canceled" if raw_state in canceled else "rejected" if raw_state in rejected else raw_state
         if state not in {"open", "filled", "canceled", "rejected"}:
-            return self._change(
-                operation, state="unknown", message="Venue terminal status requires explicit reconciliation"
-            )
+            raise MetaMaskError("ORDER_STATUS_UNSUPPORTED", "Venue terminal status requires explicit reconciliation")
+        if operation["state"] in _TERMINAL and state != operation["state"]:
+            raise MetaMaskError("TERMINAL_STATUS_CONFLICT", "A later venue snapshot cannot change the closed lifecycle")
+        if state == "open":
+            # orderStatus retains the size from its last lifecycle transition. Actual
+            # partial-fill remainders come from the current live order snapshot.
+            live_rows = observation["openOrders"] if observation is not None else None
+            if live_rows is None:
+                live_rows = self.venue.frontend_open_orders(binding.wallet)
+            matches = [row for row in live_rows if row.get("oid") == venue_id]
+            if len(matches) != 1:
+                raise MetaMaskError("OPEN_ORDER_UNRESOLVED", "Live order snapshot is absent or ambiguous")
+            live = matches[0]
+            if (
+                positive_integer(live.get("oid"), "live venue order ID") != venue_id
+                or live.get("coin") != intent.symbol
+                or live.get("side") != order.get("side")
+                or decimal(live.get("origSz"), positive=True) != intent.quantity
+                or (plan.get("clientOrderId") is not None and live.get("cloid") != plan["clientOrderId"])
+                or live.get("reduceOnly") is not intent.reduce_only
+            ):
+                raise MetaMaskError("ORDER_IDENTITY_MISMATCH", "Live order differs from the persisted wallet intent")
+            remaining = decimal(live.get("sz"), positive=True)
+        else:
+            remaining = Decimal(0) if state == "filled" else decimal(order.get("sz"))
+        if not 0 <= remaining <= intent.quantity:
+            raise MetaMaskError("ORDER_SIZE_MISMATCH", "Venue remaining size is outside the original order quantity")
         prior_fills = self.journal.effect(self.agent_id, intent.identifier, "fills")
         cached = prior_fills.get("items", []) if prior_fills else []
         if not isinstance(cached, list):
             raise MetaMaskError("INVALID_STATE", "Persisted fill ledger is malformed")
         rows = {json_object(row)["tid"]: json_object(row) for row in cached}
         start = max(0, int(operation["createdAt"]) - 5000)
-        for item in self.venue.fills(binding.wallet, start, int(time.time() * 1000)):
+        observed_fills = (
+            observation["fills"]
+            if observation is not None
+            else self.venue.fills(binding.wallet, start, int(time.time() * 1000))
+        )
+        for item in observed_fills:
             if item.get("oid") != venue_id:
                 continue
             if item.get("coin") != intent.symbol or item.get("side") != ("B" if intent.side == "buy" else "A"):
@@ -505,12 +556,10 @@ class ExecutionEngine:
             if not isinstance(token, str) or not token:
                 raise MetaMaskError("INVALID_RESPONSE", "Fill fee currency is missing")
             fees[token] = fees.get(token, Decimal(0)) + decimal(item.get("fee"))
-        expected = intent.quantity if state == "filled" else intent.quantity - decimal(order.get("sz"))
+        expected = intent.quantity - remaining
         if quantity != expected or quantity > intent.quantity or quantity < decimal(operation["filledQuantity"]):
-            return self._change(
-                operation,
-                state="unknown",
-                message="Venue order and retained fill history disagree; preserving known fills",
+            raise MetaMaskError(
+                "FILL_HISTORY_INCOMPLETE", "Venue order and retained fill history disagree; preserving known fills"
             )
         next_state = "partial_fill" if state == "open" and quantity > 0 else state
         after = {
@@ -522,13 +571,15 @@ class ExecutionEngine:
             "fees": [{"asset": token, "amount": format(amount, "f")} for token, amount in sorted(fees.items())],
             "updatedAt": int(time.time() * 1000),
             "lastErrorCode": None,
+            "reconciliationErrorCode": None,
+            "reconciliationMessage": None,
             "message": "Venue order and cumulative fills reconciled",
         }
         if quantity > 0:
             after["averagePrice"] = format(value / quantity, "f")
         return self.journal.replace_if_unchanged(operation, after)
 
-    def _reconcile_legacy(self, operation):
+    def _reconcile_legacy(self, operation, *, observation=None):
         binding = Binding.parse(self.journal.binding(self.agent_id))
         if operation.get("signatureOnly") and isinstance(operation.get("approvalId"), str):
             job = self.provider.signature(
@@ -541,7 +592,7 @@ class ExecutionEngine:
                     message="Legacy interrupted signature resolved without release; no order replay",
                 )
         elif operation.get("providerOrderId") is not None and json_object(operation["request"]).get("kind") == "perp":
-            return self._reconcile_order(operation, {"clientOrderId": None})
+            return self._reconcile_order(operation, {"clientOrderId": None}, observation=observation)
         return operation
 
     def cancel(self, operation_id: str) -> dict[str, object]:
@@ -619,11 +670,11 @@ class ExecutionEngine:
             current = self._operation(str(operation["id"]))
             return self._change(current, cancelState="unknown", cancelErrorCode=error.code, cancelMessage=str(error))
 
-    def order(self, operation_id: str) -> dict[str, object]:
+    def order(self, operation_id: str, *, _observation=None) -> dict[str, object]:
         if not self._execution.acquire(blocking=False):
             return self._operation(operation_id)
         try:
-            operation = self._advance(self._operation(operation_id))
+            operation = self._advance(self._operation(operation_id), observation=_observation)
             if operation["state"] not in _TERMINAL:
                 for step, effect in self.journal.effects(self.agent_id, operation_id).items():
                     if (
@@ -642,4 +693,52 @@ class ExecutionEngine:
             self._execution.release()
 
     def orders(self) -> list[dict[str, object]]:
-        return [self.order(str(row["id"])) for row in self.journal.operations(self.agent_id)]
+        operations = self.journal.operations(self.agent_id)
+        existing = {}
+        for row in operations:
+            venue_id = row.get("providerOrderId")
+            if (
+                row["state"] == "filled"
+                or not isinstance(venue_id, str)
+                or not venue_id.isdecimal()
+                or int(venue_id) <= 0
+            ):
+                continue
+            identifier = str(row["id"])
+            plan = self.journal.effect(self.agent_id, identifier, "plan")
+            effect = self.journal.effect(self.agent_id, identifier, "order")
+            if row["state"] in _TERMINAL or plan is None or (effect is not None and effect.get("phase") == "venue"):
+                existing[identifier] = row
+        if not existing:
+            return [self.order(str(row["id"])) for row in operations]
+        closed = {identifier: row for identifier, row in existing.items() if row["state"] in _TERMINAL}
+        try:
+            wallet = Binding.parse(self.journal.binding(self.agent_id)).wallet
+            live = self.venue.frontend_open_orders(wallet) if len(existing) > len(closed) else None
+            start = max(0, min(int(row["createdAt"]) for row in existing.values()) - 5000)
+            recent = self.venue.fills(wallet, start, int(time.time() * 1000))
+        except MetaMaskError:
+            # Preserve ordinary durable reconciliation errors if discovery is unavailable.
+            return [self.order(str(row["id"])) for row in operations]
+        observation = {"wallet": wallet, "openOrders": live, "fills": recent}
+        by_order = {}
+        for fill in recent:
+            by_order.setdefault(fill.get("oid"), []).append(fill)
+        results = []
+        for operation in operations:
+            identifier = str(operation["id"])
+            if identifier in closed and not operation.get("reconciliationErrorCode"):
+                ledger = self.journal.effect(self.agent_id, identifier, "fills")
+                items = ledger.get("items", []) if ledger else []
+                if isinstance(items, list) and all(
+                    isinstance(item, dict) and isinstance(item.get("tid"), int) for item in items
+                ):
+                    cached = {item["tid"]: item for item in items}
+                    observed = by_order.get(int(operation["providerOrderId"]), [])
+                    if len(cached) == len(items) and all(cached.get(fill["tid"]) == fill for fill in observed):
+                        # Missing old rows cannot erase the retained ledger. Only a new or
+                        # changed receipt needs an individual terminal status reconciliation.
+                        results.append(self._operation(identifier))
+                        continue
+            results.append(self.order(identifier, _observation=observation if identifier in existing else None))
+        return results

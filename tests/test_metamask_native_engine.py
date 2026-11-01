@@ -111,6 +111,8 @@ def engine(tmp_path):
         }
 
     venue.order_status.side_effect = status
+    # Ordinary fixture observations agree; regressions below supply independently stale snapshots.
+    venue.frontend_open_orders.side_effect = lambda wallet: [venue.order_status(wallet, 42)["order"]["order"]]
     yield instance
     journal.close()
 
@@ -332,6 +334,154 @@ def test_fills_are_cumulative_and_terminal_requires_complete_ledger(engine):
     result = engine.order("one")
     assert result["state"] == "filled" and result["filledQuantity"] == "0.001"
     assert result["averagePrice"] == "19999" and result["fees"] == [{"asset": "USDC", "amount": "0.01"}]
+
+
+def partial_fill(size="0.0004"):
+    return {
+        "tid": 71,
+        "oid": 42,
+        "coin": "BTC",
+        "side": "B",
+        "sz": size,
+        "px": "19999",
+        "fee": "0.001",
+        "feeToken": "USDC",
+        "time": int(time.time() * 1000),
+    }
+
+
+def test_open_status_size_is_a_snapshot_live_remainder_proves_partial_execution(engine):
+    engine.submit(intent())
+    live = dict(engine.venue.order_status(WALLET, 42)["order"]["order"], sz="0.0006")
+    engine.venue.frontend_open_orders.side_effect = None
+    engine.venue.frontend_open_orders.return_value = [live]
+    engine.venue.fills.return_value = [partial_fill()]
+    result = engine.order("one")
+    assert result["state"] == "partial_fill" and result["filledQuantity"] == "0.0004"
+    assert engine.venue.order_status(WALLET, 42)["order"]["order"]["sz"] == "0.001"
+    assert result["fees"] == [{"asset": "USDC", "amount": "0.001"}]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing",
+        "duplicate",
+        "foreign_cloid",
+        "foreign_coin",
+        "foreign_side",
+        "foreign_size",
+        "foreign_reduce_only",
+        "negative_remaining",
+        "zero_remaining",
+        "excess_remaining",
+        "lagging_remaining",
+    ],
+)
+def test_open_live_snapshot_must_match_identity_and_complete_fill_ledger(engine, mutation):
+    engine.submit(intent())
+    live = dict(engine.venue.order_status(WALLET, 42)["order"]["order"], sz="0.0006")
+    rows = [live]
+    if mutation == "missing":
+        rows = []
+    elif mutation == "duplicate":
+        rows = [live, dict(live)]
+    else:
+        field, value = {
+            "foreign_cloid": ("cloid", "0x" + "f" * 32),
+            "foreign_coin": ("coin", "ETH"),
+            "foreign_side": ("side", "A"),
+            "foreign_size": ("origSz", "0.002"),
+            "foreign_reduce_only": ("reduceOnly", True),
+            "negative_remaining": ("sz", "-0.0001"),
+            "zero_remaining": ("sz", "0"),
+            "excess_remaining": ("sz", "0.002"),
+            "lagging_remaining": ("sz", "0.001"),
+        }[mutation]
+        live[field] = value
+    engine.venue.frontend_open_orders.side_effect = None
+    engine.venue.frontend_open_orders.return_value = rows
+    engine.venue.fills.return_value = [partial_fill()]
+    result = engine.order("one")
+    assert result["state"] == "unknown" and result["filledQuantity"] == "0"
+    assert engine.venue.submit_action.call_count == 2
+
+
+@pytest.mark.parametrize("restart", [False, True])
+@pytest.mark.parametrize("terminal", ["canceled", "rejected"])
+def test_closed_order_refreshes_late_terminal_fill_without_mutation_or_replay(engine, restart, terminal):
+    engine.submit(intent())
+    snapshot = engine.venue.order_status(WALLET, 42)
+    snapshot["order"]["status"] = terminal
+    engine.venue.order_status.side_effect = None
+    engine.venue.order_status.return_value = snapshot
+    assert engine.order("one")["state"] == terminal
+    engine.provider.reset_mock()
+    engine.venue.submit_action.reset_mock()
+    engine.venue.frontend_open_orders.reset_mock()
+    snapshot["order"]["order"]["sz"] = "0.0006"
+    engine.venue.fills.return_value = [partial_fill()]
+    subject = ExecutionEngine(engine.journal, engine.provider, engine.venue, "agent") if restart else engine
+    result = subject.order("one")
+    assert result["state"] == terminal and result["filledQuantity"] == "0.0004"
+    assert result["averagePrice"] == "19999" and result["fees"] == [{"asset": "USDC", "amount": "0.001"}]
+    assert subject.order("one")["filledQuantity"] == "0.0004"
+    assert len(engine.journal.effect("agent", "one", "fills")["items"]) == 1
+    engine.provider.submit_signature.assert_not_called()
+    engine.provider.signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+    engine.venue.frontend_open_orders.assert_not_called()
+
+
+def test_terminal_released_order_without_recorded_venue_id_refreshes_by_client_id_without_replay(engine):
+    engine.submit(intent())
+    operation = engine.journal.get("agent", "one")
+    operation.pop("providerOrderId")
+    operation["state"] = "canceled"
+    engine.journal.save(operation)
+    effect = engine.journal.effect("agent", "one", "order")
+    engine.journal.save_effect(operation, "order", {**effect, "state": "released"})
+    snapshot = engine.venue.order_status(WALLET, 42)
+    snapshot["order"]["status"] = "canceled"
+    snapshot["order"]["order"]["sz"] = "0.0006"
+    engine.venue.order_status.side_effect = None
+    engine.venue.order_status.return_value = snapshot
+    engine.venue.fills.return_value = [partial_fill()]
+    engine.provider.reset_mock()
+    engine.venue.submit_action.reset_mock()
+    restored = ExecutionEngine(engine.journal, engine.provider, engine.venue, "agent")
+    result = restored.order("one")
+    assert result["state"] == "canceled" and result["filledQuantity"] == "0.0004"
+    assert result["providerOrderId"] == "42"
+    engine.venue.order_status.assert_called_with(WALLET, engine.journal.effect("agent", "one", "plan")["clientOrderId"])
+    engine.provider.submit_signature.assert_not_called()
+    engine.provider.signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize("contradiction", ["open", "filled", "missing", "incomplete_fills", "read_error"])
+def test_terminal_reconciliation_failure_never_reopens_or_erases_known_fills(engine, contradiction):
+    engine.submit(intent())
+    snapshot = engine.venue.order_status(WALLET, 42)
+    snapshot["order"]["status"] = "canceled"
+    snapshot["order"]["order"]["sz"] = "0.0006"
+    engine.venue.order_status.side_effect = None
+    engine.venue.order_status.return_value = snapshot
+    engine.venue.fills.return_value = [partial_fill()]
+    assert engine.order("one")["state"] == "canceled"
+    if contradiction in {"open", "filled"}:
+        snapshot["order"]["status"] = contradiction
+    elif contradiction == "missing":
+        engine.venue.order_status.return_value = {"status": "unknownOid"}
+    elif contradiction == "incomplete_fills":
+        snapshot["order"]["order"]["sz"] = "0.0002"
+    else:
+        engine.venue.order_status.side_effect = MetaMaskError("VENUE_UNAVAILABLE", "Read timed out")
+    result = engine.order("one")
+    assert result["state"] == "canceled" and result["filledQuantity"] == "0.0004"
+    assert result.get("reconciliationErrorCode")
+    assert result["fees"] == [{"asset": "USDC", "amount": "0.001"}]
+    assert engine.venue.submit_action.call_count == 2
 
 
 def test_reduce_only_does_not_mutate_leverage(engine):
@@ -557,3 +707,215 @@ def test_malformed_cancel_acknowledgement_does_not_reject_live_order(engine):
     result = engine.cancel("one")
     assert result["state"] == "open" and result["cancelState"] == "unknown"
     assert result["cancelErrorCode"] == "INVALID_RESPONSE"
+
+
+def seed_closed_orders(engine, count=20):
+    base = engine.submit(intent())
+    for index in range(count):
+        identifier = "one" if index == 0 else f"closed-{index}"
+        operation = {
+            **base,
+            "id": identifier,
+            "request": intent(id=identifier),
+            "state": "canceled",
+            "providerOrderId": str(42 + index),
+        }
+        engine.journal.save(operation)
+        engine.journal.save_effect(operation, "fills", {"wallet": WALLET, "network": "testnet", "items": []})
+
+    def status(wallet, reference):
+        operation = next(row for row in engine.journal.operations("agent") if row["providerOrderId"] == str(reference))
+        plan = engine.journal.effect("agent", operation["id"], "plan")
+        return {
+            "status": "order",
+            "order": {
+                "status": "canceled",
+                "order": {
+                    "coin": "BTC",
+                    "side": "B",
+                    "origSz": "0.001",
+                    "sz": "0.001",
+                    "oid": int(reference),
+                    "cloid": plan["clientOrderId"] if plan else None,
+                    "reduceOnly": False,
+                },
+            },
+        }
+
+    engine.venue.order_status.side_effect = status
+    engine.venue.reset_mock()
+    engine.provider.reset_mock()
+
+
+def test_polling_twenty_unchanged_closed_orders_uses_one_fill_read_and_no_status_reads(engine):
+    seed_closed_orders(engine)
+    results = engine.orders()
+    assert len(results) == 20 and all(row["state"] == "canceled" for row in results)
+    assert engine.venue.fills.call_count == 1
+    engine.venue.order_status.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+    engine.provider.submit_signature.assert_not_called()
+
+
+def test_terminal_batch_discovery_refreshes_only_order_with_new_fill(engine):
+    seed_closed_orders(engine)
+    original = engine.venue.order_status.side_effect
+
+    def status(*args):
+        result = original(*args)
+        if args[1] == 49:
+            result["order"]["order"]["sz"] = "0.0006"
+        return result
+
+    engine.venue.order_status.side_effect = status
+    engine.venue.fills.return_value = [{**partial_fill(), "oid": 49}]
+    results = engine.orders()
+    assert next(row for row in results if row["providerOrderId"] == "49")["filledQuantity"] == "0.0004"
+    engine.venue.order_status.assert_called_once_with(WALLET, 49)
+    # The same request-local ledger now supplies discovery and the selected reconciliation.
+    assert engine.venue.fills.call_count == 1
+    engine.venue.reset_mock()
+    engine.orders()
+    assert engine.venue.fills.call_count == 1
+    engine.venue.order_status.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+def test_batch_discovery_returns_concurrently_updated_terminal_receipt(engine):
+    seed_closed_orders(engine, count=1)
+
+    def discover(*args):
+        fill = partial_fill()
+        operation = engine.journal.get("agent", "one")
+        engine.journal.save_effect(
+            operation, "fills", {"wallet": WALLET, "network": "testnet", "items": [fill]}
+        )
+        engine.journal.save({**operation, "filledQuantity": "0.0004", "averagePrice": "19999"})
+        return [fill]
+
+    engine.venue.fills.side_effect = discover
+    result = engine.orders()[0]
+    assert result == engine.journal.get("agent", "one")
+    assert result["filledQuantity"] == "0.0004"
+    engine.venue.order_status.assert_not_called()
+
+
+def test_terminal_batch_discovery_never_ignores_changed_existing_fill_record(engine):
+    seed_closed_orders(engine)
+    operation = engine.journal.get("agent", "one")
+    engine.journal.save_effect(operation, "fills", {"wallet": WALLET, "network": "testnet", "items": [partial_fill()]})
+    engine.venue.fills.return_value = [{**partial_fill(), "fee": "0.002"}]
+    result = next(row for row in engine.orders() if row["id"] == "one")
+    assert result["state"] == "canceled" and result["reconciliationErrorCode"] == "FILL_REGRESSION"
+    engine.venue.order_status.assert_called_once_with(WALLET, 42)
+
+
+def test_terminal_batch_read_failure_falls_back_and_durably_blocks_new_spending(engine):
+    seed_closed_orders(engine)
+    engine.venue.fills.side_effect = MetaMaskError("VENUE_UNAVAILABLE", "Read timed out")
+    results = engine.orders()
+    assert all(row["state"] == "canceled" and row["reconciliationErrorCode"] == "VENUE_UNAVAILABLE" for row in results)
+    assert engine.venue.order_status.call_count == 20
+    assert engine.venue.fills.call_count == 21
+    with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+        engine.journal.reserve("agent", intent(id="blocked"), "1", expected_binding=engine.journal.binding("agent"))
+
+
+def test_terminal_reconciliation_error_forces_refresh_even_without_new_batch_fills(engine):
+    seed_closed_orders(engine)
+    operation = engine.journal.get("agent", "one")
+    engine.journal.save({**operation, "reconciliationErrorCode": "VENUE_UNAVAILABLE"})
+    result = next(row for row in engine.orders() if row["id"] == "one")
+    assert result["state"] == "canceled" and result["reconciliationErrorCode"] is None
+    engine.venue.order_status.assert_called_once_with(WALLET, 42)
+
+
+def test_twelve_active_orders_share_fresh_snapshots_with_measured_request_count_reduction(engine):
+    seed_closed_orders(engine, count=12)
+    for operation in engine.journal.operations("agent"):
+        engine.journal.save({**operation, "state": "open"})
+    original = engine.venue.order_status.side_effect
+
+    def status(*args):
+        result = original(*args)
+        result["order"]["status"] = "open"
+        return result
+
+    engine.venue.order_status.side_effect = status
+    engine.venue.frontend_open_orders.side_effect = None
+    engine.venue.frontend_open_orders.return_value = [status(WALLET, oid)["order"]["order"] for oid in range(42, 54)]
+    baseline = [engine.order(row["id"]) for row in engine.journal.operations("agent")]
+    assert all(row["state"] == "open" for row in baseline)
+    assert (
+        engine.venue.frontend_open_orders.call_count,
+        engine.venue.fills.call_count,
+        engine.venue.order_status.call_count,
+    ) == (12, 12, 12)
+    engine.venue.reset_mock()
+    results = engine.orders()
+    assert all(row["state"] == "open" for row in results)
+    assert (
+        engine.venue.frontend_open_orders.call_count,
+        engine.venue.fills.call_count,
+        engine.venue.order_status.call_count,
+    ) == (1, 1, 12)
+    engine.venue.submit_action.assert_not_called()
+    engine.provider.submit_signature.assert_not_called()
+
+
+def test_sweep_snapshot_is_not_used_after_a_new_order_mutation(engine):
+    sign = engine.provider.submit_signature.side_effect
+    engine.provider.submit_signature.side_effect = lambda request_id, wallet, *_: SignatureJob(
+        request_id, wallet, "AWAITING_MFA"
+    )
+    pending = engine.submit(intent())
+    engine.journal.save(
+        {**pending, "id": "closed", "request": intent(id="closed"), "state": "canceled", "providerOrderId": "99"}
+    )
+    effect = engine.journal.effect("agent", "one", "leverage")
+    signature = "0x" + SIGNER.sign_message(
+        encode_typed_data(full_message=effect["typedData"])
+    ).signature.hex().removeprefix("0x")
+    engine.provider.signature.return_value = SignatureJob(effect["requestId"], WALLET, "SIGNED", signature)
+    engine.provider.submit_signature.side_effect = sign
+    live = dict(engine.venue.order_status(WALLET, 42)["order"]["order"], sz="0.0006")
+    engine.venue.frontend_open_orders.side_effect = None
+    engine.venue.frontend_open_orders.return_value = [live]
+    engine.venue.fills.side_effect = [[], [partial_fill()]]
+    results = engine.orders()
+    result = next(row for row in results if row["id"] == "one")
+    assert result["state"] == "partial_fill" and result["filledQuantity"] == "0.0004"
+    assert engine.venue.fills.call_count == 2
+    assert engine.venue.submit_action.call_count == 2
+
+
+def test_sweep_snapshot_is_not_used_after_a_pending_cancel_mutation(engine):
+    engine.submit(intent())
+    engine.provider.submit_signature.side_effect = lambda request_id, wallet, *_: SignatureJob(
+        request_id, wallet, "AWAITING_MFA"
+    )
+    assert engine.cancel("one")["state"] == "open"
+    effect = engine.journal.effect("agent", "one", "cancel-42-1")
+    signature = "0x" + SIGNER.sign_message(
+        encode_typed_data(full_message=effect["typedData"])
+    ).signature.hex().removeprefix("0x")
+    engine.provider.signature.return_value = SignatureJob(effect["requestId"], WALLET, "SIGNED", signature)
+    snapshot = engine.venue.order_status(WALLET, 42)
+    engine.venue.frontend_open_orders.side_effect = None
+    engine.venue.frontend_open_orders.return_value = [dict(snapshot["order"]["order"])]
+    engine.venue.order_status.side_effect = None
+    engine.venue.order_status.return_value = snapshot
+
+    def cancel(*args):
+        snapshot["order"]["status"] = "canceled"
+        snapshot["order"]["order"]["sz"] = "0.0006"
+        engine.venue.fills.return_value = [partial_fill()]
+        return {"status": "ok", "response": {"type": "cancel", "data": {"statuses": ["success"]}}}
+
+    engine.venue.submit_action.side_effect = cancel
+    engine.venue.reset_mock()
+    result = engine.orders()[0]
+    assert result["state"] == "canceled" and result["filledQuantity"] == "0.0004"
+    assert engine.venue.fills.call_count == 2
+    engine.venue.submit_action.assert_called_once()
+    assert engine.venue.submit_action.call_args.args[0]["type"] == "cancel"

@@ -19,6 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PROVIDER_ONLY_PATHS = frozenset({
     'lumibot/backtesting/routed_backtesting.py',
+    'lumibot/backtesting/alpaca_backtesting.py',
     'lumibot/tools/ibkr_equity_basis.py',
     'lumibot/tools/ibkr_helper.py',
     'lumibot/tools/ibkr_history_health.py',
@@ -47,7 +48,7 @@ LIVE_METHOD_SCOPES = {
 
 def _git(*args, root=ROOT, data=None):
     return subprocess.run(['git', *args], cwd=root, input=data, check=True,
-                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30).stdout
+                          capture_output=True, timeout=30).stdout
 
 
 def runtime_paths(*, root=ROOT, source_ref=None):
@@ -119,7 +120,8 @@ def _without_unused_live_body(source, owner, method, guard):
         fn = methods[0]
         body = fn.body
         prefix_end = fn.lineno
-        if isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
+        if (isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant)
+                and isinstance(body[0].value.value, str)):
             prefix_end = body[0].end_lineno
             body = body[1:]
         if guard:
@@ -158,7 +160,37 @@ def check_change(path, before, after):
         new = _without_unused_live_body(after, *LIVE_METHOD_SCOPES[path])
         if old is not None and old == new:
             return
+    if path == 'lumibot/strategies/_strategy.py':
+        old = _without_alpaca_benchmark_body(before)
+        new = _without_alpaca_benchmark_body(after)
+        if old is not None and old == new:
+            return
     raise ValueError(f'Source change affects model qualification: {path}')
+
+
+def _without_alpaca_benchmark_body(source):
+    """Exclude only reporting dispatched to the unused Alpaca provider.
+
+    Keep the dispatch condition and every surrounding byte, including the
+    Pandas/default branch. Native fixture construction proves this exact type
+    condition is false; shared valuation/trading methods are never excluded.
+    """
+    try:
+        owner = next(n for n in ast.parse(source).body
+                     if isinstance(n, ast.ClassDef) and n.name == '_Strategy')
+        method = next(n for n in owner.body
+                      if isinstance(n, ast.FunctionDef) and n.name == '_dump_benchmark_stats')
+        expected = ast.dump(ast.parse('type(self.broker.data_source) == AlpacaBacktesting', mode='eval').body)
+        branches = [n for n in ast.walk(method) if isinstance(n, ast.If) and ast.dump(n.test) == expected]
+        if len(branches) != 1 or not branches[0].body:
+            return None
+        branch = branches[0]
+        lines = source.splitlines(keepends=True)
+        return (b''.join(lines[:branch.body[0].lineno - 1])
+                + b'<unused-alpaca-report-body>\n'
+                + b''.join(lines[branch.body[-1].end_lineno:]))
+    except (SyntaxError, StopIteration, IndexError, ValueError):
+        return None
 
 
 def compatible_runtime(receipt, receipt_bytes, anchor, *, root=ROOT):

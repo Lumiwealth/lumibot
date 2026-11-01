@@ -2787,8 +2787,8 @@ class _Strategy:
                     self.logger.error(f"Couldn't get_historical_prices_between_dates: {benchmark_asset}")
                     return
                 if source_timestep == "day":
-                    from lumibot.tools.indicators import benchmark_returns_from_bars
                     from lumibot.tools.helpers import get_trading_days
+                    from lumibot.tools.indicators import benchmark_returns_from_bars
 
                     if asset_type != "crypto":
                         df = df.copy()

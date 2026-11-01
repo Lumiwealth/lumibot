@@ -2,6 +2,8 @@
 
 ## 4.6.39 - 2026-11-01
 
+Deploy marker: `9a7df5f32220c56524446efe62f276f200e4364e`.
+
 ### Fixed
 - Alpaca daily stock and option valuations use the session open until the actual close is available, including shortened sessions and premarket lookbacks. Daily crypto close availability remains aligned with its completed bar.
 - Alpaca daily benchmarks cover the requested first-open through final-close window, retain dividends, and use the benchmark asset's calendar. Stock benchmarks omit synthetic weekend rows even when the strategy trades continuously.

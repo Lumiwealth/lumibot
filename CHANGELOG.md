@@ -18,6 +18,7 @@
 
 ### Fixed
 - Live market-open and market-close waits wake when their strategy is stopped, including the Alpaca close override. Direct callers retain their normal wait interval.
+- ProjectX acknowledgement and stream duplicates notify the strategy of a new order once.
 - Honor declared custom trading-tool mutations when preventing whole-agent retries, including aliased tool names.
 - Reconcile reported purchase cost from actual fills and fees while keeping current marked equity distinct from execution cost.
 - Preserve observed agent tool events and usage when inference fails after order actions. Report attempted or unknown broker effects honestly and require reconciliation without replaying the attempt; retain deterministic broker grading for every failed evaluation.

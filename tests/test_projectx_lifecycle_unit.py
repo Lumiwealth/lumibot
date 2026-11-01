@@ -102,6 +102,15 @@ def projectx_broker():
 def mes_asset():
     return Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
 
+
+def test_duplicate_acknowledgement_and_stream_new_notify_strategy_once(projectx_broker, mes_asset):
+    subscriber = Mock()
+    projectx_broker._get_subscriber = Mock(return_value=subscriber)
+    order = Order(strategy="Strat", asset=mes_asset, quantity=1, side="buy", identifier="100001")
+    projectx_broker._on_new_order(order)
+    projectx_broker._on_new_order(order)
+    subscriber.add_event.assert_called_once_with(subscriber.NEW_ORDER, {"order": order})
+
 def test_submit_and_cancel(projectx_broker, mes_asset, caplog):
     """Test basic order submission and cancellation"""
     order = Order(asset=mes_asset, quantity=1, order_type="limit", side="buy", limit_price=5000.0, strategy="Strat")

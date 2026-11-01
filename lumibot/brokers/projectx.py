@@ -377,7 +377,7 @@ class ProjectX(Broker):
     def _on_new_order(self, order):  # override to suppress duplicates
         if not hasattr(self, '_creation_log_ids'):
             self._creation_log_ids = set()
-        oid = getattr(order, 'identifier', None) or getattr(order, 'id', None) or id(order)
+        oid = str(getattr(order, 'identifier', None) or getattr(order, 'id', None) or id(order))
         if oid not in self._creation_log_ids:
             self._creation_log_ids.add(oid)
             # replicate original log format
@@ -385,6 +385,7 @@ class ProjectX(Broker):
         else:
             # silent or debug-level suppression; keep a trace
             self.logger.debug(f"[dedupe] suppressed duplicate creation log for order {oid}")
+            return
         # Continue normal event dispatch via base behavior (manual copy since not calling super())
         payload = dict(order=order)
         subscriber = self._get_subscriber(order.strategy)

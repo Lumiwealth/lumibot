@@ -4188,3 +4188,22 @@ def test_main_resumes_only_judging_from_a_durable_actor_checkpoint(monkeypatch, 
                                            "--qualification-receipt", str(tmp_path/'receipt.json')])
     assert evals.main() == 0
     assert len(resumed) == 1
+
+
+def test_managed_research_refusal_exposes_the_runtime_applied_cutoff():
+    """The actor's omitted input is distinct from the actual bounded MCP request."""
+    from lumibot.components.agents.runtime import _wrap_tool_callable
+    from scripts.agent_eval_production_fixture import ProductionFixture
+    production = ProductionFixture(evals.build_fixture("research_available"))
+    try:
+        case = next(c for c in evals.load_cases() if c["id"] == "research_macro_point_in_time")
+        agent = production.create_agent(case, runtime=object())
+        tool = next(t for t in agent._ensure_bound_tools() if t.name == "query_data")
+        result = _wrap_tool_callable(tool, {})(datasetId="bls.public_series", timeRange={"years": 1})
+        assert result["tool_error"] is True
+        assert result["error"]["code"] == "unsupported_capability"
+        assert "asOf" not in result["arguments"]
+        assert result["applied_arguments"]["asOf"] == "2026-08-11T14:35:00Z"
+        assert "details" not in result and "structuredContent" not in result
+    finally:
+        production.close()

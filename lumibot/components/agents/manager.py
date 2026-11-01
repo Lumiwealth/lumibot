@@ -1533,7 +1533,21 @@ class AgentHandle:
                                 )
                             self.manager._warned_backtest_mcp_tools.add(warning_key)
                         _GoogleADKRuntime, _RuntimeRequest, _StubAgentRuntime, call_mcp_tool = _get_runtime_imports()
-                        return call_mcp_tool(_server, _tool_name, payload)
+                        try:
+                            return call_mcp_tool(_server, _tool_name, payload)
+                        except Exception as exc:
+                            from .runtime import RemoteMCPToolError
+
+                            if isinstance(exc, RemoteMCPToolError):
+                                # Preserve our applied public temporal bounds,
+                                # separately from the actor's original request.
+                                # Provider diagnostics and credentials remain
+                                # private on the typed exception.
+                                exc.applied_arguments = {
+                                    key: payload[key] for key in ("asOf", "timeRange")
+                                    if key in payload and payload[key] != resolved_arguments.get(key)
+                                }
+                            raise
 
                     return remote_tool
 

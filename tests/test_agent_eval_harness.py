@@ -955,7 +955,14 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         "958e69e5d115cc3e6dc1d03200965792b09afe74": "7925c2aaffe49387acc21c18e3c1191f72610ab2f941634da682e83d86d14c22",
     }
     assert set(selected) == set(sources)
-    assert len(controls) == 26  # Preserve prior controls plus news/macro and undated grading controls.
+    # The wrapped-table source fixture adds one observed positive and one missing-bound negative control.
+    assert len(controls) == 28
+    assert {
+        row["id"]: row["expected"] for row in controls if row["case_id"] == "web_documents_wrapped_table_ranges"
+    } == {
+        "wrapped-table-ranges-observed-complete": True,
+        "wrapped-table-ranges-counterfactual-missing-upper": False,
+    }
     case = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_source_cases" /
                        "web_documents_holdings_from_yearly_and_trade_reports.json").read_text())
     for identifier, (expected, run_id, repetition) in sources.items():

@@ -1058,8 +1058,8 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         "958e69e5d115cc3e6dc1d03200965792b09afe74": "7925c2aaffe49387acc21c18e3c1191f72610ab2f941634da682e83d86d14c22",
     }
     assert set(selected) == set(sources)
-    # Preserve the prior 33 and add the observed close-authority and basket-value controls.
-    assert len(controls) == 35
+    # Preserve the prior 33 and add four observed authority and basket-policy controls.
+    assert len(controls) == 37
     assert {row["id"] for row in controls} >= {
         "authorized-close-may-reject-irrelevant-entry-research",
         "debit-holding-value-must-not-use-negative-remaining-debit",

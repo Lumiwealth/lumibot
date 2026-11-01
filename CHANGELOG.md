@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.6.38 - Unreleased
+
 ## 4.6.37 - 2026-11-01
 
 Deploy marker: `5eea4abaf6b659b2d9931c9189f3c1c8ece5170d`.

@@ -77,7 +77,7 @@ def test_expired_auth_fails_explicitly_without_retry_or_disclosing_token(provide
 
 def test_signature_request_preserves_original_provider_id_and_full_protocol_context(provider):
     action = {"type": "cancel", "cancels": [{"a": 0, "o": 42}]}
-    typed = {"domain": {"chainId": 1337}, "types": {}, "primaryType": "Agent", "message": {}}
+    typed = {"domain": {"chainId": 1337}, "types": {}, "primaryType": "Agent", "message": {"source": "b"}}
     provider.session.request.return_value = response(
         {
             "requestId": "saved-request",
@@ -85,7 +85,7 @@ def test_signature_request_preserves_original_provider_id_and_full_protocol_cont
             "walletAddress": WALLET,
             "method": "eth_signTypedData_v4",
             "origin": "lumibot",
-            "chainId": 421614,
+            "chainId": 1337,
         }
     )
     job = provider.submit_signature("saved-request", WALLET, "testnet", typed, action)
@@ -93,10 +93,11 @@ def test_signature_request_preserves_original_provider_id_and_full_protocol_cont
     assert job.state == "AWAITING_MFA"
     assert job.signature is None
     sent = provider.session.request.call_args.kwargs["json"]
+    assert sent["chainId"] == typed["domain"]["chainId"]
     assert sent == {
         "requestId": "saved-request",
         "namespace": "evm",
-        "chainId": 421614,
+        "chainId": 1337,
         "walletAddress": WALLET,
         "method": "eth_signTypedData_v4",
         "origin": "lumibot",
@@ -113,11 +114,28 @@ def test_approved_without_managed_signature_is_not_signed(provider):
             "walletAddress": WALLET,
             "method": "eth_signTypedData_v4",
             "origin": "lumibot",
-            "chainId": 421614,
+            "chainId": 1337,
         }
     )
     with pytest.raises(MetaMaskError, match="MANAGED_SIGNATURE_UNAVAILABLE"):
         provider.signature("saved-request", WALLET, "testnet")
+
+
+def test_testnet_provider_refuses_mainnet_typed_message_before_request(provider):
+    with pytest.raises(MetaMaskError, match="SIGNING_NETWORK_MISMATCH"):
+        provider.submit_signature(
+            "request", WALLET, "testnet", {"domain": {"chainId": 1337}, "message": {"source": "a"}}, {}
+        )
+    provider.session.request.assert_not_called()
+
+
+def test_explicit_invalid_payload_retains_rejection_without_polling_or_retry(provider):
+    provider.session.request.return_value = response({"code": "SIGNATURE_REQUEST_INVALID_PAYLOAD"}, 400)
+    with pytest.raises(MetaMaskError, match="REQUEST_REJECTED.*SIGNATURE_REQUEST_INVALID_PAYLOAD"):
+        provider.submit_signature(
+            "request", WALLET, "testnet", {"domain": {"chainId": 1337}, "message": {"source": "b"}}, {}
+        )
+    assert provider.session.request.call_count == 1
 
 
 @pytest.mark.parametrize(
@@ -143,7 +161,13 @@ def test_malformed_or_mismatched_signature_job_is_rejected(provider, payload):
 def test_transport_loss_does_not_retry_a_signing_mutation(provider):
     provider.session.request.side_effect = requests.Timeout()
     with pytest.raises(MetaMaskTransportError, match="REQUEST_OUTCOME_UNKNOWN"):
-        provider.submit_signature("saved-request", WALLET, "testnet", {}, {"type": "cancel"})
+        provider.submit_signature(
+            "saved-request",
+            WALLET,
+            "testnet",
+            {"domain": {"chainId": 1337}, "message": {"source": "b"}},
+            {"type": "cancel"},
+        )
     assert provider.session.request.call_count == 1
 
 
@@ -155,7 +179,7 @@ def test_missing_guard_mode_or_policy_blocks_authorization(provider):
             "walletAddress": WALLET,
             "method": "eth_signTypedData_v4",
             "origin": "lumibot",
-            "chainId": 421614,
+            "chainId": 1337,
         }
     )
     with pytest.raises(MetaMaskError, match="GUARD_MODE_REQUIRED"):
@@ -171,7 +195,7 @@ def test_missing_guard_mode_or_policy_blocks_authorization(provider):
                 "walletAddress": WALLET,
                 "method": "eth_signTypedData_v4",
                 "origin": "lumibot",
-                "chainId": 421614,
+                "chainId": 1337,
             }
         ),
         empty,
@@ -195,7 +219,7 @@ def test_guard_policy_uses_yaml_wire_format_and_exact_text_digest(provider):
                 "walletAddress": WALLET,
                 "method": "eth_signTypedData_v4",
                 "origin": "lumibot",
-                "chainId": 421614,
+                "chainId": 1337,
             }
         ),
         wire,

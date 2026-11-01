@@ -38,6 +38,8 @@ class MetaMaskData(DataSource):
             raise NotImplementedError(
                 "MetaMask spot candles are not available; configure a separate historical data source"
             )
+        if quote is not None and quote.symbol != "USDC":
+            raise ValueError("Hyperliquid prices are denominated in USDC")
         from datetime import datetime, timedelta, timezone
 
         import pandas as pd

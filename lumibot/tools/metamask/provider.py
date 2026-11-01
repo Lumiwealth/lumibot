@@ -17,7 +17,8 @@ from urllib.parse import quote
 import requests
 
 SERVER_WALLET_URL = "https://agentic-mimir-service.api.cx.metamask.io"
-SIGNING_CONTEXT_CHAIN = {"testnet": 421614, "mainnet": 42161}
+HYPERLIQUID_SIGNING_CHAIN = 1337
+NETWORK_SOURCE = {"testnet": "b", "mainnet": "a"}
 _ADDRESS = re.compile(r"0x[0-9a-fA-F]{40}\Z")
 _IDENTIFIER = re.compile(r"[a-zA-Z0-9_-]{1,128}\Z")
 _SIGNATURE = re.compile(r"0x[0-9a-fA-F]{130}\Z")
@@ -181,6 +182,13 @@ class MetaMaskProvider:
             raise MetaMaskError("AUTHENTICATION_REQUIRED", "MetaMask session is expired or lacks required permission")
         if response.status_code == 404:
             raise MetaMaskError("NOT_FOUND", "Requested wallet operation was not found")
+        if response.status_code == 400:
+            try:
+                code = json_object(response.json()).get("code")
+            except (ValueError, MetaMaskError):
+                code = None
+            if code in {"SIGNATURE_REQUEST_INVALID_PAYLOAD", "TRANSACTION_REQUEST_INVALID_PAYLOAD"}:
+                raise MetaMaskError("REQUEST_REJECTED", f"MetaMask refused the request before execution: {code}")
         if not 200 <= response.status_code < 300:
             raise MetaMaskError("PROVIDER_ERROR", f"MetaMask API returned HTTP {response.status_code}")
         return response
@@ -249,7 +257,7 @@ class MetaMaskProvider:
         if (
             payload.get("method") != "eth_signTypedData_v4"
             or payload.get("origin") != origin
-            or payload.get("chainId") != SIGNING_CONTEXT_CHAIN[network]
+            or payload.get("chainId") != HYPERLIQUID_SIGNING_CHAIN
         ):
             raise MetaMaskError(
                 "JOB_CONTEXT_MISMATCH", "Signature job differs from the persisted method, origin or network"
@@ -289,12 +297,17 @@ class MetaMaskProvider:
         action: dict[str, object],
     ) -> SignatureJob:
         identifier(request_id, "request_id")
-        if network not in SIGNING_CONTEXT_CHAIN:
+        if network not in NETWORK_SOURCE:
             raise ValueError("NETWORK must be explicitly testnet or mainnet")
+        if (
+            json_object(typed_data.get("domain"), "typed-data domain").get("chainId") != HYPERLIQUID_SIGNING_CHAIN
+            or json_object(typed_data.get("message"), "typed-data message").get("source") != NETWORK_SOURCE[network]
+        ):
+            raise MetaMaskError("SIGNING_NETWORK_MISMATCH", "Hyperliquid typed data differs from the selected network")
         body = {
             "requestId": request_id,
             "namespace": "evm",
-            "chainId": SIGNING_CONTEXT_CHAIN[network],
+            "chainId": HYPERLIQUID_SIGNING_CHAIN,
             "walletAddress": address(wallet),
             "method": "eth_signTypedData_v4",
             "origin": "lumibot",
@@ -306,7 +319,7 @@ class MetaMaskProvider:
 
     def signature(self, request_id: str, wallet: str, network: str, *, origin: str = "lumibot") -> SignatureJob:
         identifier(request_id, "request_id")
-        if network not in SIGNING_CONTEXT_CHAIN:
+        if network not in NETWORK_SOURCE:
             raise ValueError("NETWORK must be explicitly testnet or mainnet")
         if origin not in {"lumibot", "metamask"}:
             raise ValueError("Signature origin must have verified native or legacy provenance")

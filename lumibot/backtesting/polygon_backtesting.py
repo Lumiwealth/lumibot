@@ -4,7 +4,7 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Union
 
-from polygon.exceptions import BadResponse
+from massive.exceptions import BadResponse
 from termcolor import colored
 
 from lumibot.tools.lumibot_logger import get_logger
@@ -42,7 +42,7 @@ class PolygonDataBacktesting(PandasData):
         
         # Store errors CSV path for use in data retrieval
 
-        # RESTClient API for Polygon.io polygon-api-client
+        # RESTClient API for Polygon.io
         self.polygon_client = PolygonClient.create(api_key=api_key)
 
     def _enforce_storage_limit(pandas_data: OrderedDict):

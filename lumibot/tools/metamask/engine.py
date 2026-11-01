@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import time
-from decimal import Decimal
+from decimal import ROUND_CEILING, Context, Decimal, localcontext
 from uuid import uuid4
 
 from .journal import Journal
 from .models import Binding, PerpIntent, decimal, positive_integer
-from .provider import MetaMaskError, MetaMaskProvider, json_object
+from .provider import HYPERLIQUID_SIGNING_CHAIN, MetaMaskError, MetaMaskProvider, json_object
 from .venue import HyperliquidVenue, action_typed_data, signature_parts, typed_data_hash
 
 _TERMINAL = {"filled", "canceled", "rejected"}
@@ -93,7 +93,8 @@ class ExecutionEngine:
                 raise MetaMaskError("INVALID_INTENT", "Expected one normalized venue order")
             execution_price = decimal(json_object(orders[0]).get("p"), positive=True)
             fee_rate = self.venue.fee_rate(binding.wallet)
-            valuation = intent.quantity * max(execution_price, self.venue.price(intent.symbol)) * (1 + fee_rate)
+            with localcontext(Context(prec=160, rounding=ROUND_CEILING)):
+                valuation = intent.quantity * max(execution_price, self.venue.price(intent.symbol)) * (1 + fee_rate)
             operation, created = self.journal.reserve(
                 self.agent_id,
                 canonical,
@@ -148,11 +149,7 @@ class ExecutionEngine:
                 and leverage_effect.get("phase") == "venue"
                 and leverage_effect.get("state") != "confirmed"
             ):
-                return self._change(
-                    operation,
-                    state="unknown",
-                    message="Interrupted leverage submission needs venue reconciliation; no order replay",
-                )
+                return self._reconcile_leverage(operation, plan, leverage_effect)
             # An old pending signature cannot create a new execution after restart.
             for step in ("leverage", "order"):
                 effect = self.journal.effect(self.agent_id, operation_id, step)
@@ -188,6 +185,26 @@ class ExecutionEngine:
             return operation
         return self._reconcile_order(operation, plan)
 
+    def _reconcile_leverage(self, operation, plan, effect):
+        expiry = positive_integer(effect.get("expiresAfter"), "leverage expiry")
+        if int(time.time() * 1000) <= expiry:
+            return operation
+        intent = PerpIntent.parse(json_object(operation["request"]))
+        observed = self.venue.leverage(str(plan["wallet"]), intent.symbol)
+        # Expiry rules out a late mutation; current leverage does not prove which request set it.
+        self.journal.save_effect(
+            operation,
+            "leverage",
+            {**effect, "state": "reconciled", "observedLeverage": observed, "reconciledAt": int(time.time() * 1000)},
+        )
+        return self._change(
+            operation,
+            state="rejected",
+            message="Expired leverage submission reconciled; no order sent. Submit a new intent to trade.",
+            observedLeverage=observed,
+            lastErrorCode=None,
+        )
+
     def _step(self, operation, plan, step, action):
         cancellation = step.startswith("cancel-")
 
@@ -205,7 +222,8 @@ class ExecutionEngine:
             if step == "order":
                 reconciled = self._reconcile_order(operation, plan)
                 return reconciled, reconciled["state"] not in {"unknown", "prepared", "awaiting_approval"}
-            # A lost leverage response must be inspected explicitly, never resent.
+            if step == "leverage":
+                return self._reconcile_leverage(operation, plan, effect), False
             return operation, False
         try:
             binding, _ = self._authority(plan["binding"], cancellation=step.startswith("cancel-"))
@@ -220,7 +238,7 @@ class ExecutionEngine:
                     "network": binding.network,
                     "origin": "lumibot",
                     "method": "eth_signTypedData_v4",
-                    "chainId": 421614 if binding.network == "testnet" else 42161,
+                    "chainId": HYPERLIQUID_SIGNING_CHAIN,
                     "action": action,
                     "protocolPayload": action,
                     "nonce": nonce,
@@ -243,13 +261,24 @@ class ExecutionEngine:
             else:
                 job = self.provider.signature(str(effect["requestId"]), binding.wallet, binding.network)
         except MetaMaskError as error:
+            if error.code == "REQUEST_REJECTED":
+                if effect is not None:
+                    self.journal.save_effect(
+                        operation, step, {**effect, "state": "rejected", "rejectionCode": error.code}
+                    )
+                return change(operation, state="rejected", message=str(error)), False
             if effect is None:
                 return change(operation, state="rejected", message=str(error)), False
             return change(operation, state="unknown", message=str(error)), False
         if job.state in {"DENIED", "EXPIRED", "FAILED"}:
-            self.journal.save_effect(operation, step, {**effect, "state": "rejected", "providerState": job.state})
+            self.journal.save_effect(
+                operation,
+                step,
+                {**effect, "state": "rejected", "providerState": job.state, "failureCode": job.failure_code},
+            )
+            reason = f" ({job.failure_code})" if job.failure_code else ""
             return change(
-                operation, state="rejected", message=f"Managed signing {job.state.lower()}; no venue order sent"
+                operation, state="rejected", message=f"Managed signing {job.state.lower()}{reason}; no venue order sent"
             ), False
         if job.state != "SIGNED":
             self.journal.save_effect(operation, step, {**effect, "state": "pending", "providerState": job.state})
@@ -280,11 +309,12 @@ class ExecutionEngine:
                 raise MetaMaskError("INTENT_CHANGED", "Persisted signing payload differs from the frozen action")
             if not step.startswith("cancel-"):
                 intent = PerpIntent.parse(json_object(operation["request"]))
-                fresh_usd = (
-                    intent.quantity
-                    * max(self.venue.price(intent.symbol), decimal(operation["executionLimitPrice"]))
-                    * (1 + max(decimal(plan["feeRate"]), self.venue.fee_rate(binding.wallet)))
-                )
+                with localcontext(Context(prec=160, rounding=ROUND_CEILING)):
+                    fresh_usd = (
+                        intent.quantity
+                        * max(self.venue.price(intent.symbol), decimal(operation["executionLimitPrice"]))
+                        * (1 + max(decimal(plan["feeRate"]), self.venue.fee_rate(binding.wallet)))
+                    )
                 if fresh_usd > decimal(operation["reservedUsd"]):
                     raise MetaMaskError(
                         "REQUOTE_REQUIRED", "Current pre-trade valuation exceeds the original reservation"
@@ -292,21 +322,27 @@ class ExecutionEngine:
             if job.signature is None:
                 raise MetaMaskError("INVALID_SIGNATURE", "Managed signing completed without a usable signature")
             signature = signature_parts(data, job.signature, binding.wallet)
+            self._authority(plan["binding"], cancellation=cancellation)
+            with self.journal.submission(self.agent_id, plan["binding"], cancellation=cancellation):
+                if int(time.time() * 1000) >= expiry:
+                    raise MetaMaskError("EXECUTION_EXPIRED", "Frozen execution authority expired before submission")
+                effect = {**effect, "phase": "venue", "state": "released", "releasedAt": int(time.time() * 1000)}
+                self.journal.save_effect(operation, step, effect)
+                operation = change(
+                    operation,
+                    state="unknown",
+                    signatureOnly=False,
+                    message="Signature released; reconciling venue acceptance before another execution",
+                )
+                try:
+                    response = self.venue.submit_action(
+                        action, int(effect["nonce"]), signature, int(effect["expiresAfter"])
+                    )
+                except (MetaMaskError, ValueError, TypeError):
+                    return operation, False
         except MetaMaskError as error:
             self.journal.save_effect(operation, step, {**effect, "state": "rejected", "failureCode": error.code})
             return change(operation, state="rejected", message=str(error)), False
-        effect = {**effect, "phase": "venue", "state": "released", "releasedAt": int(time.time() * 1000)}
-        self.journal.save_effect(operation, step, effect)
-        operation = change(
-            operation,
-            state="unknown",
-            signatureOnly=False,
-            message="Signature released; reconciling venue acceptance before another execution",
-        )
-        try:
-            response = self.venue.submit_action(action, int(effect["nonce"]), signature, int(effect["expiresAfter"]))
-        except (MetaMaskError, ValueError, TypeError):
-            return operation, False
         if response.get("status") == "err":
             self.journal.save_effect(operation, step, {**effect, "state": "rejected", "response": response})
             return change(operation, state="rejected", message="Venue explicitly rejected the action"), False
@@ -360,7 +396,8 @@ class ExecutionEngine:
 
     def _reconcile_order(self, operation, plan):
         try:
-            return self._read_order(operation, plan)
+            with localcontext(Context(prec=160)):
+                return self._read_order(operation, plan)
         except MetaMaskError as error:
             return self._change(operation, state="unknown", lastErrorCode=error.code, message=str(error))
 
@@ -499,6 +536,9 @@ class ExecutionEngine:
                     and leverage_effect.get("phase") == "venue"
                     and leverage_effect.get("state") != "confirmed"
                 ):
+                    operation = self._advance(operation)
+                    if operation["state"] in _TERMINAL:
+                        return operation
                     raise MetaMaskError(
                         "RECONCILIATION_REQUIRED", "Resolve uncertain leverage before canceling the prepared intent"
                     )
@@ -523,7 +563,17 @@ class ExecutionEngine:
                 if name.startswith("cancel-" + venue_id + "-")
             ]
             step, effect = attempts[-1] if attempts else ("cancel-" + venue_id + "-1", None)
-            if effect is not None and effect.get("state") == "rejected":
+            if (
+                effect is not None
+                and effect.get("phase") == "venue"
+                and effect.get("state") == "released"
+                and operation["state"] in {"open", "partial_fill"}
+                and int(time.time() * 1000) >= positive_integer(effect.get("expiresAfter"), "cancellation expiry")
+            ):
+                # The old signature cannot arrive later, and the original order is still live.
+                effect = {**effect, "state": "expired"}
+                self.journal.save_effect(operation, step, effect)
+            if effect is not None and effect.get("state") in {"rejected", "expired"}:
                 step, effect = "cancel-" + venue_id + "-" + str(len(attempts) + 1), None
             if effect is not None and effect.get("ownerEpoch") != self.epoch:
                 # Read only after restart. An unused old cancellation signature is never released.

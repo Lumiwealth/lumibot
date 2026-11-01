@@ -2,6 +2,7 @@
 
 import json
 import sqlite3
+from decimal import localcontext
 
 import pytest
 
@@ -71,6 +72,61 @@ def test_same_request_id_reuses_reservation_and_different_content_is_rejected(jo
     with pytest.raises(MetaMaskError, match="ID_CONFLICT"):
         _reserve(journal, {**request(), "quantity": "0.002"}, "20", now=NOW + 2)
     assert len(journal.operations("agent")) == 1
+
+
+def test_daily_limit_cannot_round_down_in_strategy_decimal_context(journal):
+    journal.bind({**binding(), "maxOrderUsd": "100", "maxDailyUsd": "100"})
+    with localcontext() as context:
+        context.prec = 6
+        first, _ = _reserve(journal, request(), "99.9999", now=NOW)
+        journal.save({**first, "state": "canceled"})
+        with pytest.raises(MetaMaskError, match="DAILY_LIMIT"):
+            _reserve(journal, request("two"), "0.0002", now=NOW)
+
+
+def test_fee_overrun_requires_exact_owner_acknowledgment_without_losing_fill(journal):
+    first, _ = _reserve(journal, request(), "20", now=NOW)
+    overrun = {"reservedAtomic": "1", "actualAtomic": "2", "chainId": 1}
+    journal.save(
+        {
+            **first,
+            "state": "filled",
+            "filledQuantity": "0.001",
+            "budgetReviewRequired": True,
+            "feeBudgetOverrun": overrun,
+            "feeAdjustedReservationUsd": "21",
+        }
+    )
+    journal.bind({**binding(), "maxDailyUsd": "1000"})
+    with pytest.raises(MetaMaskError, match="FEE_BUDGET_REVIEW_REQUIRED"):
+        _reserve(journal, request("two"), "1", now=NOW + 1)
+    with pytest.raises(MetaMaskError, match="REVIEW_CHANGED"):
+        journal.acknowledge_fee_overrun("agent", "one", {**overrun, "actualAtomic": "1"})
+    reviewed = journal.acknowledge_fee_overrun("agent", "one", overrun)
+    assert reviewed["state"] == "filled" and reviewed["filledQuantity"] == "0.001"
+    assert reviewed["feeBudgetOverrun"] == overrun and reviewed["budgetReviewRequired"] is False
+    assert _reserve(journal, request("two"), "1", now=NOW + 2)[1] is True
+
+
+def test_reviewed_fee_overrun_stays_charged_to_daily_usage(journal):
+    first, _ = _reserve(journal, request(), "20", now=NOW)
+    overrun = {"reservedAtomic": "1", "actualAtomic": "2", "chainId": 1}
+    journal.save(
+        {
+            **first,
+            "state": "rejected",
+            "hashes": ["chain-receipt"],
+            "budgetReviewRequired": True,
+            "feeBudgetOverrun": overrun,
+            "feeAdjustedReservationUsd": "49.5",
+        }
+    )
+    journal.acknowledge_fee_overrun("agent", "one", overrun)
+    with pytest.raises(MetaMaskError, match="DAILY_LIMIT"):
+        _reserve(journal, request("two"), "1", now=NOW + 1)
+    row = journal.get("agent", "one")
+    with pytest.raises(MetaMaskError, match="RESERVATION_REGRESSION"):
+        journal.save({**row, "feeAdjustedReservationUsd": "20"})
 
 
 def test_unknown_effect_blocks_other_orders_across_restart(journal, tmp_path):

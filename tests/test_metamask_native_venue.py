@@ -1,6 +1,6 @@
 """Native venue serialization, exact price limits, accounting and remote signing."""
 
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from unittest.mock import Mock
 
 import pytest
@@ -166,3 +166,62 @@ def test_invalid_ecdsa_scalars_return_explicit_signature_error():
     data = action_typed_data({"type": "cancel", "cancels": []}, 1000, "testnet")
     with pytest.raises(MetaMaskError, match="INVALID_SIGNATURE"):
         signature_parts(data, "0x" + "00" * 64 + "1b", WALLET)
+
+
+def test_leverage_read_verifies_wallet_and_market(venue):
+    venue.session.request.return_value = reply(
+        {"user": WALLET, "coin": "BTC", "leverage": {"type": "cross", "value": 3}}
+    )
+    assert venue.leverage(WALLET, "BTC") == {"type": "cross", "value": 3}
+    assert venue.session.request.call_args.kwargs["json"] == {"type": "activeAssetData", "user": WALLET, "coin": "BTC"}
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"user": "0x" + "2" * 40},
+        {"coin": "ETH"},
+        {"leverage": {"type": "cross", "value": True}},
+        {"leverage": {"type": "cross", "value": 0}},
+        {"leverage": {"type": "unknown", "value": 1}},
+    ],
+)
+def test_leverage_recovery_rejects_unrelated_or_malformed_state(venue, changes):
+    venue.session.request.return_value = reply(
+        {"user": WALLET, "coin": "BTC", "leverage": {"type": "cross", "value": 3}, **changes}
+    )
+    with pytest.raises(MetaMaskError):
+        venue.leverage(WALLET, "BTC")
+
+
+@pytest.mark.parametrize("kind,side", [("limit", "buy"), ("market", "buy"), ("market", "sell")])
+def test_order_wire_ignores_strategy_decimal_precision(venue, kind, side):
+    venue.session.request.side_effect = lambda *args, **kwargs: reply(
+        META if kwargs["json"]["type"] == "meta" else [META, [{"markPx": "60000.123456789"}]]
+    )
+    args = ("BTC", side, Decimal("123.45678"), kind, Decimal("60000.123"), "gtc", False, "0x" + "1" * 32)
+    expected = venue.order_action(*args)
+    with localcontext() as context:
+        context.prec = 6
+        actual = venue.order_action(*args)
+    assert actual == expected
+    assert actual["orders"][0]["s"] == "123.45678"
+
+
+def test_account_balances_ignore_strategy_decimal_precision(venue):
+    venue.session.request.side_effect = [
+        reply("default"),
+        reply(
+            {
+                "marginSummary": {"accountValue": "123456.789012", "totalMarginUsed": "0.000012"},
+                "withdrawable": "123456.789012",
+                "assetPositions": [],
+            }
+        ),
+    ]
+    with localcontext() as context:
+        context.prec = 6
+        result = venue.account(WALLET)
+    # Exact subtraction may retain insignificant zeroes from the venue's input scale.
+    assert Decimal(result["cash"]) == Decimal("123456.789")
+    assert result["positionsValue"] == "0.000012"

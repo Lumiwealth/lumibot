@@ -160,11 +160,25 @@ class MetaMaskClient:
         return self.engine.order(operation_id)
 
     def cancel(self, operation_id):
+        row = self.journal.get(self.config["AGENT_ID"], operation_id)
+        if row is not None and row["request"].get("kind") == "swap":
+            raise MetaMaskAPIError(
+                "SWAP_CANCELLATION_UNSUPPORTED",
+                "Managed swaps cannot be canceled locally; reconcile the original provider request",
+            )
         return self.engine.cancel(operation_id)
 
     def owner_operations(self):
         self.verify()
         return self.journal.owner_operations(self.config["AGENT_ID"])
+
+    def acknowledge_fee_overrun(self, operation_id, expected_overrun):
+        """Owner acknowledgment of an exact recorded fee overrun, preserving its receipt."""
+        self.verify()
+        binding = self.journal.binding(self.config["AGENT_ID"])
+        if self.provider.policy(binding["wallet"]).digest != binding["policyDigest"]:
+            raise MetaMaskAPIError("POLICY_CHANGED", "Review current provider policy before fee acknowledgment")
+        return self.journal.acknowledge_fee_overrun(self.config["AGENT_ID"], operation_id, expected_overrun)
 
     def __enter__(self):
         return self

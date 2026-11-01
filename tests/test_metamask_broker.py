@@ -1,6 +1,6 @@
 """MetaMask broker contract and lifecycle regressions; no external credentials."""
 
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -132,6 +132,38 @@ def test_fill_deltas_and_prices_are_not_double_counted(broker):
     assert calls[1].kwargs["filled_quantity"] == Decimal("0.0006")
     assert calls[1].kwargs["price"] == Decimal("51000")
     assert calls[1].args[1] == broker.FILLED_ORDER
+
+
+@pytest.mark.parametrize("restore", [False, True])
+def test_fill_deltas_ignore_strategy_decimal_context(broker, restore):
+    item = order()
+    broker._process_trade_event = Mock()
+    first = {
+        **observation(item, "partial_fill", "0.0004", "50000.12345"),
+        "request": {
+            "kind": "perp",
+            "symbol": "BTC",
+            "quantity": "0.001",
+            "side": "buy",
+            "orderType": "market",
+            "leverage": 1,
+            "tif": "ioc",
+        },
+    }
+    with localcontext() as context:
+        context.prec = 6
+        context.Emax = 2
+        if restore:
+            item = broker._parse_broker_order(first, item.strategy)
+        else:
+            broker._observe(item, first)
+        final = observation(item, "filled", "0.001", "50600.54321")
+        broker._observe(item, final)
+        broker._observe(item, final)
+    assert broker._process_trade_event.call_count == (1 if restore else 2)
+    last = broker._process_trade_event.call_args
+    assert last.kwargs["filled_quantity"] == Decimal("0.0006")
+    assert last.kwargs["price"] == Decimal("51000.82305")
 
 
 def test_incomplete_fill_history_cannot_reverse_fill(broker):
@@ -340,6 +372,47 @@ def test_order_snapshot_cannot_consume_unprocessed_fill_delta(broker):
     assert subscriber.add_event.call_args.args[0] == subscriber.FILLED_ORDER
     # Shared broker callbacks expose floats; compare the reported decimal quantity.
     assert Decimal(str(subscriber.add_event.call_args.args[1]["quantity"])) == Decimal("0.0006")
+
+
+@pytest.mark.parametrize("state", ["filled", "canceled"])
+def test_order_refresh_reconciles_fills_before_terminal_state(broker, state):
+    item = order()
+    subscriber = SimpleNamespace(
+        name=item.strategy,
+        add_event=Mock(),
+        NEW_ORDER="new",
+        PARTIALLY_FILLED_ORDER="partial_fill",
+        FILLED_ORDER="fill",
+        CANCELED_ORDER="canceled",
+    )
+    broker._add_subscriber(subscriber)
+    broker.client.submit.return_value = observation(item, "open")
+    broker.submit_order(item)
+    quantity = "0.001" if state == "filled" else "0.0004"
+    broker.client.orders.return_value = [
+        {
+            **observation(item, state, quantity, "50000"),
+            "request": {
+                "kind": "perp",
+                "symbol": "BTC",
+                "quantity": "0.001",
+                "side": "buy",
+                "orderType": "market",
+                "leverage": 1,
+                "tif": "ioc",
+            },
+        }
+    ]
+    broker.sync_orders(item.strategy)
+    assert sum(Decimal(str(t.quantity)) for t in item.transactions) == Decimal(quantity)
+    assert item.get_fill_price() == 50000
+    assert item._closed_event.is_set()
+    assert item.is_filled() if state == "filled" else item.is_canceled()
+    event_count = subscriber.add_event.call_count
+    broker.do_polling()
+    broker.sync_orders(item.strategy)
+    assert len(item.transactions) == 1
+    assert subscriber.add_event.call_count == event_count
 
 
 def test_swap_retains_request_id_on_uncertain_response(broker):

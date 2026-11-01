@@ -2,6 +2,8 @@
 
 import base64
 import json
+import os
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -12,6 +14,27 @@ from lumibot.tools.metamask.provider import Credentials, MetaMaskError
 
 ISSUER = "https://oidc.api.cx.metamask.io"
 TOKEN_URL = ISSUER + "/oauth2/token"
+
+
+@pytest.mark.parametrize("after_creation", [False, True])
+def test_credential_lock_rejects_hardlinks_without_touching_victim(tmp_path, after_creation):
+    path = tmp_path / "session.json"
+    manager = None
+    if after_creation:
+        manager = TokenManager(Credentials("project", "access"), path=path)
+        Path(str(path) + ".lock").unlink()
+    victim = tmp_path / "victim"
+    victim.write_text("must remain intact")
+    victim.chmod(0o600)
+    os.link(victim, str(path) + ".lock")
+    with pytest.raises(MetaMaskError, match="UNSAFE_CREDENTIAL_FILE"):
+        if manager is None:
+            TokenManager(Credentials("project", "access"), path=path)
+        else:
+            manager()
+    assert victim.read_text() == "must remain intact"
+    if manager:
+        manager.close()
 
 
 def token(expiry=100):

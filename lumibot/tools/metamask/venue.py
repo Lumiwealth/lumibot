@@ -6,7 +6,7 @@ import json
 import re
 import time
 from dataclasses import dataclass
-from decimal import ROUND_HALF_EVEN, Decimal
+from decimal import ROUND_HALF_EVEN, Context, Decimal, localcontext
 from threading import RLock
 
 import requests
@@ -16,7 +16,7 @@ from eth_keys.exceptions import BadSignature
 from eth_utils import keccak
 from hyperliquid.utils.signing import action_hash, construct_phantom_agent, l1_payload
 
-from .models import decimal
+from .models import decimal, positive_integer
 from .provider import MetaMaskError, address, json_object
 
 URLS = {"testnet": "https://api.hyperliquid-testnet.xyz", "mainnet": "https://api.hyperliquid.xyz"}
@@ -194,7 +194,8 @@ class HyperliquidVenue:
         if price == price.to_integral_value():
             return price
         places = min(6 - market.size_decimals, 4 - price.adjusted())
-        return price.quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_EVEN)
+        with localcontext(Context(prec=160)):
+            return price.quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_EVEN)
 
     def order_action(
         self,
@@ -217,25 +218,26 @@ class HyperliquidVenue:
             raise MetaMaskError("UNSUPPORTED_ORDER", "Use buy/sell, market/limit and explicit gtc/ioc/alo")
         if not isinstance(reduce_only, bool) or not _CLIENT_ID.fullmatch(client_id):
             raise ValueError("Canonical reduce-only flag and 128-bit client order ID are required")
-        if quantity != quantity.quantize(Decimal(1).scaleb(-market.size_decimals)):
-            raise MetaMaskError("SIZE_PRECISION", "Order size exceeds this market's exact precision")
-        if kind == "market":
-            if isinstance(slippage_bps, bool) or not 1 <= slippage_bps <= 500:
-                raise ValueError("Slippage must be 1-500 basis points")
-            base = self.price(symbol)
-            intended = base * (1 + Decimal(slippage_bps if side == "buy" else -slippage_bps) / 10_000)
-            price = self.normalize_price(intended, market)
-            if (side == "buy" and price > intended) or (side == "sell" and price < intended):
-                tick = Decimal(1).scaleb(-min(6 - market.size_decimals, 4 - intended.adjusted()))
-                price += -tick if side == "buy" else tick
-            tif = "ioc"
-        else:
-            intended = decimal(limit, positive=True)
-            price = self.normalize_price(intended, market)
-            if (side == "buy" and price > intended) or (side == "sell" and price < intended):
-                raise MetaMaskError("PRICE_PRECISION", "Venue normalization would weaken the requested limit")
-        if price <= 0:
-            raise MetaMaskError("PRICE_PRECISION", "Price is below this market's supported precision")
+        with localcontext(Context(prec=160)):
+            if quantity != quantity.quantize(Decimal(1).scaleb(-market.size_decimals)):
+                raise MetaMaskError("SIZE_PRECISION", "Order size exceeds this market's exact precision")
+            if kind == "market":
+                if isinstance(slippage_bps, bool) or not 1 <= slippage_bps <= 500:
+                    raise ValueError("Slippage must be 1-500 basis points")
+                base = self.price(symbol)
+                intended = base * (1 + Decimal(slippage_bps if side == "buy" else -slippage_bps) / 10_000)
+                price = self.normalize_price(intended, market)
+                if (side == "buy" and price > intended) or (side == "sell" and price < intended):
+                    tick = Decimal(1).scaleb(-min(6 - market.size_decimals, 4 - intended.adjusted()))
+                    price += -tick if side == "buy" else tick
+                tif = "ioc"
+            else:
+                intended = decimal(limit, positive=True)
+                price = self.normalize_price(intended, market)
+                if (side == "buy" and price > intended) or (side == "sell" and price < intended):
+                    raise MetaMaskError("PRICE_PRECISION", "Venue normalization would weaken the requested limit")
+            if price <= 0:
+                raise MetaMaskError("PRICE_PRECISION", "Price is below this market's supported precision")
         wire = {
             "a": market.index,
             "b": side == "buy",
@@ -260,7 +262,21 @@ class HyperliquidVenue:
             raise MetaMaskError("FEE_RATE_UNSUPPORTED", "Venue fee rate exceeds the supported reservation envelope")
         return rate
 
+    def leverage(self, wallet: str, symbol: str) -> dict[str, object]:
+        wallet = address(wallet)
+        data = json_object(self.info({"type": "activeAssetData", "user": wallet, "coin": symbol}), "active asset data")
+        if address(data.get("user")) != wallet or data.get("coin") != symbol:
+            raise MetaMaskError(
+                "ACCOUNT_IDENTITY_MISMATCH", "Leverage response differs from the requested wallet or market"
+            )
+        leverage = json_object(data.get("leverage"), "leverage")
+        mode = leverage.get("type")
+        if mode not in {"cross", "isolated"}:
+            raise MetaMaskError("INVALID_RESPONSE", "Venue leverage mode is invalid")
+        return {"type": mode, "value": positive_integer(leverage.get("value"), "venue leverage")}
+
     def account(self, wallet: str) -> dict[str, object]:
+        money = Context(prec=160)
         wallet = address(wallet)
         mode = self.info({"type": "userAbstraction", "user": wallet})
         if mode not in ("default", "disabled", "unifiedAccount"):
@@ -281,13 +297,13 @@ class HyperliquidVenue:
             hold = decimal(usdc[0].get("hold")) if usdc else Decimal(0)
             if hold < 0:
                 raise MetaMaskError("INVALID_RESPONSE", "Collateral hold cannot be negative")
-            cash = max(Decimal(0), equity - hold)
+            cash = max(Decimal(0), money.subtract(equity, hold))
         else:
             equity = decimal(margin.get("accountValue"))
             used = decimal(margin.get("totalMarginUsed"))
             if used < 0:
                 raise MetaMaskError("INVALID_RESPONSE", "Used margin cannot be negative")
-            cash = max(Decimal(0), min(decimal(state.get("withdrawable")), equity - used))
+            cash = max(Decimal(0), min(decimal(state.get("withdrawable")), money.subtract(equity, used)))
         raw_positions = state.get("assetPositions")
         if not isinstance(raw_positions, list):
             raise MetaMaskError("INVALID_RESPONSE", "Venue positions are missing")
@@ -312,7 +328,7 @@ class HyperliquidVenue:
         return {
             "cash": format(cash, "f"),
             "equity": format(equity, "f"),
-            "positionsValue": format(equity - cash, "f"),
+            "positionsValue": format(money.subtract(equity, cash), "f"),
             "currency": "USDC",
             "positions": positions,
         }

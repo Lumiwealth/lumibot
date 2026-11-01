@@ -59,6 +59,21 @@ class TokenAsset:
     def record(self) -> dict[str, object]:
         return {"symbol": self.symbol, "chainId": self.chain_id, "address": self.address, "decimals": self.decimals}
 
+    def to_atomic(self, amount: Decimal) -> int:
+        parts = amount.as_tuple()
+        scaled = Decimal((parts.sign, parts.digits, parts.exponent + self.decimals))
+        if scaled != scaled.to_integral_value():
+            raise MetaMaskError("PRECISION", "Input amount exceeds token precision")
+        if scaled < 0 or scaled >= Decimal(2**256):
+            raise MetaMaskError("INVALID_AMOUNT", "Token amount exceeds uint256 range")
+        return int(scaled)
+
+    def from_atomic(self, amount: int) -> Decimal:
+        if not 0 <= amount < 2**256:
+            raise MetaMaskError("INVALID_AMOUNT", "Token amount exceeds uint256 range")
+        parts = Decimal(amount).as_tuple()
+        return Decimal((parts.sign, parts.digits, -self.decimals))
+
 
 @dataclass(frozen=True)
 class Binding:
@@ -199,8 +214,7 @@ class SwapIntent:
         if source.chain_id != destination.chain_id or source.identity == destination.identity:
             raise MetaMaskError("INVALID_PAIR", "Swap must use distinct tokens on the same chain")
         amount = decimal(value.get("inputAmount"), positive=True)
-        if amount != amount.quantize(Decimal(1).scaleb(-source.decimals)):
-            raise MetaMaskError("PRECISION", "Input amount exceeds token precision")
+        source.to_atomic(amount)
         return cls(
             identifier(value.get("id"), "swap ID"),
             source,

@@ -1,6 +1,6 @@
 """Native Python MetaMask managed-wallet broker."""
 
-from decimal import Decimal
+from decimal import Context, Decimal
 from threading import RLock
 from uuid import uuid4
 
@@ -171,7 +171,7 @@ class MetaMask(Broker):
             identifier = str(order.identifier)
             if identifier not in self._observations and self.get_tracked_order(identifier) is None:
                 # Seed restored history once. Parsing a newer snapshot must not consume pending callbacks.
-                value = quantity * decimal_value(response.get("averagePrice", "0"))
+                value = Context(prec=160).multiply(quantity, decimal_value(response.get("averagePrice", "0")))
                 self._observations[identifier] = (quantity, value, response["state"])
                 # Register cumulative snapshots before shared executor synchronization
                 # can treat them as new fills and add the full order size again.
@@ -181,6 +181,12 @@ class MetaMask(Broker):
 
     def _flatten_order(self, order):
         return [order]
+
+    def _apply_direct_order_observation(self, order_lumi, matched_order):
+        with self._event_lock:
+            previous = self._observations.get(str(order_lumi.identifier))
+            self._observe(order_lumi, matched_order._raw)
+            return previous != self._observations.get(str(order_lumi.identifier))
 
     def _process_broker_synced_order(self, order):
         """Restore a cumulative snapshot without replaying fills into account state."""
@@ -281,6 +287,7 @@ class MetaMask(Broker):
 
     def _observe(self, order, response):
         with self._event_lock:
+            money = Context(prec=160)
             state = response["state"]
             previous = self._observations.get(str(order.identifier), (Decimal(0), Decimal(0), None))
             quantity = decimal_value(response["filledQuantity"])
@@ -290,10 +297,10 @@ class MetaMask(Broker):
                 )
             if previous[2] in ("filled", "canceled", "rejected"):
                 return
-            value = quantity * decimal_value(response.get("averagePrice", "0"))
+            value = money.multiply(quantity, decimal_value(response.get("averagePrice", "0")))
             if quantity > previous[0]:
-                delta = quantity - previous[0]
-                price = (value - previous[1]) / delta
+                delta = money.subtract(quantity, previous[0])
+                price = money.divide(money.subtract(value, previous[1]), delta)
                 if price <= 0:
                     raise MetaMaskAPIError("INVALID_FILL", "Fill price must be positive")
                 event = self.FILLED_ORDER if state == "filled" else self.PARTIALLY_FILLED_ORDER

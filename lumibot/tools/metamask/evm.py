@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import re
 import time
-from decimal import Decimal
+from decimal import ROUND_CEILING, Decimal, localcontext
 from urllib.parse import urlsplit
 from uuid import uuid4
 
 import requests
 from eth_utils import keccak
 
+from .fees import estimate_fees, integer, receipt_fees
 from .models import Binding, SwapIntent, decimal
 from .provider import MetaMaskError, address, json_object
 
@@ -19,18 +20,6 @@ ZERO = "0x" + "0" * 40
 _NATIVE = {ZERO, "0x" + "e" * 40, "native"}
 _TRANSFER = "0x" + keccak(text="Transfer(address,address,uint256)").hex()
 _HEX = re.compile(r"0x(?:[0-9a-fA-F]{2})*\Z")
-
-
-def integer(value):
-    if isinstance(value, bool) or not isinstance(value, (int, str)):
-        raise MetaMaskError("INVALID_RESPONSE", "Expected a nonnegative integer")
-    try:
-        result = int(value, 16) if isinstance(value, str) and value.startswith("0x") else int(value)
-    except (ValueError, TypeError):
-        raise MetaMaskError("INVALID_RESPONSE", "Expected an integer chain quantity") from None
-    if result < 0:
-        raise MetaMaskError("INVALID_RESPONSE", "Chain quantity must be an exact nonnegative integer")
-    return result
 
 
 class EvmWallet:
@@ -170,7 +159,7 @@ class EvmWallet:
                     [{"to": asset.address, "data": "0x70a08231" + wallet[2:].rjust(64, "0")}, block],
                 )
             )
-        return Decimal(atomic).scaleb(-asset.decimals)
+        return asset.from_atomic(atomic)
 
     def account(self):
         binding, _ = self._binding()
@@ -227,7 +216,7 @@ class EvmWallet:
         return tx
 
     def _quote(self, binding, intent):
-        atomic = int(intent.amount.scaleb(intent.source.decimals))
+        atomic = intent.source.to_atomic(intent.amount)
         result = self._proxy(
             "/bridge/getQuote",
             {
@@ -388,16 +377,21 @@ class EvmWallet:
             )
             if native is None:
                 raise MetaMaskError("ASSET_DENIED", "Register the chain's native gas token before swap execution")
-            gas = sum(
-                integer(tx["gasLimit"]) * integer(tx["maxFeePerGas"]) for tx in [*quote["approvals"], quote["trade"]]
-            )
-            reservation = intent.amount * self.price(intent.source) + Decimal(gas).scaleb(
-                -native.decimals
-            ) * self.price(native)
-            if self._balance(binding.wallet, intent.source) < intent.amount or self._balance(
-                binding.wallet, native
-            ) < Decimal(gas).scaleb(-native.decimals) + (intent.amount if intent.source.address == "native" else 0):
-                raise MetaMaskError("INSUFFICIENT_BALANCE", "Wallet cannot cover exact input and bounded gas")
+            quote["feeEstimates"] = [estimate_fees(self._rpc, tx) for tx in [*quote["approvals"], quote["trade"]]]
+            gas = sum(integer(fee["totalEstimate"]) for fee in quote["feeEstimates"])
+            with localcontext() as context:
+                context.prec = 160
+                context.rounding = ROUND_CEILING
+                native_price = self.price(native)
+                source_price = native_price if intent.source.identity == native.identity else self.price(intent.source)
+                reservation = intent.amount * source_price + native.from_atomic(gas) * native_price
+                native_required = native.from_atomic(gas) + (intent.amount if intent.source.address == "native" else 0)
+            quote["nativeUsdPrice"] = format(native_price, "f")
+            if (
+                self._balance(binding.wallet, intent.source) < intent.amount
+                or self._balance(binding.wallet, native) < native_required
+            ):
+                raise MetaMaskError("INSUFFICIENT_BALANCE", "Wallet cannot cover exact input and estimated total fees")
             operation, _ = self.journal.reserve(
                 self.agent_id, intent.record(), format(reservation, "f"), expected_binding=record
             )
@@ -468,6 +462,13 @@ class EvmWallet:
             )
         transactions = [*plan["approvals"], plan["trade"]]
         receipts = []
+        actual_fees = []
+        fee_estimates = plan.get("feeEstimates")
+        fee_budget = (
+            sum(integer(fee["totalEstimate"]) for fee in fee_estimates)
+            if fee_estimates is not None
+            else sum(integer(tx["gasLimit"]) * integer(tx["maxFeePerGas"]) for tx in transactions)
+        )
         for index, tx in enumerate(transactions):
             step = "swap-" + str(index)
             effect = self.journal.effect(self.agent_id, intent.identifier, step)
@@ -508,6 +509,24 @@ class EvmWallet:
                     **tx,
                     "nonce": integer(self._rpc(tx["chainId"], "eth_getTransactionCount", [plan["wallet"], "pending"])),
                 }
+                fresh_fees = estimate_fees(self._rpc, tx)
+                remaining_fees = (
+                    sum(integer(fee["totalEstimate"]) for fee in fee_estimates[index + 1 :])
+                    if fee_estimates is not None
+                    else 0
+                )
+                if (
+                    sum(integer(fee["totalFee"]) for fee in actual_fees)
+                    + integer(fresh_fees["totalEstimate"])
+                    + remaining_fees
+                    > fee_budget
+                ):
+                    return self._save(
+                        operation,
+                        state="rejected",
+                        lastErrorCode="REQUOTE_REQUIRED",
+                        message="Current fee estimate exceeds the reservation; prior allowances may remain",
+                    )
                 effect = {
                     "requestId": str(uuid4()),
                     "transaction": tx,
@@ -515,23 +534,32 @@ class EvmWallet:
                     "network": self.network,
                     "projectId": plan["projectId"],
                     "quoteId": plan["quoteId"],
+                    "feeEstimate": fresh_fees,
                     "state": "requested",
                     "ownerEpoch": self.epoch,
                 }
-                self.journal.save_effect(operation, step, effect)
-                operation = self._save(
-                    operation, state="unknown", message="Managed transaction prepared; reconcile original request ID"
-                )
                 try:
-                    job = self.provider.submit_transaction(
-                        effect["requestId"],
-                        tx,
-                        quote_id=plan["quoteId"] if index == len(transactions) - 1 else None,
-                        intent="Same-chain exact-input swap"
-                        if index == len(transactions) - 1
-                        else "Bounded token allowance",
-                    )
-                except MetaMaskError:
+                    self._binding(execution=True, expected=plan["binding"])
+                    with self.journal.submission(self.agent_id, plan["binding"]):
+                        if int(time.time() * 1000) >= integer(plan["expiresAt"]):
+                            raise MetaMaskError("QUOTE_EXPIRED", "Swap quote expired before managed submission")
+                        self.journal.save_effect(operation, step, effect)
+                        operation = self._save(
+                            operation,
+                            state="unknown",
+                            message="Managed transaction prepared; reconcile original request ID",
+                        )
+                        job = self.provider.submit_transaction(
+                            effect["requestId"],
+                            tx,
+                            quote_id=plan["quoteId"] if index == len(transactions) - 1 else None,
+                            intent="Same-chain exact-input swap"
+                            if index == len(transactions) - 1
+                            else "Bounded token allowance",
+                        )
+                except MetaMaskError as error:
+                    if self.journal.effect(self.agent_id, intent.identifier, step) is None:
+                        return self._save(operation, state="rejected", lastErrorCode=error.code, message=str(error))
                     return operation
             else:
                 tx = effect["transaction"]
@@ -565,6 +593,46 @@ class EvmWallet:
             if receipt is None:
                 return self._save(operation, state="submitted")
             receipts.append(receipt)
+            fees = receipt_fees(
+                self._rpc,
+                tx["chainId"],
+                receipt,
+                fee_estimates[index]["model"] if fee_estimates is not None else None,
+            )
+            actual_fees.append(fees)
+            self.journal.save_effect(operation, step, {**effect, "actualFees": fees})
+            spent = sum(integer(fee["totalFee"]) for fee in actual_fees)
+            review = {}
+            if spent > fee_budget:
+                review = {
+                    "budgetReviewRequired": True,
+                    "feeBudgetOverrun": {
+                        "chainId": tx["chainId"],
+                        "reservedAtomic": str(fee_budget),
+                        "actualAtomic": str(spent),
+                    },
+                }
+                if plan.get("nativeUsdPrice") is not None:
+                    with localcontext() as context:
+                        context.prec = 160
+                        context.rounding = ROUND_CEILING
+                        # Native EVM accounting already requires 18 decimals at balance validation.
+                        extra_usd = Decimal(spent - fee_budget).scaleb(-18) * decimal(
+                            plan["nativeUsdPrice"], positive=True
+                        )
+                        adjusted = decimal(operation["reservedUsd"], positive=True) + extra_usd
+                    review["feeAdjustedReservationUsd"] = format(adjusted, "f")
+            operation = self._save(
+                operation,
+                fees=[
+                    {
+                        "asset": "native",
+                        "chainId": intent.source.chain_id,
+                        "atomicAmount": str(spent),
+                    }
+                ],
+                **review,
+            )
             if integer(receipt.get("status")) != 1:
                 return self._save(
                     operation,
@@ -572,7 +640,7 @@ class EvmWallet:
                     message="Transaction reverted; earlier allowances and gas costs may remain",
                 )
         # Receipt logs establish net ERC20 output, not the quoted estimate.
-        output = Decimal(0)
+        output_atomic = 0
         if intent.destination.address == "native":
             return self._save(
                 operation,
@@ -592,31 +660,22 @@ class EvmWallet:
                 and str(topics[0]).lower() == _TRANSFER
             ):
                 wallet_topic = "0x" + plan["wallet"][2:].rjust(64, "0")
-                units = Decimal(integer(log.get("data"))).scaleb(-intent.destination.decimals)
+                units = integer(log.get("data"))
                 if str(topics[2]).lower() == wallet_topic:
-                    output += units
+                    output_atomic += units
                 if str(topics[1]).lower() == wallet_topic:
-                    output -= units
-        if output.scaleb(intent.destination.decimals) < integer(plan["minimumOutput"]):
+                    output_atomic -= units
+        if output_atomic < integer(plan["minimumOutput"]):
             return self._save(
                 operation, state="unknown", message="Mined output does not satisfy the frozen quote minimum"
             )
-        fees = [
-            {
-                "asset": "native",
-                "chainId": intent.source.chain_id,
-                "atomicAmount": str(
-                    sum(integer(row.get("gasUsed")) * integer(row.get("effectiveGasPrice")) for row in receipts)
-                ),
-            }
-        ]
+        output = intent.destination.from_atomic(output_atomic)
         return self._save(
             operation,
             state="filled",
             filledQuantity=format(output, "f"),
             inputAmount=format(intent.amount, "f"),
             outputAmount=format(output, "f"),
-            fees=fees,
             lastErrorCode=None,
             message="Managed swap transaction and net output reconciled",
         )

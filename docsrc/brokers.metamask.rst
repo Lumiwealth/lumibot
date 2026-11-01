@@ -153,3 +153,39 @@ Environment configuration uses ``TRADING_BROKER=metamask``, optional
 ``METAMASK_AGENT_ID``, ``METAMASK_PROJECT_ID``, ``METAMASK_ACCESS_TOKEN``,
 ``METAMASK_REFRESH_TOKEN``, ``METAMASK_WALLET_ADDRESS``, ``METAMASK_NETWORK`` and
 ``METAMASK_MODE``.
+
+Execution and dependency review
+-------------------------------
+
+Managed Hyperliquid signing uses domain chain ID 1337 on both networks;
+the signed source binds testnet or mainnet. Bridge chain IDs must not replace
+the signing domain. Provider validation and Shield failures remain rejected
+without automatic retry or venue submission. Guard Mode remains enabled.
+
+Owner revocation is checked after remote preparation and serialized with final
+handoff. An expired uncertain cancel can retry only after fresh reads confirm
+the same order remains live. Expired uncertain leverage reconciles current
+venue settings and rejects the unsubmitted intent; a fresh order ID is needed.
+Accessor refresh and polling share cumulative fill, callback and terminal-event
+handling. Atomic quantities remain exact under caller decimal contexts.
+
+Managed swaps cannot be canceled locally. Receipt reconciliation includes gas
+spent by reverted transactions and earlier approvals. OP Stack estimates and
+actual fees include separate L1-data and operator charges. The execution-gas
+ceiling is distinct from estimated rollup charges, which cannot be capped by
+the transaction signer. Actual overruns preserve fills and block further spend.
+After reviewing the exact recorded overrun, explicitly call
+``client.acknowledge_fee_overrun(operation_id, expected_overrun)``. This retains
+the adjusted daily charge. Legacy overruns without verified USD valuation stay
+held.
+
+Use a clean environment or remove retired ``polygon-api-client`` before
+upgrading. Its certificate constraint prevents current CA-store fixes. The
+maintained Massive SDK preserves existing ``POLYGON_API_KEY`` configuration and
+Polygon endpoint behavior. The MetaMask extra requires patched ``urllib3`` and
+``certifi``. Private state directories and owner-only regular session locks
+remain mandatory. This is not a claim that the entire optional dependency tree
+has no advisories.
+
+Native funded qualification remains incomplete while provider security scanning
+fails. Earlier JavaScript trading receipts cannot qualify this implementation.

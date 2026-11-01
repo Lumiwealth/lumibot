@@ -10,6 +10,7 @@ import stat
 import tempfile
 import time
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import asdict, replace
 from pathlib import Path
 from threading import RLock
@@ -71,7 +72,7 @@ class TokenManager:
             if Path(str(self.path) + ".lock").is_symlink():
                 raise MetaMaskError("UNSAFE_CREDENTIAL_FILE", "Credential lock must not be a symlink")
             self._file_lock = FileLock(str(self.path) + ".lock", mode=0o600)
-            with self._file_lock:
+            with self._locked_file():
                 if self.path.exists():
                     if credentials is not None:
                         raise ValueError(
@@ -86,6 +87,21 @@ class TokenManager:
             self._file_lock = None
         if self._credentials is None:
             raise ValueError("Explicit MetaMask credentials or SESSION_FILE is required")
+
+    @contextmanager
+    def _locked_file(self):
+        lock_path = Path(str(self.path) + ".lock")
+        if lock_path.exists() or lock_path.is_symlink():
+            info = lock_path.lstat()
+            if (
+                not stat.S_ISREG(info.st_mode)
+                or info.st_uid != os.getuid()
+                or info.st_nlink != 1
+                or info.st_mode & 0o077
+            ):
+                raise MetaMaskError("UNSAFE_CREDENTIAL_FILE", "Credential lock must be an owner-only regular file")
+        with self._file_lock:
+            yield
 
     def _load(self):
         if self.path is None:
@@ -273,7 +289,7 @@ class TokenManager:
     def __call__(self) -> Credentials:
         with self._lock:
             if self._file_lock is not None:
-                with self._file_lock:
+                with self._locked_file():
                     self._load()
                     return self._current()
             return self._current()

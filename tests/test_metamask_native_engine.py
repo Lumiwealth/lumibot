@@ -1,7 +1,7 @@
 """Wallet execution checkpoints and recovery, with offline ECDSA signatures."""
 
 import time
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from unittest.mock import Mock
 
 import pytest
@@ -125,6 +125,62 @@ def test_checkpoint_before_each_external_mutation_and_duplicate_id_never_resends
         engine.submit(intent(quantity="0.0005"))
 
 
+@pytest.mark.parametrize("restart", [False, True])
+def test_expired_uncertain_cancel_can_retry_only_cancel(engine, monkeypatch, restart):
+    engine.submit(intent())
+    engine.provider.submit_signature.side_effect = lambda request_id, wallet, network, data, action: SignatureJob(
+        request_id,
+        wallet,
+        "SIGNED",
+        "0x" + SIGNER.sign_message(encode_typed_data(full_message=data)).signature.hex().removeprefix("0x"),
+    )
+    engine.venue.submit_action.side_effect = MetaMaskError("VENUE_OUTCOME_UNKNOWN", "Lost cancel response")
+    assert engine.cancel("one")["state"] == "open"
+    first = engine.journal.effect("agent", "one", "cancel-42-1")
+    assert engine.cancel("one")["state"] == "open"
+    assert engine.venue.submit_action.call_count == 3
+    monkeypatch.setattr(time, "time", lambda: (first["expiresAfter"] + 1000) / 1000)
+    subject = ExecutionEngine(engine.journal, engine.provider, engine.venue, "agent") if restart else engine
+    assert subject.cancel("one")["state"] == "open"
+    assert engine.venue.submit_action.call_count == 4
+    second = engine.journal.effect("agent", "one", "cancel-42-2")
+    assert second["nonce"] > first["nonce"] and second["requestId"] != first["requestId"]
+    assert [call.args[0]["type"] for call in engine.venue.submit_action.call_args_list] == [
+        "updateLeverage",
+        "order",
+        "cancel",
+        "cancel",
+    ]
+
+
+@pytest.mark.parametrize("state", ["unknown", "canceled"])
+def test_expired_cancel_is_not_retried_without_confirmed_live_order(engine, monkeypatch, state):
+    engine.submit(intent())
+    engine.provider.submit_signature.side_effect = lambda request_id, wallet, network, data, action: SignatureJob(
+        request_id,
+        wallet,
+        "SIGNED",
+        "0x" + SIGNER.sign_message(encode_typed_data(full_message=data)).signature.hex().removeprefix("0x"),
+    )
+    engine.venue.submit_action.side_effect = MetaMaskError("VENUE_OUTCOME_UNKNOWN", "Lost cancel response")
+    engine.cancel("one")
+    first = engine.journal.effect("agent", "one", "cancel-42-1")
+    monkeypatch.setattr(time, "time", lambda: (first["expiresAfter"] + 1000) / 1000)
+    original = engine.venue.order_status.side_effect
+
+    def status(*args):
+        if state == "unknown":
+            raise MetaMaskError("VENUE_UNAVAILABLE", "Read timed out")
+        result = original(*args)
+        result["order"]["status"] = state
+        return result
+
+    engine.venue.order_status.side_effect = status
+    assert engine.cancel("one")["state"] == state
+    assert engine.venue.submit_action.call_count == 3
+    assert engine.journal.effect("agent", "one", "cancel-42-2") is None
+
+
 def test_signature_uncertainty_polls_original_id_without_another_post(engine):
     engine.provider.submit_signature.side_effect = MetaMaskError("REQUEST_OUTCOME_UNKNOWN", "Lost response")
     assert engine.submit(intent())["state"] == "unknown"
@@ -132,6 +188,28 @@ def test_signature_uncertainty_polls_original_id_without_another_post(engine):
     engine.provider.signature.return_value = SignatureJob(effect["requestId"], WALLET, "SIGNING")
     assert engine.order("one")["state"] == "unknown"
     assert engine.provider.submit_signature.call_count == 1
+    engine.venue.submit_action.assert_not_called()
+
+
+def test_provider_shield_failure_remains_durable_and_does_not_submit_or_retry(engine):
+    engine.provider.submit_signature.side_effect = lambda request_id, wallet, *_: SignatureJob(
+        request_id, wallet, "FAILED", failure_code="SHIELD_SCAN_FAILED"
+    )
+    result = engine.submit(intent())
+    assert result["state"] == "rejected" and "SHIELD_SCAN_FAILED" in result["message"]
+    assert engine.journal.effect("agent", "one", "leverage")["failureCode"] == "SHIELD_SCAN_FAILED"
+    assert engine.order("one") == result
+    assert engine.provider.submit_signature.call_count == 1
+    engine.venue.submit_action.assert_not_called()
+
+
+def test_invalid_provider_request_is_rejected_without_polling_missing_job(engine):
+    engine.provider.submit_signature.side_effect = MetaMaskError("REQUEST_REJECTED", "Invalid signing payload")
+    result = engine.submit(intent())
+    assert result["state"] == "rejected"
+    assert engine.order("one") == result
+    assert engine.provider.submit_signature.call_count == 1
+    engine.provider.signature.assert_not_called()
     engine.venue.submit_action.assert_not_called()
 
 
@@ -145,6 +223,27 @@ def test_revocation_after_provider_signing_prevents_release(engine):
 
     engine.provider.submit_signature.side_effect = revoke
     assert engine.submit(intent())["state"] == "rejected"
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize("read", ["price", "fee_rate"])
+def test_revocation_during_final_venue_validation_prevents_release(engine, read):
+    original = engine.provider.submit_signature.side_effect
+
+    def sign(*args):
+        result = original(*args)
+
+        def revoke(*_):
+            engine.journal.bind({**engine.journal.binding("agent"), "enabled": False})
+            return Decimal("20000") if read == "price" else Decimal("0.00045")
+
+        getattr(engine.venue, read).side_effect = revoke
+        return result
+
+    engine.provider.submit_signature.side_effect = sign
+    result = engine.submit(intent())
+    assert result["state"] == "rejected"
+    assert engine.journal.effect("agent", "one", "leverage")["phase"] == "provider"
     engine.venue.submit_action.assert_not_called()
 
 
@@ -234,6 +333,93 @@ def test_restart_does_not_release_budget_for_unknown_leverage(engine):
     with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
         restarted.submit(intent(id="two"))
     assert engine.venue.submit_action.call_count == 1
+
+
+@pytest.mark.parametrize("restart", [False, True])
+@pytest.mark.parametrize("value", [1, 3])
+@pytest.mark.parametrize("method", ["order", "cancel"])
+def test_expired_uncertain_leverage_is_reconciled_without_order_replay(engine, monkeypatch, restart, value, method):
+    engine.venue.submit_action.side_effect = MetaMaskError("VENUE_OUTCOME_UNKNOWN", "Lost leverage response")
+    engine.submit(intent())
+    effect = engine.journal.effect("agent", "one", "leverage")
+    engine.venue.leverage.return_value = {"type": "cross", "value": value}
+    subject = ExecutionEngine(engine.journal, engine.provider, engine.venue, "agent") if restart else engine
+    assert subject.order("one")["state"] == "unknown"
+    engine.venue.leverage.assert_not_called()
+    monkeypatch.setattr(time, "time", lambda: (effect["expiresAfter"] + 1000) / 1000)
+    result = getattr(subject, method)("one")
+    assert result["state"] == "rejected"
+    assert result["filledQuantity"] == "0"
+    receipt = engine.journal.effect("agent", "one", "leverage")
+    assert receipt["observedLeverage"] == {"type": "cross", "value": value}
+    assert receipt["state"] == "reconciled"
+    engine.venue.leverage.assert_called_once_with(WALLET, "BTC")
+    assert subject.submit(intent())["state"] == "rejected"
+    assert engine.venue.submit_action.call_count == 1
+    assert engine.provider.submit_signature.call_count == 1
+    assert engine.journal.effect("agent", "one", "order") is None
+    # Reconciliation frees only the unsubmitted order's reservation, allowing a fresh intent.
+    new, created = engine.journal.reserve(
+        "agent", intent(id="two"), "20", expected_binding=engine.journal.binding("agent")
+    )
+    assert created and new["state"] == "prepared"
+
+
+def test_uncertain_leverage_keeps_hold_when_recovery_read_fails(engine, monkeypatch):
+    engine.venue.submit_action.side_effect = MetaMaskError("VENUE_OUTCOME_UNKNOWN", "Lost leverage response")
+    engine.submit(intent())
+    effect = engine.journal.effect("agent", "one", "leverage")
+    monkeypatch.setattr(time, "time", lambda: (effect["expiresAfter"] + 1000) / 1000)
+    engine.venue.leverage.side_effect = MetaMaskError("VENUE_UNAVAILABLE", "Read timed out")
+    assert engine.order("one")["state"] == "unknown"
+    with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+        engine.submit(intent(id="two"))
+    assert engine.venue.submit_action.call_count == 1
+
+
+def test_perp_reservation_is_not_rounded_by_strategy_decimal_context(engine):
+    engine.venue.fee_rate.return_value = Decimal("0.00045123456789")
+    with localcontext() as context:
+        context.prec = 6
+        context.Emax = 2
+        result = engine.submit(intent())
+    assert Decimal(result["reservedUsd"]) == Decimal("20.00902469135780")
+
+
+def test_cumulative_fill_values_and_fees_ignore_strategy_decimal_context(engine):
+    engine.submit(intent())
+    original = engine.venue.order_status.side_effect
+
+    def filled(*args):
+        result = original(*args)
+        result["order"]["status"] = "filled"
+        return result
+
+    engine.venue.order_status.side_effect = filled
+    engine.venue.fills.return_value = [
+        {
+            "tid": tid,
+            "oid": 42,
+            "coin": "BTC",
+            "side": "B",
+            "sz": size,
+            "px": price,
+            "fee": fee,
+            "feeToken": "USDC",
+            "time": int(time.time() * 1000),
+        }
+        for tid, size, price, fee in (
+            (1, "0.0004", "19999.1", "0.000123456789"),
+            (2, "0.0006", "20000.2", "0.000987654321"),
+        )
+    ]
+    with localcontext() as context:
+        context.prec = 6
+        context.Emax = 2
+        result = engine.order("one")
+    assert result["state"] == "filled"
+    assert Decimal(result["averagePrice"]) == Decimal("19999.76")
+    assert result["fees"] == [{"asset": "USDC", "amount": "0.001111111110"}]
 
 
 def test_legacy_partial_fill_reconciles_recorded_venue_id(engine):

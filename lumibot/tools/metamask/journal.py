@@ -7,7 +7,8 @@ import os
 import sqlite3
 import stat
 import time
-from decimal import Decimal
+from contextlib import contextmanager
+from decimal import ROUND_CEILING, Decimal, localcontext
 from pathlib import Path
 from threading import Lock, RLock
 
@@ -148,6 +149,19 @@ class Journal:
                 raise MetaMaskError("NOT_FOUND", "Agent binding was not found")
             return json_object(json.loads(row[0]), "binding")
 
+    @contextmanager
+    def submission(self, agent: str, expected_binding: dict[str, object], *, cancellation=False):
+        """Serialize owner revocation with the final external-effect handoff."""
+        with self._lock:
+            current = self.binding(agent)
+            if not cancellation and (
+                current.get("enabled") is not True or decimal(current.get("expiresAt")) <= int(time.time() * 1000)
+            ):
+                raise MetaMaskError("REVOKED", "Agent authorization expired or was revoked")
+            if current != expected_binding:
+                raise MetaMaskError("POLICY_CHANGED", "Binding changed before execution handoff")
+            yield
+
     def operations(self, agent: str) -> list[dict[str, object]]:
         with self._lock:
             rows = self.db.execute("SELECT data FROM operations WHERE agent=? ORDER BY rowid", (agent,)).fetchall()
@@ -193,6 +207,14 @@ class Journal:
                     raise MetaMaskError("RESERVATION_IMMUTABLE", "Execution snapshots cannot change reserved notional")
                 if decimal(operation.get("filledQuantity", "0")) < decimal(current.get("filledQuantity", "0")):
                     raise MetaMaskError("FILL_REGRESSION", "Known cumulative fills cannot decrease")
+                if decimal(operation.get("feeAdjustedReservationUsd", operation["reservedUsd"])) < decimal(
+                    current.get("feeAdjustedReservationUsd", current["reservedUsd"])
+                ):
+                    raise MetaMaskError("RESERVATION_REGRESSION", "Recorded chain fee charges cannot decrease")
+            if decimal(operation.get("feeAdjustedReservationUsd", operation["reservedUsd"])) < decimal(
+                operation["reservedUsd"]
+            ):
+                raise MetaMaskError("INVALID_AMOUNT", "Fee-adjusted reservation cannot understate original reservation")
             self.db.execute(
                 "INSERT INTO operations VALUES (?,?,?) ON CONFLICT(agent,id) DO UPDATE SET data=excluded.data",
                 (agent, operation_id, _json(operation)),
@@ -228,7 +250,9 @@ class Journal:
         now = int(time.time() * 1000) if now is None else now
         operation_id = identifier(request.get("id"), "operation ID")
         amount = decimal(usd, positive=True)
-        with self._lock:
+        with self._lock, localcontext() as context:
+            context.prec = 160
+            context.rounding = ROUND_CEILING
             self.db.execute("BEGIN IMMEDIATE")
             try:
                 binding = self.binding(agent)
@@ -250,16 +274,30 @@ class Journal:
                         "RECONCILIATION_REQUIRED", "Resolve pending collateral movement before another trade"
                     )
                 operations = self.operations(agent)
+                if any(item.get("budgetReviewRequired") is True for item in operations):
+                    raise MetaMaskError(
+                        "FEE_BUDGET_REVIEW_REQUIRED", "Review recorded chain fee overrun before further spending"
+                    )
                 if any(item.get("state") in UNCERTAIN for item in operations):
                     raise MetaMaskError(
                         "RECONCILIATION_REQUIRED", "Resolve pending or uncertain execution before another trade"
                     )
                 used = Decimal(0)
                 for item in operations:
-                    if item.get("state") == "rejected" and decimal(item.get("filledQuantity", "0")) == 0:
+                    possible_chain_cost = item.get("hashes") or any(
+                        effect.get("transaction") for effect in self.effects(agent, str(item["id"])).values()
+                    )
+                    if (
+                        item.get("state") == "rejected"
+                        and decimal(item.get("filledQuantity", "0")) == 0
+                        and not possible_chain_cost
+                    ):
                         continue
                     if decimal(item.get("createdAt")) > now - 86_400_000 or item.get("state") in OUTSTANDING:
-                        used += decimal(item.get("reservedUsd"))
+                        used += max(
+                            decimal(item.get("reservedUsd")),
+                            decimal(item.get("feeAdjustedReservationUsd", item["reservedUsd"])),
+                        )
                 if amount > decimal(binding.get("maxOrderUsd"), positive=True):
                     raise MetaMaskError("ORDER_LIMIT", "Trade exceeds its per-order notional limit")
                 if used + amount > decimal(binding.get("maxDailyUsd"), positive=True):
@@ -313,6 +351,9 @@ class Journal:
                     "approvals",
                     "minimumOutput",
                     "expiresAt",
+                    "feeEstimates",
+                    "nativeUsdPrice",
+                    "feeEstimate",
                 ):
                     if previous.get(key) != effect.get(key):
                         raise MetaMaskError("EFFECT_IMMUTABLE", "Persisted signing identity and action cannot change")
@@ -321,6 +362,22 @@ class Journal:
                 "ON CONFLICT(agent,operation,step) DO UPDATE SET data=excluded.data",
                 (agent, operation_id, step, _json(effect)),
             )
+
+    def acknowledge_fee_overrun(self, agent: str, operation_id: str, expected_overrun: dict[str, object]):
+        with self._lock:
+            operation = self.get(agent, operation_id)
+            if operation is None:
+                raise MetaMaskError("NOT_FOUND", "Fee overrun operation was not found")
+            if not expected_overrun or operation.get("feeBudgetOverrun") != expected_overrun:
+                raise MetaMaskError("REVIEW_CHANGED", "Review the exact current fee overrun before acknowledgment")
+            if operation.get("feeAdjustedReservationUsd") is None:
+                raise MetaMaskError(
+                    "FEE_VALUATION_REQUIRED", "Legacy overrun needs verified USD valuation before acknowledgment"
+                )
+            if operation.get("budgetReviewRequired") is True:
+                operation = {**operation, "budgetReviewRequired": False, "feeBudgetReviewedAt": int(time.time() * 1000)}
+                self.save(operation)
+            return operation
 
     def effect(self, agent: str, operation_id: str, step: str) -> dict[str, object] | None:
         with self._lock:

@@ -4,7 +4,7 @@ MetaMask managed-wallet execution through ordinary LumiBot strategies, without a
 
 Last Updated: 2026-11-01
 
-Status: Native candidate; connected trading qualification pending renewal of owner authority
+Status: Native candidate; managed signing and funded qualification in progress
 
 Audience: LumiBot users and maintainers
 
@@ -127,3 +127,17 @@ Offline tests cover provider context, OAuth rotation, journal ownership and rese
 Native funded order/fill/cancel and managed swap execution require their own connected receipts. Expired local grants remain expired; prior JavaScript test results are not carried forward. No production or mainnet trading qualification is claimed.
 
 Protocol sources: [MetaMask architecture](https://docs.metamask.io/agent-wallet/reference/architecture/), [browser authorization](https://docs.metamask.io/agent-wallet/cli-setup/), [Hyperliquid API](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint). Remote-wallet interfaces were checked against permissively licensed Fox SDK 2.10.0 declarations; Hyperliquid action serialization uses the official MIT Python SDK 0.24.0. No restricted Agent SDK implementation is translated or bundled. MetaMask's remote interfaces remain an experimental compatibility contract.
+
+## Execution and dependency review
+
+Hyperliquid's signing domain uses chain ID 1337 for both networks; its signed `source` binds testnet or mainnet. Managed requests must match that domain rather than an Arbitrum bridge chain. Provider validation rejections and Shield failure codes remain durable and never cause automatic reposts or venue submission.
+
+Owner revocation is serialized with the final external handoff after network preparation. An expired uncertain cancellation can receive a new cancellation identity only after a fresh venue read confirms the same original order remains live. Expired uncertain leverage actions reconcile current venue settings and reject the unsubmitted intent without replay; use a new order ID afterward. Public order refresh and polling share cumulative fills and callbacks.
+
+Atomic token quantities and receipt output checks remain exact regardless of a strategy's decimal context. A managed swap cannot be canceled locally because MetaMask may still broadcast it. Reverted transactions and earlier approvals retain gas fees and conservative daily reservations.
+
+OP Stack fee estimates include L1 data and operator charges from block-pinned oracles. Execution gas has a frozen ceiling; separate rollup fees are current estimates, not signer-enforced caps. Actual overruns preserve fills and costs, charge an adjusted USD reservation at the frozen native-token price, and block further spending. After reviewing the exact `feeBudgetOverrun`, the owner may call `client.acknowledge_fee_overrun(operation_id, expected_overrun)`. Acknowledgment never erases actual daily usage. Legacy overruns without verified USD valuation remain held.
+
+Install in a clean environment, or remove the retired `polygon-api-client` before upgrading. Its old CA-store constraint prevents current certificate fixes. LumiBot now uses the maintained Massive SDK while retaining `POLYGON_API_KEY` and `api.polygon.io`. The MetaMask extra requires patched `urllib3` and `certifi`. Session locks reject unsafe ownership, symlinks and hardlinks before acquisition; private owner-controlled state directories remain required. This does not claim that every optional or base dependency advisory is resolved.
+
+The native funded qualification is not complete while provider security scanning fails. Keep Guard Mode enabled; never omit signing context or change policy to turn a failed security scan into a passing test. Earlier JavaScript receipts remain historical evidence only.

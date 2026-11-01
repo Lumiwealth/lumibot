@@ -766,7 +766,7 @@ class Order:
         bool
             True if the order is a parent order, False otherwise.
         """
-        return bool(self.child_orders)
+        return bool(self.child_orders) or getattr(self, "order_class", None) == self.OrderClass.MULTILEG
 
     def add_child_order(self, o):
         """

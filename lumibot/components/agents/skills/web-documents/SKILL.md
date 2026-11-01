@@ -136,6 +136,18 @@ number against the calculation output rather than recomputing it in prose.
    newly supported estimate. Continue feasible relevant lookups, but do not
    make an impossible completeness certificate a condition for answering.
 
+Search hits are an inventory aid, not complete table rows. A wrapped row's upper
+bound or other required value may be on a continuation line, on the next page,
+or across a text-window boundary. Use the surrounding unfiltered text to join
+the whole row, retaining values already read in earlier chunks. A later `find`
+result that omits those lines does not erase their values or establish that a
+field is unavailable. Keep asset values, income and transaction amounts in
+their own columns. Before handing off a numeric ledger, verify every requested
+bound against its complete source row. Copy visible values rather than marking
+them unresolved; if a value truly cannot be recovered, explain that specific
+gap and use a permitted labeled approximation without dropping the supported
+remainder.
+
 Before returning the answer, audit the final table against the source rows:
 each holding needs its own instrument evidence, and an issuer heading must not
 become an extra holding beside its instrument details. Audit the final citations

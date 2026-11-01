@@ -206,7 +206,7 @@ ledger. CI verifies the completed evidence without inference. No prompt or crede
 is written to the per-call ledger.
 
 Fingerprints include indicator and broker code plus installed ADK, GenAI,
-LiteLLM, pandas-ta, pandas, NumPy, Alpaca, HTTPX, OpenAI, PyJWT, FileLock and Pydantic
+LiteLLM, pandas-ta, pandas, NumPy, Alpaca, HTTPX, OpenAI, PyJWT, FileLock, Pydantic and Massive
 versions. Install `requirements_dev.txt` with `-c requirements_agent_evals.txt`
 for the authenticated qualification. Compatible passes retain
 their original timestamp rather than being renewed when an unchanged gate skips

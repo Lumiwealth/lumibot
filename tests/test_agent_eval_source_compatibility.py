@@ -14,6 +14,28 @@ LIVE_METHODS = [
 ]
 
 
+def test_alpaca_only_benchmark_branch_preserves_pandas_inference():
+    path = 'lumibot/strategies/_strategy.py'
+    source = (scope.ROOT / path).read_bytes()
+    branch = b'elif type(self.broker.data_source) == AlpacaBacktesting:'
+    modified = source.replace(branch, branch + b'\n                pass  # report-only change')
+    scope.check_change(path, source, modified)
+    # An altered dispatch condition, another source, or shared accounting must
+    # still invalidate inference. Only the unreachable branch BODY is exempt.
+    for before, after in [
+        (branch, b'elif True:'),
+        (b'def _update_portfolio_value(self):', b'def _update_portfolio_value(self, changed=False):'),
+    ]:
+        with pytest.raises(ValueError, match='affects model qualification'):
+            scope.check_change(path, source, source.replace(before, after))
+    with pytest.raises(ValueError, match='affects model qualification'):
+        scope.check_change(path, source, source + b'\nraise RuntimeError("changed")\n')
+
+
+def test_alpaca_provider_is_outside_the_native_pandas_fixture():
+    scope.check_change('lumibot/backtesting/alpaca_backtesting.py', b'before', b'after')
+
+
 @pytest.mark.parametrize('path,owner,method,guard', LIVE_METHODS)
 def test_unused_live_method_body_changes_preserve_native_inference(path, owner, method, guard):
     source = (scope.ROOT / path).read_bytes()

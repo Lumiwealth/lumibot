@@ -45,34 +45,14 @@ class PolygonDataBacktesting(PandasData):
         # RESTClient API for Polygon.io polygon-api-client
         self.polygon_client = PolygonClient.create(api_key=api_key)
 
-    @staticmethod
-    def _set_pandas_data_keys(pandas_data):
-        # PandasData already supports interval keys. Keep a finest-interval alias
-        # for compatible price callers that do not specify an interval.
-        stored = OrderedDict()
-        values = pandas_data.values() if isinstance(pandas_data, dict) else (pandas_data or [])
-        rank = {"minute": 0, "hour": 1, "day": 2}
-        for data in values:
-            pair = next(iter(PandasData._set_pandas_data_keys([data])))
-            stored[(*pair, data.timestep)] = data
-            previous = stored.get(pair)
-            if previous is None or rank.get(data.timestep, 3) <= rank.get(previous.timestep, 3):
-                stored[pair] = data
-        return stored
-
-    def _enforce_storage_limit(self, pandas_data: OrderedDict):
-        # Aliases reference the same Data object, not another dataframe allocation.
-        unique_data = {id(data): data for data in pandas_data.values()}
-        storage_used = sum(data.df.memory_usage().sum() for data in unique_data.values())
+    def _enforce_storage_limit(pandas_data: OrderedDict):
+        storage_used = sum(data.df.memory_usage().sum() for data in pandas_data.values())
         logger.info(f"{storage_used = :,} bytes for {len(pandas_data)} items")
-        while pandas_data and storage_used > self.MAX_STORAGE_BYTES:
-            k, d = next(iter(pandas_data.items()))
-            for alias in [key for key, value in pandas_data.items() if value is d]:
-                del pandas_data[alias]
+        while storage_used > PolygonDataBacktesting.MAX_STORAGE_BYTES:
+            k, d = pandas_data.popitem(last=False)
             mu = d.df.memory_usage().sum()
             storage_used -= mu
             logger.info(f"Storage limit exceeded. Evicted LRU data: {k} used {mu:,} bytes")
-        self._find_asset_in_data_store_cache.clear()
 
     def _update_pandas_data(self, asset, quote, length, timestep, start_dt=None):
         """
@@ -105,9 +85,8 @@ class PolygonDataBacktesting(PandasData):
             length, timestep, start_dt, start_buffer=START_BUFFER
         )
         # Check if we have data for this asset
-        interval_key = (*search_asset, ts_unit)
-        if interval_key in self.pandas_data:
-            asset_data = self.pandas_data[interval_key]
+        if search_asset in self.pandas_data:
+            asset_data = self.pandas_data[search_asset]
             asset_data_df = asset_data.df
             data_start_datetime = asset_data_df.index[0]
 
@@ -120,8 +99,33 @@ class PolygonDataBacktesting(PandasData):
                 if (data_start_datetime - start_datetime) < START_BUFFER:
                     return
 
-        # A short minute-price dataset must not turn a long daily-history
-        # request into months of minute downloads or displace native day bars.
+            # Always try to get the lowest timestep possible because we can always resample
+            # If day is requested then make sure we at least have data that's less than a day
+            if ts_unit == "day":
+                if data_timestep == "minute":
+                    # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
+                    if (data_start_datetime - start_datetime) < START_BUFFER:
+                        return
+                    else:
+                        # We don't have enough data, so we need to get more (but in minutes)
+                        ts_unit = "minute"
+                elif data_timestep == "hour":
+                    # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
+                    if (data_start_datetime - start_datetime) < START_BUFFER:
+                        return
+                    else:
+                        # We don't have enough data, so we need to get more (but in hours)
+                        ts_unit = "hour"
+
+            # If hour is requested then make sure we at least have data that's less than an hour
+            if ts_unit == "hour":
+                if data_timestep == "minute":
+                    # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
+                    if (data_start_datetime - start_datetime) < START_BUFFER:
+                        return
+                    else:
+                        # We don't have enough data, so we need to get more (but in minutes)
+                        ts_unit = "minute"
 
         # Download data from Polygon
         try:
@@ -178,13 +182,8 @@ class PolygonDataBacktesting(PandasData):
             return
         data = Data(asset_separated, df, timestep=ts_unit, quote=quote_asset)
         pandas_data_update = self._set_pandas_data_keys([data])
-        rank = {"minute": 0, "hour": 1, "day": 2}
-        previous = self.pandas_data.get(search_asset)
-        if previous is not None and rank.get(previous.timestep, 3) < rank.get(ts_unit, 3):
-            pandas_data_update.pop(search_asset, None)
         # Add the keys to the self.pandas_data dictionary
         self.pandas_data.update(pandas_data_update)
-        self._find_asset_in_data_store_cache.clear()
         if self.MAX_STORAGE_BYTES:
             self._enforce_storage_limit(self.pandas_data)
 

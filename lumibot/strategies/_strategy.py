@@ -2771,13 +2771,45 @@ class _Strategy:
 
             elif type(self.broker.data_source) == AlpacaBacktesting:
                 benchmark_asset = self._benchmark_asset
-
+                source_timestep, _ = self.broker.data_source._normalize_timestep_for_source(
+                    self.broker.data_source.get_timestep()
+                )
+                asset_type = str(getattr(benchmark_asset, "asset_type", "stock")).lower()
+                market = "24/7" if asset_type == "crypto" else self.broker.data_source.market
+                if asset_type != "crypto" and market in ("24/7", "24/5"):
+                    market = "NYSE"
                 df = self.broker.data_source.get_historical_prices_between_dates(
-                    base_asset=benchmark_asset
+                    base_asset=benchmark_asset,
+                    **({"market": market} if source_timestep == "day" else {}),
                 )
 
                 if df is None or df.empty:
                     self.logger.error(f"Couldn't get_historical_prices_between_dates: {benchmark_asset}")
+                    return
+                if source_timestep == "day":
+                    from lumibot.tools.helpers import get_trading_days
+                    from lumibot.tools.indicators import benchmark_returns_from_bars
+
+                    if asset_type != "crypto":
+                        df = df.copy()
+                        index = pd.DatetimeIndex(df.index)
+                        if index.tz is not None:
+                            df.index = index.tz_convert("America/New_York")
+                        sessions = get_trading_days(
+                            market=market, start_date=pd.Timestamp(df.index.min()).normalize(),
+                            end_date=pd.Timestamp(df.index.max()).normalize() + pd.Timedelta(days=1),
+                        )
+                        df = df.loc[pd.Index(pd.DatetimeIndex(df.index).date).isin(sessions.index.date)]
+                    try:
+                        self._benchmark_returns_df = benchmark_returns_from_bars(
+                            df, market=market, start_date=self._backtesting_start,
+                            end_date=self._backtesting_end,
+                        )
+                    except (TypeError, ValueError, RuntimeError):
+                        self.logger.warning(
+                            "Alpaca daily benchmark has incomplete or invalid observations; leaving it unavailable."
+                        )
+                        self._benchmark_returns_df = None
                     return
                 df = df.loc[self._backtesting_start:self._backtesting_end].copy()
                 if hasattr(df, 'select'):  # Polars DataFrame

@@ -53,15 +53,14 @@ claiming it was published. A visible authorization error means it was not publis
    Missing metadata stays unknown.
    Only report a provider retrieval/capture timestamp when that successful
    response returns it. If it is absent, say retrieval time was not returned.
-   The runtime clock can be labeled separately as the runtime clock; it is
-   neither a returned provider retrieval time nor an applied `asOf` ceiling.
+   State the runtime clock only as context, separately from retrieval. It does
+   not timestamp or bound a provider read. With `asOf: null`, describe an
+   unbounded live read, never retrieval against or bounded by the runtime clock.
    Continue using the permitted evidence with that limitation.
    A provider name alone is not a dataset id; retain the id for stale or failed
    evidence too. Calendar filtering is not proof of historical availability.
    If a permitted live retry succeeds after a bounded failure, use the successful
    response's provenance and describe the correction separately.
-   If the successful response returns `asOf: null`, describe it as unbounded live
-   retrieval; do not describe it as cutoff-bounded or inherit the failed cutoff.
 4. During a backtest, treat the simulated datetime as a hard wall. Pass an aware
    UTC `asOf` no later than that wall. The runtime also clamps managed research.
    Observation periods, release dates and retrieval times are different facts.

@@ -148,6 +148,13 @@ closes with `sell_to_close`, and a negative short quantity closes with
 partial close, and verify the exact contract's current quote and related orders.
 One contract is not a multi-leg package.
 
+For a single option's valuation, profit-capture review or closing-price estimate,
+use `options_evaluate_market` for that exact identity and its observed bid/ask or
+disclosed historical price approximation. `options_calculate_multileg_price`
+requires at least two distinct option legs; it is not a general position-pricing
+tool. Holding multiple contracts of one identity still means one leg. A quote
+review alone does not authorize a closing order.
+
 For a multi-leg position, pass `action='close'` to
 `options_calculate_multileg_price` and `orders_submit_multileg`. List only
 `symbol`, `expiration`, `strike`, and `right` for each held leg. LumiBot derives

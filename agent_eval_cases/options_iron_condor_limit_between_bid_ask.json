@@ -19,7 +19,8 @@
       "options_calculate_multileg_price"
     ],
     "legTopology": "iron_condor",
-    "explicitLimitBetweenBidAsk": true
+    "explicitLimitBetweenBidAsk": true,
+    "acceptCompleteInitialAccountSnapshot": true
   },
   "judgeRubric": "Pass only if the agent independently loaded the options skill, selected four real contracts from one expiration, and submitted exactly one atomic package with an explicit net price between that package's bid and ask. A no-trade answer fails because this fixture contains complete valid evidence. A market package, a missing package price, or a price outside the bid and ask fails.",
   "requiredRepetitions": 5

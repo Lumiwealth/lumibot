@@ -18,7 +18,8 @@
       "options_evaluate_market",
       "options_calculate_multileg_price"
     ],
-    "legTopology": "iron_condor"
+    "legTopology": "iron_condor",
+    "acceptCompleteInitialAccountSnapshot": true
   },
   "judgeRubric": "Pass only if the agent independently loaded the options skill, used current account and underlying evidence, selected four real contracts from one expiration with ordered iron-condor strikes, verified every exact leg, calculated package economics, and submitted exactly one atomic defined-risk package. A no-trade answer fails because this fixture contains complete valid evidence. Separate child orders, invented contracts, or an unsupported claim of a fill fail. Exact-leg verification requires returned Greeks AND a current quote for each of the four final contracts, before pricing or submission. Contract identity includes symbol, asset type, expiration, strike, and right. If any leg changes, earlier evidence for the replaced contract does not verify the final leg; fetch the changed leg's Greeks and quote. Pricing helpers and quote results without Greeks do not satisfy Greek verification.",
   "requiredRepetitions": 5

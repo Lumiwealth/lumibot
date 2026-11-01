@@ -5303,6 +5303,72 @@ class _OrderTools:
         )
 
 
+def _attention_owner() -> str:
+    owner = current_agent_tool_context().get("agent_name")
+    if not owner:
+        raise ValueError("Attention tools require the calling agent's identity")
+    return str(owner)
+
+
+def _bind_attention_watch(strategy: Any, manager: Any) -> BoundTool:
+    def watch(watch_id: str, operation_id: str, metric: str, comparison: str,
+              value_json: str, reason: str, asset_json: str | None = None,
+              order_ids: list[str] | None = None, legs_json: str | None = None,
+              review_scope: str = "management") -> dict[str, Any]:
+        # ISO timestamps are ordinary string inputs to model tools. Preserve
+        # JSON-encoded scalar compatibility without requiring nested quoting.
+        value = value_json if metric == "time" and not value_json.lstrip().startswith('"') else json.loads(value_json)
+        return manager.attention.watch(owner=_attention_owner(), watch_id=watch_id,
+            operation_id=operation_id, metric=metric, comparison=comparison,
+            value=value, reason=reason,
+            asset=json.loads(asset_json) if asset_json else None, order_ids=order_ids,
+            legs=json.loads(legs_json) if legs_json else None, review_scope=review_scope)
+
+    return BoundTool(name="attention_watch", function=watch, source="builtin", metadata={"kind": "attention", "replay_on_cache": True},
+        description="Save or update a read-only attention condition for your next decision. This does not place an order. "
+        "Your strategy must call agents.attention.poll() in its lifecycle and run the appropriate team on a pending packet. "
+        "With dispatch_team, review_scope=setup refreshes research for an eligible entry opportunity; research requests "
+        "fresh research for a subsequent decision; management reuses still-relevant dated research. "
+        "Choose the scope explicitly for the intended review. Watch names do not select the team. "
+        "Use stable watch_id per condition and operation_id per position/setup. metric: price, position_quantity, basket_value, time, order_status. "
+        "Numeric comparison: gte/lte/eq/ne and value_json a number. Time: gte/lte and value_json a plain ISO timestamp with timezone; a JSON-encoded timestamp string is also accepted. "
+        "For basket_value supply legs_json: an array of {asset: exact asset object, quantity: signed number, multiplier: number}. "
+        "It observes the signed sum of quantity times multiplier times last-price mark; this is attention, not an executable bid/ask. "
+        "Order status: comparison=in, value_json a JSON status array and exact order_ids. Normal LumiBot/broker status aliases "
+        "such as filled/fill and partially_filled/partial_fill are matched consistently. asset_json is an exact asset object "
+        "with symbol, optional asset_type, expiration, strike, right, quote_symbol. Use distinct thresholds for meaningful worsening. "
+        "An unchanged condition fires once until it clears or you change its definition. Related conditions form one packet. "
+        "Choose attention times economically; quiet minute polling costs no inference. Retain risk coverage while an order works. "
+        "Save exact associated order_ids so the next trader reconciles working/partial/failed orders before any new submission.")
+
+
+def _bind_attention_list(strategy: Any, manager: Any) -> BoundTool:
+    def list_watches() -> dict[str, Any]:
+        return manager.attention.snapshot(owner=_attention_owner())
+    return BoundTool(name="attention_list", function=list_watches, source="builtin", metadata={"kind": "attention"},
+                     description="Inspect your persisted attention conditions and pending events before changing a review plan.")
+
+
+def _bind_attention_remove(strategy: Any, manager: Any) -> BoundTool:
+    def remove(watch_id: str) -> dict[str, Any]:
+        manager.attention.remove(owner=_attention_owner(), watch_id=watch_id)
+        return {"removed": watch_id}
+    return BoundTool(name="attention_remove", function=remove, source="builtin", metadata={"kind": "attention", "replay_on_cache": True},
+        description="Remove your obsolete attention condition after confirming the position/operation is finished. "
+                    "A submitted exit is not confirmed closure. Check positions and exact pending orders first.")
+
+
+class _AttentionTools:
+    def watch(self) -> ToolDefinition:
+        return ToolDefinition(name="attention_watch", description="Save a persistent read-only attention condition.", binder=_bind_attention_watch)
+
+    def list(self) -> ToolDefinition:
+        return ToolDefinition(name="attention_list", description="Inspect persisted attention conditions.", binder=_bind_attention_list)
+
+    def remove(self) -> ToolDefinition:
+        return ToolDefinition(name="attention_remove", description="Remove an obsolete attention condition.", binder=_bind_attention_remove)
+
+
 class _BuiltinTools:
     account = _AccountTools()
     market = _MarketTools()
@@ -5319,10 +5385,14 @@ class _BuiltinTools:
     notifications = _NotificationTools()
     memory = _MemoryTools()
     orders = _OrderTools()
+    attention = _AttentionTools()
 
     def all(self) -> list[ToolDefinition]:
         """Return all built-in tools. Used as the default when tools=None in agent creation."""
         return [
+            self.attention.watch(),
+            self.attention.list(),
+            self.attention.remove(),
             self.account.positions(),
             self.account.portfolio(),
             self.market.last_price(),

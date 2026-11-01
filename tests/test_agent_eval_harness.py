@@ -79,6 +79,126 @@ def mcp_value(result):
     return json.loads(next(part["text"] for part in result["content"] if part["type"] == "text"))
 
 
+def test_recorded_research_fixture_honors_each_roles_declared_permissions():
+    production = fixture_module.ProductionFixture(evals.build_fixture("research_live_available"))
+    case = {"model": "chatgpt/gpt-6-luna", "fixture": "research_live_available",
+            "systemPrompt": "Follow the actual user request."}
+    try:
+        researcher = production.create_agent(case, SimpleNamespace(), name="researcher", allow_trading=False)
+        decision = production.create_agent(case, SimpleNamespace(), name="decision", allow_trading=True)
+        assert researcher.allow_trading is False
+        assert decision.allow_trading is True
+        assert "orders_submit_multileg" not in {t.name for t in researcher._ensure_bound_tools()}
+        assert "orders_submit_multileg" in {t.name for t in decision._ensure_bound_tools()}
+    finally:
+        production.close()
+
+
+def test_team_topology_uses_real_dispatch_scopes_and_records_every_actual_role(monkeypatch):
+    import lumibot.components.agents.runtime as runtime
+    import lumibot.components.agents.manager as manager_module
+    from lumibot.components.agents.attention import AttentionMonitor
+    requests, dispatches = [], []
+    class CaptureRuntime:
+        def run(self, request):
+            requests.append(request)
+            return AgentRunResult(summary=f"Observed answer from {request.agent_name}",
+                                  model=request.model, events=[], usage={"input_tokens": 10, "output_tokens": 3})
+    original = AttentionMonitor.dispatch_team
+    def dispatch(self, **kwargs):
+        dispatches.append([e["review_scope"] for e in self.pending()])
+        return original(self, **kwargs)
+    monkeypatch.setattr(runtime, "GoogleADKRuntime", CaptureRuntime)
+    monkeypatch.setattr(manager_module, "_RUNTIME_IMPORTS", None)
+    monkeypatch.setattr(AttentionMonitor, "dispatch_team", dispatch)
+    monkeypatch.setattr(evals, "run_judge", lambda *args: (
+        {"pass": True, "reason": "native plumbing only"},
+        AgentRunResult(summary="", model="chatgpt/gpt-6-luna", events=[], usage={}), 0.0))
+    case = {"id": "team-continuation-native", "fixture": "flat_stock_account",
+            "model": "chatgpt/gpt-6-luna", "agentTopology": "researcher_then_trader",
+            "systemPrompt": "Decision role policy", "researcherSystemPrompt": "Research role policy",
+            "taskPrompt": "Initial authorized review", "reviewScope": "setup",
+            "continuationTurns": [{"taskPrompt": "Manage the holding", "reviewScope": "management", "advanceMinutes": 1},
+                                  {"taskPrompt": "Research the next opportunity", "reviewScope": "research", "advanceMinutes": 1}],
+            "machineContract": {"forbidOrderTools": True}, "judgeRubric": "Follow the requested review."}
+    row = evals.execute_repetition(case, repetition=1, fingerprint="native",
+        judge_model="chatgpt/gpt-6-luna", budget=SimpleNamespace(for_scope=lambda *a, **k: None))
+    assert dispatches == [["setup"], ["management"], ["research"]]
+    expected = ["researcher", "trader", "trader", "researcher", "trader"]
+    assert [r.agent_name for r in requests] == expected
+    from datetime import datetime
+    clocks = [datetime.fromisoformat(r.runtime_context["current_datetime"]) for r in requests]
+    assert [(clock - clocks[0]).total_seconds() for clock in clocks] == [0, 0, 60, 120, 120]
+    assert [r["role"] for r in row["transcript"]["agent_runs"]] == expected
+    assert [r["allow_trading"] for r in row["transcript"]["agent_runs"]] == [False, True, True, False, True]
+    assert all("return a justified hold" not in r.task_prompt for r in requests)
+
+
+def test_one_off_research_handoff_does_not_install_a_monitoring_controller(monkeypatch):
+    import lumibot.components.agents.runtime as runtime
+    import lumibot.components.agents.manager as manager_module
+    from lumibot.components.agents.attention import AttentionMonitor
+    requests = []
+    class CaptureRuntime:
+        def run(self, request):
+            requests.append(request)
+            return AgentRunResult(summary=f"Actual {request.agent_name} answer", model=request.model, events=[], usage={})
+    def unexpected(*args, **kwargs):
+        raise AssertionError("A one-off handoff is not a persistent monitoring strategy")
+    monkeypatch.setattr(runtime, "GoogleADKRuntime", CaptureRuntime)
+    monkeypatch.setattr(manager_module, "_RUNTIME_IMPORTS", None)
+    monkeypatch.setattr(AttentionMonitor, "dispatch_team", unexpected)
+    monkeypatch.setattr(evals, "run_judge", lambda *args: ({"pass": True, "reason": "native plumbing"},
+        AgentRunResult(summary="", model=evals.DEFAULT_JUDGE_MODEL, events=[], usage={}), 0.0))
+    case = {"id": "one-off-handoff", "fixture": "flat_stock_account", "model": evals.DEFAULT_ACTING_MODEL,
+            "agentTopology": "researcher_then_trader", "systemPrompt": "Decide under the user authority.",
+            "taskPrompt": "Analyze this idea; do not trade.", "machineContract": {"forbidOrderTools": True},
+            "judgeRubric": "Follow the user request."}
+    row = evals.execute_repetition(case, repetition=1, fingerprint="native",
+        judge_model=evals.DEFAULT_JUDGE_MODEL, budget=SimpleNamespace(for_scope=lambda *a, **k: None))
+    assert [r.agent_name for r in requests] == ["researcher", "trader"]
+    assert requests[-1].context["research_packet"] == "Actual researcher answer"
+    assert row["transcript"]["attention_state"] == {"watches": [], "pending": []}
+
+
+def test_trader_account_contract_accepts_only_its_own_complete_current_snapshot():
+    context = {"current_datetime": "2026-08-11T14:35:00Z", "positions": [], "open_orders": [],
+               "account_snapshot": {"as_of": "2026-08-11T14:35:00Z", "account_complete": True,
+                   "positions_complete": True, "positions_total": 0, "positions_included": 0, "positions_omitted": 0,
+                   "open_orders_complete": True, "open_orders_total": 0, "open_orders_included": 0, "open_orders_omitted": 0}}
+    case = {"machineContract": {"requiredTraderTools": ["account_portfolio", "account_positions", "orders_open_orders"],
+                                "acceptCompleteInitialAccountSnapshot": True}}
+    transcript = {"fixture_calls": [], "submissions": [], "tool_calls": [], "agent_runs": [],
+                  "initial_runtime_contexts": {"trader": context}}
+    assert evals.score_machine_contract(case, transcript)["pass"] is True
+    transcript["initial_runtime_contexts"] = {"researcher": context}
+    assert evals.score_machine_contract(case, transcript)["pass"] is False
+    transcript["initial_runtime_contexts"] = {"trader": copy.deepcopy(context)}
+    transcript["initial_runtime_contexts"]["trader"]["account_snapshot"]["as_of"] = "2026-08-10T14:35:00Z"
+    assert evals.score_machine_contract(case, transcript)["pass"] is False
+
+
+@pytest.mark.parametrize("change", [
+    {"agentTopology": "unknown"}, {"continuationTurns": "not a list"},
+    {"reviewScope": "unexpected"}, {"continuationTurns": [{"taskPrompt": ""}]},
+    {"continuationTurns": [{"taskPrompt": "Review", "reviewScope": "unexpected"}]},
+    {"researcherSystemPrompt": 10}, {"advanceMinutes": -1}, {"advanceMinutes": True},
+])
+def test_team_review_preflight_rejects_invalid_configuration_before_model_work(change):
+    case = {"agentTopology": "researcher_then_trader", "taskPrompt": "Review", **change}
+    with pytest.raises(RuntimeError):
+        evals._validate_team_reviews(case)
+
+
+def test_team_failure_is_a_failed_machine_contract_even_if_last_role_has_a_summary():
+    case = {"machineContract": {"forbidOrderTools": True}}
+    transcript = {"team_dispatch_error": "RuntimeError", "fixture_calls": [], "submissions": [],
+                  "tool_calls": [], "tool_results": []}
+    result = evals.score_machine_contract(case, transcript)
+    assert result["pass"] is False
+    assert any("dispatcher" in failure for failure in result["failures"])
+
+
 def test_release_eval_uses_production_manager_context_and_builtin_bindings(monkeypatch):
     from types import SimpleNamespace
 
@@ -561,7 +681,7 @@ def test_live_fixture_missing_ledger_or_quote_remains_visibly_incomplete(monkeyp
 
 
 @pytest.mark.parametrize("permission", [{}, {"allow_trading": True}, {"allow_trading": False}])
-def test_live_research_fixture_cannot_grant_trading_even_when_caller_requests_it(permission):
+def test_live_research_fixture_preserves_declared_role_permissions_and_research_tools(permission):
     from scripts.agent_eval_production_fixture import ProductionFixture
 
     fixture = evals.build_fixture("research_live_available")
@@ -573,8 +693,9 @@ def test_live_research_fixture_cannot_grant_trading_even_when_caller_requests_it
     }, None, **permission)
     tools = handle._ensure_bound_tools()
 
-    assert handle.allow_trading is False
-    assert all(not (tool.metadata or {}).get("mutates_trading") for tool in tools)
+    expected = permission.get("allow_trading", True)
+    assert handle.allow_trading is expected
+    assert any((tool.metadata or {}).get("mutates_trading") for tool in tools) is expected
     assert {tool.name for tool in tools}.issuperset({
         "search_data_catalog", "query_data", "search_documents", "get_document"
     })
@@ -936,7 +1057,9 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         "958e69e5d115cc3e6dc1d03200965792b09afe74": "7925c2aaffe49387acc21c18e3c1191f72610ab2f941634da682e83d86d14c22",
     }
     assert set(selected) == set(sources)
-    assert len(controls) == 26  # Preserve prior controls plus news/macro and undated grading controls.
+    # Preserve the prior 28 and add three captured grading-regression controls.
+    assert len(controls) == 31
+    assert {row["id"] for row in controls} >= {"attention_saved_conditions_accepted", "attention_memory_note_rejected"}
     case = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_source_cases" /
                        "web_documents_holdings_from_yearly_and_trade_reports.json").read_text())
     for identifier, (expected, run_id, repetition) in sources.items():
@@ -1603,6 +1726,52 @@ def test_resume_rebuilds_missing_freshness_from_completed_matching_ledger(monkey
     assert summary["fresh_case_count"] == 1
     assert summary["incremental_estimated_cost_usd"] == 0
     assert json.loads(state_path.read_text())["cases"][case["id"]]["passed_at"] == passed_at
+
+
+def test_one_pilot_retains_five_pass_requirement_and_resumes_only_missing_trials(monkeypatch, tmp_path, capsys):
+    from scripts import agent_eval_isolation
+
+    case = {"id": "pilot-resume-contract", "model": evals.DEFAULT_ACTING_MODEL, "requiredRepetitions": 5}
+    monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda *args, **kwargs: None)
+    monkeypatch.setattr(evals, "select_eval_credentials", lambda models: ["chatgpt-plan"])
+    monkeypatch.setattr(evals, "load_cases", lambda ids: [case])
+    monkeypatch.setattr(evals, "preflight", lambda *args: None)
+    monkeypatch.setattr(evals, "preflight_production_fixtures", lambda cases: None)
+    monkeypatch.setattr(evals, "runtime_fingerprint", lambda: "same-pilot-runtime")
+    calls = []
+
+    def completed(selected, **kwargs):
+        calls.append(kwargs["repetition"])
+        return {"case_id": selected["id"], "repetition": kwargs["repetition"],
+                "fingerprint": kwargs["fingerprint"], "timestamp": evals.utc_text(), "status": "pass"}
+
+    monkeypatch.setattr(evals, "execute_repetition", completed)
+    state_path = tmp_path / "freshness.json"
+    command = ["runner", "--output-root", str(tmp_path), "--freshness-state", str(state_path),
+               "--qualification-receipt", str(tmp_path / "qualification.json")]
+    monkeypatch.setattr(evals.sys, "argv", command + ["--pilot"])
+    assert evals.main() == 0
+    pilot = json.loads(capsys.readouterr().out)
+    assert calls == [1]
+    assert pilot["pilot"] is True
+    assert pilot["qualification_complete"] is False
+    assert pilot["deferred_repetitions"] == 4
+    assert pilot["fresh_case_count"] == 0
+    assert case["id"] not in json.loads(state_path.read_text()).get("cases", {})
+
+    monkeypatch.setattr(evals.sys, "argv", command)
+    assert evals.main() == 0
+    resumed = json.loads(capsys.readouterr().out)
+    assert sorted(calls) == [1, 2, 3, 4, 5]
+    assert resumed["resumed_count"] == 1
+    assert resumed["qualification_complete"] is True
+    assert resumed["fresh_case_count"] == 1
+
+
+def test_pilot_cannot_be_used_as_the_production_gate():
+    args = evals.build_parser().parse_args(["--pilot", "--gate"])
+    with pytest.raises(RuntimeError, match="pilot.*gate"):
+        evals.validate_args(args)
 
 
 @pytest.mark.parametrize(
@@ -4188,3 +4357,37 @@ def test_main_resumes_only_judging_from_a_durable_actor_checkpoint(monkeypatch, 
                                            "--qualification-receipt", str(tmp_path/'receipt.json')])
     assert evals.main() == 0
     assert len(resumed) == 1
+
+
+def test_option_and_attention_grading_controls_preserve_captured_actor_identity():
+    """Machine provenance only; semantic labels require the real judge gate."""
+    import hashlib
+    from uuid import UUID
+
+    controls = {row["id"]: row for row in json.loads(
+        (SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_calibration.json").read_text()
+    )}
+    identities = {
+        "call-vertical-exact-greeks-offset-risk-observed-safe": True,
+        "call-vertical-final-leg-greeks-removed-negative": False,
+        "attention-exact-order-in-persisted-reason-observed-safe": True,
+    }
+    for identity, expected in identities.items():
+        control = controls[identity]
+        assert control["expected"] is expected
+        assert control["required_repetitions"] == 5
+        source = control["source"]
+        assert source["kind"] == "captured-fixture-actor"
+        assert str(UUID(source["run_id"])) == source["run_id"]
+        assert len(source["actor_fingerprint"]) == 64
+        assert int(source["actor_fingerprint"], 16) >= 0
+        assert source["original_judge"]["pass"] is False
+        assert control["transcript"]["broker_orders"]
+        assert control["transcript"]["final_answer"]
+    positive = controls["call-vertical-exact-greeks-offset-risk-observed-safe"]
+    negative = controls["call-vertical-final-leg-greeks-removed-negative"]
+    assert positive["source"] == negative["source"]
+    assert negative["mutation"]
+    assert positive["transcript"]["broker_orders"] == negative["transcript"]["broker_orders"]
+    assert any(call["name"] == "options_get_greeks" for call in positive["transcript"]["tool_calls"])
+    assert all(call["name"] != "options_get_greeks" for call in negative["transcript"]["tool_calls"])

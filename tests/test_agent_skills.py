@@ -160,16 +160,18 @@ def test_options_skill_requires_atomic_multileg_or_no_trade():
     assert "make a no-trade decision" in instructions
 
 
-def test_options_skill_requires_explicit_account_reads_and_measured_deltas():
+def test_options_skill_requires_complete_current_account_evidence_and_measured_deltas():
     """Release eval options_iron_condor_atomic_open failed when the agent ordered
-    from the injected snapshot without account tool calls, and when it declined a
+    from insufficient account evidence, and when it declined a
     supported condor by inventing a 30-day minimum and guessing deltas from strike
     distance instead of measuring them."""
     options_skill = next(skill for skill in load_builtin_skills() if skill.name == "options-trading")
     instructions = " ".join(options_skill.instructions.split())
 
-    assert "Call `account_portfolio`, `account_positions`, and `orders_open_orders`" in instructions
-    assert "the injected account snapshot does not replace these calls" in instructions
+    assert "A complete, fresh Runtime Context account snapshot can supply that evidence" in instructions
+    assert "inspect its completeness, timestamps and exact identities" in instructions
+    assert "for missing, truncated or stale portions" in instructions
+    assert "reread affected state after an order action" in instructions
     assert "Never judge a delta target unreachable from strike distance alone" in instructions
     assert "Do not add your own days-to-expiration minimum" in instructions
     assert "A short strike list is not by itself a reason to decline" in instructions

@@ -2779,6 +2779,25 @@ class _Strategy:
                 if df is None or df.empty:
                     self.logger.error(f"Couldn't get_historical_prices_between_dates: {benchmark_asset}")
                     return
+                source_timestep, _ = self.broker.data_source._normalize_timestep_for_source(
+                    self.broker.data_source.get_timestep()
+                )
+                if source_timestep == "day":
+                    from lumibot.tools.indicators import benchmark_returns_from_bars
+
+                    asset_type = str(getattr(benchmark_asset, "asset_type", "stock")).lower()
+                    market = "24/7" if asset_type == "crypto" else self.broker.data_source.market
+                    try:
+                        self._benchmark_returns_df = benchmark_returns_from_bars(
+                            df, market=market, start_date=self._backtesting_start,
+                            end_date=self._backtesting_end,
+                        )
+                    except (TypeError, ValueError, RuntimeError):
+                        self.logger.warning(
+                            "Alpaca daily benchmark has incomplete or invalid observations; leaving it unavailable."
+                        )
+                        self._benchmark_returns_df = None
+                    return
                 df = df.loc[self._backtesting_start:self._backtesting_end].copy()
                 if hasattr(df, 'select'):  # Polars DataFrame
                     df = df.with_columns(pl.col("close").pct_change().alias("return"))

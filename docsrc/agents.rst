@@ -647,6 +647,14 @@ Backtest vs. live behavior
 
 **Live trading invariant**: an AI agent call never stops a live trading bot. Ever. Even a completely missing API key will log an error and continue — the operator can fix the env var and the bot resumes on the next iteration without a process restart. This is intentional: shutting down a live bot with real money at risk because of a provider hiccup is unacceptable.
 
+An incomplete decision does not prove that no order actions occurred. Failed
+runs retain observed tool events and usage. The failed result's
+``broker_mutation_attempted`` field is ``True``, ``False`` or ``None`` when
+evidence is missing. Attempted mutations or unknown trading effects produce
+unknown broker certainty, a non-retryable outcome and operator attention.
+Reconcile actual orders and account state before further action. The runtime
+does not replay the whole agent attempt after a broker mutation.
+
 **Backtest philosophy**: surface bugs loudly. A silent +0% tearsheet caused by a wrong API key is worse than a clear error message — the user just started the run, can fix it, and re-run. Transient errors (including rate limits that outlast their retries) skip the bar, but never silently: a backtest with skipped bars ran with missing AI decisions, and its results must say so.
 
 Skipped bars in backtest results
@@ -654,7 +662,7 @@ Skipped bars in backtest results
 
 Every skipped agent call is counted and reported in three places:
 
-- the log, as ``BACKTEST INCOMPLETE: agent '<name>' ... could not run at <time>``;
+- the log, as ``BACKTEST INCOMPLETE: agent '<name>' ... did not complete at <time>``;
 - the tear sheet's **Parameters Used** panel, as ``agent_<name>_skipped_runs`` and ``agent_skipped_runs_total``;
 - the backtest ``settings.json``, as an ``agent_health`` block:
 

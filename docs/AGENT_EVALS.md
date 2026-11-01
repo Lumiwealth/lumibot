@@ -198,11 +198,13 @@ double-counting. A zero API-spend field does not establish the connected
 account's separate subscription-credit setting. Keep the same append-only
 ledger across actor work, judge-only recovery, calibration and resumed batches.
 
-Typed retryable inference failures before a decision completes, including
+Typed retryable inference failures with explicit no-mutation evidence, including
 LiteLLM `InternalServerError` wrappers around DNS errors, are infrastructure
-errors rather than actor decisions for the semantic judge. Completed decisions
-and tool failures retain their ordinary grading. Preserve every failed attempt
-and unknown usage reservation; this classification does not replay live orders.
+errors rather than actor decisions for the semantic judge. Captured broker
+receipts must not contradict that evidence. Deterministic machine checks always
+run and remain on error rows. Post-mutation failures, unknown effects, completed
+decisions and tool failures retain ordinary grading. Preserve every failed
+attempt and unknown usage reservation; this classification does not replay live orders.
 
 SDK retries are disabled; outer retries require another ledger reservation.
 No paid token-counting endpoint is used. Subscription quota and revoked grants

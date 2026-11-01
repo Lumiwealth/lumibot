@@ -1964,6 +1964,7 @@ def test_retryable_subscription_actor_failure_is_infrastructure_not_a_judged_dec
     # Actual RC4 expiration repetition4: no tools, typed subscription failure,
     # runtime_error/transient/retryable and an incomplete decision.
     result = SimpleNamespace(payload={
+        "broker_mutation_attempted": False,
         "runtime_error": True,
         "error_class": error_class,
         "error_message": "private provider request must not be copied",
@@ -1983,6 +1984,8 @@ def test_retryable_subscription_actor_failure_is_infrastructure_not_a_judged_dec
 @pytest.mark.parametrize("error_class", ["SubscriptionModelResponseError", "InternalServerError"])
 @pytest.mark.parametrize("change", [
     {"runtime_error": False},
+    {"broker_mutation_attempted": True},
+    {"broker_mutation_attempted": None},
     {"execution_outcome": {}},
     {"execution_outcome": {
         "status": "runtime_error", "error_category": "transient",
@@ -1995,6 +1998,7 @@ def test_retryable_subscription_actor_failure_is_infrastructure_not_a_judged_dec
 ])
 def test_actor_failure_classification_preserves_semantic_and_tool_failure_judging(change, error_class):
     payload = {
+        "broker_mutation_attempted": False,
         "runtime_error": True, "error_class": error_class,
         "execution_outcome": {"status": "runtime_error", "error_category": "transient", "retryability": "retryable", "decision_completed": False},
     }
@@ -2007,6 +2011,7 @@ def test_native_repetition_preserves_typed_actor_error_without_spending_a_judge_
 
     result = AgentRunResult(summary="Safe skipped iteration", model=evals.DEFAULT_ACTING_MODEL, events=[])
     result.payload = {
+        "broker_mutation_attempted": False,
         "runtime_error": True, "error_class": error_class,
         "execution_outcome": {"status": "runtime_error", "error_category": "transient", "retryability": "retryable", "decision_completed": False},
     }
@@ -2022,8 +2027,128 @@ def test_native_repetition_preserves_typed_actor_error_without_spending_a_judge_
     assert row["error"] == error_class
     assert row["transcript"]["execution_outcome"]["decision_completed"] is False
     assert row["transcript"]["submissions"] == []
+    assert row["machine"]["pass"] is False
+    assert "production AgentManager decision_completed was not True" in row["machine"]["failures"]
     assert row["timing_seconds"]["judge"] == 0
     assert "judge" not in row["usage"]
+
+
+@pytest.mark.parametrize("mutation_marker", [False, True, None])
+@pytest.mark.parametrize("retain_events", [False, True])
+def test_native_failure_keeps_actual_broker_violations_even_when_effect_marker_disagrees(
+    monkeypatch, mutation_marker, retain_events
+):
+    from unittest.mock import Mock
+
+    from lumibot.components.agents.schemas import AgentTraceEvent
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    def create_agent(production, *_args, **_kwargs):
+        def run(**_kwargs):
+            tools = {tool.name: tool for tool in production.tools()}
+            arguments = {
+                "symbol": "AAPL", "quantity": 1, "side": "buy", "order_type": "limit", "limit_price": 230,
+                "reason": "Offline grading regression must retain actual broker actions after inference fails. " * 4,
+            }
+            receipt = tools["orders_submit_order"].function(**arguments)
+            result = AgentRunResult(summary="Inference interrupted", model=evals.DEFAULT_ACTING_MODEL, events=[
+                AgentTraceEvent(kind="tool_call", tool_name="orders_submit_order", payload=arguments),
+                AgentTraceEvent(kind="tool_result", tool_name="orders_submit_order", payload=receipt),
+            ] if retain_events else [])
+            result.payload = {
+                "broker_mutation_attempted": mutation_marker,
+                "runtime_error": True, "error_class": "InternalServerError",
+                "execution_outcome": {
+                    "status": "runtime_error", "error_category": "transient",
+                    "retryability": "retryable", "decision_completed": False,
+                },
+            }
+            return result
+        return SimpleNamespace(run=run)
+
+    monkeypatch.setattr(ProductionFixture, "create_agent", create_agent)
+    machine = Mock(wraps=evals.score_machine_contract)
+    monkeypatch.setattr(evals, "score_machine_contract", machine)
+    judge = Mock(return_value=(
+        {"pass": False, "reason": "An actual forbidden order occurred before inference failed."},
+        AgentRunResult(summary="", model=evals.DEFAULT_JUDGE_MODEL, events=[]), 0,
+    ))
+    monkeypatch.setattr(evals, "run_judge", judge)
+    case = json.loads((evals.CASE_ROOT / "stock_price_before_order.json").read_text())
+    case["machineContract"].update(forbidOrderTools=True, exactBrokerOrderCount=0)
+    budget = SimpleNamespace(for_scope=lambda *_args, **_kwargs: None)
+    row = evals.execute_repetition(
+        case, repetition=1, fingerprint="test", judge_model=evals.DEFAULT_JUDGE_MODEL, budget=budget,
+    )
+    machine.assert_called_once()
+    judge.assert_called_once()
+    assert row["status"] == "fail" and row["machine"]["pass"] is False
+    assert "expected 0 actual broker orders, observed 1" in row["machine"]["failures"]
+    if retain_events:
+        assert "submitted an order despite a no-order contract" in row["machine"]["failures"]
+    assert len(row["transcript"]["broker_orders"]) == 1
+    assert len(row["transcript"]["submissions"]) == int(retain_events)
+    assert row["transcript"]["final_positions"][0]["quantity"] == 1
+    assert "judge_not_run" not in row
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize(
+    "mutation_marker,retryability", [(True, "non_retryable"), (None, "non_retryable"), (False, "retryable")]
+)
+def test_one_retryable_actor_cannot_mask_another_actors_unknown_effects(reverse, mutation_marker, retryability):
+    before_orders = SimpleNamespace(payload={
+        "runtime_error": True, "error_class": "InternalServerError", "broker_mutation_attempted": False,
+        "execution_outcome": {
+            "status": "runtime_error", "error_category": "transient", "retryability": "retryable",
+            "decision_completed": False, "broker_state_certainty": "not_observed",
+        },
+    })
+    uncertain = SimpleNamespace(payload={
+        "runtime_error": True, "error_class": "InternalServerError", "broker_mutation_attempted": mutation_marker,
+        "execution_outcome": {
+            "status": "runtime_error", "error_category": "transient", "retryability": retryability,
+            "decision_completed": False, "broker_state_certainty": "unknown", "impact": "operator_attention_required",
+        },
+    })
+    actors = [before_orders, uncertain]
+    assert evals.actor_infrastructure_failure(actors[::-1] if reverse else actors) is None
+
+
+def test_researcher_failure_cannot_hide_unknown_trader_effects_with_empty_receipts(monkeypatch):
+    from unittest.mock import Mock
+
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    def create_agent(_production, *_args, **kwargs):
+        trader = kwargs["name"] == "trader"
+        result = AgentRunResult(summary="Inference interrupted", model=evals.DEFAULT_ACTING_MODEL, events=[])
+        result.payload = {
+            "runtime_error": True, "error_class": "InternalServerError", "broker_mutation_attempted": trader,
+            "execution_outcome": {
+                "status": "runtime_error", "error_category": "transient", "decision_completed": False,
+                "retryability": "non_retryable" if trader else "retryable",
+                "broker_state_certainty": "unknown" if trader else "not_observed",
+            },
+        }
+        return SimpleNamespace(run=lambda **_kwargs: result)
+
+    monkeypatch.setattr(ProductionFixture, "create_agent", create_agent)
+    judge = Mock(return_value=(
+        {"pass": False, "reason": "Trader effects require reconciliation despite empty receipts."},
+        AgentRunResult(summary="", model=evals.DEFAULT_JUDGE_MODEL, events=[]), 0,
+    ))
+    monkeypatch.setattr(evals, "run_judge", judge)
+    case = json.loads((evals.CASE_ROOT / "researcher_trader_evidence_handoff.json").read_text())
+    row = evals.execute_repetition(
+        case, repetition=1, fingerprint="test", judge_model=evals.DEFAULT_JUDGE_MODEL,
+        budget=SimpleNamespace(for_scope=lambda *_args, **_kwargs: None),
+    )
+    judge.assert_called_once()
+    assert row["status"] == "fail" and row["machine"]["pass"] is False
+    assert row["transcript"]["broker_orders"] == row["transcript"]["submissions"] == []
+    assert len(row["transcript"]["agent_runs"]) == 2
+    assert "judge_not_run" not in row
 
 
 def test_stock_fixture_supports_the_above_five_day_average_premise():

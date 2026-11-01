@@ -169,11 +169,11 @@ Missing authoritative usage retains the reservation. Reports distinguish
 subscription usage from API spend; zero API spend is not proof of the
 account's credit setting.
 
-When a typed retryable inference failure prevents an actor decision, the
-evaluation records an infrastructure error instead of asking the semantic
-judge to grade a decision that did not complete. Completed decisions and tool
-failures still receive their ordinary grading. Earlier attempts and unknown
-usage reservations remain in the ledger; live orders are not replayed.
+Only failures with verified no-mutation evidence are treated as retryable
+infrastructure errors. Deterministic checks still run and retain actual broker
+receipts. Failures after order actions or with unknown effects, completed
+decisions and tool failures keep their ordinary grading. Earlier attempts and
+unknown usage reservations remain in the ledger; live orders are not replayed.
 
 Private CI funding must have its own authorized registration, host identity,
 protected storage and serialized refresh owner. Public forks receive no

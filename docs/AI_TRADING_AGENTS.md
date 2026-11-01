@@ -8,7 +8,7 @@ The same `Strategy` class can be reused. Its startup code must select
 below only starts a backtest when run directly. See the
 [AI example run-mode inventory](https://lumibot.lumiwealth.com/strategy_run_modes.html).
 
-**Last Updated:** 2026-09-12
+**Last Updated:** 2026-11-01
 **Status:** Active
 **Audience:** Both
 
@@ -34,6 +34,10 @@ Related docs:
 - `docs/AI_TRADING_AGENT_COMPONENT_GUIDE.md` -- internal component guide
 - `docs/AI_TRADING_AGENT_CANONICAL_DEMOS.md` -- canonical demo strategies
 - Public docs: `https://lumibot.lumiwealth.com/agents.html`
+
+## Incomplete decisions after order actions
+
+A provider error can interrupt inference after an order action. Failed runs retain observed tool events and usage instead of claiming no trades occurred. The failed result payload exposes `broker_mutation_attempted` as `True`, `False`, or `None` when evidence is unavailable. Attempted mutations or unknown trading effects produce unknown broker certainty, a non-retryable outcome and operator attention. Reconcile actual orders and account state before further action. The existing runtime guard prevents replaying an entire attempt after a broker mutation; failure results are not cached.
 
 ---
 

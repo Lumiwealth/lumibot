@@ -48,7 +48,7 @@ ORDER_TOOLS = {"orders_submit_order", "orders_submit_orders", "orders_submit_mul
 LEDGER_LOCK = threading.Lock()
 EVAL_SDK_PACKAGES = (
     "google-adk", "google-genai", "litellm", "pandas-ta-classic", "pandas", "numpy", "alpaca-py",
-    "httpx", "openai", "PyJWT", "filelock", "pydantic",
+    "httpx", "openai", "PyJWT", "filelock", "pydantic", "massive",
 )
 
 

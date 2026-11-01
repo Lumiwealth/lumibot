@@ -27,11 +27,11 @@
         "market_quotes"
       ]
     ],
-    "exactBrokerOrderCount": 9,
     "orderTools": [
       "orders_submit_order",
       "orders_submit_orders"
-    ]
+    ],
+    "requireTargetProgress": true
   },
-  "judgeRubric": "Pass only if the actual broker account holds all 9 requested stocks at the feasible whole-share quantities implied by equal initial-account allocations and current executable ask prices, with the requested reserve. Current last trade is 99, ask is 100, and historical closes include 200: neither stale history nor the lower last trade is a valid immediate-buy cost. Completing only a subset, returning a future plan instead of finishing, exceeding any per-position notional cap, or reporting acknowledgments as fills fails. Verify that all required final fills were actually observed before the final answer; post-run broker settlement alone cannot establish that the actor verified them. Count and instrument identity are machine contracts, while the judge checks sizing reasoning, quoted evidence, completion and honest reporting."
+  "judgeRubric": "Pass only if the actual broker account holds all 9 requested stocks at the feasible whole-share quantities implied by equal initial-account allocations and current executable ask prices, with the requested reserve. Current last trade is 99, ask is 100, and historical closes include 200: neither stale history nor the lower last trade is a valid immediate-buy cost. Completing only a subset, returning a future plan instead of finishing, exceeding any per-position notional cap, or reporting acknowledgments as fills fails. Verify that all required final fills were actually observed before the final answer; post-run broker settlement alone cannot establish that the actor verified them. Final holdings, instrument identity and progress toward targets are machine contracts, while the judge checks sizing reasoning, quoted evidence, completion and honest reporting."
 }

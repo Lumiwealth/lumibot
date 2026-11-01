@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.6.41 - Unreleased
+
+### Added
+- AI agents can use native single and batch quotes, including exact option contracts, source timestamps and multipliers. Shared sizing guidance uses executable quote sides and a current-last-price fallback.
+- AI agents can submit explicit independent baskets through the existing `Strategy.submit_orders` method, retaining each explanation and broker result. Funding sells are verified before dependent buys; atomic option packages retain their separate workflow.
+- Release-gated portfolio checks cover complete large and small baskets, reductions/exits/additions, quote-based sizing, correct historical-row selection and supported holdings when one is unavailable. Native positions, fills, quantities and cash are checked alongside a real-model judge.
+
+### Fixed
+- Preserve complete numeric fields and instrument identities across wrapped source rows, standalone type markers, filtered inventory audits and distinct income columns.
+- Reconcile reported cash from confirmed fills while keeping current marked equity distinct from gross purchase cost.
+- Simulated stock market orders use the available intraday execution bar at the simulated time, including daily-cadence strategies. Daily-only sources and limit/stop behavior retain their existing paths; no minute-data download is forced.
+- Preserve separate Polygon daily-history and minute-execution datasets. Memory limits count each dataset once and evict all its aliases together.
+
 ## 4.6.39 - 2026-11-01
 
 Deploy marker: `9a7df5f32220c56524446efe62f276f200e4364e`.

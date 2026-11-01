@@ -2043,6 +2043,9 @@ def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> Bound
     return BoundTool(
         name="options_calculate_multileg_price",
         description=(
+            "For an opening package, first finish both options_get_greeks and options_evaluate_market for EACH "
+            "final contract, including protective buy wings. Short-strike candidate checks do not verify the wings. "
+            "This pricing preview does not perform those Greek checks for you. "
             "Calculate a provider-generic net limit price for two or more exact option legs without submitting them. "
             "Arguments: legs_json, optional price_style='best', 'mid', or 'fastest', and optional action. legs_json must be a JSON array; every leg requires symbol, expiration, strike, right, quantity, and side, except in close mode. "
             "To close held option contracts, always pass action='close': each leg then needs only symbol, expiration, strike, and right plus an optional quantity (default: the full held quantity). LumiBot derives every closing side from the current signed position, so never write closing sides yourself. "
@@ -2471,7 +2474,7 @@ def _bind_duckdb_query(strategy: Any, manager: Any) -> BoundTool:
         name="duckdb_query",
         description=(
             "Run a read-only SQL query against tables previously loaded into DuckDB. "
-            "Arguments: sql, optional limit. "
+            "Arguments: sql, optional limit. Aware timestamp results use UTC; source text and naive market wall clocks retain their values. "
             "Load a table first with market_load_history_table, then analyze it here. "
             "For LumiBot price tables, prefer datetime for timestamps and close for prices unless the loaded sample rows show different column names. "
             "Caveat: only read-only SQL is allowed. "
@@ -2761,6 +2764,10 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
     return BoundTool(
         name="read_document",
         description=(
+            "Before each linked read in a backtest, compare that exact row's first-public/version instant "
+            "with the simulated UTC cutoff. A diagnostic query may include excluded rows: they are not read "
+            "candidates. Omit known post-cutoff URLs entirely, including from parallel calls; do not call this "
+            "tool to test their refusal. Live reads and undated-source approximations remain supported. "
             "Read any file or web page at a URL: PDF, Word, Excel, CSV, tab-separated text, ZIP (every file "
             "inside), HTML (text plus the links on the page), JSON, or plain text. Arguments: url, optional "
             "find (keep only the lines and links that contain this text), start and max_chars (at most 2500) "

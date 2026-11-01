@@ -98,6 +98,8 @@ def _tool_error_payload(tool_name: str, args: dict[str, Any], exc: Exception) ->
     if isinstance(exc, RemoteMCPToolError):
         payload["isError"] = True
         payload["error"]["code"] = exc.code
+        if getattr(exc, "applied_arguments", None):
+            payload["applied_arguments"] = _json_safe_value(exc.applied_arguments)
     return payload
 
 

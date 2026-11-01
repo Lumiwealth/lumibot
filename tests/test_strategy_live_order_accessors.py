@@ -373,36 +373,67 @@ def test_tracker_transition_is_atomic_for_concurrent_identifier_lookup(monkeypat
     broker._unprocessed_orders.append(submitted)
     broker._new_orders.append(callback_copy)
 
-    append_entered = Event()
-    allow_append = Event()
+    from threading import current_thread
+
+    append_entered, allow_append, lookup_attempted = Event(), Event(), Event()
     original_append = broker._filled_orders.append
+    original_lock = broker._lock
+    blocked, observed, errors = [], [], []
+
+    class ObservedLock:
+        def __enter__(self):
+            if current_thread().name == "atomic-order-lookup":
+                acquired = original_lock.acquire(blocking=False)
+                if acquired:
+                    original_lock.release()
+                blocked.append(not acquired)
+                lookup_attempted.set()
+            original_lock.acquire()
+            return self
+
+        def __exit__(self, *_exc):
+            original_lock.release()
 
     def paused_append(order):
         append_entered.set()
-        assert allow_append.wait(timeout=2)
+        allow_append.wait()
         original_append(order)
 
-    monkeypatch.setattr(broker._filled_orders, "append", paused_append)
-    cleanup = Thread(target=broker._clean_order_trackers, args=(authoritative,))
-    cleanup.start()
-    assert append_entered.wait(timeout=2)
-
-    observed = []
-    lookup_done = Event()
+    def clean():
+        try:
+            broker._clean_order_trackers(authoritative)
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            append_entered.set()
 
     def lookup():
-        observed.append(broker.get_tracked_order("atomic-1"))
-        lookup_done.set()
+        try:
+            observed.append(broker.get_tracked_order("atomic-1"))
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            # Also release the main thread if a broken lookup bypasses the lock.
+            lookup_attempted.set()
 
-    reader = Thread(target=lookup)
+    monkeypatch.setattr(broker, "_lock", ObservedLock())
+    monkeypatch.setattr(broker._filled_orders, "append", paused_append)
+    cleanup = Thread(target=clean)
+    reader = Thread(target=lookup, name="atomic-order-lookup")
+    cleanup.start()
+    append_entered.wait()
     reader.start()
-    assert lookup_done.wait(timeout=0.05) is False
-    allow_append.set()
-    cleanup.join(timeout=2)
-    reader.join(timeout=2)
+    try:
+        lookup_attempted.wait()
+        # A real nonblocking acquisition observes contention, independent of
+        # scheduling speed or a negative wait with an arbitrary deadline.
+        assert blocked == [True]
+    finally:
+        allow_append.set()
+        cleanup.join()
+        reader.join()
 
-    assert cleanup.is_alive() is False
-    assert reader.is_alive() is False
+    assert errors == []
     assert observed == [submitted]
     assert submitted.status == Order.OrderStatus.FILLED
 
@@ -537,3 +568,75 @@ def test_get_cash_and_portfolio_value_return_none_without_overwriting_cached_val
     assert strategy.get_portfolio_value() is None
     assert strategy.cash == 5000.0
     assert strategy.portfolio_value == 5100.0
+
+
+@pytest.mark.parametrize("status,filled", [("partial_fill", 2), ("canceled", 2), ("fill", 10)])
+def test_executor_startup_uses_broker_cumulative_fills_without_recharging_cash(status, filled):
+    strategy, broker = _strategy()
+    broker._first_iteration = True
+    quote = Asset("USD", asset_type="forex")
+    asset = Asset("SYN", asset_type="crypto")
+    observed = Order(strategy.name, asset, 10, "buy", identifier="startup", quote=quote, avg_fill_price=100)
+    observed.status = status
+    observed.filled_quantity = filled
+    broker.broker_orders = [observed]
+    broker.broker_positions = [Position(strategy.name, asset, filled)]
+    broker.broker_balances = (2000 - filled * 100, {}, 2000)
+    strategy._executor.sync_broker()
+    tracked = broker.get_tracked_order("startup")
+    assert sum(t.quantity for t in tracked.transactions) == filled
+    assert strategy.cash == 2000 - filled * 100
+    assert tracked.status == observed.status
+
+
+def test_tracker_concurrency_checks_have_no_elapsed_acceptance_deadlines():
+    import ast
+    from pathlib import Path
+    for node in ast.walk(ast.parse(Path(__file__).read_text())):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in {"wait", "join"}:
+            deadlines = list(node.args) + [kw.value for kw in node.keywords if kw.arg == "timeout"]
+            assert all(isinstance(value, ast.Constant) and value.value is None for value in deadlines), (
+                "Tracker concurrency proof must use deterministic events and actual completion, not elapsed deadlines"
+            )
+
+
+@pytest.mark.parametrize("operation", ["sync_positions", "sync_orders"])
+def test_failed_executor_sync_releases_and_drains_held_notifications(monkeypatch, operation):
+    strategy, broker = _strategy()
+    order = _order(strategy.name, "held-cancel", Order.OrderStatus.OPEN)
+    broker._new_orders.append(order)
+
+    def failed_read(*_args):
+        broker._process_trade_event(order, broker.CANCELED_ORDER)
+        assert broker._hold_trade_events is True
+        raise ValueError("invalid broker observation")
+
+    monkeypatch.setattr(broker, operation, failed_read)
+    with pytest.raises(ValueError, match="invalid broker observation"):
+        strategy._executor.sync_broker()
+    assert broker._hold_trade_events is False
+    assert broker._held_trades == []
+    assert order.is_canceled()
+
+
+@pytest.mark.parametrize("direct_lookup", [False, True])
+def test_bulk_order_sync_reconciles_healthy_siblings_before_reporting_incomplete_read(direct_lookup):
+    strategy, broker = _strategy()
+    bad = _order(strategy.name, "invalid-cumulative", Order.OrderStatus.OPEN)
+    good = _order(strategy.name, "valid-fill", Order.OrderStatus.OPEN)
+    broker._new_orders.extend([bad, good])
+    bad_observed = _order(strategy.name, bad.identifier, Order.OrderStatus.PARTIALLY_FILLED)
+    bad_observed.filled_quantity = 2  # _order requests one unit.
+    bad_observed.avg_fill_price = 100
+    good_observed = _order(strategy.name, good.identifier, Order.OrderStatus.FILLED)
+    good_observed.filled_quantity = good.quantity
+    good_observed.avg_fill_price = 100
+    if direct_lookup:
+        broker.direct_orders = {bad.identifier: bad_observed, good.identifier: good_observed}
+    else:
+        broker.broker_orders = [bad_observed, good_observed]
+    with pytest.raises(ValueError):
+        broker.sync_orders(strategy)
+    assert good.is_filled()
+    assert sum(t.quantity for t in good.transactions) == good.quantity
+    assert bad.transactions == []

@@ -19,10 +19,10 @@ class AIIronCondorStrategy(Strategy):
             reasoning_effort="high", system_prompt=(
                 "Research the requested short iron condor opportunity at the strategy's current time. "
                 "Use available dated volatility, trend and event evidence; obtain the previous completed "
-                "VIX close where available. Explain suitability and contrary evidence. Compare a small "
-                "useful set of at most three listed next-trading-day packages near 0.14 absolute short delta with "
-                "one-dollar protective wings. Distinguish observed quotes from estimates. Return a "
-                "compact dated evidence packet and limitations. Do not trade."
+                "VIX close where available. Explain suitability, contrary evidence and relevant events. "
+                "Return a compact dated market/thesis packet and limitations. Leave account checks, "
+                "contract selection, exact-leg quotes/Greeks and package pricing to the trader; do not "
+                "duplicate that execution checklist. Do not trade."
             ),
         )
         self.agents.create(
@@ -36,9 +36,12 @@ class AIIronCondorStrategy(Strategy):
                 "Use a listed next-trading-day expiration, short put/call near 0.14 absolute delta and "
                 "one-dollar outer protective wings. Maximum package loss must fit 3% of current account value; "
                 "you choose the integer package count. Submit related legs atomically with a net limit. "
-                "Obtain exact-leg quotes and Greeks. In an explicitly authorized minute-bar historical "
-                "simulation, missing historical bid/ask may use a disclosed trade-bar price proxy; "
-                "never invent quotes or claim that proxy proves executable liquidity. Live trading needs actual quotes. "
+                "Compare at most three useful packages and obtain exact-leg quotes and Greeks. "
+                "Minute-bar backtests permit the data source's usable last-trade price proxy when "
+                "historical bid/ask is unavailable. Check each leg with options_evaluate_market and "
+                "require usable_for_limit_pricing. Missing historical bid/ask alone is not an unmet "
+                "permission. Disclose the approximation; never invent quotes or claim executable "
+                "liquidity. Live trading needs actual quotes. "
                 "For a held package save underlying attention boundaries at 40% of the distance from the "
                 "short-strike midpoint toward either short strike. A breach requires your close decision. "
                 "Close all residual legs atomically no later than 30 minutes before the expiration session ends. "

@@ -1502,25 +1502,30 @@ class Broker(ABC):
         changed = False
         orders_lumi = self.get_all_orders()
 
+        observation_errors = []
         for order in orders_broker:
-            matches = [ord_lumi for ord_lumi in orders_lumi if ord_lumi.identifier == order.identifier]
-            if len(matches) > 1:
-                logger.warning(
-                    f"Multiple orders found in lumibot with the same identifier {order.identifier}. "
-                    f"This should not happen and indicates a bug in the order tracking. Orders: {matches}"
-                )
-                order_lumi = self._clean_order_trackers(matches[0])
-            else:
-                order_lumi = matches[0] if len(matches) > 0 else None
+            try:
+                matches = [ord_lumi for ord_lumi in orders_lumi if ord_lumi.identifier == order.identifier]
+                if len(matches) > 1:
+                    logger.warning(
+                        f"Multiple orders found in lumibot with the same identifier {order.identifier}. "
+                        f"This should not happen and indicates a bug in the order tracking. Orders: {matches}"
+                    )
+                    order_lumi = self._clean_order_trackers(matches[0])
+                else:
+                    order_lumi = matches[0] if len(matches) > 0 else None
 
-            if order_lumi:
-                # Both broad history and direct lookup must use the adapter's
-                # lifecycle owner. Copying status here first can suppress fills,
-                # rejection details and callbacks in adapters with a reducer.
-                changed = self._apply_direct_order_observation(order_lumi, order) or changed
-            elif self._first_iteration or order.is_active():
-                self._process_broker_synced_order(order)
-                changed = True
+                if order_lumi:
+                    # Both broad history and direct lookup must use the adapter's
+                    # lifecycle owner. Copying status here first can suppress fills,
+                    # rejection details and callbacks in adapters with a reducer.
+                    changed = self._apply_direct_order_observation(order_lumi, order) or changed
+                elif self._first_iteration or order.is_active():
+                    self._process_broker_synced_order(order)
+                    changed = True
+            except (ValueError, ArithmeticError) as exc:
+                observation_errors.append(exc)
+                logger.error("Could not reconcile broker order %s (%s)", order.identifier, type(exc).__name__)
 
         broker_identifiers = self._get_all_order_identifiers(orders_broker)
         for order_lumi in orders_lumi:
@@ -1544,21 +1549,29 @@ class Broker(ABC):
                         )
                         continue
 
-                changed = (
-                    self._refresh_missing_active_order_from_broker(
-                        order_lumi,
-                        strategy_name,
-                        strategy_object=strategy,
-                        broker_order_count=len(orders_broker),
-                        terminalize_missing=(
-                            order_lumi.order_type and order_lumi.order_type == Order.OrderType.MARKET
-                        ),
+                try:
+                    changed = (
+                        self._refresh_missing_active_order_from_broker(
+                            order_lumi,
+                            strategy_name,
+                            strategy_object=strategy,
+                            broker_order_count=len(orders_broker),
+                            terminalize_missing=(
+                                order_lumi.order_type and order_lumi.order_type == Order.OrderType.MARKET
+                            ),
+                        )
+                        or changed
                     )
-                    or changed
-                )
+                except (ValueError, ArithmeticError) as exc:
+                    observation_errors.append(exc)
+                    logger.error("Could not reconcile broker order %s (%s)", order_lumi.identifier, type(exc).__name__)
 
         if changed:
             self._invalidate_order_caches()
+        if observation_errors:
+            raise ValueError(
+                f"Broker order synchronization is incomplete: {len(observation_errors)} observations failed reconciliation"
+            ) from observation_errors[0]
 
     def refresh_orders(self, strategy, ttl_seconds: float = 0.0):
         """Refresh live broker orders with a short throttle."""

@@ -1,9 +1,43 @@
 """Native inference keeps its original source; unrelated provider edits may reuse it."""
+import ast
 import json
 
 import pytest
 
 from scripts import agent_eval_source_compatibility as scope
+
+
+LIVE_METHODS = [
+    ('lumibot/brokers/broker.py', 'Broker', 'sync_orders', 'self.IS_BACKTESTING_BROKER'),
+    ('lumibot/strategies/strategy_executor.py', 'StrategyExecutor', 'sync_broker', 'self.broker.IS_BACKTESTING_BROKER'),
+    ('lumibot/brokers/alpaca.py', 'Alpaca', 'do_polling', None),
+]
+
+
+@pytest.mark.parametrize('path,owner,method,guard', LIVE_METHODS)
+def test_unused_live_method_body_changes_preserve_native_inference(path, owner, method, guard):
+    source = (scope.ROOT / path).read_bytes()
+    cls = next(n for n in ast.parse(source).body if isinstance(n, ast.ClassDef) and n.name == owner)
+    fn = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == method)
+    lines = source.splitlines(keepends=True)
+    lines.insert(fn.end_lineno, b'        pass  # native live-path regression proof\n')
+    scope.check_change(path, source, b''.join(lines))
+
+
+@pytest.mark.parametrize('path,owner,method,guard', LIVE_METHODS)
+def test_live_body_scope_preserves_every_other_byte_and_signature(path, owner, method, guard):
+    source = (scope.ROOT / path).read_bytes()
+    for modified in [source + b'\nraise RuntimeError("shared change")\n',
+                     source.replace(('def ' + method + '(').encode(), ('def changed_' + method + '(').encode(), 1),
+                     b'import unqualified_dependency\n' + source]:
+        with pytest.raises(ValueError, match='affects model qualification'):
+            scope.check_change(path, source, modified)
+    if guard:
+        for replacement in ('not ' + guard, 'True'):
+            modified = source.replace(('if ' + guard + ':').encode(), ('if ' + replacement + ':').encode(), 1)
+            assert modified != source
+            with pytest.raises(ValueError, match='affects model qualification'):
+                scope.check_change(path, source, modified)
 
 
 def test_scope_rejects_an_agent_or_fixture_change():

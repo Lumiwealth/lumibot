@@ -170,3 +170,37 @@ def test_polling_reconciles_same_status_partial_then_cancel(lookup_only):
     assert [call.args[0] for call in subscriber.add_event.call_args_list] == [
         broker.PARTIALLY_FILLED_ORDER, broker.PARTIALLY_FILLED_ORDER, broker.CANCELED_ORDER,
     ]
+
+
+def test_polling_isolates_invalid_observation_and_still_verifies_missing_order():
+    template = ProviderOrder(
+        id=UUID(int=11), client_order_id="isolated-order", asset_id=UUID(int=12),
+        updated_at=datetime(2027, 1, 4, tzinfo=timezone.utc),
+        created_at=datetime(2027, 1, 4, tzinfo=timezone.utc), symbol="SPY",
+        submitted_at=datetime(2027, 1, 4, tzinfo=timezone.utc),
+        asset_class="us_equity", qty="1", filled_qty="0", filled_avg_price=None,
+        order_class="simple", type="limit", limit_price="100", side="buy", time_in_force="day",
+        status="new", extended_hours=False,
+    )
+    invalid = template.model_copy(update={"filled_qty": "2", "filled_avg_price": "100", "status": "partially_filled"})
+    filled = template.model_copy(update={"id": UUID(int=13), "filled_qty": "1", "filled_avg_price": "100", "status": "filled"})
+    missing = template.model_copy(update={"id": UUID(int=14), "status": "canceled"})
+    client = MagicMock(spec=TradingClient)
+    client.get_orders.return_value = [invalid, filled]
+    client.get_order_by_id.return_value = missing
+    client.get_all_positions.return_value = []
+    broker = Alpaca({"PAPER": True}, trading_client=client,
+                    data_source=AlpacaData({"OAUTH_TOKEN": "synthetic-provider-token"}),
+                    connect_stream=False, start_orders_thread=False)
+    tracked = []
+    for response in [template, filled.model_copy(update={"status": "new", "filled_qty": "0"}),
+                     missing.model_copy(update={"status": "new"})]:
+        order = broker._parse_broker_order(response, "neutral")
+        broker._process_new_order(order)
+        tracked.append(order)
+    broker.do_polling()
+    assert tracked[0].transactions == []
+    assert tracked[1].is_filled()
+    assert sum(t.quantity for t in tracked[1].transactions) == 1
+    assert tracked[2].is_canceled()
+    client.get_order_by_id.assert_called_once_with(str(missing.id))

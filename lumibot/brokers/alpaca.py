@@ -1835,24 +1835,30 @@ class Alpaca(Broker):
             logger.debug(f"OAuth Polling: Found {len(raw_orders)} raw orders from Alpaca, {len(stored_orders)} stored orders in Lumibot")
 
             for alpaca_order in raw_orders:
-                # Use strategy name if available, otherwise use a default
-                strategy_name = strategy.name if strategy else "default"
-                order = self._parse_broker_order(alpaca_order, strategy_name=strategy_name)
+                try:
+                    # Use strategy name if available, otherwise use a default
+                    strategy_name = strategy.name if strategy else "default"
+                    order = self._parse_broker_order(alpaca_order, strategy_name=strategy_name)
 
-                # Skip if parsing returned None (invalid order data)
-                if order is None:
-                    logger.warning(f"OAuth Polling: Skipping invalid order from Alpaca - _parse_broker_order returned None")
-                    continue
+                    # Skip if parsing returned None (invalid order data)
+                    if order is None:
+                        logger.warning(f"OAuth Polling: Skipping invalid order from Alpaca - _parse_broker_order returned None")
+                        continue
 
-                logger.debug(f"OAuth Polling: Processing Alpaca order {order.identifier} with status {order.status}")
+                    logger.debug(f"OAuth Polling: Processing Alpaca order {order.identifier} with status {order.status}")
 
-                # Check if this order exists in our stored orders
-                if str(order.identifier) in stored_orders:
-                    stored_order = stored_orders[str(order.identifier)]
+                    # Check if this order exists in our stored orders
+                    if str(order.identifier) in stored_orders:
+                        stored_order = stored_orders[str(order.identifier)]
 
-                    # Quantity can advance while the status remains partial,
-                    # including an execution reported with a cancellation.
-                    self._apply_direct_order_observation(stored_order, order)
+                        # Quantity can advance while the status remains partial,
+                        # including an execution reported with a cancellation.
+                        self._apply_direct_order_observation(stored_order, order)
+                except (ValueError, ArithmeticError) as exc:
+                    logger.error(
+                        "OAuth Polling: Could not reconcile order %s (%s)",
+                        getattr(alpaca_order, "id", "unknown"), type(exc).__name__,
+                    )
 
             # Check for orders that are no longer in the broker's list
             tracked_orders = {str(x.identifier): x for x in self.get_tracked_orders()}

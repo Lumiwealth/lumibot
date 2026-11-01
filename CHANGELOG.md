@@ -3,6 +3,7 @@
 ## 4.6.36 - 2026-11-01
 
 ### Fixed
+- Isolate invalid cumulative order observations so healthy sibling orders and missing-order lookups still reconcile; report incomplete reads and always release held lifecycle notifications after failed synchronization.
 - Preserve runtime-applied temporal bounds in public failed-tool evidence without exposing private provider diagnostics.
 - Route executor restoration through the shared broker lifecycle owner; retain cumulative executions and replacement metadata on warm reads and same-status Alpaca partial/cancel polling without replaying startup cash. Delayed working observations cannot reopen terminal orders; newly confirmed executions remain recorded and complete fills win cancellation races.
 - Verify each evidence-packet date window against its own request, including failed requests.

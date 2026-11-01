@@ -598,3 +598,45 @@ def test_tracker_concurrency_checks_have_no_elapsed_acceptance_deadlines():
             assert all(isinstance(value, ast.Constant) and value.value is None for value in deadlines), (
                 "Tracker concurrency proof must use deterministic events and actual completion, not elapsed deadlines"
             )
+
+
+@pytest.mark.parametrize("operation", ["sync_positions", "sync_orders"])
+def test_failed_executor_sync_releases_and_drains_held_notifications(monkeypatch, operation):
+    strategy, broker = _strategy()
+    order = _order(strategy.name, "held-cancel", Order.OrderStatus.OPEN)
+    broker._new_orders.append(order)
+
+    def failed_read(*_args):
+        broker._process_trade_event(order, broker.CANCELED_ORDER)
+        assert broker._hold_trade_events is True
+        raise ValueError("invalid broker observation")
+
+    monkeypatch.setattr(broker, operation, failed_read)
+    with pytest.raises(ValueError, match="invalid broker observation"):
+        strategy._executor.sync_broker()
+    assert broker._hold_trade_events is False
+    assert broker._held_trades == []
+    assert order.is_canceled()
+
+
+@pytest.mark.parametrize("direct_lookup", [False, True])
+def test_bulk_order_sync_reconciles_healthy_siblings_before_reporting_incomplete_read(direct_lookup):
+    strategy, broker = _strategy()
+    bad = _order(strategy.name, "invalid-cumulative", Order.OrderStatus.OPEN)
+    good = _order(strategy.name, "valid-fill", Order.OrderStatus.OPEN)
+    broker._new_orders.extend([bad, good])
+    bad_observed = _order(strategy.name, bad.identifier, Order.OrderStatus.PARTIALLY_FILLED)
+    bad_observed.filled_quantity = 2  # _order requests one unit.
+    bad_observed.avg_fill_price = 100
+    good_observed = _order(strategy.name, good.identifier, Order.OrderStatus.FILLED)
+    good_observed.filled_quantity = good.quantity
+    good_observed.avg_fill_price = 100
+    if direct_lookup:
+        broker.direct_orders = {bad.identifier: bad_observed, good.identifier: good_observed}
+    else:
+        broker.broker_orders = [bad_observed, good_observed]
+    with pytest.raises(ValueError):
+        broker.sync_orders(strategy)
+    assert good.is_filled()
+    assert sum(t.quantity for t in good.transactions) == good.quantity
+    assert bad.transactions == []

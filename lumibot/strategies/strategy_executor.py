@@ -641,82 +641,83 @@ class StrategyExecutor(Thread):
         # Trapped at the broker._process_trade_event method
         self.broker._hold_trade_events = True
 
-        # Get the snapshot.
-        # If the _held_trades list is not empty, process these and then snapshot again
-        # ensuring that the lumibot broker and the real broker should match.
-        held_trades_len = 1
-        cash_broker_max_retries = 3
-        cash_broker_retries = 0
-        orders_broker = []
-        positions_broker = []
-        while held_trades_len > 0:
-            # Snapshot for the broker and lumibot:
-            self.strategy
-            try:
-                broker_balances = self.broker._get_balances_at_broker(self.strategy.quote_asset, self.strategy)
-            except Exception as balance_exc:
-                # Gracefully handle rate-limit style failures by falling back to cached values when available
-                status_code = getattr(balance_exc, "status_code", None)
-                message = str(balance_exc)
-                cached_balances = getattr(self.broker, "_cached_balances", None)
+        try:
+            # Get the snapshot.
+            # If the _held_trades list is not empty, process these and then snapshot again
+            # ensuring that the lumibot broker and the real broker should match.
+            held_trades_len = 1
+            cash_broker_max_retries = 3
+            cash_broker_retries = 0
+            orders_broker = []
+            positions_broker = []
+            while held_trades_len > 0:
+                # Snapshot for the broker and lumibot:
+                self.strategy
+                try:
+                    broker_balances = self.broker._get_balances_at_broker(self.strategy.quote_asset, self.strategy)
+                except Exception as balance_exc:
+                    # Gracefully handle rate-limit style failures by falling back to cached values when available
+                    status_code = getattr(balance_exc, "status_code", None)
+                    message = str(balance_exc)
+                    cached_balances = getattr(self.broker, "_cached_balances", None)
 
-                if status_code == 429 or "rate limit" in message.lower():
-                    if cached_balances is not None:
-                        self.strategy.logger.warning(
-                            "Broker balance refresh hit rate limit; using cached values and continuing"
-                        )
-                        broker_balances = cached_balances
+                    if status_code == 429 or "rate limit" in message.lower():
+                        if cached_balances is not None:
+                            self.strategy.logger.warning(
+                                "Broker balance refresh hit rate limit; using cached values and continuing"
+                            )
+                            broker_balances = cached_balances
+                        else:
+                            self.strategy.logger.warning(
+                                "Broker balance refresh hit rate limit and no cached value is available; retrying"
+                            )
+                            broker_balances = None
                     else:
+                        # Unexpected failure follows legacy retry path
                         self.strategy.logger.warning(
-                            "Broker balance refresh hit rate limit and no cached value is available; retrying"
+                            f"Broker balance refresh failed with {balance_exc}; retrying"
                         )
                         broker_balances = None
+
+                if broker_balances is None:
+                    if cash_broker_retries < cash_broker_max_retries:
+                        self.strategy.logger.info("Unable to get cash from broker, trying again.")
+                        cash_broker_retries += 1
+                        continue
+                    else:
+                        self.strategy.logger.info(
+                            f"Unable to get the cash balance after {cash_broker_max_retries} "
+                            f"tries; leaving last known cash and portfolio values unchanged."
+                        )
+                        break
                 else:
-                    # Unexpected failure follows legacy retry path
-                    self.strategy.logger.warning(
-                        f"Broker balance refresh failed with {balance_exc}; retrying"
-                    )
-                    broker_balances = None
-
-            if broker_balances is None:
-                if cash_broker_retries < cash_broker_max_retries:
-                    self.strategy.logger.info("Unable to get cash from broker, trying again.")
-                    cash_broker_retries += 1
-                    continue
-                else:
-                    self.strategy.logger.info(
-                        f"Unable to get the cash balance after {cash_broker_max_retries} "
-                        f"tries; leaving last known cash and portfolio values unchanged."
-                    )
-                    break
-            else:
-                cash_balance = broker_balances[0]
-                portfolio_value = broker_balances[2]
-                self.strategy._set_cash_position(cash_balance)
-                self.strategy.portfolio_value = portfolio_value
-                self.strategy.logger.debug(f"Got Cash Balance: ${cash_balance:.2f}, Portfolio: ${portfolio_value:.2f}")
+                    cash_balance = broker_balances[0]
+                    portfolio_value = broker_balances[2]
+                    self.strategy._set_cash_position(cash_balance)
+                    self.strategy.portfolio_value = portfolio_value
+                    self.strategy.logger.debug(f"Got Cash Balance: ${cash_balance:.2f}, Portfolio: ${portfolio_value:.2f}")
 
 
-            held_trades_len = len(self.broker._held_trades)
-            if held_trades_len > 0:
-                self.broker._hold_trade_events = False
-                self.broker.process_held_trades()
-                self.broker._hold_trade_events = True
+                held_trades_len = len(self.broker._held_trades)
+                if held_trades_len > 0:
+                    self.broker._hold_trade_events = False
+                    self.broker.process_held_trades()
+                    self.broker._hold_trade_events = True
 
-        # POSITIONS
-        # Update Lumibot positions to match broker positions.
-        # Any new trade notifications will not affect the sync as they
-        # are being held pending the completion of the sync.
-        self.broker.sync_positions(self.strategy)
+            # POSITIONS
+            # Update Lumibot positions to match broker positions.
+            # Any new trade notifications will not affect the sync as they
+            # are being held pending the completion of the sync.
+            self.broker.sync_positions(self.strategy)
 
-        # Use the broker's normalization/reconciliation owner. The former
-        # duplicate executor path restored an order's requested quantity as its
-        # executed quantity and charged cash already included in the snapshot.
-        self.broker.sync_orders(self.strategy)
-
-        self.broker._invalidate_order_caches()
-        self.broker._hold_trade_events = False
-        self.broker.process_held_trades()
+            # Use the broker's normalization/reconciliation owner. The former
+            # duplicate executor path restored an order's requested quantity as its
+            # executed quantity and charged cash already included in the snapshot.
+            self.broker.sync_orders(self.strategy)
+        finally:
+            self.broker._invalidate_order_caches()
+            self.broker._hold_trade_events = False
+            self.broker.process_held_trades()
 
     @staticmethod
     def _index_orders_by_identifier(orders: list[Order]) -> dict:

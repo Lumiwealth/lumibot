@@ -151,7 +151,16 @@ class MetaMaskClient:
 
     def orders(self):
         rows = self.journal.operations(self.config["AGENT_ID"])
-        return [self.get_order(str(row["id"])) for row in rows]
+        observations, results = None, []
+        for row in rows:
+            operation_id = str(row["id"])
+            if row["request"].get("kind") == "swap":
+                results.append(self.evm.order(operation_id))
+            else:
+                if observations is None:
+                    observations = {str(item["id"]): item for item in self.engine.orders()}
+                results.append(observations[operation_id])
+        return results
 
     def get_order(self, operation_id):
         row = self.journal.get(self.config["AGENT_ID"], operation_id)

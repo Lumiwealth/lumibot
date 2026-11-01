@@ -693,7 +693,9 @@ class ExecutionEngine:
             self._execution.release()
 
     def orders(self) -> list[dict[str, object]]:
-        operations = self.journal.operations(self.agent_id)
+        # Swaps share the journal but belong exclusively to EVM reconciliation.
+        # Other legacy request shapes retain their existing single-order dispatch.
+        operations = [row for row in self.journal.operations(self.agent_id) if row["request"].get("kind") != "swap"]
         existing = {}
         for row in operations:
             venue_id = row.get("providerOrderId")

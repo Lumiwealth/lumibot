@@ -8,6 +8,8 @@
 - Release-gated portfolio checks cover complete large and small baskets, reductions/exits/additions, quote-based sizing, correct historical-row selection and supported holdings when one is unavailable. Native positions, fills, quantities and cash are checked alongside a real-model judge.
 
 ### Fixed
+- Value CCXT wallets and settlement PnL through available exchange cross rates when the reporting currency has no direct pair. Prefer spot routes, keep contract reference prices distinct from option premiums, and retain direct/inverse conversion behavior.
+- Preserve decimal units across fractional position creation, synchronization and fills, so matched closing quantities leave no artificial residual while genuine tiny positions remain intact.
 - Preserve complete numeric fields and instrument identities across wrapped source rows, standalone type markers, filtered inventory audits and distinct income columns.
 - Reconcile reported cash from confirmed fills while keeping current marked equity distinct from gross purchase cost.
 - Simulated stock market orders use the available intraday execution bar at the simulated time, including daily-cadence strategies. Daily-only sources and limit/stop behavior retain their existing paths; no minute-data download is forced.

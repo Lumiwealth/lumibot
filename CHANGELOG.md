@@ -3,6 +3,8 @@
 ## 4.6.39 - 2026-11-01
 
 ### Fixed
+- Keep clean agent installations on the compatible LiteLLM 1.105 and MCP 1 SDK generations; LiteLLM 1.106 requires MCP 2 catalog types on its Responses path.
+- Exercise usable, explicitly unqualified historical research in recorded agent tests while retaining known-future exclusions and visible provider failures.
 - Alpaca daily stock and option valuations use the session open until the actual close is available, including shortened sessions and premarket lookbacks. Daily crypto close availability remains aligned with its completed bar.
 - Alpaca daily benchmarks cover the requested first-open through final-close window, retain dividends, and use the benchmark asset's calendar. Stock benchmarks omit synthetic weekend rows even when the strategy trades continuously.
 - Preserve source-compatible native agent qualifications for the exact provider-only changes; changes to shared trading or research behavior still require fresh qualification.

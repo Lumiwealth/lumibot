@@ -44,6 +44,11 @@ claiming it was published. A visible authorization error means it was not publis
    its successful response. For a failed query, label its actual arguments as
    requested, not applied. Never borrow another dataset's dates or collapse
    different windows into a shared period. Missing metadata stays unknown.
+   Only report a provider retrieval/capture timestamp when that successful
+   response returns it. If it is absent, say retrieval time was not returned.
+   The runtime clock can be labeled separately as the runtime clock; it is
+   neither a returned provider retrieval time nor an applied `asOf` ceiling.
+   Continue using the permitted evidence with that limitation.
    A provider name alone is not a dataset id; retain the id for stale or failed
    evidence too. Calendar filtering is not proof of historical availability.
    If a permitted live retry succeeds after a bounded failure, use the successful

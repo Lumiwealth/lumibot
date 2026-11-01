@@ -2043,6 +2043,9 @@ def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> Bound
     return BoundTool(
         name="options_calculate_multileg_price",
         description=(
+            "For an opening package, first finish both options_get_greeks and options_evaluate_market for EACH "
+            "final contract, including protective buy wings. Short-strike candidate checks do not verify the wings. "
+            "This pricing preview does not perform those Greek checks for you. "
             "Calculate a provider-generic net limit price for two or more exact option legs without submitting them. "
             "Arguments: legs_json, optional price_style='best', 'mid', or 'fastest', and optional action. legs_json must be a JSON array; every leg requires symbol, expiration, strike, right, quantity, and side, except in close mode. "
             "To close held option contracts, always pass action='close': each leg then needs only symbol, expiration, strike, and right plus an optional quantity (default: the full held quantity). LumiBot derives every closing side from the current signed position, so never write closing sides yourself. "

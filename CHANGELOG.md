@@ -2,6 +2,10 @@
 
 ## 4.6.37 - Unreleased
 
+### Fixed
+- Reconcile multi-leg package orders using finite signed net prices while preserving positive individual execution prices. Package containers retain cumulative callbacks without creating fictitious positions or charging cash independently of their legs.
+- Read and normalize nested Alpaca option legs with complete contract metadata and parent links. Repeated and warm order synchronization retains each leg's execution receipt and enriches legacy package identities without replaying historical cash.
+
 ## 4.6.36 - 2026-11-01
 
 ### Fixed

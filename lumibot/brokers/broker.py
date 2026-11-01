@@ -1151,15 +1151,26 @@ class Broker(ABC):
         self._active_tracked_orders_filter_cache.clear()
 
     @staticmethod
-    def _get_all_order_identifiers(orders_broker: list[Order]) -> set:
-        broker_identifiers = set()
-        for order in orders_broker:
-            if order is None:
+    def _iter_order_tree(orders):
+        """Walk normalized package/contingent legs without losing nested executions."""
+        pending = list(reversed(orders))
+        seen = set()
+        while pending:
+            order = pending.pop()
+            if order is None or id(order) in seen:
                 continue
-            broker_identifiers.add(order.identifier)
-            for child_order in order.child_orders:
-                broker_identifiers.add(child_order.identifier)
-        return broker_identifiers
+            seen.add(id(order))
+            yield order
+            pending.extend(reversed(getattr(order, "child_orders", []) or []))
+
+    @staticmethod
+    def _get_all_order_identifiers(orders_broker: list[Order]) -> set:
+        return {order.identifier for order in Broker._iter_order_tree(orders_broker)}
+
+    @staticmethod
+    def _valid_fill_price(order, price):
+        # A package price is a signed net debit/credit, not a leg execution.
+        return price.is_finite() and (price > 0 or order.order_class == Order.OrderClass.MULTILEG)
 
     def _reconcile_cumulative_execution(self, order, cumulative_quantity, average_price, *, terminal=False, raw=None):
         """Process only unrecorded quantity from a confirmed cumulative fill.
@@ -1186,7 +1197,7 @@ class Broker(ABC):
                     return True
                 if (order.is_filled() and total_quantity.is_finite() and price.is_finite()
                         and total_quantity == Decimal(str(order.quantity)) == prior_quantity
-                        and price > 0):
+                        and self._valid_fill_price(order, price)):
                     order.filled_quantity = prior_quantity
                     return True
                 remaining_price = (total_quantity * price - prior_value) / remaining_quantity
@@ -1194,9 +1205,9 @@ class Broker(ABC):
                     total_quantity.is_finite() and price.is_finite()
                     and (total_quantity == Decimal(str(order.quantity)) if terminal
                          else 0 < total_quantity < Decimal(str(order.quantity)))
-                    and price > 0 and remaining_quantity > 0
+                    and self._valid_fill_price(order, price) and remaining_quantity > 0
                     and prior_quantity.is_finite() and prior_quantity >= 0
-                    and remaining_price.is_finite() and remaining_price > 0
+                    and self._valid_fill_price(order, remaining_price)
                 )
             except Exception:
                 return False
@@ -1248,6 +1259,8 @@ class Broker(ABC):
                 order.status = Order.OrderStatus.FILLED
                 return
             if order is not incoming:
+                if incoming.order_class == Order.OrderClass.MULTILEG and incoming.asset.asset_type == "multileg":
+                    order.asset = incoming.asset
                 order.quantity = incoming.quantity
                 order.avg_fill_price = incoming.avg_fill_price
                 order.error_message = incoming.error_message
@@ -1263,7 +1276,7 @@ class Broker(ABC):
                 )
                 delta = cumulative - processed
                 price = (cumulative * Decimal(str(order.avg_fill_price)) - prior_value) / delta
-                if not price.is_finite() or price <= 0:
+                if not self._valid_fill_price(order, price):
                     raise ValueError("Broker cumulative fill price is invalid")
                 self._process_new_order(order)
                 if importing_history:
@@ -1424,6 +1437,16 @@ class Broker(ABC):
         previous_status = order_lumi.status
         previously_closed = order_lumi._closed_event.is_set()
         changed = False
+        if (matched_order.order_class == Order.OrderClass.MULTILEG
+                and matched_order.asset.asset_type == "multileg" and order_lumi.asset != matched_order.asset):
+            order_lumi.asset = matched_order.asset
+            changed = True
+        if matched_order.child_orders:
+            order_lumi.child_orders = [
+                self.get_tracked_order(child.identifier) or child for child in matched_order.child_orders
+            ]
+            for child in order_lumi.child_orders:
+                child.parent_identifier = order_lumi.identifier
         if order_lumi.quantity != matched_order.quantity:
             order_lumi.quantity = matched_order.quantity
             changed = True
@@ -1497,7 +1520,7 @@ class Broker(ABC):
 
         strategy_name = self._strategy_name_from_input(strategy)
         orders_broker = self._pull_all_orders(strategy_name, strategy)
-        orders_broker = [order for order in orders_broker if order is not None]
+        orders_broker = list(self._iter_order_tree(orders_broker))
 
         changed = False
         orders_lumi = self.get_all_orders()
@@ -2271,6 +2294,8 @@ class Broker(ABC):
             if order not in self._partially_filled_orders:
                 self._partially_filled_orders.append(order)
 
+        if order.order_class == Order.OrderClass.MULTILEG:
+            return order, None
         position = self._position_for_order(order)
         if position is None:
             # Create new position for this given strategy and asset
@@ -2294,6 +2319,8 @@ class Broker(ABC):
             order.set_filled()
             self._filled_orders.append(order)
 
+        if order.order_class == Order.OrderClass.MULTILEG:
+            return None
         position = self._position_for_order(order)
         if position is None:
             # Create new position for this given strategy and asset
@@ -3758,11 +3785,11 @@ class Broker(ABC):
                 pass
             elif Order.is_equivalent_status(type_event, self.PARTIALLY_FILLED_ORDER):
                 stored_order, position = self._process_partially_filled_order(stored_order, price, filled_quantity)
-                if position:
+                if position or stored_order.order_class == Order.OrderClass.MULTILEG:
                     self._on_partially_filled_order(position, stored_order, price, filled_quantity, multiplier)
             elif Order.is_equivalent_status(type_event, self.FILLED_ORDER):
                 position = self._process_filled_order(stored_order, price, filled_quantity)
-                if position:
+                if position or stored_order.order_class == Order.OrderClass.MULTILEG:
                     self._on_filled_order(position, stored_order, price, filled_quantity, multiplier)
             elif Order.is_equivalent_status(type_event, self.CASH_SETTLED):
                 self._process_cash_settlement(stored_order, price, filled_quantity)

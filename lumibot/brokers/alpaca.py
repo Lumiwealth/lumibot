@@ -931,13 +931,25 @@ class Alpaca(Broker):
             )
             return None
 
+        legs_raw = resp_raw.get("legs") if isinstance(resp_raw, dict) else None
+        if legs_raw is None:
+            legs_raw = getattr(response, "legs", None)
+        child_orders = [
+            child for leg in legs_raw or []
+            if (child := self._parse_broker_order(leg, strategy_name, strategy_object=strategy_object)) is not None
+        ] if isinstance(legs_raw, list) else []
+        if order_class_value == Order.OrderClass.MULTILEG:
+            underlying = child_orders[0].asset.symbol if child_orders else symbol
+            asset = Asset(underlying, asset_type=Asset.AssetType.MULTILEG)
+        elif mapped_asset_type == Asset.AssetType.OPTION:
+            asset = Asset.symbol2asset(symbol)
+        else:
+            asset = Asset(symbol=symbol, asset_type=mapped_asset_type)
+
         # Construct Order object
         order = Order(
             strategy_name,
-            Asset(
-                symbol=symbol,
-                asset_type=mapped_asset_type,
-            ),
+            asset,
             quantity=Decimal(str(qty_value)),
             side=side_value,
             avg_fill_price=avg_fill_price_value,
@@ -948,6 +960,7 @@ class Alpaca(Broker):
             trail_percent=trail_percent_value if trail_percent_value else None,
             time_in_force=time_in_force_value,
             order_class=order_class_value,
+            child_orders=child_orders,
             order_type=order_type_value if order_type_value != "trailing_stop" else Order.OrderType.TRAIL,
             # Prefer raw first to avoid MagicMock traps
             date_created=(resp_raw.get('created_at') if isinstance(resp_raw, dict) else None) or getattr(response, 'created_at', None),
@@ -973,7 +986,9 @@ class Alpaca(Broker):
 
     def _pull_broker_order(self, identifier):
         """Get a broker order representation by its id"""
-        response = self.api.get_order_by_id(identifier)
+        from alpaca.trading.requests import GetOrderByIdRequest
+
+        response = self.api.get_order_by_id(identifier, filter=GetOrderByIdRequest(nested=True))
         return response
 
     def _pull_broker_all_orders(self):
@@ -985,12 +1000,12 @@ class Alpaca(Broker):
 
         # Recent terminal executions are needed for callbacks, but they must not
         # displace older working orders from a bounded recent-history response.
-        recent = self.api.get_orders(filter=GetOrdersRequest(status=QueryOrderStatus.ALL, limit=100))
+        recent = self.api.get_orders(filter=GetOrdersRequest(status=QueryOrderStatus.ALL, limit=100, nested=True))
         orders = {str(order.id): order for order in recent}
         until = None
         while True:
             page = self.api.get_orders(filter=GetOrdersRequest(
-                status=QueryOrderStatus.OPEN, limit=500, until=until,
+                status=QueryOrderStatus.OPEN, limit=500, until=until, nested=True,
             ))
             for order in page:
                 orders[str(order.id)] = order

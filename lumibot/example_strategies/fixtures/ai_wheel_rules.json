@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "mandate",
+      "title": "Mandate",
+      "status": "active",
+      "interpretation": "Trade a configurable ETF wheel, default SPY. Changing the entry symbol preserves management of existing contracts and shares under their original identity. The investor is willing to own the selected ETF and wants recurrent eligible wheel exposure. Optional event uncertainty is disclosed; the trader obtains contract and premium evidence rather than requiring it from the researcher.",
+      "raw_quote": "Ok please get all this done right now"
+    },
+    {
+      "id": "ownership",
+      "title": "Ownership",
+      "status": "active",
+      "interpretation": "One nontrading researcher supplies compact dated evidence. Exactly one trading and risk agent selects contracts, quantities, prices and every order. Python only wires the shared attention runtime.",
+      "raw_quote": "Ok please get all this done right now"
+    },
+    {
+      "id": "coverage",
+      "title": "Coverage",
+      "status": "active",
+      "interpretation": "Hold at most one short option. Puts remain fully cash secured including costs, within 90 percent of equity; calls require enough unencumbered deliverable shares. No borrowing, naked options, automatic rolls or disposal of unrelated holdings.",
+      "raw_quote": "Ok please get all this done right now"
+    },
+    {
+      "id": "contracts",
+      "title": "Contracts",
+      "status": "active",
+      "interpretation": "Prefer listed expirations 30 to 45 days away and absolute delta near 0.25. Prefer covered-call strikes at or above verified share acquisition cost. Hold when no suitable contract exists.",
+      "raw_quote": "Ok please get all this done right now"
+    },
+    {
+      "id": "management",
+      "title": "Management",
+      "status": "active",
+      "interpretation": "Accept expiry and assignment. Consider buying to close after capturing 90 percent of the actual entry premium after costs. Manage residual orders and exposure before another entry.",
+      "raw_quote": "Ok please get all this done right now"
+    },
+    {
+      "id": "attention",
+      "title": "Attention",
+      "status": "active",
+      "interpretation": "First setup opportunity is 15 minutes before the session close. Consider entries once per eligible session. Observe cheaply each minute; use AI-selected material conditions and reviews, with a holding management review within seven calendar days. Reuse relevant dated research; refresh for new setups or when needed. When flat with no working entry, preserve a setup watch for the next eligible session near the close. Complete obsolete-watch cleanup before saving that next setup watch; do not delete its updated definition as if it were the consumed one. Maintain one recurring holding-review watch by updating its time, with separate independent risk and expiry coverage.",
+      "raw_quote": "Ok please get all this done right now"
+    },
+    {
+      "id": "pricing",
+      "title": "Pricing",
+      "status": "active",
+      "interpretation": "Use price-bounded limit orders, DAY by default. Smart limits are not the default. Inspect exact option market evidence; disclose historical trade-bar approximation and never replace it with future or current quotes.",
+      "raw_quote": "Ok please get all this done right now"
+    },
+    {
+      "id": "validation",
+      "title": "Validation",
+      "status": "active",
+      "interpretation": "Qualification and performance comparisons are checks after execution, never permission to manufacture a trade or override the entry policy. Backtest results are simulated and do not promise future returns.",
+      "raw_quote": "Ok please get all this done right now"
+    }
+  ]
+}

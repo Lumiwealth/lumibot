@@ -80,11 +80,14 @@ Once the runtime is qualified and installed, configure an options-history source
 and follow :doc:`agents_chatgpt` for local Login with ChatGPT. This example selects
 ``chatgpt/gpt-6-luna`` with Medium reasoning and Standard/default service. Optional
 web research requires ``ddgs``. Model login and market-data permissions are separate.
+For a portable project, save the source as ``main.py`` and the
+:download:`wheel policy ledger <../lumibot/example_strategies/fixtures/ai_wheel_rules.json>`
+as ``rules.json`` in the same directory. Both agents load that canonical ledger.
 Set ``IS_BACKTESTING=true`` and your historical dates before executing:
 
 .. code-block:: bash
 
-   python -m lumibot.example_strategies.ai_wheel
+   python main.py
 
 Without backtest mode, the module invokes its configured broker runner; that path
 has not been qualified for this example. Historical trade-bar limits do not prove

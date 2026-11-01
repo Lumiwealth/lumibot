@@ -2474,7 +2474,7 @@ def _bind_duckdb_query(strategy: Any, manager: Any) -> BoundTool:
         name="duckdb_query",
         description=(
             "Run a read-only SQL query against tables previously loaded into DuckDB. "
-            "Arguments: sql, optional limit. "
+            "Arguments: sql, optional limit. Aware timestamp results use UTC; source text and naive market wall clocks retain their values. "
             "Load a table first with market_load_history_table, then analyze it here. "
             "For LumiBot price tables, prefer datetime for timestamps and close for prices unless the loaded sample rows show different column names. "
             "Caveat: only read-only SQL is allowed. "

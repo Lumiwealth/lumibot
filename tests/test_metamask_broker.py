@@ -774,6 +774,98 @@ def test_real_native_prepared_cancel_is_not_venue_acceptance(broker, engine, mon
     engine.venue.submit_action.assert_not_called()
 
 
+def test_real_ioc_partial_execution_cancels_remainder_and_restores_without_callback_replay(broker, engine):
+    from lumibot.tools.metamask.engine import ExecutionEngine
+    from lumibot.tools.metamask.journal import Journal
+    from tests.test_metamask_native_engine import WALLET as ENGINE_WALLET
+    from tests.test_metamask_native_engine import partial_fill
+
+    action_builder = engine.venue.order_action.side_effect
+    status_reader = engine.venue.order_status.side_effect
+    submit = engine.venue.submit_action.side_effect
+
+    def ioc_action(*args, **kwargs):
+        action = action_builder(*args, **kwargs)
+        action["orders"][0]["t"]["limit"]["tif"] = "Ioc"
+        return action
+
+    def partial_status(*args):
+        response = status_reader(*args)
+        response["order"]["status"] = "filled"
+        response["order"]["order"].update(sz="0.0006", tif="Ioc")
+        return response
+
+    def partial_ack(action, *args):
+        response = submit(action, *args)
+        if action["type"] == "order":
+            response["response"]["data"]["statuses"] = [{"filled": {"oid": 42, "totalSz": "0.0004", "avgPx": "19999"}}]
+        return response
+
+    engine.venue.order_action.side_effect = ioc_action
+    engine.venue.order_status.side_effect = partial_status
+    engine.venue.submit_action.side_effect = partial_ack
+    engine.venue.fills.return_value = [partial_fill()]
+    client = MetaMaskClient({**CONFIG, "WALLET_ADDRESS": ENGINE_WALLET})
+    client._engine, client._journal = engine, engine.journal
+    client._provider, client._venue = engine.provider, engine.venue
+    broker.client = client
+    subscriber = SimpleNamespace(
+        name="test-strategy",
+        add_event=Mock(),
+        NEW_ORDER="new",
+        PARTIALLY_FILLED_ORDER="partial_fill",
+        FILLED_ORDER="fill",
+        CANCELED_ORDER="canceled",
+        ERROR_ORDER="error",
+    )
+    broker._add_subscriber(subscriber)
+    item = order(identifier="one", order_type="limit", limit_price=20000, time_in_force="ioc")
+    broker.submit_order(item)
+    assert item.is_canceled() and item._closed_event.is_set() and not item.is_active()
+    assert item._raw["venueStatus"] == "filled" and item._raw["filledQuantity"] == "0.0004"
+    assert sum((Decimal(str(transaction.quantity)) for transaction in item.transactions), Decimal(0)) == Decimal(
+        "0.0004"
+    )
+    assert [call.args[0] for call in subscriber.add_event.call_args_list] == [
+        broker.PARTIALLY_FILLED_ORDER,
+        broker.CANCELED_ORDER,
+    ]
+    broker.do_polling()
+    broker.sync_orders("test-strategy")
+    assert subscriber.add_event.call_count == 2
+    engine.provider.reset_mock()
+    engine.venue.submit_action.reset_mock()
+    terminal_snapshot = engine.venue.order_status(ENGINE_WALLET, 42)
+    engine.venue.order_status.side_effect = None
+    engine.venue.order_status.return_value = terminal_snapshot
+    path = engine.journal.path
+    engine.journal.close()
+    journal = Journal(path)
+    restored_broker = MetaMask(
+        {**CONFIG, "WALLET_ADDRESS": ENGINE_WALLET}, connect_stream=False, start_orders_thread=False
+    )
+    try:
+        client._journal = journal
+        client._engine = ExecutionEngine(journal, engine.provider, engine.venue, "agent")
+        restored_broker.client = client
+        restored_subscriber = SimpleNamespace(**{**vars(subscriber), "add_event": Mock()})
+        restored_broker._add_subscriber(restored_subscriber)
+        restored = restored_broker._parse_broker_order(client.get_order("one"), "test-strategy")
+        restored_broker.do_polling()
+        restored_broker.do_polling()
+        assert restored.is_canceled() and restored._closed_event.is_set()
+        assert sum(
+            (Decimal(str(transaction.quantity)) for transaction in restored.transactions), Decimal(0)
+        ) == Decimal("0.0004")
+        restored_subscriber.add_event.assert_not_called()
+        engine.provider.submit_signature.assert_not_called()
+        engine.provider.signature.assert_not_called()
+        engine.venue.submit_action.assert_not_called()
+    finally:
+        restored_broker._stop_event.set()
+        journal.close()
+
+
 @pytest.mark.parametrize("evidence", ["identity", "fill", "previous_fill"])
 def test_local_no_release_marker_cannot_mask_venue_evidence(broker, evidence):
     from lumibot.components.agents.builtins import _submission_certainty

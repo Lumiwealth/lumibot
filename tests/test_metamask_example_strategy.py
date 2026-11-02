@@ -84,6 +84,15 @@ def test_one_entry_is_recorded_before_submission_and_queue_delay_never_creates_a
     assert not opening.reduce_only and opening.time_in_force == "ioc"
 
 
+def test_entry_uses_inherited_strategy_validation_and_public_submission(strategy):
+    del strategy.submit_order
+    strategy.broker.submit_order = Mock(side_effect=lambda order, **kwargs: order)
+    strategy.on_trading_iteration()
+    strategy.broker.submit_order.assert_called_once()
+    opening = strategy.broker.submit_order.call_args.args[0]
+    assert opening.identifier == strategy.entry_id and opening.quantity == Decimal("0.005")
+
+
 @pytest.mark.parametrize("status", ["submitted", "partial_fill", "unknown", "canceled"])
 def test_unresolved_entry_never_creates_a_replacement_or_exit(strategy, status):
     order = observed_order(strategy, filled="0.0002", status=status, certainty="unknown")

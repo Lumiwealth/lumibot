@@ -52,7 +52,7 @@ class MetaMaskPerpetualRoundTrip(Strategy):
             raise RuntimeError("Filled order is missing its complete execution history")
         return quantity
 
-    def _validate_order(self, order, side, reduce_only):
+    def _validate_round_trip_order(self, order, side, reduce_only):
         if (
             order.asset != self.asset
             or order.asset.leverage != 1
@@ -97,7 +97,7 @@ class MetaMaskPerpetualRoundTrip(Strategy):
             return
 
         self.vars.entry_requested = True
-        self._validate_order(entry, "buy", False)
+        self._validate_round_trip_order(entry, "buy", False)
         if Decimal(str(entry.quantity)) != self.quantity:
             raise RuntimeError("Existing entry conflicts with the strategy parameters")
         if not self._settled(entry):
@@ -114,7 +114,7 @@ class MetaMaskPerpetualRoundTrip(Strategy):
         for number, closing in enumerate(exits, 1):
             if str(closing.identifier) != f"{self.exit_prefix}{number}":
                 raise RuntimeError("Round-trip exit history is missing or conflicting")
-            self._validate_order(closing, "sell", True)
+            self._validate_round_trip_order(closing, "sell", True)
             # Earlier closes may predate a later observed fill on the entry.
             if not 0 < Decimal(str(closing.quantity)) <= remaining:
                 raise RuntimeError("Existing exit exceeds this round trip's available execution history")

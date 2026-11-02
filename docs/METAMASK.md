@@ -2,9 +2,9 @@
 
 MetaMask managed-wallet execution through ordinary LumiBot strategies, without a JavaScript runtime or localhost service.
 
-Last Updated: 2026-11-01
+Last Updated: 2026-11-02
 
-Status: Native candidate; funded execution qualification in progress
+Status: Native adapter available; execution hardening candidate under review
 
 Audience: LumiBot users and maintainers
 
@@ -12,10 +12,10 @@ Audience: LumiBot users and maintainers
 
 `lumibot.brokers.MetaMask` runs in the Python strategy process. It calls MetaMask's managed-wallet API and Hyperliquid's HTTP API directly. Wallet keys remain with MetaMask. Node, Bun, npm, the MetaMask CLI and an embedded JavaScript engine are not required.
 
-This native candidate is unreleased. For source testing, install the shared version branch in a clean environment:
+The native adapter is included in the published 4.6.42 package. The execution ownership and submission-certainty hardening described here is an unreleased 4.6.44 source candidate. Package availability does not establish production qualification. For candidate source testing, use the shared version branch in a clean environment:
 
 ```bash
-pip install 'lumibot[metamask] @ git+https://github.com/Lumiwealth/lumibot.git@version/4.6.40'
+pip install 'lumibot[metamask] @ git+https://github.com/Lumiwealth/lumibot.git@version/4.6.44'
 ```
 
 Default-DEX Hyperliquid perpetuals use normal `Order`, `Position`, strategy methods and fill callbacks. Native same-chain swap code remains experimental and requires separate funded qualification. Existing JavaScript trading receipts do not qualify this replacement.
@@ -169,6 +169,8 @@ MetaMask retains wallet keys. Guard Mode enforces its reviewed provider policy; 
 Yes. Retain the exact state file, agent and wallet identity. Known venue orders can reconcile; ambiguous legacy effects remain explicit holds. Old service tokens are not MetaMask access tokens, and startup never renews authority.
 
 ### What should I do after an approval timeout or unknown outcome?
+
+Inspect `order.submission_outcome`: `broker_state_certainty` distinguishes confirmed submission, confirmed rejection and unknown outcomes; `reconciliation_required` marks unresolved or conflicting evidence. Agent submission tools preserve this state and return incomplete, non-retryable results while uncertainty remains. An acknowledgement is not a fill.
 
 Inspect the recorded operation with `broker.client.get_order(operation_id)`. Reuse its identity and reconcile the original request before creating another trade. Do not bypass Guard Mode or increase permissions to clear a failure.
 

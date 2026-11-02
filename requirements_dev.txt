@@ -4,6 +4,7 @@
 pytest
 pytest-cov
 pytest-mock
+pytest-xdist==3.8.0
 coverage
 hyperliquid-python-sdk==0.24.0
 

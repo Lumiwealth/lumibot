@@ -13,12 +13,15 @@ Node, Bun, npm, MetaMask CLI or localhost service is required.
 Install and connect
 -------------------
 
-The native candidate is unreleased. For source testing, use the shared version
-branch in a clean environment:
+The native adapter is included in the published 4.6.42 package. The execution
+ownership and submission-certainty hardening described here is an unreleased
+4.6.44 source candidate. Package availability does not establish production
+qualification. For candidate source testing, use the shared version branch in
+a clean environment:
 
 .. code-block:: bash
 
-   pip install 'lumibot[metamask] @ git+https://github.com/Lumiwealth/lumibot.git@version/4.6.40'
+   pip install 'lumibot[metamask] @ git+https://github.com/Lumiwealth/lumibot.git@version/4.6.44'
 
 Authorize through the official `MetaMask Agent Wallet sign-in page
 <https://developer.metamask.io/agentic/login>`_. Use the original Google/email
@@ -38,7 +41,7 @@ MetaMask. Before trading, deliberately authorize its local registry, limits and
 expiry using ``MetaMaskClient.authorize()``. Broker startup does not renew or
 broaden authority. See the complete binding example in the repository's
 `MetaMask setup guide
-<https://github.com/Lumiwealth/lumibot/blob/version/4.6.40/docs/METAMASK.md>`_.
+<https://github.com/Lumiwealth/lumibot/blob/version/4.6.44/docs/METAMASK.md>`_.
 
 .. code-block:: python
 
@@ -253,6 +256,12 @@ What should I do after an approval timeout or unknown outcome?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Inspect the recorded operation with ``broker.client.get_order(operation_id)``.
+Inspect ``order.submission_outcome``: ``broker_state_certainty`` distinguishes
+confirmed submission, confirmed rejection and unknown outcomes;
+``reconciliation_required`` marks unresolved or conflicting evidence. Agent
+submission tools preserve this state and return incomplete, non-retryable results
+while uncertainty remains. An acknowledgement is not a fill.
+
 Reuse its identity and reconcile the original request before creating another
 trade. Do not bypass Guard Mode or increase permissions to clear a failure.
 

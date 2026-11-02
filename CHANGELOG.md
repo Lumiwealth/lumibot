@@ -4,6 +4,9 @@
 
 - Carry the current shared runtime forward with portfolio example transaction-ledger verification and release packaging repairs.
 
+- Retain locally sent ProjectX orders through uncertain acknowledgements, prevent duplicate handoffs for the same identity, and reconcile exact receipts into the original order. ProjectX and MetaMask order tools expose submission uncertainty without claiming acceptance or permitting a blind retry.
+- ProjectX synthetic brackets protect cumulative residual entry exposure with distinct exit generations, preserve partial-exit quantities and explicit cancellation intent, and hold uncertain restored history instead of inventing new orders.
+
 ## 4.6.42 - 2026-11-01
 
 ### Added

@@ -142,7 +142,7 @@ Your broker gives you the API key and username. For TopstepX, get them from your
 Which account does LumiBot trade if I have more than one?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-LumiBot looks for the account named in ``PROJECTX_TOPSTEPX_PREFERRED_ACCOUNT_NAME``. If that name is not set, or no account matches it, LumiBot logs a warning and uses the account with the highest balance. Set the name so you always know which account trades.
+LumiBot uses the account named in ``PROJECTX_TOPSTEPX_PREFERRED_ACCOUNT_NAME``. If that configured name does not match an account, selection fails visibly and no other account is chosen. When no name is configured, LumiBot selects the account with the highest balance. Set the name explicitly when the login can access multiple accounts.
 
 Can I use other prop firms that run on ProjectX?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -208,12 +208,39 @@ multiple accounts. An explicitly configured missing account fails visibly.
 Futures quantities must be positive whole contracts. Price multipliers come
 from the provider's tick value divided by tick size.
 
-Bracket exits with absolute target/stop prices remain synthetic: LumiBot submits
-resting protective orders after confirmed entry executions and cancels the
-sibling after an exit fill. Partial entries protect only their filled quantity;
-accepted exits resize as further entry fills arrive. Restart recovery links
-already accepted exits by their persisted tags and does not place them again.
+A request handed to transport stays actively tracked as ``SUBMITTED`` when its
+acceptance is unknown. This means sent, not accepted or filled. Inspect
+``order.submission_outcome`` and reconcile the exact original tag before any
+replacement. Within a running broker, repeating the same local identity never
+posts another request; changed terms under that identity fail visibly. A new tag is a distinct intent,
+so duplicate prevention does not authorize creating a fresh tag after a timeout.
+
+A matching venue receipt updates the original object, preserving its bracket
+instructions and execution history. Conflicting account, instrument, side or
+receipt identity stays unresolved. An explicitly unresolved order restored into
+a fresh broker refuses resubmission; this does not reconstruct its local
+reservation after restart. Inspect actual venue orders and positions.
+
+Bracket exits with absolute target/stop prices remain synthetic. During a
+running strategy, LumiBot sizes protection from cumulative entry executions
+minus observed protective executions. Partial exits retain their own filled
+quantity when their remaining quantity changes. Later entry fills can receive
+fresh protective orders after the previous accepted exits are confirmed
+terminal; filled or canceled order identifiers are never reopened.
+
+A cancellation response acknowledges the request; it does not by itself prove
+that the order is canceled. Failed cancellations remain pending reconciliation.
+Explicitly canceling an exit does not authorize LumiBot to re-arm that exit.
+Canceling all working orders does not create replacement protection.
+
+Restart recovery links accepted exit generations by their persisted tags and
+retains their execution history. Missing history, an unknown submission result
+or unknown strategy intent holds new protective submissions and resizes. Cold
+restart recovery does not infer permission to recreate canceled protection.
+Known sibling cancellation after a proven exit remains available. Review actual
+positions and working orders before continuing: later entry fills may remain
+unprotected while recovery is held.
+
 Sibling cancellation requires the client to be running; these are not atomic
 server-side OCO orders. A restart cannot reconstruct a protection instruction
-that never reached the provider. Review accepted protective orders before
-leaving an automated strategy unattended.
+that never reached the provider.

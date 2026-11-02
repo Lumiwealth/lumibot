@@ -11,7 +11,16 @@ broad mandate leads you to a stock idea, load it before submitting an order.
 ## Core workflow
 
 1. Read portfolio value, cash, current positions, and open orders.
-2. Retrieve the current price and recent price history for every serious candidate.
+2. Read `market_quote` before sizing; prefer `market_quotes` for a basket.
+   For an immediate buy use a valid ask as its executable cost; for an
+   immediate sell use a valid bid. For an explicit limit, size at that limit.
+   When a quote side is unavailable, its valid current `price`, or a fresh
+   `market_last_price` / `market_last_prices`, is a usable disclosed fallback.
+   Missing bid/ask alone does not make a priced stock untradeable. Do not
+   substitute an old historical close for the execution price.
+   Keep last (`price`), bid and ask distinct in calculations and reporting.
+   Copy the observed field with its correct label; never relabel last or mid as bid.
+   Retrieve recent price history for every serious candidate.
    Read that history with `market_historical_prices`, also for a single symbol;
    pass `table_name` to query it with `duckdb_query`.
    `market_load_history_table` does not replace it before a stock order.
@@ -27,6 +36,9 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    count or an assumed weekday calendar. If the result does not give the window,
    omit that extra date claim. Do not discard an already-completed bar again or
    substitute an earlier indicator row.
+   For a historical snapshot select the latest eligible row by timestamp and
+   read that row's close. Selecting MAX(close) alongside MAX(datetime) pairs
+   unrelated values and does not select the snapshot-date price.
 3. Use batch tools for a universe. Do not loop one symbol at a time when a batch
    price or history tool can return the same evidence.
 4. Evaluate the user's entry, exit, sizing, and frequency rules against current
@@ -43,7 +55,7 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    and available cash before submission. Submit only when the returned quantity is
    greater than zero; otherwise make a no-trade decision.
 6. Submit the selected order once. Price a limit order from the current
-   `market_last_price` result, never from a historical bar's close: a buy limit
+   quote or current last-price fallback, never from a historical bar's close: a buy limit
    below the current price usually does not fill. Follow the order tool's
    guidance when the order must fill this session. This is for a new order; it
    is never a reason to modify an order that is already pending (see step 8).
@@ -59,9 +71,66 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    Modify or cancel and replace it only when the user's rules explicitly require
    changing an existing order. A due exit condition or a nonmarketable limit
    alone does not authorize changing an already-pending exit.
-9. Reconcile the final summary with the mutation tools and the final account
+9. Keep the final decision evidence compact and exact. For a bar-based signal,
+   identify the particular completed bar used and copy that row's timestamp,
+   close and volume. Do not collapse several bars into one set of values: one
+   bar's volume does not describe every bar in a range. Report an aggregate only
+   when a tool actually returned that aggregate for those rows. Extra market
+   commentary is unnecessary when the requested rule and outcome are clear.
+   Reconcile the final summary with the mutation tools and the final account
    reads. If an order tool returned a submitted identifier, never say that no
    order was entered. Report the exact observed status instead.
+   Reconcile cash from confirmed fill quantities, execution prices and fees.
+   Portfolio value is total equity: cash plus positions marked at current
+   prices. Report the returned cash and total equity as separate account facts.
+   Use the execution report to cover observed fills, holdings, required reserve
+   and any remaining target changes. Copy supporting values directly from their
+   latest tool results. Perform requested comparisons on a consistent price
+   basis with an available calculation tool and copy its returned result.
+
+## Complete portfolio work
+
+For an authorized allocation or rebalance build one compact full-inventory
+plan on the requested capital basis: target amounts/quantities, held and pending
+quantities, funding sells, remaining buys and real exceptions. A prescribed
+allocation is the trading mandate; do not require a separate discretionary
+conviction thesis before replicating each requested constituent.
+
+Calculate the capital basis and reserve before quantities: investable capital is
+the authorized basis times the requested investment fraction (or basis minus the
+requested reserve). Each allocation cap is investable capital times its target
+weight. Verify multiplication/division with an available arithmetic tool. An
+unavailable name keeps its allocation in cash, alongside the original reserve;
+do not silently use the full account as the allocation basis or renormalize the
+supported subset unless the user authorized that change.
+
+Work through every feasible required change in this run. Prefer `orders_submit_orders`
+for a jointly sized independent basket: pass explicit order rows, verify all returned
+identifiers together, then reconcile actual account state. A batch is not atomic;
+verify funding sells before submitting dependent buys. Preserve atomic option
+packages through `orders_submit_multileg`. Use batch quotes and
+history when the task needs historical analysis; an explicit allocation does not
+need an invented historical entry signal. After each mutation refresh the account and complete position/open-order
+pagination, then size only the next intended order against its allocation cap
+and actual available cash. Do not restart all remaining sizing calculations
+after each fill. An existing correct holding requires no new purchase; a pending
+order owns only its own remaining quantity. Verify funding sells before buys.
+
+Before finishing compare the full target set to actual positions and terminal
+orders. A few confirmed trades or an acknowledgement are not full completion.
+Continue supported independent trades when one constituent is unavailable.
+Explain each actual missing price, unaffordable quantity or broker failure;
+do not invent an exception or finish merely because the basket is long. Never
+force a token trade, breach an allocation cap, short or overspend to satisfy a count.
+
+Use this stopping rule for the execution loop: after each verified change,
+remove only that completed quantity from the worklist and continue to the next
+feasible item. There is no default cap on trades per iteration. An honest report
+that only a few requested holdings were bought still leaves the task unfinished.
+When the final comparison finds an affordable missing target with usable current
+pricing and no conflicting pending order, call the next order tools instead of
+ending the run. Stop only when the whole inventory is reconciled or every
+remaining item has its own observed blocker.
 
 ## Research depth
 
@@ -92,8 +161,11 @@ reasoning, and must contain no credentials or account identifiers. The order
 service commits it before execution. Report only observed order status and fills;
 reconcile an uncertain outcome before trying again.
 
-When a separate `public_reason` is requested, write a qualitative trade thesis
-and risk. Keep portfolio-relative sizing percentages, formulas, account value,
+When a separate `public_reason` is requested, write the qualitative thesis and
+one material risk in one short sentence, usually 15–25 words. Leave ample room
+under the tool's 280 UTF-8 byte limit; several explanatory sentences can exceed
+it even when they look short. Detailed dates, calculations and invalidation
+conditions belong in the private reason. Keep portfolio-relative sizing percentages, formulas, account value,
 buying power, owner context and tool purposes in the private `reason` only. Do
 not copy its sizing explanation into the public summary. Follow the order tool's
 public-summary contract before submitting; later omission of an unsafe summary

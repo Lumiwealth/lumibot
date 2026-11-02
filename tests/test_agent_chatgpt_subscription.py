@@ -469,6 +469,10 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
                   'status': 'completed', 'content': [{'type': 'output_text', 'text': 'Checking evidence.', 'annotations': []}]}
     parallel_call = {**call, 'id': 'fc_parallel', 'call_id': 'call_parallel', 'arguments': '{"series":"RATE"}'}
     original_output = [reasoning, commentary, call, parallel_call] if runner_mode else [reasoning, call]
+    evidence_by_series = {
+        'CPI': {'request_start': '2025-08-01', 'value': 2.5, 'rows': [{'marked_equity': 10876.25, 'cash': 1000.0, 'difference': -123.75}]},
+        'RATE': {'request_start': '2026-08-01', 'value': 4.0, 'rows': [{'marked_equity': 15321.75, 'cash': 250.0, 'difference': 321.75}]},
+    }
     requests = []
     def handle(request):
         body = json.loads(request.content)
@@ -508,8 +512,11 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
                 events.append({'type': 'response.completed', 'response': terminal})
                 yield ''.join('data: ' + json.dumps(event) + '\n\n' for event in events).encode()
         return httpx.Response(200, headers={'content-type': content_type} if content_type else {}, stream=Stream())
-    model = chatgpt_llm.ChatGPTPlanLlm(model='openai/responses/gpt-6-luna', profile=tmp_path/'profile.json',
-                                     transport=httpx.MockTransport(handle))
+    from lumibot.components.agents.runtime import _resolve_model_for_adk
+    monkeypatch.setattr(auth, 'profile_path', lambda: tmp_path / 'profile.json')
+    model = _resolve_model_for_adk('chatgpt/gpt-6-luna', reasoning_effort='high',
+                                   model_request_timeout_seconds=0)
+    model._transport = httpx.MockTransport(handle)
     request = LlmRequest(contents=[types.Content(role='user', parts=[types.Part(text='get CPI evidence')])],
                          config=types.GenerateContentConfig())
     async def run_runner():
@@ -519,7 +526,7 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
         def get_evidence(series: str) -> dict:
             """Return recorded economic evidence for the requested series."""
             observed.append(series)
-            return {'value': 2.5 if series == 'CPI' else 4.0}
+            return evidence_by_series[series]
         runner = InMemoryRunner(agent=LlmAgent(name='researcher', model=model, tools=[get_evidence]), app_name='replay-contract')
         await runner.session_service.create_session(app_name=runner.app_name, user_id='synthetic', session_id='test')
         events = [event async for event in runner.run_async(user_id='synthetic', session_id='test', new_message=request.contents[0])]
@@ -534,7 +541,7 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
         assert function.args == {'series': 'CPI'}
         request.contents.extend([first[-1].content, types.Content(role='user', parts=[
             types.Part(function_response=types.FunctionResponse(id=function.id, name=function.name,
-                                                                response={'value': 2.5}))])])
+                                                                response=evidence_by_series['CPI']))])])
         return [r async for r in model.generate_content_async(request)]
     if runner_mode:
         asyncio.run(run_runner())
@@ -547,8 +554,18 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
     outputs = second_input[1 + len(original_output):]
     assert all(item['type'] == 'function_call_output' for item in outputs)
     assert {item['call_id'] for item in outputs} == ({'call_contract', 'call_parallel'} if runner_mode else {'call_contract'})
+    # The provider must receive exact signed decimal tool values, including
+    # nested table rows, through both direct and actual ADK-runner conversion.
+    expected = {'call_contract': evidence_by_series['CPI']}
+    if runner_mode:
+        expected['call_parallel'] = evidence_by_series['RATE']
+    assert all(isinstance(item['output'], list) and len(item['output']) == 1
+               and item['output'][0]['type'] == 'input_text' for item in outputs)
+    assert {item['call_id']: json.loads(item['output'][0]['text']) for item in outputs} == expected
     assert 'opaque-contract' not in json.dumps(model.model_dump(mode='json'))
     assert requests[1]['store'] is False
+    assert all(body['model'] == 'gpt-6-luna' and body['service_tier'] == 'default'
+               and body.get('reasoning', {}).get('effort') == 'high' for body in requests)
 
 
 def test_subscription_allowance_amendment_preserves_every_existing_call(tmp_path):

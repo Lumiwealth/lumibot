@@ -1,0 +1,203 @@
+{
+  "kind": "preserved-real-model-baseline",
+  "timestamp": "2026-10-28",
+  "runtime_fingerprint": "72478b39e01bc70e5ba3ac3dc554a81b20aee63d81b4583fc721d300ce363981",
+  "instruction_state": "Before shared portfolio-instruction repair; quote capability already available in the baseline process",
+  "models": "Luna High actor and judge, Login with ChatGPT, Standard/default",
+  "api_cash_spend_usd": 0,
+  "external_writes": "isolated native backtesting fixture only",
+  "private_ledger_sha256": "17b29b2fcc9f95991710cafd75d10975cf372552dab258dc8e87a136d03980ff",
+  "cases": [
+    {
+      "case_id": "stock_complete_portfolio_25",
+      "counts": {
+        "fail": 5
+      },
+      "baseline_state": "genuine failed behavior",
+      "native_attempt_id": "22b5c321-a0bf-407a-8374-41349036651a",
+      "repetition": 5,
+      "case_fingerprint": "51400646636c9c038d3fedbce7ed84becc2e54fdf3f101ad7cac0e85f0d4d498",
+      "native_evidence_sha256": "2974afb04ccbc9c11fa93ec1747a2745a6311485114d92236fe826ee90a22d1e",
+      "machine_failures": [
+        "final broker positions {'QZX01': 40.0, 'QZX02': 39.0} differ from target positions {'QZX01': 39, 'QZX02': 39, 'QZX03': 39, 'QZX04': 39, 'QZX05': 39, 'QZX06': 39, 'QZX07': 39, 'QZX08': 39, 'QZX09': 39, 'QZX10': 39, 'QZX11': 39, 'QZX12': 39, 'QZX13': 39, 'QZX14': 39, 'QZX15': 39, 'QZX16': 39, 'QZX17': 39, 'QZX18': 39, 'QZX19': 39, 'QZX20': 39, 'QZX21': 39, 'QZX22': 39, 'QZX23': 39, 'QZX24': 39, 'QZX25': 39}",
+        "native filled order exceeded its notional cap",
+        "none of the required alternative tools were called: ['market_quote', 'market_quotes']",
+        "expected 25 orders_submit_order submission(s), observed 2"
+      ],
+      "judge": {
+        "pass": false,
+        "reason": "Only QZX01 and QZX02 were bought; the other 23 requested stocks were not ordered. Sizing used the $99 last price instead of the $100 executable ask, and QZX01\u2019s 40 shares filled at $100, exceeding the stated $3,960 per-position cap."
+      }
+    },
+    {
+      "case_id": "stock_complete_portfolio_9",
+      "counts": {
+        "fail": 5
+      },
+      "baseline_state": "genuine failed behavior",
+      "native_attempt_id": "7f14a196-1f13-42bf-a831-e372287ab5fc",
+      "repetition": 1,
+      "case_fingerprint": "7d2cbf4004a3cf357064a16c87bf4ce772ee112565c45f7071b19ef32f863f7f",
+      "native_evidence_sha256": "f6cc6a669d60249e555ea4338b927932bd8a3d029e98b56fcb7abd3b37d3f1be",
+      "machine_failures": [
+        "final broker positions {'QZX01': 111.0, 'QZX02': 109.0, 'QZX03': 109.0, 'QZX04': 109.0, 'QZX05': 109.0, 'QZX06': 109.0, 'QZX07': 109.0, 'QZX08': 109.0, 'QZX09': 109.0} differ from target positions {'QZX01': 110, 'QZX02': 110, 'QZX03': 110, 'QZX04': 110, 'QZX05': 110, 'QZX06': 110, 'QZX07': 110, 'QZX08': 110, 'QZX09': 110}",
+        "native filled order exceeded its notional cap",
+        "none of the required alternative tools were called: ['market_quote', 'market_quotes']"
+      ],
+      "judge": {
+        "pass": false,
+        "reason": "All nine fills were observed, but quantities do not match equal whole-share allocations using the $100 ask (110 shares each); QZX01 is 111 shares and exceeds the $11,000 per-position cap, while the other positions are 109 shares. The portfolio also retains $1,700 rather than the requested $1,000 reserve."
+      }
+    },
+    {
+      "case_id": "stock_complete_supported_portfolio_with_gap",
+      "counts": {
+        "pass": 2,
+        "fail": 3
+      },
+      "baseline_state": "genuine failed behavior",
+      "native_attempt_id": "27790580-59be-4533-94bc-be44bcdf25f6",
+      "repetition": 1,
+      "case_fingerprint": "ae47b4db8f7fa9fc5c52a37c854448f8d5bc31213139f5db451b956e51459b9e",
+      "native_evidence_sha256": "c299996804fcae15ee01ea3dfb8feeb1d6f2a9388f5d36218d0db373bc1720cc",
+      "machine_failures": [
+        "final broker positions {'QZX01': 100.0, 'QZX02': 100.0, 'QZX03': 100.0, 'QZX04': 100.0, 'QZX05': 100.0, 'QZX06': 100.0, 'QZX07': 100.0, 'QZX08': 100.0, 'QZX09': 100.0} differ from target positions {'QZX01': 99, 'QZX02': 99, 'QZX03': 100, 'QZX04': 99, 'QZX05': 99, 'QZX06': 99, 'QZX07': 99, 'QZX08': 99, 'QZX09': 99}",
+        "native ending cash is missing or below the required reserve",
+        "native filled order exceeded its notional cap",
+        "native filled order exceeded its notional cap",
+        "native filled order exceeded its notional cap",
+        "native filled order exceeded its notional cap",
+        "native filled order exceeded its notional cap",
+        "native filled order exceeded its notional cap",
+        "native filled order exceeded its notional cap",
+        "native filled order exceeded its notional cap"
+      ],
+      "judge": {
+        "pass": false,
+        "reason": "All nine supported stocks filled, and QZXMISSING was left unresolved, but the eight stocks with $100 asks were bought at 100 shares each rather than the required 99. Their $10,000-per-stock debits exceed the $9,900 caps, so final cash is $800 below the amount that should have remained for the missing allocation and reserve."
+      }
+    },
+    {
+      "case_id": "stock_rebalance_complete_portfolio",
+      "counts": {
+        "pass": 5
+      },
+      "baseline_state": "already passing; retained without manufacturing a red result"
+    },
+    {
+      "case_id": "stock_size_from_current_quote",
+      "counts": {
+        "pass": 5
+      },
+      "baseline_state": "already passing; retained without manufacturing a red result"
+    },
+    {
+      "case_id": "stock_snapshot_price_from_dated_row",
+      "counts": {
+        "pass": 5
+      },
+      "baseline_state": "already passing; retained without manufacturing a red result"
+    }
+  ],
+  "immutable_base_commit": "fb399298966e4f4897c2ecd625f55c60fbe2c40e",
+  "source_state": "Native baseline includes the recorded uncommitted source patch, not the base commit alone",
+  "source_patch_sha256": "acf7bfedaf595b98f320ce980c2ca00332c81e74511ec85675cf1373835bea37",
+  "subsequent_reporting_failure": {
+    "case_id": "stock_complete_portfolio_9",
+    "native_run_id": "641fa944-7b01-4dec-ad00-1b5c9580b876",
+    "source_runtime_fingerprint": "ebabd9352c93e5dd5325ce72084a91ad115b96995edb7ca9acc98f84e3bf49c5",
+    "private_record_sha256": "64011863ee4fd2a564d10784500d8410d271084724d69b426604725070262d48",
+    "execution": "All nine 110-share positions filled at 100; cash 1000; native machine contracts passed.",
+    "reporting": "The final answer incorrectly described 99010 marked equity as 10 above 1000 cash plus 99000 purchase cost. Current last was 99; correct marked equity was 1000 + 990 * 99 = 99010.",
+    "native_judge_verdict": {
+      "pass": false,
+      "reason": "The final answer misstates the portfolio-value discrepancy: $99,010 is $990 below the $1,000 cash plus $99,000 confirmed debit, not $10 above it."
+    }
+  },
+  "repeated_reporting_failure": {
+    "native_run_id": "f27cd076-e955-43bb-8637-a27208435744",
+    "source_runtime_fingerprint": "0413231708fb654d0cc224b1bc5055c83cada4f3328f4e6529cf06d6bfea5631",
+    "private_record_sha256": "b1bae32675a8a4af0204568bae6b2a06113d9cc56770c66460c12e9d8ef8f750",
+    "machine_pass": true,
+    "native_judge": {
+      "pass": false,
+      "reason": "All nine 110-share positions and fills were observed at $100, with the $1,000 reserve preserved. However, the final explanation\u2019s claim about $10 above cash plus purchase cost conflicts with the returned $99,010 portfolio value and $1,000 cash; the $99,000 purchase cost plus cash totals $100,000."
+    },
+    "new_skill_instructions_observed": true,
+    "definition_gap": "The tool returned correct cash-inclusive account equity, but its description did not define the inclusion of cash or its distinction from purchase cost.",
+    "judge_control_failures": "Three of five judgments accepted the same observed arithmetic error. The case rubric must explicitly check derived comparisons even when fills and cash are correct."
+  },
+  "expected_mark_difference_reporting_failure": {
+    "source_runtime_fingerprint": "5a53e82d21c452941cf2f9bc96945e3e3f6b2b77e5d432d1bb00bb59fecb8663",
+    "run_id": "cc347324-5b3e-4bf3-8b81-ad4b036a90ef",
+    "repetition": 3,
+    "machine_pass": true,
+    "judge_pass": false,
+    "mechanism": "All quantities/fills/cash correct; final answer called current equity versus gross purchase-cost difference unreconciled despite current-last versus ask evidence. Instruction now states that expected marking difference is not an account or target mismatch.",
+    "original_actor_repetitions": {
+      "passed": 4,
+      "failed": 1
+    },
+    "judge_controls": {
+      "passed": 10,
+      "failed": 0
+    },
+    "no_verdict_relabeling": true
+  },
+  "system_level_numeric_reporting_failure": {
+    "source_runtime_fingerprint": "61ea6eff693af13ecff407ad70907f6d9ef568052239fa4e59e6da4b9a8ca047",
+    "run_id": "a32e9f1b-6193-4ad8-b1ab-716aad9ce4a3",
+    "repetition": 1,
+    "machine_pass": true,
+    "judge_pass": false,
+    "loaded_latest_skill": true,
+    "mechanism": "Exact same false ten-dollar comparison persisted with latest skill present. Move tool-calculated final arithmetic requirement into existing manager system prompt, preserving observed values, fills, quantities and broker behavior.",
+    "original_verdict_retained": true
+  },
+  "calculated_value_changed_in_final_prose": {
+    "source_runtime_fingerprint": "e19f04102c152ba39ea4f09eb84475351caf393d4e00aa1330c91b2ec4b89466",
+    "run_id": "7c9e8ffd-7423-4ccd-951c-b6ead1a48f55",
+    "repetition": 3,
+    "machine_pass": true,
+    "judge_pass": false,
+    "calculation_tool_returned": -990.0,
+    "incorrect_final_difference": 10,
+    "native_wire_owning_checks": {
+      "tests": 70,
+      "passed": 70,
+      "scope": "Exact signed decimals and nested table rows reach actual ADK/LiteLLM subscription wire payloads. No model inference in these native checks."
+    },
+    "discovery_results": {
+      "passed": 29,
+      "failed": 0
+    },
+    "repair": "Consolidate exact numeric reporting at the runtime instruction footer; focus final answers on requested outcome and actual exceptions, without gratuitous valuation comparisons. Make recent history thesis-dependent for explicit quote-based execution mandates. No numeric rewriting or new tool guards.",
+    "original_verdicts_retained": true
+  },
+  "literal_fidelity_reporting_failures": {
+    "runtime_fingerprint": "bc65d335b50ecb14dbf91b894dcd936388395eeacf79171350f5863eba93e77c",
+    "native_runs": [
+      {
+        "case_id": "stock_complete_portfolio_9",
+        "run_id": "a07f1709-e1a2-40d3-b22d-03b55c108de1",
+        "machine_pass": true,
+        "judge_pass": false,
+        "observed_error": "All positions and cash correct; optional final comparison changed the actual 990 difference to 10."
+      },
+      {
+        "case_id": "research_macro_point_in_time",
+        "run_id": "a1bc78de-5167-4a40-be12-b343213c4044",
+        "machine_pass": true,
+        "judge_pass": false,
+        "observed_error": "Final handoff copied one source request start onto a different source despite distinct echoed arguments."
+      }
+    ],
+    "native_wire_proof": {
+      "owning_tests": 70,
+      "passed": 70,
+      "scope": "Actual resolver selects Luna High/default; signed amounts and distinct per-source dates survive actual ADK conversion. This is a native contract, not model inference."
+    },
+    "repair": "Use a positive compact observed-execution report and one evidence entry per source. Consolidate duplicated numeric warnings into faithful copying of individual tool facts; preserve requested analysis, estimates, custom output formats and all machine/judge assertions.",
+    "original_results_retained": true
+  }
+}

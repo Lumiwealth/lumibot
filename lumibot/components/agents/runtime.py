@@ -224,6 +224,9 @@ def _start_agent_tool_audit(
 
 
 def _finish_agent_tool_audit(call: dict[str, Any], result: Any, context: dict[str, Any], *, native: bool = False) -> None:
+    if isinstance(result, dict) and isinstance(result.get("execution_outcome"), dict):
+        if result["execution_outcome"].get("broker_state_certainty") == "unknown":
+            call["broker_state_certainty"] = "unknown"
     failed = isinstance(result, dict) and (result.get("tool_error") is True or (native and bool(result.get("error"))))
     status = "failed" if failed else "completed"
     if "action_id" in call:
@@ -274,6 +277,9 @@ def _wrap_tool_callable(
                         "ok": not (isinstance(result, dict) and result.get("tool_error") is True),
                     }
                     calls.append(call_record)
+                    if isinstance(result, dict) and isinstance(result.get("execution_outcome"), dict):
+                        if result["execution_outcome"].get("broker_state_certainty") == "unknown":
+                            call_record["broker_state_certainty"] = "unknown"
                 else:
                     try:
                         _finish_agent_tool_audit(call_record, result, tool_context)
@@ -287,6 +293,10 @@ def _wrap_tool_callable(
                             "next_offset", "filters", "snapshot_id",
                         )
                     }
+                if tool.name in {"market_quote", "market_quotes"} and isinstance(result, dict):
+                    rows = result.get("quotes", []) if tool.name == "market_quotes" else [result]
+                    call_record["market_coverage"] = [row["asset"] for row in rows
+                                                      if row.get("available") is True and isinstance(row.get("asset"), dict)]
         return result
 
     wrapper.__name__ = _tool_function_name(tool.name)
@@ -1614,7 +1624,7 @@ def _resolve_model_for_adk(
 
 
 _BROKER_MUTATING_TOOLS = frozenset(
-    {"orders_submit_order", "orders_submit_multileg", "orders_cancel_order", "orders_modify_order"}
+    {"orders_submit_order", "orders_submit_orders", "orders_submit_multileg", "orders_cancel_order", "orders_modify_order"}
 )
 
 
@@ -1728,7 +1738,12 @@ class GoogleADKRuntime:
             lines.append(f"- Available tool names for this run: {tool_names}.")
             lines.append("- Only call tool names that appear in the available tool list for this run.")
         lines.append("- Use DuckDB when the decision requires time-series analysis and historical tables are available. A current-evidence execution mandate does not require an additional history-based signal unless the user or active rules require one.")
-        lines.append("- Return a short final summary after you finish using tools.")
+        lines.append(
+            "- Answer the requested task concisely using the observed outcome and remaining exceptions. "
+            "Copy reported facts directly from their individual supporting results, preserving exact values, signs, units and dates. "
+            "For requested calculations, use available calculation tools and copy their returned results. "
+            "Keep observed facts and explicitly labeled estimates separate."
+        )
         return "\n".join(lines).strip()
 
     def _before_model_context_pruning_callback(self, request: RuntimeRequest):

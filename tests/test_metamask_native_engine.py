@@ -192,7 +192,13 @@ def test_expired_cancel_is_not_retried_without_confirmed_live_order(engine, monk
         return result
 
     engine.venue.order_status.side_effect = status
-    assert engine.cancel("one")["state"] == state
+    if state == "unknown":
+        # Explicit cancellation now reports an unresolved matching-order read to its caller.
+        with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+            engine.cancel("one")
+        assert engine.journal.get("agent", "one")["state"] == state
+    else:
+        assert engine.cancel("one")["state"] == state
     assert engine.venue.submit_action.call_count == 3
     assert engine.journal.effect("agent", "one", "cancel-42-2") is None
 
@@ -1174,5 +1180,126 @@ def test_malformed_recorded_identity_hold_does_not_reopen_terminal_lifecycle(eng
     result = engine.order("one")
     assert result["state"] == state
     assert result["reconciliationErrorCode"] == "RECONCILIATION_REQUIRED"
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize("mismatch", ["side", "quantity", "client_id", "unresolved", "fills"])
+def test_cancel_requires_verified_matching_live_order_before_signing(engine, mismatch):
+    engine.submit(intent())
+    status = engine.venue.order_status(WALLET, 42)
+    if mismatch == "side":
+        status["order"]["order"]["side"] = "A"
+    elif mismatch == "quantity":
+        status["order"]["order"]["origSz"] = "0.002"
+    elif mismatch == "client_id":
+        status["order"]["order"]["cloid"] = "0x" + "f" * 32
+    elif mismatch == "unresolved":
+        status = {"status": "unknownOid"}
+    else:
+        engine.venue.fills.return_value = [
+            {
+                "tid": 1,
+                "oid": 42,
+                "coin": "BTC",
+                "side": "B",
+                "sz": "0.0001",
+                "px": "20000",
+                "fee": "0.001",
+                "feeToken": "USDC",
+                "time": int(time.time() * 1000),
+            }
+        ]
+    engine.venue.order_status.side_effect = None
+    engine.venue.order_status.return_value = status
+    engine.provider.submit_signature.reset_mock()
+    engine.venue.submit_action.reset_mock()
+    engine.provider.submit_signature.side_effect = lambda request_id, wallet, *args: SignatureJob(
+        request_id, wallet, "DENIED"
+    )
+    with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+        engine.cancel("one")
+    assert engine.journal.get("agent", "one")["reconciliationErrorCode"]
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+def test_pending_cancel_cannot_release_during_mismatched_observation_and_recovers(engine):
+    engine.submit(intent())
+    engine.provider.submit_signature.side_effect = lambda request_id, wallet, *args: SignatureJob(
+        request_id, wallet, "AWAITING_MFA"
+    )
+    assert engine.cancel("one")["state"] == "open"
+    effect = engine.journal.effect("agent", "one", "cancel-42-1")
+    engine.provider.signature.return_value = SignatureJob(
+        effect["requestId"],
+        WALLET,
+        "SIGNED",
+        "0x"
+        + SIGNER.sign_message(encode_typed_data(full_message=effect["typedData"])).signature.hex().removeprefix("0x"),
+    )
+    status = engine.venue.order_status(WALLET, 42)
+    status["order"]["order"]["side"] = "A"
+    engine.venue.order_status.side_effect = None
+    engine.venue.order_status.return_value = status
+    engine.venue.submit_action.reset_mock()
+    engine.venue.submit_action.side_effect = lambda action, *args: {
+        "status": "ok",
+        "response": {"type": "cancel", "data": {"statuses": ["success"]}},
+    }
+    assert engine.order("one")["state"] == "unknown"
+    engine.provider.signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+    status["order"]["order"]["side"] = "B"
+    assert engine.order("one")["state"] == "open"
+    engine.provider.signature.assert_called_once()
+    engine.venue.submit_action.assert_called_once()
+    assert engine.venue.submit_action.call_args.args[0] == {"type": "cancel", "cancels": [{"a": 0, "o": 42}]}
+
+
+def test_explicit_cancel_with_restored_proof_resolves_only_release_history_hold(engine, monkeypatch):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        engine.submit(intent())
+    original_effect = engine.journal.effect
+    plan = original_effect("agent", "one", "plan")
+    plan["origin"] = "legacy"
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            engine.journal,
+            "effect",
+            lambda agent, operation_id, step: plan if step == "plan" else original_effect(agent, operation_id, step),
+        )
+        with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+            engine.cancel("one")
+    assert engine.order("one")["reconciliationErrorCode"] == "RECONCILIATION_REQUIRED"
+    before = engine.journal.effects("agent", "one")
+    result = engine.cancel("one")
+    assert result["state"] == "canceled"
+    assert result["orderRelease"]["state"] == "not_released"
+    assert result.get("reconciliationErrorCode") is None
+    assert result.get("reconciliationMessage") is None
+    assert engine.journal.effects("agent", "one") == before
+    _, created = engine.journal.reserve(
+        "agent", intent(id="two"), "20", expected_binding=engine.journal.binding("agent")
+    )
+    assert created
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+def test_local_cancel_preserves_unresolved_fee_review(engine, monkeypatch):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        operation = engine.submit(intent())
+    engine.journal.save(
+        {**operation, "budgetReviewRequired": True, "reconciliationErrorCode": "RECONCILIATION_REQUIRED"}
+    )
+    result = engine.cancel("one")
+    assert result["state"] == "canceled"
+    assert result["budgetReviewRequired"] is True
+    assert result.get("reconciliationErrorCode") is None
+    with pytest.raises(MetaMaskError, match="FEE_BUDGET_REVIEW_REQUIRED"):
+        engine.journal.reserve("agent", intent(id="two"), "20", expected_binding=engine.journal.binding("agent"))
     engine.provider.submit_signature.assert_not_called()
     engine.venue.submit_action.assert_not_called()

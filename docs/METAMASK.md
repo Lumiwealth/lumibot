@@ -12,7 +12,7 @@ Audience: LumiBot users and maintainers
 
 `lumibot.brokers.MetaMask` runs in the Python strategy process. It calls MetaMask's managed-wallet API and Hyperliquid's HTTP API directly. Wallet keys remain with MetaMask. Node, Bun, npm, the MetaMask CLI and an embedded JavaScript engine are not required.
 
-The native adapter is included in the published 4.6.42 package. The execution ownership and submission-certainty hardening described here is an unreleased 4.6.45 source candidate. Package availability does not establish production qualification. For candidate source testing, use the shared version branch in a clean environment:
+The native adapter is included in the published 4.6.44 package. The execution ownership and submission-certainty hardening described here is an unreleased 4.6.45 source candidate. Package availability does not establish production qualification. For candidate source testing, use the shared version branch in a clean environment:
 
 ```bash
 pip install 'lumibot[metamask] @ git+https://github.com/Lumiwealth/lumibot.git@version/4.6.45'
@@ -183,3 +183,5 @@ No. Native perps have funded testnet evidence, with the remaining limits recorde
 A prepared native order can be canceled locally only when its persisted native plan and signing checkpoints positively prove that the order was not released. Its structured `orderRelease` receipt distinguishes this from a venue cancellation. Generic order tools report `confirmed_not_submitted`, with an incomplete, non-retryable submission result. This says only that the order was not sent: prior signatures, leverage changes and audit history remain recorded.
 
 Legacy or malformed records without release evidence remain unresolved; missing effects do not establish that nothing happened. Cancellation cannot clear their existing execution hold. A historical canceled label without venue identity, executions or positively observed acceptance projects as unknown and requires operator reconciliation. This projection does not reconstruct a hold already lost in a historical journal. Actual venue cancellations, including zero-fill and partial-fill cancellations, retain confirmed acceptance; late executions are still reconciled.
+
+Cancellation signing and pending-signature release require a matching live venue observation without a reconciliation error. An unresolved or contradictory observation holds the cancellation as well as the entry. If an explicit local cancellation retry later obtains valid no-release proof and settled leverage evidence, it clears the resolved reconciliation hold while retaining prior effects and fee-review flags.

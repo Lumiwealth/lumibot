@@ -3,7 +3,7 @@
 ## 4.6.45 - Unreleased
 
 ### Fixed
-- Require positive native release provenance before local MetaMask cancellation; retain ambiguous legacy execution holds and distinguish confirmed unsubmitted orders from venue cancellations in generic tools.
+- Require positive native release provenance before local MetaMask cancellation; require a matching live observation before cancellation release, retain ambiguous legacy execution holds and distinguish confirmed unsubmitted orders from venue cancellations in generic tools.
 - Retain locally sent ProjectX orders through uncertain acknowledgements, prevent duplicate handoffs for the same identity, and reconcile exact receipts into the original order. ProjectX and MetaMask order tools expose submission uncertainty without claiming acceptance or permitting a blind retry.
 - ProjectX synthetic brackets protect cumulative residual entry exposure with distinct exit generations, preserve partial-exit quantities and explicit cancellation intent, and hold uncertain restored history instead of inventing new orders.
 

@@ -738,6 +738,8 @@ class ExecutionEngine:
                         operation,
                         state="canceled",
                         message="Unreleased intent canceled locally; no venue order sent",
+                        reconciliationErrorCode=None,
+                        reconciliationMessage=None,
                         orderRelease={
                             "state": "not_released",
                             "source": "native_plan_local_cancel",
@@ -749,6 +751,8 @@ class ExecutionEngine:
             operation = self._reconcile_order(operation, native_plan or {"clientOrderId": None})
             if operation["state"] in _TERMINAL:
                 return operation
+            if operation["state"] not in {"open", "partial_fill"} or operation.get("reconciliationErrorCode"):
+                raise MetaMaskError("RECONCILIATION_REQUIRED", "Verify the matching live order before cancellation")
             venue_id = operation.get("providerOrderId")
             if not isinstance(venue_id, str) or not venue_id.isdecimal():
                 raise MetaMaskError("RECONCILIATION_REQUIRED", "Resolve original order identity before cancellation")
@@ -803,7 +807,7 @@ class ExecutionEngine:
             return self._operation(operation_id)
         try:
             operation = self._advance(self._operation(operation_id), observation=_observation)
-            if operation["state"] not in _TERMINAL:
+            if operation["state"] in {"open", "partial_fill"} and not operation.get("reconciliationErrorCode"):
                 for step, effect in self.journal.effects(self.agent_id, operation_id).items():
                     if (
                         step.startswith("cancel-")

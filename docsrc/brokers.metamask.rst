@@ -13,7 +13,7 @@ Node, Bun, npm, MetaMask CLI or localhost service is required.
 Install and connect
 -------------------
 
-The native adapter is included in the published 4.6.42 package. The execution
+The native adapter is included in the published 4.6.44 package. The execution
 ownership and submission-certainty hardening described here is an unreleased
 4.6.45 source candidate. Package availability does not establish production
 qualification. For candidate source testing, use the shared version branch in
@@ -280,3 +280,10 @@ unknown and cannot be cleared by local cancellation. A historical canceled label
 alone is not acceptance proof; operator reconciliation is required, and this
 projection does not recreate a journal hold already lost in the past. Known
 venue identities and actual fills remain authoritative.
+
+Cancellation signing and pending-signature release require a matching live
+venue observation without a reconciliation error. An unresolved or
+contradictory observation holds the cancellation as well as the entry. If an
+explicit local cancellation retry later obtains valid no-release proof and
+settled leverage evidence, it clears the resolved reconciliation hold while
+retaining prior effects and fee-review flags.

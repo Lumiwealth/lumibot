@@ -144,6 +144,8 @@ Owner revocation is serialized with the final external handoff after network pre
 
 Live partial-fill remainders come from identity-checked open-order snapshots; `orderStatus` can retain the original size while an order remains open. Terminal fill refresh is read-only, preserves closed lifecycle, and emits only new execution deltas. Inconsistent execution evidence blocks new reservations until reconciled.
 
+An IOC order can report venue status `filled` after executing only part of its requested quantity. When the original intent, persisted wire action, venue time in force and exact fills prove this case, LumiBot records the actual execution and cancels the unfilled remainder. The raw venue status remains available for audit. A status label or remaining size alone cannot establish a fill; incomplete or contradictory evidence stays held for reconciliation.
+
 Polling defaults to 10 seconds. Wallet sweeps share fill and live-order reads; unchanged closed orders avoid individual status requests. Increase `POLL_INTERVAL` for large histories or multiple brokers sharing an IP because Hyperliquid applies [weighted limits per IP](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/rate-limits-and-user-limits). Under the [unified-account balance contract](https://hyperliquid.gitbook.io/hyperliquid-docs/trading/account-abstraction-modes), cash reports unheld USDC collateral, not guaranteed order capacity or the value of unrelated spot assets.
 
 Atomic token quantities and receipt output checks remain exact regardless of a strategy's decimal context. A managed swap cannot be canceled locally because MetaMask may still broadcast it. Reverted transactions and earlier approvals retain gas fees and conservative daily reservations.

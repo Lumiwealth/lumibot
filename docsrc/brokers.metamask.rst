@@ -181,6 +181,13 @@ Environment configuration uses ``TRADING_BROKER=metamask``, optional
 Execution and dependency review
 -------------------------------
 
+An IOC order can report venue status ``filled`` after executing only part of its
+requested quantity. When the original intent, persisted wire action, venue time
+in force and exact fills prove this case, LumiBot records the actual execution
+and cancels the unfilled remainder. The raw venue status remains available for
+audit. A status label or remaining size alone cannot establish a fill;
+incomplete or contradictory evidence stays held for reconciliation.
+
 Managed Hyperliquid signing uses domain chain ID 1337 on both networks;
 the signed source binds testnet or mainnet. Bridge chain IDs must not replace
 the signing domain. Provider validation and Shield failures remain rejected

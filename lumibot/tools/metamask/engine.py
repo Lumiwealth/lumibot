@@ -518,8 +518,6 @@ class ExecutionEngine:
         state = "canceled" if raw_state in canceled else "rejected" if raw_state in rejected else raw_state
         if state not in {"open", "filled", "canceled", "rejected"}:
             raise MetaMaskError("ORDER_STATUS_UNSUPPORTED", "Venue terminal status requires explicit reconciliation")
-        if operation["state"] in _TERMINAL and state != operation["state"]:
-            raise MetaMaskError("TERMINAL_STATUS_CONFLICT", "A later venue snapshot cannot change the closed lifecycle")
         if state == "open":
             # orderStatus retains the size from its last lifecycle transition. Actual
             # partial-fill remainders come from the current live order snapshot.
@@ -564,9 +562,6 @@ class ExecutionEngine:
             if identity in rows and rows[identity] != item:
                 raise MetaMaskError("FILL_REGRESSION", "Venue changed an already recorded fill")
             rows[identity] = item
-        self.journal.save_effect(
-            operation, "fills", {"wallet": binding.wallet, "network": binding.network, "items": list(rows.values())}
-        )
         quantity, value = Decimal(0), Decimal(0)
         fees = {}
         for item in rows.values():
@@ -577,6 +572,28 @@ class ExecutionEngine:
             if not isinstance(token, str) or not token:
                 raise MetaMaskError("INVALID_RESPONSE", "Fill fee currency is missing")
             fees[token] = fees.get(token, Decimal(0)) + decimal(item.get("fee"))
+        if (
+            raw_state == "filled"
+            and 0 < quantity < intent.quantity
+            and (intent.tif == "ioc" or intent.kind == "market")
+            and order.get("tif") == "Ioc"
+        ):
+            orders = json_object(plan.get("action"), "persisted order action").get("orders")
+            if isinstance(orders, list) and len(orders) == 1:
+                wire_type = json_object(json_object(orders[0], "persisted order").get("t"), "persisted order type")
+                terminal_remaining = decimal(order.get("sz"))
+                if (
+                    wire_type.get("limit") == {"tif": "Ioc"}
+                    and 0 < terminal_remaining < intent.quantity
+                    and quantity + terminal_remaining == intent.quantity
+                ):
+                    # IOC reports terminal "filled" even when its unfilled remainder was canceled.
+                    state, remaining = "canceled", terminal_remaining
+        if operation["state"] in _TERMINAL and state != operation["state"]:
+            raise MetaMaskError("TERMINAL_STATUS_CONFLICT", "A later venue snapshot cannot change the closed lifecycle")
+        self.journal.save_effect(
+            operation, "fills", {"wallet": binding.wallet, "network": binding.network, "items": list(rows.values())}
+        )
         expected = intent.quantity - remaining
         if quantity != expected or quantity > intent.quantity or quantity < decimal(operation["filledQuantity"]):
             raise MetaMaskError(

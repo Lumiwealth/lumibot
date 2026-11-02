@@ -356,6 +356,63 @@ def partial_fill(size="0.0004"):
     }
 
 
+@pytest.mark.parametrize("kind", ["limit", "market"])
+@pytest.mark.parametrize("restart", [False, True])
+def test_terminal_ioc_partial_fill_cancels_remainder_without_replay(engine, kind, restart):
+    original_action = engine.venue.order_action.side_effect
+
+    def ioc_action(*args, **kwargs):
+        action = original_action(*args, **kwargs)
+        action["orders"][0]["t"]["limit"]["tif"] = "Ioc"
+        return action
+
+    engine.venue.order_action.side_effect = ioc_action
+    engine.submit(intent(orderType=kind, tif="ioc" if kind == "limit" else "gtc"))
+    snapshot = engine.venue.order_status(WALLET, 42)
+    snapshot["order"]["status"] = "filled"
+    snapshot["order"]["order"].update(sz="0.0006", tif="Ioc")
+    engine.venue.order_status.side_effect = None
+    engine.venue.order_status.return_value = snapshot
+    engine.venue.fills.return_value = [partial_fill()]
+    result = engine.order("one")
+    assert result["state"] == "canceled" and result["venueStatus"] == "filled"
+    assert result["filledQuantity"] == "0.0004" and result["averagePrice"] == "19999"
+    assert result["fees"] == [{"asset": "USDC", "amount": "0.001"}]
+    engine.provider.reset_mock()
+    engine.venue.submit_action.reset_mock()
+    subject = ExecutionEngine(engine.journal, engine.provider, engine.venue, "agent") if restart else engine
+    assert subject.order("one")["state"] == "canceled"
+    assert subject.order("one")["reconciliationErrorCode"] is None
+    assert subject.submit(intent(orderType=kind, tif="ioc" if kind == "limit" else "gtc"))["state"] == "canceled"
+    engine.provider.submit_signature.assert_not_called()
+    engine.provider.signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize("missing", ["intent", "wire", "venue", "remainder", "ledger"])
+def test_terminal_ioc_partial_requires_consistent_positive_execution_evidence(engine, missing):
+    original_action = engine.venue.order_action.side_effect
+
+    def ioc_action(*args, **kwargs):
+        action = original_action(*args, **kwargs)
+        action["orders"][0]["t"]["limit"]["tif"] = "Gtc" if missing == "wire" else "Ioc"
+        return action
+
+    engine.venue.order_action.side_effect = ioc_action
+    engine.submit(intent(tif="gtc" if missing == "intent" else "ioc"))
+    snapshot = engine.venue.order_status(WALLET, 42)
+    snapshot["order"]["status"] = "filled"
+    snapshot["order"]["order"].update(sz="0.0005" if missing == "remainder" else "0.0006")
+    if missing != "venue":
+        snapshot["order"]["order"]["tif"] = "Ioc"
+    engine.venue.order_status.side_effect = None
+    engine.venue.order_status.return_value = snapshot
+    engine.venue.fills.return_value = [] if missing == "ledger" else [partial_fill()]
+    result = engine.order("one")
+    assert result["state"] == "unknown" and result["filledQuantity"] == "0"
+    assert result["reconciliationErrorCode"] == "FILL_HISTORY_INCOMPLETE"
+
+
 def test_open_status_size_is_a_snapshot_live_remainder_proves_partial_execution(engine):
     engine.submit(intent())
     live = dict(engine.venue.order_status(WALLET, 42)["order"]["order"], sz="0.0006")

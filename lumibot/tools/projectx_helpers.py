@@ -127,6 +127,7 @@ class ProjectXStreaming:
         self._quotes = {}
         self._quote_events = {}
         self._quote_contracts = set()
+        self._quote_subscription_times = {}
         self._subscribe_user = False
         self.on_account_update = None
         self.on_order_update = None
@@ -255,6 +256,8 @@ class ProjectXStreaming:
         try:
             with self._quote_lock:
                 contracts = tuple(self._quote_contracts)
+                for contract_id in contracts:
+                    self._quote_subscription_times[contract_id] = pd.Timestamp.now(tz='UTC')
             for contract_id in contracts:
                 self.market_connection.send('SubscribeContractQuotes', [contract_id])
             self._market_ready.set()
@@ -267,6 +270,7 @@ class ProjectXStreaming:
         self._market_ready.clear()
         with self._quote_lock:
             self._quotes.clear()
+            self._quote_subscription_times.clear()
             for event in self._quote_events.values():
                 event.clear()
 
@@ -290,9 +294,12 @@ class ProjectXStreaming:
     def get_market_quote(self, contract_id: str, timeout: float = 10):
         if not self.start_market_hub():
             return None
+        deadline = time.monotonic() + timeout
         with self._quote_lock:
             first_subscription = contract_id not in self._quote_contracts
             self._quote_contracts.add(contract_id)
+            if first_subscription:
+                self._quote_subscription_times[contract_id] = pd.Timestamp.now(tz='UTC')
             event = self._quote_events.setdefault(contract_id, threading.Event())
         if first_subscription:
             try:
@@ -300,13 +307,26 @@ class ProjectXStreaming:
             except Exception as exc:
                 with self._quote_lock:
                     self._quote_contracts.discard(contract_id)
+                    self._quote_subscription_times.pop(contract_id, None)
                 self.logger.warning("Quote subscription failed (%s)", type(exc).__name__)
                 return None
-        if not event.is_set():
-            event.wait(timeout)
-        with self._quote_lock:
-            payload = self._quotes.get(contract_id)
-            return dict(payload) if payload else None
+        while True:
+            received = event.is_set() or event.wait(max(0, deadline - time.monotonic()))
+            with self._quote_lock:
+                payload = self._quotes.get(contract_id)
+                payload = dict(payload) if payload else None
+                subscribed_at = self._quote_subscription_times.get(contract_id)
+                source_time = pd.to_datetime((payload or {}).get('timestamp'), utc=True, errors='coerce')
+                initial_snapshot = (subscribed_at is not None and pd.notna(source_time)
+                                    and source_time < subscribed_at)
+                if not initial_snapshot or not received:
+                    if not initial_snapshot:
+                        self._quote_subscription_times.pop(contract_id, None)
+                    return payload
+                # Subscribe can replay an old snapshot before live GatewayQuote
+                # updates. Wait within the original budget without relabeling it.
+                # Clearing under the quote lock cannot lose a concurrent update.
+                event.clear()
 
     def stop(self):
         self._subscribe_user = False

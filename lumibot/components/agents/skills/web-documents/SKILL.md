@@ -283,6 +283,11 @@ metadata to explain the exclusion instead.
 Pass the selected row's normalized instant as `available_at` to `read_document`.
 Pass its retained-original SHA-256 as `expected_sha256` when the source provides
 it. Never invent or move an availability instant to make a document eligible.
+When reporting discovery or publication times, copy each returned timestamp
+exactly, including its date and UTC offset. If a conversion is necessary,
+compute it with a tool first and report the same instant. Never attach one
+timezone's offset to clock digits taken from another timezone.
+
 Retain the exact URL, source timestamp and hash together. These optional
 hash values must be copied in full from the selected row, without abbreviations,
 whitespace or guessed characters. Omit a hash the publisher did not provide.

@@ -147,8 +147,8 @@ def test_research_skill_reports_the_successful_response_bound_without_inheriting
     # the response's applied bound; real-model cases assess factual handoffs.
     assert "Copy each window from that request's arguments and each effective bound from" in instructions
     assert "its successful response" in instructions
-    assert "If the successful response returns `asOf: null`" in instructions
-    assert "do not describe it as cutoff-bounded" in instructions
+    assert "With `asOf: null`, describe an unbounded live read" in instructions
+    assert "never retrieval against or bounded by the runtime clock" in instructions
 
 
 def test_options_skill_requires_atomic_multileg_or_no_trade():

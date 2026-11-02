@@ -1,0 +1,19 @@
+{
+  "kind": "native-model-failure-baseline",
+  "source_commit": "0b2d06513b1d06166725b82e7a54ce7cc3e657be",
+  "source_runtime_fingerprint": "94e1ecc85b87d189bbe31cc899d17f2f16d9ee599b2616ba2b16e44020bf800a",
+  "case_id": "web_documents_holdings_from_yearly_and_trade_reports",
+  "run_id": "5900a679-b315-4700-b65f-87eb35e04fe1",
+  "repetition": 2,
+  "timestamp": "2026-11-02T00:50:12.515995Z",
+  "machine_pass": true,
+  "judge": {
+    "pass": false,
+    "reason": "The final answer misstates report 4002\u2019s availability as 14:45 -04:00; the indexed timestamp is 10:45 -04:00 (14:45Z), so the stated publication time is not the same instant."
+  },
+  "native_record_sha256": "2b464aea0ee8355115d9daae833195d2b267d11bd6d283753f1f226b5fbc15ae",
+  "failure": "The source availability was 10:45 -04:00 (14:45Z); the answer joined UTC clock digits with the local offset. Eligibility and the holdings ledger were correct, but the reported instant was false.",
+  "external_writes": "fixture_only",
+  "private_evidence_retained": true,
+  "native_record_serialization": "original append-only ledger line without its line terminator"
+}

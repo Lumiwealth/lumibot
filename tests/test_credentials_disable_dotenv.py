@@ -22,6 +22,7 @@ def test_disable_dotenv_skips_recursive_scan(monkeypatch):
 def test_find_and_load_dotenv_walks_upward_and_loads_local_override(monkeypatch, tmp_path):
     """Verify upward .env discovery and .env.local override behavior from nested paths."""
     monkeypatch.setenv("LUMIBOT_DISABLE_DOTENV", "1")
+    monkeypatch.delenv("PYTHON_DOTENV_DISABLED", raising=False)
     monkeypatch.delenv("LUMIBOT_TEST_DOTENV_VALUE", raising=False)
     monkeypatch.delenv("LUMIBOT_DISABLE_DOTENV_LOCAL", raising=False)
 
@@ -41,6 +42,7 @@ def test_find_and_load_dotenv_walks_upward_and_loads_local_override(monkeypatch,
 def test_find_and_load_dotenv_can_skip_local_override(monkeypatch, tmp_path):
     """Verify LUMIBOT_DISABLE_DOTENV_LOCAL leaves values from .env intact."""
     monkeypatch.setenv("LUMIBOT_DISABLE_DOTENV", "1")
+    monkeypatch.delenv("PYTHON_DOTENV_DISABLED", raising=False)
     monkeypatch.setenv("LUMIBOT_DISABLE_DOTENV_LOCAL", "1")
     monkeypatch.delenv("LUMIBOT_TEST_DOTENV_VALUE", raising=False)
 

@@ -74,14 +74,14 @@ def validate_call(call, *, row, role, model, now):
         raise ValueError("Native model usage falls outside its attempt")
 
 
-def validate_record(record, case, *, runtime_hash, now):
+def validate_record(record, case, *, runtime_hash, now, required=None):
     acting_model = str(case.get("model") or evals.DEFAULT_ACTING_MODEL)
     judge_model = evals.DEFAULT_JUDGE_MODEL
     fingerprint = evals.case_fingerprint(case, judge_model=judge_model, runtime_hash=runtime_hash)
     if not acting_model.startswith("chatgpt/") or record.get("fingerprint") != fingerprint:
         raise ValueError("Qualification source/model fingerprint mismatch")
     rows = record.get("repetitions")
-    if not isinstance(rows, list) or len(rows) < evals.case_required_passes(case):
+    if not isinstance(rows, list) or len(rows) < (evals.case_required_passes(case) if required is None else required):
         raise ValueError("Qualification lacks required unique repetitions")
     repetitions, attempts, call_ids = set(), set(), set()
     for row in rows:
@@ -238,21 +238,69 @@ def build_calibration(rows, summary, calls, cases, *, runtime_hash, now):
             "creates_case_freshness": False, "controls": records}
 
 
-def build_receipt(rows, call_rows, cases, *, runtime_hash, versions, calibration_rows=None,
-                  calibration_summary=None, now=None):
+def establishment_runtime(source_ref, cases, versions):
+    """Rebuild the original runtime and unchanged case definitions from Git."""
+    import re
+    from scripts import agent_eval_source_compatibility as source
+    if not isinstance(source_ref, str) or not re.fullmatch("[0-9a-f]{40}", source_ref):
+        raise ValueError("Establishment requires an immutable full Git commit")
+    source._git("merge-base", "--is-ancestor", source_ref, "HEAD", root=evals.REPO_ROOT)
+    original = source._blobs(source_ref, source.runtime_paths(root=evals.REPO_ROOT, source_ref=source_ref), root=evals.REPO_ROOT)
+    for case in cases:
+        path = Path(case["_path"]).relative_to(evals.REPO_ROOT).as_posix()
+        before = json.loads(source._git("show", f"{source_ref}:{path}", root=evals.REPO_ROOT))
+        if before != {key: value for key, value in case.items() if not key.startswith("_")}:
+            raise ValueError("A new or changed case requires its complete targeted repetitions")
+    return source._fingerprint(original, versions)
+
+
+def build_establishment(rows, call_rows, cases, *, source_ref, versions, now=None):
     now = now or evals.utc_now()
-    if calibration_rows is None or calibration_summary is None:
-        raise ValueError("Native judge calibration is a required release qualification")
-    if not call_rows or call_rows[0].get("funding") != "chatgpt-plan" or call_rows[0].get("version") != 2:
-        raise ValueError("Native subscription call ledger is required")
-    cap, calls = subscription_call_state(call_rows)
-    if type(cap) is not int or cap <= 0 or len(calls) > cap:
-        raise ValueError("Native model-call allowance is invalid or exceeded")
+    runtime_hash = establishment_runtime(source_ref, cases, versions)
+    _, calls = subscription_call_state(call_rows)
+    established = []
+    for case in cases:
+        fingerprint = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash=runtime_hash)
+        latest = evals.latest_repetition_rows(rows, case["id"], fingerprint)
+        if (len(latest) >= evals.case_required_passes(case)
+                and all(row.get("status") == "pass" for row in latest.values())):
+            established.append(case)
+    records = project_case_records(rows, calls, established, runtime_hash=runtime_hash, now=now)
+    proof = {"source_commit": source_ref, "runtime_fingerprint": runtime_hash, "cases": records}
+    validate_establishment(proof, cases, versions=versions, now=now)
+    return proof
+
+
+def validate_establishment(proof, cases, *, versions, now):
+    if not isinstance(proof, dict) or set(proof) != {"source_commit", "runtime_fingerprint", "cases"}:
+        raise ValueError("Invalid original establishment evidence")
+    runtime_hash = establishment_runtime(proof["source_commit"], cases, versions)
+    if proof["runtime_fingerprint"] != runtime_hash or not isinstance(proof["cases"], dict):
+        raise ValueError("Original establishment source/SDK fingerprint mismatch")
+    by_id = {case["id"]: case for case in cases}
+    if set(proof["cases"]) - set(by_id):
+        raise ValueError("Unknown established case")
+    for case_id, record in proof["cases"].items():
+        validate_record(record, by_id[case_id], runtime_hash=runtime_hash, now=now)
+
+
+def regression_required(case, establishment, rows, runtime_hash):
+    """A genuine current failure requires stability; unchanged established cases run once."""
+    fingerprint = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash=runtime_hash)
+    failed = any(row.get("case_id") == case["id"] and row.get("fingerprint") == fingerprint
+                 and row.get("status") == "fail" for row in rows)
+    if establishment and case["id"] in establishment["cases"] and not failed:
+        return 1
+    return evals.case_required_passes(case)
+
+
+def project_case_records(rows, calls, cases, *, runtime_hash, now, required_counts=None):
+    required_counts = required_counts or {}
     records = {}
     for case in cases:
         fingerprint = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash=runtime_hash)
         latest = evals.latest_repetition_rows(rows, case["id"], fingerprint)
-        if len(latest) < evals.case_required_passes(case) or any(row.get("status") != "pass" for row in latest.values()):
+        if len(latest) < required_counts.get(case["id"], evals.case_required_passes(case)) or any(row.get("status") != "pass" for row in latest.values()):
             raise ValueError(f"Unqualified or failed case: {case['id']}")
         repetitions = []
         for rep, row in sorted(latest.items()):
@@ -288,6 +336,30 @@ def build_receipt(rows, call_rows, cases, *, runtime_hash, versions, calibration
             )} for call in bound_calls]
             repetitions.append(projected)
         records[case["id"]] = {"fingerprint": fingerprint, "repetitions": repetitions}
+    return records
+
+
+def build_receipt(rows, call_rows, cases, *, runtime_hash, versions, calibration_rows=None,
+                  calibration_summary=None, now=None, established_source=None):
+    now = now or evals.utc_now()
+    if calibration_rows is None or calibration_summary is None:
+        raise ValueError("Native judge calibration is a required release qualification")
+    if not call_rows or call_rows[0].get("funding") != "chatgpt-plan" or call_rows[0].get("version") != 2:
+        raise ValueError("Native subscription call ledger is required")
+    cap, calls = subscription_call_state(call_rows)
+    if type(cap) is not int or cap <= 0 or len(calls) > cap:
+        raise ValueError("Native model-call allowance is invalid or exceeded")
+    establishment = build_establishment(rows, call_rows, cases, source_ref=established_source,
+                                        versions=versions, now=now) if established_source else None
+    if establishment:
+        # A current genuine failure revokes the once-per-regression shortcut.
+        # Keep the original rows in the native journal; require current stability.
+        establishment["cases"] = {case["id"]: establishment["cases"][case["id"]]
+            for case in cases if case["id"] in establishment["cases"]
+            and regression_required(case, establishment, rows, runtime_hash) == 1}
+    required_counts = {case["id"]: regression_required(case, establishment, rows, runtime_hash) for case in cases}
+    records = project_case_records(rows, calls, cases, runtime_hash=runtime_hash, now=now,
+                                   required_counts=required_counts)
     receipt = {"kind": KIND, "version": VERSION, "funding": "chatgpt-plan", "api_spend_usd": 0,
                "runtime_fingerprint": runtime_hash, "sdk_versions": versions, "cases": records,
                "calibration": build_calibration(calibration_rows, calibration_summary, calls, cases,
@@ -295,6 +367,8 @@ def build_receipt(rows, call_rows, cases, *, runtime_hash, versions, calibration
                "call_allowance": {"max_calls": cap, "consumed_calls": len(calls)},
                "native_ledger_digests": {"repetitions": digest(rows), "model_calls": digest(call_rows),
                                          "calibration": digest(calibration_rows), "calibration_summary": digest(calibration_summary)}}
+    if establishment:
+        receipt["establishment"] = establishment
     verify_receipt(receipt, cases, runtime_hash=runtime_hash, versions=versions, now=now)
     return receipt
 
@@ -303,7 +377,7 @@ def verify_receipt(receipt, cases, *, runtime_hash, versions, now=None):
     now = now or evals.utc_now()
     expected_keys = {"kind", "version", "funding", "api_spend_usd", "runtime_fingerprint", "sdk_versions", "cases",
                      "call_allowance", "native_ledger_digests", "calibration"}
-    if not isinstance(receipt, dict) or set(receipt) != expected_keys:
+    if not isinstance(receipt, dict) or set(receipt) not in (expected_keys, expected_keys | {"establishment"}):
         raise ValueError("Missing or unsupported native qualification receipt")
     if (receipt["kind"] != KIND or receipt["version"] != VERSION or receipt["funding"] != "chatgpt-plan"
             or receipt["api_spend_usd"] != 0 or receipt["runtime_fingerprint"] != runtime_hash
@@ -323,11 +397,23 @@ def verify_receipt(receipt, cases, *, runtime_hash, versions, now=None):
     ):
         raise ValueError("Missing native ledger digests")
     seen_attempts, seen_calls = set(), set()
+    establishment = receipt.get("establishment")
+    if establishment:
+        validate_establishment(establishment, cases, versions=versions, now=now)
+        for case in cases:
+            prior = establishment["cases"].get(case["id"])
+            if prior:
+                attempts, calls = validate_record(prior, case, runtime_hash=establishment["runtime_fingerprint"], now=now)
+                if seen_attempts & attempts or seen_calls & calls:
+                    raise ValueError("Establishment reused a native attempt or call")
+                seen_attempts.update(attempts)
+                seen_calls.update(calls)
     for case in cases:
         record = records[case["id"]]
         if not isinstance(record, dict) or set(record) != {"fingerprint", "repetitions"}:
             raise ValueError("Invalid per-case qualification record")
-        attempts, calls = validate_record(record, case, runtime_hash=runtime_hash, now=now)
+        attempts, calls = validate_record(record, case, runtime_hash=runtime_hash, now=now,
+            required=1 if establishment and case["id"] in establishment["cases"] else None)
         if seen_attempts & attempts or seen_calls & calls:
             raise ValueError("Another case reused a native attempt or model call")
         seen_attempts.update(attempts)
@@ -389,6 +475,7 @@ def main():
     parser.add_argument("--calibration-output-root", type=Path)
     parser.add_argument("--model-call-ledger", type=Path)
     parser.add_argument("--receipt", type=Path, default=DEFAULT_PATH)
+    parser.add_argument("--established-source", help="Immutable earlier source with original established native passes; every case still needs current regression proof")
     args = parser.parse_args()
     cases, runtime_hash, versions = evals.load_cases(), evals.runtime_fingerprint(), evals.sdk_versions()
     if args.mode == "create":
@@ -402,7 +489,8 @@ def main():
                                 read_ledger(args.model_call_ledger), cases,
                                 runtime_hash=runtime_hash, versions=versions,
                                 calibration_rows=read_ledger(args.calibration_output_root / "ledger.jsonl"),
-                                calibration_summary=json.loads((args.calibration_output_root / "summary.json").read_text()))
+                                calibration_summary=json.loads((args.calibration_output_root / "summary.json").read_text()),
+                                established_source=args.established_source)
         evals.write_json_atomic(args.receipt, receipt)
     else:
         receipt_bytes = args.receipt.read_bytes()

@@ -1699,7 +1699,7 @@ def case_required_passes(case: dict[str, Any]) -> int:
     return required
 
 
-def target_passes(already: int, repeat: int, required: int | None = None) -> int:
+def target_passes(already: int, repeat: int, required: int | None = None, *, established=False) -> int:
     """How many consecutive passes this case needs before it is done.
 
     A case that has not yet earned its required consecutive passes is driven
@@ -1708,7 +1708,7 @@ def target_passes(already: int, repeat: int, required: int | None = None) -> int
     which is 1 for the ordinary gate.
     """
     required = NEW_CASE_REQUIRED_PASSES if required is None else required
-    if type(required) is not int or required not in {3, 5}:
+    if type(required) is not int or required not in ({1, 3, 5} if established else {3, 5}):
         raise RuntimeError("required passes must be the integer 3 or 5")
     if already < required:
         return max(repeat, required)
@@ -1815,9 +1815,10 @@ def is_fresh(
     acting_model: str = DEFAULT_ACTING_MODEL,
     judge_model: str = DEFAULT_JUDGE_MODEL,
     required: int | None = None,
+    established: bool = False,
 ) -> bool:
     required = REQUIRED_CONSECUTIVE_PASSES if required is None else required
-    if type(required) is not int or required not in {3, 5}:
+    if type(required) is not int or required not in ({1, 3, 5} if established else {3, 5}):
         raise RuntimeError("required passes must be the integer 3 or 5")
     record = state.get("cases", {}).get(case_id)
     if not isinstance(record, dict) or record.get("fingerprint") != fingerprint:
@@ -1992,6 +1993,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-root", type=Path, default=Path("artifacts/agent_evals"))
     parser.add_argument("--qualification-receipt", type=Path, default=REPO_ROOT / "ci/agent-evals/qualification.json")
     parser.add_argument("--max-workers", type=int, default=8)
+    parser.add_argument("--established-source", help="Immutable source of original 3/5 native passes; still run every established case once against current source")
     parser.add_argument("--pilot", action="store_true", help="Run one pending repetition per selected case; qualification still requires every configured pass")
     parser.add_argument("--gate", action="store_true", help="Skip fresh cases and require complete fresh coverage")
     parser.add_argument(
@@ -2030,6 +2032,11 @@ def main() -> int:
     existing_rows = read_jsonl(args.output_root.resolve() / "ledger.jsonl")
     native_path = args.output_root.resolve() / "model_calls.jsonl"
     native_rows = [json.loads(line) for line in native_path.read_text().splitlines() if line.strip()] if native_path.exists() else []
+    from scripts.qualify_agent_evals import build_establishment, regression_required
+    establishment = build_establishment(existing_rows, native_rows, cases, source_ref=args.established_source,
+        versions=sdk_versions()) if args.established_source else None
+    def required_passes(case):
+        return regression_required(case, establishment, existing_rows, runtime_hash)
     recovered_attempts = recover_native_incomplete_attempts(existing_rows, native_rows, fingerprints)
     existing_rows.extend(recovered_attempts)
     invalidate_failed_freshness(state, existing_rows, fingerprints)
@@ -2044,7 +2051,7 @@ def main() -> int:
                 args.freshness_days,
                 acting_model=case.get("model") or DEFAULT_ACTING_MODEL,
                 judge_model=args.judge_model,
-                required=case_required_passes(case),
+                required=required_passes(case), established=required_passes(case) == 1,
             )
         ]
         print(
@@ -2083,7 +2090,7 @@ def main() -> int:
             state, case["id"], fingerprint, args.freshness_days,
             acting_model=case.get("model") or DEFAULT_ACTING_MODEL,
             judge_model=args.judge_model,
-            required=case_required_passes(case),
+            required=required_passes(case), established=required_passes(case) == 1,
         ):
             fresh_case_ids.append(case["id"])
             continue
@@ -2091,7 +2098,7 @@ def main() -> int:
         seen = latest_repetition_rows(existing_rows, case["id"], fingerprint)
         latest = {} if args.force else seen
         for repetition in range(1, max(
-            target_passes(already, args.repeat, required=case_required_passes(case)), max(seen, default=0)
+            target_passes(already, args.repeat, required=required_passes(case), established=required_passes(case) == 1), max(seen, default=0)
         ) + 1):
             if latest.get(repetition, {}).get("status") == "pass":
                 resumed_repetitions += 1
@@ -2200,7 +2207,7 @@ def main() -> int:
         passed_count = consecutive_pass_count(all_rows, case_id, fingerprint)
         latest = latest_repetition_rows(all_rows, case_id, fingerprint)
         if (
-            case_rows and passed_count >= case_required_passes(case)
+            case_rows and passed_count >= required_passes(case)
             and all(row.get("status") == "pass" for row in latest.values())
         ):
             state.setdefault("cases", {})[case_id] = {
@@ -2220,7 +2227,7 @@ def main() -> int:
             state, case["id"], fingerprints[case["id"]], args.freshness_days,
             acting_model=case.get("model") or DEFAULT_ACTING_MODEL,
             judge_model=args.judge_model,
-            required=case_required_passes(case),
+            required=required_passes(case), established=required_passes(case) == 1,
         )
     ]
     pass_count = sum(row.get("status") == "pass" for row in new_rows)

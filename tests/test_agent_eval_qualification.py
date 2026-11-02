@@ -97,6 +97,53 @@ def make_receipt(metadata):
     return build_with_calibration(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
 
 
+def test_established_cases_keep_original_evidence_and_require_a_current_regression(native_metadata, monkeypatch):
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")
+    proof = qualification.build_establishment(rows, calls, cases, source_ref="a" * 40, versions=versions, now=now)
+    assert proof["cases"]["contract"]["repetitions"][0]["run_id"] == rows[0]["run_id"]
+    assert qualification.regression_required(cases[0], proof, [], "new-source") == 1
+    assert evals.target_passes(0, 1, required=1, established=True) == 1
+    with pytest.raises(RuntimeError):
+        evals.target_passes(0, 1, required=1)
+    failed = {"case_id": "contract", "status": "fail", "fingerprint": evals.case_fingerprint(
+        cases[0], judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash="new-source")}
+    assert qualification.regression_required(cases[0], proof, [failed], "new-source") == 3
+    rows[-1]["status"] = "fail"
+    assert qualification.build_establishment(rows, calls, cases, source_ref="a" * 40,
+        versions=versions, now=now)["cases"] == {}
+
+
+def test_export_verifies_original_stability_and_one_new_source_regression(native_metadata, monkeypatch):
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")
+    current = deepcopy(rows[:1])
+    current[0]["run_id"] = str(uuid4())
+    current[0]["fingerprint"] = evals.case_fingerprint(cases[0], judge_model=evals.DEFAULT_JUDGE_MODEL,
+                                                       runtime_hash="new-source")
+    current_calls = deepcopy(calls[1:5])
+    ids = {}
+    for call in current_calls:
+        ids.setdefault(call["id"], str(uuid4()))
+        call["id"] = ids[call["id"]]
+        if "scope" in call:
+            call["scope"].update(run_id=current[0]["run_id"], fingerprint=current[0]["fingerprint"])
+    calibration_rows, calibration_calls, summary = calibration_metadata(cases, now, "new-source")
+    args = dict(runtime_hash="new-source", versions=versions, now=now, calibration_rows=calibration_rows,
+                calibration_summary=summary, established_source="a" * 40)
+    journal = [*calls, *current_calls, *calibration_calls]
+    with pytest.raises(ValueError, match="Unqualified or failed case"):
+        qualification.build_receipt(rows, journal, cases, **args)
+    receipt = qualification.build_receipt([*rows, *current], journal, cases, **args)
+    assert len(receipt["cases"]["contract"]["repetitions"]) == 1
+    assert len(receipt["establishment"]["cases"]["contract"]["repetitions"]) == 3
+    assert receipt["establishment"]["cases"]["contract"]["fingerprint"] != receipt["cases"]["contract"]["fingerprint"]
+    qualification.verify_receipt(receipt, cases, runtime_hash="new-source", versions=versions, now=now)
+    receipt["establishment"]["cases"]["contract"]["repetitions"].pop()
+    with pytest.raises(ValueError, match="required unique repetitions"):
+        qualification.verify_receipt(receipt, cases, runtime_hash="new-source", versions=versions, now=now)
+
+
 @pytest.mark.parametrize("cap", [1500, 2500, 4000, 5000, 5001, 100000])
 def test_explicit_subscription_attempt_can_qualify_with_approved_call_limit(native_metadata, cap):
     metadata = deepcopy(native_metadata)

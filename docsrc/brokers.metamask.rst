@@ -157,10 +157,20 @@ a local notional limit a provider-enforced cap on typed-data signatures.
 Native offline regression tests and connected Python wallet, policy, account,
 market-data and ordinary strategy-startup checks have passed. Native testnet
 opening, reduce-only closing and cancellation have funded receipts. Fresh live
-partial-flow and connected expiry rejection remain unqualified; active grants
-explicitly skip the connected expiry check. Managed swaps require separate
-funded proof. Old JavaScript receipts do not qualify the new path. No production
-or mainnet trading qualification is claimed.
+partial-flow remains unqualified. Actual short-lived testnet grants have expired
+on both dedicated wallets: new intents returned ``REVOKED`` without signing or
+changing orders, execution effects or nonces. Active grants still skip the
+ordinary connected expiry check. Managed swaps require separate funded proof.
+Old JavaScript receipts do not qualify the new path. No production or mainnet
+trading qualification is claimed.
+
+The explicit ``scripts/qualify_metamask_partial.py`` testnet harness validates
+live remaining size against ``frontendOpenOrders`` and the persisted native
+client order identity. Paired fills, fees, callbacks and exact cleanup remain
+required. ``--daily-caps MAKER TAKER`` validates separately reviewed existing
+grants without changing authority or spending history. Defaults remain 300/150;
+each wallet needs $50 reservation room before signing to cover entry and
+residual cleanup within the $25 order limit.
 
 Environment configuration uses ``TRADING_BROKER=metamask``, optional
 ``DATA_SOURCE=metamask``, ``METAMASK_SESSION_FILE``, ``METAMASK_STATE_FILE``,

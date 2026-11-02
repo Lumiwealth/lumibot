@@ -3,6 +3,7 @@
 ## 4.6.45 - Unreleased
 
 ### Fixed
+- Validate testnet partial-fill qualification against the identity-matched live order remainder, retain cleanup budget before signing, and accept explicitly reviewed daily-cap checks without changing wallet authority. Actual testnet expiry rejection has been verified without signatures or journal execution changes.
 - Document all four submission-certainty values for MetaMask and separate local-cancellation recovery guidance from unrelated FAQ answers.
 - Require positive native release provenance before local MetaMask cancellation; require a matching live observation before cancellation release, retain ambiguous legacy execution holds and distinguish confirmed unsubmitted orders from venue cancellations in generic tools.
 - Retain locally sent ProjectX orders through uncertain acknowledgements, prevent duplicate handoffs for the same identity, and reconcile exact receipts into the original order. ProjectX and MetaMask order tools expose submission uncertainty without claiming acceptance or permitting a blind retry.

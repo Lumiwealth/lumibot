@@ -63,6 +63,129 @@ def test_authority_must_match_approved_caps_and_have_time_for_safe_cleanup():
             qualification.validate_authority({**binding, **changes}, 0, 100_000)
 
 
+def test_explicit_daily_caps_validate_existing_authority_without_broadening_other_limits():
+    binding = {
+        "network": "testnet",
+        "enabled": True,
+        "maxOrderUsd": "25",
+        "maxDailyUsd": "350",
+        "maxLeverage": 1,
+        "maxSlippageBps": 50,
+        "markets": ["BTC", "ETH"],
+        "expiresAt": 900_000,
+    }
+    qualification.validate_authority(binding, 0, 100_000, (350, 200))
+    qualification.validate_authority({**binding, "maxDailyUsd": "200"}, 1, 100_000, (350, 200))
+    for changes in ({"maxDailyUsd": "351"}, {"maxOrderUsd": "26"}, {"maxLeverage": 2}, {"network": "mainnet"}):
+        with pytest.raises(RuntimeError):
+            qualification.validate_authority({**binding, **changes}, 0, 100_000, (350, 200))
+    for caps in ((0, 200), (-1, 200), (True, 200), (350,)):
+        with pytest.raises(RuntimeError, match="positive reviewed"):
+            qualification.validate_authority(binding, 0, 100_000, caps)
+
+
+@pytest.fixture
+def maker_observation():
+    client_id = "0x" + "a" * 32
+    original = {
+        "oid": 777,
+        "cloid": client_id,
+        "coin": "ETH",
+        "side": "B",
+        "origSz": "0.0106",
+        "sz": "0.0106",
+        "reduceOnly": False,
+    }
+    venue = Mock()
+    venue.order_status.return_value = {"status": "order", "order": {"status": "open", "order": original}}
+    venue.frontend_open_orders.return_value = [{**original, "sz": "0.0053"}]
+    venue.fills.return_value = [{"oid": 777, "tid": 111, "coin": "ETH", "side": "B", "sz": "0.0053", "px": "2250"}]
+    operation = {"providerOrderId": "777", "request": {"quantity": "0.0106"}, "createdAt": 100_000}
+    return venue, operation, client_id
+
+
+def test_partial_observation_uses_live_remainder_when_order_status_retains_original_size(maker_observation):
+    venue, operation, client_id = maker_observation
+    _, live, fills, quantity, remaining = qualification.independent_maker_observation(
+        venue, "test-wallet", operation, client_id
+    )
+    assert quantity == remaining == Decimal("0.0053")
+    assert live["sz"] == "0.0053" and fills == venue.fills.return_value
+
+
+def test_stale_status_half_cannot_substitute_for_live_full_remainder(maker_observation):
+    venue, operation, client_id = maker_observation
+    venue.order_status.return_value["order"]["order"]["sz"] = "0.0053"
+    venue.frontend_open_orders.return_value[0]["sz"] = "0.0106"
+    *_, quantity, remaining = qualification.independent_maker_observation(venue, "test-wallet", operation, client_id)
+    assert quantity == Decimal("0.0053") and remaining == Decimal("0.0106")
+
+
+@pytest.mark.parametrize("source", ["status", "live"])
+@pytest.mark.parametrize(
+    "change",
+    [{"cloid": "0x" + "b" * 32}, {"coin": "BTC"}, {"side": "A"}, {"origSz": "0.0107"}, {"reduceOnly": True}],
+)
+def test_partial_observation_requires_exact_identity_in_both_snapshots(maker_observation, source, change):
+    venue, operation, client_id = maker_observation
+    row = (
+        venue.order_status.return_value["order"]["order"]
+        if source == "status"
+        else venue.frontend_open_orders.return_value[0]
+    )
+    row.update(change)
+    with pytest.raises(RuntimeError, match="differs from the maker intent"):
+        qualification.independent_maker_observation(venue, "test-wallet", operation, client_id)
+
+
+@pytest.mark.parametrize("count", [0, 2])
+def test_partial_observation_rejects_absent_or_duplicate_live_order(maker_observation, count):
+    venue, operation, client_id = maker_observation
+    venue.frontend_open_orders.return_value *= count
+    with pytest.raises(RuntimeError, match="live remaining size is unavailable"):
+        qualification.independent_maker_observation(venue, "test-wallet", operation, client_id)
+
+
+def test_partial_observation_rejects_duplicate_fill_identity(maker_observation):
+    venue, operation, client_id = maker_observation
+    venue.fills.return_value *= 2
+    with pytest.raises(RuntimeError, match="Duplicate maker fill"):
+        qualification.independent_maker_observation(venue, "test-wallet", operation, client_id)
+
+
+def test_cleanup_budget_retains_recent_canceled_and_fee_adjusted_reservations():
+    journal = Mock()
+    journal.operations.return_value = [
+        {
+            "id": "prior",
+            "state": "canceled",
+            "createdAt": 1_000,
+            "reservedUsd": "24.9",
+            "feeAdjustedReservationUsd": "25.1",
+        }
+    ]
+    journal.effects.return_value = {}
+    assert qualification.cleanup_budget_room(journal, "agent", {"maxDailyUsd": "75.1"}, 2_000) == 50
+    with pytest.raises(RuntimeError, match="residual cleanup before signing"):
+        qualification.cleanup_budget_room(journal, "agent", {"maxDailyUsd": "75"}, 2_000)
+
+
+@pytest.mark.parametrize("state, expected", [("canceled", "75"), ("open", "50")])
+def test_cleanup_budget_ages_terminal_history_but_keeps_old_outstanding_orders(state, expected):
+    journal = Mock()
+    journal.operations.return_value = [{"id": "prior", "state": state, "createdAt": 1, "reservedUsd": "25"}]
+    journal.effects.return_value = {}
+    assert qualification.cleanup_budget_room(journal, "agent", {"maxDailyUsd": "75"}, 90_000_000) == Decimal(expected)
+
+
+@pytest.mark.parametrize("chain_effect, expected", [(False, "75"), (True, "50")])
+def test_cleanup_budget_excludes_rejection_only_without_possible_chain_effect(chain_effect, expected):
+    journal = Mock()
+    journal.operations.return_value = [{"id": "prior", "state": "rejected", "createdAt": 1_000, "reservedUsd": "25"}]
+    journal.effects.return_value = {"order": {"transaction": "recorded"}} if chain_effect else {}
+    assert qualification.cleanup_budget_room(journal, "agent", {"maxDailyUsd": "75"}, 2_000) == Decimal(expected)
+
+
 def test_timed_out_signature_hold_never_releases_and_worker_finishes():
     gate = qualification.SignatureGate("offline", Mock(), timeout=0.02)
     job = SimpleNamespace(state="SIGNED", request_id="offline-job")

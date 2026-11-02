@@ -453,6 +453,16 @@ class BacktestingBroker(Broker):
             if is_pytz:
                 new_datetime = tz.normalize(new_datetime)
 
+        # The simulation's configured end also bounds final lifecycle marks.
+        # Oversleeping must not make valuation request data outside that window.
+        # Once at the bound, retain the terminal clock instead of the ordinary
+        # non-advancing/DST fallback moving it one more minute into the future.
+        datetime_end = getattr(self.data_source, "datetime_end", None)
+        if datetime_end is not None:
+            new_datetime = min(new_datetime, datetime_end)
+            if new_datetime <= previous_datetime:
+                return
+
         self.data_source._update_datetime(
             new_datetime,
             cash=cash,

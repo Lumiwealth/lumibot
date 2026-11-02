@@ -457,6 +457,17 @@ class Indicators:
         df = data_obj.df
         if df is None or df.empty:
             return None
+        # A stored Data frame contains eventual OHLCV for the forming bar too.
+        # Reuse its history-read boundary rather than treating a bar's opening
+        # timestamp as the time when its final close became observable. Bare
+        # provider frames keep their existing at-or-before timestamp contract.
+        from lumibot.entities import Data
+
+        if isinstance(data_obj, Data):
+            _, visible_end, _ = data_obj._get_bars_row_bounds(
+                self._strategy.get_datetime(), length=len(df)
+            )
+            return df.iloc[:visible_end]
         return df
 
     def _find_in_store(self, data_source, asset, timestep=None, *, quote=None):

@@ -179,8 +179,6 @@ class ExecutionEngine:
         if plan is None:
             return self._reconcile_legacy(operation, observation=observation)
         if plan.get("ownerEpoch") != self.epoch:
-            if order_effect is not None and order_effect.get("phase") == "venue":
-                return self._reconcile_order(operation, plan)
             leverage_effect = self.journal.effect(self.agent_id, operation_id, "leverage")
             if (
                 leverage_effect
@@ -727,9 +725,9 @@ class ExecutionEngine:
                     and leverage_effect.get("phase") == "venue"
                     and leverage_effect.get("state") != "confirmed"
                 ):
-                    operation = self._advance(operation)
+                    operation = self._reconcile_leverage(operation, native_plan, leverage_effect)
                     if operation["state"] in _TERMINAL:
-                        return operation
+                        return self._change(operation, reconciliationErrorCode=None, reconciliationMessage=None)
                     raise MetaMaskError(
                         "RECONCILIATION_REQUIRED", "Resolve uncertain leverage before canceling the prepared intent"
                     )

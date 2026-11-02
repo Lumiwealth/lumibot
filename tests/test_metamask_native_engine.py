@@ -1303,3 +1303,51 @@ def test_local_cancel_preserves_unresolved_fee_review(engine, monkeypatch):
         engine.journal.reserve("agent", intent(id="two"), "20", expected_binding=engine.journal.binding("agent"))
     engine.provider.submit_signature.assert_not_called()
     engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize("restart", [False, True])
+def test_explicit_cancel_restored_proof_recovers_expired_leverage_read_only(engine, monkeypatch, restart):
+    engine.venue.submit_action.side_effect = MetaMaskError("VENUE_OUTCOME_UNKNOWN", "Lost leverage response")
+    original = engine.submit(intent())
+    engine.journal.save({**original, "budgetReviewRequired": True})
+    effect = engine.journal.effect("agent", "one", "leverage")
+    original_effect = engine.journal.effect
+    plan = original_effect("agent", "one", "plan")
+    plan["origin"] = "legacy"
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            engine.journal,
+            "effect",
+            lambda agent, operation_id, step: plan if step == "plan" else original_effect(agent, operation_id, step),
+        )
+        with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+            engine.cancel("one")
+    subject = ExecutionEngine(engine.journal, engine.provider, engine.venue, "agent") if restart else engine
+    with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+        subject.cancel("one")
+    engine.venue.leverage.assert_not_called()
+    assert engine.journal.effect("agent", "one", "leverage") == effect
+    engine.venue.leverage.return_value = {"type": "cross", "value": 1}
+    monkeypatch.setattr(time, "time", lambda: (effect["expiresAfter"] + 1000) / 1000)
+    result = subject.cancel("one")
+    assert result["state"] == "rejected"
+    assert result.get("reconciliationErrorCode") is None
+    assert result.get("reconciliationMessage") is None
+    assert result["reservedUsd"] == original["reservedUsd"]
+    assert result["budgetReviewRequired"] is True
+    assert result["observedLeverage"] == {"type": "cross", "value": 1}
+    reconciled = engine.journal.effect("agent", "one", "leverage")
+    assert reconciled == {
+        **effect,
+        "state": "reconciled",
+        "observedLeverage": result["observedLeverage"],
+        "reconciledAt": effect["expiresAfter"] + 1000,
+    }
+    engine.venue.leverage.assert_called_once_with(WALLET, "BTC")
+    assert subject.order("one")["state"] == "rejected"
+    assert subject.submit(intent())["state"] == "rejected"
+    assert engine.provider.submit_signature.call_count == 1
+    assert engine.venue.submit_action.call_count == 1
+    assert engine.journal.effect("agent", "one", "order") is None
+    with pytest.raises(MetaMaskError, match="FEE_BUDGET_REVIEW_REQUIRED"):
+        engine.journal.reserve("agent", intent(id="two"), "20", expected_binding=engine.journal.binding("agent"))

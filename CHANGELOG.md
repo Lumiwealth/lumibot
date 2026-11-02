@@ -2,6 +2,8 @@
 
 ## 4.6.41 - 2026-11-02
 
+Deploy marker: `1cfc52f96963da5e0085cce5d2cb92d4c2fe0fd2`.
+
 ### Added
 - Indicators can declare an `infer(state, bar)` hook for expensive or side-effecting work (for example an AI model call). It runs only on live closed bars on its own schedule (`infer_every_bars`, `infer_min_seconds`), never during history replay, catch-up or forming-bar previews.
 - AI agents can use native single and batch quotes, including exact option contracts, source timestamps and multipliers. Shared sizing guidance uses executable quote sides and a current-last-price fallback.

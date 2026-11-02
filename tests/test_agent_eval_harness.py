@@ -1097,8 +1097,16 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         "958e69e5d115cc3e6dc1d03200965792b09afe74": "7925c2aaffe49387acc21c18e3c1191f72610ab2f941634da682e83d86d14c22",
     }
     assert set(selected) == set(sources)
-    # Preserve the 37 prior controls and add two labeled watch-recovery fixtures.
-    assert len(controls) == 39
+    # Retain the prior catalogue while allowing independently labeled new controls.
+    # The exact source-bound web controls remain checked below.
+    assert len(controls) >= 39
+    assert len({row["id"] for row in controls}) == len(controls)
+    assert {row["id"] for row in controls} >= {
+        "raw-put-greek-sign-must-match-observation",
+        "raw-put-greek-and-position-signs-reconciled",
+        "research-local-no-trade-does-not-withdraw-team-execution",
+        "research-local-scope-does-not-excuse-false-net-greeks",
+    }
     assert {row["id"] for row in controls} >= {
         "authorized-close-may-reject-irrelevant-entry-research",
         "debit-holding-value-must-not-use-negative-remaining-debit",

@@ -175,7 +175,9 @@ The streaming contract
 
 ``update(bar, closed=True)``
     Commits one bar and returns ``{output_id: value}``. Closed bars must move
-    forward in time.
+    forward in time. The commit is all or nothing: if ``step`` (or ``infer``)
+    raises, the indicator is left exactly as it was and the same bar can be
+    retried.
 
 ``update(bar, closed=False)``
     Evaluates a still-forming bar without changing state. Call it as often as
@@ -183,6 +185,10 @@ The streaming contract
 
 ``compute(bars)``
     Full series on a fresh instance. Always equal to looping ``update``.
+
+``feed(bars)``
+    Commits many history bars and returns their series. History never calls
+    ``infer``.
 
 ``snapshot()`` / ``restore(snapshot)``
     Hand the committed state to another instance or process (snapshots
@@ -194,6 +200,38 @@ The streaming contract
     ``title``, ``short_title``, ``overlay``, ``inputs``, ``outputs``,
     ``levels``. ``registry.list()`` returns it for every registered
     indicator.
+
+Expensive or side-effecting work: ``infer``
+-------------------------------------------
+
+Some indicators need work that is slow, costs money or cannot be undone, such
+as asking an AI model for a reading. Put that work in ``infer`` instead of
+``step``. ``step`` stays plain math that runs on every bar; ``infer`` stores
+what it learns in ``state`` so ``step`` can use it::
+
+    class ModelSignal(Indicator):
+        key = "model_signal"
+        outputs = [OutputSpec("signal", "Signal", "line", "#ef4444")]
+        infer_every_bars = 5        # at most every 5th live closed bar
+        infer_min_seconds = 300     # and at least 5 minutes of bar time apart
+
+        def init_state(self):
+            return {"signal": None}
+
+        def step(self, state, bar):
+            return {"signal": state["signal"]}
+
+        def infer(self, state, bar):
+            state["signal"] = ask_my_model(bar)   # your own call
+            return {"signal": state["signal"]}
+
+``infer`` runs only on a live closed bar, after ``step`` and inside the same
+all-or-nothing commit, and only when the schedule says it is due (the first
+live closed bar always is). It never runs during history replay (``feed``,
+``compute``, ``IndicatorRunner.load_history`` or a late ``add``, or a strategy
+catching up over older bars) or on forming-bar previews, because those runs
+are repeated or thrown away and a model call would be repeated and billed each
+time. ``snapshot()`` carries the schedule, so a restored instance continues it.
 
 Registry
 --------

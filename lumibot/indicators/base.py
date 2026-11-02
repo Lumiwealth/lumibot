@@ -40,11 +40,18 @@ Contract
 * ``describe()`` returns a JSON-safe schema (inputs, outputs, levels) for UIs
   and AI agents.
 
-Cost: a closed update calls ``step`` once on the live state, which for every
-built-in is O(1) per bar (rolling state, no history recompute). A forming
-update also copies the committed state first; that copy is sized by the
-indicator's windows (its ``length`` inputs), never by how much history has
-been processed.
+* A live closed bar commits all or nothing: if ``step`` or ``infer`` raises,
+  the committed state is unchanged and the same bar can be retried.
+* ``infer(state, bar)`` is an optional hook for expensive or side-effecting
+  work (for example a model call). It runs only on live closed bars, on its
+  own schedule (``infer_every_bars``, ``infer_min_seconds`` of bar time), and
+  never during history replay or forming-bar previews.
+
+Cost: ``step`` is O(1) per bar for every built-in (rolling state, no history
+recompute). A live ``update`` (forming or closed) first copies the committed
+state; that copy is sized by the indicator's windows (its ``length`` inputs),
+never by how much history has been processed. History (``feed``,
+``compute``) commits in place with no copy.
 """
 
 from __future__ import annotations
@@ -360,6 +367,9 @@ class Indicator:
         self._state = self.init_state()
         self._last_time = None
         self._bars_seen = 0
+        # Due on the first live closed bar.
+        self._infer_bars_since = 1 << 30
+        self._infer_last_time = None
 
     def init_state(self):
         """Return the fresh state object for the current ``self.inputs``."""
@@ -378,28 +388,86 @@ class Indicator:
         """Number of closed bars committed so far."""
         return self._bars_seen
 
-    def update(self, bar, closed: bool = True) -> dict:
-        """Process one bar. ``closed=False`` evaluates a forming bar without
-        advancing state (rollback-safe); ``closed=True`` commits it."""
-        bar = to_bar(bar)
+    # ---- inference -------------------------------------------------------
+    #: Run ``infer`` at most every N live closed bars (the first one always runs).
+    infer_every_bars: int = 1
+    #: And only when at least this many seconds of bar time passed since the last run.
+    infer_min_seconds: float = 0.0
+
+    def infer(self, state, bar: Bar) -> dict | None:
+        """Optional hook for expensive or side-effecting work, such as a call
+        to an AI model. Runs after ``step`` on the same staged state, only on
+        a live closed bar and only when the schedule above says it is due.
+
+        History replay (``feed``, ``compute``, a runner's ``load_history`` and
+        late ``add``, a strategy catching up over older bars) and forming-bar
+        previews never call it: those runs are repeated or thrown away, and a
+        model call cannot be undone or un-billed. Store what you learn in
+        ``state`` so ``step`` can use it on every bar; any outputs returned
+        here override ``step``'s outputs for this bar."""
+        return None
+
+    def _infers(self) -> bool:
+        return type(self).infer is not Indicator.infer
+
+    def _inference_due(self, bar: Bar) -> bool:
+        if self._infer_bars_since < max(1, int(self.infer_every_bars)):
+            return False
+        last = self._infer_last_time
+        if self.infer_min_seconds and last is not None and bar.time is not None:
+            return (bar.time - last).total_seconds() >= self.infer_min_seconds
+        return True
+
+    def _check_order(self, bar: Bar) -> None:
         if bar.time is not None and self._last_time is not None and bar.time <= self._last_time:
             raise ValueError(
                 f"bar time {bar.time} must be after the last closed bar time {self._last_time}"
             )
-        state = self._state if closed else _copy_state(self._state)
+
+    def _commit(self, state, bar: Bar, inferred: bool) -> None:
+        self._state = state
+        self._bars_seen += 1
+        if bar.time is not None:
+            self._last_time = bar.time
+        if inferred:
+            self._infer_bars_since = 1
+            self._infer_last_time = bar.time
+        else:
+            self._infer_bars_since += 1
+
+    def update(self, bar, closed: bool = True) -> dict:
+        """Process one live bar. ``closed=False`` evaluates a forming bar
+        without advancing state (rollback-safe); ``closed=True`` commits it.
+
+        A closed bar commits all or nothing: ``step`` (and ``infer`` when due)
+        run on a staged copy, and the copy replaces the committed state only
+        when both succeed. A failure leaves the indicator exactly as it was,
+        so the same bar can be retried."""
+        bar = to_bar(bar)
+        self._check_order(bar)
+        state = _copy_state(self._state)
         values = self.step(state, bar) or {}
-        if closed:
-            self._bars_seen += 1
-            if bar.time is not None:
-                self._last_time = bar.time
+        if not closed:
+            return {spec.id: _clean(values.get(spec.id)) for spec in self.outputs}
+        inferred = self._infers() and self._inference_due(bar)
+        if inferred:
+            values = {**values, **(self.infer(state, bar) or {})}
+        self._commit(state, bar, inferred)
         return {spec.id: _clean(values.get(spec.id)) for spec in self.outputs}
 
     def feed(self, bars) -> dict:
-        """Commit many closed bars to this instance and return their outputs as series."""
+        """Commit many closed history bars and return their outputs as series.
+
+        History never calls ``infer``. Bars are committed in place (no staged
+        copy per bar), so a failure part way leaves the bars before it
+        committed; callers treat a failed feed as a failed load."""
         out = {spec.id: [] for spec in self.outputs}
         for bar in iter_bars(bars):
-            for output_id, value in self.update(bar, closed=True).items():
-                out[output_id].append(value)
+            self._check_order(bar)
+            values = self.step(self._state, bar) or {}
+            self._commit(self._state, bar, False)
+            for spec in self.outputs:
+                out[spec.id].append(_clean(values.get(spec.id)))
         return out
 
     def compute(self, bars) -> dict:
@@ -416,6 +484,7 @@ class Indicator:
             "state": copy.deepcopy(self._state),
             "last_time": self._last_time,
             "bars_seen": self._bars_seen,
+            "inference": {"bars_since": self._infer_bars_since, "last_time": self._infer_last_time},
         }
 
     def restore(self, snapshot: dict) -> None:
@@ -430,6 +499,9 @@ class Indicator:
         self._state = copy.deepcopy(snapshot["state"])
         self._last_time = snapshot.get("last_time")
         self._bars_seen = int(snapshot.get("bars_seen", 0))
+        inference = snapshot.get("inference") or {}
+        self._infer_bars_since = int(inference.get("bars_since", 1 << 30))
+        self._infer_last_time = inference.get("last_time")
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(key={self.key!r}, version={self.version}, inputs={self.inputs!r})"

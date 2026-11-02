@@ -208,9 +208,18 @@ class Indicators:
             self._streams[stream_key] = entry
         if entry["count"] < end:
             indicator = entry["indicator"]
-            bar = None
-            for bar in iter_bars(observed.iloc[entry["count"] : end]):
-                entry["values"] = indicator.update(bar, closed=True)
+            pending = list(iter_bars(observed.iloc[entry["count"] : end]))
+            # Older bars are history: replay them without ``infer`` (a model
+            # call per catch-up bar would repeat work the strategy never sees).
+            # Only the newest bar is the live one.
+            older, bar = pending[:-1], pending[-1]
+            feed = getattr(indicator, "feed", None)
+            if older and feed is not None:
+                feed(older)
+            else:
+                for old_bar in older:
+                    indicator.update(old_bar, closed=True)
+            entry["values"] = indicator.update(bar, closed=True)
             entry["count"], entry["last_bar"] = end, bar
         return dict(entry["values"])
 

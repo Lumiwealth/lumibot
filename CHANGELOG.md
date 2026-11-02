@@ -3,11 +3,13 @@
 ## 4.6.41 - Unreleased
 
 ### Added
+- Indicators can declare an `infer(state, bar)` hook for expensive or side-effecting work (for example an AI model call). It runs only on live closed bars on its own schedule (`infer_every_bars`, `infer_min_seconds`), never during history replay, catch-up or forming-bar previews.
 - AI agents can use native single and batch quotes, including exact option contracts, source timestamps and multipliers. Shared sizing guidance uses executable quote sides and a current-last-price fallback.
 - AI agents can submit explicit independent baskets through the existing `Strategy.submit_orders` method, retaining each explanation and broker result. Funding sells are verified before dependent buys; atomic option packages retain their separate workflow.
 - Release-gated portfolio checks cover complete large and small baskets, reductions/exits/additions, quote-based sizing, correct historical-row selection and supported holdings when one is unavailable. Native positions, fills, quantities and cash are checked alongside a real-model judge.
 
 ### Fixed
+- A live closed indicator bar commits all or nothing, so an exception part way through `step` no longer leaves half-updated state, and `IndicatorRunner.on_bar` commits a closed bar for every indicator or none, so retrying it after one indicator fails no longer applies it twice to the others.
 - Keep empty IBKR history-health reports scoped to IBKR data sources; preserve actual IBKR series, warnings and failures when another source is also used.
 - Value CCXT wallets and settlement PnL through available exchange cross rates when the reporting currency has no direct pair. Prefer spot routes, keep contract reference prices distinct from option premiums, and retain direct/inverse conversion behavior.
 - Preserve decimal units across fractional position creation, synchronization and fills, so matched closing quantities leave no artificial residual while genuine tiny positions remain intact.

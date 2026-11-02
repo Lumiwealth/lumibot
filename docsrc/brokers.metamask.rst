@@ -16,12 +16,12 @@ Install and connect
 The native adapter is included in the published 4.6.44 package. The execution
 ownership and submission-certainty hardening described here is an unreleased
 source candidate. Package availability does not establish production
-qualification. For candidate source testing, use the focused feature branch in
+qualification. For candidate source testing, use the unreleased dev branch in
 a clean environment:
 
 .. code-block:: bash
 
-   pip install 'lumibot[metamask] @ git+https://github.com/Lumiwealth/lumibot.git@fix/metamask-execution-recovery'
+   pip install 'lumibot[metamask] @ git+https://github.com/Lumiwealth/lumibot.git@dev'
 
 Authorize through the official `MetaMask Agent Wallet sign-in page
 <https://developer.metamask.io/agentic/login>`_. Use the original Google/email
@@ -41,7 +41,7 @@ MetaMask. Before trading, deliberately authorize its local registry, limits and
 expiry using ``MetaMaskClient.authorize()``. Broker startup does not renew or
 broaden authority. See the complete binding example in the repository's
 `MetaMask setup guide
-<https://github.com/Lumiwealth/lumibot/blob/fix/metamask-execution-recovery/docs/METAMASK.md>`_.
+<https://github.com/Lumiwealth/lumibot/blob/dev/docs/METAMASK.md>`_.
 
 .. code-block:: python
 
@@ -244,6 +244,10 @@ required. ``--daily-caps MAKER TAKER`` validates separately reviewed existing
 grants without changing authority or spending history. Defaults remain 300/150;
 each wallet needs $50 reservation room before signing to cover entry and
 residual cleanup within the $25 order limit.
+
+Order-status evidence must match the persisted ``cloid``. Live
+``frontendOpenOrders`` records match by ``oid`` and may omit ``cloid``; when
+supplied, it must agree. Remaining-size and fill checks remain mandatory.
 
 Environment configuration uses ``TRADING_BROKER=metamask``, optional
 ``DATA_SOURCE=metamask``, ``METAMASK_SESSION_FILE``, ``METAMASK_STATE_FILE``,

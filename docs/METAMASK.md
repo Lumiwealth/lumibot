@@ -12,10 +12,10 @@ Audience: LumiBot users and maintainers
 
 `lumibot.brokers.MetaMask` runs in the Python strategy process. It calls MetaMask's managed-wallet API and Hyperliquid's HTTP API directly. Wallet keys remain with MetaMask. Node, Bun, npm, the MetaMask CLI and an embedded JavaScript engine are not required.
 
-The native adapter is included in the published 4.6.44 package. The execution ownership and submission-certainty hardening described here is an unreleased source candidate. Package availability does not establish production qualification. For candidate source testing, use the focused feature branch in a clean environment:
+The native adapter is included in the published 4.6.44 package. The execution ownership and submission-certainty hardening described here is an unreleased source candidate. Package availability does not establish production qualification. For candidate source testing, use the unreleased dev branch in a clean environment:
 
 ```bash
-pip install 'lumibot[metamask] @ git+https://github.com/Lumiwealth/lumibot.git@fix/metamask-execution-recovery'
+pip install 'lumibot[metamask] @ git+https://github.com/Lumiwealth/lumibot.git@dev'
 ```
 
 Default-DEX Hyperliquid perpetuals use normal `Order`, `Position`, strategy methods and fill callbacks. Native same-chain swap code remains experimental and requires separate funded qualification. Existing JavaScript trading receipts do not qualify this replacement.
@@ -185,6 +185,10 @@ Offline tests cover provider context, OAuth rotation, journal ownership and rese
 Native testnet opening, reduce-only closing and cancellation have funded receipts. Fresh live partial-flow remains unqualified. Actual short-lived testnet grants have expired on both dedicated wallets: new intents returned `REVOKED` without signing or changing orders, execution effects or nonces. The ordinary connected expiry test still skips active grants; offline expiry regressions remain separate evidence. Managed swaps still require their own funded receipts. Broker startup never renews expired local grants; prior JavaScript test results are not carried forward. No production or mainnet trading qualification is claimed.
 
 The explicit `scripts/qualify_metamask_partial.py` testnet harness checks live remaining size against `frontendOpenOrders` and the persisted native client order identity. It retains independent paired-fill, fee, callback and cleanup assertions. `--daily-caps MAKER TAKER` validates separately reviewed existing grants; it does not change authority or erase spending history. Defaults remain 300/150, and each wallet needs at least $50 of reservation room before signing so an entry and residual cleanup fit the $25 order limit.
+
+Order-status evidence must match the persisted `cloid`. Live `frontendOpenOrders`
+records match by `oid` and may omit `cloid`; when supplied, it must agree.
+Remaining-size and fill checks remain mandatory. See the [venue response schemas](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint).
 
 Protocol sources: [MetaMask architecture](https://docs.metamask.io/agent-wallet/reference/architecture/), [browser authorization](https://docs.metamask.io/agent-wallet/cli-setup/), [Hyperliquid API](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint). Remote-wallet interfaces were checked against permissively licensed Fox SDK 2.10.0 declarations; Hyperliquid action serialization uses the official MIT Python SDK 0.24.0. No restricted Agent SDK implementation is translated or bundled. MetaMask's remote interfaces remain an experimental compatibility contract.
 

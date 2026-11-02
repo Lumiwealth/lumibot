@@ -134,13 +134,24 @@ class ExecutionEngine:
             return self._change(current, state="unknown", lastErrorCode=error.code, message=str(error))
 
     def _advance_inner(self, operation: dict[str, object], *, observation=None) -> dict[str, object]:
+        venue_id = operation.get("providerOrderId")
+        if venue_id is not None and (not isinstance(venue_id, str) or not venue_id.isdecimal() or int(venue_id) <= 0):
+            return self._change(
+                operation,
+                state=operation["state"] if operation["state"] in _TERMINAL else "unknown",
+                reconciliationErrorCode="RECONCILIATION_REQUIRED",
+                reconciliationMessage="Recorded venue order identity is malformed",
+            )
         if operation["state"] == "filled":
             return operation
         operation_id = str(operation["id"])
         plan = self.journal.effect(self.agent_id, operation_id, "plan")
         order_effect = self.journal.effect(self.agent_id, operation_id, "order")
+        if venue_id is not None:
+            # Accepted identity dominates an incomplete effect history on every entrypoint.
+            return self._reconcile_order(operation, plan or {"clientOrderId": None}, observation=observation)
         if operation["state"] in _TERMINAL:
-            if operation.get("providerOrderId") is not None or (
+            if (
                 order_effect is not None
                 and order_effect.get("phase") == "venue"
                 and order_effect.get("state") in {"released", "confirmed"}
@@ -149,12 +160,24 @@ class ExecutionEngine:
                 # never resume signing or release an earlier mutation, including after restart.
                 return self._reconcile_order(operation, plan or {"clientOrderId": None}, observation=observation)
             return operation
+        if order_effect is not None and order_effect.get("phase") == "venue":
+            return self._reconcile_order(operation, plan or {"clientOrderId": None}, observation=observation)
+        fills = self.journal.effect(self.agent_id, operation_id, "fills")
+        if (
+            operation.get("reconciliationErrorCode")
+            or decimal(operation["filledQuantity"]) > 0
+            or (fills is not None and fills.get("items"))
+            or operation["state"] in {"submitted", "open", "partial_fill"}
+        ):
+            # Missing identity cannot turn retained execution or an unresolved hold
+            # into permission to sign an earlier prepared entry again.
+            return self._change(
+                operation,
+                reconciliationErrorCode="RECONCILIATION_REQUIRED",
+                reconciliationMessage="Retained execution history requires reconciliation before further actions",
+            )
         if plan is None:
             return self._reconcile_legacy(operation, observation=observation)
-        if observation is not None and order_effect is not None and order_effect.get("phase") == "venue":
-            # This order was already released before this polling sweep. No new
-            # submission may consume a snapshot captured before its mutation.
-            return self._reconcile_order(operation, plan, observation=observation)
         if plan.get("ownerEpoch") != self.epoch:
             if order_effect is not None and order_effect.get("phase") == "venue":
                 return self._reconcile_order(operation, plan)

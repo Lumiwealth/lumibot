@@ -1069,6 +1069,11 @@ def test_cancel_known_id_with_missing_effect_never_releases_prepared_entry(engin
     }
     engine.cancel("one")
     assert signed_actions == ["cancel"]
+    # A lagging open snapshot after cancel must not reactivate the original entry.
+    engine.order("one")
+    engine.orders()
+    engine.submit(intent())
+    assert signed_actions == ["cancel"]
     assert engine.venue.submit_action.call_count == 1
     assert engine.journal.effect("agent", "one", "order") is None
     assert engine.journal.effect("agent", "one", "leverage") is None
@@ -1083,5 +1088,91 @@ def test_cancel_malformed_known_id_holds_without_advancing_entry(engine, monkeyp
     with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
         engine.cancel("one")
     assert engine.journal.get("agent", "one")["state"] == "unknown"
+    engine.order("one")
+    engine.orders()
+    engine.submit(intent())
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize("method", ["order", "orders", "submit"])
+@pytest.mark.parametrize("cancel_first", [False, True])
+def test_recorded_execution_without_identity_never_resumes_entry(engine, monkeypatch, method, cancel_first):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        row = engine.submit(intent())
+    engine.journal.save({**row, "state": "unknown", "filledQuantity": "0.0001"})
+    if cancel_first:
+        with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+            engine.cancel("one")
+    if method == "submit":
+        result = engine.submit(intent())
+    elif method == "orders":
+        result = engine.orders()[0]
+    else:
+        result = engine.order("one")
+    assert result["filledQuantity"] == "0.0001"
+    assert result.get("reconciliationErrorCode") == "RECONCILIATION_REQUIRED"
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+def test_failed_cancel_history_hold_survives_all_observation_entrypoints(engine, monkeypatch):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        engine.submit(intent())
+    original_effect = engine.journal.effect
+    plan = original_effect("agent", "one", "plan")
+    plan["origin"] = "legacy"
+    monkeypatch.setattr(
+        engine.journal,
+        "effect",
+        lambda agent, operation_id, step: plan if step == "plan" else original_effect(agent, operation_id, step),
+    )
+    with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+        engine.cancel("one")
+    engine.order("one")
+    engine.orders()
+    engine.submit(intent())
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+    assert engine.journal.get("agent", "one")["reconciliationErrorCode"] == "RECONCILIATION_REQUIRED"
+
+
+def test_known_identity_and_released_effect_polling_never_replays_entry(engine, monkeypatch):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        row = engine.submit(intent())
+    engine.journal.save({**row, "state": "unknown", "providerOrderId": "42"})
+    assert engine.order("one")["state"] == "open"
+    assert engine.orders()[0]["providerOrderId"] == "42"
+    assert engine.submit(intent())["state"] == "open"
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+def test_released_order_effect_prevents_missing_leverage_replay(engine):
+    engine.venue.submit_action.side_effect = [
+        {"status": "ok", "response": {"type": "default"}},
+        MetaMaskError("VENUE_OUTCOME_UNKNOWN", "Lost order response"),
+    ]
+    assert engine.submit(intent())["state"] == "unknown"
+    engine.journal.db.execute("DELETE FROM native_effects WHERE agent='agent' AND operation='one' AND step='leverage'")
+    assert engine.order("one")["state"] == "open"
+    assert engine.venue.submit_action.call_count == 2
+    assert engine.provider.submit_signature.call_count == 2
+
+
+@pytest.mark.parametrize("state", ["filled", "canceled", "rejected"])
+def test_malformed_recorded_identity_hold_does_not_reopen_terminal_lifecycle(engine, monkeypatch, state):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        row = engine.submit(intent())
+    engine.journal.save(
+        {**row, "state": state, "providerOrderId": "invalid", "filledQuantity": "0.001" if state == "filled" else "0"}
+    )
+    result = engine.order("one")
+    assert result["state"] == state
+    assert result["reconciliationErrorCode"] == "RECONCILIATION_REQUIRED"
     engine.provider.submit_signature.assert_not_called()
     engine.venue.submit_action.assert_not_called()

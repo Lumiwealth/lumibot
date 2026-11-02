@@ -696,6 +696,8 @@ class ProjectX(Broker):
             existing = self._existing_submission(order)
             if existing is not None:
                 return existing
+            if getattr(order, '_projectx_submission_preparing', False):
+                return order
             if hasattr(order, 'submission_outcome'):
                 outcome = order.submission_outcome
                 if (not isinstance(outcome, dict)
@@ -710,8 +712,11 @@ class ProjectX(Broker):
             existing = self._existing_submission(order)
             if existing is not None:
                 return existing
-        self._set_submission_outcome(order, 'rejected')
-        order._projectx_submission_state = 'not_submitted'
+            # One caller owns preparation; duplicates must not report rejection
+            # while that owner can still hand the request to transport.
+            order._projectx_submission_preparing = True
+            self._set_submission_outcome(order, 'unknown')
+            order._projectx_submission_state = 'not_submitted'
         response = None
         try:
             from decimal import Decimal
@@ -721,6 +726,7 @@ class ProjectX(Broker):
             # Get contract ID from asset
             contract_id = self.data_source._get_contract_id_from_asset(order.asset)
             if not contract_id:
+                self._set_submission_outcome(order, 'rejected')
                 order.status = "rejected"
                 order.error = f"Could not find contract for {order.asset.symbol}"
                 return order
@@ -737,6 +743,7 @@ class ProjectX(Broker):
             # Map order type and side
             order_type = self.ORDER_TYPE_MAPPING.get(order.order_type.lower())
             if order_type is None:
+                self._set_submission_outcome(order, 'rejected')
                 order.status = "rejected"
                 order.error = f"Unsupported order type: {order.order_type}"
                 return order
@@ -744,6 +751,7 @@ class ProjectX(Broker):
             side_t = "buy" if order.is_buy_order() else "sell" if order.is_sell_order() else "unknown"
             order_side = self.ORDER_SIDE_MAPPING.get(side_t, None)
             if order_side is None:
+                self._set_submission_outcome(order, 'rejected')
                 order.status = "rejected"
                 order.error = f"Unsupported order side: {order.side}"
                 return order
@@ -862,6 +870,8 @@ class ProjectX(Broker):
             message = str(e)
             with self._order_update_lock:
                 if getattr(order, '_projectx_provider_id', None) is None:
+                    if order._projectx_submission_state == 'not_submitted':
+                        self._set_submission_outcome(order, 'rejected')
                     if order._projectx_submission_state == 'accepted':
                         self._set_submission_outcome(order, 'unknown')
                     order.status = 'submitted' if order._projectx_submission_state == 'unknown' else 'rejected'
@@ -871,6 +881,9 @@ class ProjectX(Broker):
                         'submission_outcome': dict(order.submission_outcome), 'error': message})
             self.logger.error(f"Error submitting order: {message}")
             return order
+        finally:
+            with self._order_update_lock:
+                order._projectx_submission_preparing = False
 
     def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> tuple:
         """Get account balances from the broker.

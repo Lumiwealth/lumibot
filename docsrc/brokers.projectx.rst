@@ -215,6 +215,11 @@ replacement. Within a running broker, repeating the same local identity never
 posts another request; changed terms under that identity fail visibly. A new tag is a distinct intent,
 so duplicate prevention does not authorize creating a fresh tag after a timeout.
 
+Concurrent callers preparing the same order object share one preparation owner.
+Other callers receive the original object with unknown certainty until that
+owner resolves preparation and handoff. A failed preflight confirms rejection
+without sending an order and releases preparation ownership.
+
 A matching venue receipt updates the original object, preserving its bracket
 instructions and execution history. Conflicting account, instrument, side or
 receipt identity stays unresolved. An explicitly unresolved order restored into

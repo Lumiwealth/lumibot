@@ -423,6 +423,12 @@ pre-release cancellation, or `unknown`. `reconciliation_required` marks an
 unresolved handoff or conflicting evidence. Submission acknowledgement is never
 a fill.
 
+ProjectX gives one caller ownership of preparing each order object. Concurrent
+submissions return that object with unknown certainty until preparation and
+handoff resolve; they cannot reset an in-flight outcome. A failed preflight
+reports confirmed rejection and releases preparation ownership without sending
+an order.
+
 Single-order, order-list and submission tools retain this metadata. Unknown or
 malformed explicit certainty produces an incomplete, non-retryable submission
 result requiring reconciliation. Mixed batches retain each returned order and

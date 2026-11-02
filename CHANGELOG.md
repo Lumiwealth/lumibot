@@ -6,6 +6,7 @@
 - Add a runnable MetaMask perpetual round-trip example using normal Strategy APIs and continuous Trader scheduling, exact executed-quantity reduce-only closes, durable order identities and same-name restart recovery.
 
 ### Fixed
+- Prevent concurrent ProjectX submissions of the same order object from resetting an in-flight outcome; retain unknown certainty during preparation and confirm rejection only when preflight fails before handoff.
 - Restore missing cancellation provenance on older native records only when intact persisted checkpoints prove no order release, preserving execution history and reconciliation or fee holds.
 - Join MetaMask polling and order workers before closing the native client, including delayed stream startup and repeated close calls.
 - Reconcile terminal IOC partial executions as actual fills with canceled unfilled remainder, retaining raw venue status and requiring matching intent, persisted action and fill history instead of assuming a `filled` label means full execution.

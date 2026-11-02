@@ -208,6 +208,64 @@ def test_concurrent_same_tag_has_one_handoff(broker, mes):
     assert broker.client.order_place.call_count == 1
 
 
+@pytest.mark.parametrize("timeout", [False, True])
+def test_concurrent_same_object_cannot_take_over_preparation(broker, mes, timeout):
+    import threading
+
+    entered, release = threading.Event(), threading.Event()
+    results = []
+    item = ordinary(mes)
+
+    def contract(asset):
+        if threading.current_thread() is worker:
+            entered.set()
+            assert release.wait(5)
+        return "CON.F.US.MES.Z25"
+
+    broker.data_source._get_contract_id_from_asset = Mock(side_effect=contract)
+    broker.client.order_place = Mock(
+        side_effect=TimeoutError("lost response") if timeout else None,
+        return_value={"success": True, "orderId": 9000},
+    )
+    worker = threading.Thread(target=lambda: results.append(broker.submit_order(item)))
+    worker.start()
+    try:
+        assert entered.wait(5)
+        assert broker.submit_order(item) is item
+        broker.client.order_place.assert_not_called()
+        assert broker.data_source._get_contract_id_from_asset.call_count == 1
+        assert item.submission_outcome == {"broker_state_certainty": "unknown", "reconciliation_required": True}
+    finally:
+        release.set()
+        worker.join(5)
+    assert not worker.is_alive() and results == [item]
+    assert broker.client.order_place.call_count == 1
+    assert item.submission_outcome["broker_state_certainty"] == ("unknown" if timeout else "confirmed_submitted")
+    assert broker.submit_order(item) is item
+    assert broker.client.order_place.call_count == 1
+
+
+@pytest.mark.parametrize("failure", ["quantity", "missing_contract", "lookup_error"])
+def test_failed_preparation_releases_owner_without_claiming_submission(broker, mes, failure):
+    item = ordinary(mes)
+    broker.client.order_place = Mock(return_value={"success": True, "orderId": 9000})
+    if failure == "quantity":
+        item.quantity = 0
+    else:
+        broker.data_source._get_contract_id_from_asset = Mock(
+            return_value=None,
+            side_effect=RuntimeError("lookup failed") if failure == "lookup_error" else None,
+        )
+    assert broker.submit_order(item) is item
+    broker.client.order_place.assert_not_called()
+    assert item.submission_outcome == {"broker_state_certainty": "confirmed_rejected", "reconciliation_required": False}
+    item.quantity = 1
+    broker.data_source._get_contract_id_from_asset = Mock(return_value="CON.F.US.MES.Z25")
+    assert broker.submit_order(item) is item
+    broker.client.order_place.assert_called_once()
+    assert item.submission_outcome["broker_state_certainty"] == "confirmed_submitted"
+
+
 @pytest.mark.parametrize("channel", ["stream", "poll"])
 def test_exact_rejection_receipt_resolves_without_reposting(broker, mes, channel):
     broker.client.order_place = Mock(return_value={"success": False, "errorCode": 6})

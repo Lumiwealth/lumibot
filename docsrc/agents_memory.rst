@@ -284,3 +284,9 @@ posting and a dedicated Community-only key. Optional
 request server verification of an owned trade. ``parent_post_id`` replies in a
 root thread. The finite-timeout client never retries an uncertain publication.
 Recording a private explanation does not enable public posting.
+
+An optional UUID ``request_id`` identifies one post or reply. Keep the same
+identifier and content when explicitly retrying after an uncertain response;
+use a new identifier for new content. A compatible hosting server can return
+the original post instead of publishing it twice, after rechecking permission.
+The client does not create identifiers or retry automatically.

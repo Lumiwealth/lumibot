@@ -8,10 +8,19 @@ import pytest
 import yaml
 
 
+class UniqueWorkflowLoader(yaml.BaseLoader):
+    def construct_mapping(self, node, deep=False):
+        pairs = self.construct_pairs(node, deep=deep)
+        keys = [key for key, _ in pairs]
+        if len(keys) != len(set(keys)):
+            raise ValueError('Duplicate workflow mapping key')
+        return dict(pairs)
+
+
 def _workflow():
     return yaml.load(
         (Path(__file__).resolve().parents[1] / ".github/workflows/release.yml").read_text(),
-        Loader=yaml.BaseLoader,
+        Loader=UniqueWorkflowLoader,
     )
 
 

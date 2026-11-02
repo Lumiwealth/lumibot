@@ -579,3 +579,91 @@ def test_batch_independent_orders_register_in_input_order(broker):
     broker.client.submit.side_effect = [observation(item, "open") for item in items]
     assert broker.submit_orders(items, is_multileg=False) == items
     assert all(broker.get_tracked_order(item.identifier) is item for item in items)
+
+
+@pytest.mark.parametrize('state,certainty', [
+    ('unknown', 'unknown'), ('submitted', 'unknown'), ('awaiting_approval', 'unknown'),
+    ('open', 'confirmed_submitted'), ('rejected', 'confirmed_rejected'),
+])
+def test_submission_certainty_reports_native_stage(broker, state, certainty):
+    item = order()
+    broker.client.submit.return_value = observation(item, state)
+    broker.submit_order(item)
+    assert item.submission_outcome['broker_state_certainty'] == certainty
+    assert item.submission_outcome['state'] == state
+    assert item.to_dict()['submission_outcome'] == item.submission_outcome
+
+
+@pytest.mark.parametrize('terminal,quantity', [('filled', '0.001'), ('canceled', '0'), ('rejected', '0')])
+def test_late_unknown_cannot_erase_proven_terminal_certainty(broker, terminal, quantity):
+    item = order()
+    broker.client.submit.return_value = observation(item, 'unknown')
+    broker.submit_order(item)
+    broker._observe(item, observation(item, terminal, quantity, '20000'))
+    known = dict(item.submission_outcome)
+    broker._observe(item, observation(item, 'unknown', quantity, '20000'))
+    assert item.submission_outcome == known
+    assert known['reconciliation_required'] is False
+
+
+def test_actual_native_client_timeout_projects_through_strategy_tool(broker, engine, tmp_path):
+    from lumibot.components.agents.builtins import _bind_submit_order, _order_to_dict
+    from tests.test_metamask_native_engine import WALLET as ENGINE_WALLET
+
+    client = MetaMaskClient({**CONFIG, 'WALLET_ADDRESS': ENGINE_WALLET})
+    client._engine, client._journal = engine, engine.journal
+    client._provider, client._venue = engine.provider, engine.venue
+    broker.client = client
+    engine.venue.account.return_value = {'cash': '100', 'positionsValue': '0', 'equity': '100',
+                                         'currency': 'USDC', 'positions': []}
+    engine.provider.submit_signature.side_effect = requests.Timeout('lost transport response')
+    class TestStrategy(Strategy):
+        def on_trading_iteration(self):
+            pass
+    strategy = TestStrategy(broker=broker, name='native-certainty',
+        quote_asset=Asset('USDC', asset_type='crypto'), benchmark_asset=None, analyze_backtest=False,
+        parameters={})
+    reason = 'Use the observed quote and bounded allocation to submit this exact contract while retaining its durable identifier. ' * 3
+    result = _bind_submit_order(strategy, None).function(symbol='BTC', asset_type='crypto_future',
+        quantity=0.001, side='buy', order_type='limit', limit_price=20000,
+        time_in_force='gtc', quote_symbol='USDC', reason=reason)
+    assert result['ok'] is False
+    assert result['execution_outcome']['broker_state_certainty'] == 'unknown'
+    assert result['execution_outcome']['retryability'] == 'non_retryable'
+    item = broker.get_tracked_order(result['order']['identifier'])
+    assert _order_to_dict(item)['submission_outcome']['reconciliation_required'] is True
+    assert engine.provider.submit_signature.call_count == 1
+    assert engine.journal.get('agent', item.identifier) is not None
+    broker._observe(item, observation(item, 'open'))
+    assert _order_to_dict(item)['submission_outcome']['broker_state_certainty'] == 'confirmed_submitted'
+
+
+# This fixture supplies the real native engine/journal with only provider and venue I/O stubbed.
+from tests.test_metamask_native_engine import engine  # noqa: E402,F401
+
+
+def test_native_mixed_batch_keeps_per_order_certainty_and_blocks_retry(broker):
+    import json
+    from lumibot.components.agents.builtins import _bind_submit_orders
+    broker.client.account.return_value = {'cash': '100', 'positionsValue': '0', 'equity': '100',
+                                          'currency': 'USDC', 'positions': []}
+    def submit(request):
+        return {'id': request['id'], 'request': request, 'filledQuantity': '0',
+                'state': 'open' if request['side'] == 'buy' else 'unknown'}
+    broker.client.submit.side_effect = submit
+    class TestStrategy(Strategy):
+        def on_trading_iteration(self):
+            pass
+    strategy = TestStrategy(broker=broker, name='mixed-certainty',
+        quote_asset=Asset('USDC', asset_type='crypto'), benchmark_asset=None, analyze_backtest=False)
+    specifications = [{'symbol': 'BTC', 'asset_type': 'crypto_future', 'quantity': 0.001,
+        'side': side, 'order_type': 'limit', 'limit_price': 20000, 'time_in_force': 'gtc',
+        'quote_symbol': 'USDC'} for side in ('buy', 'sell')]
+    reason = 'Use observed market data and bounded account exposure for independently identified orders and reconcile each result. ' * 3
+    result = _bind_submit_orders(strategy, None).function(orders_json=json.dumps(specifications), reason=reason)
+    assert result['ok'] is False
+    assert result['execution_outcome']['broker_state_certainty'] == 'unknown'
+    assert result['execution_outcome']['retryability'] == 'non_retryable'
+    assert [row['submission_outcome']['broker_state_certainty'] for row in result['returned_orders']] == [
+        'confirmed_submitted', 'unknown']
+    assert broker.client.submit.call_count == 2

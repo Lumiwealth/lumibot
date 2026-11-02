@@ -9,6 +9,7 @@
 - Release-gated portfolio behavior covers complete large and small baskets, funding sells before dependent buys, current-quote sizing, exact dated-row selection, and completing supported holdings when one is unavailable. Assertions reconcile native positions, fills, quantities and cash alongside a real-model judge.
 
 ### Changed
+- Retain locally sent ProjectX orders through uncertain acknowledgements, prevent duplicate handoffs for the same identity, and reconcile exact receipts into the original order. ProjectX and MetaMask order tools expose submission uncertainty without claiming acceptance or permitting a blind retry.
 - Reconcile live MetaMask partial fills from current open-order remainders, retain late terminal execution deltas without reopening orders, and fence new spending while fill evidence disagrees. Share wallet observation reads, avoid unchanged historical status queries, and use a 10-second default polling interval.
 - Harden native MetaMask signing-domain/network binding, final authority handoff, uncertain cancellation and leverage recovery, cumulative accessor fills, exact token arithmetic, reverted-gas budgets, and OP Stack L1/operator fee accounting. Preserve actual overrun charges pending explicit owner review. Native funded qualification remains in progress.
 - Replace the retired Polygon SDK dependency with maintained Massive while retaining Polygon keys and endpoint behavior; require patched MetaMask HTTP and CA-store dependencies and reject unsafe session lock files.

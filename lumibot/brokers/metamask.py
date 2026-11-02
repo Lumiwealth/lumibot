@@ -152,6 +152,7 @@ class MetaMask(Broker):
             reduce_only=request.get("reduceOnly", False),
         )
         order.update_raw(response)
+        self._set_submission_outcome(order, response)
         order.status = {
             "filled": "fill",
             "canceled": "canceled",
@@ -295,6 +296,17 @@ class MetaMask(Broker):
                 self._clean_order_trackers(order)
             return result
 
+    @staticmethod
+    def _set_submission_outcome(order, response):
+        state = response['state']
+        certainty = ('confirmed_submitted' if state in {'open', 'partial_fill', 'filled', 'canceled'}
+                     else 'confirmed_rejected' if state == 'rejected' else 'unknown')
+        order.submission_outcome = {
+            'broker_state_certainty': certainty,
+            'reconciliation_required': certainty == 'unknown' or bool(response.get('reconciliationErrorCode')),
+            'state': state,
+        }
+
     def _observe(self, order, response):
         with self._event_lock:
             order = self.get_tracked_order(order.identifier) or order
@@ -313,6 +325,8 @@ class MetaMask(Broker):
                 response = {**response, "state": state}
                 if quantity == previous[0]:
                     order.update_raw(response)
+                    # Preserve proven terminal identity despite a stale unknown reply.
+                    self._set_submission_outcome(order, response)
                     return
             value = money.multiply(quantity, decimal_value(response.get("averagePrice", "0")))
             if quantity > previous[0]:
@@ -337,4 +351,5 @@ class MetaMask(Broker):
                     error=MetaMaskAPIError("REJECTED", response.get("message", "Provider rejected order")),
                 )
             order.update_raw(response)
+            self._set_submission_outcome(order, response)
             self._observations[str(order.identifier)] = (quantity, value, state)

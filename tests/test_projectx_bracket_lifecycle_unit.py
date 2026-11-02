@@ -85,6 +85,17 @@ def _make_bracket_entry(asset, side="buy", qty=1, limit=None, tp=None, sl=None):
     return o
 
 
+def _stream_placement_receipt(broker, response, terms, *, filled=False, price=None):
+    # Exercise the provider identity boundary; anonymous normalized Orders omit
+    # account/contract evidence and cannot prove ownership of a local handoff.
+    broker._handle_order_update(dict(id=response['orderId'], accountId=terms['account_id'],
+        contractId=terms['contract_id'], customTag=terms['custom_tag'],
+        type=terms['type'], side=terms['side'], size=terms['size'],
+        limitPrice=terms['limit_price'], stopPrice=terms['stop_price'],
+        status=2 if filled else 1, fillVolume=terms['size'] if filled else 0,
+        filledPrice=price))
+
+
 def test_bracket_parent_submission_stores_meta_and_normalizes_tag(broker, mes):
     parent = _make_bracket_entry(mes, limit=5000.0, tp=5050.0, sl=4975.0)
     # No tag -> helper should generate, then normalize to BRK_ENTRY_*
@@ -140,12 +151,7 @@ def test_fill_before_acknowledgement_protects_the_tracked_parent(broker, mes):
     def fill_before_ack(**kwargs):
         response = original(**kwargs)
         if kwargs['type'] == 2:
-            observed = Order(strategy='Strat', asset=mes, quantity=1, side='buy',
-                             identifier=str(response['orderId']))
-            observed.tag = kwargs['custom_tag']
-            broker._process_trade_event(observed, broker.NEW_ORDER)
-            broker._process_trade_event(observed, broker.FILLED_ORDER, price=5000,
-                                       filled_quantity=1, multiplier=5)
+            _stream_placement_receipt(broker, response, kwargs, filled=True, price=5000)
         return response
 
     broker.client.order_place = fill_before_ack
@@ -164,10 +170,7 @@ def test_child_stream_before_ack_keeps_oco_link_on_canonical_order(broker, mes):
     def new_before_ack(**kwargs):
         response = original(**kwargs)
         if kwargs['type'] in (1, 4):
-            observed = Order(strategy='Strat', asset=mes, quantity=1,
-                             side='sell', identifier=str(response['orderId']))
-            observed.tag = kwargs['custom_tag']
-            broker._process_trade_event(observed, broker.NEW_ORDER)
+            _stream_placement_receipt(broker, response, kwargs)
         return response
 
     broker.client.order_place = new_before_ack
@@ -192,13 +195,8 @@ def test_child_fill_before_ack_prevents_unnecessary_sibling_submission(broker, m
     def child_event_before_ack(**kwargs):
         response = original(**kwargs)
         if kwargs['type'] in (1, 4):
-            observed = Order(strategy='Strat', asset=mes, quantity=1, side='sell',
-                             identifier=str(response['orderId']))
-            observed.tag = kwargs['custom_tag']
-            broker._process_trade_event(observed, broker.NEW_ORDER)
-            if kwargs['type'] == 1:
-                broker._process_trade_event(observed, broker.FILLED_ORDER, price=5050,
-                                           filled_quantity=1, multiplier=5)
+            _stream_placement_receipt(broker, response, kwargs,
+                                      filled=kwargs['type'] == 1, price=5050)
         return response
 
     broker.client.order_place = child_event_before_ack
@@ -492,12 +490,7 @@ def test_child_fill_during_sibling_ack_cancels_registered_sibling(broker, mes, p
     def place(**kwargs):
         response = original(**kwargs)
         if kwargs['type'] == 2 and parent_before_ack:
-            observed = Order(strategy='Strat', asset=mes, quantity=1, side='buy',
-                             identifier=str(response['orderId']))
-            observed.tag = kwargs['custom_tag']
-            broker._process_trade_event(observed, broker.NEW_ORDER)
-            broker._process_trade_event(observed, broker.FILLED_ORDER, price=5000,
-                                       filled_quantity=1, multiplier=5)
+            _stream_placement_receipt(broker, response, kwargs, filled=True, price=5000)
         elif kwargs['type'] == 4:
             tracked = broker.get_tracked_order(parent.identifier)
             tp = broker.get_tracked_order(tracked._synthetic_bracket['children']['tp'])
@@ -589,12 +582,7 @@ def test_filled_child_with_unsubmitted_or_rejected_sibling_does_not_create_exit(
             return {'success': False, 'errorCode': 2, 'errorMessage': 'rejected'}
         response = original(**kwargs)
         if not rejected and kwargs['type'] == 1:
-            observed = Order(strategy='Strat', asset=mes, quantity=1, side='sell',
-                             identifier=str(response['orderId']))
-            observed.tag = kwargs['custom_tag']
-            broker._process_trade_event(observed, broker.NEW_ORDER)
-            broker._process_trade_event(observed, broker.FILLED_ORDER, price=5050,
-                                       filled_quantity=1, multiplier=5)
+            _stream_placement_receipt(broker, response, kwargs, filled=True, price=5050)
         return response
     broker.client.order_place = Mock(side_effect=place)
     broker._submit_order(parent)
@@ -651,12 +639,7 @@ def test_stream_fill_can_progress_while_sibling_ack_is_waiting(broker, mes):
     def place(**kwargs):
         response = original(**kwargs)
         if kwargs['type'] == 2:
-            observed = Order(strategy='Strat', asset=mes, quantity=1, side='buy',
-                             identifier=str(response['orderId']))
-            observed.tag = kwargs['custom_tag']
-            broker._process_trade_event(observed, broker.NEW_ORDER)
-            broker._process_trade_event(observed, broker.FILLED_ORDER, price=5000,
-                                       filled_quantity=1, multiplier=5)
+            _stream_placement_receipt(broker, response, kwargs, filled=True, price=5000)
         elif kwargs['type'] == 4:
             sibling_waiting.set()
             if not release_ack.wait(5):
@@ -1219,7 +1202,8 @@ def test_uncertain_public_submission_is_not_reported_as_rejected(broker, mes):
     broker.client.order_place = Mock(return_value={'success': False, 'error': 'transport failure'})
     item = Order(strategy='Strat', asset=mes, quantity=1, side='buy')
     broker._submit_order(item)
-    assert item.status == 'unknown'
+    # Sent without acknowledgement stays locally owned; generic UNKNOWN remains nonactive.
+    assert item.status == 'submitted'
     assert item._projectx_submission_state == 'unknown'
 
 

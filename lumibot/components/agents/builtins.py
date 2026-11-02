@@ -750,6 +750,9 @@ def _order_to_dict(order: Any, *, include_legs: bool = True) -> dict[str, Any]:
         "status": _jsonable(getattr(order, "status", None)),
         "time_in_force": _jsonable(getattr(order, "time_in_force", None)),
     }
+    outcome = _order_submission_outcome(order)
+    if outcome is not None:
+        payload["submission_outcome"] = _jsonable(outcome)
     quote = getattr(order, "quote", None)
     if quote is not None:
         payload["quote"] = _asset_to_dict(quote)
@@ -4726,6 +4729,36 @@ def _prepare_agent_order(
     return created, reason
 
 
+def _order_submission_outcome(order):
+    if not hasattr(order, 'submission_outcome'):
+        return None  # Legacy adapters have not supplied this explicit contract.
+    outcome = order.submission_outcome
+    if (not isinstance(outcome, dict)
+            or not isinstance(outcome.get('broker_state_certainty'), str)
+            or outcome.get('broker_state_certainty') not in {'confirmed_submitted', 'confirmed_rejected', 'unknown'}
+            or type(outcome.get('reconciliation_required', False)) is not bool):
+        return {'broker_state_certainty': 'unknown', 'reconciliation_required': True,
+                'invalid_metadata': True}
+    return outcome
+
+
+def _submission_certainty(order):
+    outcome = _order_submission_outcome(order)
+    if outcome is not None:
+        if outcome.get('reconciliation_required', False):
+            return 'unknown'
+        return outcome['broker_state_certainty']
+    return 'confirmed_submitted' if order is not None else 'unknown'
+
+
+def _returned_submission_outcome(certainty):
+    outcome = _broker_submission_outcome(certainty=certainty)
+    if certainty != 'confirmed_submitted':
+        outcome['retryability'] = 'non_retryable'
+        outcome['decision_completed'] = False
+    return outcome
+
+
 def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
     def submit_order(
         *,
@@ -4780,10 +4813,7 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
                 "tool_error": True,
                 "tool_name": "orders_submit_order",
                 "error": {"type": exc.__class__.__name__, "message": str(exc)},
-                "execution_outcome": _broker_submission_outcome(
-                    certainty="unknown",
-                    retryable=isinstance(exc, (TimeoutError, ConnectionError)),
-                ),
+                "execution_outcome": _returned_submission_outcome('unknown'),
             }
         decision_provenance = getattr(submitted, "decision_provenance", None)
         order_payload = _order_to_dict(submitted)
@@ -4811,8 +4841,9 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
             except Exception:
                 pass
         return {
+            "ok": _submission_certainty(submitted) == "confirmed_submitted",
             "order": order_payload,
-            "execution_outcome": _broker_submission_outcome(certainty="confirmed_submitted"),
+            "execution_outcome": _returned_submission_outcome(_submission_certainty(submitted)),
         }
 
     return BoundTool(
@@ -4870,18 +4901,17 @@ def _bind_submit_orders(strategy: Any, manager: Any) -> BoundTool:
                 "ok": False, "tool_error": True, "tool_name": "orders_submit_orders",
                 "orders": [_order_to_dict(order) for order in created],
                 "error": {"type": type(exc).__name__, "message": str(exc)},
-                "execution_outcome": _broker_submission_outcome(certainty="unknown"),
+                "execution_outcome": _returned_submission_outcome("unknown"),
             }
         returned = submitted if isinstance(submitted, list) else []
         # Preserve the native return objects, including None/rejections. A short
         # return is incomplete evidence, never authority to retry the batch.
-        complete = len(returned) == len(created) and all(order is not None for order in returned)
+        complete = len(returned) == len(created) and all(_submission_certainty(order) == "confirmed_submitted" for order in returned)
         return {
             "ok": complete,
             "orders": [_order_to_dict(order) for order in created],
             "returned_orders": [_order_to_dict(order) if order is not None else None for order in returned],
-            "execution_outcome": _broker_submission_outcome(
-                certainty="confirmed_submitted" if complete else "unknown"),
+            "execution_outcome": _returned_submission_outcome("confirmed_submitted" if complete else "unknown"),
         }
 
     return BoundTool(

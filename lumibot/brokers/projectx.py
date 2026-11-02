@@ -410,6 +410,13 @@ class ProjectX(Broker):
             if parent is not None:
                 self._maybe_spawn_bracket_children(parent)
 
+    def _process_partially_filled_order(self, order, price, quantity):
+        with self._lock:
+            # A first authoritative receipt can be partial without any NEW
+            # acknowledgement. Transition our retained SUBMITTED entry once.
+            self._unprocessed_orders.remove(order.identifier, key='identifier')
+            return super()._process_partially_filled_order(order, price, quantity)
+
     def _on_filled_order(self, position, order, price, quantity, multiplier):
         self._reconcile_protective_fill(order, terminal=True)
         super()._on_filled_order(position, order, price, quantity, multiplier)
@@ -474,6 +481,9 @@ class ProjectX(Broker):
 
     def _cancel_order_request(self, order: Order) -> bool:
         """Send an exact-ID cancel; synthetic rollover does not change user intent."""
+        if getattr(order, '_projectx_submission_state', None) == 'unknown':
+            order.error = 'Submission identity unresolved; reconcile its exact tag before changing it'
+            return False
         try:
             if not order.identifier:
                 self.logger.error("Cannot cancel order without ID")
@@ -508,6 +518,9 @@ class ProjectX(Broker):
     def _modify_order(self, order: Order, limit_price: float = None,
                      stop_price: float = None) -> bool:
         """Modify an existing order."""
+        if getattr(order, '_projectx_submission_state', None) == 'unknown':
+            order.error = 'Submission identity unresolved; reconcile its exact tag before changing it'
+            return False
         try:
             if not order.identifier:
                 self.logger.error("Cannot modify order without ID")
@@ -552,9 +565,153 @@ class ProjectX(Broker):
             self.logger.error(f"Error modifying order {order.identifier}: {e}")
             return False
 
+    def _submission_terms(self, order):
+        """Immutable local intent, independent of mutable lifecycle observations."""
+        return (self.account_id, order.strategy, order.asset.to_dict(), order.side, order.quantity,
+                order.order_type, order.limit_price, order.stop_price, order.order_class,
+                order.secondary_limit_price, order.secondary_stop_price, order.time_in_force, order.tag)
+
+    def _existing_submission(self, order):
+        for reserved_tag, candidate in getattr(self, '_local_submissions', {}).items():
+            if (candidate is order or reserved_tag == order.tag
+                    or getattr(candidate, '_projectx_local_id', None) == order.identifier
+                    or candidate.identifier == order.identifier):
+                if candidate._projectx_submission_terms != self._submission_terms(order):
+                    raise ValueError('ProjectX submission identity reused with different immutable terms')
+                return candidate
+        return None
+
+    @staticmethod
+    def _set_submission_outcome(order, state):
+        order._projectx_submission_state = state
+        order.submission_outcome = {
+            'broker_state_certainty': 'confirmed_submitted' if state == 'accepted' else
+                                      'confirmed_rejected' if state == 'rejected' else 'unknown',
+            'reconciliation_required': state == 'unknown',
+        }
+
+    def _bind_submission_identifier(self, order, identifier):
+        """Rekey the locally owned object without replacing its provenance or fills."""
+        with self._lock:
+            identifier = str(identifier)
+            previous = getattr(order, '_projectx_provider_id', None)
+            if previous is None and self._submission_terms(order) != order._projectx_submission_terms:
+                self._set_submission_outcome(order, 'unknown')
+                raise ValueError('Local order terms changed while submission acknowledgement was pending')
+            if previous is not None and previous != identifier:
+                order.submission_outcome['reconciliation_required'] = True
+                order.error = 'Conflicting provider identifiers for the same submission tag'
+                raise ValueError(order.error)
+            if previous is not None:
+                return  # A repeated ACK cannot erase a later reconciliation conflict.
+            other = self.get_tracked_order(identifier)
+            if other is not None and other is not order:
+                raise ValueError('Provider identifier already belongs to another tracked order')
+            old_id = order.identifier
+            order.identifier = identifier
+            order._projectx_provider_id = identifier
+            if order._projectx_submission_state == 'rejected' and order.status == 'error':
+                # Exact venue identity can supersede an earlier unbound REST
+                # rejection; it must not inherit that provisional closed state.
+                order.status = 'submitted'
+            self._set_submission_outcome(order, 'accepted')
+            if getattr(order, '_is_bracket_parent', False):
+                self._bracket_meta.pop(old_id, None)
+                order._synthetic_bracket['parent_id'] = identifier
+                self._bracket_meta[identifier] = order._synthetic_bracket
+            self._clean_order_trackers(order)
+            if order.status == 'submitted':
+                self._new_orders.remove(identifier, key='identifier')
+                self._unprocessed_orders.append(order)
+                self._invalidate_order_caches()
+
+    def _adopt_submission_receipt(self, row):
+        """Only a complete exact-account/tag/terms receipt can resolve a local handoff."""
+        tag = row.get('customTag')
+        by_tag = getattr(self, '_local_submissions', {}).get(tag) if isinstance(tag, str) else None
+        tracked = self.get_tracked_order(str(row.get('id')))
+        by_id = (tracked if tracked is not None and
+                 getattr(tracked, '_projectx_provider_id', None) == str(row.get('id')) else None)
+        if by_tag is not None and by_id is not None and by_tag is not by_id:
+            for candidate in (by_tag, by_id):
+                candidate._projectx_reconciliation_receipt = dict(row)
+                candidate.submission_outcome['reconciliation_required'] = True
+                candidate.error = 'Submission tag and provider identifier refer to different local intents'
+            raise ValueError(by_id.error)
+        order = by_tag or by_id
+        if order is None:
+            return
+        order._projectx_reconciliation_receipt = dict(row)
+        if by_id is not None and tag is not None and tag != order._projectx_submission_terms[-1]:
+            order.submission_outcome['reconciliation_required'] = True
+            order.error = 'Bound provider identifier has a conflicting submission tag'
+            raise ValueError(order.error)
+        wire = order._projectx_submission_wire
+        provider_id = getattr(order, '_projectx_provider_id', None)
+        if (any(type(row.get(key)) is not int for key in ('accountId', 'side', 'type'))
+                or row.get('accountId') != wire['account_id']
+                or row.get('contractId') != wire['contract_id']
+                or row.get('side') != wire['side'] or row.get('type') != wire['type']):
+            order.error = 'Submission receipt immutable venue identity is incomplete or conflicting'
+            order.submission_outcome['reconciliation_required'] = True
+            raise ValueError(order.error)
+        if provider_id is not None:
+            if str(row.get('id')) != provider_id:
+                order.submission_outcome['reconciliation_required'] = True
+                raise ValueError('Conflicting provider identifiers for the same submission tag')
+            # Already-bound orders may have subsequently been modified. Their
+            # original size/price are not immutable provider lifecycle fields.
+            return
+        identifier = row.get('id')
+        valid_id = (type(identifier) is int and identifier > 0) or (
+            isinstance(identifier, str) and identifier.isascii() and identifier.isdecimal()
+            and int(identifier) > 0)
+        if (not valid_id or any(type(row.get(key)) is not int for key in ('size', 'status'))
+                or row.get('size') != wire['size']
+                or (wire['limit_price'] is not None and row.get('limitPrice') != wire['limit_price'])
+                or (wire['stop_price'] is not None and row.get('stopPrice') != wire['stop_price'])
+                or row.get('status') not in self.ORDER_STATUS_MAPPING
+                or row.get('id') is None):
+            order.error = 'Submission receipt identity or terms are incomplete or conflicting'
+            order.submission_outcome['reconciliation_required'] = True
+            raise ValueError(order.error)
+        try:
+            self._bind_submission_identifier(order, row['id'])
+        except ValueError:
+            order.update_raw(dict(row))
+            raise
+        if row['status'] == 5:
+            self._set_submission_outcome(order, 'rejected')
+
+    def _refresh_missing_active_order_from_broker(self, order_lumi, *args, **kwargs):
+        # A missing receipt cannot terminalize a locally owned uncertain handoff.
+        if getattr(order_lumi, '_projectx_submission_state', None) == 'unknown':
+            return False
+        return super()._refresh_missing_active_order_from_broker(order_lumi, *args, **kwargs)
+
     def _submit_order(self, order: Order) -> Order:
         """Submit a new order to the broker."""
+        with self._order_update_lock:
+            existing = self._existing_submission(order)
+            if existing is not None:
+                return existing
+            if hasattr(order, 'submission_outcome'):
+                outcome = order.submission_outcome
+                if (not isinstance(outcome, dict)
+                        or not isinstance(outcome.get('broker_state_certainty'), str)
+                        or outcome.get('broker_state_certainty') not in {'confirmed_submitted', 'confirmed_rejected'}
+                        or type(outcome.get('reconciliation_required', False)) is not bool
+                        or outcome.get('reconciliation_required', False)):
+                    raise ValueError('Prior submission requires reconciliation; no local identity reservation is available')
+            build_unique_order_tag(order)
+            if order.order_class == Order.OrderClass.BRACKET and not getattr(order, '_is_bracket_child', False):
+                order.tag, _ = normalize_bracket_entry_tag(order.tag)
+            existing = self._existing_submission(order)
+            if existing is not None:
+                return existing
+        self._set_submission_outcome(order, 'rejected')
         order._projectx_submission_state = 'not_submitted'
+        response = None
         try:
             from decimal import Decimal
             size = Decimal(str(order.quantity))
@@ -641,7 +798,22 @@ class ProjectX(Broker):
                     order._synthetic_bracket['base_tag'] = base_tag
 
             from lumibot.tools.projectx_helpers import ProjectXOrderSubmissionError, projectx_order_placement_outcome
-            order._projectx_submission_state = 'unknown'
+            with self._order_update_lock:
+                existing = self._existing_submission(order)
+                if existing is not None:
+                    return existing
+                order._projectx_submission_terms = self._submission_terms(order)
+                order._projectx_local_id = order.identifier
+                order._projectx_submission_wire = dict(account_id=self.account_id,
+                    contract_id=contract_id, type=order_type, side=order_side, size=order.quantity,
+                    limit_price=limit_price, stop_price=stop_price)
+                if not hasattr(self, '_local_submissions'):
+                    self._local_submissions = {}
+                self._local_submissions[order.tag] = order
+                self._set_submission_outcome(order, 'unknown')
+                order.status = 'submitted'  # Sent is not an acknowledgement or NEW event.
+                self._unprocessed_orders.append(order)
+                self._invalidate_order_caches()
             try:
                 response = self.client.order_place(
                     account_id=self.account_id,
@@ -656,123 +828,47 @@ class ProjectX(Broker):
 
             except ProjectXOrderSubmissionError as exc:
                 response = exc.response
-            order._projectx_submission_state = projectx_order_placement_outcome(response)
-            if order._projectx_submission_state == 'unknown':
-                order.status = 'unknown'
-                order.error = 'Submission outcome unknown; reconcile this exact custom tag before any replacement'
+            outcome = projectx_order_placement_outcome(response)
+            # Read response fields before locking lifecycle state. Even a
+            # callback interleaving here must lose to an already-bound receipt.
+            error_msg = str(response.get('errorMessage') or 'Provider rejected order') if outcome == 'rejected' else None
+            with self._order_update_lock:
+                order._projectx_submission_response = response
+                if getattr(order, '_projectx_provider_id', None) is not None:
+                    if outcome == 'accepted':
+                        self._bind_submission_identifier(order, response['orderId'])
+                    return order
+                self._set_submission_outcome(order, outcome)
                 order.update_raw(response if isinstance(response, dict) else {'response': response})
-                self.logger.error(f"ProjectX submission outcome unknown for tag {order.tag}")
-                return order
-
-            # Log response details
-            self.logger.debug(f"Order response: success={response.get('success') if response else 'None'}, "
-                            f"orderId={response.get('orderId') if response else 'None'}")
-            
-            if order._projectx_submission_state == 'accepted':
-                if response.get("orderId") is None:
-                    raise ValueError("Accepted order response has no identifier; reconcile its exact tag")
-                order._projectx_submission_state = 'accepted'
-                # Step 1: Update order with broker's ID (matching Alpaca/Tradier pattern)
-                order.identifier = str(response.get("orderId"))  # Critical: Update identifier BEFORE tracking
-                if is_bracket_parent and hasattr(order, '_synthetic_bracket'):
-                    # If we previously stored under a temp key, migrate
-                    try:
-                        # Remove any temp_* entries that match tp/sl pair to prevent duplicate meta
-                        for k in list(self._bracket_meta.keys()):
-                            if k.startswith('temp_'):
-                                temp_meta = self._bracket_meta.get(k)
-                                if temp_meta and temp_meta.get('tp_price') == order._synthetic_bracket.get('tp_price') and temp_meta.get('sl_price') == order._synthetic_bracket.get('sl_price'):
-                                    self._bracket_meta.pop(k, None)
-                    except Exception:
-                        pass
-                    order._synthetic_bracket['parent_id'] = order.identifier
-                    # Persist meta map for conversions
-                    try:
-                        self._bracket_meta[order.identifier] = order._synthetic_bracket
-                        self.logger.debug(
-                            f"[BRACKET META STORE] parent_id={order.identifier} "
-                            f"tp={order._synthetic_bracket.get('tp_price')} "
-                            f"sl={order._synthetic_bracket.get('sl_price')} tag={order.tag}"
-                        )
-                        # Ultra-fast fill race: fill events may have arrived before meta store; attempt spawn now if children not yet submitted.
-                        try:
-                            if not order._synthetic_bracket.get('children_submitted'):
-                                # Ensure cache copy gets meta for subsequent events
-                                cached = self.get_tracked_order(order.identifier)
-                                if cached and not hasattr(cached, '_synthetic_bracket'):
-                                    cached._synthetic_bracket = order._synthetic_bracket
-                                    cached._is_bracket_parent = True
-                                self.logger.debug(f"[BRACKET SPAWN IMMEDIATE] "
-                                                  f"parent_id={order.identifier} status={order.status}")
-                                self._maybe_spawn_bracket_children(cached or order)
-                        except Exception as ie:
-                            self.logger.error(f"[BRACKET SPAWN IMMEDIATE ERROR] parent_id={order.identifier} err={ie}")
-                    except Exception:
-                        pass
-                    self.logger.debug(f"[BRACKET DETECT CONFIRMED] parent_id={order.identifier} tp={order._synthetic_bracket.get('tp_price')} sl={order._synthetic_bracket.get('sl_price')}")
-                
-                self.logger.debug(f"Order submitted: id={order.identifier}, status=submitted")
-                
-                # Step 2: Set initial status and prices
-                order.status = "submitted"
-                order.limit_price = limit_price
-                order.stop_price = stop_price
-                
-                # Step 3: Add to _unprocessed_orders FIRST (following gold standard pattern)
-                # This is CRITICAL - must happen before _process_trade_event
-                # Also caches the order for quick lookup during event processing
-                # Locking is required because instantly-filling orders may trigger _handle_order_update before
-                # _submit_order finishes, causing race conditions and duplicate orders
-                with self._order_update_lock:
-                    existing_order = self.get_tracked_order(order.identifier)
-                    if existing_order:
-                        if getattr(order, '_is_bracket_child', False):
-                            # The user stream can create the canonical order
-                            # before REST acknowledges our child submission.
-                            existing_order._is_bracket_child = True
-                            existing_order._bracket_parent_id = order._bracket_parent_id
-                        self.logger.debug(f"Order {order.identifier} already in tracking cache, skipping unprocessed "
-                                          f"append")
-                    else:
-                        self._unprocessed_orders.append(order)
-
-                    # An execution may have reached the canonical tracked order
-                    # before the REST acknowledgement. Do not reopen it.
-                    try:
-                        if not existing_order or str(existing_order.status).lower() in {'unprocessed', 'submitted'}:
-                            self._process_trade_event(order, self.NEW_ORDER)
-                        self.logger.debug(f"Order submitted successfully with ID: {order.identifier} - NEW_ORDER event dispatched")
-                    except Exception as e:
-                        self.logger.error(f"Error dispatching NEW_ORDER event for {order.identifier}: {e}")
-                        # Continue even if event dispatch fails
-                        self.logger.debug(f"Order submitted successfully with ID: {order.identifier} (event dispatch failed)")
-
-                # Note: children will be spawned upon fill event
-            else:
-                error_msg = response.get("errorMessage", "Unknown error") if response else "No response"
-                # Map specific broker error codes/messages to standardized handling
-                lowered = error_msg.lower()
-                if "maximum position exceeded" in lowered:
-                    # Treat as risk/size violation rather than generic reject, so strategy can downsize
-                    order.status = 'unknown' if order._projectx_submission_state == 'unknown' else 'rejected'
-                    order.error = "max_position_exceeded"
-                    self.logger.warning(
-                        f"ProjectX risk check: maximum position would be exceeded by this order (qty={order.quantity}). "
-                        f"Broker message: {error_msg}"
-                    )
+                if outcome == 'unknown':
+                    order.error = 'Submission outcome unknown; reconcile this exact custom tag before any replacement'
+                elif outcome == 'accepted':
+                    self._bind_submission_identifier(order, response['orderId'])
+                    if order.status == 'submitted':
+                        self._process_trade_event(order, self.NEW_ORDER)
                 else:
-                    order.status = 'unknown' if order._projectx_submission_state == 'unknown' else 'rejected'
-                    order.error = error_msg
-                    # Keep error log for submit failures
-                    self.logger.error(f"Failed to submit order: {error_msg}")
-
+                    # Binding and this transition share the observation lock;
+                    # a concurrent exact receipt cannot be overwritten here.
+                    order.status = 'rejected'
+                    order.error = ('max_position_exceeded' if 'maximum position exceeded' in error_msg.lower()
+                                   else error_msg)
+                    self._clean_order_trackers(order)
+            if outcome == 'rejected':
+                self.logger.error(f"Failed to submit order: {error_msg}")
             return order
 
         except Exception as e:
-            order.status = 'unknown' if order._projectx_submission_state == 'unknown' else 'rejected'
-            order.error = str(e)
-            # Keep error log for visibility
-            self.logger.error(f"Error submitting order: {e}")
+            message = str(e)
+            with self._order_update_lock:
+                if getattr(order, '_projectx_provider_id', None) is None:
+                    if order._projectx_submission_state == 'accepted':
+                        self._set_submission_outcome(order, 'unknown')
+                    order.status = 'submitted' if order._projectx_submission_state == 'unknown' else 'rejected'
+                order.error = message
+                if order._projectx_submission_state == 'unknown':
+                    order.update_raw(response if isinstance(response, dict) else {
+                        'submission_outcome': dict(order.submission_outcome), 'error': message})
+            self.logger.error(f"Error submitting order: {message}")
             return order
 
     def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> tuple:
@@ -1122,6 +1218,13 @@ class ProjectX(Broker):
             # Ignore unexpected payloads
             if not isinstance(broker_order, dict):
                 return None
+            with self._order_update_lock:
+                local = self.get_tracked_order(str(broker_order.get('id')))
+                if (local is not None and hasattr(local, '_projectx_submission_terms')
+                        and getattr(local, '_projectx_provider_id', None) is None
+                        and getattr(self, '_local_submissions', {}).get(broker_order.get('customTag')) is not local):
+                    raise ValueError('Local order identifier is not yet a verified provider identity')
+                self._adopt_submission_receipt(broker_order)
             # Get asset from contract - use efficient lookup
             contract_id = broker_order.get("contractId")
             tracked = self.get_tracked_order(str(broker_order.get("id")))
@@ -1389,8 +1492,13 @@ class ProjectX(Broker):
         allows bracket-spawn helpers that re-enter dispatch to proceed without
         deadlocking.
         """
+        deferred = set()
+        previous_deferred = None
         try:
             with self._order_update_lock:
+                self._bracket_observation_deferred = getattr(self, '_bracket_observation_deferred', {})
+                previous_deferred = self._bracket_observation_deferred.get(threading.get_ident())
+                self._bracket_observation_deferred[threading.get_ident()] = deferred
                 cached_order = self.get_tracked_order(new_order.identifier)
                 if cached_order:
                     # Preserve strategy name from cached order
@@ -1412,6 +1520,16 @@ class ProjectX(Broker):
                         self._handle_pre_existing_order(new_order)
         except Exception as e:
             self.logger.error(f"Error detecting order changes for {new_order.identifier}: {e}")
+        finally:
+            with self._order_update_lock:
+                self._bracket_observation_deferred.pop(threading.get_ident(), None)
+                if previous_deferred is not None:
+                    previous_deferred.update(deferred)
+                    self._bracket_observation_deferred[threading.get_ident()] = previous_deferred
+            for parent_id in deferred if previous_deferred is None else ():
+                parent = self.get_tracked_order(parent_id)
+                if parent is not None:
+                    self._maybe_spawn_bracket_children(parent)
 
     def _dispatch_status_change(self, cached_order, new_order):
         """Apply cumulative provider fills once, then preserve any terminal state."""
@@ -1442,6 +1560,8 @@ class ProjectX(Broker):
                 cached_order.filled_quantity = total
                 if previous_status in {"canceled", "error"} and event == self.PARTIALLY_FILLED_ORDER:
                     cached_order.status = previous_status
+        if status in {'new', 'open'} and cached_order.status == 'submitted':
+            self._process_trade_event(cached_order, self.NEW_ORDER)
         if status in {"fill", "filled", "partial_fill", "new", "open"}:
             return
         if str(cached_order.status).lower() == status:
@@ -1588,6 +1708,10 @@ class ProjectX(Broker):
             return
         parent._synthetic_bracket = meta
         with self._order_update_lock:
+            deferred = getattr(self, '_bracket_observation_deferred', {}).get(threading.get_ident())
+            if deferred is not None:
+                deferred.add(parent.identifier)
+                return
             if getattr(self, '_bracket_sync_depth', 0):
                 owner = getattr(self, '_bracket_sync_threads', {}).get(threading.get_ident())
                 if owner is not None and not self.order_belongs_to_local_strategy(parent, owner):
@@ -1963,6 +2087,11 @@ class ProjectX(Broker):
             with self._order_update_lock:
                 order = self.get_tracked_order(order_id)
                 if order is None or trade.get("id") is None:
+                    continue
+                if (hasattr(order, '_projectx_submission_terms')
+                        and getattr(order, '_projectx_provider_id', None) is None):
+                    # A trade has no exact tag/terms receipt with which to bind
+                    # an unresolved local identifier to the provider's ID.
                     continue
                 price, size = trade.get("price"), trade.get("size")
                 if price is None or size is None or float(size) <= 0:

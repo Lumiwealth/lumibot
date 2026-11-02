@@ -427,3 +427,11 @@ result requiring reconciliation. Mixed batches retain each returned order and
 cannot report complete success when any result remains uncertain. Adapters
 without this explicit metadata retain their legacy result contract; this does
 not independently qualify their transport semantics.
+
+A native MetaMask local cancellation with validated pre-release provenance reports
+`confirmed_not_submitted`. It is an incomplete, non-retryable order-submission
+outcome, not a claim that no signing or leverage mutation occurred. Unproven
+legacy cancellation stays unknown. Positive venue identity or executions take
+precedence over a stale no-release marker; a canceled status alone proves neither
+acceptance nor absence of submission. Historical missing evidence requires
+operator reconciliation and does not retroactively restore a lost journal hold.

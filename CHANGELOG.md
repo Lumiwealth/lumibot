@@ -3,6 +3,7 @@
 ## 4.6.44 - Unreleased
 
 ### Fixed
+- Require positive native release provenance before local MetaMask cancellation; retain ambiguous legacy execution holds and distinguish confirmed unsubmitted orders from venue cancellations in generic tools.
 - Keep individual stock and listed-unit purchases, exercises and new issuers in the example researcher's complete numeric portfolio ledger. Both agents still run each iteration and all investment logic stays in their prompts.
 - Preserve generic real-model fixture proof when only literal policy text in unexecuted reference examples changes. Actual example behavior still requires separate execution evidence.
 - Preserve complete test names in release shards, isolate installed-wheel validation from test-only dependencies, and include the canonical immutable-tag recovery and unit-worker cleanup repairs.

@@ -177,3 +177,9 @@ Inspect the recorded operation with `broker.client.get_order(operation_id)`. Reu
 ### Does testnet qualification establish production swap readiness?
 
 No. Native perps have funded testnet evidence, with the remaining limits recorded above. Mainnet trading and funded native swaps remain unqualified; earlier JavaScript receipts do not establish Python readiness.
+
+### Local cancellation and release evidence
+
+A prepared native order can be canceled locally only when its persisted native plan and signing checkpoints positively prove that the order was not released. Its structured `orderRelease` receipt distinguishes this from a venue cancellation. Generic order tools report `confirmed_not_submitted`, with an incomplete, non-retryable submission result. This says only that the order was not sent: prior signatures, leverage changes and audit history remain recorded.
+
+Legacy or malformed records without release evidence remain unresolved; missing effects do not establish that nothing happened. Cancellation cannot clear their existing execution hold. A historical canceled label without venue identity, executions or positively observed acceptance projects as unknown and requires operator reconciliation. This projection does not reconstruct a hold already lost in a historical journal. Actual venue cancellations, including zero-fill and partial-fill cancellations, retain confirmed acceptance; late executions are still reconciled.

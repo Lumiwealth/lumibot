@@ -608,7 +608,11 @@ def test_late_unknown_cannot_erase_proven_terminal_certainty(broker, terminal, q
     item = order()
     broker.client.submit.return_value = observation(item, "unknown")
     broker.submit_order(item)
-    broker._observe(item, observation(item, terminal, quantity, "20000"))
+    response = observation(item, terminal, quantity, "20000")
+    if terminal == "canceled":
+        # A zero-fill venue cancellation needs positive venue identity, not its label alone.
+        response["providerOrderId"] = "42"
+    broker._observe(item, response)
     known = dict(item.submission_outcome)
     broker._observe(item, observation(item, "unknown", quantity, "20000"))
     assert item.submission_outcome == known
@@ -730,3 +734,266 @@ def test_native_mixed_batch_keeps_per_order_certainty_and_blocks_retry(broker):
         "unknown",
     ]
     assert broker.client.submit.call_count == 2
+
+
+def test_real_native_prepared_cancel_is_not_venue_acceptance(broker, engine, monkeypatch):
+    from lumibot.components.agents.builtins import _order_to_dict, _returned_submission_outcome, _submission_certainty
+    from lumibot.tools.metamask.engine import ExecutionEngine
+    from lumibot.tools.metamask.journal import Journal
+    from tests.test_metamask_native_engine import WALLET as ENGINE_WALLET
+
+    client = MetaMaskClient({**CONFIG, "WALLET_ADDRESS": ENGINE_WALLET})
+    client._engine, client._journal = engine, engine.journal
+    client._provider, client._venue = engine.provider, engine.venue
+    broker.client = client
+    item = order(identifier="one", order_type="limit", limit_price=20000, time_in_force="gtc")
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        assert broker.submit_order(item) is item
+    assert broker.cancel_order(item) is item
+    assert item.is_canceled()
+    assert _submission_certainty(item) == "confirmed_not_submitted"
+    outcome = _returned_submission_outcome(_submission_certainty(item))
+    assert outcome["decision_completed"] is False and outcome["retryability"] == "non_retryable"
+    assert _order_to_dict(item)["submission_outcome"]["broker_state_certainty"] == "confirmed_not_submitted"
+    assert Order.from_dict(item.to_dict()).submission_outcome == item.submission_outcome
+    proof = dict(item.submission_outcome)
+    broker._observe(item, observation(item, "unknown"))
+    assert item.submission_outcome == proof
+    path = engine.journal.path
+    engine.journal.close()
+    journal = Journal(path)
+    try:
+        client._journal = journal
+        client._engine = ExecutionEngine(journal, engine.provider, engine.venue, "agent")
+        restored = broker._parse_broker_order(client.get_order("one"), "restored")
+        assert _submission_certainty(restored) == "confirmed_not_submitted"
+    finally:
+        journal.close()
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize("evidence", ["identity", "fill", "previous_fill"])
+def test_local_no_release_marker_cannot_mask_venue_evidence(broker, evidence):
+    from lumibot.components.agents.builtins import _submission_certainty
+
+    item = order()
+    broker.client.submit.return_value = observation(item, "unknown")
+    broker.submit_order(item)
+    response = observation(item, "canceled")
+    response["orderRelease"] = {
+        "state": "not_released",
+        "source": "native_plan_local_cancel",
+        "clientOrderId": "0x" + "a" * 32,
+    }
+    if evidence == "identity":
+        response["providerOrderId"] = "42"
+    elif evidence == "fill":
+        response.update(filledQuantity="0.0001", averagePrice="20000")
+    else:
+        broker._observe(item, observation(item, "canceled", "0.0001", "20000"))
+        response.update(filledQuantity="0.0001", averagePrice="20000")
+    broker._observe(item, response)
+    assert _submission_certainty(item) == "confirmed_submitted"
+
+
+@pytest.mark.parametrize("prior_inference", [False, True])
+def test_historical_canceled_label_is_not_acceptance_proof(broker, prior_inference):
+    from lumibot.components.agents.builtins import _submission_certainty
+
+    item = order()
+    if prior_inference:
+        item.submission_outcome = {
+            "state": "canceled",
+            "broker_state_certainty": "confirmed_submitted",
+            "reconciliation_required": False,
+        }
+    broker._set_submission_outcome(item, observation(item, "canceled"))
+    assert _submission_certainty(item) == "unknown"
+    assert item.submission_outcome["reconciliation_required"] is True
+
+
+def test_real_legacy_unknown_cancel_keeps_native_client_reservation_fence(broker, engine):
+    from lumibot.components.agents.builtins import _order_to_dict
+    from tests.test_metamask_native_engine import WALLET as ENGINE_WALLET
+    from tests.test_metamask_native_engine import intent
+
+    client = MetaMaskClient({**CONFIG, "WALLET_ADDRESS": ENGINE_WALLET})
+    client._engine, client._journal = engine, engine.journal
+    client._provider, client._venue = engine.provider, engine.venue
+    broker.client = client
+    row, _ = engine.journal.reserve("agent", intent(), "20", expected_binding=engine.journal.binding("agent"))
+    engine.journal.save({**row, "state": "unknown", "signatureOnly": False})
+    assert client.get_order("one")["state"] == "unknown"
+    item = broker._parse_broker_order(client.get_order("one"), "legacy")
+    with pytest.raises(MetaMaskAPIError, match="RECONCILIATION_REQUIRED"):
+        broker.cancel_order(item)
+    assert _order_to_dict(item)["submission_outcome"]["broker_state_certainty"] == "unknown"
+    with pytest.raises(MetaMaskAPIError, match="RECONCILIATION_REQUIRED"):
+        engine.journal.reserve("agent", intent(id="two"), "20", expected_binding=engine.journal.binding("agent"))
+    assert client.get_order("one")["state"] == "unknown"
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize("batch", [False, True])
+def test_real_native_local_cancel_submission_tool_is_incomplete_and_not_retryable(broker, engine, monkeypatch, batch):
+    import json
+
+    from lumibot.components.agents.builtins import _bind_submit_order, _bind_submit_orders
+    from lumibot.components.agents.runtime import _attempt_touched_broker, _wrap_tool_callable
+    from tests.test_metamask_native_engine import WALLET as ENGINE_WALLET
+
+    client = MetaMaskClient({**CONFIG, "WALLET_ADDRESS": ENGINE_WALLET})
+    client._engine, client._journal = engine, engine.journal
+    client._provider, client._venue = engine.provider, engine.venue
+    broker.client = client
+    engine.venue.account.return_value = {
+        "cash": "100",
+        "positionsValue": "0",
+        "equity": "100",
+        "currency": "USDC",
+        "positions": [],
+    }
+    # Pause only advancement after the real plan is persisted. The strategy then
+    # cancels through the public broker before returning that actual order object.
+    monkeypatch.setattr(engine, "_advance", lambda operation: operation)
+
+    class TestStrategy(Strategy):
+        def on_trading_iteration(self):
+            pass
+
+        def submit_order(self, item, **kwargs):
+            submitted = super().submit_order(item, **kwargs)
+            for returned in submitted if isinstance(submitted, list) else [submitted]:
+                self.broker.cancel_order(returned)
+            return submitted
+
+    strategy = TestStrategy(
+        broker=broker,
+        name="local-cancel",
+        quote_asset=Asset("USDC", asset_type="crypto"),
+        benchmark_asset=None,
+        analyze_backtest=False,
+    )
+    specification = {
+        "symbol": "BTC",
+        "asset_type": "crypto_future",
+        "quantity": 0.001,
+        "side": "buy",
+        "order_type": "limit",
+        "limit_price": 20000,
+        "time_in_force": "gtc",
+        "quote_symbol": "USDC",
+    }
+    reason = (
+        "Preserve this exact bounded intent and its observed cancellation "
+        "without assuming execution or retry authority. " * 3
+    )
+    tool = (_bind_submit_orders if batch else _bind_submit_order)(strategy, None)
+    context = {"tool_calls": []}
+    wrapped = _wrap_tool_callable(tool, context, _purpose="trading")
+    result = (
+        wrapped(orders_json=json.dumps([specification]), reason=reason)
+        if batch
+        else wrapped(**specification, reason=reason)
+    )
+    assert result["ok"] is False
+    outcome = result["execution_outcome"]
+    assert outcome["decision_completed"] is False and outcome["retryability"] == "non_retryable"
+    assert "tool_error" not in result, result
+    returned = result["returned_orders"][0] if batch else result["order"]
+    assert returned["submission_outcome"]["broker_state_certainty"] == "confirmed_not_submitted"
+    assert context["tool_calls"][0]["status"] == "completed"
+    request = SimpleNamespace(_attempt_tool_calls=context["tool_calls"], bound_tools=[tool])
+    assert _attempt_touched_broker(request) is True
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "release",
+    [
+        None,
+        {},
+        {"state": "not_released"},
+        {"state": "not_released", "source": "native_plan_local_cancel", "clientOrderId": "invalid"},
+    ],
+)
+def test_malformed_local_release_evidence_is_unknown(broker, release):
+    from lumibot.components.agents.builtins import _submission_certainty
+
+    item = order()
+    response = {**observation(item, "canceled"), "orderRelease": release}
+    broker._set_submission_outcome(item, response)
+    assert _submission_certainty(item) == "unknown"
+
+
+def test_positive_zero_fill_venue_acceptance_survives_roundtrip_and_stale_missing_identity(broker):
+    from lumibot.components.agents.builtins import _submission_certainty
+
+    item = order()
+    broker._set_submission_outcome(item, {**observation(item, "canceled"), "providerOrderId": "42"})
+    restored = Order.from_dict(item.to_dict())
+    broker._set_submission_outcome(restored, observation(restored, "canceled"))
+    assert _submission_certainty(restored) == "confirmed_submitted"
+    assert restored.submission_outcome["venue_acceptance_observed"] is True
+    assert not restored.transactions
+
+
+@pytest.mark.parametrize("action", ["cancel", "modify"])
+def test_generic_action_lookup_of_prepared_order_never_refreshes_into_execution(broker, engine, monkeypatch, action):
+    from lumibot.components.agents.builtins import _bind_cancel_order, _bind_modify_order, _submission_certainty
+    from tests.test_metamask_native_engine import WALLET as ENGINE_WALLET
+
+    client = MetaMaskClient({**CONFIG, "WALLET_ADDRESS": ENGINE_WALLET})
+    client._engine, client._journal = engine, engine.journal
+    client._provider, client._venue = engine.provider, engine.venue
+    broker.client = client
+    engine.venue.account.return_value = {
+        "cash": "100",
+        "positionsValue": "0",
+        "equity": "100",
+        "currency": "USDC",
+        "positions": [],
+    }
+
+    class TestStrategy(Strategy):
+        def on_trading_iteration(self):
+            pass
+
+    strategy = TestStrategy(
+        broker=broker,
+        name="cancel-pending",
+        quote_asset=Asset("USDC", asset_type="crypto"),
+        benchmark_asset=None,
+        analyze_backtest=False,
+    )
+    item = strategy.create_order(
+        Asset("BTC", asset_type="crypto_future"),
+        Decimal("0.001"),
+        "buy",
+        order_type="limit",
+        limit_price=20000,
+        time_in_force="gtc",
+    )
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        strategy.submit_order(item)
+    engine.provider.submit_signature.side_effect = AssertionError("Cancel lookup tried to sign the prepared entry")
+    reason = (
+        "Cancel this exact tracked prepared intent without releasing it or replacing it; retain its durable history. "
+        * 3
+    )
+    if action == "cancel":
+        result = _bind_cancel_order(strategy, None).function(identifier=item.identifier, reason=reason)
+        assert result["status"] == "canceled"
+        assert _submission_certainty(item) == "confirmed_not_submitted"
+    else:
+        with pytest.raises(NotImplementedError, match="Cancel and confirm"):
+            _bind_modify_order(strategy, None).function(identifier=item.identifier, limit_price=19999, reason=reason)
+        assert client.journal.get("agent", item.identifier)["state"] == "prepared"
+        assert _submission_certainty(item) == "unknown"
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()

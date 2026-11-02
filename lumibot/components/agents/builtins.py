@@ -3599,7 +3599,8 @@ def _bind_cancel_order(strategy: Any, manager: Any) -> BoundTool:
 
         reason = validate_order_reason(reason, required=True)
         identifier = _require_non_empty_text("identifier", identifier)
-        order = strategy.get_order(identifier)
+        # An action lookup must not refresh unrelated pending intents into execution.
+        order = strategy.get_order(identifier, broker_refresh=False)
         if order is None:
             raise ValueError(f"Unknown order identifier: {identifier}")
         public_evidence = {"evidence": {"public_reason": public_reason}} if public_reason is not None else {}
@@ -3635,7 +3636,8 @@ def _bind_modify_order(strategy: Any, manager: Any) -> BoundTool:
 
         reason = validate_order_reason(reason, required=True)
         identifier = _require_non_empty_text("identifier", identifier)
-        order = strategy.get_order(identifier)
+        # An action lookup must not refresh unrelated pending intents into execution.
+        order = strategy.get_order(identifier, broker_refresh=False)
         if order is None:
             raise ValueError(f"Unknown order identifier: {identifier}")
         if limit_price is None and stop_price is None:
@@ -4739,7 +4741,8 @@ def _order_submission_outcome(order):
     outcome = order.submission_outcome
     if (not isinstance(outcome, dict)
             or not isinstance(outcome.get('broker_state_certainty'), str)
-            or outcome.get('broker_state_certainty') not in {'confirmed_submitted', 'confirmed_rejected', 'unknown'}
+            or outcome.get('broker_state_certainty') not in {
+                'confirmed_submitted', 'confirmed_rejected', 'confirmed_not_submitted', 'unknown'}
             or type(outcome.get('reconciliation_required', False)) is not bool):
         return {'broker_state_certainty': 'unknown', 'reconciliation_required': True,
                 'invalid_metadata': True}

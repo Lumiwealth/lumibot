@@ -301,16 +301,52 @@ class MetaMask(Broker):
         state = response["state"]
         certainty = (
             "confirmed_submitted"
-            if state in {"open", "partial_fill", "filled", "canceled"}
+            if state in {"open", "partial_fill", "filled"}
             else "confirmed_rejected"
             if state == "rejected"
             else "unknown"
         )
+        previous = getattr(order, "submission_outcome", None)
+        previous = previous if isinstance(previous, dict) else {}
+        release = response.get("orderRelease")
+        if release is None and "orderRelease" not in response and state == "canceled":
+            release = previous.get("order_release")
+        venue_id = response.get("providerOrderId")
+        valid_venue_id = (type(venue_id) is int and venue_id > 0) or (
+            isinstance(venue_id, str) and venue_id.isdecimal() and int(venue_id) > 0
+        )
+        venue_evidence = (
+            valid_venue_id
+            or decimal_value(response.get("filledQuantity", "0")) > 0
+            or bool(order.transactions)
+            or previous.get("state") in {"open", "partial_fill", "filled"}
+            or previous.get("venue_acceptance_observed") is True
+        )
+        if state == "canceled" and venue_evidence:
+            certainty = "confirmed_submitted"
+        if state == "canceled" and (release is not None or "orderRelease" in response) and not venue_evidence:
+            client_id = release.get("clientOrderId") if isinstance(release, dict) else None
+            proven = (
+                isinstance(release, dict)
+                and release.get("state") == "not_released"
+                and release.get("source") == "native_plan_local_cancel"
+                and isinstance(client_id, str)
+                and len(client_id) == 34
+                and client_id.startswith("0x")
+                and all(character in "0123456789abcdef" for character in client_id[2:])
+                and response.get("providerOrderId") is None
+                and not response.get("fees")
+            )
+            certainty = "confirmed_not_submitted" if proven else "unknown"
         order.submission_outcome = {
             "broker_state_certainty": certainty,
             "reconciliation_required": certainty == "unknown" or bool(response.get("reconciliationErrorCode")),
             "state": state,
         }
+        if state in {"open", "partial_fill", "filled"} or venue_evidence:
+            order.submission_outcome["venue_acceptance_observed"] = True
+        if certainty == "confirmed_not_submitted":
+            order.submission_outcome["order_release"] = dict(release)
 
     def _observe(self, order, response):
         with self._event_lock:

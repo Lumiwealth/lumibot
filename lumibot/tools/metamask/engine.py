@@ -595,14 +595,110 @@ class ExecutionEngine:
             return self._reconcile_order(operation, {"clientOrderId": None}, observation=observation)
         return operation
 
+    def _unreleased_native_plan(self, operation, plan, effect):
+        """Positive native checkpoints prove no order handoff; missing history does not."""
+        try:
+            if not isinstance(plan, dict) or plan.get("origin") != "lumibot":
+                return False
+            binding = Binding.parse(json_object(plan["binding"]))
+            current = Binding.parse(self.journal.binding(self.agent_id))
+            intent = PerpIntent.parse(json_object(operation["request"]))
+            action = json_object(plan["action"])
+            orders = action.get("orders")
+            if not isinstance(orders, list) or len(orders) != 1:
+                return False
+            wire = json_object(orders[0])
+            fills = self.journal.effect(self.agent_id, str(operation["id"]), "fills")
+            if (
+                binding.agent_id != self.agent_id
+                or current.agent_id != self.agent_id
+                or (binding.wallet, binding.network) != (current.wallet, current.network)
+                or (plan.get("wallet"), plan.get("network")) != (binding.wallet, binding.network)
+                or plan.get("projectId") != self.provider.credentials().project_id
+                or not isinstance(plan.get("ownerEpoch"), str)
+                or not plan["ownerEpoch"]
+                or intent.identifier != operation["id"]
+                or intent.record() != operation["request"]
+                or plan.get("clientOrderId") != self._cloid(binding, intent.identifier)
+                or action.get("type") != "order"
+                or action.get("grouping") != "na"
+                or wire.get("c") != plan["clientOrderId"]
+                or type(plan.get("marketIndex")) is not int
+                or plan["marketIndex"] < 0
+                or type(wire.get("a")) is not int
+                or wire["a"] != plan["marketIndex"]
+                or wire.get("b") is not (intent.side == "buy")
+                or wire.get("r") is not intent.reduce_only
+                or decimal(wire.get("s"), positive=True) != intent.quantity
+                or decimal(wire.get("p"), positive=True) != decimal(operation["executionLimitPrice"], positive=True)
+                or wire.get("t")
+                != {
+                    "limit": {
+                        "tif": "Ioc"
+                        if intent.kind == "market"
+                        else {"gtc": "Gtc", "ioc": "Ioc", "alo": "Alo"}[intent.tif]
+                    }
+                }
+                or operation.get("providerOrderId") is not None
+                or decimal(operation["filledQuantity"]) != 0
+                or operation.get("fees")
+                or (fills is not None and fills.get("items") != [])
+            ):
+                return False
+            if effect is not None:
+                if (
+                    effect.get("phase") != "provider"
+                    or effect.get("state") not in {"prepared", "requested", "pending", "rejected"}
+                    or effect.get("clientOrigin") != "lumibot"
+                    or effect.get("origin") != METAMASK_WALLET_ORIGIN
+                    or effect.get("ownerEpoch") != plan["ownerEpoch"]
+                    or (effect.get("wallet"), effect.get("network")) != (binding.wallet, binding.network)
+                    or effect.get("action") != action
+                    or effect.get("protocolPayload") != action
+                ):
+                    return False
+                data = action_typed_data(
+                    action,
+                    positive_integer(effect.get("nonce"), "nonce"),
+                    binding.network,
+                    positive_integer(effect.get("expiresAfter"), "expiry"),
+                )
+                if effect.get("typedData") != data or effect.get("typedDataHash") != typed_data_hash(data):
+                    return False
+            return True
+        except (MetaMaskError, ValueError, TypeError, KeyError):
+            return False
+
     def cancel(self, operation_id: str) -> dict[str, object]:
         with self._execution:
             operation = self._operation(operation_id)
             if operation["state"] in _TERMINAL:
                 return operation
+            venue_id = operation.get("providerOrderId")
+            if venue_id is not None and (
+                not isinstance(venue_id, str) or not venue_id.isdecimal() or int(venue_id) <= 0
+            ):
+                self._change(
+                    operation,
+                    reconciliationErrorCode="RECONCILIATION_REQUIRED",
+                    reconciliationMessage="Recorded venue order identity is malformed",
+                )
+                raise MetaMaskError("RECONCILIATION_REQUIRED", "Resolve original order identity before cancellation")
             order_effect = self.journal.effect(self.agent_id, operation_id, "order")
             leverage_effect = self.journal.effect(self.agent_id, operation_id, "leverage")
-            if order_effect is None or order_effect.get("phase") != "venue":
+            if (order_effect is None or order_effect.get("phase") != "venue") and operation.get(
+                "providerOrderId"
+            ) is None:
+                native_plan = self.journal.effect(self.agent_id, operation_id, "plan")
+                if not self._unreleased_native_plan(operation, native_plan, order_effect):
+                    self._change(
+                        operation,
+                        reconciliationErrorCode="RECONCILIATION_REQUIRED",
+                        reconciliationMessage=(
+                            "Order release history is incomplete; cancellation cannot prove no handoff"
+                        ),
+                    )
+                    raise MetaMaskError("RECONCILIATION_REQUIRED", "Resolve order release history before cancellation")
                 if (
                     leverage_effect
                     and leverage_effect.get("phase") == "venue"
@@ -616,9 +712,18 @@ class ExecutionEngine:
                     )
                 if operation.get("providerOrderId") is None:
                     return self._change(
-                        operation, state="canceled", message="Unreleased intent canceled locally; no venue order sent"
+                        operation,
+                        state="canceled",
+                        message="Unreleased intent canceled locally; no venue order sent",
+                        orderRelease={
+                            "state": "not_released",
+                            "source": "native_plan_local_cancel",
+                            "clientOrderId": native_plan["clientOrderId"],
+                        },
                     )
-            operation = self._advance(operation)
+            native_plan = self.journal.effect(self.agent_id, operation_id, "plan")
+            # Cancellation may observe the entry, but must never resume its signing/release.
+            operation = self._reconcile_order(operation, native_plan or {"clientOrderId": None})
             if operation["state"] in _TERMINAL:
                 return operation
             venue_id = operation.get("providerOrderId")
@@ -657,7 +762,7 @@ class ExecutionEngine:
                         self.journal.save_effect(
                             operation, step, {**effect, "state": "rejected", "providerState": job.state}
                         )
-                return self._advance(operation)
+                return self._reconcile_order(operation, native_plan or {"clientOrderId": None})
             operation = self._cancel_step(operation, plan, step, action)
             native_plan = self.journal.effect(self.agent_id, operation_id, "plan")
             return self._reconcile_order(operation, native_plan or {"clientOrderId": None})

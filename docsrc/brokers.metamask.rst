@@ -271,3 +271,12 @@ Does testnet qualification establish production swap readiness?
 No. Native perps have funded testnet evidence, with the remaining qualification
 limits recorded above. Mainnet trading and funded native swaps remain
 unqualified; earlier JavaScript receipts do not establish Python readiness.
+
+Local cancellation needs positive persisted native evidence that the order was
+not released. Such orders expose ``confirmed_not_submitted`` to generic tools,
+with an incomplete, non-retryable submission outcome. Earlier signing and
+leverage effects remain in the audit history. Missing legacy evidence remains
+unknown and cannot be cleared by local cancellation. A historical canceled label
+alone is not acceptance proof; operator reconciliation is required, and this
+projection does not recreate a journal hold already lost in the past. Known
+venue identities and actual fills remain authoritative.

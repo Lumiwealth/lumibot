@@ -172,6 +172,25 @@ def test_example_comment_only_documentation_preserves_native_source():
     scope.check_change('lumibot/example_strategies/reference.py', source, documented)
 
 
+def test_unexecuted_reference_agent_literal_policy_keeps_shared_runtime_proof():
+    source = b'class Reference:\n    def initialize(self):\n        self.agents.create(name="reader", allow_trading=False, system_prompt="Read the source inventory.")\n'
+    revised = source.replace(b'Read the source inventory.', b'Account for each source transaction in the inventory.')
+    scope.check_change('lumibot/example_strategies/reference.py', source, revised)
+
+
+@pytest.mark.parametrize('before,after', [
+    (b'allow_trading=False', b'allow_trading=True'),
+    (b'name="reader"', b'name="executor"'),
+    (b'system_prompt="Read the source inventory."', b'system_prompt=fetch_policy()'),
+    (b'system_prompt="Read the source inventory."', b'system_prompt=f"{fetch_policy()}"'),
+    (b'def initialize(self):', b'def initialize(self):\n        fetch_data()'),
+])
+def test_reference_policy_compatibility_keeps_executable_connections_bound(before, after):
+    source = b'class Reference:\n    def initialize(self):\n        self.agents.create(name="reader", allow_trading=False, system_prompt="Read the source inventory.")\n'
+    with pytest.raises(ValueError, match='affects model qualification'):
+        scope.check_change('lumibot/example_strategies/reference.py', source, source.replace(before, after))
+
+
 @pytest.mark.parametrize('before,after', [
     (b'Reference example.', b'Changed documentation string.'),
     (b'Observe the account.', b'Buy an asset.'),
@@ -189,3 +208,22 @@ def test_example_comment_compatibility_does_not_exempt_shared_runtime():
     source = b'def run():\n    return 3\n'
     with pytest.raises(ValueError, match='affects model qualification'):
         scope.check_change('lumibot/components/agents/runtime.py', source, b'# documentation\n' + source)
+
+
+def test_development_worker_declaration_preserves_direct_native_inference():
+    before = b"-r requirements.txt\npytest\ncoverage\n"
+    after = b"-r requirements.txt\npytest\npytest-xdist==3.8.0\ncoverage\n"
+    scope.check_change('requirements_dev.txt', before, after)
+
+
+@pytest.mark.parametrize('extra', [
+    b'litellm==9.0.0\n',
+    b'pytest-xdist @ https://example.test/unqualified.whl\n',
+    b'pytest-xdist==3.8.0; python_version >= "3.10"\n',
+    b'pytest-xdist[unqualified]==3.8.0\n',
+    b'-r unqualified.txt\n',
+])
+def test_development_worker_scope_rejects_other_dependency_changes(extra):
+    before = b"-r requirements.txt\npytest\n"
+    with pytest.raises(ValueError, match='affects model qualification'):
+        scope.check_change('requirements_dev.txt', before, before + extra)

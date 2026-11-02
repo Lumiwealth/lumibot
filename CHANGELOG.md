@@ -1,6 +1,11 @@
 # Changelog
 
-## 4.6.43 - Unreleased
+## 4.6.44 - 2026-11-02
+
+### Fixed
+- Keep individual stock and listed-unit purchases, exercises and new issuers in the example researcher's complete numeric portfolio ledger. Both agents still run each iteration and all investment logic stays in their prompts.
+- Preserve generic real-model fixture proof when only literal policy text in unexecuted reference examples changes. Actual example behavior still requires separate execution evidence.
+- Preserve complete test names in release shards, isolate installed-wheel validation from test-only dependencies, and include the canonical immutable-tag recovery and unit-worker cleanup repairs.
 
 ## 4.6.42 - 2026-11-01
 

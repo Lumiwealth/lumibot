@@ -198,8 +198,10 @@ jobs:
           )
           PY
 
+          selected_files=()
+          while IFS= read -r file; do selected_files+=("$file"); done < shard_files.txt
           python -m pytest -n2 --dist loadfile -m "${PYTEST_MARKERS}" \
-            --tb=short -q --durations=30 -x $(cat shard_files.txt)
+            --tb=short -q --durations=30 -x "${selected_files[@]}"
 
   backtest-tests:
     name: Backtest Tests (shard ${{ matrix.shard }}/4)

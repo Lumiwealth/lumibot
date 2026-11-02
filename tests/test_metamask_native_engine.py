@@ -34,13 +34,14 @@ def intent(**values):
 
 
 @pytest.fixture
-def engine(tmp_path):
+def engine(tmp_path, request):
+    network = getattr(request, "param", "testnet")
     journal = Journal(tmp_path / "broker.sqlite")
     journal.bind(
         {
             "id": "agent",
             "wallet": WALLET,
-            "network": "testnet",
+            "network": network,
             "enabled": True,
             "expiresAt": int(time.time() * 1000) + 86400000,
             "policyDigest": "a" * 64,
@@ -57,7 +58,7 @@ def engine(tmp_path):
     provider.credentials.return_value = Credentials("project", "access")
     provider.policy.return_value = GuardPolicy("policy", "a" * 64)
     venue = Mock(spec=HyperliquidVenue)
-    venue.network = "testnet"
+    venue.network = network
     venue.market.return_value = Market("BTC", 0, 5, 40)
     venue.price.return_value = Decimal("20000")
     venue.fee_rate.return_value = Decimal("0.00045")
@@ -127,6 +128,67 @@ def test_checkpoint_before_each_external_mutation_and_duplicate_id_never_resends
         engine.submit(intent(quantity="0.0005"))
 
 
+@pytest.mark.parametrize("engine", ["testnet", "mainnet"], indirect=True)
+@pytest.mark.parametrize("failure", ["ACCOUNT_MODE_UNSUPPORTED", "INVALID_RESPONSE", "VENUE_UNAVAILABLE"])
+def test_unusable_account_never_reserves_or_signs_a_new_intent(engine, failure):
+    engine.venue.account.side_effect = MetaMaskError(failure, "Account cannot be validated")
+    with pytest.raises(MetaMaskError, match=failure):
+        engine.submit(intent())
+    assert engine.journal.operations("agent") == []
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize("engine", ["testnet", "mainnet"], indirect=True)
+@pytest.mark.parametrize("changed_at", ["updateLeverage", "order"])
+def test_account_mode_change_during_signing_prevents_that_venue_handoff(engine, changed_at):
+    original = engine.provider.submit_signature.side_effect
+
+    def sign(request_id, wallet, network, data, action):
+        result = original(request_id, wallet, network, data, action)
+        if action["type"] == changed_at:
+            engine.venue.account.side_effect = MetaMaskError("ACCOUNT_MODE_UNSUPPORTED", "Account mode changed")
+        return result
+
+    engine.provider.submit_signature.side_effect = sign
+    result = engine.submit(intent())
+    assert result["state"] == "rejected"
+    step = "leverage" if changed_at == "updateLeverage" else "order"
+    effect = engine.journal.effect("agent", "one", step)
+    assert effect["phase"] == "provider" and effect["failureCode"] == "ACCOUNT_MODE_UNSUPPORTED"
+    assert all(call.args[0]["type"] != changed_at for call in engine.venue.submit_action.call_args_list)
+    assert engine.venue.submit_action.call_count == (0 if step == "leverage" else 1)
+
+
+@pytest.mark.parametrize("engine", ["testnet", "mainnet"], indirect=True)
+def test_unsupported_account_mode_does_not_block_canceling_existing_order(engine):
+    engine.submit(intent())
+    reads = engine.venue.account.call_count
+    engine.venue.account.side_effect = MetaMaskError("ACCOUNT_MODE_UNSUPPORTED", "Account mode changed")
+
+    def sign(request_id, wallet, network, data, action):
+        signature = "0x" + SIGNER.sign_message(encode_typed_data(full_message=data)).signature.hex().removeprefix("0x")
+        return SignatureJob(request_id, wallet, "SIGNED", signature)
+
+    engine.provider.submit_signature.side_effect = sign
+
+    def cancel(*args):
+        original = engine.venue.order_status.side_effect
+
+        def canceled(*values):
+            result = original(*values)
+            result["order"]["status"] = "canceled"
+            return result
+
+        engine.venue.order_status.side_effect = canceled
+        return {"status": "ok", "response": {"type": "cancel", "data": {"statuses": ["success"]}}}
+
+    engine.venue.submit_action.side_effect = cancel
+    assert engine.cancel("one")["state"] == "canceled"
+    assert engine.venue.account.call_count == reads
+    assert engine.venue.submit_action.call_args.args[0]["type"] == "cancel"
+
+
 def test_normal_mark_movement_during_signing_fits_reviewed_reservation(engine):
     engine.venue.price.side_effect = [Decimal("20000"), Decimal("20010"), Decimal("20010")]
     result = engine.submit(intent())
@@ -192,7 +254,13 @@ def test_expired_cancel_is_not_retried_without_confirmed_live_order(engine, monk
         return result
 
     engine.venue.order_status.side_effect = status
-    assert engine.cancel("one")["state"] == state
+    if state == "unknown":
+        # Explicit cancellation now reports an unresolved matching-order read to its caller.
+        with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+            engine.cancel("one")
+        assert engine.journal.get("agent", "one")["state"] == state
+    else:
+        assert engine.cancel("one")["state"] == state
     assert engine.venue.submit_action.call_count == 3
     assert engine.journal.effect("agent", "one", "cancel-42-2") is None
 
@@ -348,6 +416,63 @@ def partial_fill(size="0.0004"):
         "feeToken": "USDC",
         "time": int(time.time() * 1000),
     }
+
+
+@pytest.mark.parametrize("kind", ["limit", "market"])
+@pytest.mark.parametrize("restart", [False, True])
+def test_terminal_ioc_partial_fill_cancels_remainder_without_replay(engine, kind, restart):
+    original_action = engine.venue.order_action.side_effect
+
+    def ioc_action(*args, **kwargs):
+        action = original_action(*args, **kwargs)
+        action["orders"][0]["t"]["limit"]["tif"] = "Ioc"
+        return action
+
+    engine.venue.order_action.side_effect = ioc_action
+    engine.submit(intent(orderType=kind, tif="ioc" if kind == "limit" else "gtc"))
+    snapshot = engine.venue.order_status(WALLET, 42)
+    snapshot["order"]["status"] = "filled"
+    snapshot["order"]["order"].update(sz="0.0006", tif="Ioc")
+    engine.venue.order_status.side_effect = None
+    engine.venue.order_status.return_value = snapshot
+    engine.venue.fills.return_value = [partial_fill()]
+    result = engine.order("one")
+    assert result["state"] == "canceled" and result["venueStatus"] == "filled"
+    assert result["filledQuantity"] == "0.0004" and result["averagePrice"] == "19999"
+    assert result["fees"] == [{"asset": "USDC", "amount": "0.001"}]
+    engine.provider.reset_mock()
+    engine.venue.submit_action.reset_mock()
+    subject = ExecutionEngine(engine.journal, engine.provider, engine.venue, "agent") if restart else engine
+    assert subject.order("one")["state"] == "canceled"
+    assert subject.order("one")["reconciliationErrorCode"] is None
+    assert subject.submit(intent(orderType=kind, tif="ioc" if kind == "limit" else "gtc"))["state"] == "canceled"
+    engine.provider.submit_signature.assert_not_called()
+    engine.provider.signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize("missing", ["intent", "wire", "venue", "remainder", "ledger"])
+def test_terminal_ioc_partial_requires_consistent_positive_execution_evidence(engine, missing):
+    original_action = engine.venue.order_action.side_effect
+
+    def ioc_action(*args, **kwargs):
+        action = original_action(*args, **kwargs)
+        action["orders"][0]["t"]["limit"]["tif"] = "Gtc" if missing == "wire" else "Ioc"
+        return action
+
+    engine.venue.order_action.side_effect = ioc_action
+    engine.submit(intent(tif="gtc" if missing == "intent" else "ioc"))
+    snapshot = engine.venue.order_status(WALLET, 42)
+    snapshot["order"]["status"] = "filled"
+    snapshot["order"]["order"].update(sz="0.0005" if missing == "remainder" else "0.0006")
+    if missing != "venue":
+        snapshot["order"]["order"]["tif"] = "Ioc"
+    engine.venue.order_status.side_effect = None
+    engine.venue.order_status.return_value = snapshot
+    engine.venue.fills.return_value = [] if missing == "ledger" else [partial_fill()]
+    result = engine.order("one")
+    assert result["state"] == "unknown" and result["filledQuantity"] == "0"
+    assert result["reconciliationErrorCode"] == "FILL_HISTORY_INCOMPLETE"
 
 
 def test_open_status_size_is_a_snapshot_live_remainder_proves_partial_execution(engine):
@@ -917,3 +1042,497 @@ def test_sweep_snapshot_is_not_used_after_a_pending_cancel_mutation(engine):
     assert engine.venue.fills.call_count == 2
     engine.venue.submit_action.assert_called_once()
     assert engine.venue.submit_action.call_args.args[0]["type"] == "cancel"
+
+
+@pytest.mark.parametrize("signature_only", [False, None, True])
+def test_legacy_unknown_cancel_never_clears_execution_hold(engine, signature_only):
+    operation, _ = engine.journal.reserve("agent", intent(), "20", expected_binding=engine.journal.binding("agent"))
+    engine.journal.save({**operation, "state": "unknown", "signatureOnly": signature_only})
+    with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+        engine.cancel("one")
+    assert engine.journal.get("agent", "one")["state"] == "unknown"
+    with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+        engine.journal.reserve("agent", intent(id="two"), "20", expected_binding=engine.journal.binding("agent"))
+    engine.provider.submit_signature.assert_not_called()
+    engine.provider.signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize("restart", [False, True])
+def test_native_prepared_cancel_persists_positive_no_release_provenance(engine, monkeypatch, restart):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        operation = engine.submit(intent())
+    plan = engine.journal.effect("agent", "one", "plan")
+    engine.provider.reset_mock()
+    engine.venue.reset_mock()
+    result = engine.cancel("one")
+    assert result["state"] == "canceled"
+    assert result["orderRelease"] == {
+        "state": "not_released",
+        "source": "native_plan_local_cancel",
+        "clientOrderId": plan["clientOrderId"],
+    }
+    if restart:
+        path = engine.journal.path
+        engine.journal.close()
+        journal = Journal(path)
+        try:
+            subject = ExecutionEngine(journal, engine.provider, engine.venue, "agent")
+            assert subject.order("one")["orderRelease"] == result["orderRelease"]
+            assert subject.submit(intent())["orderRelease"] == result["orderRelease"]
+        finally:
+            journal.close()
+    else:
+        assert engine.order("one")["orderRelease"] == result["orderRelease"]
+    assert operation["state"] == "prepared"
+    engine.provider.submit_signature.assert_not_called()
+    engine.provider.signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize("damage", ["origin", "identity", "action", "fills", "effect"])
+def test_local_cancel_requires_intact_native_pre_release_evidence(engine, monkeypatch, damage):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        operation = engine.submit(intent())
+    plan = engine.journal.effect("agent", "one", "plan")
+    if damage == "origin":
+        plan["origin"] = "legacy"
+    elif damage == "identity":
+        plan["clientOrderId"] = "0x" + "f" * 32
+    elif damage == "action":
+        plan["action"]["orders"][0]["s"] = "0.002"
+    elif damage == "fills":
+        engine.journal.save({**operation, "filledQuantity": "0.0001"})
+    else:
+        engine.journal.save_effect(operation, "order", {"phase": "unexpected", "state": "unknown"})
+    # The journal rejects new immutable-plan edits; emulate a malformed historical read.
+    original_effect = engine.journal.effect
+    monkeypatch.setattr(
+        engine.journal,
+        "effect",
+        lambda agent, operation_id, step: plan if step == "plan" else original_effect(agent, operation_id, step),
+    )
+    with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+        engine.cancel("one")
+    assert engine.journal.get("agent", "one")["state"] == "prepared"
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize("restart", [False, True])
+def test_old_native_canceled_history_restores_only_provenance_without_execution(engine, monkeypatch, restart):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        operation = engine.submit(intent())
+    original = {
+        **operation,
+        "state": "canceled",
+        "reconciliationErrorCode": "RECONCILIATION_REQUIRED",
+        "budgetReviewRequired": True,
+    }
+    engine.journal.save(original)
+    effects = engine.journal.effects("agent", "one")
+    subject = ExecutionEngine(engine.journal, engine.provider, engine.venue, "agent") if restart else engine
+    result = subject.order("one")
+    assert result["orderRelease"] == {
+        "state": "not_released",
+        "source": "native_plan_local_cancel",
+        "clientOrderId": effects["plan"]["clientOrderId"],
+    }
+    assert all(result[key] == value for key, value in original.items() if key != "updatedAt")
+    assert engine.journal.effects("agent", "one") == effects
+    assert subject.order("one") == result
+    engine.provider.submit_signature.assert_not_called()
+    engine.provider.signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "damage", ["missing_plan", "origin", "identity", "effect", "fills", "existing_release", "leverage"]
+)
+def test_old_canceled_history_without_positive_proof_keeps_unknown_release(engine, monkeypatch, damage):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        operation = engine.submit(intent())
+    plan = engine.journal.effect("agent", "one", "plan")
+    operation["state"] = "canceled"
+    if damage == "missing_plan":
+        plan = None
+    elif damage == "origin":
+        plan["origin"] = "legacy"
+    elif damage == "identity":
+        plan["clientOrderId"] = "0x" + "f" * 32
+    elif damage == "effect":
+        engine.journal.save_effect(operation, "order", {"phase": "unknown", "state": "unknown"})
+    elif damage == "fills":
+        operation["filledQuantity"] = "0.0001"
+    elif damage == "leverage":
+        engine.journal.save_effect(operation, "leverage", {"phase": "venue", "state": "released"})
+    else:
+        operation["orderRelease"] = {"state": "unknown"}
+    engine.journal.save(operation)
+    original_effect = engine.journal.effect
+    monkeypatch.setattr(
+        engine.journal,
+        "effect",
+        lambda agent, operation_id, step: plan if step == "plan" else original_effect(agent, operation_id, step),
+    )
+    result = engine.order("one")
+    assert result.get("orderRelease") == operation.get("orderRelease")
+    assert result["state"] == "canceled" and result["filledQuantity"] == operation["filledQuantity"]
+    engine.provider.submit_signature.assert_not_called()
+    engine.provider.signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize("restart", [False, True])
+def test_native_pending_order_cancel_retains_prior_leverage_audit(engine, restart):
+    sign = engine.provider.submit_signature.side_effect
+
+    def pending_order(request_id, wallet, network, data, action):
+        if action["type"] == "order":
+            return SignatureJob(request_id, wallet, "AWAITING_MFA")
+        return sign(request_id, wallet, network, data, action)
+
+    engine.provider.submit_signature.side_effect = pending_order
+    assert engine.submit(intent())["state"] == "awaiting_approval"
+    before = engine.journal.effects("agent", "one")
+    subject = ExecutionEngine(engine.journal, engine.provider, engine.venue, "agent") if restart else engine
+    result = subject.cancel("one")
+    assert result["state"] == "canceled" and result["orderRelease"]["state"] == "not_released"
+    assert engine.journal.effects("agent", "one") == before
+    assert subject.order("one")["state"] == "canceled"
+    assert engine.venue.submit_action.call_count == 1  # Earlier leverage remains an actual mutation.
+    assert engine.provider.submit_signature.call_count == 2
+    engine.provider.signature.assert_not_called()
+
+
+def test_legacy_known_venue_id_still_cancels_exact_accepted_order(engine):
+    engine.submit(intent())
+    engine.journal.db.execute("DELETE FROM native_effects WHERE agent='agent' AND operation='one'")
+    row = {"coin": "BTC", "side": "B", "origSz": "0.001", "sz": "0.001", "oid": 42, "reduceOnly": False}
+    status = {"status": "order", "order": {"status": "open", "order": row}}
+    engine.venue.order_status.side_effect = None
+    engine.venue.order_status.return_value = status
+    engine.venue.frontend_open_orders.side_effect = None
+    engine.venue.frontend_open_orders.return_value = [row]
+    engine.provider.submit_signature.side_effect = lambda request_id, wallet, network, data, action: SignatureJob(
+        request_id,
+        wallet,
+        "SIGNED",
+        "0x" + SIGNER.sign_message(encode_typed_data(full_message=data)).signature.hex().removeprefix("0x"),
+    )
+
+    def cancel(action, *args):
+        assert action == {"type": "cancel", "cancels": [{"a": 0, "o": 42}]}
+        status["order"]["status"] = "canceled"
+        return {"status": "ok", "response": {"type": "cancel", "data": {"statuses": ["success"]}}}
+
+    engine.venue.submit_action.side_effect = cancel
+    result = engine.cancel("one")
+    assert result["state"] == "canceled" and result["providerOrderId"] == "42"
+    assert result["filledQuantity"] == "0" and "orderRelease" not in result
+    assert engine.venue.submit_action.call_count == 3  # Original leverage+order, then exact cancellation only.
+
+
+def test_cancel_known_id_with_missing_effect_never_releases_prepared_entry(engine, monkeypatch):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        row = engine.submit(intent())
+    engine.journal.save({**row, "state": "unknown", "providerOrderId": "42"})
+    signed_actions = []
+
+    def sign(request_id, wallet, network, data, action):
+        signed_actions.append(action["type"])
+        return SignatureJob(
+            request_id,
+            wallet,
+            "SIGNED",
+            "0x" + SIGNER.sign_message(encode_typed_data(full_message=data)).signature.hex().removeprefix("0x"),
+        )
+
+    engine.provider.submit_signature.side_effect = sign
+    engine.venue.submit_action.side_effect = lambda action, *args: {
+        "status": "ok",
+        "response": {"type": "cancel", "data": {"statuses": ["success"]}},
+    }
+    engine.cancel("one")
+    assert signed_actions == ["cancel"]
+    # A lagging open snapshot after cancel must not reactivate the original entry.
+    engine.order("one")
+    engine.orders()
+    engine.submit(intent())
+    assert signed_actions == ["cancel"]
+    assert engine.venue.submit_action.call_count == 1
+    assert engine.journal.effect("agent", "one", "order") is None
+    assert engine.journal.effect("agent", "one", "leverage") is None
+
+
+@pytest.mark.parametrize("venue_id", [False, "", "invalid", "-1"])
+def test_cancel_malformed_known_id_holds_without_advancing_entry(engine, monkeypatch, venue_id):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        row = engine.submit(intent())
+    engine.journal.save({**row, "state": "unknown", "providerOrderId": venue_id})
+    with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+        engine.cancel("one")
+    assert engine.journal.get("agent", "one")["state"] == "unknown"
+    engine.order("one")
+    engine.orders()
+    engine.submit(intent())
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize("method", ["order", "orders", "submit"])
+@pytest.mark.parametrize("cancel_first", [False, True])
+def test_recorded_execution_without_identity_never_resumes_entry(engine, monkeypatch, method, cancel_first):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        row = engine.submit(intent())
+    engine.journal.save({**row, "state": "unknown", "filledQuantity": "0.0001"})
+    if cancel_first:
+        with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+            engine.cancel("one")
+    if method == "submit":
+        result = engine.submit(intent())
+    elif method == "orders":
+        result = engine.orders()[0]
+    else:
+        result = engine.order("one")
+    assert result["filledQuantity"] == "0.0001"
+    assert result.get("reconciliationErrorCode") == "RECONCILIATION_REQUIRED"
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+def test_failed_cancel_history_hold_survives_all_observation_entrypoints(engine, monkeypatch):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        engine.submit(intent())
+    original_effect = engine.journal.effect
+    plan = original_effect("agent", "one", "plan")
+    plan["origin"] = "legacy"
+    monkeypatch.setattr(
+        engine.journal,
+        "effect",
+        lambda agent, operation_id, step: plan if step == "plan" else original_effect(agent, operation_id, step),
+    )
+    with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+        engine.cancel("one")
+    engine.order("one")
+    engine.orders()
+    engine.submit(intent())
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+    assert engine.journal.get("agent", "one")["reconciliationErrorCode"] == "RECONCILIATION_REQUIRED"
+
+
+def test_known_identity_and_released_effect_polling_never_replays_entry(engine, monkeypatch):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        row = engine.submit(intent())
+    engine.journal.save({**row, "state": "unknown", "providerOrderId": "42"})
+    assert engine.order("one")["state"] == "open"
+    assert engine.orders()[0]["providerOrderId"] == "42"
+    assert engine.submit(intent())["state"] == "open"
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+def test_released_order_effect_prevents_missing_leverage_replay(engine):
+    engine.venue.submit_action.side_effect = [
+        {"status": "ok", "response": {"type": "default"}},
+        MetaMaskError("VENUE_OUTCOME_UNKNOWN", "Lost order response"),
+    ]
+    assert engine.submit(intent())["state"] == "unknown"
+    engine.journal.db.execute("DELETE FROM native_effects WHERE agent='agent' AND operation='one' AND step='leverage'")
+    assert engine.order("one")["state"] == "open"
+    assert engine.venue.submit_action.call_count == 2
+    assert engine.provider.submit_signature.call_count == 2
+
+
+@pytest.mark.parametrize("state", ["filled", "canceled", "rejected"])
+def test_malformed_recorded_identity_hold_does_not_reopen_terminal_lifecycle(engine, monkeypatch, state):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        row = engine.submit(intent())
+    engine.journal.save(
+        {**row, "state": state, "providerOrderId": "invalid", "filledQuantity": "0.001" if state == "filled" else "0"}
+    )
+    result = engine.order("one")
+    assert result["state"] == state
+    assert result["reconciliationErrorCode"] == "RECONCILIATION_REQUIRED"
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize("mismatch", ["side", "quantity", "client_id", "unresolved", "fills"])
+def test_cancel_requires_verified_matching_live_order_before_signing(engine, mismatch):
+    engine.submit(intent())
+    status = engine.venue.order_status(WALLET, 42)
+    if mismatch == "side":
+        status["order"]["order"]["side"] = "A"
+    elif mismatch == "quantity":
+        status["order"]["order"]["origSz"] = "0.002"
+    elif mismatch == "client_id":
+        status["order"]["order"]["cloid"] = "0x" + "f" * 32
+    elif mismatch == "unresolved":
+        status = {"status": "unknownOid"}
+    else:
+        engine.venue.fills.return_value = [
+            {
+                "tid": 1,
+                "oid": 42,
+                "coin": "BTC",
+                "side": "B",
+                "sz": "0.0001",
+                "px": "20000",
+                "fee": "0.001",
+                "feeToken": "USDC",
+                "time": int(time.time() * 1000),
+            }
+        ]
+    engine.venue.order_status.side_effect = None
+    engine.venue.order_status.return_value = status
+    engine.provider.submit_signature.reset_mock()
+    engine.venue.submit_action.reset_mock()
+    engine.provider.submit_signature.side_effect = lambda request_id, wallet, *args: SignatureJob(
+        request_id, wallet, "DENIED"
+    )
+    with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+        engine.cancel("one")
+    assert engine.journal.get("agent", "one")["reconciliationErrorCode"]
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+def test_pending_cancel_cannot_release_during_mismatched_observation_and_recovers(engine):
+    engine.submit(intent())
+    engine.provider.submit_signature.side_effect = lambda request_id, wallet, *args: SignatureJob(
+        request_id, wallet, "AWAITING_MFA"
+    )
+    assert engine.cancel("one")["state"] == "open"
+    effect = engine.journal.effect("agent", "one", "cancel-42-1")
+    engine.provider.signature.return_value = SignatureJob(
+        effect["requestId"],
+        WALLET,
+        "SIGNED",
+        "0x"
+        + SIGNER.sign_message(encode_typed_data(full_message=effect["typedData"])).signature.hex().removeprefix("0x"),
+    )
+    status = engine.venue.order_status(WALLET, 42)
+    status["order"]["order"]["side"] = "A"
+    engine.venue.order_status.side_effect = None
+    engine.venue.order_status.return_value = status
+    engine.venue.submit_action.reset_mock()
+    engine.venue.submit_action.side_effect = lambda action, *args: {
+        "status": "ok",
+        "response": {"type": "cancel", "data": {"statuses": ["success"]}},
+    }
+    assert engine.order("one")["state"] == "unknown"
+    engine.provider.signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+    status["order"]["order"]["side"] = "B"
+    assert engine.order("one")["state"] == "open"
+    engine.provider.signature.assert_called_once()
+    engine.venue.submit_action.assert_called_once()
+    assert engine.venue.submit_action.call_args.args[0] == {"type": "cancel", "cancels": [{"a": 0, "o": 42}]}
+
+
+def test_explicit_cancel_with_restored_proof_resolves_only_release_history_hold(engine, monkeypatch):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        engine.submit(intent())
+    original_effect = engine.journal.effect
+    plan = original_effect("agent", "one", "plan")
+    plan["origin"] = "legacy"
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            engine.journal,
+            "effect",
+            lambda agent, operation_id, step: plan if step == "plan" else original_effect(agent, operation_id, step),
+        )
+        with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+            engine.cancel("one")
+    assert engine.order("one")["reconciliationErrorCode"] == "RECONCILIATION_REQUIRED"
+    before = engine.journal.effects("agent", "one")
+    result = engine.cancel("one")
+    assert result["state"] == "canceled"
+    assert result["orderRelease"]["state"] == "not_released"
+    assert result.get("reconciliationErrorCode") is None
+    assert result.get("reconciliationMessage") is None
+    assert engine.journal.effects("agent", "one") == before
+    _, created = engine.journal.reserve(
+        "agent", intent(id="two"), "20", expected_binding=engine.journal.binding("agent")
+    )
+    assert created
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+def test_local_cancel_preserves_unresolved_fee_review(engine, monkeypatch):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        operation = engine.submit(intent())
+    engine.journal.save(
+        {**operation, "budgetReviewRequired": True, "reconciliationErrorCode": "RECONCILIATION_REQUIRED"}
+    )
+    result = engine.cancel("one")
+    assert result["state"] == "canceled"
+    assert result["budgetReviewRequired"] is True
+    assert result.get("reconciliationErrorCode") is None
+    with pytest.raises(MetaMaskError, match="FEE_BUDGET_REVIEW_REQUIRED"):
+        engine.journal.reserve("agent", intent(id="two"), "20", expected_binding=engine.journal.binding("agent"))
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize("restart", [False, True])
+def test_explicit_cancel_restored_proof_recovers_expired_leverage_read_only(engine, monkeypatch, restart):
+    engine.venue.submit_action.side_effect = MetaMaskError("VENUE_OUTCOME_UNKNOWN", "Lost leverage response")
+    original = engine.submit(intent())
+    engine.journal.save({**original, "budgetReviewRequired": True})
+    effect = engine.journal.effect("agent", "one", "leverage")
+    original_effect = engine.journal.effect
+    plan = original_effect("agent", "one", "plan")
+    plan["origin"] = "legacy"
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            engine.journal,
+            "effect",
+            lambda agent, operation_id, step: plan if step == "plan" else original_effect(agent, operation_id, step),
+        )
+        with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+            engine.cancel("one")
+    subject = ExecutionEngine(engine.journal, engine.provider, engine.venue, "agent") if restart else engine
+    with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+        subject.cancel("one")
+    engine.venue.leverage.assert_not_called()
+    assert engine.journal.effect("agent", "one", "leverage") == effect
+    engine.venue.leverage.return_value = {"type": "cross", "value": 1}
+    monkeypatch.setattr(time, "time", lambda: (effect["expiresAfter"] + 1000) / 1000)
+    result = subject.cancel("one")
+    assert result["state"] == "rejected"
+    assert result.get("reconciliationErrorCode") is None
+    assert result.get("reconciliationMessage") is None
+    assert result["reservedUsd"] == original["reservedUsd"]
+    assert result["budgetReviewRequired"] is True
+    assert result["observedLeverage"] == {"type": "cross", "value": 1}
+    reconciled = engine.journal.effect("agent", "one", "leverage")
+    assert reconciled == {
+        **effect,
+        "state": "reconciled",
+        "observedLeverage": result["observedLeverage"],
+        "reconciledAt": effect["expiresAfter"] + 1000,
+    }
+    engine.venue.leverage.assert_called_once_with(WALLET, "BTC")
+    assert subject.order("one")["state"] == "rejected"
+    assert subject.submit(intent())["state"] == "rejected"
+    assert engine.provider.submit_signature.call_count == 1
+    assert engine.venue.submit_action.call_count == 1
+    assert engine.journal.effect("agent", "one", "order") is None
+    with pytest.raises(MetaMaskError, match="FEE_BUDGET_REVIEW_REQUIRED"):
+        engine.journal.reserve("agent", intent(id="two"), "20", expected_binding=engine.journal.binding("agent"))

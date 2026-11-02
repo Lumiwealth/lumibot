@@ -2,7 +2,7 @@
 
 > Notes on live broker behavior that affect backtesting semantics (extended hours, order types, and “market closed / no data” handling).
 
-**Last Updated:** 2026-09-06
+**Last Updated:** 2026-11-02
 **Status:** Active
 **Audience:** Developers, AI Agents
 
@@ -367,3 +367,27 @@ broad-list miss. IBKR REST preserves the provider side and cumulative quantity;
 a combo average is not assigned as a per-leg fill price. Native tests cover
 partial, duplicate, full, canceled, expired, replaced and rejected observations.
 ProjectX, Tradovate and CCXT retain expiration as distinct from cancellation.
+
+## Submission certainty in agent tools
+
+MetaMask exposes `Order.submission_outcome` independently of order
+lifecycle status. `broker_state_certainty` is `confirmed_submitted`,
+`confirmed_rejected`, `confirmed_not_submitted` for a proven native MetaMask
+pre-release cancellation, or `unknown`. `reconciliation_required` marks an
+unresolved handoff or conflicting evidence. Submission acknowledgement is never
+a fill.
+
+Single-order, order-list and submission tools retain this metadata. Unknown or
+malformed explicit certainty produces an incomplete, non-retryable submission
+result requiring reconciliation. Mixed batches retain each returned order and
+cannot report complete success when any result remains uncertain. Adapters
+without this explicit metadata retain their legacy result contract; this does
+not independently qualify their transport semantics.
+
+A native MetaMask local cancellation with validated pre-release provenance reports
+`confirmed_not_submitted`. It is an incomplete, non-retryable order-submission
+outcome, not a claim that no signing or leverage mutation occurred. Unproven
+legacy cancellation stays unknown. Positive venue identity or executions take
+precedence over a stale no-release marker; a canceled status alone proves neither
+acceptance nor absence of submission. Historical missing evidence requires
+operator reconciliation and does not retroactively restore a lost journal hold.

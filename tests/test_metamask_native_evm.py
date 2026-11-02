@@ -98,6 +98,238 @@ def rpc(chain, method, params):
     }[method]
 
 
+@pytest.fixture
+def mined_swap(wallet):
+    tx_hash, block_hash = "0x" + "a" * 64, "0x" + "b" * 64
+    case = {
+        "hash": tx_hash,
+        "expected": {
+            "from": WALLET,
+            "to": TARGET,
+            "chainId": 1,
+            "data": "0x1234",
+            "value": hex(10**15),
+            "nonce": 0,
+            "gasLimit": hex(50000),
+            "maxFeePerGas": "0x3",
+        },
+        "finalized": {"number": "0xf", "hash": block_hash},
+        "canonical": {"number": "0xf", "hash": block_hash},
+        "receipt": {
+            "transactionHash": tx_hash,
+            "blockHash": block_hash,
+            "blockNumber": "0xf",
+            "status": "0x1",
+            "gasUsed": "0x5208",
+            "effectiveGasPrice": "0x2",
+            "logs": [
+                {
+                    "address": TOKEN,
+                    "topics": [_TRANSFER, "0x" + TARGET[2:].rjust(64, "0"), "0x" + WALLET[2:].rjust(64, "0")],
+                    "data": hex(999000),
+                }
+            ],
+        },
+    }
+
+    def read(chain, method, params):
+        if method == "eth_getTransactionReceipt":
+            return case["receipt"]
+        if method == "eth_getTransactionByHash":
+            tx = case["expected"]
+            return {
+                **tx,
+                "hash": tx_hash,
+                "input": tx["data"],
+                "gas": tx["gasLimit"],
+                "blockHash": block_hash,
+                "blockNumber": "0xf",
+            }
+        if method == "eth_getBlockByNumber" and params[0] == "finalized":
+            return case["finalized"]
+        if method == "eth_getBlockByNumber" and params[0] == "0xf":
+            return case["canonical"]
+        return rpc(chain, method, params)
+
+    wallet._rpc = Mock(side_effect=read)
+    return case
+
+
+@pytest.mark.parametrize("finalized", [None, {"number": "0xe", "hash": "0x" + "c" * 64}])
+def test_mined_receipt_waits_for_finality_regardless_of_latest_height(wallet, mined_swap, finalized):
+    mined_swap["finalized"] = finalized
+    assert wallet._receipt(mined_swap["hash"], mined_swap["expected"]) is None
+    assert all(call.args[1] != "eth_blockNumber" for call in wallet._rpc.call_args_list)
+    wallet.provider.submit_transaction.assert_not_called()
+
+
+@pytest.mark.parametrize("height", ["0xf", "0x10"])
+def test_receipt_requires_finalized_height_and_canonical_block(wallet, mined_swap, height):
+    mined_swap["finalized"] = {"number": height, "hash": mined_swap["canonical"]["hash"]}
+    assert wallet._receipt(mined_swap["hash"], mined_swap["expected"]) == mined_swap["receipt"]
+
+
+@pytest.mark.parametrize("damage", ["canonical", "finalized_hash", "missing_hash", "missing_number"])
+def test_invalid_finality_or_reorg_never_confirms_receipt(wallet, mined_swap, damage):
+    if damage == "canonical":
+        mined_swap["canonical"]["hash"] = "0x" + "c" * 64
+    elif damage == "finalized_hash":
+        mined_swap["finalized"]["hash"] = "0x" + "c" * 64
+    elif damage == "missing_hash":
+        del mined_swap["finalized"]["hash"]
+    else:
+        del mined_swap["finalized"]["number"]
+    with pytest.raises(MetaMaskError):
+        wallet._receipt(mined_swap["hash"], mined_swap["expected"])
+    wallet.provider.submit_transaction.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "damage", ["all_hashes_missing", "canonical_height", "transaction_height", "short_hash", "sender", "recipient"]
+)
+def test_receipt_requires_complete_matching_block_identities(wallet, mined_swap, damage):
+    mined_swap["finalized"] = {"number": "0x10", "hash": "0x" + "c" * 64}
+    original = wallet._rpc.side_effect
+
+    def read(chain, method, params):
+        value = original(chain, method, params)
+        if damage == "all_hashes_missing":
+            if method in {"eth_getTransactionReceipt", "eth_getTransactionByHash"}:
+                value = {key: item for key, item in value.items() if key != "blockHash"}
+            elif method == "eth_getBlockByNumber" and params[0] == "0xf":
+                value = {"number": "0xf"}
+        elif damage == "canonical_height" and method == "eth_getBlockByNumber" and params[0] == "0xf":
+            value = {**value, "number": "0x999"}
+        elif damage == "transaction_height" and method == "eth_getTransactionByHash":
+            value = {**value, "blockNumber": "0x999"}
+        elif damage == "short_hash" and method == "eth_getTransactionReceipt":
+            value = {**value, "blockHash": "0xab"}
+        elif damage in {"sender", "recipient"} and method == "eth_getTransactionByHash":
+            value = {**value, "from" if damage == "sender" else "to": None}
+        return value
+
+    wallet._rpc.side_effect = read
+    with pytest.raises(MetaMaskError):
+        wallet._receipt(mined_swap["hash"], mined_swap["expected"])
+
+
+@pytest.fixture
+def legacy_completed_swap(wallet, mined_swap):
+    wallet._proxy = Mock(return_value=quote())
+    wallet.price = Mock(return_value=Decimal("2000"))
+    wallet._balance = Mock(return_value=Decimal("1"))
+
+    def submit(request_id, tx, **kwargs):
+        mined_swap["expected"] = tx
+        return {"requestId": request_id, "tx": tx, "txHash": mined_swap["hash"], "status": "CONFIRMED"}
+
+    wallet.provider.submit_transaction.side_effect = submit
+    result = wallet.submit(intent())
+    assert result["state"] == "filled" and result.pop("settlementFinality") == "rpc_finalized"
+    # Emulate a completed pre-upgrade record, preserving its original execution and effects.
+    wallet.journal.save(result)
+    wallet.provider.reset_mock()
+    return result
+
+
+def test_historical_filled_swap_upgrades_finality_read_only(wallet, mined_swap, legacy_completed_swap):
+    wallet.journal.save({**legacy_completed_swap, "budgetReviewRequired": True})
+    effects = wallet.journal.effects("agent", "swap-one")
+    result = wallet.order("swap-one")
+    assert result["state"] == "filled" and result["settlementFinality"] == "rpc_finalized"
+    assert result["budgetReviewRequired"] is True
+    for key in ("filledQuantity", "outputAmount", "inputAmount", "fees", "reservedUsd", "hashes"):
+        assert result[key] == legacy_completed_swap[key]
+    assert wallet.journal.effects("agent", "swap-one") == effects
+    reads = wallet._rpc.call_count
+    assert wallet.order("swap-one") == result and wallet._rpc.call_count == reads
+    wallet.provider.submit_transaction.assert_not_called()
+    wallet.provider.transaction.assert_not_called()
+
+
+def test_historical_finality_wait_retains_read_only_lane_and_recovers(wallet, mined_swap, legacy_completed_swap):
+    mined_swap["finalized"] = {"number": "0xe", "hash": "0x" + "c" * 64}
+    result = wallet.order("swap-one")
+    assert result["state"] == "unknown" and result["lastErrorCode"] == "FINALITY_PENDING"
+    assert result["settlementRecheckRequired"] and result["filledQuantity"] == legacy_completed_swap["filledQuantity"]
+    with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+        wallet.submit({**intent(), "id": "another-swap"})
+    mined_swap["finalized"] = dict(mined_swap["canonical"])
+    assert wallet.order("swap-one")["state"] == "filled"
+    wallet.provider.submit_transaction.assert_not_called()
+    wallet.provider.transaction.assert_not_called()
+
+
+@pytest.mark.parametrize("hashes", [None, "0x" + "a" * 64, {}, [], [None], ["0xab"]])
+def test_malformed_historical_hashes_activate_hold_before_validation(wallet, legacy_completed_swap, hashes):
+    wallet.journal.save({**legacy_completed_swap, "hashes": hashes})
+    for _ in range(2):
+        result = wallet.order("swap-one")
+        assert result["state"] == "unknown" and result["lastErrorCode"] == "SETTLEMENT_UNRESOLVED"
+        assert result["settlementRecheckRequired"] and result["hashes"] == hashes
+        assert result["filledQuantity"] == legacy_completed_swap["filledQuantity"]
+        assert result["fees"] == legacy_completed_swap["fees"]
+    with pytest.raises(MetaMaskError, match="RECONCILIATION_REQUIRED"):
+        wallet.journal.reserve(
+            "agent", {**intent(), "id": "new"}, "2", expected_binding=wallet.journal.binding("agent")
+        )
+    wallet.provider.submit_transaction.assert_not_called()
+    wallet.provider.transaction.assert_not_called()
+
+
+@pytest.mark.parametrize("damage", ["plan", "effect", "hash", "fees", "output", "reverted", "rpc"])
+def test_historical_settlement_conflict_preserves_execution_and_never_resubmits(
+    wallet, mined_swap, legacy_completed_swap, monkeypatch, damage
+):
+    effects = wallet.journal.effects("agent", "swap-one")
+    original = wallet.journal.effect
+    if damage in {"plan", "effect", "hash"}:
+
+        def read(agent, operation, step):
+            result = original(agent, operation, step)
+            if step == ("swap-plan" if damage == "plan" else "swap-0"):
+                return {**result, "txHash": "0x" + "d" * 64} if damage == "hash" else None
+            return result
+
+        monkeypatch.setattr(wallet.journal, "effect", read)
+    elif damage == "fees":
+        mined_swap["receipt"]["effectiveGasPrice"] = "0x3"
+    elif damage == "output":
+        mined_swap["receipt"]["logs"][0]["data"] = hex(999001)
+    elif damage == "reverted":
+        mined_swap["receipt"]["status"] = "0x0"
+    else:
+        wallet._rpc.side_effect = MetaMaskError("RPC_UNAVAILABLE", "Read unavailable")
+    for _ in range(2):
+        result = wallet.order("swap-one")
+        assert result["state"] == "unknown" and result["settlementRecheckRequired"]
+        for key in ("filledQuantity", "outputAmount", "inputAmount", "fees", "reservedUsd", "hashes"):
+            assert result[key] == legacy_completed_swap[key]
+    assert wallet.journal.effects("agent", "swap-one") == effects
+    wallet.provider.submit_transaction.assert_not_called()
+    wallet.provider.transaction.assert_not_called()
+
+
+def test_managed_swap_waits_for_finality_without_resubmission(wallet, mined_swap):
+    wallet._proxy = Mock(return_value=quote())
+    wallet.price = Mock(return_value=Decimal("2000"))
+    wallet._balance = Mock(return_value=Decimal("1"))
+    mined_swap["finalized"] = {"number": "0xe", "hash": "0x" + "c" * 64}
+
+    def submit(request_id, tx, **kwargs):
+        mined_swap["expected"] = tx
+        return {"requestId": request_id, "tx": tx, "txHash": mined_swap["hash"], "status": "CONFIRMED"}
+
+    wallet.provider.submit_transaction.side_effect = submit
+    wallet.provider.transaction.side_effect = lambda request_id, tx: submit(request_id, tx)
+    assert wallet.submit(intent())["state"] == "submitted"
+    assert wallet.order("swap-one")["state"] == "submitted"
+    mined_swap["finalized"] = dict(mined_swap["canonical"])
+    result = wallet.order("swap-one")
+    assert result["state"] == "filled" and result["outputAmount"] == "0.999000"
+    wallet.provider.submit_transaction.assert_called_once()
+
+
 def test_quote_binds_fee_net_input_and_uses_percentage_slippage(wallet):
     wallet._proxy = Mock(return_value=quote())
     wallet._rpc = Mock(side_effect=rpc)

@@ -2,9 +2,9 @@
 
 MetaMask managed-wallet execution through ordinary LumiBot strategies, without a JavaScript runtime or localhost service.
 
-Last Updated: 2026-11-01
+Last Updated: 2026-11-02
 
-Status: Native candidate; funded execution qualification in progress
+Status: Native adapter available; execution hardening candidate under review
 
 Audience: LumiBot users and maintainers
 
@@ -12,10 +12,10 @@ Audience: LumiBot users and maintainers
 
 `lumibot.brokers.MetaMask` runs in the Python strategy process. It calls MetaMask's managed-wallet API and Hyperliquid's HTTP API directly. Wallet keys remain with MetaMask. Node, Bun, npm, the MetaMask CLI and an embedded JavaScript engine are not required.
 
-This native candidate is unreleased. For source testing, install the shared version branch in a clean environment:
+The native adapter is included in the published 4.6.44 package. The execution ownership and submission-certainty hardening described here is an unreleased source candidate. Package availability does not establish production qualification. For candidate source testing, use the focused feature branch in a clean environment:
 
 ```bash
-pip install 'lumibot[metamask] @ git+https://github.com/Lumiwealth/lumibot.git@version/4.6.40'
+pip install 'lumibot[metamask] @ git+https://github.com/Lumiwealth/lumibot.git@fix/metamask-execution-recovery'
 ```
 
 Default-DEX Hyperliquid perpetuals use normal `Order`, `Position`, strategy methods and fill callbacks. Native same-chain swap code remains experimental and requires separate funded qualification. Existing JavaScript trading receipts do not qualify this replacement.
@@ -69,32 +69,36 @@ Local Python checks are cooperative controls. Strategy code in the same process 
 
 ## Ordinary LumiBot usage
 
-```python
-from lumibot.brokers import MetaMask
-from lumibot.entities import Asset
-from lumibot.strategies import Strategy
+The runnable example is `lumibot/example_strategies/metamask_perpetual.py`.
+With an existing authorized testnet session and journal, select
+`TRADING_BROKER=metamask`, `METAMASK_NETWORK=testnet` and `METAMASK_MODE=perp`, then run:
 
-class PerpetualStrategy(Strategy):
-    def initialize(self):
-        self.sleeptime = "1M"
-
-    def on_trading_iteration(self):
-        # Your strategy chooses its price, quantity and when to trade.
-        pass
-
-broker = MetaMask(config)
-strategy = PerpetualStrategy(
-    broker=broker,
-    quote_asset=Asset("USDC", asset_type="crypto"),
-    benchmark_asset=None,
-)
-
-# Inside on_trading_iteration, use self.create_order()/self.submit_order():
-# asset = Asset("BTC", asset_type="crypto_future", leverage=1)
-# order = self.create_order(asset, quantity, "buy", order_type="limit",
-#                          limit_price=chosen_price, time_in_force="gtc")
-# self.submit_order(order)
+```bash
+python -m lumibot.example_strategies.metamask_perpetual
 ```
+
+`MetaMaskPerpetualRoundTrip` uses normal `Strategy` order, position, price and cash
+methods with continuous `Trader` scheduling. It buys 0.005 ETH at 1x, then closes
+the actual executed quantity with a reduce-only order on a later iteration.
+Check current price, minimum notional, lot precision and available authority
+before running. A rejected or zero-fill entry is not a successful round trip.
+
+Reuse the same strategy name and parameters to resume the journaled round trip
+without a new entry. A different name intentionally starts a new cycle. The
+strategy continues checking positions and late fills after reaching flat.
+Unknown submission outcomes hold execution instead of creating replacement IDs.
+Stop and reconcile a rejected close before submitting a new closing intent.
+Older native canceled records regain missing no-release provenance only when
+their intact persisted plan and effect checkpoints prove it. Missing or conflicting
+history remains unknown; recovery never clears reconciliation or fee holds.
+
+MetaMask-specific setup stays outside the strategy class. Use a dedicated managed
+wallet, one journal owner and an explicitly reviewed grant. The launcher checks
+venue open orders because journal-backed `get_orders()` cannot discover manual
+or foreign orders. Grant expiry and remaining daily capacity must cover the
+closing leg as well as entry; `get_cash()` reports broker-reported USDC cash, not remaining
+policy budget. Startup does not renew authority. Stop and join `Trader` before
+calling `broker.close()` to release polling, order workers and the native client.
 
 Quantities are base units with multiplier 1. Supported orders are buy/sell market or limit, with canonical `reduce_only=True` for closing positions. `custom_params` may contain `leverage` and `reduce_only`; it cannot weaken canonical reduce-only intent. Limit orders require `gtc`, `ioc` or `alo`. Market orders become a frozen slippage-bounded IOC limit. Conditional, bracket, OCO and automatic cancel/replace orders are unsupported.
 
@@ -106,13 +110,61 @@ Standard account cash uses actual withdrawable funds and margin. Unified account
 
 Environment selection uses `TRADING_BROKER=metamask`, optional `DATA_SOURCE=metamask`, `METAMASK_SESSION_FILE`, `METAMASK_STATE_FILE`, `METAMASK_AGENT_ID`, `METAMASK_PROJECT_ID`, `METAMASK_ACCESS_TOKEN`, `METAMASK_REFRESH_TOKEN`, `METAMASK_WALLET_ADDRESS`, `METAMASK_NETWORK`, and `METAMASK_MODE`. Keep secrets in your own secret manager.
 
+## Testnet and mainnet
+
+Select the network explicitly. Preserve separate network bindings and journals;
+startup never converts testnet authority into mainnet authority. Hyperliquid uses
+different API origins and market inventories. Resolve asset IDs and precision
+from that network's metadata. Perpetual signatures use EIP-712 chain `1337` on
+both networks, with source `a` for mainnet and `b` for testnet. These are distinct
+from HyperEVM chain IDs. See the [official signing implementation](https://github.com/hyperliquid-dex/hyperliquid-python-sdk/blob/master/hyperliquid/utils/signing.py).
+
+Supported account valuation is checked before a fresh execution reservation and
+again after approval before releasing a leverage or order action. Portfolio
+margin, unknown account modes and unreadable account state cannot proceed to
+new execution. Cancellation and original-order reconciliation remain available.
+
+The supported perpetual inventory covers the default USDC DEX. Unified accounts
+can share collateral across DEXs, so this inventory does not prove wallet-wide
+flatness. Keep the managed wallet dedicated to this adapter, without manual
+positions or orders on other DEXs. Cross-DEX exposure needs separate inventory
+and collateral qualification. See [account modes](https://hyperliquid.gitbook.io/hyperliquid-docs/trading/account-abstraction-modes)
+and [margining](https://hyperliquid.gitbook.io/hyperliquid-docs/trading/margining).
+
+Mainnet liquidity, fee tiers, funding and liquidation are venue state, not
+testnet constants or local grant limits. Low leverage and a spending grant do
+not cap liquidation loss or funding. Opening orders below the venue minimum
+can receive an explicit rejection; never enlarge them automatically or apply an
+unverified minimum to reduce-only residual cleanup. See [venue errors](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/error-responses)
+and [liquidations](https://hyperliquid.gitbook.io/hyperliquid-docs/trading/liquidations).
+
+REST rate limits are shared across the public IP. Keep aggregate polling within
+the [documented request weights](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/rate-limits-and-user-limits).
+The current adapter fails explicitly on read errors and has no global weighted
+rate scheduler. Uncertain writes retain their original identity and are never
+automatically retransmitted. A safe read retry is not permission to repeat an order.
+
+Primary-source findings and remaining boundaries are recorded in
+[the mainnet contract audit](investigations/2026-11-02_METAMASK_MAINNET_CONTRACT_AUDIT.md).
+Public metadata checks and deterministic mainnet contract tests need no funded
+account; they do not establish funded mainnet execution.
+
 ## Same-chain exact-input swaps
 
 `MODE="spot"` exposes `broker.swap(input_asset, output_asset, input_amount, identifier=...)` and `broker.get_swap(identifier)`. It does not reinterpret an exact-input swap as an exact-output buy order.
 
 Register exact chain IDs, contracts and decimals in the binding's `assets`. Native assets use `address="native"`. Configure `CHAIN_RPC_URLS` for every approved chain. Quote transactions must contain gas ceilings; when absent, configure explicit per-chain `GAS_LIMITS`. The native gas asset must be registered for valuation and balance checks.
 
-The Python path binds the provider quote ID, wallet, recipient, chains, token identities, fee-net input, slippage and exact transaction. ERC20 allowance grants are capped to exact input, with a separate zero reset when needed. Simulation runs after prerequisite allowances mine. Each managed request is persisted before MetaMask signs and broadcasts; the broker never rebroadcasts its signed transaction. It verifies mined transaction identity, nonce, gas ceiling, canonical receipt and net ERC20 output transfers. Quote output is never reported as a received amount.
+The Python path binds the provider quote ID, wallet, recipient, chains, token identities, fee-net input, slippage and exact transaction. ERC20 allowance grants are capped to exact input, with a separate zero reset when needed. Simulation runs after prerequisite allowances settle. Each managed request is persisted before MetaMask signs and broadcasts; the broker never rebroadcasts its signed transaction. It verifies mined transaction identity, nonce, gas ceiling, RPC-finalized canonical receipt and net ERC20 output transfers. Quote output is never reported as a received amount.
+
+The configured RPC must support `eth_getBlockByNumber("finalized", false)`.
+One later block is not finality. Pending finality retains submitted state;
+unsupported finality or contradictory block identity holds reconciliation.
+Historical filled records without finality provenance are checked read-only.
+Missing or conflicting evidence retains their recorded fills, fees and spending
+history and blocks new execution; it never resubmits the old swap. Finality is
+the selected chain/RPC's contract, not a bridge withdrawal guarantee. See the
+[Ethereum RPC block tags](https://ethereum.org/developers/docs/apis/json-rpc/#the-block-parameter).
 
 Current limits are explicit: testnet swap routing, native output without trace proof, gasless/delegated routes, bridges and non-source-denominated quote fees are unsupported. These refuse before execution. Spot balances value only the approved asset registry in USD using actual provider prices, with zero synthetic USD cash. Missing prices raise an error, including unpriced test tokens. Mainnet swaps have not been funded-qualified for this native candidate.
 
@@ -130,7 +182,9 @@ Known legacy venue orders reconcile their recorded venue IDs and retained fills.
 
 Offline tests cover provider context, OAuth rotation, journal ownership and reservations, official signing vectors, remote-signature recovery, order replay prevention, cumulative callbacks, cancellation, swap quotes and receipts. Connected Python reads verify actual wallet identity, Guard policy, testnet account, candles and ordinary strategy startup without replaying historical fills. A dependency check reports a compatible Python environment.
 
-Native testnet opening, reduce-only closing and cancellation have funded receipts. Fresh live partial-flow and connected expiry rejection remain unqualified. The connected expiry test explicitly skips active grants; offline expiry regressions remain separate evidence. Managed swaps still require their own funded receipts. Expired local grants remain expired; prior JavaScript test results are not carried forward. No production or mainnet trading qualification is claimed.
+Native testnet opening, reduce-only closing and cancellation have funded receipts. Fresh live partial-flow remains unqualified. Actual short-lived testnet grants have expired on both dedicated wallets: new intents returned `REVOKED` without signing or changing orders, execution effects or nonces. The ordinary connected expiry test still skips active grants; offline expiry regressions remain separate evidence. Managed swaps still require their own funded receipts. Broker startup never renews expired local grants; prior JavaScript test results are not carried forward. No production or mainnet trading qualification is claimed.
+
+The explicit `scripts/qualify_metamask_partial.py` testnet harness checks live remaining size against `frontendOpenOrders` and the persisted native client order identity. It retains independent paired-fill, fee, callback and cleanup assertions. `--daily-caps MAKER TAKER` validates separately reviewed existing grants; it does not change authority or erase spending history. Defaults remain 300/150, and each wallet needs at least $50 of reservation room before signing so an entry and residual cleanup fit the $25 order limit.
 
 Protocol sources: [MetaMask architecture](https://docs.metamask.io/agent-wallet/reference/architecture/), [browser authorization](https://docs.metamask.io/agent-wallet/cli-setup/), [Hyperliquid API](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint). Remote-wallet interfaces were checked against permissively licensed Fox SDK 2.10.0 declarations; Hyperliquid action serialization uses the official MIT Python SDK 0.24.0. No restricted Agent SDK implementation is translated or bundled. MetaMask's remote interfaces remain an experimental compatibility contract.
 
@@ -141,6 +195,10 @@ Hyperliquid's signing domain uses chain ID 1337 for both networks; its signed `s
 Owner revocation is serialized with the final external handoff after network preparation. An expired uncertain cancellation can receive a new cancellation identity only after a fresh venue read confirms the same original order remains live. Expired uncertain leverage actions reconcile current venue settings and reject the unsubmitted intent without replay; use a new order ID afterward. Public order refresh and polling share cumulative fills and callbacks.
 
 Live partial-fill remainders come from identity-checked open-order snapshots; `orderStatus` can retain the original size while an order remains open. Terminal fill refresh is read-only, preserves closed lifecycle, and emits only new execution deltas. Inconsistent execution evidence blocks new reservations until reconciled.
+
+An IOC order can report venue status `filled` after executing only part of its requested quantity. When the original intent, persisted wire action, venue time in force and exact fills prove this case, LumiBot records the actual execution and cancels the unfilled remainder. The raw venue status remains available for audit. A status label or remaining size alone cannot establish a fill; incomplete or contradictory evidence stays held for reconciliation.
+
+A real testnet IOC partial execution has been recovered through the corrected broker with exact fills and fees, followed by an exact reduce-only close and flat-account verification. This proves that recovery path. Controlled maker partial-cancellation qualification remains inconclusive, and no production readiness is claimed.
 
 Polling defaults to 10 seconds. Wallet sweeps share fill and live-order reads; unchanged closed orders avoid individual status requests. Increase `POLL_INTERVAL` for large histories or multiple brokers sharing an IP because Hyperliquid applies [weighted limits per IP](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/rate-limits-and-user-limits). Under the [unified-account balance contract](https://hyperliquid.gitbook.io/hyperliquid-docs/trading/account-abstraction-modes), cash reports unheld USDC collateral, not guaranteed order capacity or the value of unrelated spot assets.
 
@@ -153,6 +211,14 @@ Install in a clean environment, or remove the retired `polygon-api-client` befor
 New signature requests use the same fixed provider-origin metadata as MetaMask's high-level wallet adapter, with LumiBot identified separately in the durable client provenance and readable intent. Recovery validates each request's original provider origin. There is no alternate-origin retry after a failure. Guard Mode and exact policy checks remain enabled.
 
 Native broker qualification has exercised actual testnet ALO placement/cancellation and market opening/reduce-only closing through Python on two dedicated wallets. A real Strategy/Trader ETH round trip delivered unique fill callbacks and reconciled ending cash exactly, including fees. The installed wheel passed native regression and connected-history tests on Python 3.10 and 3.12 with JavaScript runtimes absent from PATH and child processes denied during connected checks. The current wheel also recovered an actual canceled-partial receipt with matching venue fills and fees and no replayed callbacks. Fresh live partial-flow attempts remain inconclusive; no production or mainnet-swap qualification is claimed. Earlier JavaScript receipts remain historical evidence only.
+
+## Local cancellation and release evidence
+
+A prepared native order can be canceled locally only when its persisted native plan and signing checkpoints positively prove that the order was not released. Its structured `orderRelease` receipt distinguishes this from a venue cancellation. Generic order tools report `confirmed_not_submitted`, with an incomplete, non-retryable submission result. This says only that the order was not sent: prior signatures, leverage changes and audit history remain recorded.
+
+Legacy or malformed records without release evidence remain unresolved; missing effects do not establish that nothing happened. Cancellation cannot clear their existing execution hold. A historical canceled label without venue identity, executions or positively observed acceptance projects as unknown and requires operator reconciliation. This projection does not reconstruct a hold already lost in a historical journal. Actual venue cancellations, including zero-fill and partial-fill cancellations, retain confirmed acceptance; late executions are still reconciled.
+
+Cancellation signing and pending-signature release require a matching live venue observation without a reconciliation error. An unresolved or contradictory observation holds the cancellation as well as the entry. If an explicit local cancellation retry later obtains valid no-release proof and settled leverage evidence, it clears the resolved reconciliation hold while retaining prior effects and fee-review flags.
 
 ## Frequently asked questions
 
@@ -170,7 +236,9 @@ Yes. Retain the exact state file, agent and wallet identity. Known venue orders 
 
 ### What should I do after an approval timeout or unknown outcome?
 
-Inspect the recorded operation with `broker.client.get_order(operation_id)`. Reuse its identity and reconcile the original request before creating another trade. Do not bypass Guard Mode or increase permissions to clear a failure.
+Inspect `order.submission_outcome`: `broker_state_certainty` distinguishes `confirmed_submitted`, `confirmed_rejected`, `confirmed_not_submitted` for proven pre-release cancellation, and `unknown`. `reconciliation_required` marks unresolved or conflicting evidence. Agent submission tools preserve this state and return incomplete, non-retryable results while uncertainty remains. An acknowledgement is not a fill.
+
+Inspect the recorded operation with `broker.client.get_order(operation_id)`. Reuse that operation's identity and reconcile the original request before creating another trade. Do not bypass Guard Mode or increase permissions to clear a failure.
 
 ### Does testnet qualification establish production swap readiness?
 

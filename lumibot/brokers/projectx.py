@@ -664,6 +664,11 @@ class ProjectX(Broker):
                 with self._order_update_lock:
                     existing_order = self.get_tracked_order(order.identifier)
                     if existing_order:
+                        if getattr(order, '_is_bracket_child', False):
+                            # The user stream can create the canonical order
+                            # before REST acknowledges our child submission.
+                            existing_order._is_bracket_child = True
+                            existing_order._bracket_parent_id = order._bracket_parent_id
                         self.logger.debug(f"Order {order.identifier} already in tracking cache, skipping unprocessed "
                                           f"append")
                     else:
@@ -1488,6 +1493,12 @@ class ProjectX(Broker):
             if complete:
                 meta['protected_quantity'] = target
             parent._bracket_children_submitted = complete
+            # A child may already have filled before its acknowledgement and
+            # before both accepted sibling identifiers were registered.
+            for child_id in tuple(meta['children'].values()):
+                child = self.get_tracked_order(child_id)
+                if child is not None and child.is_filled():
+                    self._handle_bracket_child_fill(child)
             self.logger.debug(f"[BRACKET SPAWN COMPLETE] parent={parent.identifier} tp_child={meta.get('children',{}).get('tp')} sl_child={meta.get('children',{}).get('sl')}")
         except Exception as e:
             self.logger.error(f"[BRACKET SPAWN ERROR] parent={getattr(parent,'id',None)} error={e}")

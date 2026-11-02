@@ -154,6 +154,60 @@ def test_fill_before_acknowledgement_protects_the_tracked_parent(broker, mes):
     assert set(tracked._synthetic_bracket['children']) == {'tp', 'sl'}
 
 
+def test_child_stream_before_ack_keeps_oco_link_on_canonical_order(broker, mes):
+    from unittest.mock import Mock
+    parent = _make_bracket_entry(mes, tp=5050, sl=4975)
+    original = broker.client.order_place
+
+    def new_before_ack(**kwargs):
+        response = original(**kwargs)
+        if kwargs['type'] in (1, 4):
+            observed = Order(strategy='Strat', asset=mes, quantity=1,
+                             side='sell', identifier=str(response['orderId']))
+            observed.tag = kwargs['custom_tag']
+            broker._process_trade_event(observed, broker.NEW_ORDER)
+        return response
+
+    broker.client.order_place = new_before_ack
+    broker.client.order_cancel = Mock(wraps=broker.client.order_cancel)
+    broker._submit_order(parent)
+    broker._process_trade_event(parent, broker.FILLED_ORDER, price=5000,
+                               filled_quantity=1, multiplier=5)
+    children = parent._synthetic_bracket['children']
+    tp = broker.get_tracked_order(children['tp'])
+    assert tp._is_bracket_child
+    assert tp._bracket_parent_id == parent.identifier
+    broker._process_trade_event(tp, broker.FILLED_ORDER, price=5050,
+                               filled_quantity=1, multiplier=5)
+    broker.client.order_cancel.assert_called_once_with(1, int(children['sl']))
+
+
+def test_child_fill_before_ack_cancels_sibling_after_links_are_registered(broker, mes):
+    from unittest.mock import Mock
+    parent = _make_bracket_entry(mes, tp=5050, sl=4975)
+    original = broker.client.order_place
+
+    def child_event_before_ack(**kwargs):
+        response = original(**kwargs)
+        if kwargs['type'] in (1, 4):
+            observed = Order(strategy='Strat', asset=mes, quantity=1, side='sell',
+                             identifier=str(response['orderId']))
+            observed.tag = kwargs['custom_tag']
+            broker._process_trade_event(observed, broker.NEW_ORDER)
+            if kwargs['type'] == 1:
+                broker._process_trade_event(observed, broker.FILLED_ORDER, price=5050,
+                                           filled_quantity=1, multiplier=5)
+        return response
+
+    broker.client.order_place = child_event_before_ack
+    broker.client.order_cancel = Mock(wraps=broker.client.order_cancel)
+    broker._submit_order(parent)
+    broker._process_trade_event(parent, broker.FILLED_ORDER, price=5000,
+                               filled_quantity=1, multiplier=5)
+    children = parent._synthetic_bracket['children']
+    broker.client.order_cancel.assert_called_once_with(1, int(children['sl']))
+
+
 def test_fractional_contract_size_is_not_silently_truncated(broker, mes):
     order = Order(asset=mes, quantity=1.5, side='buy', order_type='market', strategy='Strat')
     broker._submit_order(order)

@@ -23,6 +23,7 @@
 - Preserve complete strategy ownership in unique ProjectX order tags and use the broker's ownership checks at both fill-delivery layers. Polling, partial fills and fills received before acknowledgement create protection through the same fill owner.
 - Generated ProjectX entry and protective-order tags fit the provider's 64-character limit, including long or non-ASCII strategy names, while preserving exact strategy ownership.
 - Restore ProjectX bracket metadata with LumiBot order identifiers and report accepted protective children accurately.
+- Preserve protective-child links when a stream update wins the REST acknowledgement race, and cancel unused siblings when a child fills before those links finish registering.
 - Honor declared custom trading-tool mutations when preventing whole-agent retries, including aliased tool names.
 - Reconcile reported purchase cost from actual fills and fees while keeping current marked equity distinct from execution cost.
 - Preserve observed agent tool events and usage when inference fails after order actions. Report attempted or unknown broker effects honestly and require reconciliation without replaying the attempt; retain deterministic broker grading for every failed evaluation.

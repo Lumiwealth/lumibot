@@ -39,6 +39,12 @@ The judge sees broker-observed order states separately from the model's claims.
 Execution cases fail if no simulated fill exists; provider/runtime failures
 cannot pass as completed decisions.
 
+Each production fixture explicitly closes its owned DuckDB connection and
+registered tables during final cleanup, including broker/web cleanup errors.
+Completed fixtures may remain referenced by captured tools; database worker
+release does not rely on garbage collection. Parallel workers and other fixtures
+retain independent connections.
+
 Each repetition receives a unique strategy identity and local replay directory;
 remote replay reads/writes are disabled at the cache transport boundary. Live
 hosted gateway and broker credentials never enter the fixture process. The CLI
@@ -198,12 +204,36 @@ double-counting. A zero API-spend field does not establish the connected
 account's separate subscription-credit setting. Keep the same append-only
 ledger across actor work, judge-only recovery, calibration and resumed batches.
 
+Typed retryable inference failures with explicit no-mutation evidence, including
+LiteLLM `InternalServerError` wrappers around DNS errors, are infrastructure
+errors rather than actor decisions for the semantic judge. Captured broker
+receipts must not contradict that evidence. Deterministic machine checks always
+run and remain on error rows. Every failed actor must satisfy these conditions;
+one actor's pre-mutation error cannot hide another actor's unknown effects.
+Post-mutation failures, unknown effects, completed
+decisions and tool failures retain ordinary grading. Preserve every failed
+attempt and unknown usage reservation; this classification does not replay live orders.
+
 SDK retries are disabled; outer retries require another ledger reservation.
 No paid token-counting endpoint is used. Subscription quota and revoked grants
-produce visible failures, not successful decisions. A corrupt ledger fails visibly; compatible technical window amendments preserve all historical records. Do not switch output directories to reset an approved
-release-attempt allowance. Actor, judge and rubric calibration need the same attempt
+produce visible failures, not successful decisions. A corrupt ledger fails visibly; compatible technical window amendments preserve all historical records. Do not switch output directories to reset usage history.
+Actor, judge and rubric calibration need the same attempt
 ledger. CI verifies the completed evidence without inference. No prompt or credential
 is written to the per-call ledger.
+
+Portfolio completion cases score actual target holdings and progress toward them,
+not an unstated number of orders. Verified top-ups may complete a feasible residual.
+The machine gate rejects wrong-side or unrelated trades, overshoot and round trips,
+unfinished or unobserved terminal orders, inconsistent fill ledgers, and cumulative
+execution above an allocation cap. Final cash reserves, quote evidence, and semantic
+verification remain required. Cases that explicitly require an order count retain
+that contract. A canceled order with partial executions remains unqualified when
+its status receipt lacks the cumulative filled quantity; an unchanged average price
+cannot prove the actor observed a late fill. Status tools expose cumulative and
+remaining quantities from actual retained transactions when available, without
+inventing zero for missing history. Earlier receipts keep their original verdict
+and fingerprint; a changed contract requires fresh qualification rather than
+relabeling old results.
 
 Fingerprints include indicator and broker code plus installed ADK, GenAI,
 LiteLLM, pandas-ta, pandas, NumPy, Alpaca, HTTPX, OpenAI, PyJWT, FileLock, Pydantic and Massive
@@ -232,7 +262,9 @@ python scripts/qualify_agent_evals.py verify
 ```
 
 Before exporting, resume the full actor catalog and judge controls using the
-same owned directories and immutable call allowance. `--gate --repeat 1` still
+same owned directories and append-only call ledger. `--max-model-calls` sets an
+automatically replenished reporting window, not a hard request or spending cap.
+`--gate --repeat 1` still
 requires every new or changed case's configured three or five consecutive passes;
 it preserves completed matching repetitions and only schedules missing or failed
 work. Avoid `--force` when resuming a qualification. Set `TMPDIR` to a dedicated
@@ -241,15 +273,15 @@ path, including failures.
 
 ```bash
 python scripts/run_agent_evals.py --preflight-only --gate --repeat 1 \
-  --max-cost-usd 0 --max-model-calls <existing-call-cap> \
+  --max-cost-usd 0 --max-model-calls <reporting-window-calls> \
   --output-root <owned-actor-output> --freshness-state <owned-freshness-file>
 python scripts/run_agent_evals.py --gate --repeat 1 --max-workers 5 \
-  --max-cost-usd 0 --max-model-calls <existing-call-cap> \
+  --max-cost-usd 0 --max-model-calls <reporting-window-calls> \
   --output-root <owned-actor-output> --freshness-state <owned-freshness-file>
 python scripts/check_agent_judge_calibration.py \
   --model-call-ledger <owned-actor-output>/model_calls.jsonl \
   --output-root <owned-calibration-output> \
-  --max-model-calls <existing-call-cap> --max-cost-usd 0
+  --max-model-calls <reporting-window-calls> --max-cost-usd 0
 ```
 
 Normal release qualification runs on the version branch's pull request into

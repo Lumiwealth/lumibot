@@ -281,6 +281,11 @@ Backtesting implications:
 
 ProjectX publishes an API reference for placing and managing orders.
 
+Authenticated streams require `signalrcore>=1.0.2,<2`. Both wheel metadata and
+source requirements declare this dependency; missing it raises an `ImportError`
+instead of silently claiming that streaming started. Dependency declaration
+parity does not resolve advisories in the SDK's pinned transitive dependencies.
+
 Links (public):
 - https://gateway.docs.projectx.com/docs/api-reference/order/order-place/
 - https://gateway.docs.projectx.com/docs/category/orders/

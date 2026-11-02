@@ -17,6 +17,7 @@ import math
 import sys
 import tempfile
 import uuid
+from contextlib import ExitStack
 from datetime import date
 from pathlib import Path
 
@@ -1045,9 +1046,14 @@ class ProductionFixture:
         if self.closed:
             return
         self.closed = True
-        self.broker.stream.stop()
-        try:
-            if self.fixture.name in {"web_documents", "web_documents_date_only", "web_documents_approximate_portfolio", "web_documents_wrapped_ranges", *_UNDATED_FIXTURES}:
-                self.strategy._agent_web_client.close()
-        finally:
-            self.directory.cleanup()
+        # Attempt every owned cleanup even when an earlier resource raises.
+        # Completed fixtures can remain reachable through captured tool bindings.
+        with ExitStack() as cleanup:
+            cleanup.callback(self.directory.cleanup)
+            cleanup.callback(self.manager.duckdb.close)
+            if self.fixture.name in {
+                "web_documents", "web_documents_date_only", "web_documents_approximate_portfolio",
+                "web_documents_wrapped_ranges", *_UNDATED_FIXTURES,
+            }:
+                cleanup.callback(self.strategy._agent_web_client.close)
+            cleanup.callback(self.broker.stream.stop)

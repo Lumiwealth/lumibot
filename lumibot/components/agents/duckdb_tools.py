@@ -64,6 +64,17 @@ class DuckDBQueryLayer:
             "query_ms": 0.0,
         }
 
+    def close(self) -> None:
+        """Release this owner's database and registered frames after its last run."""
+        # A strategy and its agent manager reference each other. Native workers
+        # must not depend on garbage collection of that cycle to be released.
+        self.connection.close()
+        self._frames.clear()
+        self._table_meta.clear()
+        self._source_tables.clear()
+        self._history_cache.clear()
+        self._name_counters.clear()
+
     @staticmethod
     def _slugify(value: str) -> str:
         slug = re.sub(r"[^a-zA-Z0-9_]+", "_", value).strip("_").lower()

@@ -1,10 +1,12 @@
 """CCXT ships its own exchange partner IDs and, on some DEXes, an extra user-paid
 builder fee. LumiBot removes both by default and only attaches IDs or fees that
-are explicitly configured. These tests use the real pinned CCXT classes offline:
-they call ``sign`` (no network) or inspect options set at construction."""
+are explicitly configured. These tests use the installed CCXT classes offline:
+they call generated endpoint methods with the HTTP transport captured, or inspect
+options set at construction. Both current and older installed adapters are covered."""
 
 import json
 import logging
+from unittest.mock import patch
 
 import ccxt
 import pytest
@@ -20,12 +22,26 @@ def _exchange(exchange_id, **config):
     return exchange
 
 
-def _signed(exchange, path, api, method, params):
-    return exchange.sign(path, api, method, dict(params))
+def _signed(exchange, endpoint, params):
+    # Generated methods supply the SDK's own sign() arguments. CCXT 4.5.91
+    # changed several API groups from strings to lists; hand-built arguments
+    # bypassed that contract and sometimes exercised an unsigned/public branch.
+    def capture(url, method="GET", headers=None, body=None):
+        return {"url": url, "method": method, "headers": headers, "body": body}
+
+    with patch.object(exchange, "fetch", side_effect=capture) as transport:
+        signed = getattr(exchange, endpoint)(dict(params))
+    transport.assert_called_once()
+    assert signed["method"] == "POST"
+    return signed
 
 
 @pytest.fixture(autouse=True)
 def _no_env(monkeypatch):
+    def reject_network(*args, **kwargs):
+        raise AssertionError("Partner-ID tests must not make HTTP requests")
+
+    monkeypatch.setattr(ccxt.Exchange, "fetch", reject_network)
     for name in (partner.ENV_PARTNER_IDS, partner.ENV_BUILDER_FEES, partner.ENV_REFERRAL_CODES):
         monkeypatch.delenv(name, raising=False)
 
@@ -46,42 +62,63 @@ def test_lumibot_data_source_strips_gate_channel_header():
 
 
 @pytest.mark.parametrize(
-    "exchange_id, path, api, method, params, ccxt_marker",
+    "exchange_id, endpoint, params, ccxt_marker",
     [
-        ("bitget", "v2/spot/trade/place-order", ["private", "spot"], "POST", {"symbol": "BTCUSDT"}, "p4sve"),
-        ("bingx", "trade/order", ["spot", "v1", "private"], "POST", {"symbol": "BTC-USDT"}, "X-SOURCE-KEY"),
-        ("bybit", "v5/order/create", "private", "POST", {"symbol": "BTCUSDT"}, "Referer"),
-        ("kucoin", "orders", "private", "POST", {"symbol": "BTC-USDT"}, "KC-API-PARTNER"),
-        ("mexc", "order", ["spot", "private"], "POST", {"symbol": "BTCUSDT"}, '"source"'),
-        ("phemex", "orders", "private", "POST", {"symbol": "BTCUSD"}, "CCXT123456"),
-        ("binance", "order", "fapiPrivate", "POST", {"symbol": "BTCUSDT"}, "x-cvBPrNm9"),
-        ("bitmart", "spot/v2/submit_order", "private", "POST", {"symbol": "BTC_USDT"}, "X-BM-BROKER-ID"),
-        ("cryptocom", "private/create-order", ["v1", "private"], "POST", {"broker_id": "CCXT"}, "broker_id"),
-        ("blofin", "trade/order", "private", "POST", {"brokerId": "ec6dd3a7dd982d0b"}, "ec6dd3a7dd982d0b"),
+        ("bitget", "private_spot_post_v2_spot_trade_place_order", {"symbol": "BTCUSDT"}, "p4sve"),
+        ("bingx", "spot_v1_private_post_trade_order", {"symbol": "BTC-USDT"}, "X-SOURCE-KEY"),
+        ("bybit", "private_post_v5_order_create", {"symbol": "BTCUSDT"}, "Referer"),
+        ("kucoin", "private_post_orders", {"symbol": "BTC-USDT"}, "KC-API-PARTNER"),
+        ("mexc", "spot_private_post_order", {"symbol": "BTCUSDT"}, '"source"'),
+        ("phemex", "private_post_orders", {"symbol": "BTCUSD"}, "CCXT123456"),
+        ("binance", "fapiprivate_post_order", {"symbol": "BTCUSDT"}, "x-cvBPrNm9"),
+        pytest.param(
+            "bitmart", "private_post_spot_v2_submit_order", {"symbol": "BTC_USDT"}, "X-BM-BROKER-ID",
+            marks=pytest.mark.skipif(
+                "bitmart" not in ccxt.exchanges,
+                reason="CCXT removed BitMart (upstream PR 29376); retained for older installed adapters",
+            ),
+        ),
+        ("cryptocom", "v1_private_post_private_create_order", {"broker_id": "CCXT"}, "broker_id"),
+        ("blofin", "private_post_trade_order", {"brokerId": "ec6dd3a7dd982d0b"}, "ec6dd3a7dd982d0b"),
     ],
 )
-def test_ccxt_partner_ids_are_off_by_default(exchange_id, path, api, method, params, ccxt_marker):
+def test_ccxt_partner_ids_are_off_by_default(exchange_id, endpoint, params, ccxt_marker):
     exchange = _exchange(exchange_id)
-    raw = _all_text(_signed(exchange, path, api, method, params))
+    raw = _all_text(_signed(exchange, endpoint, params))
     assert ccxt_marker in raw, "CCXT no longer sends this ID; update the partner table"
 
     exchange = _exchange(exchange_id)
     state = apply_partner_config(exchange)
-    cleaned = _all_text(_signed(exchange, path, api, method, params))
+    cleaned = _all_text(_signed(exchange, endpoint, params))
     assert ccxt_marker not in cleaned
     assert state["partner_id"] is None
 
 
-def test_client_order_id_prefixes_become_neutral():
-    for exchange_id, option, ccxt_value in (
-        ("phemex", "brokerId", "CCXT123456"), ("okx", "brokerId", "6b9ad766b55dBCDE"),
-        ("coinbase", "brokerId", "ccxt"), ("coinex", "brokerId", "x-167673045"),
+@pytest.mark.parametrize(
+    "exchange_id,option,ccxt_value",
+    [
+        ("phemex", "brokerId", "CCXT123456"),
+        ("okx", "brokerId", "6b9ad766b55dBCDE"),
+        ("coinbase", "brokerId", "ccxt"),
+        pytest.param(
+            "coinex", "brokerId", "x-167673045",
+            marks=pytest.mark.skipif(
+                "coinex" not in ccxt.exchanges,
+                reason="CCXT removed CoinEx (upstream PR 30737); retained for older installed adapters",
+            ),
+        ),
         ("coinbaseinternational", "brokerId", "nfqkvdjp"),
-    ):
-        exchange = _exchange(exchange_id)
-        assert exchange.options[option] == ccxt_value
-        apply_partner_config(exchange)
-        assert exchange.options[option] == NEUTRAL_PREFIX
+    ],
+)
+def test_client_order_id_prefixes_become_neutral(exchange_id, option, ccxt_value):
+    # Separate cases keep all available adapters covered when one is retired.
+    exchange = _exchange(exchange_id)
+    assert exchange.options[option] == ccxt_value
+    apply_partner_config(exchange)
+    assert exchange.options[option] == NEUTRAL_PREFIX
+
+
+def test_binance_client_order_id_prefixes_become_neutral():
     binance = _exchange("binance")
     apply_partner_config(binance)
     assert set(binance.options["broker"].values()) == {NEUTRAL_PREFIX}
@@ -106,7 +143,7 @@ def test_configured_partner_ids_replace_ccxt(monkeypatch):
 
     bybit = _exchange("bybit")
     apply_partner_config(bybit)
-    assert _signed(bybit, "v5/order/create", "private", "POST", {})["headers"]["Referer"] == "LUMIBYBIT"
+    assert _signed(bybit, "private_post_v5_order_create", {})["headers"]["Referer"] == "LUMIBYBIT"
 
     # OKX attaches clOrdId/tag in create_order from options["brokerId"] (its sign-time injection
     # edits a dict that is never serialised in CCXT 4.5.64).
@@ -120,7 +157,7 @@ def test_configured_partner_ids_replace_ccxt(monkeypatch):
 
     kucoin = _exchange("kucoin")
     apply_partner_config(kucoin)
-    headers = _signed(kucoin, "orders", "private", "POST", {})["headers"]
+    headers = _signed(kucoin, "private_post_orders", {})["headers"]
     assert headers["KC-API-PARTNER"] == "lumikc"
 
 
@@ -150,12 +187,20 @@ def test_apply_is_idempotent():
     exchange = _exchange("bybit")
     apply_partner_config(exchange)
     apply_partner_config(exchange)
-    assert "Referer" not in (_signed(exchange, "v5/order/create", "private", "POST", {})["headers"] or {})
+    assert "Referer" not in (_signed(exchange, "private_post_v5_order_create", {})["headers"] or {})
 
 
-def test_every_listed_exchange_exists_in_pinned_ccxt():
-    for exchange_id in list(partner.PARTNER_RULES) + list(partner.BUILDER_FEE_DEFAULTS):
-        assert hasattr(ccxt, exchange_id), exchange_id
+def test_partner_rules_only_reference_installed_or_known_retired_exchanges():
+    # These upstream removals must not erase support for older installations:
+    # https://github.com/ccxt/ccxt/pull/29376 (BitMart)
+    # https://github.com/ccxt/ccxt/pull/30737 (CoinEx)
+    retired = {"bitmart", "coinex"}
+    listed = set(partner.PARTNER_RULES) | set(partner.BUILDER_FEE_DEFAULTS)
+    unavailable = listed - set(ccxt.exchanges)
+    assert unavailable <= retired  # unexpected removals/typos must still fail
+    assert retired <= partner.PARTNER_RULES.keys()
+    for exchange_id in listed - unavailable:
+        assert callable(getattr(ccxt, exchange_id)), exchange_id
 
 
 # ---------------------------------------------------------------- builder fees and referrers

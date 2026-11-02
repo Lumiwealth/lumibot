@@ -92,7 +92,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "apiKey": os.environ.get("COINMATE_API_KEY"),
        "secret": os.environ.get("COINMATE_API_SECRET"),
        "uid": os.environ.get("COINMATE_UID"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -110,7 +110,7 @@ Coinmate has no sandbox, and CCXT lists no test URL for it, so test with a very 
 Algorithmic trading example: a simple CoinMate bot
 --------------------------------------------------
 
-This bot buys about 45 EUR of BTC on CoinMate once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount.
+This bot buys about 45 EUR of BTC on CoinMate once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. CoinMate accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -132,7 +132,8 @@ This bot buys about 45 EUR of BTC on CoinMate once and then holds it. It is a st
            price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
                quantity = round(45 / price, 6)  # about 45 EUR worth
-               order = self.create_order(coin, quantity, "buy", quote=self.quote_asset)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
@@ -207,7 +208,7 @@ What you can trade on CoinMate
    * - Options
      - No
 
-CCXT lists these order features for CoinMate: market orders, limit orders, editing open orders, canceling orders.
+CCXT lists these order features for CoinMate: editing open orders, canceling orders.
 
 Fees and partner IDs on CoinMate
 --------------------------------
@@ -272,4 +273,4 @@ Sources
 * `Coinmate Trading Portal API documentation (Security, Request limits) <https://coinmate.docs.apiary.io/>`_ (read 2026-10-23)
 * `Coinmate Terms and Conditions (sections 3 Account opening and 24 API) <https://coinmate.io/strapi/uploads/cm-vop-07032024-en.pdf>`_ (read 2026-10-23)
 * `Coinmate official API examples on GitHub (credentials and account API page) <https://github.com/coinmate-io/coinmate-api-examples>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

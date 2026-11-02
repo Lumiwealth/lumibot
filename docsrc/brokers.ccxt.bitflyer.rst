@@ -88,7 +88,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "bitflyer",
        "apiKey": os.environ.get("BITFLYER_API_KEY"),
        "secret": os.environ.get("BITFLYER_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -106,7 +106,7 @@ bitFlyer has no sandbox, and CCXT lists no test URL for it. The bitFlyer Lightni
 Algorithmic trading example: a simple bitFlyer bot
 --------------------------------------------------
 
-This bot buys about 7500 JPY of BTC on bitFlyer once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount.
+This bot buys about 7500 JPY of BTC on bitFlyer once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. bitFlyer accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -128,7 +128,8 @@ This bot buys about 7500 JPY of BTC on bitFlyer once and then holds it. It is a 
            price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
                quantity = round(7500 / price, 6)  # about 7500 JPY worth
-               order = self.create_order(coin, quantity, "buy", quote=self.quote_asset)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
@@ -203,7 +204,7 @@ What you can trade on bitFlyer
    * - Options
      - No
 
-CCXT lists these order features for bitFlyer: market orders, limit orders, editing open orders, canceling orders.
+CCXT lists these order features for bitFlyer: editing open orders, canceling orders.
 
 Fees and partner IDs on bitFlyer
 --------------------------------
@@ -268,4 +269,4 @@ Sources
 * `bitFlyer Lightning API documentation <https://lightning.bitflyer.com/docs?lang=en>`_ (read 2026-10-23)
 * `bitFlyer Lightning API Playground <https://lightning.bitflyer.com/docs/playground?lang=en>`_ (read 2026-10-23)
 * `bitFlyer Europe blog: Bitcoin trading bot using bitFlyer Lightning APIs <https://blog-eu.bitflyer.com/bitcoin-accumulator-trading-bot-using-bitflyer-lightning-apis/>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

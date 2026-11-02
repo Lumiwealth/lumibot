@@ -1628,6 +1628,16 @@ _BROKER_MUTATING_TOOLS = frozenset(
 )
 
 
+def _trading_mutation_tool_names(request: Any) -> set[str]:
+    # Audit records retain BoundTool.name even when the model-facing name is
+    # normalized or aliased. Keep legacy order names for older request records.
+    return set(_BROKER_MUTATING_TOOLS) | {
+        tool.name
+        for tool in getattr(request, "bound_tools", ())
+        if (tool.metadata or {}).get("mutates_trading")
+    }
+
+
 def _attempt_tool_call_log(request: Any) -> list[dict[str, Any]]:
     """Per-attempt tool-call list shared between run() and _run_async()."""
     calls = getattr(request, "_attempt_tool_calls", None)
@@ -1644,7 +1654,8 @@ def _attempt_touched_broker(request: Any) -> bool:
     calls = getattr(request, "_attempt_tool_calls", None)
     if not isinstance(calls, list):
         return False
-    return any(isinstance(call, dict) and call.get("tool_name") in _BROKER_MUTATING_TOOLS for call in calls)
+    mutations = _trading_mutation_tool_names(request)
+    return any(isinstance(call, dict) and call.get("tool_name") in mutations for call in calls)
 
 
 class GoogleADKRuntime:
@@ -1987,6 +1998,8 @@ class GoogleADKRuntime:
             parts=[genai_types.Part(text=self._build_user_text(request))],
         )
         events: list[AgentTraceEvent] = []
+        # Preserve only events actually received if a later provider call fails.
+        request._attempt_events = events
         run_config = run_config_module.RunConfig(max_llm_calls=sys.maxsize - 1)
         async for event in runner.run_async(
             user_id=user_id,
@@ -2010,13 +2023,14 @@ class GoogleADKRuntime:
             timestamp = _utc_iso_timestamp()
             for normalized_event in normalized_events:
                 normalized_event.timestamp = timestamp
+                if normalized_event.tool_name:
+                    normalized_event.tool_name = tool_name_map.get(
+                        normalized_event.tool_name,
+                        tool_name_map.get(
+                            _normalize_tool_name_typo(normalized_event.tool_name), normalized_event.tool_name
+                        ),
+                    )
             events.extend(normalized_events)
-        for event in events:
-            if event.tool_name:
-                mapped = tool_name_map.get(event.tool_name)
-                if mapped is None:
-                    mapped = tool_name_map.get(_normalize_tool_name_typo(event.tool_name), event.tool_name)
-                event.tool_name = mapped
         summary = None
         text_chunks = [event.text for event in events if event.kind == "text" and event.text]
         if text_chunks:
@@ -2114,7 +2128,8 @@ class GoogleADKRuntime:
                 return max(int(raw), 1)
             except Exception:
                 pass
-        if any(tool.name in _BROKER_MUTATING_TOOLS for tool in request.bound_tools):
+        mutations = _trading_mutation_tool_names(request)
+        if any(tool.name in mutations for tool in request.bound_tools):
             # Retrying the whole agent run after a broker-side effect can duplicate orders.
             # Research-only agents keep the larger retry budget; trading agents fail fast
             # and let the next scheduled/bar iteration re-evaluate from current broker state.
@@ -2184,6 +2199,7 @@ class GoogleADKRuntime:
             attempt += 1
             # Fresh per-attempt record of tool calls (see _attempt_tool_call_log).
             request._attempt_tool_calls = []
+            request._attempt_events = []
             try:
                 if timeout_seconds is None:
                     return asyncio.run(self._run_async(request))

@@ -2362,10 +2362,23 @@ class AgentHandle:
             with self.manager._shared_state_lock:
                 import traceback as _tb
 
-                from .runtime import _classify_agent_error
+                from .runtime import _aggregate_usage_metadata, _attempt_touched_broker, _classify_agent_error
                 from .schemas import AgentRunResult, AgentTraceEvent
 
                 category = _classify_agent_error(exc)
+                attempt_calls = getattr(request, "_attempt_tool_calls", None)
+                broker_mutation_attempted = (
+                    _attempt_touched_broker(request) if isinstance(attempt_calls, list) else None
+                )
+                requires_reconciliation = broker_mutation_attempted is True or (
+                    self.allow_trading and broker_mutation_attempted is None
+                )
+                recovery_guidance = (
+                    "Prior order actions may have taken effect; "
+                    "reconcile orders and account state before further action."
+                    if requires_reconciliation
+                    else "This agent decision did not complete."
+                )
                 is_backtesting = bool(getattr(self.manager.strategy, "is_backtesting", False))
 
                 # Backtest crashes loud on permanent config errors so user notices + fixes.
@@ -2379,16 +2392,16 @@ class AgentHandle:
                     sys.stderr.write(
                         f"[lumibot.agents] agent '{self.name}' (model={model_name!r}) call failed: "
                         f"category={category} mode={'backtest' if is_backtesting else 'live'}. "
-                        f"Skipping this iteration (no trades placed). Error: {error_detail}\n"
+                        f"Decision incomplete. {recovery_guidance} Error: {error_detail}\n"
                     )
                     sys.stderr.flush()
                 except Exception:
                     pass
                 now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                 fallback_summary = (
-                    f"RESULT: Skipped this iteration. Agent call failed "
+                    f"RESULT: Agent decision incomplete. Agent call failed "
                     f"(category={category}): {error_detail}. "
-                    f"Strategy continues with no-op decision; no trades placed."
+                    f"{recovery_guidance}"
                 )
                 error_event = AgentTraceEvent(
                     kind="text",
@@ -2402,11 +2415,17 @@ class AgentHandle:
                         "traceback": "".join(_tb.format_exception(type(exc), exc, exc.__traceback__))[-2000:],
                     },
                 )
+                partial_events = list(getattr(request, "_attempt_events", None) or [])
                 result = AgentRunResult(
                     summary=fallback_summary,
                     model=model_name,
-                    events=[error_event],
-                    usage=None,
+                    events=[*partial_events, error_event],
+                    usage=_aggregate_usage_metadata(
+                        [
+                            event.payload for event in partial_events
+                            if event.kind == "usage" and isinstance(event.payload, dict)
+                        ]
+                    ),
                 )
                 # Mark it so downstream code and the user can easily filter/count
                 # skipped iterations in the warnings stream.
@@ -2426,18 +2445,26 @@ class AgentHandle:
                     exc=exc,
                     is_backtesting=is_backtesting,
                 )
+                execution_outcome = _managed_ai_execution_outcome(
+                    required_for_decision=self.allow_trading,
+                    decision_completed=False,
+                    decision_status=_managed_ai_error_status(exc),
+                    error_category=category,
+                    fallback_used=True,
+                )
+                if requires_reconciliation:
+                    execution_outcome.update(
+                        broker_state_certainty="unknown",
+                        retryability="non_retryable",
+                        impact="operator_attention_required",
+                    )
                 result.payload = {
                     "trace_path": None,
                     "runtime_error": True,
+                    "broker_mutation_attempted": broker_mutation_attempted,
                     "error_class": exc.__class__.__name__,
                     "error_message": str(exc)[:800],
-                    "execution_outcome": _managed_ai_execution_outcome(
-                        required_for_decision=self.allow_trading,
-                        decision_completed=False,
-                        decision_status=_managed_ai_error_status(exc),
-                        error_category=category,
-                        fallback_used=True,
-                    ),
+                    "execution_outcome": execution_outcome,
                 }
                 self._finalize_runtime_timing(
                     result,
@@ -2446,8 +2473,8 @@ class AgentHandle:
                     ended_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                     ended_perf=time.perf_counter(),
                 )
-                # Record this skipped run in the agent's memory so the model on
-                # the next iteration knows the previous cycle was skipped.
+                # Preserve incomplete decisions and prior actions in memory for
+                # reconciliation on the next iteration.
                 self.manager._record_agent_observability(
                     handle=self,
                     result=result,
@@ -2658,8 +2685,8 @@ class AgentManager:
             params["agent_skipped_runs_total"] = total
         if is_backtesting:
             message = (
-                f"BACKTEST INCOMPLETE: agent {agent_name!r} (model={model!r}) could not run at "
-                f"{record['datetime']} ({category}: {record['error_class']}); this bar has no AI decision. "
+                f"BACKTEST INCOMPLETE: agent {agent_name!r} (model={model!r}) did not complete at "
+                f"{record['datetime']} ({category}: {record['error_class']}); this bar has no completed AI decision. "
                 f"Skipped bars so far: {total}. See settings.json agent_health."
             )
             self._log_warning(message)

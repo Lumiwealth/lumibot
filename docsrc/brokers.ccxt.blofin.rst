@@ -30,7 +30,7 @@ BloFin at a glance
    * - Live data streams
      - prices, order book, trades, candles, your orders, your positions
    * - CCXT request spacing
-     - about 100 ms between requests
+     - about 200 ms between requests
    * - Official site
      - https://www.blofin.com
    * - API docs
@@ -111,7 +111,7 @@ CCXT sends sandbox requests to: https://demo-trading-openapi.blofin.com. Testnet
 Algorithmic trading example: a simple BloFin bot
 ------------------------------------------------
 
-CCXT lists no spot market for BloFin, so this example trades a perpetual contract. It opens one small long BTC position worth about 50 USDT and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. If your account uses hedge mode, add ``position_side="long"`` to ``create_order``.
+CCXT lists no spot market for BloFin, so this example trades a perpetual contract. It opens one small long BTC position worth about 50 USDT and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. If your account uses hedge mode, add ``position_side="long"`` to ``create_order``. BloFin accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -135,7 +135,8 @@ CCXT lists no spot market for BloFin, so this example trades a perpetual contrac
            if price:
                # Each contract covers contract.multiplier BTC; size the order to about 50 USDT.
                quantity = round(50 / (price * contract.multiplier), 6)
-               order = self.create_order(contract, quantity, "buy")
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(contract, quantity, "buy", limit_price=price * 1.002)
                self.submit_order(order)
 
 
@@ -210,7 +211,7 @@ What you can trade on BloFin
    * - Options
      - No
 
-CCXT lists these order features for BloFin: market orders, limit orders, stop-loss orders, take-profit orders, canceling orders.
+CCXT lists these order features for BloFin: stop-loss orders, take-profit orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDT:USDT``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
 
@@ -266,9 +267,9 @@ Related guides
 
 * :doc:`How crypto exchange setup works <brokers.ccxt>`
 * :doc:`AI agents quickstart <agents_quickstart>`
-* :doc:`AftermathFinance trading bot <brokers.ccxt.aftermath>`
 * :doc:`Apex trading bot <brokers.ccxt.apex>`
 * :doc:`dYdX trading bot <brokers.ccxt.dydx>`
+* :doc:`Extended trading bot <brokers.ccxt.extended>`
 * :doc:`Hibachi trading bot <brokers.ccxt.hibachi>`
 
 Sources
@@ -279,4 +280,4 @@ Sources
 * `BloFin Help Center: How to Register an Account on BloFin? <https://blofin.com/en/support/FAQ/Account-Functions/12788450828687-How-to-Register-an-Account-on-BloFin>`_ (read 2026-10-23)
 * `BloFin Help Center: How to Complete Identity Verification on BloFin? <https://blofin.com/en/support/FAQ/Beginners-Guide/9049373450639-How-to-Complete-Identity-Verification-on-BloFin>`_ (read 2026-10-23)
 * `BloFin MCP Server page (API key, secret and passphrase; demo base URL) <https://blofin.com/en/blofin-mcp>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

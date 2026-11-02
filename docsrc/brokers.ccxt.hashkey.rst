@@ -208,7 +208,7 @@ What you can trade on HashKey Global
    * - Options
      - No
 
-CCXT lists these order features for HashKey Global: market orders, limit orders, stop orders, reduce-only orders, editing open orders, canceling orders.
+CCXT lists these order features for HashKey Global: market orders, stop orders, reduce-only orders, editing open orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDT:USDT``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
 
@@ -303,7 +303,7 @@ Related guides
 * :doc:`BigONE trading bot <brokers.ccxt.bigone>`
 * :doc:`BingX trading bot <brokers.ccxt.bingx>`
 * :doc:`Bitrue trading bot <brokers.ccxt.bitrue>`
-* :doc:`Bullish trading bot <brokers.ccxt.bullish>`
+* :doc:`Gemini trading bot <brokers.ccxt.gemini>`
 
 Sources
 -------
@@ -312,4 +312,4 @@ Sources
 * `HashKey Global API docs: Getting Started (sandbox and production URLs) <https://hashkeyglobal-apidoc.readme.io/reference/preparations>`_ (read 2026-10-23)
 * `HashKey API Reference (new docs site: API key permissions, symbols) <https://docs.hashkey.com/glb/en/>`_ (read 2026-10-23)
 * `HashKey Global Support: Important notes for submitting identity verification documents <https://support.global.hashkey.com/hc/en-us/articles/13086913775260-Important-notes-for-submitting-proof-of-residence-documents>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

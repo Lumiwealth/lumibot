@@ -22,7 +22,7 @@ Coinbase Advanced at a glance
    * - CCXT exchange id
      - ``coinbase``
    * - Markets
-     - Spot
+     - Spot, Perpetual swaps, Dated futures
    * - Testnet (sandbox)
      - No
    * - Credentials
@@ -91,7 +91,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "coinbase",
        "apiKey": os.environ.get("COINBASE_API_KEY_NAME"),
        "secret": os.environ.get("COINBASE_PRIVATE_KEY"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -109,7 +109,7 @@ Coinbase Advanced has no sandbox for the Advanced Trade API in CCXT, so test wit
 Algorithmic trading example: a simple Coinbase Advanced bot
 -----------------------------------------------------------
 
-This bot buys about 50 USD of BTC on Coinbase Advanced once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount.
+This bot buys about 50 USD of BTC on Coinbase Advanced once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. Coinbase Advanced accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -131,7 +131,8 @@ This bot buys about 50 USD of BTC on Coinbase Advanced once and then holds it. I
            price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
                quantity = round(50 / price, 6)  # about 50 USD worth
-               order = self.create_order(coin, quantity, "buy", quote=self.quote_asset)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
@@ -200,13 +201,52 @@ What you can trade on Coinbase Advanced
    * - Margin
      - No
    * - Perpetual swaps
-     - No
+     - Yes
    * - Dated futures
-     - No
+     - Yes
    * - Options
      - No
 
-CCXT lists these order features for Coinbase Advanced: market orders, limit orders, stop orders, editing open orders, canceling orders.
+CCXT lists these order features for Coinbase Advanced: stop orders, editing open orders, canceling orders.
+
+For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDT:USDT``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
+
+Perpetual futures example on Coinbase Advanced
+----------------------------------------------
+
+Coinbase Advanced also lists perpetual swaps. This bot opens one small long position in ``BTC/USD:USD`` worth about 50 USD and then holds it. LumiBot treats a perpetual as ``asset_type="crypto_future"`` and sizes it in contracts, the same model as LumiBot's Bitunix futures broker. Contract symbols can differ by exchange, so check the symbol in ``self.broker.api.markets`` before going live. In hedge mode, add ``position_side="long"`` to ``create_order``. Coinbase Advanced accepts only limit orders through CCXT, so the example places a limit order just above the last price.
+
+.. code-block:: python
+
+   from lumibot.entities import Asset
+   from lumibot.strategies import Strategy
+
+
+   class CoinbaseOpenOneLong(Strategy):
+       """Open one small long BTC perpetual position, then hold it."""
+
+       def initialize(self):
+           self.sleeptime = "1H"
+           self.set_market("24/7")  # crypto trades all day, every day
+
+       def on_trading_iteration(self):
+           # The full CCXT symbol keeps the settlement currency clear.
+           contract = self.broker.get_asset("BTC/USD:USD")
+           if self.get_position(contract) is not None:
+               return  # already holding the position
+           price = self.get_last_price(contract)
+           if price:
+               # Each contract covers contract.multiplier BTC; size the order to about 50 USD.
+               quantity = round(50 / (price * contract.multiplier), 6)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(contract, quantity, "buy", limit_price=price * 1.002)
+               self.submit_order(order)
+
+
+   if __name__ == "__main__":
+       # LumiBot reads TRADING_BROKER and the keys from your .env file.
+       strategy = CoinbaseOpenOneLong(quote_asset=Asset("USD", asset_type=Asset.AssetType.CRYPTO))
+       strategy.run_live()
 
 Fees and partner IDs on Coinbase Advanced
 -----------------------------------------
@@ -220,6 +260,7 @@ Coinbase Advanced tips
 * Each CDP key is tied to one portfolio. If you want a bot to trade a separate portfolio, make a key for that portfolio. This also keeps bot trades apart from your manual trades.
 * New CDP keys do not use a passphrase. ``COINBASE_API_PASSPHRASE`` is only for old legacy keys, so leave it unset.
 * This page is for Coinbase Advanced (CCXT id ``coinbase``). Coinbase Exchange and Coinbase International Exchange are separate CCXT ids (``coinbaseexchange`` and ``coinbaseinternational``) with their own key systems that use a passphrase.
+* CCXT 4.5.91 also lists futures and perpetual-style US contracts through Coinbase Advanced. These require an eligible derivatives account; the ``BTC/USD:USD`` example is separate from spot. International perpetuals use the separate ``coinbaseinternational`` adapter.
 
 Frequently asked questions
 --------------------------
@@ -242,7 +283,7 @@ Yes. The agentic example above gives one agent permission to trade. You control 
 
 **Can I trade Coinbase Advanced perpetual futures with LumiBot?**
 
-CCXT does not list perpetual swaps for Coinbase Advanced, so use spot markets.
+CCXT lists perpetual swaps for this exchange. Use the full contract symbol, such as ``BTC/USDT:USDT``.
 
 **Is LumiBot free?**
 
@@ -260,10 +301,10 @@ Related guides
 
 * :doc:`How crypto exchange setup works <brokers.ccxt>`
 * :doc:`AI agents quickstart <agents_quickstart>`
-* :doc:`Alpaca trading bot <brokers.ccxt.alpaca>`
-* :doc:`Bequant trading bot <brokers.ccxt.bequant>`
-* :doc:`Binance US trading bot <brokers.ccxt.binanceus>`
-* :doc:`Bit2C trading bot <brokers.ccxt.bit2c>`
+* :doc:`One Trading trading bot <brokers.ccxt.onetrading>`
+* :doc:`BigONE trading bot <brokers.ccxt.bigone>`
+* :doc:`Binance COIN-M trading bot <brokers.ccxt.binancecoinm>`
+* :doc:`Binance USDⓈ-M trading bot <brokers.ccxt.binanceusdm>`
 
 Sources
 -------
@@ -273,4 +314,5 @@ Sources
 * `Coinbase Developer Platform: Advanced Trade API endpoints and key permissions <https://docs.cdp.coinbase.com/coinbase-app/advanced-trade-apis/rest-api>`_ (read 2026-10-23)
 * `Coinbase Developer Platform: Welcome to Advanced Trade API <https://docs.cdp.coinbase.com/coinbase-app/advanced-trade-apis/overview>`_ (read 2026-10-23)
 * `Coinbase Help: New customer resource guide <https://help.coinbase.com/new-customer-guide>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* `CCXT 4.5.91 coinbase adapter source <https://github.com/ccxt/ccxt/blob/v4.5.91/python/ccxt/coinbase.py>`_ (read 2026-11-01)
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

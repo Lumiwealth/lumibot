@@ -30,7 +30,7 @@ Bithumb at a glance
    * - Live data streams
      - prices, order book, trades, your orders, your balance
    * - CCXT request spacing
-     - about 500 ms between requests
+     - about 8.334 ms between requests
    * - Official site
      - https://www.bithumb.com
    * - API docs
@@ -90,7 +90,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "bithumb",
        "apiKey": os.environ.get("BITHUMB_API_KEY"),
        "secret": os.environ.get("BITHUMB_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -205,7 +205,7 @@ What you can trade on Bithumb
    * - Options
      - No
 
-CCXT lists these order features for Bithumb: market orders, limit orders, editing open orders, canceling orders.
+CCXT lists these order features for Bithumb: market orders, editing open orders, canceling orders.
 
 Fees and partner IDs on Bithumb
 -------------------------------
@@ -272,4 +272,4 @@ Sources
 * `Bithumb Help: 빗썸 API란 무엇인가요? (What is the Bithumb API) <https://support.bithumb.com/hc/ko/articles/52816653511449>`_ (read 2026-10-23)
 * `Bithumb Help: 고객확인 미수행 시 어떻게 되나요? (What happens without customer verification) <https://support.bithumb.com/hc/ko/articles/51037085936921>`_ (read 2026-10-23)
 * `Bithumb API docs: 빠른 시작 가이드 (Quick start guide) <https://apidocs.bithumb.com/docs/%EB%B9%A0%EB%A5%B8-%EC%8B%9C%EC%9E%91-%EA%B0%80%EC%9D%B4%EB%93%9C>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

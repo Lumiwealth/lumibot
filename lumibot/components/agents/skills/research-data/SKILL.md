@@ -29,6 +29,11 @@ claiming it was published. A visible authorization error means it was not publis
    Query before calling observations unavailable; judge returned data and errors,
    not catalog capability flags. A mistaken live-only `asOf` can be corrected.
    Keep the historical ceiling for a historical request and prefer original-release values.
+   If an observation query returns no rows, distinguish an empty chosen window
+   from an unavailable dataset. For latest-available research, widen or omit a
+   lower date bound you chose yourself before giving up. Keep the historical
+   ceiling and user-required date range; never widen past either. Report older
+   observations with their actual dates and limitations, never as fresh evidence.
    For SEC evidence, call `search_documents` followed
    by `get_document` for SEC documents. Prefer a bounded section or search result
    over loading an entire filing.
@@ -39,7 +44,8 @@ claiming it was published. A visible authorization error means it was not publis
 3. Build the final evidence packet from one compact row or entry per source
    request. Keep these fields together: dataset id and source/attribution;
    requested calendar start/end; returned effective `asOf`, release and retrieval
-   dates when supplied; observations or error; and remaining limitations.
+   dates when supplied; observations with units when known, or error; and
+   remaining limitations.
    Copy each window from that request's arguments and each effective bound from
    its successful response. For a failed query, label its actual arguments as
    requested, not applied. Never borrow another dataset's dates or collapse
@@ -49,18 +55,18 @@ claiming it was published. A visible authorization error means it was not publis
    Missing metadata stays unknown.
    Only report a provider retrieval/capture timestamp when that successful
    response returns it. If it is absent, say retrieval time was not returned.
-   The runtime clock can be labeled separately as the runtime clock; it is
-   neither a returned provider retrieval time nor an applied `asOf` ceiling.
+   State the runtime clock only as context, separately from retrieval. It does
+   not timestamp or bound a provider read. With `asOf: null`, describe an
+   unbounded live read, never retrieval against or bounded by the runtime clock.
    Continue using the permitted evidence with that limitation.
    A provider name alone is not a dataset id; retain the id for stale or failed
    evidence too. Calendar filtering is not proof of historical availability.
    If a permitted live retry succeeds after a bounded failure, use the successful
    response's provenance and describe the correction separately.
-   If the successful response returns `asOf: null`, describe it as unbounded live
-   retrieval; do not describe it as cutoff-bounded or inherit the failed cutoff.
 4. During a backtest, treat the simulated datetime as a hard wall. Pass an aware
    UTC `asOf` no later than that wall. The runtime also clamps managed research.
-   Observation periods, release dates and retrieval times are different facts.
+   Observation dates do not prove publication. Report release dates only when
+   returned; otherwise label any availability estimate explicitly as an estimate.
    Prefer original-version values and article bodies; calendar bounds or current
    revised tables do not prove a value's original version. When a source you can
    actually read has no release or version date, you may still use it for a

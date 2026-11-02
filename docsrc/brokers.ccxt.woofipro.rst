@@ -34,7 +34,7 @@ WOOFI PRO at a glance
    * - Official site
      - https://dex.woo.org
    * - API docs
-     - https://orderly.network/docs/build-on-omnichain/building-on-evm
+     - https://orderly.network/docs/build-on-omnichain/building-on-omnichain
    * - Fees
      - https://dex.woo.org/en/orderly
 
@@ -213,7 +213,7 @@ What you can trade on WOOFI PRO
    * - Options
      - No
 
-CCXT lists these order features for WOOFI PRO: limit orders, stop-loss orders, take-profit orders, reduce-only orders, editing open orders, canceling orders.
+CCXT lists these order features for WOOFI PRO: stop-loss orders, take-profit orders, reduce-only orders, editing open orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDC:USDC``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
 
@@ -268,10 +268,10 @@ Related guides
 
 * :doc:`How crypto exchange setup works <brokers.ccxt>`
 * :doc:`AI agents quickstart <agents_quickstart>`
-* :doc:`AftermathFinance trading bot <brokers.ccxt.aftermath>`
 * :doc:`Apex trading bot <brokers.ccxt.apex>`
 * :doc:`BloFin trading bot <brokers.ccxt.blofin>`
 * :doc:`dYdX trading bot <brokers.ccxt.dydx>`
+* :doc:`Extended trading bot <brokers.ccxt.extended>`
 
 Sources
 -------
@@ -279,4 +279,4 @@ Sources
 * `WOOFi Docs: API trading on WOOFi Pro <https://learn.woo.org/user-guides/api-trading-on-woofi-pro>`_ (read 2026-10-23)
 * `WOOFi Docs: Perpetual futures <https://learn.woo.org/woofi/get-started/perpetual-futures>`_ (read 2026-10-23)
 * `Orderly Docs: Wallet Authentication (Orderly key scopes, expiry, withdrawals) <https://orderly.network/docs/build-on-omnichain/user-flows/wallet-authentication>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

@@ -4,7 +4,7 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Union
 
-from polygon.exceptions import BadResponse
+from massive.exceptions import BadResponse
 from termcolor import colored
 
 from lumibot.tools.lumibot_logger import get_logger

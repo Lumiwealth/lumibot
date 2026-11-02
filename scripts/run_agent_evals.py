@@ -48,7 +48,7 @@ ORDER_TOOLS = {"orders_submit_order", "orders_submit_orders", "orders_submit_mul
 LEDGER_LOCK = threading.Lock()
 EVAL_SDK_PACKAGES = (
     "google-adk", "google-genai", "litellm", "pandas-ta-classic", "pandas", "numpy", "alpaca-py",
-    "httpx", "openai", "PyJWT", "filelock", "pydantic", "polygon-api-client",
+    "httpx", "openai", "PyJWT", "filelock", "pydantic", "massive",
 )
 
 
@@ -755,12 +755,113 @@ def _native_journal_failures(contract: dict[str, Any], transcript: dict[str, Any
     return failures
 
 
+def _target_progress_failures(contract: dict[str, Any], transcript: dict[str, Any]) -> list[str]:
+    """Allow verified stock top-ups without permitting round trips or excess exposure."""
+    from fractions import Fraction
+
+    def number(value):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError("non-finite execution quantity or price")
+        return Fraction(str(value))
+
+    def state(order):
+        return {"filled": "fill", "cancelled": "canceled", "rejected": "error"}.get(
+            order.get("status"), order.get("status")
+        )
+
+    failures = []
+    try:
+        context = transcript["initial_runtime_context"]
+        if context.get("account_snapshot", {}).get("positions_complete") is not True:
+            raise ValueError("initial position inventory is incomplete")
+        initial = {}
+        for position in context["positions"]:
+            asset = position["asset"]
+            if asset.get("type") == "forex":
+                continue  # The account cash balance is not a stock target.
+            symbol = asset["symbol"]
+            if asset.get("type") != "stock" or symbol in initial:
+                raise ValueError("initial stock identity is ambiguous")
+            initial[symbol] = number(position["quantity"])
+        targets = {symbol: number(quantity) for symbol, quantity in contract["targetPositions"].items()}
+        if any(quantity < 0 for quantity in [*initial.values(), *targets.values()]):
+            raise ValueError("target progress requires long-stock inventories")
+        delta = {symbol: targets.get(symbol, 0) - initial.get(symbol, 0) for symbol in initial.keys() | targets.keys()}
+        orders = {}
+        for order in transcript["broker_orders"]:
+            identifier, symbol = order["identifier"], order["asset"]["symbol"]
+            if not isinstance(identifier, str) or not identifier or identifier in orders:
+                raise ValueError("broker order identity is missing or duplicated")
+            if (
+                order["asset"].get("type") != "stock" or not delta.get(symbol)
+                or order.get("side") != ("buy" if delta[symbol] > 0 else "sell")
+                or number(order["quantity"]) <= 0
+            ):
+                failures.append("target progress: order does not move a requested stock toward its target")
+            if state(order) not in {"fill", "canceled", "error"}:
+                failures.append("target progress: broker order is not terminal")
+            orders[identifier] = order
+
+        quantities, notionals, executed = {}, {}, {}
+        for event in transcript["broker_trade_events"]:
+            if event.get("status") not in {"fill", "filled", "partial_fill", "partially_filled"}:
+                continue
+            order = orders[event["identifier"]]
+            symbol = order["asset"]["symbol"]
+            quantity, price = number(event["filled_quantity"]), number(event["price"])
+            if event.get("symbol") != symbol or event.get("side") != order["side"] or quantity <= 0 or price <= 0:
+                raise ValueError("fill identity, quantity or price is inconsistent")
+            quantities[symbol] = quantities.get(symbol, 0) + quantity
+            notionals[symbol] = notionals.get(symbol, 0) + quantity * price
+            executed[order["identifier"]] = executed.get(order["identifier"], 0) + quantity
+            if quantities[symbol] > abs(delta.get(symbol, 0)):
+                failures.append("target progress: cumulative fills exceed the requested position change")
+        if "maximumOrderNotional" in contract:
+            cap = number(contract["maximumOrderNotional"])
+            if any(value > cap for value in notionals.values()):
+                failures.append("target progress: cumulative stock execution exceeds its allocation cap")
+        if any(quantities.get(symbol, 0) != abs(change) for symbol, change in delta.items()):
+            failures.append("target progress: actual fills do not complete the requested position changes")
+
+        observations = []
+        for event in transcript.get("tool_results", []):
+            if event.get("name") not in {"orders_get_status", "orders_wait_for_terminal"}:
+                continue
+            payload = event.get("payload") or {}
+            observations.extend(payload.get("orders", []))
+        for identifier, order in orders.items():
+            filled = executed.get(identifier, 0)
+            if filled > number(order["quantity"]) or (
+                state(order) == "fill" and filled != number(order["quantity"])
+            ):
+                failures.append("target progress: broker order and fill ledger disagree")
+            matching = [observed for observed in observations if (
+                observed.get("identifier") == identifier and state(observed) == state(order)
+                and observed.get("asset") == order["asset"] and observed.get("side") == order["side"]
+                and observed.get("quantity") == order["quantity"]
+                and (not filled or observed.get("avg_fill_price") == order.get("avg_fill_price"))
+                and (
+                    not filled or (state(order) == "fill" and "filled_quantity" not in observed)
+                    or ("filled_quantity" in observed and "remaining_quantity" in observed
+                        and number(observed["filled_quantity"]) == filled
+                        and number(observed["remaining_quantity"]) == number(order["quantity"]) - filled)
+                )
+            )]
+            if not matching:
+                failures.append("target progress: terminal execution was not observed for the exact broker order")
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        failures.append(f"target progress: incomplete or inconsistent execution evidence ({type(exc).__name__})")
+    return failures
+
+
 def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> dict[str, Any]:
     contract = case.get("machineContract") or {}
     calls = transcript["fixture_calls"]
     sequence = [call["name"] for call in calls]
     submissions = transcript["submissions"]
     failures: list[str] = []
+    if contract.get("requireTargetProgress"):
+        failures.extend(_target_progress_failures(contract, transcript))
     if "exactBrokerOrderCount" in contract:
         orders = transcript.get("broker_orders")
         if not isinstance(orders, list) or len(orders) != contract["exactBrokerOrderCount"]:
@@ -1270,29 +1371,39 @@ def run_judge(
 def actor_infrastructure_failure(actor_results: list[Any]) -> dict[str, Any] | None:
     """Distinguish typed retryable inference failures from completed decisions.
 
-    The runtime deliberately returns a safe no-op on a provider failure. That
-    no-op is not an actor decision to judge. Preserve it as an error in the
-    append-only eval ledger; only the failed repetition is eligible for retry.
+    An incomplete inference result is not an actor decision to judge. Preserve
+    verified pre-mutation failures as errors in the append-only eval ledger.
     Never infer infrastructure failure from the final answer or error text.
+    Require explicit no-mutation evidence; the caller also checks broker receipts.
     """
+    failure = None
     for index, result in enumerate(actor_results):
         payload = result.payload or {}
         outcome = payload.get("execution_outcome") or {}
+        if payload.get("runtime_error") is not True:
+            continue
         if (
-            payload.get("runtime_error") is True
-            and payload.get("error_class") in {"SubscriptionModelResponseError", "ManagedAiGatewayError", "Timeout"}
+            payload.get("broker_mutation_attempted") is False
+            and payload.get("error_class") in {
+                "SubscriptionModelResponseError", "ManagedAiGatewayError", "Timeout", "InternalServerError"
+            }
             and outcome.get("status") in {"runtime_error", "provider_error"}
             and outcome.get("decision_completed") is False
             and outcome.get("error_category") in {"transient", "unknown"}
             and outcome.get("retryability") == "retryable"
+            and outcome.get("broker_state_certainty") != "unknown"
+            and outcome.get("impact") != "operator_attention_required"
         ):
-            return {
-                "error": payload["error_class"],
-                "error_category": outcome["error_category"],
-                "retryability": "retryable",
-                "actor_index": index,
-            }
-    return None
+            if failure is None:
+                failure = {
+                    "error": payload["error_class"],
+                    "error_category": outcome["error_category"],
+                    "retryability": "retryable",
+                    "actor_index": index,
+                }
+        else:
+            return None
+    return failure
 
 
 def execute_repetition(
@@ -1431,7 +1542,10 @@ def execute_repetition(
         }
     finally:
         production.close()
-    actor_failure = actor_infrastructure_failure(actor_results)
+    machine = score_machine_contract(case, transcript)
+    actor_failure = None
+    if not (transcript["broker_orders"] or transcript["submissions"] or transcript["rejected_submissions"]):
+        actor_failure = actor_infrastructure_failure(actor_results)
     if actor_failure is not None:
         acting_model = str(case.get("model") or DEFAULT_ACTING_MODEL)
         acting_cost = estimate_cost(acting_model, combined_usage(*actor_results))
@@ -1441,6 +1555,7 @@ def execute_repetition(
             "status": "error", **actor_failure,
             "acting_model": acting_model, "judge_model": judge_model,
             "judge_not_run": "retryable_actor_infrastructure_failure",
+            "machine": machine,
             "transcript": transcript,
             "usage": {"acting": acting_cost, "estimated_cost_usd": acting_cost["estimated_usd"]},
             "timing_seconds": {
@@ -1450,7 +1565,6 @@ def execute_repetition(
             },
             "external_writes": "fixture_only",
         }
-    machine = score_machine_contract(case, transcript)
     acting_model = str(case.get("model") or DEFAULT_ACTING_MODEL)
     acting_cost = estimate_cost(acting_model, combined_usage(*actor_results))
     checkpoint = {

@@ -45,9 +45,8 @@ def test_unfiltered_pagination_retains_bounds_omitted_by_filtered_hits():
         fixture.close()
 
 
-def test_actual_polygon_sdk_is_in_the_qualified_dependency_tuple():
+def test_actual_provider_sdk_is_in_the_qualified_dependency_tuple():
     from scripts import run_agent_evals as evals
 
-    # The focused release preserves the published line's provider SDK.
-    assert "polygon-api-client" in evals.EVAL_SDK_PACKAGES
-    assert evals.sdk_versions()["polygon-api-client"] == "1.16.3"
+    assert "massive" in evals.EVAL_SDK_PACKAGES
+    assert evals.sdk_versions()["massive"] == "2.9.1"

@@ -1922,15 +1922,6 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[1]["side"] == "buy"
         assert filled_orders.iloc[1]["symbol"] == "ETH-USD"
 
-    # @pytest.mark.skip()
-    @pytest.mark.skipif(
-        not POLYGON_CONFIG["API_KEY"],
-        reason="This test requires a Polygon.io API key"
-    )
-    @pytest.mark.skipif(
-        POLYGON_CONFIG['API_KEY'] == '<your key here>',
-        reason="This test requires a Polygon.io API key"
-    )
     def test_crypto_50_50_with_polygon(self):
         parameters = {
             "market": "24/7",
@@ -1954,8 +1945,9 @@ class TestDriftRebalancer:
             "fractional_shares": True
         }
 
-        # Expensive polygon subscriptions required if we go back to 2019. Just use recent dates.
-        end_date = datetime.now() - timedelta(days=1)
+        # Provider I/O is mocked. Fixed dates keep this allocation test independent
+        # of credentials, wall-clock date and ambiguous DST-transition hours.
+        end_date = datetime(2024, 2, 9, 12)
         start_date = end_date - timedelta(days=5)
 
         def _fake_polygon(api_key, asset, start_datetime, end_datetime, timespan="day", quote_asset=None, **kwargs):
@@ -1981,7 +1973,7 @@ class TestDriftRebalancer:
         ):
             results, strat_obj = DriftRebalancer.run_backtest(
                 datasource_class=PolygonDataBacktesting,
-                polygon_api_key=POLYGON_CONFIG["API_KEY"],
+                polygon_api_key="fixture-only",
                 backtesting_start=start_date,
                 backtesting_end=end_date,
                 parameters=parameters,

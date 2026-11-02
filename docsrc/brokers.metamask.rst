@@ -188,6 +188,12 @@ and cancels the unfilled remainder. The raw venue status remains available for
 audit. A status label or remaining size alone cannot establish a fill;
 incomplete or contradictory evidence stays held for reconciliation.
 
+A real testnet IOC partial execution has been recovered through the corrected
+broker with exact fills and fees, followed by an exact reduce-only close and
+flat-account verification. This proves that recovery path. Controlled maker
+partial-cancellation qualification remains inconclusive, and no production
+readiness is claimed.
+
 Managed Hyperliquid signing uses domain chain ID 1337 on both networks;
 the signed source binds testnet or mainnet. Bridge chain IDs must not replace
 the signing domain. Provider validation and Shield failures remain rejected

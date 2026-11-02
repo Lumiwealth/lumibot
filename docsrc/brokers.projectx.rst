@@ -142,7 +142,7 @@ Your broker gives you the API key and username. For TopstepX, get them from your
 Which account does LumiBot trade if I have more than one?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-LumiBot looks for the account named in ``PROJECTX_TOPSTEPX_PREFERRED_ACCOUNT_NAME``. If that name is not set, or no account matches it, LumiBot logs a warning and uses the account with the highest balance. Set the name so you always know which account trades.
+LumiBot uses the account named in ``PROJECTX_TOPSTEPX_PREFERRED_ACCOUNT_NAME``. If that configured name does not match an account, selection fails visibly and no other account is chosen. When no name is configured, LumiBot selects the account with the highest balance. Set the name explicitly when the login can access multiple accounts.
 
 Can I use other prop firms that run on ProjectX?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

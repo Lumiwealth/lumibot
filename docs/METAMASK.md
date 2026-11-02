@@ -170,6 +170,8 @@ Yes. Retain the exact state file, agent and wallet identity. Known venue orders 
 
 ### What should I do after an approval timeout or unknown outcome?
 
+Inspect `order.submission_outcome`: `broker_state_certainty` distinguishes confirmed submission, confirmed rejection and unknown outcomes; `reconciliation_required` marks unresolved or conflicting evidence. Agent submission tools preserve this state and return incomplete, non-retryable results while uncertainty remains. An acknowledgement is not a fill.
+
 Inspect the recorded operation with `broker.client.get_order(operation_id)`. Reuse its identity and reconcile the original request before creating another trade. Do not bypass Guard Mode or increase permissions to clear a failure.
 
 ### Does testnet qualification establish production swap readiness?

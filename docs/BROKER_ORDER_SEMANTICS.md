@@ -289,6 +289,7 @@ parity does not resolve advisories in the SDK's pinned transitive dependencies.
 Links (public):
 - https://gateway.docs.projectx.com/docs/api-reference/order/order-place/
 - https://gateway.docs.projectx.com/docs/category/orders/
+- https://gateway.docs.projectx.com/docs/realtime/
 
 Candidate execution and recovery contract, reviewed 2026-11-02:
 
@@ -298,6 +299,18 @@ Candidate execution and recovery contract, reviewed 2026-11-02:
   same classifier. Retain the exact tag for reconciliation; do not create a
   replacement after an uncertain handoff. Only structured HTTP 400 model
   validation permits the existing compatibility wrapper retry.
+- Locally sent entries, including bracket parents, stay in active `SUBMITTED`
+  tracking while acceptance is unknown. This status means sent, not accepted or
+  filled. The original object, local identifier, exact tag and immutable intent
+  reserve the handoff before transport. Within a running broker, repeating that
+  identity never posts a second order; conflicting terms fail visibly. A fresh tag is a distinct intent,
+  so callers must reconcile uncertainty before creating replacements.
+- Exact provider receipts bind to the original object and preserve its bracket
+  intent and execution ledger. Conflicting identity or terms cannot authorize a
+  fill. Stream evidence received before the REST reply remains authoritative;
+  later ambiguous replies cannot undo proven executions. An explicit unresolved
+  marker restored without local ownership refuses resubmission; it does not
+  reconstruct a durable ProjectX reservation after restart.
 - Synthetic bracket exposure is cumulative entry executions minus all observed
   protective executions, including older generations and late fills. A live
   partial exit's total quantity includes its own fills plus remaining exposure.
@@ -308,6 +321,9 @@ Candidate execution and recovery contract, reviewed 2026-11-02:
 - Apply a complete poll batch before protective decisions. A failed batch stays
   incomplete until every retained family identifier is reconciled. Preserve
   exact strategy ownership and coalesce concurrent execution updates.
+  Trade events also validate supplied contract and side against the bound intent
+  before recording an execution. Order and trade reducers drain protective
+  requests after releasing the observation lock.
 - Cold recovery links accepted tags and executions, but missing history or
   unknown current intent holds new submissions and resizes. Proven original
   sibling closure can still cancel its exact accepted sibling. Later entry fills
@@ -397,3 +413,17 @@ broad-list miss. IBKR REST preserves the provider side and cumulative quantity;
 a combo average is not assigned as a per-leg fill price. Native tests cover
 partial, duplicate, full, canceled, expired, replaced and rejected observations.
 ProjectX, Tradovate and CCXT retain expiration as distinct from cancellation.
+
+## Submission certainty in agent tools
+
+ProjectX and MetaMask expose `Order.submission_outcome` independently of order
+lifecycle status. `broker_state_certainty` is `confirmed_submitted`,
+`confirmed_rejected`, or `unknown`; `reconciliation_required` marks an unresolved
+handoff or conflicting evidence. Submission acknowledgement is never a fill.
+
+Single-order, order-list and submission tools retain this metadata. Unknown or
+malformed explicit certainty produces an incomplete, non-retryable submission
+result requiring reconciliation. Mixed batches retain each returned order and
+cannot report complete success when any result remains uncertain. Adapters
+without this explicit metadata retain their legacy result contract; this does
+not independently qualify their transport semantics.

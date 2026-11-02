@@ -208,6 +208,19 @@ multiple accounts. An explicitly configured missing account fails visibly.
 Futures quantities must be positive whole contracts. Price multipliers come
 from the provider's tick value divided by tick size.
 
+A request handed to transport stays actively tracked as ``SUBMITTED`` when its
+acceptance is unknown. This means sent, not accepted or filled. Inspect
+``order.submission_outcome`` and reconcile the exact original tag before any
+replacement. Within a running broker, repeating the same local identity never
+posts another request; changed terms under that identity fail visibly. A new tag is a distinct intent,
+so duplicate prevention does not authorize creating a fresh tag after a timeout.
+
+A matching venue receipt updates the original object, preserving its bracket
+instructions and execution history. Conflicting account, instrument, side or
+receipt identity stays unresolved. An explicitly unresolved order restored into
+a fresh broker refuses resubmission; this does not reconstruct its local
+reservation after restart. Inspect actual venue orders and positions.
+
 Bracket exits with absolute target/stop prices remain synthetic. During a
 running strategy, LumiBot sizes protection from cumulative entry executions
 minus observed protective executions. Partial exits retain their own filled

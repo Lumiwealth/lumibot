@@ -174,8 +174,19 @@ jobs:
           )
           PY
 
-          python -m pytest -m "${PYTEST_MARKERS}" \
-            --tb=short -q --durations=30 -x $(cat shard_files.txt)
+          python - <<'PYTEST'
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          selected = Path("shard_files.txt").read_text(encoding="utf-8").splitlines()
+          subprocess.run(
+              [sys.executable, "-m", "pytest", "-m", os.environ["PYTEST_MARKERS"],
+               "--tb=short", "-q", "--durations=30", "-x", *selected],
+              check=True,
+          )
+          PYTEST
 
   backtest-tests:
     name: Backtest Tests (shard ${{ matrix.shard }}/4)
@@ -254,8 +265,19 @@ jobs:
           )
           PY
 
-          python -m pytest -m "${PYTEST_MARKERS}" \
-            --tb=short -q --durations=30 -x $(cat shard_nodeids.txt)
+          python - <<'PYTEST'
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          selected = Path("shard_nodeids.txt").read_text(encoding="utf-8").splitlines()
+          subprocess.run(
+              [sys.executable, "-m", "pytest", "-m", os.environ["PYTEST_MARKERS"],
+               "--tb=short", "-q", "--durations=30", "-x", *selected],
+              check=True,
+          )
+          PYTEST
 
   agent-evals:
     name: Real-Model Agent Evals

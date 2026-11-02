@@ -110,6 +110,10 @@ broker, approval, liquidity and risk limits.
    returned rows before reporting the result; do not copy an upstream net value
    or reverse a raw put sign while transcribing inputs. A researcher that does
    not need an aggregate may report the actual raw observations instead.
+   In an order explanation, report the calculated net value and its units;
+   do not recopy a tuple that mixes raw Greeks with signed contributions or
+   claim that raw contract Greeks themselves cancel. If a net value is not
+   needed for the decision, omit it rather than add an unchecked calculation.
    If a configured toolset has no calculator, show the signed calculation and
    units and disclose that it was not independently tool-checked.
 6. Before constructing an opening multi-leg payload, read

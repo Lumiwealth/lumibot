@@ -651,3 +651,8 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
 
 - Avoid destructive git operations (`git checkout`, `git reset --hard`, `git stash`).
 - Keep release bookkeeping changes small and explicit (version bump + changelog + tag/release).
+
+
+### Recover publication of an immutable tag
+
+If the tagged package has passed its source checks but the publication workflow itself fails, repair the workflow on the next version branch and merge that repair through the ordinary green release PR. Never move or replace the existing tag. Dispatch `release.yml` on the repaired `dev` workflow with `recover_tag=vX.Y.Z`. An empty input still qualifies without publishing. Recovery checks out the exact existing tag for every package/test job, validates the tag against package metadata, runs all normal unit, backtest and SDK receipt gates, then publishes that tag’s wheel and creates its GitHub release. No account secrets or test cases are bypassed.

@@ -173,5 +173,31 @@
     },
     "repair": "Consolidate exact numeric reporting at the runtime instruction footer; focus final answers on requested outcome and actual exceptions, without gratuitous valuation comparisons. Make recent history thesis-dependent for explicit quote-based execution mandates. No numeric rewriting or new tool guards.",
     "original_verdicts_retained": true
+  },
+  "literal_fidelity_reporting_failures": {
+    "runtime_fingerprint": "bc65d335b50ecb14dbf91b894dcd936388395eeacf79171350f5863eba93e77c",
+    "native_runs": [
+      {
+        "case_id": "stock_complete_portfolio_9",
+        "run_id": "a07f1709-e1a2-40d3-b22d-03b55c108de1",
+        "machine_pass": true,
+        "judge_pass": false,
+        "observed_error": "All positions and cash correct; optional final comparison changed the actual 990 difference to 10."
+      },
+      {
+        "case_id": "research_macro_point_in_time",
+        "run_id": "a1bc78de-5167-4a40-be12-b343213c4044",
+        "machine_pass": true,
+        "judge_pass": false,
+        "observed_error": "Final handoff copied one source request start onto a different source despite distinct echoed arguments."
+      }
+    ],
+    "native_wire_proof": {
+      "owning_tests": 70,
+      "passed": 70,
+      "scope": "Actual resolver selects Luna High/default; signed amounts and distinct per-source dates survive actual ADK conversion. This is a native contract, not model inference."
+    },
+    "repair": "Use a positive compact observed-execution report and one evidence entry per source. Consolidate duplicated numeric warnings into faithful copying of individual tool facts; preserve requested analysis, estimates, custom output formats and all machine/judge assertions.",
+    "original_results_retained": true
   }
 }

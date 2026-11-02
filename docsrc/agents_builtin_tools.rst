@@ -201,6 +201,12 @@ pending orders and remaining cash. Already-correct holdings need no duplicate
 buy. Complete affordable supported constituents and report each specific
 unavailable or infeasible holding rather than stopping after a partial basket.
 
+The execution summary covers verified fills and holdings, returned cash and
+total equity, and remaining target changes or specific exceptions. Total equity
+includes cash and positions valued at current prices. Research handoffs keep
+each source request's dates, observations and limitations together; estimates
+remain labeled separately. A caller's requested output format takes precedence.
+
 Options And Multi-Leg Orders
 ----------------------------
 

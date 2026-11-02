@@ -41,11 +41,12 @@ claiming it was published. A visible authorization error means it was not publis
    requested calendar start/end; returned effective `asOf`, release and retrieval
    dates when supplied; observations or error; and remaining limitations.
    Copy each window from that request's arguments and each effective bound from
-   its successful response. For a failed query, label its actual arguments as
-   requested, not applied. Never borrow another dataset's dates or collapse
-   different windows into a shared period. Before returning the packet, compare
-   every row's requested dates against that exact tool call, including failed
-   calls: two requests can return the same error with different date windows.
+   its successful response. Populate each entry directly from that individual tool call's arguments and
+   response. The echoed `arguments` in an error describe that request alone:
+   copy its `timeRange.startDate` and `timeRange.endDate` into that entry's
+   requested-window fields. Keep separate entries for separate calls, including
+   calls returning the same error. Check the completed entries against their
+   corresponding results before returning or handing them to another agent.
    Missing metadata stays unknown.
    Only report a provider retrieval/capture timestamp when that successful
    response returns it. If it is absent, say retrieval time was not returned.

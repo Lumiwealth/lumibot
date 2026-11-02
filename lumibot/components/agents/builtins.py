@@ -1170,12 +1170,8 @@ def _bind_portfolio(strategy: Any, manager: Any) -> BoundTool:
         name="account_portfolio",
         description=(
             "Return current cash and portfolio_value for sizing and reconciliation. "
-            "portfolio_value is total account equity INCLUDING cash; never add cash to it again. "
-            "It reflects current position valuation, not the gross amount spent on purchases. "
-            "Execution cost, current position value, remaining cash and total equity are different quantities. "
-            "Use portfolio_value as the account-capital basis and cash as the spending constraint. "
-            "Calculate any claimed difference or gain/loss on a consistent observed price basis; "
-            "report the returned cash and equity without an extra comparison when it was not calculated."
+            "portfolio_value is total account equity: cash plus positions valued at current prices. "
+            "Use portfolio_value as the account-capital basis and cash as the spending constraint."
         ),
         function=portfolio,
         metadata={"kind": "builtin"},

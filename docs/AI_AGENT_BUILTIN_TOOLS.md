@@ -59,6 +59,14 @@ executed basket. Completion requires reconciling the full target list against
 positions, pending orders and cash, retaining already-correct holdings without
 duplicate buys and explaining specific unavailable constituents.
 
+Execution guidance uses a compact report of observed fills/holdings, returned
+cash/total equity and remaining target changes or specific exceptions. Equity
+includes cash and positions marked at current prices. Source evidence stays in
+one entry per request, with that request's arguments, returned facts and dates;
+estimates retain their stated basis. Explicit caller output formats take
+precedence. Real-model judges check factual reporting alongside native execution
+contracts; a passing order contract alone does not qualify a final explanation.
+
 Alpaca news uses an active Alpaca broker when available. Outside Alpaca broker runs, it checks `ALPACA_NEWS_API_KEY` / `ALPACA_NEWS_API_SECRET`. If neither path is available, `alpaca_news` is not exposed to agents.
 
 Historical news validates each returned publication/update timestamp against

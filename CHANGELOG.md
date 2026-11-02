@@ -15,6 +15,7 @@
 - Preserve decimal units across fractional position creation, synchronization and fills, so matched closing quantities leave no artificial residual while genuine tiny positions remain intact.
 - Preserve complete numeric fields and instrument identities across wrapped source rows, standalone type markers, filtered inventory audits and distinct income columns.
 - Reconcile reported cash from confirmed fills while keeping current marked equity distinct from gross purchase cost.
+- Keep execution summaries focused on observed fills, holdings, cash and remaining targets. Preserve each research source's own requested dates and returned facts in handoffs, with estimates labeled separately.
 - Simulated stock market orders use the available intraday execution bar at the simulated time, including daily-cadence strategies. Daily-only sources and limit/stop behavior retain their existing paths; no minute-data download is forced.
 - Preserve separate Polygon daily-history and minute-execution datasets. Memory limits count each dataset once and evict all its aliases together.
 

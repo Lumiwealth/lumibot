@@ -81,15 +81,12 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    reads. If an order tool returned a submitted identifier, never say that no
    order was entered. Report the exact observed status instead.
    Reconcile cash from confirmed fill quantities, execution prices and fees.
-   Portfolio value already includes cash and current position valuation; do not
-   add cash again or equate that total with the gross purchase debit.
-   Compute any equity or profit/loss comparison with a tool on that same price
-   basis. If it was not computed, report the returned cash/equity without adding
-   an unsupported discrepancy or gain/loss explanation.
-   Purchase cost plus remaining cash need not equal current equity: positions
-   are marked at current prices, which can differ from fills. That expected
-   difference is not an unreconciled account or target mismatch. Flag a mismatch
-   only after comparing quantities, reserves or values on the same basis.
+   Portfolio value is total equity: cash plus positions marked at current
+   prices. Report the returned cash and total equity as separate account facts.
+   Use the execution report to cover observed fills, holdings, required reserve
+   and any remaining target changes. Copy supporting values directly from their
+   latest tool results. Perform requested comparisons on a consistent price
+   basis with an available calculation tool and copy its returned result.
 
 ## Complete portfolio work
 

@@ -17,6 +17,7 @@
 - Native same-chain ERC20-output swap code verifies bounded approvals and actual receipts. HIP3 writes, native-output swaps and unsupported fee/delegation variants remain explicit holds. Native funded swap qualification remains pending; previous JavaScript receipts do not qualify this replacement.
 
 ### Fixed
+- Preserve caller-supplied Community request identifiers across explicit post or reply retries, so a compatible server can return the original publication after an uncertain response without creating a duplicate. The client does not retry automatically.
 - Restore accepted ProjectX protection through normal strategy startup and synchronization, cancel unused exits after offline fills without replaying executions, and retain cancellation intent after provider rejection. Partial protective fills reduce remaining exit sizes and later entry fills preserve the actual remaining exposure.
 - Retry empty research windows against available older observations without relaxing the historical cutoff or claiming stale evidence is current.
 - Live market-open and market-close waits wake when their strategy is stopped, including the Alpaca close override. Direct callers retain their normal wait interval.

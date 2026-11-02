@@ -19,7 +19,7 @@ from lumibot.traders import Trader
 from tests.fixtures import pandas_data_fixture
 from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
 from lumibot.entities import Order, Asset, TradingFee
-from lumibot.credentials import ALPACA_TEST_CONFIG, POLYGON_CONFIG
+from lumibot.credentials import ALPACA_TEST_CONFIG
 from lumibot.components.drift_rebalancer_logic import get_last_price_or_raise
 from lumibot.tools.helpers import quantize_to_num_decimals
 
@@ -1922,16 +1922,18 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[1]["side"] == "buy"
         assert filled_orders.iloc[1]["symbol"] == "ETH-USD"
 
-    # @pytest.mark.skip()
-    @pytest.mark.skipif(
-        not POLYGON_CONFIG["API_KEY"],
-        reason="This test requires a Polygon.io API key"
-    )
-    @pytest.mark.skipif(
-        POLYGON_CONFIG['API_KEY'] == '<your key here>',
-        reason="This test requires a Polygon.io API key"
-    )
-    def test_crypto_50_50_with_polygon(self):
+    def test_crypto_50_50_with_polygon(self, monkeypatch):
+        import socket
+
+        network_attempts = []
+
+        def deny_network(*args, **kwargs):
+            network_attempts.append(True)
+            raise AssertionError("Synthetic Polygon backtest must not access the network")
+
+        monkeypatch.setattr(socket, "getaddrinfo", deny_network)
+        monkeypatch.setattr(socket.socket, "connect", deny_network)
+        monkeypatch.setattr(socket.socket, "connect_ex", deny_network)
         parameters = {
             "market": "24/7",
             "sleeptime": "1D",
@@ -1954,16 +1956,29 @@ class TestDriftRebalancer:
             "fractional_shares": True
         }
 
-        # Expensive polygon subscriptions required if we go back to 2019. Just use recent dates.
-        end_date = datetime.now() - timedelta(days=1)
-        start_date = end_date - timedelta(days=5)
+        # The lower-level provider is synthetic: no subscription or current
+        # clock is involved. Explicit instants span New York's repeated hour;
+        # the old naive rolling endpoint failed during the November DST fold.
+        timezone = "America/New_York"
+        start_date = pd.Timestamp("2026-10-28T05:59:10Z").tz_convert(timezone).to_pydatetime()
+        end_date = pd.Timestamp("2026-11-02T06:59:10Z").tz_convert(timezone).to_pydatetime()
+        minute_indexes = []
 
         def _fake_polygon(api_key, asset, start_datetime, end_datetime, timespan="day", quote_asset=None, **kwargs):
-            tz = start_datetime.tzinfo or pytz.timezone("America/New_York")
-            freq = {"minute": "min", "hour": "H", "day": "D"}.get(timespan, "D")
-            index = pd.date_range(start_datetime, end_datetime, freq=freq, tz=tz)
-            if index.empty:
-                index = pd.DatetimeIndex([pd.Timestamp(start_datetime, tz=tz)])
+            assert api_key == "synthetic-polygon-key"
+            assert start_datetime.tzinfo is not None and end_datetime.tzinfo is not None
+            freq = {"minute": "min", "hour": "h", "day": "D"}[timespan]
+            # Crypto trades continuously. Build its elapsed-time grid in UTC
+            # before converting to market time, retaining both repeated hours.
+            index = pd.date_range(
+                pd.Timestamp(start_datetime).tz_convert("UTC"),
+                pd.Timestamp(end_datetime).tz_convert("UTC"),
+                freq=freq,
+            ).tz_convert(timezone)
+            assert not index.empty
+            assert index.is_unique and index.is_monotonic_increasing
+            if timespan == "minute":
+                minute_indexes.append(index)
             base = pd.Series(range(len(index)), index=index).astype(float)
             data = {
                 "open": 200 + base,
@@ -1981,14 +1996,23 @@ class TestDriftRebalancer:
         ):
             results, strat_obj = DriftRebalancer.run_backtest(
                 datasource_class=PolygonDataBacktesting,
-                polygon_api_key=POLYGON_CONFIG["API_KEY"],
+                polygon_api_key="synthetic-polygon-key",
                 backtesting_start=start_date,
                 backtesting_end=end_date,
                 parameters=parameters,
                 benchmark_asset=None,
                 analyze_backtest=False,
                 show_progress_bar=False,
+                risk_free_rate=0.0,
             )
+
+        assert network_attempts == []
+        assert minute_indexes
+        for index in minute_indexes:
+            repeated_hour = index[(index.date == datetime(2026, 11, 1).date()) & (index.hour == 1)]
+            assert len(repeated_hour) == 120
+            assert repeated_hour.tz_localize(None).duplicated().sum() == 60
+            assert {stamp.utcoffset() for stamp in repeated_hour} == {timedelta(hours=-4), timedelta(hours=-5)}
 
         trades_df = strat_obj.broker._trade_event_log_df
 

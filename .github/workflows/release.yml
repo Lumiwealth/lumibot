@@ -110,7 +110,6 @@ jobs:
   unit-tests:
     name: Unit Tests (shard ${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -132,6 +131,7 @@ jobs:
           set -euo pipefail
           python -m pip install --upgrade pip
           pip install -r requirements_dev.txt -c requirements_agent_evals.txt
+          pip install pytest-xdist==3.8.0
 
       - name: Run unit tests
         env:
@@ -198,7 +198,7 @@ jobs:
           )
           PY
 
-          python -m pytest -m "${PYTEST_MARKERS}" \
+          python -m pytest -n2 --dist loadfile -m "${PYTEST_MARKERS}" \
             --tb=short -q --durations=30 -x $(cat shard_files.txt)
 
   backtest-tests:

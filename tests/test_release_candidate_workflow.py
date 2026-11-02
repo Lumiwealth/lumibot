@@ -240,3 +240,15 @@ def test_installed_package_proof_uses_a_clean_environment():
     assert '"${package_python}" -m pip install dist/*.whl -c requirements_agent_evals.txt' in script
     assert '"${package_python}" -m pip check' in script
     assert '--force-reinstall' not in script
+
+
+def test_unit_jobs_preserve_the_inventory_with_process_isolation_and_no_job_deadline():
+    root = Path(__file__).resolve().parents[1]
+    for name in ('release.yml', 'cicd.yaml'):
+        workflow = yaml.load((root / '.github/workflows' / name).read_text(), Loader=UniqueWorkflowLoader)
+        unit = workflow['jobs']['unit-tests']
+        assert 'timeout-minutes' not in unit
+        commands = '\n'.join(step.get('run', '') for step in unit['steps'])
+        assert 'pip install pytest-xdist==3.8.0' in commands
+        assert 'python -m pytest -n2 --dist loadfile -m "${PYTEST_MARKERS}"' in commands
+        assert "PYTEST_MARKERS='not apitest and not downloader'" in commands

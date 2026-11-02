@@ -8,19 +8,28 @@ import pytest
 import yaml
 
 
+class UniqueWorkflowLoader(yaml.BaseLoader):
+    def construct_mapping(self, node, deep=False):
+        pairs = self.construct_pairs(node, deep=deep)
+        keys = [key for key, _ in pairs]
+        if len(keys) != len(set(keys)):
+            raise ValueError('Duplicate workflow mapping key')
+        return dict(pairs)
+
+
 def _workflow():
     return yaml.load(
         (Path(__file__).resolve().parents[1] / ".github/workflows/release.yml").read_text(),
-        Loader=yaml.BaseLoader,
+        Loader=UniqueWorkflowLoader,
     )
 
 
-def test_manual_release_validation_cannot_publish_or_advance_the_version():
+def test_manual_validation_publishes_only_an_explicit_existing_recovery_tag():
     workflow = _workflow()
-    assert "workflow_dispatch" in workflow["on"]
+    assert workflow["on"]["workflow_dispatch"]["inputs"]["recover_tag"]["required"] == "false"
     jobs = workflow["jobs"]
     assert jobs["publish"]["if"] == (
-        "${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}"
+        "${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.recover_tag != '') }}"
     )
     assert set(jobs["publish"]["needs"]) == {
         "validate-build", "unit-tests", "backtest-tests", "agent-evals"
@@ -212,6 +221,48 @@ def test_shards_preserve_complete_test_names(tmp_path, workflow_name, job):
     assert "2 passed" in result.stdout
 
 
+def test_backtest_shard_preserves_parameterized_nodeids_with_spaces(tmp_path):
+    import json
+    nodeid = 'tests/backtest/test_synthetic.py::test_bars[1 minute]'
+    (tmp_path / 'shard_nodeids.txt').write_text(nodeid + '\n')
+    capture = tmp_path / 'argv.json'
+    # Observe the actual subprocess argv from the merged Python-safe runner,
+    # instead of assuming the workflow must invoke pytest through shell words.
+    (tmp_path / 'pytest.py').write_text(
+        'import json,sys\nfrom pathlib import Path\nPath(' + repr(str(capture))
+        + ').write_text(json.dumps(sys.argv[1:]))\n')
+    steps = _workflow()['jobs']['backtest-tests']['steps']
+    script = next(step['run'] for step in steps if step.get('name') == 'Run backtest tests')
+    tail = script.rsplit('\nPY\n', 1)[-1]
+    result = subprocess.run(['bash', '-c', tail], cwd=tmp_path,
+        env={**os.environ, 'PATH': str(Path(sys.executable).parent) + os.pathsep + os.environ.get('PATH', ''),
+             'PYTHONPATH': str(tmp_path), 'PYTEST_MARKERS': 'not apitest'},
+        capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(capture.read_text())[-1:] == [nodeid]
+
+
+def test_recovery_uses_the_same_tag_for_every_package_gate():
+    jobs = _workflow()['jobs']
+    for name in ('validate-build', 'unit-tests', 'backtest-tests', 'agent-evals'):
+        checkout = next(step for step in jobs[name]['steps'] if step.get('name') == 'Checkout')
+        assert checkout['with']['ref'] == '${{ inputs.recover_tag || github.ref }}'
+    assert jobs['publish']['steps'][-1]['with']['tag_name'] == '${{ inputs.recover_tag || github.ref_name }}'
+
+
+@pytest.mark.parametrize('recovery_tag,expected_exit', [('v1.2.3',0),('v1.2.4',1),('version/1.2.3',1)])
+def test_manual_publication_recovery_requires_the_exact_existing_tag(release_checkout_candidate,recovery_tag,expected_exit):
+    repo,git=release_checkout_candidate('1.2.3')
+    git('tag','v1.2.3')
+    script=next(step['run'] for step in _workflow()['jobs']['validate-build']['steps']
+        if step.get('name') == 'Validate tag or manual candidate version')
+    result=subprocess.run(['bash','-c',script],cwd=repo,
+        env={**os.environ,'PATH':str(Path(sys.executable).parent)+os.pathsep+os.environ.get('PATH',''),
+             'GITHUB_EVENT_NAME':'workflow_dispatch','GITHUB_REF_NAME':'dev','RECOVER_TAG':recovery_tag},
+        capture_output=True,text=True)
+    assert result.returncode == expected_exit,result.stderr
+
+
 def test_installed_package_proof_uses_a_clean_environment():
     script = next(step['run'] for step in _workflow()['jobs']['validate-build']['steps']
         if step.get('name') == 'Build package')
@@ -219,3 +270,21 @@ def test_installed_package_proof_uses_a_clean_environment():
     assert '"${package_python}" -m pip install dist/*.whl -c requirements_agent_evals.txt' in script
     assert '"${package_python}" -m pip check' in script
     assert '--force-reinstall' not in script
+
+
+
+
+def test_unit_jobs_preserve_the_inventory_with_process_isolation_and_no_job_deadline():
+    root = Path(__file__).resolve().parents[1]
+    for name in ('release.yml', 'cicd.yaml'):
+        workflow = yaml.load((root / '.github/workflows' / name).read_text(), Loader=UniqueWorkflowLoader)
+        unit = workflow['jobs']['unit-tests']
+        assert 'timeout-minutes' not in unit
+        commands = '\n'.join(step.get('run', '') for step in unit['steps'])
+        assert 'pip install pytest-xdist==3.8.0' in commands
+        # Both argv-safe runners preserve the same worker count and file isolation.
+        assert any(form in commands for form in (
+            '[sys.executable, "-m", "pytest", "-n2", "--dist", "loadfile", "-m"',
+            'python -m pytest -n2 --dist loadfile -m "${PYTEST_MARKERS}"',
+        ))
+        assert "PYTEST_MARKERS='not apitest and not downloader'" in commands

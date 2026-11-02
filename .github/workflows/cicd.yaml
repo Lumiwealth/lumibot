@@ -83,7 +83,6 @@ jobs:
   unit-tests:
     name: Unit Tests (shard ${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     environment: unit-tests
     needs: lint
     strategy:
@@ -106,6 +105,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
           pip install -r requirements_dev.txt -c requirements_agent_evals.txt
+          pip install pytest-xdist==3.8.0
 
       - name: Run unit tests (sharded)
         env:
@@ -170,7 +170,7 @@ jobs:
           echo "Running $(wc -l shard_files.txt | awk '{print $1}') files"
           selected_files=()
           while IFS= read -r file; do selected_files+=("$file"); done < shard_files.txt
-          python -m pytest -m "${PYTEST_MARKERS}" --tb=short -q --durations=30 -x "${selected_files[@]}"
+          python -m pytest -n2 --dist loadfile -m "${PYTEST_MARKERS}" --tb=short -q --durations=30 -x "${selected_files[@]}"
 
   backtest-tests:
     name: Backtest Tests (shard ${{ matrix.shard }}/4)

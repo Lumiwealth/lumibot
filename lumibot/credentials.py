@@ -895,7 +895,8 @@ def _build_default_live_credentials():
             elif data_name == "metamask":
                 from .data_sources import MetaMaskData
 
-                data_source = MetaMaskData(_metamask_config())
+                selected_client = broker.client if broker and broker.name.lower() == "metamask" else None
+                data_source = MetaMaskData(_metamask_config(), client=selected_client)
             elif data_name == "kalshi":
                 from .data_sources import KalshiData
 
@@ -1221,7 +1222,8 @@ elif not is_backtesting or is_backtesting.lower() == "false":
             elif data_source_name.lower() == "metamask":
                 from .data_sources import MetaMaskData
 
-                data_source = MetaMaskData(_metamask_config())
+                selected_client = broker.client if broker and broker.name.lower() == "metamask" else None
+                data_source = MetaMaskData(_metamask_config(), client=selected_client)
             elif data_source_name.lower() == "kalshi":
                 from .data_sources import KalshiData
 

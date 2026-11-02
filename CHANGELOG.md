@@ -6,6 +6,7 @@
 - Add a runnable MetaMask perpetual round-trip example using normal Strategy APIs and continuous Trader scheduling, exact executed-quantity reduce-only closes, durable order identities and same-name restart recovery.
 
 ### Fixed
+- Share the MetaMask native client between explicitly selected broker and data source in both eager and lazy startup, preserving one session and journal owner. Data-only selection remains independent.
 - Accept live MetaMask reconciliation and qualification snapshots without optional client order IDs while retaining exact order-status identity, live remaining-size and fill validation, including explicit cancellation and restart.
 - Validate MetaMask perpetual account support before reservation and again before releasing approved actions; retain cancellation access after account-mode changes. Require RPC-finalized canonical swap receipts and revalidate older completed swaps read-only without losing fills, fees or reservations or replaying transactions.
 - Restore missing cancellation provenance on older native records only when intact persisted checkpoints prove no order release, preserving execution history and reconciliation or fee holds.

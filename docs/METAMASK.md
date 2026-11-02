@@ -20,6 +20,22 @@ pip install 'lumibot[metamask] @ git+https://github.com/Lumiwealth/lumibot.git@d
 
 Default-DEX Hyperliquid perpetuals use normal `Order`, `Position`, strategy methods and fill callbacks. Native same-chain swap code remains experimental and requires separate funded qualification. Existing JavaScript trading receipts do not qualify this replacement.
 
+## Integration coverage
+
+The integration spans installation, owner authentication, broker/data selection, execution and recovery. The native client, owner setup, dependencies and public exports already exist on `dev`; the current candidate completes execution recovery, ordinary strategy usage and shared-client environment selection. Review the complete implementation together:
+
+| Capability | Implementation | Regression coverage |
+| --- | --- | --- |
+| Python optional dependencies and public registration | `setup.py`, `lumibot/credentials.py`, broker/data-source exports | `test_metamask_registration.py`; CI installs `.[metamask]` on Python 3.10 and 3.12 |
+| Browser login, headless session, OAuth refresh and migration | `lumibot/tools/metamask/{auth,owner,provider}.py` | `test_metamask_native_{auth,owner,provider}.py` |
+| Owner-reviewed authority, durable reservations and recovery | `lumibot/tools/metamask/{journal,engine}.py` | `test_metamask_native_{journal,engine}.py` |
+| Perpetual orders, positions, cash, polling and cancellation | `lumibot/brokers/metamask.py`, `lumibot/tools/metamask/venue.py` | `test_metamask_{broker,native_client,native_venue}.py` |
+| Public perpetual prices/candles and registered token prices | `lumibot/data_sources/metamask_data.py` | `test_metamask_broker.py`, `test_metamask_native_evm.py` |
+| Experimental same-chain exact-input swaps and fee accounting | `lumibot/tools/metamask/{evm,fees}.py` | `test_metamask_native_{evm,fees}.py`; funded qualification pending |
+| Normal Strategy/Trader round trip, callbacks and restart | `lumibot/example_strategies/metamask_perpetual.py` | `test_metamask_example_strategy.py`; funded testnet evidence below |
+
+These paths are repository-relative; test names are under `tests/`. Brace groups abbreviate multiple filenames. The MetaMask CI workflow runs the entire `tests/test_metamask*.py` family, including implementation already on `dev`. Scope is MetaMask Agent Wallet with default-DEX Hyperliquid perpetuals and the experimental swap path described below; it does not cover every MetaMask product or venue.
+
 ## Authentication and explicit authority
 
 Use the official [Agent Wallet sign-in page](https://developer.metamask.io/agentic/login), keeping the same Google/email method as the funded wallet. Changing sign-in methods can select a different wallet. Copy its browser-issued token into the secure Python prompt, never a strategy source file or chat:
@@ -109,6 +125,8 @@ Standard account cash uses actual withdrawable funds and margin. Unified account
 `MetaMaskData` reads marks and closed minute/hour/day candles from the selected Hyperliquid network. Public perpetual data needs only `NETWORK`; it does not need a wallet credential. Candle history is limited to the venue's latest 5,000 bars. Spot candles and historical account equity are not provided.
 
 Environment selection uses `TRADING_BROKER=metamask`, optional `DATA_SOURCE=metamask`, `METAMASK_SESSION_FILE`, `METAMASK_STATE_FILE`, `METAMASK_AGENT_ID`, `METAMASK_PROJECT_ID`, `METAMASK_ACCESS_TOKEN`, `METAMASK_REFRESH_TOKEN`, `METAMASK_WALLET_ADDRESS`, `METAMASK_NETWORK`, and `METAMASK_MODE`. Keep secrets in your own secret manager.
+
+When both broker and data source select MetaMask, they share the same native client, session and journal owner in eager and lazy startup. With only `DATA_SOURCE=metamask`, public perpetual reads use an independent client and require only `METAMASK_NETWORK`. Broker shutdown releases the shared client; data-only callers close `data_source.client` when finished.
 
 ## Testnet and mainnet
 

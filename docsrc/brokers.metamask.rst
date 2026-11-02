@@ -256,6 +256,13 @@ Environment configuration uses ``TRADING_BROKER=metamask``, optional
 ``METAMASK_REFRESH_TOKEN``, ``METAMASK_WALLET_ADDRESS``, ``METAMASK_NETWORK`` and
 ``METAMASK_MODE``.
 
+Selecting both ``TRADING_BROKER=metamask`` and ``DATA_SOURCE=metamask`` shares one
+native client, session and durable journal owner in eager and lazy startup.
+Selecting only ``DATA_SOURCE=metamask`` creates an independent data client;
+public perpetual prices and candles require only ``METAMASK_NETWORK``. Close
+``data_source.client`` after data-only use. For trading, stop and join Trader,
+then close the broker to release its shared client.
+
 Execution and dependency review
 -------------------------------
 

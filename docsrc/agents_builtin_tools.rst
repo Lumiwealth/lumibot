@@ -86,15 +86,15 @@ Agent order tools are intentionally broker-like: LumiBot either submits the
 exact order requested or rejects it. It does not silently resize, clip, or
 normalize a requested order into a different order.
 
-Before ``orders_submit_order`` or ``orders_submit_multileg`` can submit an
+Before ``orders_submit_order``, ``orders_submit_orders`` or ``orders_submit_multileg`` can submit an
 order, the agent must inspect the required account, open-order, and price
 context in the same agent run:
 
 - ``account_portfolio`` for cash and portfolio value
 - complete unfiltered ``account_positions`` pagination for current holdings
 - complete unfiltered ``orders_open_orders`` pagination for active orders
-- ``market_last_price`` for the ordered symbol, or ``market_last_prices``
-  including that symbol
+- ``market_quote`` for the exact asset, or a usable ``market_quotes`` row;
+  current ``market_last_price`` / ``market_last_prices`` remain supported fallbacks
 
 If those checks are missing, the order tool returns an
 ``ORDER_READINESS_REQUIRED`` error to the agent instead of submitting the order.
@@ -138,6 +138,20 @@ not need the chain.
 
 Market-price tools:
 
+- ``market_quote`` calls ``Strategy.get_quote``; ``market_quotes`` calls
+  ``Strategy.get_quotes`` and preserves native provider batching. Results include
+  exact asset identity, last, bid, ask, midpoint, sizes and supplied timestamps.
+  Missing fields remain null. Strategy time and quote construction time alone
+  do not establish source freshness.
+- Use ``symbols`` / ``symbols_json`` for a stock basket. Use ``assets_json`` for
+  exact contracts, with ``symbol``, ``asset_type``, ``expiration``, ``strike``,
+  ``right`` and optional ``quote_symbol`` / ``exchange``. Separate rows preserve
+  contracts sharing an underlying. A failed provider group does not erase
+  available results from independent groups.
+- Immediate buys use the current ask, sells use the bid, and limit orders use
+  their intended price. When quote sides are unavailable, use a usable current
+  quote price or current last price. Options use the exact contract's quote and
+  multiplier. Historical closes are research inputs, not current execution prices.
 - ``market_last_price`` accepts one tradable symbol per call.
 - ``market_last_prices`` accepts a JSON-friendly symbol list (``symbols`` or
   ``symbols_json``, cap 150) and returns last prices at the current runtime
@@ -165,6 +179,27 @@ These tools let agents understand what the strategy already knows:
 
 These tools are read-only. They remain available even when
 ``allow_trading=False``.
+
+Independent Order Baskets
+-------------------------
+
+``orders_submit_orders(orders_json=..., reason=...)`` exposes the existing
+``Strategy.submit_orders`` method. The JSON array contains explicit order objects
+with the same fields as ``orders_submit_order``. Each row may supply its own
+``reason`` and ``public_reason``; the batch reason applies when a row omits one.
+Every row is validated before submission, and explanations are journaled before
+the broker call. The tool does not calculate targets or change requested sizes.
+
+An independent basket is not atomic. Related option legs still use
+``orders_submit_multileg``. Funding sells must finish before a dependent buy
+batch. Each requested order and each native returned result remain visible;
+acknowledgement does not establish a fill. After a partial return or exception,
+reconcile all requested identifiers and actual holdings before retrying.
+
+Portfolio completion means checking every target against actual holdings,
+pending orders and remaining cash. Already-correct holdings need no duplicate
+buy. Complete affordable supported constituents and report each specific
+unavailable or infeasible holding rather than stopping after a partial basket.
 
 Options And Multi-Leg Orders
 ----------------------------
@@ -200,7 +235,8 @@ falls back to independent orders.
 
 After submission, agents can call ``orders_get_status`` or
 ``orders_wait_for_terminal`` to verify identifiers. Never treat a submitted
-status as a fill unless ``is_filled`` is true.
+status as a full fill unless ``is_filled`` is true. Report partial execution from
+observed cumulative fill quantities; cancellation does not erase prior fills.
 
 ``account_positions`` and ``orders_open_orders`` return compact, deterministic
 pages with 50 records by default and at most 100 per call. Every response
@@ -494,7 +530,7 @@ For example, use separate result IDs and January/February bounds for independent
 monthly calculations. Source adapters retain ownership of bar completion.
 
 Recoverable research and historical news
----------------------------------------
+----------------------------------------
 
 Agent history, indicator and quote reads return a visible limitation when a
 candidate lacks data; batch quotes retain available symbols. Execution and
@@ -508,3 +544,20 @@ from verification of retrieved versions: without retained-original evidence,
 research remains usable with an explicit later-edits limitation. Known future
 versions stay excluded. Real-model release cases cover source recovery and
 conservative macro vintages, with semantic judges and calibration controls.
+
+An empty observation window does not establish that a dataset is unavailable.
+For latest-available research, agents can widen or omit a lower date bound they
+chose themselves while preserving the historical ceiling and any user-required
+date range. Older observations retain their actual dates and limitations.
+
+For a requested portfolio allocation, compare calculated quantities with actual
+fills and finish affordable residuals within the original caps and cash reserve.
+Conservative initial execution does not make an affordable missing share a rounding
+constraint. Completion evaluations permit verified top-ups while rejecting excess
+exposure, round trips, unrelated trades and unobserved fills; they do not impose an
+order count absent from the user's task.
+
+``orders_get_status`` and ``orders_wait_for_terminal`` include ``filled_quantity``
+and ``remaining_quantity`` when backed by retained order transactions. These fields
+allow a later partial fill to be distinguished from an older canceled receipt at the
+same average price. Missing history leaves the fields absent, not zero.

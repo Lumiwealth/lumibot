@@ -90,7 +90,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "htx",
        "apiKey": os.environ.get("HTX_API_KEY"),
        "secret": os.environ.get("HTX_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -108,7 +108,7 @@ HTX shut down its testnet, and CCXT lists no test URL for it, so test with a ver
 Algorithmic trading example: a simple HTX bot
 ---------------------------------------------
 
-This bot buys about 50 USDT of BTC on HTX once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount.
+This bot buys about 50 USDT of BTC on HTX once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. HTX accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -130,7 +130,8 @@ This bot buys about 50 USDT of BTC on HTX once and then holds it. It is a starti
            price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
                quantity = round(50 / price, 6)  # about 50 USDT worth
-               order = self.create_order(coin, quantity, "buy", quote=self.quote_asset)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
@@ -205,14 +206,14 @@ What you can trade on HTX
    * - Options
      - Not listed by CCXT
 
-CCXT lists these order features for HTX: market orders, limit orders, stop orders, stop-loss orders, take-profit orders, editing open orders, canceling orders.
+CCXT lists these order features for HTX: stop orders, stop-loss orders, take-profit orders, editing open orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDT:USDT``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
 
 Perpetual futures example on HTX
 --------------------------------
 
-HTX also lists perpetual swaps. This bot opens one small long position in ``BTC/USDT:USDT`` worth about 50 USDT and then holds it. LumiBot treats a perpetual as ``asset_type="crypto_future"`` and sizes it in contracts, the same model as LumiBot's Bitunix futures broker. Contract symbols can differ by exchange, so check the symbol in ``self.broker.api.markets`` before going live. In hedge mode, add ``position_side="long"`` to ``create_order``.
+HTX also lists perpetual swaps. This bot opens one small long position in ``BTC/USDT:USDT`` worth about 50 USDT and then holds it. LumiBot treats a perpetual as ``asset_type="crypto_future"`` and sizes it in contracts, the same model as LumiBot's Bitunix futures broker. Contract symbols can differ by exchange, so check the symbol in ``self.broker.api.markets`` before going live. In hedge mode, add ``position_side="long"`` to ``create_order``. HTX accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -236,7 +237,8 @@ HTX also lists perpetual swaps. This bot opens one small long position in ``BTC/
            if price:
                # Each contract covers contract.multiplier BTC; size the order to about 50 USDT.
                quantity = round(50 / (price * contract.multiplier), 6)
-               order = self.create_order(contract, quantity, "buy")
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(contract, quantity, "buy", limit_price=price * 1.002)
                self.submit_order(order)
 
 
@@ -297,7 +299,7 @@ Related guides
 
 * :doc:`How crypto exchange setup works <brokers.ccxt>`
 * :doc:`AI agents quickstart <agents_quickstart>`
-* :doc:`Bitget trading bot <brokers.ccxt.bitget>`
+* :doc:`Crypto.com trading bot <brokers.ccxt.cryptocom>`
 * :doc:`KuCoin trading bot <brokers.ccxt.kucoin>`
 * :doc:`XT trading bot <brokers.ccxt.xt>`
 * :doc:`Backpack trading bot <brokers.ccxt.backpack>`
@@ -310,4 +312,4 @@ Sources
 * `HTX Support: How to Create an HTX Sub-Account <https://www.htx.com/en-us/support/24947620043266/>`_ (read 2026-10-23)
 * `HTX Support: FAQs on Linking 2FA to Your HTX Account <https://www.htx.com/en-us/support/94947627897379/>`_ (read 2026-10-23)
 * `HTX home page <https://www.htx.com/en-us/>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

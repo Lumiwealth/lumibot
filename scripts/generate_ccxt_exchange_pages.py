@@ -190,7 +190,7 @@ def config_block(p):
     if p.sandbox:
         lines.append('    "sandbox": True,  # testnet first; set False for your live account')
     else:
-        lines.append('    "sandbox": False,  # no sandbox for this exchange')
+        lines.append('    "sandbox": False,  # live connection')
     lines.append("}")
     return "\n".join(lines)
 
@@ -355,6 +355,7 @@ def swap_example_page(p):
         return None
     swap = copy.copy(p)
     swap.perp_symbol = p.nt.get("perp_example_symbol") or f"{p.base}/{p.quote}:{p.quote}"
+    swap.quote = p.nt.get("perp_quote_symbol", p.quote)
     return swap
 
 
@@ -453,7 +454,7 @@ def render(exchange_id, facts_by_id, notes, affiliates, meta, rendered_ids=None)
     rows = [
         ("CCXT exchange id", f"``{fx['id']}``"),
         ("Markets", markets_text),
-        ("Testnet (sandbox)", "Yes" if p.sandbox else "No"),
+        ("Testnet (sandbox)", nt.get("sandbox_label", "Yes" if p.sandbox else "No")),
         ("Credentials", ", ".join(CREDENTIAL_LABEL.get(c, c) for c in creds) or "None listed by CCXT"),
         ("Live data streams", ", ".join(streams) if streams else "None listed; LumiBot uses REST"),
         ("CCXT request spacing", f"about {rate:g} ms between requests" if isinstance(rate, (int, float)) else "Not listed"),
@@ -574,7 +575,7 @@ def render(exchange_id, facts_by_id, notes, affiliates, meta, rendered_ids=None)
         out.append(heading(f"Perpetual futures example on {display}", "-"))
         out.append(
             f"{display} also lists perpetual swaps. This bot opens one small long position in "
-            f"``{swap_page.perp_symbol}`` worth about {p.notional} {p.quote} and then holds it. LumiBot treats a "
+            f"``{swap_page.perp_symbol}`` worth about {swap_page.notional} {swap_page.quote} and then holds it. LumiBot treats a "
             "perpetual as ``asset_type=\"crypto_future\"`` and sizes it in contracts, the same model as LumiBot's "
             "Bitunix futures broker. Contract symbols can differ by exchange, so check the symbol in "
             "``self.broker.api.markets`` before going live. In hedge mode, add ``position_side=\"long\"`` to "
@@ -605,7 +606,7 @@ def render(exchange_id, facts_by_id, notes, affiliates, meta, rendered_ids=None)
         (f"Can I build a {display} trading bot in Python?",
          f"Yes. Install LumiBot (``pip install lumibot``), set your {display} keys and use the ``{fx['id']}`` CCXT exchange id as shown above."),
         (f"Does {display} have a testnet?",
-         (f"Yes. Set ``{p.sandbox_env}=true`` and use keys from the {display} testnet." if p.sandbox
+         (nt["testnet_note"] if nt.get("sandbox_label") else f"Yes. Set ``{p.sandbox_env}=true`` and use keys from the {display} testnet." if p.sandbox
           else f"No testnet is set up for {display} in LumiBot. Start with a small amount, and in a code config set ``\"sandbox\": False``.")),
         (f"Which {'keys' if p.wallet else 'API permissions'} does a {display} bot need?", nt["permissions"]),
         (f"Can an AI agent trade on {display} by itself?",

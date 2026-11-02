@@ -4646,7 +4646,14 @@ class Strategy(_Strategy):
         try:
             from lumibot.tools.ibkr_history_health import ibkr_history_health_snapshot
 
-            settings["data_health"] = ibkr_history_health_snapshot()
+            history_health = ibkr_history_health_snapshot()
+            sources = (datasource, getattr(self.broker, "option_source", None))
+            uses_ibkr = any(
+                getattr(source, "SOURCE", None) in ("InteractiveBrokersREST", "InteractiveBrokers")
+                for source in sources
+            )
+            if uses_ibkr or any(history_health.get(key) for key in ("series", "required_failures", "warnings")):
+                settings["data_health"] = history_health
         except Exception:
             pass
         try:

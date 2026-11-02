@@ -22,7 +22,7 @@ Bullish at a glance
    * - CCXT exchange id
      - ``bullish``
    * - Markets
-     - Spot, Perpetual swaps
+     - Spot, Perpetual swaps, Dated futures, Options
    * - Testnet (sandbox)
      - Yes
    * - Credentials
@@ -202,9 +202,9 @@ What you can trade on Bullish
    * - Perpetual swaps
      - Yes
    * - Dated futures
-     - No
+     - Yes
    * - Options
-     - No
+     - Yes
 
 CCXT lists these order features for Bullish: market orders, limit orders, editing open orders, canceling orders.
 
@@ -298,10 +298,10 @@ Related guides
 
 * :doc:`How crypto exchange setup works <brokers.ccxt>`
 * :doc:`AI agents quickstart <agents_quickstart>`
-* :doc:`BigONE trading bot <brokers.ccxt.bigone>`
-* :doc:`BingX trading bot <brokers.ccxt.bingx>`
-* :doc:`Bitrue trading bot <brokers.ccxt.bitrue>`
-* :doc:`Extended trading bot <brokers.ccxt.extended>`
+* :doc:`Deribit trading bot <brokers.ccxt.deribit>`
+* :doc:`Binance trading bot <brokers.ccxt.binance>`
+* :doc:`Bybit trading bot <brokers.ccxt.bybit>`
+* :doc:`Coinbase Advanced trading bot <brokers.ccxt.coinbase>`
 
 Sources
 -------
@@ -312,4 +312,4 @@ Sources
 * `Bullish Help Center: Steps to Complete Your KYC at Bullish <https://support.exchange.bullish.com/wiki/spaces/BHC/pages/9373197>`_ (read 2026-10-23)
 * `Bullish Help Center: Improving the safety and security of your Bullish account <https://support.exchange.bullish.com/wiki/spaces/BHC/pages/9373128>`_ (read 2026-10-23)
 * `Bullish home page <https://bullish.com/>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

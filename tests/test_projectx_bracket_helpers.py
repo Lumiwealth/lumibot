@@ -86,7 +86,10 @@ def test_bracket_child_tag_variants():
 def test_build_unique_order_tag_generates_and_preserves():
     o = SimpleNamespace(tag=None, strategy="MyStrat")
     t1 = build_unique_order_tag(o)
-    assert t1 and t1.upper().startswith("MYSTRAT-"[:8])
+    from lumibot.brokers.projectx import ProjectX
+    assert t1 and len(t1) == 54
+    assert ProjectX.strategy_tag_matches(t1, 'MyStrat')
+    assert not ProjectX.strategy_tag_matches(t1, 'OtherStrat')
     # preserve non-empty
     o.tag = "KEEP"
     t2 = build_unique_order_tag(o)
@@ -95,6 +98,17 @@ def test_build_unique_order_tag_generates_and_preserves():
     o.tag = "  "
     t3 = build_unique_order_tag(o)
     assert t3 and t3 != "  "
+
+
+@pytest.mark.parametrize('name', ['SyntheticLifecycleStrategy', 'Research-' * 30, 'Strategy Ω ' * 20])
+def test_generated_bracket_tags_fit_provider_limit_without_losing_owner(name):
+    from lumibot.brokers.projectx import ProjectX
+    order = SimpleNamespace(tag=None, strategy=name)
+    tag = build_unique_order_tag(order)
+    for prefix in ('', 'BRK_ENTRY_', 'BRK_STOP_', 'BRK_TP_'):
+        assert len((prefix + tag).encode('utf-8')) <= 64
+        assert ProjectX.strategy_tag_matches(prefix + tag, name)
+        assert not ProjectX.strategy_tag_matches(prefix + tag, name + 'Other')
 
 
 def test_select_effective_prices_precedence_and_rounding():
@@ -151,7 +165,7 @@ def test_early_store_and_restore_bracket_meta():
     ],
 )
 def test_should_spawn_bracket_children(meta, already_submitted, expected):
-    parent = SimpleNamespace(_bracket_children_submitted=already_submitted, side='buy')
+    parent = SimpleNamespace(_bracket_children_submitted=already_submitted, side='buy', status='filled', quantity=1)
     eligible, reason = should_spawn_bracket_children(meta, parent)
     assert (eligible, reason) == expected
 
@@ -170,3 +184,10 @@ def test_build_bracket_child_spec_shapes():
 
     with pytest.raises(ValueError):
         build_bracket_child_spec(parent, 'bad', 1.0, 'BASE')
+
+
+@pytest.mark.parametrize('status', ['unprocessed', 'new', 'submitted', 'canceled', 'error'])
+def test_unfilled_parent_cannot_spawn_exit_orders(status):
+    parent = SimpleNamespace(status=status, _bracket_children_submitted=False)
+    eligible, _ = should_spawn_bracket_children(create_bracket_meta(110, 90), parent)
+    assert eligible is False

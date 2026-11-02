@@ -22,7 +22,7 @@ Crypto.com at a glance
    * - CCXT exchange id
      - ``cryptocom``
    * - Markets
-     - Spot, Margin, Perpetual swaps, Dated futures, Options
+     - Spot, Margin, Perpetual swaps, Dated futures
    * - Testnet (sandbox)
      - Yes
    * - Credentials
@@ -111,7 +111,7 @@ CCXT sends sandbox requests to: https://uat-api.3ona.co/exchange/v1, https://uat
 Algorithmic trading example: a simple Crypto.com bot
 ----------------------------------------------------
 
-This bot buys about 50 USD of BTC on Crypto.com once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount.
+This bot buys about 50 USD of BTC on Crypto.com once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. Crypto.com accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -133,7 +133,8 @@ This bot buys about 50 USD of BTC on Crypto.com once and then holds it. It is a 
            price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
                quantity = round(50 / price, 6)  # about 50 USD worth
-               order = self.create_order(coin, quantity, "buy", quote=self.quote_asset)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
@@ -206,16 +207,16 @@ What you can trade on Crypto.com
    * - Dated futures
      - Yes
    * - Options
-     - Yes
+     - No
 
-CCXT lists these order features for Crypto.com: market orders, limit orders, stop orders, editing open orders, canceling orders.
+CCXT lists these order features for Crypto.com: stop orders, editing open orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDT:USDT``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
 
 Perpetual futures example on Crypto.com
 ---------------------------------------
 
-Crypto.com also lists perpetual swaps. This bot opens one small long position in ``BTC/USD:USD`` worth about 50 USD and then holds it. LumiBot treats a perpetual as ``asset_type="crypto_future"`` and sizes it in contracts, the same model as LumiBot's Bitunix futures broker. Contract symbols can differ by exchange, so check the symbol in ``self.broker.api.markets`` before going live. In hedge mode, add ``position_side="long"`` to ``create_order``.
+Crypto.com also lists perpetual swaps. This bot opens one small long position in ``BTC/USD:USD`` worth about 50 USD and then holds it. LumiBot treats a perpetual as ``asset_type="crypto_future"`` and sizes it in contracts, the same model as LumiBot's Bitunix futures broker. Contract symbols can differ by exchange, so check the symbol in ``self.broker.api.markets`` before going live. In hedge mode, add ``position_side="long"`` to ``create_order``. Crypto.com accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -239,7 +240,8 @@ Crypto.com also lists perpetual swaps. This bot opens one small long position in
            if price:
                # Each contract covers contract.multiplier BTC; size the order to about 50 USD.
                quantity = round(50 / (price * contract.multiplier), 6)
-               order = self.create_order(contract, quantity, "buy")
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(contract, quantity, "buy", limit_price=price * 1.002)
                self.submit_order(order)
 
 
@@ -299,10 +301,10 @@ Related guides
 
 * :doc:`How crypto exchange setup works <brokers.ccxt>`
 * :doc:`AI agents quickstart <agents_quickstart>`
-* :doc:`Binance trading bot <brokers.ccxt.binance>`
-* :doc:`Bybit trading bot <brokers.ccxt.bybit>`
-* :doc:`Gate trading bot <brokers.ccxt.gate>`
-* :doc:`OKX trading bot <brokers.ccxt.okx>`
+* :doc:`HTX trading bot <brokers.ccxt.htx>`
+* :doc:`KuCoin trading bot <brokers.ccxt.kucoin>`
+* :doc:`XT trading bot <brokers.ccxt.xt>`
+* :doc:`Backpack trading bot <brokers.ccxt.backpack>`
 
 Sources
 -------
@@ -311,4 +313,4 @@ Sources
 * `Crypto.com Exchange API v1: common API reference <https://exchange-developer.crypto.com/exchange/v1/docs/api/rest-common-api-reference>`_ (read 2026-10-23)
 * `Crypto.com Exchange <https://crypto.com/exchange>`_ (read 2026-10-23)
 * `Crypto.com Help Center: API Key Management (App Agent Key) <https://help.crypto.com/en/articles/13843786-api-key-management>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

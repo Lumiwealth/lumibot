@@ -375,6 +375,32 @@ def test_backtest_settings_include_sanitized_data_health(tmp_path) -> None:
     assert "credential" not in json.dumps(payload["data_health"]).lower()
 
 
+@pytest.mark.parametrize("source,has_ibkr_report", [
+    ("CCXT", False),
+    ("PANDAS", False),
+    ("InteractiveBrokersREST", True),
+    ("InteractiveBrokers", True),
+])
+def test_empty_ibkr_health_is_scoped_to_its_actual_provider(tmp_path, source, has_ibkr_report):
+    from lumibot.strategies.strategy import Strategy
+
+    strategy = SimpleNamespace(
+        broker=SimpleNamespace(data_source=SimpleNamespace(auto_adjust=False, SOURCE=source)),
+        name="provider-health-artifact", backtesting_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        backtesting_end=datetime(2026, 1, 2, tzinfo=timezone.utc), initial_budget=5000,
+        risk_free_rate=0.0, minutes_before_closing=0, minutes_before_opening=0,
+        sleeptime="1D", quote_asset=None, _benchmark_asset=None,
+        starting_positions=None, parameters={},
+    )
+    output = tmp_path / "settings.json"
+    Strategy.write_backtest_settings(strategy, output.as_posix())
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert ("data_health" in payload) is has_ibkr_report
+    if has_ibkr_report:
+        assert payload["data_health"]["provider"] == "ibkr"
+        assert payload["data_health"]["series_count"] == 0
+
+
 def test_corporate_action_issue_retains_safe_typed_recovery():
     from lumibot.tools.ibkr_history_health import record_required_data_issue
     asset = SimpleNamespace(symbol='SPY', asset_type='stock')

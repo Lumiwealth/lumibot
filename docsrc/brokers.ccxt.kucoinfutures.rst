@@ -28,7 +28,7 @@ KuCoin Futures at a glance
    * - Credentials
      - API key, API passphrase (CCXT calls it ``password``), API secret
    * - Live data streams
-     - prices, order book, trades, candles, your orders, your balance
+     - prices, order book, trades, candles, your orders, your balance, your positions
    * - CCXT request spacing
      - about 7.5 ms between requests
    * - Official site
@@ -91,7 +91,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "apiKey": os.environ.get("KUCOINFUTURES_API_KEY"),
        "password": os.environ.get("KUCOINFUTURES_API_PASSPHRASE"),
        "secret": os.environ.get("KUCOINFUTURES_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -109,7 +109,7 @@ KuCoin Futures has no sandbox in CCXT. Test with a very small position first, le
 Algorithmic trading example: a simple KuCoin Futures bot
 --------------------------------------------------------
 
-CCXT lists no spot market for KuCoin Futures, so this example trades a perpetual contract. It opens one small long BTC position worth about 50 USDT and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. If your account uses hedge mode, add ``position_side="long"`` to ``create_order``.
+CCXT lists no spot market for KuCoin Futures, so this example trades a perpetual contract. It opens one small long BTC position worth about 50 USDT and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. If your account uses hedge mode, add ``position_side="long"`` to ``create_order``. KuCoin Futures accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -133,7 +133,8 @@ CCXT lists no spot market for KuCoin Futures, so this example trades a perpetual
            if price:
                # Each contract covers contract.multiplier BTC; size the order to about 50 USDT.
                quantity = round(50 / (price * contract.multiplier), 6)
-               order = self.create_order(contract, quantity, "buy")
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(contract, quantity, "buy", limit_price=price * 1.002)
                self.submit_order(order)
 
 
@@ -208,7 +209,7 @@ What you can trade on KuCoin Futures
    * - Options
      - Not listed by CCXT
 
-CCXT lists these order features for KuCoin Futures: market orders, limit orders, stop orders, stop-loss orders, take-profit orders, editing open orders, canceling orders.
+CCXT lists these order features for KuCoin Futures: stop orders, stop-loss orders, take-profit orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDT:USDT``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
 
@@ -267,7 +268,7 @@ Related guides
 * :doc:`Binance COIN-M trading bot <brokers.ccxt.binancecoinm>`
 * :doc:`Binance USDⓈ-M trading bot <brokers.ccxt.binanceusdm>`
 * :doc:`Kraken Futures trading bot <brokers.ccxt.krakenfutures>`
-* :doc:`AftermathFinance trading bot <brokers.ccxt.aftermath>`
+* :doc:`Apex trading bot <brokers.ccxt.apex>`
 
 Sources
 -------
@@ -277,4 +278,4 @@ Sources
 * `KuCoin API docs: Get Apikey Info (permission names) <https://www.kucoin.com/docs-new/rest/account-info/account-funding/get-apikey-info>`_ (read 2026-10-23)
 * `KuCoin Crypto Trading API page <https://www.kucoin.com/api>`_ (read 2026-10-23)
 * `KuCoin Futures page <https://www.kucoin.com/futures>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

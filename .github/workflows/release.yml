@@ -1,8 +1,13 @@
 name: Release (PyPI + GitHub)
 
 on:
-  # Manual runs qualify the same candidate gates but never publish.
+  # Empty manual runs qualify only. Recovery publishes an existing immutable tag.
   workflow_dispatch:
+    inputs:
+      recover_tag:
+        description: 'Existing release tag to recover after a workflow failure; empty means qualify only'
+        required: false
+        type: string
   push:
     tags:
       - "v*.*.*"
@@ -23,6 +28,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.recover_tag || github.ref }}
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
@@ -38,6 +45,8 @@ jobs:
           pip install build
 
       - name: Validate tag or manual candidate version
+        env:
+          RECOVER_TAG: ${{ inputs.recover_tag }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -45,6 +54,7 @@ jobs:
 
           import os
           import re
+          import subprocess
           from pathlib import Path
 
           tag = os.environ.get("GITHUB_REF_NAME", "")
@@ -59,7 +69,17 @@ jobs:
               raise SystemExit(f"Expected tag like vX.Y.Z, got {tag!r}")
             version = tag.removeprefix("v")
           elif event == "workflow_dispatch":
-            version = setup_version
+            recovery_tag = os.environ.get("RECOVER_TAG", "")
+            if recovery_tag:
+                if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", recovery_tag):
+                    raise SystemExit("Recovery must select an existing semantic-version tag")
+                tagged = subprocess.check_output(["git", "rev-parse", f"refs/tags/{recovery_tag}^{{commit}}"], text=True).strip()
+                head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+                if head != tagged:
+                    raise SystemExit("Recovery checkout differs from its immutable tag")
+                version = recovery_tag.removeprefix("v")
+            else:
+                version = setup_version
           else:
             raise SystemExit(f"Unsupported release event {event!r}")
           if setup_version != version:
@@ -72,11 +92,13 @@ jobs:
         run: |
           set -euo pipefail
           python -m build --wheel
-          pip install --force-reinstall dist/*.whl -c requirements_agent_evals.txt
-          pip check
-          python -I -c "import lumibot; import importlib.metadata as m; print(m.version('lumibot'), lumibot.__file__)"
-          python -I -c "from lumibot.components.agents.chatgpt_llm import ChatGPTPlanLlm; print(ChatGPTPlanLlm.__module__)"
-          python -I -m lumibot.components.agents.chatgpt_auth --help
+          python -m venv "${RUNNER_TEMP}/lumibot-release-install"
+          package_python="${RUNNER_TEMP}/lumibot-release-install/bin/python"
+          "${package_python}" -m pip install dist/*.whl -c requirements_agent_evals.txt
+          "${package_python}" -m pip check
+          "${package_python}" -I -c "import lumibot; import importlib.metadata as m; print(m.version('lumibot'), lumibot.__file__)"
+          "${package_python}" -I -c "from lumibot.components.agents.chatgpt_llm import ChatGPTPlanLlm; print(ChatGPTPlanLlm.__module__)"
+          "${package_python}" -I -m lumibot.components.agents.chatgpt_auth --help
 
       - name: Upload dist
         uses: actions/upload-artifact@v4
@@ -88,7 +110,6 @@ jobs:
   unit-tests:
     name: Unit Tests (shard ${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -96,6 +117,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.recover_tag || github.ref }}
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
@@ -108,6 +131,7 @@ jobs:
           set -euo pipefail
           python -m pip install --upgrade pip
           pip install -r requirements_dev.txt -c requirements_agent_evals.txt
+          pip install pytest-xdist==3.8.0
 
       - name: Run unit tests
         env:
@@ -174,7 +198,7 @@ jobs:
           )
           PY
 
-          python -m pytest -m "${PYTEST_MARKERS}" \
+          python -m pytest -n2 --dist loadfile -m "${PYTEST_MARKERS}" \
             --tb=short -q --durations=30 -x $(cat shard_files.txt)
 
   backtest-tests:
@@ -188,6 +212,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.recover_tag || github.ref }}
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
@@ -254,8 +280,10 @@ jobs:
           )
           PY
 
+          selected_nodeids=()
+          while IFS= read -r nodeid; do selected_nodeids+=("$nodeid"); done < shard_nodeids.txt
           python -m pytest -m "${PYTEST_MARKERS}" \
-            --tb=short -q --durations=30 -x $(cat shard_nodeids.txt)
+            --tb=short -q --durations=30 -x "${selected_nodeids[@]}"
 
   agent-evals:
     name: Real-Model Agent Evals
@@ -265,6 +293,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.recover_tag || github.ref }}
           fetch-depth: 0
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
@@ -288,7 +317,7 @@ jobs:
 
   publish:
     name: Publish to PyPI + Create GitHub Release
-    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+    if: ${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.recover_tag != '') }}
     needs: [validate-build, unit-tests, backtest-tests, agent-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -312,6 +341,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          tag_name: ${{ inputs.recover_tag || github.ref_name }}
 
   start-next-version:
     name: Start next version branch
@@ -327,11 +357,13 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compute next version and create branch
+        env:
+          RECOVER_TAG: ${{ inputs.recover_tag }}
         run: |
           set -euo pipefail
 
           # Extract current version from the tag that triggered this workflow
-          TAG="${GITHUB_REF_NAME}"          # e.g. v4.4.57
+          TAG="${RECOVER_TAG:-${GITHUB_REF_NAME}}"          # e.g. v4.4.57
           VERSION="${TAG#v}"                # e.g. 4.4.57
 
           # Compute next patch version

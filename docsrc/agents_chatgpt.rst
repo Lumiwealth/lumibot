@@ -63,6 +63,12 @@ directory private too. On Windows, keep the user-profile directory's access
 controls restricted to your account. Never commit profiles, share them with
 other users, or copy credentials into a public issue or workflow artifact.
 
+POSIX credential reads reject symlinks, hard links and unsafe file ownership or
+permissions. Authentication and run-usage locks recheck their paths before each
+acquisition, including containing directories and ancestors. Writable ancestors
+are rejected except root-owned sticky system temporary directories. Legacy
+owner-controlled readable locks remain usable; new locks are owner-only.
+
 Login reconnects the active registration. Use ``login --profile <profile-id>``
 to reconnect another existing profile or ``login --new-profile`` to create a
 separate registration for another account. Returning registrations validate
@@ -160,11 +166,20 @@ and your authorized ChatGPT usage policy, then run:
        --output-root /your/private/eval-run \
        --freshness-state /your/private/eval-freshness.json
 
-The append-only call and repetition ledgers permit resume without repaying
-passed repetitions. The call cap covers continuations and judge requests as
-well as initial actor requests. Missing authoritative usage retains the
-reservation. Reports distinguish subscription usage from API spend; zero API
-spend is not proof of the account's credit setting.
+The append-only call and repetition ledgers permit resume without rerunning
+passed repetitions. ``--max-model-calls`` sets an informational reporting
+window covering actors, continuations and judges. The runner automatically
+extends that window without resetting history; it is not a hard spending or
+request limit. Actual provider quota and account credit settings still apply.
+Missing authoritative usage retains the reservation. Reports distinguish
+subscription usage from API spend; zero API spend is not proof of the
+account's credit setting.
+
+Only failures with verified no-mutation evidence are treated as retryable
+infrastructure errors. Deterministic checks still run and retain actual broker
+receipts. Failures after order actions or with unknown effects, completed
+decisions and tool failures keep their ordinary grading. Earlier attempts and
+unknown usage reservations remain in the ledger; live orders are not replayed.
 
 Private CI funding must have its own authorized registration, host identity,
 protected storage and serialized refresh owner. Public forks receive no

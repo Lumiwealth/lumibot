@@ -91,7 +91,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "bitfinex",
        "apiKey": os.environ.get("BITFINEX_API_KEY"),
        "secret": os.environ.get("BITFINEX_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -299,9 +299,9 @@ Related guides
 * :doc:`How crypto exchange setup works <brokers.ccxt>`
 * :doc:`AI agents quickstart <agents_quickstart>`
 * :doc:`Backpack trading bot <brokers.ccxt.backpack>`
-* :doc:`BitMart trading bot <brokers.ccxt.bitmart>`
-* :doc:`CoinEx trading bot <brokers.ccxt.coinex>`
+* :doc:`Bitget trading bot <brokers.ccxt.bitget>`
 * :doc:`DigiFinex trading bot <brokers.ccxt.digifinex>`
+* :doc:`FMFW.io trading bot <brokers.ccxt.fmfwio>`
 
 Sources
 -------
@@ -312,4 +312,4 @@ Sources
 * `Bitfinex Support: master and sub-accounts <https://support.bitfinex.com/hc/en-us/articles/360018270793-Bitfinex-master-and-sub-accounts>`_ (read 2026-10-23)
 * `Bitfinex API docs: requirements and limitations <https://docs.bitfinex.com/docs/requirements-and-limitations>`_ (read 2026-10-23)
 * `Bitfinex API docs: paper trading <https://docs.bitfinex.com/docs/paper-trading>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

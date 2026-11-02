@@ -342,6 +342,9 @@ def test_pelosi_bots_run_both_agents_every_day_with_no_python_gate(name):
 
     strategy = object.__new__(strategy_class)
     strategy.vars = Vars()
+    # The real strategy provides its simulation clock to both agents. This
+    # isolated cadence test constructs no broker, so supply that clock explicitly.
+    strategy.get_datetime = lambda: datetime(2026, 1, 6, 11, 30, tzinfo=ZoneInfo("America/New_York"))
     strategy.__dict__["parameters"] = dict(getattr(strategy_class, "parameters", {}) or {})
     for answer in ("Holdings: AAPL 60%, NVDA 40%.", "Same holdings as yesterday.", "Holdings: AAPL 60%, NVDA 40%."):
         calls = []

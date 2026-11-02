@@ -494,26 +494,20 @@ def test_recorded_research_schemas_match_the_generic_node_input_fields(recorded_
         "2026-08-11T14:35:00+0530",
     ],
 )
-def test_recorded_research_refuses_unqualified_exact_instants_without_truncation(
+def test_recorded_research_uses_available_evidence_with_historical_limitations(
     recorded_research_server, tool, dataset, as_of
 ):
+    # Missing original-vintage proof is a disclosed approximation, not a ban on research.
     payload = {"datasetId": dataset, "asOf": as_of}
     if tool == "search_documents":
         payload["entity"] = "ACME"
     elif tool == "get_document":
         payload["documentId"] = "0000123456:0000123456-26-000042:acme-20260630.htm"
     result = _recorded_research_call(recorded_research_server, tool, payload)
-    assert result.isError is True
-    assert result.structuredContent["errorCode"] == "unsupported_capability"
-    assert result.structuredContent["details"] == {
-        "datasetId": dataset,
-        "asOf": as_of,
-        "requiredCapability": "original_vintage_at_utc_instant",
-        "pointInTimeQualified": False,
-        "remedy": "Use a qualified original-release archive. Calendar bounds do not establish historical availability.",
-    }
-    assert "rows" not in result.structuredContent
-    assert "text" not in result.structuredContent
+    assert result["pointInTimeQualified"] is False
+    assert result["historicalContext"]["requestedAsOf"] == as_of
+    assert result["historicalContext"]["originalVintageVerified"] is False
+    assert result.get("rows") or result.get("text")
 
 
 @pytest.mark.parametrize("tool", ["query_data", "search_documents"])
@@ -527,8 +521,8 @@ def test_recorded_query_search_calendar_asof_is_not_original_vintage_replay(reco
             "asOf": "2024-02-29",
         },
     )
-    assert result.isError is True
-    assert result.structuredContent["errorCode"] == "unsupported_capability"
+    assert result["rows"] == []
+    assert result["pointInTimeQualified"] is False
 
 
 @pytest.mark.parametrize("tool", ["query_data", "search_documents", "get_document"])
@@ -554,7 +548,7 @@ def test_recorded_research_invalid_asof_is_a_visible_tool_error(recorded_researc
     assert result.structuredContent["errorCode"] == "invalid_request"
 
 
-def test_recorded_get_refuses_calendar_bound_without_last_modified_metadata(recorded_research_server):
+def test_recorded_get_discloses_missing_vintage_metadata_and_excludes_known_future_documents(recorded_research_server):
     result = _recorded_research_call(
         recorded_research_server,
         "get_document",
@@ -564,12 +558,9 @@ def test_recorded_get_refuses_calendar_bound_without_last_modified_metadata(reco
             "asOf": "2026-08-11",
         },
     )
-    # Node's archive-index last-modified check cannot be replaced by filingDate.
-    assert result.isError is True
-    assert result.structuredContent["errorCode"] == "invalid_request"
-    assert result.structuredContent["message"] == (
-        "The document availability date could not be verified for the requested asOf bound"
-    )
+    assert result["text"]
+    assert result["pointInTimeQualified"] is False
+    assert result["historicalContext"]["originalVintageVerified"] is False
     before = _recorded_research_call(
         recorded_research_server,
         "get_document",
@@ -667,9 +658,9 @@ def test_recorded_discovery_metadata_does_not_upgrade_unavailable_observations(r
     assert [item["id"] for item in catalog["datasets"]] == ["bls.public_series"]
     assert catalog["datasets"][0]["temporalCapabilities"]["pointInTimeQualified"] is False
     result = _recorded_research_call(recorded_research_server, "query_data", {"datasetId": "bls.public_series"})
-    assert result["available"] is False
-    assert result["error"] == "managed_research_unavailable"
-    assert "rows" not in result
+    assert result.isError is True
+    assert result.structuredContent["errorCode"] == "provider_unavailable"
+    assert "rows" not in result.structuredContent
 
 
 @pytest.mark.parametrize(
@@ -698,7 +689,7 @@ def test_recorded_document_omitted_asof_retains_live_unqualified_read(recorded_r
     )
     assert result["asOf"] is None
     assert result["pointInTimeQualified"] is False
-    assert result["availabilityPolicy"] == "calendar_last_modified_only"
+    assert result["availabilityPolicy"] == "filing_calendar_date"
     assert result["text"]
 
 
@@ -784,7 +775,7 @@ def test_recorded_research_calendar_schema_rejects_impossible_range_dates(record
         )
 
 
-def test_recorded_research_stdio_exposes_asof_and_preserves_native_tool_error_status():
+def test_recorded_research_stdio_exposes_asof_and_returns_bounded_observations():
     # Real stdio discovery/transport, deterministic recorded fixture, no model.
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
@@ -812,9 +803,10 @@ def test_recorded_research_stdio_exposes_asof_and_preserves_native_tool_error_st
                 )
 
     result = asyncio.run(check())
-    assert result.isError is True
-    assert result.structuredContent["errorCode"] == "unsupported_capability"
-    assert result.structuredContent["details"]["asOf"] == "2026-08-11T14:35:00Z"
+    assert result.isError is False
+    payload = result.structuredContent or json.loads(result.content[0].text)
+    assert payload["rows"]
+    assert payload["historicalContext"]["requestedAsOf"] == "2026-08-11T14:35:00Z"
 
 
 def test_research_connection_labels_its_source_without_sending_credentials_as_attribution(monkeypatch):

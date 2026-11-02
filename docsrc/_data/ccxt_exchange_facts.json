@@ -1,81 +1,9 @@
 {
- "generated_at": "2026-10-23",
- "ccxt_version": "4.5.64",
- "exchange_count": 105,
+ "generated_at": "2026-11-01",
+ "ccxt_version": "4.5.91",
+ "exchange_count": 104,
  "errors": {},
  "exchanges": [
-  {
-   "id": "aftermath",
-   "name": "AftermathFinance",
-   "countries_listed_by_ccxt": [],
-   "certified": false,
-   "pro": true,
-   "dex": true,
-   "alias": false,
-   "api_version": "v1",
-   "rate_limit_ms": 50,
-   "urls": {
-    "www": "https://aftermath.finance",
-    "doc": [],
-    "fees": [],
-    "api_management": null,
-    "api_base": "https://aftermath.finance/api/ccxt",
-    "test": [
-     "https://testnet.aftermath.finance/api/ccxt"
-    ]
-   },
-   "has_referral_url": false,
-   "sandbox": true,
-   "markets": {
-    "spot": false,
-    "margin": false,
-    "swap": true,
-    "future": false,
-    "option": false
-   },
-   "methods": {
-    "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
-    "createStopOrder": null,
-    "createTriggerOrder": null,
-    "createStopLossOrder": null,
-    "createTakeProfitOrder": null,
-    "createReduceOnlyOrder": null,
-    "cancelOrder": true,
-    "editOrder": false,
-    "fetchBalance": true,
-    "fetchPositions": true,
-    "fetchOpenOrders": true,
-    "fetchMyTrades": false,
-    "fetchOHLCV": true,
-    "fetchTicker": true,
-    "fetchOrderBook": true,
-    "fetchTradingFees": false,
-    "fetchFundingRate": null,
-    "setLeverage": true,
-    "setMarginMode": null,
-    "setPositionMode": null
-   },
-   "streams": {
-    "watchTicker": false,
-    "watchOrderBook": true,
-    "watchTrades": true,
-    "watchOHLCV": false,
-    "watchOrders": false,
-    "watchBalance": false,
-    "watchPositions": true
-   },
-   "required_credentials": [
-    "privateKey",
-    "walletAddress"
-   ],
-   "default_trading_fee": {
-    "maker": null,
-    "taker": null,
-    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
-   }
-  },
   {
    "id": "alpaca",
    "name": "Alpaca",
@@ -115,8 +43,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": null,
@@ -191,8 +119,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": null,
@@ -268,8 +196,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": false,
     "createStopLossOrder": false,
@@ -369,7 +297,7 @@
     "watchTrades": true,
     "watchOHLCV": true,
     "watchOrders": true,
-    "watchBalance": false,
+    "watchBalance": true,
     "watchPositions": true
    },
    "required_credentials": [
@@ -419,8 +347,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -495,8 +423,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -577,8 +505,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": true,
@@ -661,8 +589,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": true,
@@ -745,8 +673,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": false,
@@ -829,8 +757,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": true,
@@ -905,8 +833,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": true,
@@ -980,8 +908,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -1056,8 +984,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -1132,8 +1060,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": null,
@@ -1283,8 +1211,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -1339,17 +1267,8 @@
    "urls": {
     "www": "https://www.bitget.com",
     "doc": [
-     "https://www.bitget.com/api-doc/common/intro",
-     "https://www.bitget.com/api-doc/spot/intro",
-     "https://www.bitget.com/api-doc/contract/intro",
-     "https://www.bitget.com/api-doc/broker/intro",
-     "https://www.bitget.com/api-doc/margin/intro",
-     "https://www.bitget.com/api-doc/copytrading/intro",
-     "https://www.bitget.com/api-doc/earn/intro",
-     "https://bitgetlimited.github.io/apidoc/en/mix",
-     "https://bitgetlimited.github.io/apidoc/en/spot",
-     "https://bitgetlimited.github.io/apidoc/en/broker",
-     "https://bitgetlimited.github.io/apidoc/en/margin"
+     "https://www.bitget.com/docs/uta/Introduction",
+     "https://www.bitget.com/docs/classic/Introduction"
     ],
     "fees": [
      "https://www.bitget.cc/zh-CN/rate?tab=1"
@@ -1364,13 +1283,13 @@
     "spot": true,
     "margin": true,
     "swap": true,
-    "future": true,
+    "future": false,
     "option": false
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": true,
@@ -1422,7 +1341,7 @@
    "dex": false,
    "alias": false,
    "api_version": null,
-   "rate_limit_ms": 500,
+   "rate_limit_ms": 8.334,
    "urls": {
     "www": "https://www.bithumb.com",
     "doc": [
@@ -1432,7 +1351,7 @@
      "https://en.bithumb.com/customer_support/info_fee"
     ],
     "api_management": null,
-    "api_base": "https://api.bithumb.com/public",
+    "api_base": "https://api.bithumb.com",
     "test": []
    },
    "has_referral_url": false,
@@ -1447,7 +1366,7 @@
    "methods": {
     "createOrder": true,
     "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -1488,165 +1407,6 @@
    }
   },
   {
-   "id": "bitmart",
-   "name": "BitMart",
-   "countries_listed_by_ccxt": [
-    "US",
-    "CN",
-    "HK",
-    "KR"
-   ],
-   "certified": true,
-   "pro": true,
-   "dex": false,
-   "alias": false,
-   "api_version": "v2",
-   "rate_limit_ms": 33.34,
-   "urls": {
-    "www": "https://www.bitmart.com/",
-    "doc": [
-     "https://developer-pro.bitmart.com/"
-    ],
-    "fees": [
-     "https://www.bitmart.com/fee/en"
-    ],
-    "api_management": null,
-    "api_base": "https://api-cloud.bitmart.com",
-    "test": []
-   },
-   "has_referral_url": true,
-   "sandbox": false,
-   "markets": {
-    "spot": true,
-    "margin": true,
-    "swap": true,
-    "future": false,
-    "option": false
-   },
-   "methods": {
-    "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
-    "createStopOrder": false,
-    "createTriggerOrder": null,
-    "createStopLossOrder": null,
-    "createTakeProfitOrder": null,
-    "createReduceOnlyOrder": true,
-    "cancelOrder": true,
-    "editOrder": "emulated",
-    "fetchBalance": true,
-    "fetchPositions": true,
-    "fetchOpenOrders": true,
-    "fetchMyTrades": true,
-    "fetchOHLCV": true,
-    "fetchTicker": true,
-    "fetchOrderBook": true,
-    "fetchTradingFees": false,
-    "fetchFundingRate": true,
-    "setLeverage": true,
-    "setMarginMode": false,
-    "setPositionMode": true
-   },
-   "streams": {
-    "watchTicker": true,
-    "watchOrderBook": true,
-    "watchTrades": true,
-    "watchOHLCV": true,
-    "watchOrders": true,
-    "watchBalance": true,
-    "watchPositions": true
-   },
-   "required_credentials": [
-    "apiKey",
-    "secret",
-    "uid"
-   ],
-   "default_trading_fee": {
-    "maker": 0.0035,
-    "taker": 0.004,
-    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
-   }
-  },
-  {
-   "id": "bitmex",
-   "name": "BitMEX",
-   "countries_listed_by_ccxt": [
-    "SC"
-   ],
-   "certified": true,
-   "pro": true,
-   "dex": false,
-   "alias": false,
-   "api_version": "v1",
-   "rate_limit_ms": 100,
-   "urls": {
-    "www": "https://www.bitmex.com",
-    "doc": [
-     "https://www.bitmex.com/app/apiOverview",
-     "https://github.com/BitMEX/api-connectors/tree/master/official-http"
-    ],
-    "fees": [
-     "https://www.bitmex.com/app/fees"
-    ],
-    "api_management": null,
-    "api_base": "https://www.bitmex.com",
-    "test": [
-     "https://testnet.bitmex.com"
-    ]
-   },
-   "has_referral_url": true,
-   "sandbox": true,
-   "markets": {
-    "spot": true,
-    "margin": false,
-    "swap": true,
-    "future": true,
-    "option": false
-   },
-   "methods": {
-    "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
-    "createStopOrder": true,
-    "createTriggerOrder": true,
-    "createStopLossOrder": null,
-    "createTakeProfitOrder": null,
-    "createReduceOnlyOrder": true,
-    "cancelOrder": true,
-    "editOrder": true,
-    "fetchBalance": true,
-    "fetchPositions": true,
-    "fetchOpenOrders": true,
-    "fetchMyTrades": true,
-    "fetchOHLCV": true,
-    "fetchTicker": true,
-    "fetchOrderBook": true,
-    "fetchTradingFees": null,
-    "fetchFundingRate": "emulated",
-    "setLeverage": true,
-    "setMarginMode": true,
-    "setPositionMode": false
-   },
-   "streams": {
-    "watchTicker": true,
-    "watchOrderBook": true,
-    "watchTrades": true,
-    "watchOHLCV": true,
-    "watchOrders": true,
-    "watchBalance": true,
-    "watchPositions": null
-   },
-   "required_credentials": [
-    "apiKey",
-    "secret"
-   ],
-   "default_trading_fee": {
-    "maker": null,
-    "taker": null,
-    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
-   }
-  },
-  {
    "id": "bitopro",
    "name": "BitoPro",
    "countries_listed_by_ccxt": [
@@ -1681,8 +1441,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": null,
@@ -1758,8 +1518,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -1836,8 +1596,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -1910,15 +1670,15 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
     "createTakeProfitOrder": null,
     "createReduceOnlyOrder": false,
     "cancelOrder": true,
-    "editOrder": "emulated",
+    "editOrder": true,
     "fetchBalance": true,
     "fetchPositions": false,
     "fetchOpenOrders": true,
@@ -1927,7 +1687,7 @@
     "fetchTicker": true,
     "fetchOrderBook": true,
     "fetchTradingFees": true,
-    "fetchFundingRate": false,
+    "fetchFundingRate": true,
     "setLeverage": false,
     "setMarginMode": false,
     "setPositionMode": false
@@ -1938,7 +1698,7 @@
     "watchTrades": true,
     "watchOHLCV": false,
     "watchOrders": true,
-    "watchBalance": null,
+    "watchBalance": false,
     "watchPositions": null
    },
    "required_credentials": [
@@ -1984,8 +1744,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -2060,8 +1820,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -2214,8 +1974,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -2265,7 +2025,7 @@
    "dex": false,
    "alias": false,
    "api_version": "v1",
-   "rate_limit_ms": 100,
+   "rate_limit_ms": 200,
    "urls": {
     "www": "https://www.blofin.com",
     "doc": [
@@ -2289,8 +2049,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": true,
     "createStopLossOrder": true,
@@ -2366,8 +2126,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -2441,8 +2201,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": true,
     "createStopLossOrder": null,
@@ -2515,8 +2275,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -2557,6 +2317,84 @@
    }
   },
   {
+   "id": "btse",
+   "name": "BTSE",
+   "countries_listed_by_ccxt": [
+    "VG"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v3",
+   "rate_limit_ms": 13.333333333333334,
+   "urls": {
+    "www": "https://www.btse.com",
+    "doc": [
+     "https://support.btse.com/en/support/solutions/articles/43000044751-btse-api"
+    ],
+    "fees": [
+     "https://support.btse.com/en/support/solutions/articles/43000064283"
+    ],
+    "api_management": null,
+    "api_base": "https://api.btse.com",
+    "test": [
+     "https://testapi.btse.io"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": true,
+    "future": true,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": false,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0002,
+    "taker": 0.0002,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
    "id": "bullish",
    "name": "Bullish",
    "countries_listed_by_ccxt": [
@@ -2586,8 +2424,8 @@
     "spot": true,
     "margin": false,
     "swap": true,
-    "future": false,
-    "option": false
+    "future": true,
+    "option": true
    },
    "methods": {
     "createOrder": true,
@@ -2671,8 +2509,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": true,
@@ -2751,8 +2589,87 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": "emulated",
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0001,
+    "taker": 0.00075,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bybitid",
+   "name": "Bybit Indonesia",
+   "countries_listed_by_ccxt": [
+    "ID"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v5",
+   "rate_limit_ms": 20,
+   "urls": {
+    "www": "https://www.bybit.id",
+    "doc": [
+     "https://bybit-exchange.github.io/docs/v5/intro",
+     "https://github.com/bybit-exchange"
+    ],
+    "fees": [
+     "https://help.bybit.com/hc/en-us/articles/360039261154"
+    ],
+    "api_management": null,
+    "api_base": "https://api.bybit.id",
+    "test": [
+     "https://api-testnet.bybit.id"
+    ]
+   },
+   "has_referral_url": false,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": true,
+    "option": true
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": true,
@@ -2905,8 +2822,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": null,
@@ -2977,14 +2894,14 @@
    "markets": {
     "spot": true,
     "margin": false,
-    "swap": false,
-    "future": false,
+    "swap": true,
+    "future": true,
     "option": false
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -3062,8 +2979,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -3114,35 +3031,38 @@
    "pro": true,
    "dex": false,
    "alias": false,
-   "api_version": "v1",
+   "api_version": "v2",
    "rate_limit_ms": 100,
    "urls": {
     "www": "https://international.coinbase.com",
     "doc": [
-     "https://docs.cloud.coinbase.com/intx/docs"
+     "https://docs.cdp.coinbase.com/coinbase-app/advanced-trade-apis/guides/derivatives/overview",
+     "https://docs.cdp.coinbase.com/coinbase-app/advanced-trade-apis/guides/derivatives/technical#authentication",
+     "https://docs.cdp.coinbase.com/coinbase-app/authentication-authorization/api-key-authentication",
+     "https://docs.cdp.coinbase.com/coinbase-app/authentication-authorization/api-key-authentication#generating-a-jwt",
+     "https://docs.cdp.coinbase.com/coinbase-app/oauth2-integration/access-and-refresh-tokens",
+     "https://docs.deribit.com"
     ],
     "fees": [
      "https://help.coinbase.com/en/international-exchange/trading-deposits-withdrawals/international-exchange-fees"
     ],
     "api_management": null,
-    "api_base": "https://api.international.coinbase.com/api",
-    "test": [
-     "https://api-n5e1.coinbase.com/api"
-    ]
+    "api_base": "https://drb.coinbase.com/api/v2",
+    "test": []
    },
    "has_referral_url": false,
-   "sandbox": true,
+   "sandbox": false,
    "markets": {
     "spot": true,
-    "margin": true,
+    "margin": false,
     "swap": true,
     "future": true,
-    "option": false
+    "option": true
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -3156,10 +3076,10 @@
     "fetchMyTrades": true,
     "fetchOHLCV": true,
     "fetchTicker": true,
-    "fetchOrderBook": false,
+    "fetchOrderBook": true,
     "fetchTradingFees": false,
     "fetchFundingRate": false,
-    "setLeverage": false,
+    "setLeverage": true,
     "setMarginMode": false,
     "setPositionMode": false
    },
@@ -3168,13 +3088,12 @@
     "watchOrderBook": true,
     "watchTrades": true,
     "watchOHLCV": true,
-    "watchOrders": false,
-    "watchBalance": false,
-    "watchPositions": false
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
    },
    "required_credentials": [
     "apiKey",
-    "password",
     "secret"
    ],
    "default_trading_fee": {
@@ -3220,8 +3139,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -3258,82 +3177,6 @@
    "default_trading_fee": {
     "maker": 0.0,
     "taker": 0.0,
-    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
-   }
-  },
-  {
-   "id": "coinex",
-   "name": "CoinEx",
-   "countries_listed_by_ccxt": [
-    "CN"
-   ],
-   "certified": true,
-   "pro": true,
-   "dex": false,
-   "alias": false,
-   "api_version": "v2",
-   "rate_limit_ms": 2.5,
-   "urls": {
-    "www": "https://www.coinex.com",
-    "doc": [
-     "https://docs.coinex.com/api/v2"
-    ],
-    "fees": [
-     "https://www.coinex.com/fees"
-    ],
-    "api_management": null,
-    "api_base": "https://api.coinex.com",
-    "test": []
-   },
-   "has_referral_url": true,
-   "sandbox": false,
-   "markets": {
-    "spot": true,
-    "margin": true,
-    "swap": true,
-    "future": false,
-    "option": false
-   },
-   "methods": {
-    "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
-    "createStopOrder": true,
-    "createTriggerOrder": true,
-    "createStopLossOrder": true,
-    "createTakeProfitOrder": true,
-    "createReduceOnlyOrder": true,
-    "cancelOrder": true,
-    "editOrder": true,
-    "fetchBalance": true,
-    "fetchPositions": true,
-    "fetchOpenOrders": true,
-    "fetchMyTrades": true,
-    "fetchOHLCV": true,
-    "fetchTicker": true,
-    "fetchOrderBook": true,
-    "fetchTradingFees": true,
-    "fetchFundingRate": true,
-    "setLeverage": true,
-    "setMarginMode": true,
-    "setPositionMode": false
-   },
-   "streams": {
-    "watchTicker": true,
-    "watchOrderBook": true,
-    "watchTrades": true,
-    "watchOHLCV": false,
-    "watchOrders": true,
-    "watchBalance": true,
-    "watchPositions": null
-   },
-   "required_credentials": [
-    "apiKey",
-    "secret"
-   ],
-   "default_trading_fee": {
-    "maker": 0.001,
-    "taker": 0.001,
     "note": "CCXT default schedule; the exchange's fee page is the source of truth"
    }
   },
@@ -3375,8 +3218,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -3451,7 +3294,7 @@
    "methods": {
     "createOrder": true,
     "createMarketOrder": false,
-    "createLimitOrder": true,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -3526,8 +3369,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -3601,7 +3444,7 @@
    "methods": {
     "createOrder": true,
     "createMarketOrder": false,
-    "createLimitOrder": true,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -3677,12 +3520,12 @@
     "margin": true,
     "swap": true,
     "future": true,
-    "option": true
+    "option": false
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": null,
@@ -3758,7 +3601,7 @@
    "methods": {
     "createOrder": true,
     "createMarketOrder": false,
-    "createLimitOrder": true,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": false,
     "createStopLossOrder": false,
@@ -3910,8 +3753,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -3966,7 +3809,7 @@
    "urls": {
     "www": "https://www.deribit.com",
     "doc": [
-     "https://docs.deribit.com/v2",
+     "https://docs.deribit.com",
      "https://github.com/deribit"
     ],
     "fees": [
@@ -3989,8 +3832,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -4038,48 +3881,48 @@
    "pro": true,
    "dex": true,
    "alias": false,
-   "api_version": "v1",
+   "api_version": "v3",
    "rate_limit_ms": 50,
    "urls": {
     "www": "https://www.derive.xyz/",
     "doc": [
-     "https://docs.derive.xyz/docs/"
+     "https://docs.derive.xyz/"
     ],
     "fees": [
-     "https://docs.derive.xyz/reference/fees-1/"
+     "https://docs.derive.xyz/integrators/trading/trading-fees"
     ],
     "api_management": null,
-    "api_base": "https://api.lyra.finance/public",
+    "api_base": "https://api.derive.xyz/v3/public",
     "test": [
-     "https://api-demo.lyra.finance/public",
-     "https://api-demo.lyra.finance/private"
+     "https://testnet.api.derive.xyz/v3/public",
+     "https://testnet.api.derive.xyz/v3/private"
     ]
    },
    "has_referral_url": true,
    "sandbox": true,
    "markets": {
-    "spot": false,
+    "spot": true,
     "margin": false,
-    "swap": false,
+    "swap": true,
     "future": false,
-    "option": false
+    "option": true
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
-    "createStopOrder": false,
-    "createTriggerOrder": false,
-    "createStopLossOrder": null,
-    "createTakeProfitOrder": null,
-    "createReduceOnlyOrder": false,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
     "cancelOrder": true,
     "editOrder": true,
     "fetchBalance": true,
     "fetchPositions": true,
     "fetchOpenOrders": true,
     "fetchMyTrades": true,
-    "fetchOHLCV": false,
+    "fetchOHLCV": true,
     "fetchTicker": true,
     "fetchOrderBook": false,
     "fetchTradingFees": false,
@@ -4094,8 +3937,8 @@
     "watchTrades": true,
     "watchOHLCV": false,
     "watchOrders": true,
-    "watchBalance": false,
-    "watchPositions": false
+    "watchBalance": true,
+    "watchPositions": true
    },
    "required_credentials": [
     "privateKey",
@@ -4142,8 +3985,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -4223,7 +4066,7 @@
    "methods": {
     "createOrder": true,
     "createMarketOrder": false,
-    "createLimitOrder": true,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": false,
     "createStopLossOrder": false,
@@ -4261,82 +4104,6 @@
    }
   },
   {
-   "id": "exmo",
-   "name": "EXMO",
-   "countries_listed_by_ccxt": [
-    "LT"
-   ],
-   "certified": false,
-   "pro": false,
-   "dex": false,
-   "alias": false,
-   "api_version": "v1.1",
-   "rate_limit_ms": 100,
-   "urls": {
-    "www": "https://exmo.me",
-    "doc": [
-     "https://exmo.me/en/api_doc?ref=131685"
-    ],
-    "fees": [
-     "https://exmo.com/en/docs/fees"
-    ],
-    "api_management": null,
-    "api_base": "https://api.exmo.com",
-    "test": []
-   },
-   "has_referral_url": true,
-   "sandbox": false,
-   "markets": {
-    "spot": true,
-    "margin": true,
-    "swap": false,
-    "future": false,
-    "option": false
-   },
-   "methods": {
-    "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
-    "createStopOrder": true,
-    "createTriggerOrder": null,
-    "createStopLossOrder": null,
-    "createTakeProfitOrder": null,
-    "createReduceOnlyOrder": null,
-    "cancelOrder": true,
-    "editOrder": true,
-    "fetchBalance": true,
-    "fetchPositions": false,
-    "fetchOpenOrders": true,
-    "fetchMyTrades": true,
-    "fetchOHLCV": true,
-    "fetchTicker": true,
-    "fetchOrderBook": true,
-    "fetchTradingFees": true,
-    "fetchFundingRate": false,
-    "setLeverage": null,
-    "setMarginMode": null,
-    "setPositionMode": null
-   },
-   "streams": {
-    "watchTicker": true,
-    "watchOrderBook": true,
-    "watchTrades": true,
-    "watchOHLCV": false,
-    "watchOrders": true,
-    "watchBalance": true,
-    "watchPositions": null
-   },
-   "required_credentials": [
-    "apiKey",
-    "secret"
-   ],
-   "default_trading_fee": {
-    "maker": 0.004,
-    "taker": 0.004,
-    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
-   }
-  },
-  {
    "id": "extended",
    "name": "Extended",
    "countries_listed_by_ccxt": [
@@ -4365,7 +4132,7 @@
    "has_referral_url": false,
    "sandbox": true,
    "markets": {
-    "spot": true,
+    "spot": false,
     "margin": false,
     "swap": true,
     "future": false,
@@ -4373,8 +4140,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": false,
     "createStopLossOrder": false,
@@ -4451,8 +4218,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -4525,15 +4292,15 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
     "createTakeProfitOrder": null,
     "createReduceOnlyOrder": null,
     "cancelOrder": true,
-    "editOrder": "emulated",
+    "editOrder": true,
     "fetchBalance": true,
     "fetchPositions": null,
     "fetchOpenOrders": true,
@@ -4602,7 +4369,7 @@
    "methods": {
     "createOrder": true,
     "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": true,
@@ -4678,7 +4445,7 @@
    "methods": {
     "createOrder": true,
     "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": true,
@@ -4700,13 +4467,13 @@
     "setPositionMode": true
    },
    "streams": {
-    "watchTicker": null,
-    "watchOrderBook": null,
-    "watchTrades": null,
-    "watchOHLCV": null,
-    "watchOrders": null,
-    "watchBalance": null,
-    "watchPositions": null
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
    },
    "required_credentials": [
     "apiKey",
@@ -4761,7 +4528,7 @@
    "methods": {
     "createOrder": true,
     "createMarketOrder": false,
-    "createLimitOrder": true,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -4840,8 +4607,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -4918,7 +4685,7 @@
    "methods": {
     "createOrder": true,
     "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": false,
@@ -4972,7 +4739,9 @@
    "rate_limit_ms": 100,
    "urls": {
     "www": "https://www.hibachi.xyz/",
-    "doc": [],
+    "doc": [
+     "https://api-doc.hibachi.xyz/"
+    ],
     "fees": [],
     "api_management": null,
     "api_base": "https://data-api.hibachi.xyz",
@@ -4990,7 +4759,7 @@
    "methods": {
     "createOrder": true,
     "createMarketOrder": false,
-    "createLimitOrder": true,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": false,
     "createStopLossOrder": false,
@@ -5070,8 +4839,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -5146,8 +4915,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -5193,7 +4962,7 @@
    "countries_listed_by_ccxt": [
     "CN"
    ],
-   "certified": true,
+   "certified": false,
    "pro": true,
    "dex": false,
    "alias": false,
@@ -5226,8 +4995,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": true,
@@ -5302,8 +5071,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": null,
@@ -5319,7 +5088,7 @@
     "fetchTicker": "emulated",
     "fetchOrderBook": true,
     "fetchTradingFees": false,
-    "fetchFundingRate": false,
+    "fetchFundingRate": true,
     "setLeverage": true,
     "setMarginMode": true,
     "setPositionMode": false
@@ -5377,8 +5146,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -5451,8 +5220,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -5464,7 +5233,7 @@
     "fetchPositions": false,
     "fetchOpenOrders": true,
     "fetchMyTrades": null,
-    "fetchOHLCV": null,
+    "fetchOHLCV": true,
     "fetchTicker": true,
     "fetchOrderBook": true,
     "fetchTradingFees": false,
@@ -5507,7 +5276,7 @@
    "urls": {
     "www": "https://www.kraken.com",
     "doc": [
-     "https://docs.kraken.com/rest/"
+     "https://docs.kraken.com/api-reference/"
     ],
     "fees": [
      "https://www.kraken.com/en-us/features/fee-schedule"
@@ -5527,8 +5296,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -5583,7 +5352,7 @@
    "urls": {
     "www": "https://futures.kraken.com/",
     "doc": [
-     "https://docs.kraken.com/api/docs/futures-api/trading/market-data/"
+     "https://docs.kraken.com/exchange/guides/futures/rest"
     ],
     "fees": [
      "https://support.kraken.com/hc/en-us/articles/360022835771-Transaction-fees-and-rebates-for-Kraken-Futures"
@@ -5609,7 +5378,7 @@
    "methods": {
     "createOrder": true,
     "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": null,
@@ -5624,7 +5393,7 @@
     "fetchOHLCV": true,
     "fetchTicker": true,
     "fetchOrderBook": true,
-    "fetchTradingFees": null,
+    "fetchTradingFees": true,
     "fetchFundingRate": "emulated",
     "setLeverage": true,
     "setMarginMode": false,
@@ -5682,8 +5451,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": true,
@@ -5711,82 +5480,7 @@
     "watchOHLCV": true,
     "watchOrders": true,
     "watchBalance": true,
-    "watchPositions": false
-   },
-   "required_credentials": [
-    "apiKey",
-    "password",
-    "secret"
-   ],
-   "default_trading_fee": {
-    "maker": 0.001,
-    "taker": 0.001,
-    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
-   }
-  },
-  {
-   "id": "kucoineu",
-   "name": "KuCoin EU",
-   "countries_listed_by_ccxt": [
-    "EU"
-   ],
-   "certified": false,
-   "pro": true,
-   "dex": false,
-   "alias": false,
-   "api_version": "v2",
-   "rate_limit_ms": 7.5,
-   "urls": {
-    "www": "https://www.kucoin.com/en-eu",
-    "doc": [
-     "https://www.kucoin.com/en-eu/docs-new"
-    ],
-    "fees": [],
-    "api_management": null,
-    "api_base": "https://api.kucoin.eu",
-    "test": []
-   },
-   "has_referral_url": true,
-   "sandbox": false,
-   "markets": {
-    "spot": true,
-    "margin": true,
-    "swap": true,
-    "future": true,
-    "option": false
-   },
-   "methods": {
-    "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
-    "createStopOrder": true,
-    "createTriggerOrder": true,
-    "createStopLossOrder": true,
-    "createTakeProfitOrder": true,
-    "createReduceOnlyOrder": null,
-    "cancelOrder": true,
-    "editOrder": true,
-    "fetchBalance": true,
-    "fetchPositions": true,
-    "fetchOpenOrders": true,
-    "fetchMyTrades": true,
-    "fetchOHLCV": true,
-    "fetchTicker": true,
-    "fetchOrderBook": true,
-    "fetchTradingFees": false,
-    "fetchFundingRate": true,
-    "setLeverage": true,
-    "setMarginMode": true,
-    "setPositionMode": true
-   },
-   "streams": {
-    "watchTicker": true,
-    "watchOrderBook": true,
-    "watchTrades": true,
-    "watchOHLCV": true,
-    "watchOrders": true,
-    "watchBalance": true,
-    "watchPositions": false
+    "watchPositions": true
    },
    "required_credentials": [
     "apiKey",
@@ -5832,15 +5526,15 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": true,
     "createTakeProfitOrder": true,
     "createReduceOnlyOrder": null,
     "cancelOrder": true,
-    "editOrder": true,
+    "editOrder": false,
     "fetchBalance": true,
     "fetchPositions": true,
     "fetchOpenOrders": true,
@@ -5861,7 +5555,7 @@
     "watchOHLCV": true,
     "watchOrders": true,
     "watchBalance": true,
-    "watchPositions": false
+    "watchPositions": true
    },
    "required_credentials": [
     "apiKey",
@@ -5909,8 +5603,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -5985,8 +5679,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -6002,7 +5696,7 @@
     "fetchTicker": true,
     "fetchOrderBook": true,
     "fetchTradingFees": true,
-    "fetchFundingRate": false,
+    "fetchFundingRate": true,
     "setLeverage": false,
     "setMarginMode": false,
     "setPositionMode": false
@@ -6061,8 +5755,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": false,
     "createStopLossOrder": null,
@@ -6118,7 +5812,7 @@
    "urls": {
     "www": "https://www.luno.com",
     "doc": [
-     "https://www.luno.com/en/api",
+     "https://www.luno.com/en/developers/api",
      "https://npmjs.org/package/bitx",
      "https://github.com/bausmeier/node-bitx"
     ],
@@ -6138,8 +5832,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -6174,8 +5868,8 @@
     "secret"
    ],
    "default_trading_fee": {
-    "maker": 0.0,
-    "taker": 0.001,
+    "maker": 0.004,
+    "taker": 0.006,
     "note": "CCXT default schedule; the exchange's fee page is the source of truth"
    }
   },
@@ -6214,7 +5908,7 @@
    "methods": {
     "createOrder": true,
     "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -6269,7 +5963,8 @@
    "urls": {
     "www": "https://www.mexc.com/",
     "doc": [
-     "https://mexcdevelop.github.io/apidocs/"
+     "https://www.mexc.com/api-docs/spot-v3/introduction",
+     "https://www.mexc.com/api-docs/futures/integration-guide"
     ],
     "fees": [
      "https://www.mexc.com/fee"
@@ -6289,8 +5984,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": null,
@@ -6325,8 +6020,8 @@
     "secret"
    ],
    "default_trading_fee": {
-    "maker": 0.002,
-    "taker": 0.002,
+    "maker": 0.0,
+    "taker": 0.0005,
     "note": "CCXT default schedule; the exchange's fee page is the source of truth"
    }
   },
@@ -6344,7 +6039,9 @@
    "rate_limit_ms": 100,
    "urls": {
     "www": "https://trade.mode.network",
-    "doc": [],
+    "doc": [
+     "https://orderly.network/docs/build-on-omnichain/building-on-omnichain"
+    ],
     "fees": [],
     "api_management": null,
     "api_base": "https://api-evm.orderly.org",
@@ -6364,20 +6061,20 @@
    "methods": {
     "createOrder": true,
     "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": true,
     "createTakeProfitOrder": true,
     "createReduceOnlyOrder": true,
     "cancelOrder": true,
-    "editOrder": "emulated",
+    "editOrder": true,
     "fetchBalance": true,
     "fetchPositions": true,
     "fetchOpenOrders": true,
     "fetchMyTrades": true,
     "fetchOHLCV": true,
-    "fetchTicker": false,
+    "fetchTicker": true,
     "fetchOrderBook": true,
     "fetchTradingFees": true,
     "fetchFundingRate": true,
@@ -6441,7 +6138,7 @@
    "methods": {
     "createOrder": true,
     "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -6482,7 +6179,7 @@
   },
   {
    "id": "myokx",
-   "name": "MyOKX(EEA)",
+   "name": "MyOKX (EEA)",
    "countries_listed_by_ccxt": [
     "CN",
     "US"
@@ -6492,7 +6189,7 @@
    "dex": false,
    "alias": false,
    "api_version": "v5",
-   "rate_limit_ms": 110.00000000000001,
+   "rate_limit_ms": 110,
    "urls": {
     "www": "https://my.okx.com",
     "doc": [
@@ -6512,14 +6209,14 @@
    "markets": {
     "spot": true,
     "margin": null,
-    "swap": false,
+    "swap": true,
     "future": false,
     "option": false
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": true,
@@ -6561,6 +6258,86 @@
    }
   },
   {
+   "id": "nado",
+   "name": "Nado",
+   "countries_listed_by_ccxt": [
+    "KY"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": true,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 25,
+   "urls": {
+    "www": "https://nado.xyz",
+    "doc": [
+     "https://docs.nado.xyz/"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://gateway.prod.nado.xyz/v1",
+    "test": [
+     "https://gateway.test.nado.xyz/v1",
+     "https://gateway.test.nado.xyz/v2",
+     "https://archive.test.nado.xyz/v1",
+     "https://archive.test.nado.xyz/v2",
+     "https://trigger.test.nado.xyz/v1"
+    ]
+   },
+   "has_referral_url": false,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": null,
+    "fetchFundingRate": true,
+    "setLeverage": null,
+    "setMarginMode": null,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": false,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "privateKey",
+    "walletAddress"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0001,
+    "taker": 0.00035,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
    "id": "ndax",
    "name": "NDAX",
    "countries_listed_by_ccxt": [
@@ -6597,8 +6374,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -6653,7 +6430,7 @@
    "dex": false,
    "alias": false,
    "api_version": "v5",
-   "rate_limit_ms": 110.00000000000001,
+   "rate_limit_ms": 110,
    "urls": {
     "www": "https://www.okx.com",
     "doc": [
@@ -6679,8 +6456,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": true,
@@ -6723,7 +6500,7 @@
   },
   {
    "id": "okxus",
-   "name": "OKX(US)",
+   "name": "OKX (US)",
    "countries_listed_by_ccxt": [
     "CN",
     "US"
@@ -6733,7 +6510,7 @@
    "dex": false,
    "alias": false,
    "api_version": "v5",
-   "rate_limit_ms": 110.00000000000001,
+   "rate_limit_ms": 110,
    "urls": {
     "www": "https://app.okx.com",
     "doc": [
@@ -6753,14 +6530,14 @@
    "markets": {
     "spot": true,
     "margin": null,
-    "swap": true,
+    "swap": false,
     "future": false,
     "option": false
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": true,
@@ -6830,14 +6607,14 @@
    "markets": {
     "spot": true,
     "margin": false,
-    "swap": false,
-    "future": false,
+    "swap": true,
+    "future": true,
     "option": false
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -6912,7 +6689,7 @@
    "methods": {
     "createOrder": true,
     "createMarketOrder": false,
-    "createLimitOrder": true,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -6947,8 +6724,8 @@
     "secret"
    ],
    "default_trading_fee": {
-    "maker": "[[0.0, 0.2], [1.0, 0.18], [5.0, 0.16], [10.0, 0.14], [25.0, 0.12], [75.0, 0.1], [100.0, 0.08], [150.0, 0.06], [300.0, 0.04], [450.0, 0.02], [500.0, 0.01]]",
-    "taker": "[[0.0, 0.2], [1.0, 0.19], [5.0, 0.18], [10.0, 0.17], [25.0, 0.16], [75.0, 0.15], [100.0, 0.14], [150.0, 0.13], [300.0, 0.12], [450.0, 0.11], [500.0, 0.1]]",
+    "maker": 0.002,
+    "taker": 0.002,
     "note": "CCXT default schedule; the exchange's fee page is the source of truth"
    }
   },
@@ -6961,7 +6738,7 @@
    "dex": true,
    "alias": false,
    "api_version": "v1",
-   "rate_limit_ms": 50,
+   "rate_limit_ms": 600,
    "urls": {
     "www": "https://www.pacifica.fi",
     "doc": [
@@ -6979,7 +6756,7 @@
    "has_referral_url": true,
    "sandbox": true,
    "markets": {
-    "spot": false,
+    "spot": true,
     "margin": false,
     "swap": true,
     "future": false,
@@ -6987,8 +6764,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -7003,7 +6780,7 @@
     "fetchOHLCV": true,
     "fetchTicker": "emulated",
     "fetchOrderBook": true,
-    "fetchTradingFees": false,
+    "fetchTradingFees": true,
     "fetchFundingRate": false,
     "setLeverage": true,
     "setMarginMode": true,
@@ -7055,7 +6832,7 @@
    "has_referral_url": true,
    "sandbox": true,
    "markets": {
-    "spot": false,
+    "spot": true,
     "margin": false,
     "swap": true,
     "future": false,
@@ -7063,8 +6840,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": null,
@@ -7080,7 +6857,7 @@
     "fetchTicker": true,
     "fetchOrderBook": true,
     "fetchTradingFees": true,
-    "fetchFundingRate": false,
+    "fetchFundingRate": true,
     "setLeverage": true,
     "setMarginMode": true,
     "setPositionMode": false
@@ -7091,8 +6868,8 @@
     "watchTrades": true,
     "watchOHLCV": false,
     "watchOrders": true,
-    "watchBalance": false,
-    "watchPositions": null
+    "watchBalance": true,
+    "watchPositions": true
    },
    "required_credentials": [
     "privateKey",
@@ -7142,8 +6919,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -7222,8 +6999,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -7300,8 +7077,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": null,
@@ -7342,6 +7119,158 @@
    }
   },
   {
+   "id": "polymarket",
+   "name": "Polymarket",
+   "countries_listed_by_ccxt": [
+    "US"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": true,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 60,
+   "urls": {
+    "www": "https://polymarket.com/perps",
+    "doc": [
+     "https://docs.polymarket.com/perps/overview",
+     "https://docs.polymarket.com/api-reference/perps/overview"
+    ],
+    "fees": [
+     "https://docs.polymarket.com/perps/learn-about-trading/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.perpetuals.polymarket.com/v1",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": false,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "privateKey"
+   ],
+   "default_trading_fee": {
+    "maker": 0.000125,
+    "taker": 0.0004,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "revolutx",
+   "name": "Revolut X",
+   "countries_listed_by_ccxt": [
+    "GB"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": null,
+   "rate_limit_ms": 1000,
+   "urls": {
+    "www": "https://exchange.revolut.com",
+    "doc": [
+     "https://developer.revolut.com/docs/api/revolut-x-crypto-exchange"
+    ],
+    "fees": [
+     "https://exchange.revolut.com/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://revx.revolut.com/api",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": null,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": null,
+    "fetchFundingRate": null,
+    "setLeverage": null,
+    "setMarginMode": null,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "privateKey"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0,
+    "taker": 0.0009,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
    "id": "tokocrypto",
    "name": "Tokocrypto",
    "countries_listed_by_ccxt": [
@@ -7376,8 +7305,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": null,
     "createStopLossOrder": false,
@@ -7390,7 +7319,7 @@
     "fetchOpenOrders": true,
     "fetchMyTrades": true,
     "fetchOHLCV": true,
-    "fetchTicker": false,
+    "fetchTicker": true,
     "fetchOrderBook": true,
     "fetchTradingFees": false,
     "fetchFundingRate": false,
@@ -7432,8 +7361,7 @@
    "urls": {
     "www": "https://www.toobit.com/",
     "doc": [
-     "https://toobit-docs.github.io/apidocs/spot/v1/en/",
-     "https://toobit-docs.github.io/apidocs/usdt_swap/v1/en/"
+     "https://api-docs.toobit.com/"
     ],
     "fees": [
      "https://www.toobit.com/fee"
@@ -7453,8 +7381,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -7463,15 +7391,15 @@
     "cancelOrder": true,
     "editOrder": "emulated",
     "fetchBalance": true,
-    "fetchPositions": null,
+    "fetchPositions": true,
     "fetchOpenOrders": true,
     "fetchMyTrades": true,
     "fetchOHLCV": true,
-    "fetchTicker": true,
+    "fetchTicker": "emulated",
     "fetchOrderBook": true,
-    "fetchTradingFees": null,
+    "fetchTradingFees": true,
     "fetchFundingRate": null,
-    "setLeverage": null,
+    "setLeverage": true,
     "setMarginMode": true,
     "setPositionMode": null
    },
@@ -7534,7 +7462,7 @@
    "methods": {
     "createOrder": true,
     "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -7594,10 +7522,13 @@
     "fees": [],
     "api_management": null,
     "api_base": "https://api-spot.weex.com",
-    "test": []
+    "test": [
+     "https://api-spot.weex.com",
+     "https://api-contract.weex.com"
+    ]
    },
    "has_referral_url": true,
-   "sandbox": false,
+   "sandbox": true,
    "markets": {
     "spot": true,
     "margin": false,
@@ -7610,7 +7541,7 @@
     "createMarketOrder": true,
     "createLimitOrder": true,
     "createStopOrder": null,
-    "createTriggerOrder": false,
+    "createTriggerOrder": true,
     "createStopLossOrder": true,
     "createTakeProfitOrder": true,
     "createReduceOnlyOrder": true,
@@ -7631,7 +7562,7 @@
    },
    "streams": {
     "watchTicker": true,
-    "watchOrderBook": false,
+    "watchOrderBook": true,
     "watchTrades": true,
     "watchOHLCV": true,
     "watchOrders": true,
@@ -7684,8 +7615,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": true,
     "createTriggerOrder": true,
     "createStopLossOrder": null,
@@ -7731,7 +7662,7 @@
    "countries_listed_by_ccxt": [
     "KY"
    ],
-   "certified": true,
+   "certified": false,
    "pro": true,
    "dex": false,
    "alias": false,
@@ -7740,6 +7671,7 @@
    "urls": {
     "www": "https://woox.io/",
     "doc": [
+     "https://developer.woox.io/",
      "https://docs.woox.io/"
     ],
     "fees": [
@@ -7764,20 +7696,20 @@
    "methods": {
     "createOrder": true,
     "createMarketOrder": false,
-    "createLimitOrder": true,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": true,
     "createStopLossOrder": true,
     "createTakeProfitOrder": true,
     "createReduceOnlyOrder": true,
     "cancelOrder": true,
-    "editOrder": "emulated",
+    "editOrder": true,
     "fetchBalance": true,
     "fetchPositions": true,
     "fetchOpenOrders": true,
     "fetchMyTrades": true,
     "fetchOHLCV": true,
-    "fetchTicker": false,
+    "fetchTicker": true,
     "fetchOrderBook": true,
     "fetchTradingFees": true,
     "fetchFundingRate": true,
@@ -7819,7 +7751,7 @@
    "urls": {
     "www": "https://dex.woo.org",
     "doc": [
-     "https://orderly.network/docs/build-on-omnichain/building-on-evm"
+     "https://orderly.network/docs/build-on-omnichain/building-on-omnichain"
     ],
     "fees": [
      "https://dex.woo.org/en/orderly"
@@ -7842,25 +7774,25 @@
    "methods": {
     "createOrder": true,
     "createMarketOrder": false,
-    "createLimitOrder": true,
+    "createLimitOrder": null,
     "createStopOrder": false,
     "createTriggerOrder": true,
     "createStopLossOrder": true,
     "createTakeProfitOrder": true,
     "createReduceOnlyOrder": true,
     "cancelOrder": true,
-    "editOrder": "emulated",
+    "editOrder": true,
     "fetchBalance": true,
     "fetchPositions": true,
     "fetchOpenOrders": true,
     "fetchMyTrades": true,
     "fetchOHLCV": true,
-    "fetchTicker": false,
+    "fetchTicker": true,
     "fetchOrderBook": true,
     "fetchTradingFees": true,
     "fetchFundingRate": true,
     "setLeverage": true,
-    "setMarginMode": null,
+    "setMarginMode": true,
     "setPositionMode": false
    },
    "streams": {
@@ -7919,8 +7851,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -7935,7 +7867,7 @@
     "fetchOHLCV": true,
     "fetchTicker": true,
     "fetchOrderBook": true,
-    "fetchTradingFees": false,
+    "fetchTradingFees": true,
     "fetchFundingRate": true,
     "setLeverage": true,
     "setMarginMode": true,
@@ -8000,7 +7932,7 @@
    "methods": {
     "createOrder": true,
     "createMarketOrder": false,
-    "createLimitOrder": true,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": false,
@@ -8078,8 +8010,8 @@
    },
    "methods": {
     "createOrder": true,
-    "createMarketOrder": true,
-    "createLimitOrder": true,
+    "createMarketOrder": null,
+    "createLimitOrder": null,
     "createStopOrder": null,
     "createTriggerOrder": null,
     "createStopLossOrder": null,
@@ -8094,7 +8026,7 @@
     "fetchOHLCV": true,
     "fetchTicker": true,
     "fetchOrderBook": true,
-    "fetchTradingFees": null,
+    "fetchTradingFees": true,
     "fetchFundingRate": null,
     "setLeverage": true,
     "setMarginMode": null,

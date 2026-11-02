@@ -88,7 +88,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "coinspot",
        "apiKey": os.environ.get("COINSPOT_API_KEY"),
        "secret": os.environ.get("COINSPOT_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -204,7 +204,7 @@ What you can trade on CoinSpot
    * - Options
      - No
 
-CCXT lists these order features for CoinSpot: limit orders, editing open orders, canceling orders.
+CCXT lists these order features for CoinSpot: editing open orders, canceling orders.
 
 Fees and partner IDs on CoinSpot
 --------------------------------
@@ -271,4 +271,4 @@ Sources
 * `CoinSpot API (V1) documentation <https://www.coinspot.com.au/api>`_ (read 2026-10-23)
 * `CoinSpot Help: How to set up 2FA <https://coinspot.zendesk.com/hc/en-us/articles/360000120996-How-to-set-up-2FA>`_ (read 2026-10-23)
 * `CoinSpot Help: Mobile App, Register and Verify a Personal Account <https://coinspot.zendesk.com/hc/en-us/articles/10354938798351-CoinSpot-Mobile-App-Register-Verify-a-Personal-Account>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

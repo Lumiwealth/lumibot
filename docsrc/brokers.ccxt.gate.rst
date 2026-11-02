@@ -207,7 +207,7 @@ What you can trade on Gate
    * - Options
      - Yes
 
-CCXT lists these order features for Gate: market orders, limit orders, stop orders, stop-loss orders, take-profit orders, reduce-only orders, editing open orders, canceling orders.
+CCXT lists these order features for Gate: market orders, stop orders, stop-loss orders, take-profit orders, reduce-only orders, editing open orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDT:USDT``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
 
@@ -301,8 +301,8 @@ Related guides
 * :doc:`AI agents quickstart <agents_quickstart>`
 * :doc:`Binance trading bot <brokers.ccxt.binance>`
 * :doc:`Bybit trading bot <brokers.ccxt.bybit>`
-* :doc:`Crypto.com trading bot <brokers.ccxt.cryptocom>`
 * :doc:`OKX trading bot <brokers.ccxt.okx>`
+* :doc:`Bullish trading bot <brokers.ccxt.bullish>`
 
 Sources
 -------
@@ -311,4 +311,4 @@ Sources
 * `Gate API v4 documentation <https://www.gate.com/docs/developers/apiv4/en/>`_ (read 2026-10-23)
 * `Gate Futures WebSocket docs (testnet endpoints) <https://www.gate.com/docs/developers/futures/>`_ (read 2026-10-23)
 * `Gate home page <https://www.gate.com/>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

@@ -172,6 +172,14 @@ class ProjectXData(DataSource):
             if not contract_id:
                 return None
 
+            try:
+                market_quote = self.client.get_market_quote(contract_id)
+            except Exception as exc:
+                self.logger.debug("Streaming last trade unavailable (%s)", type(exc).__name__)
+                market_quote = None
+            if isinstance(market_quote, dict) and market_quote.get("lastPrice") is not None:
+                return float(market_quote["lastPrice"])
+
             end_dt = datetime.now().replace(second=59, microsecond=999999).astimezone(_default_pytz())
             start_dt = (end_dt - timedelta(minutes=1)).replace(second=0, microsecond=0)
             df = self.client.history_retrieve_bars(
@@ -198,41 +206,34 @@ class ProjectXData(DataSource):
             return None
 
     def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None) -> Quote:
-        """
-        Get current quote (bid/ask) for an asset.
-
-        Note: This is a basic implementation using last price.
-        Real-time quote data would require streaming connection.
-
-        Args:
-            asset: Asset to get quote for
-            quote: Quote asset (for cryptocurrency pairs, not used in ProjectX)
-            exchange: Exchange to get quote from (not used in ProjectX)
-
-        Returns:
-            Quote object with quote information
-        """
-        price = self.get_last_price(asset, quote=quote, exchange=exchange)
-        timestamp = datetime.now().astimezone(_default_pytz())
-
-        if price is None:
-            return _get_quote_class()(asset=asset, price=None, raw_data={"source": "projectx_rest", "live": False})
-
-        # ProjectX does not currently expose top-of-book via REST for this integration.
-        # Approximate bid/ask around last trade with a minimal spread (one tick).
-        tick = 0.25
-        bid = price - tick / 2
-        ask = price + tick / 2
-
-        return _get_quote_class()(
-            asset=asset,
-            price=price,
-            bid=bid,
-            ask=ask,
-            timestamp=timestamp,
-            quote_time=timestamp,
-            raw_data={"source": "projectx_live_rest", "live": True}
+        """Return provider top-of-book fields without synthesizing prices or times."""
+        contract_id = self._get_contract_id_from_asset(asset)
+        try:
+            payload = self.client.get_market_quote(contract_id) if contract_id else None
+        except Exception as exc:
+            self.logger.debug("Streaming quote unavailable (%s)", type(exc).__name__)
+            payload = None
+        if isinstance(payload, dict) and payload:
+            source_time = payload.get("timestamp") or payload.get("lastUpdated")
+            timestamp = pd.to_datetime(source_time, utc=True, errors="coerce") if source_time else None
+            if timestamp is not None and pd.isna(timestamp):
+                timestamp = None
+            result = _get_quote_class()(
+                asset=asset, price=payload.get("lastPrice"),
+                bid=payload.get("bestBid"), ask=payload.get("bestAsk"),
+                volume=payload.get("volume"), timestamp=timestamp,
+                quote_time=timestamp, bid_time=timestamp, ask_time=timestamp,
+                raw_data={"source": "projectx_market", "live": True, **payload},
+            )
+            # Quote's generic default is a retrieval time; this adapter exposes source time.
+            result.timestamp = timestamp
+            return result
+        result = _get_quote_class()(
+            asset=asset, price=self.get_last_price(asset, quote=quote, exchange=exchange),
+            raw_data={"source": "projectx_history", "live": False},
         )
+        result.timestamp = None
+        return result
 
     def get_bars(
             self, 
@@ -272,34 +273,13 @@ class ProjectXData(DataSource):
                 self.logger.error(f"Unsupported timespan: {timestep}")
                 return None
 
-            end_datetime = datetime.now().astimezone(_default_pytz())
+            end_datetime = self.get_datetime()
+            duration = {1: timedelta(seconds=1), 2: timedelta(minutes=1),
+                        3: timedelta(hours=1), 4: timedelta(days=1),
+                        5: timedelta(weeks=1), 6: timedelta(days=30)}[unit] * unit_number
             if timeshift:
-                if timestep == "minute":
-                    end_datetime -= timedelta(minutes=timeshift)
-                elif timestep == "hour":
-                    end_datetime -= timedelta(hours=timeshift)
-                elif timestep == "day":
-                    end_datetime -= timedelta(days=timeshift)
-                elif timestep == "week":
-                    end_datetime -= timedelta(weeks=timeshift)
-                elif timestep == "month":
-                    end_datetime -= timedelta(days=timeshift * 30)
-
-            if timestep == "minute":
-                start_datetime = end_datetime - timedelta(minutes=length * unit_number)
-            elif timestep == "hour":
-                start_datetime = end_datetime - timedelta(hours=length * unit_number)
-            elif timestep == "day":
-                start_datetime = end_datetime - timedelta(days=length * unit_number)
-            elif timestep == "week":
-                start_datetime = end_datetime - timedelta(weeks=length * unit_number)
-            elif timestep == "month":
-                start_datetime = end_datetime - timedelta(days=length * unit_number * 30)
-            else:
-                start_datetime = end_datetime - timedelta(days=length)
-
-            start_datetime = start_datetime.replace(second=0, microsecond=0)
-            end_datetime = end_datetime.replace(second=59, microsecond=999999)
+                end_datetime -= timeshift if isinstance(timeshift, timedelta) else duration * timeshift
+            start_datetime = end_datetime - duration * (length + 100) - timedelta(days=3)
             df = self.client.history_retrieve_bars(
                 contract_id=contract_id,
                 start_datetime=start_datetime,
@@ -316,60 +296,13 @@ class ProjectXData(DataSource):
                 self.logger.warning(f"No data returned for {asset.symbol}")
                 return None
 
+            df = self._normalize_history(df)
             if len(df) > length:
                 df = df.tail(length)
 
-            # Enhanced datetime normalization & logging
-            # Debug & normalize datetime columns
-            try:
-                dt_cols = [c for c in df.columns if any(k in c.lower() for k in ["date", "time", "dt"]) ]
-                # Synthesize a single datetime column if one not already present
-                has_datetime = any(c.lower() in ("datetime", "date_time") for c in df.columns)
-                if not has_datetime:
-                    date_col = next((c for c in df.columns if c.lower() == "date"), None)
-                    time_col = next((c for c in df.columns if c.lower() == "time"), None)
-                    if date_col and time_col:
-                        try:
-                            combined = df[date_col].astype(str) + " " + df[time_col].astype(str)
-                            df["datetime"] = pd.to_datetime(combined, errors="coerce", utc=True)
-                            # Drop rows where parse failed
-                            before = len(df)
-                            df = df[df["datetime"].notna()]
-                            after = len(df)
-                            if before != after:
-                                self.logger.debug(f"Dropped {before-after} rows with invalid datetime parse for {asset.symbol}")
-                        except Exception as e_inner:
-                            self.logger.debug(f"Failed to synthesize datetime column for {asset.symbol}: {e_inner}")
-                # Standardize index: if we now have a datetime column and the current index is RangeIndex / non-datetime, set it.
-                try:
-                    if "datetime" in df.columns:
-                        if not isinstance(df.index, pd.DatetimeIndex) or df.index.name != "datetime":
-                            dt_series = pd.to_datetime(df["datetime"], errors="coerce", utc=True)
-                            # If conversion created NaT values, drop them to maintain integrity
-                            valid_mask = dt_series.notna()
-                            if not valid_mask.all():
-                                dropped = (~valid_mask).sum()
-                                self.logger.debug(f"Dropping {dropped} rows with invalid datetime during index set for {asset.symbol}")
-                                df = df.loc[valid_mask]
-                            df = df.set_index("datetime")
-
-                            # Convert to local timezone similar to other sources (Bars keeps tz-aware). Use UTC to be consistent.
-                            if df.index.tz is None:
-                                df.index = df.index.tz_localize('UTC')
-                            else:
-                                # Ensure UTC for internal consistency; strategies can localize later.
-                                df.index = df.index.tz_convert('UTC')
-                except Exception as idx_exc:
-                    self.logger.debug(f"Failed to standardize datetime index for {asset.symbol}: {idx_exc}")
-                sample_head = df.head(3)[dt_cols].to_dict(orient="list") if dt_cols else {}
-                debug_msg = (
-                    f"Retrieved {len(df)} bars for {asset.symbol}; datetime-related cols={dt_cols}; has_datetime={'datetime' in df.columns}; sample={sample_head}"
-                )
-                self.logger.debug(debug_msg)
-                # Also emit on module logger for tests capturing module-level logs
-                logger.debug(debug_msg)
-            except Exception as log_exc:
-                self.logger.debug(f"Datetime normalization debug failed for {asset.symbol}: {log_exc}")
+            message = f"Retrieved {len(df)} bars for {asset.symbol}; datetime index normalized"
+            self.logger.debug(message)
+            logger.debug(message)
             return _get_bars_class()(df=df, source=self.SOURCE, asset=asset, raw=df.to_dict())
         except Exception as e:
             self.logger.error(f"Error fetching bars for {getattr(asset, 'symbol', asset)}: {e}")
@@ -424,54 +357,24 @@ class ProjectXData(DataSource):
     def _get_contract_id_from_asset(self, asset: Asset) -> str:
         """Get ProjectX contract ID from Lumibot asset."""
         # Check cache first
-        cache_key = f"{asset.symbol}_{asset.asset_type}"
+        cache_key = (asset.symbol, asset.asset_type, getattr(asset, "expiration", None))
         if cache_key in self._contract_cache:
-            return self._contract_cache[cache_key]
+            contract_id = self._contract_cache[cache_key]
+            self._apply_contract_multiplier(asset, contract_id)
+            return contract_id
 
         try:
             # Start with the API client lookup because ProjectX only allows a single contract per symbol and
             # near the end of the quarter it is hard to predict which contract will be active. Result will be cached
             # to avoid repeated API lookups.
-            contract_id = self.client.find_contract_by_symbol(asset.symbol)
-
-            # Fallback to asset method if client lookup didn't work or for other asset types
-            if not contract_id:
-                # Handle continuous futures using Asset class logic
-                if asset.asset_type == Asset.AssetType.CONT_FUTURE:
-                    self.logger.debug(f"🔄 Resolving continuous future {asset.symbol} using Asset class")
-
-                    try:
-                        # Use Asset class method to get potential contracts
-                        potential_contracts = asset.get_potential_futures_contracts()
-
-                        for contract_symbol in potential_contracts:
-                            # Convert to ProjectX format if needed
-                            if not contract_symbol.startswith("CON.F.US."):
-                                # Parse symbol like "MESU25" -> "CON.F.US.MES.U25"
-                                if len(contract_symbol) >= 4:
-                                    base_symbol = contract_symbol[:-3]  # Remove last 3 chars
-                                    month_year = contract_symbol[-3:]   # Get month + year code
-                                    if len(month_year) == 3:
-                                        month_code = month_year[0]
-                                        year_code = month_year[1:]
-                                        contract_id = f"CON.F.US.{base_symbol}.{month_code}{year_code}"
-                                    else:
-                                        contract_id = f"CON.F.US.{asset.symbol}.{month_year}"
-                                else:
-                                    contract_id = f"CON.F.US.{asset.symbol}.U25"  # Fallback
-                            else:
-                                contract_id = contract_symbol
-
-                            # Use the first potential contract
-                            self.logger.debug(f"✅ Using Asset class contract: {contract_id}")
-                            break
-
-                    except Exception as asset_error:
-                        self.logger.warning(f"⚠️ Asset class resolution failed: {asset_error}")
+            expiration = getattr(asset, "expiration", None)
+            contract_id = (self.client.find_contract_by_symbol(asset.symbol, expiration=expiration)
+                           if expiration is not None else self.client.find_contract_by_symbol(asset.symbol))
 
             if contract_id:
                 # Cache the result with asset type for better cache key
                 self._contract_cache[cache_key] = contract_id
+                self._apply_contract_multiplier(asset, contract_id)
                 return contract_id
 
             self.logger.warning(f"Contract not found for symbol: {asset.symbol}")
@@ -480,6 +383,15 @@ class ProjectXData(DataSource):
         except Exception as e:
             self.logger.error(f"Error getting contract ID for {asset.symbol}: {e}")
             return None
+
+    def _apply_contract_multiplier(self, asset, contract_id):
+        from lumibot.tools.projectx_helpers import contract_price_multiplier
+        lookup = getattr(self.client, "get_contract_details", None)
+        if lookup is None:
+            return
+        multiplier = contract_price_multiplier(lookup(contract_id))
+        if multiplier is not None:
+            asset.multiplier = multiplier
 
     def _parse_timespan(self, timespan: str) -> tuple:
         """
@@ -589,61 +501,54 @@ class ProjectXData(DataSource):
             self.logger.error(f"Error searching contracts for '{search_text}': {e}")
             return []
 
+    HISTORY_PAGE_SIZE = 20000
+
+    @staticmethod
+    def _normalize_history(frame):
+        """Preserve UTC instants, real rows and provider OHLCV values."""
+        frame = frame.copy()
+        if not isinstance(frame.index, pd.DatetimeIndex):
+            if "date" in frame and "time" in frame:
+                frame["datetime"] = frame["date"].astype(str) + " " + frame["time"].astype(str)
+            column = next((name for name in ("datetime", "time", "t") if name in frame), None)
+            if column is None:
+                raise ValueError("ProjectX history has no timestamps")
+            frame.index = pd.to_datetime(frame.pop(column), utc=True, errors="coerce")
+        else:
+            frame.index = pd.to_datetime(frame.index, utc=True)
+        frame.index.name = "datetime"
+        frame = frame[frame.index.notna()]
+        return frame[~frame.index.duplicated(keep="last")].sort_index()
+
     def get_bars_from_datetime(self, asset: Asset, start_datetime: datetime,
                               end_datetime: datetime, timespan: str = "minute") -> Bars:
-        """
-        Get historical bars between specific datetime range.
-
-        Args:
-            asset: Asset to get bars for
-            start_datetime: Start datetime
-            end_datetime: End datetime
-            timespan: Time span for bars (minute, hour, day, week, month)
-
-        Returns:
-            Bars object containing the historical data
-        """
-        try:
-            # Get contract ID for the asset
-            contract_id = self._get_contract_id_from_asset(asset)
-            if not contract_id:
-                self.logger.error(f"Contract not found for asset: {asset.symbol}")
-                return None
-
-            # Parse timespan
-            unit, unit_number = self._parse_timespan(timespan)
-            if unit is None:
-                self.logger.error(f"Unsupported timespan: {timespan}")
-                return None
-
-            # Retrieve bars from ProjectX
-            df = self.client.history_retrieve_bars(
-                contract_id=contract_id,
-                start_datetime=start_datetime.isoformat(),
-                end_datetime=end_datetime.isoformat(),
-                unit=unit,
-                unit_number=unit_number,
-                limit=10000,  # Large limit to get all data in range
-                include_partial_bar=True,
-                live=False,
-                is_est=True
-            )
-
-            if df.empty:
-                self.logger.warning(f"No data returned for {asset.symbol}")
-                return None
-
-            # Create Bars object
-            bars = _get_bars_class()(
-                df=df,
-                source=self.SOURCE,
-                asset=asset,
-                raw=df.to_dict()
-            )
-
-            self.logger.debug(f"Retrieved {len(df)} bars for {asset.symbol} from {start_datetime} to {end_datetime}")
-            return bars
-
-        except Exception as e:
-            self.logger.error(f"Error getting bars from datetime for {asset.symbol}: {e}")
+        """Read a complete range of provider bars, paging backwards without overlap."""
+        contract_id = self._get_contract_id_from_asset(asset)
+        if not contract_id:
             return None
+        unit, unit_number = self._parse_timespan(timespan)
+        if unit is None:
+            raise ValueError(f"Unsupported ProjectX timespan: {timespan}")
+        from lumibot.tools.projectx_helpers import _to_utc_iso
+        start = pd.Timestamp(_to_utc_iso(start_datetime, is_est=True))
+        end = pd.Timestamp(_to_utc_iso(end_datetime, is_est=True))
+        cursor, pages = end, []
+        while cursor >= start:
+            frame = self.client.history_retrieve_bars(contract_id=contract_id,
+                start_datetime=start.to_pydatetime(), end_datetime=cursor.to_pydatetime(),
+                unit=unit, unit_number=unit_number, limit=self.HISTORY_PAGE_SIZE,
+                include_partial_bar=False, live=bool(self.config.get("live", False)), is_est=False)
+            if frame is None or frame.empty:
+                break
+            frame = self._normalize_history(frame)
+            frame = frame[(frame.index >= start) & (frame.index <= cursor)]
+            if frame.empty:
+                raise ValueError("ProjectX historical pagination did not advance")
+            pages.append(frame)
+            if len(frame) < self.HISTORY_PAGE_SIZE:
+                break
+            cursor = frame.index.min() - pd.Timedelta(microseconds=1)
+        if not pages:
+            return None
+        frame = self._normalize_history(pd.concat(pages))
+        return _get_bars_class()(df=frame, source=self.SOURCE, asset=asset, raw={"live": False})

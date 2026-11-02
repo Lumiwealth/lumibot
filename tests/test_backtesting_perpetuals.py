@@ -154,8 +154,9 @@ def test_two_strategies_cannot_change_each_others_collateral(account):
 
 
 class RoundTrip(_StubStrategy):
-    def initialize(self, asset, quantity):
+    def initialize(self, asset, quantity, direction="long"):
         self.asset, self.size = asset, quantity
+        self.direction = direction
         self.steps = 0
         self.fills = []
         self.sleeptime = "1M"
@@ -163,9 +164,11 @@ class RoundTrip(_StubStrategy):
 
     def on_trading_iteration(self):
         if self.steps == 0:
-            self.submit_order(self.create_order(self.asset, self.size, "buy"))
+            self.submit_order(self.create_order(self.asset, self.size,
+                                               "sell" if self.direction == "short" else "buy"))
         elif self.steps == 3:
-            self.submit_order(self.create_order(self.asset, self.size, "sell",
+            self.submit_order(self.create_order(self.asset, self.size,
+                                               "buy" if self.direction == "short" else "sell",
                                                reduce_only=self.asset.asset_type == "crypto_future"))
         self.steps += 1
 
@@ -173,16 +176,16 @@ class RoundTrip(_StubStrategy):
         self.fills.append((order.side, quantity, price))
 
 
-@pytest.mark.parametrize("kind", ["spot", "linear-usdt", "linear-usdc", "inverse", "base-units"])
+@pytest.mark.parametrize("kind", ["spot", "linear-usdt", "linear-usdc", "inverse", "base-units", "fractional-short"])
 def test_normal_strategy_backtest_round_trip(kind):
     inverse = kind == "inverse"
     settle = "BTC" if inverse else "USDC" if kind == "linear-usdc" else "USDT"
     unit = "base" if kind == "base-units" else "contracts"
     spec = ContractSpec("BTC", "USD" if inverse else settle, settle,
-                        1 if inverse or unit == "base" else ".001", inverse, unit)
+                        1 if inverse or unit == "base" or kind == "fractional-short" else ".001", inverse, unit)
     asset = (Asset("BTC", "crypto") if kind == "spot" else
              Asset(f"BTC/{spec.quote}:{settle}", "crypto_future", leverage=10, contract_spec=spec))
-    quantity = .02 if kind in ("spot", "base-units") else 1000 if inverse else 20
+    quantity = .012 if kind == "fractional-short" else .02 if kind in ("spot", "base-units") else 1000 if inverse else 20
     quote = Asset(settle, "crypto")
     dates = pd.date_range("2026-01-01 00:00", periods=8, freq="min", tz="UTC")
     prices = [50000]*3 + [55000]*5
@@ -192,13 +195,14 @@ def test_normal_strategy_backtest_round_trip(kind):
     _, strategy = RoundTrip.run_backtest(
         PandasDataBacktesting, dates[0], dates[-1], quote_asset=quote,
         budget=.1 if inverse else 2000, pandas_data=[data],
-        parameters={"asset": asset, "quantity": quantity},
+        parameters={"asset": asset, "quantity": quantity,
+                    "direction": "short" if kind == "fractional-short" else "long"},
         benchmark_asset=None, analyze_backtest=False, show_plot=False,
         show_tearsheet=False, show_indicators=False, show_progress_bar=False,
         save_logfile=False, save_stats_file=False,
     )
     assert len(strategy.fills) == 2
     assert strategy.broker.get_tracked_position(strategy.name, asset) is None
-    expected = .1 + 1000*(1/50000 - 1/55000) if inverse else 2100
+    expected = 1940 if kind == "fractional-short" else .1 + 1000*(1/50000 - 1/55000) if inverse else 2100
     assert strategy.cash == pytest.approx(expected)
     assert strategy._update_portfolio_value() == pytest.approx(expected)

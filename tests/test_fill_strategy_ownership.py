@@ -89,6 +89,12 @@ class _HedgeStrategy:
         self.broker = MagicMock()
         self.broker.IS_BACKTESTING_BROKER = False
         self.broker.name = "dummy"
+        self.broker.strategy_tag_matches = Broker.strategy_tag_matches
+        self.broker.order_is_foreign_to_local_strategy.side_effect = (
+            lambda order, local_name: Broker.order_is_foreign_to_local_strategy(
+                self.broker, order, local_name
+            )
+        )
         self.hedge_orders = []
         self.recorded_fills = []
         self._filled_order_callback = None

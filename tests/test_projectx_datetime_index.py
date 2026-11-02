@@ -23,6 +23,8 @@ class DummyClient:
 
 class DummyProjectX(ProjectXData):
     def __init__(self):
+        from lumibot.data_sources.data_source import DataSource
+        DataSource.__init__(self)
         self.client = DummyClient()
         self.logger = SimpleNamespace(debug=lambda *a,**k: None, error=lambda *a,**k: None, warning=lambda *a,**k: None)
 

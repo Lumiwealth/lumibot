@@ -126,6 +126,12 @@ each closing side from the current signed position (long becomes
 full held amount. Never write closing sides yourself. Pass `quantity` only for
 a per-unit price check or an intended partial close.
 
+Keep that contract-only shape for the final submission too. Do not copy
+`side` or `closing_side` fields from position reads, pricing results, or an
+opening-order payload into closing `legs_json`. For example, a closing leg is
+`{"symbol":"XYZ","expiration":"2027-01-15","strike":100,"right":"put"}`;
+the position determines its closing action.
+
 - Never multiply a cleanup quantity or repeat a close without rereading positions.
 - Do not report flatness until every relevant signed quantity is zero.
 

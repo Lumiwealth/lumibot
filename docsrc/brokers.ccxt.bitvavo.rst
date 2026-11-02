@@ -90,7 +90,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "bitvavo",
        "apiKey": os.environ.get("BITVAVO_API_KEY"),
        "secret": os.environ.get("BITVAVO_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -268,4 +268,4 @@ Sources
 * `Bitvavo Help Center: What are API keys and how do I create them? <https://support.bitvavo.com/hc/en-us/articles/4405059841809-What-are-API-keys-and-how-do-I-create-them>`_ (read 2026-10-23)
 * `Bitvavo API docs: get started <https://docs.bitvavo.com/docs/get-started/>`_ (read 2026-10-23)
 * `Bitvavo REST API: permissions <https://docs.bitvavo.com/docs/rest-api/introduction/>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

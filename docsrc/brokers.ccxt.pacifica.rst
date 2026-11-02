@@ -22,7 +22,7 @@ Pacifica at a glance
    * - CCXT exchange id
      - ``pacifica``
    * - Markets
-     - Perpetual swaps
+     - Spot, Perpetual swaps
    * - Testnet (sandbox)
      - Yes
    * - Credentials
@@ -30,7 +30,7 @@ Pacifica at a glance
    * - Live data streams
      - prices, order book, trades, candles, your orders
    * - CCXT request spacing
-     - about 50 ms between requests
+     - about 600 ms between requests
    * - Official site
      - https://www.pacifica.fi
    * - API docs
@@ -41,7 +41,7 @@ Pacifica at a glance
 What is Pacifica?
 -----------------
 
-Pacifica is a decentralized, self-custody trading platform on Solana that launched in June 2025. It offers perpetual futures on crypto and other markets, plus spot markets quoted in USDC. In CCXT, Pacifica is set up for its perpetual markets.
+Pacifica is a decentralized, self-custody trading platform on Solana that launched in June 2025. It offers perpetual futures on crypto and other markets, plus spot markets quoted in USDC. CCXT 4.5.91 lists both spot and perpetual markets.
 
 Sign up for Pacifica
 --------------------
@@ -111,7 +111,7 @@ CCXT sends sandbox requests to: https://test-api.pacifica.fi. Testnet and live a
 Algorithmic trading example: a simple Pacifica bot
 --------------------------------------------------
 
-CCXT lists no spot market for Pacifica, so this example trades a perpetual contract. It opens one small long BTC position worth about 50 USDC and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. If your account uses hedge mode, add ``position_side="long"`` to ``create_order``.
+This bot buys about 50 USDC of BTC on Pacifica once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. Pacifica accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -119,29 +119,28 @@ CCXT lists no spot market for Pacifica, so this example trades a perpetual contr
    from lumibot.strategies import Strategy
 
 
-   class PacificaOpenOneLong(Strategy):
-       """Open one small long BTC perpetual position, then hold it."""
+   class PacificaBuyOnce(Strategy):
+       """Buy a small amount of BTC once, then hold it."""
 
        def initialize(self):
            self.sleeptime = "1H"
            self.set_market("24/7")  # crypto trades all day, every day
 
        def on_trading_iteration(self):
-           # The full CCXT symbol keeps the settlement currency clear.
-           contract = self.broker.get_asset("BTC/USDC:USDC")
-           if self.get_position(contract) is not None:
-               return  # already holding the position
-           price = self.get_last_price(contract)
+           coin = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+           if self.get_position(coin) is not None:
+               return  # already holding BTC
+           price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
-               # Each contract covers contract.multiplier BTC; size the order to about 50 USDC.
-               quantity = round(50 / (price * contract.multiplier), 6)
-               order = self.create_order(contract, quantity, "buy")
+               quantity = round(50 / price, 6)  # about 50 USDC worth
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
    if __name__ == "__main__":
        # LumiBot reads TRADING_BROKER and the keys from your .env file.
-       strategy = PacificaOpenOneLong(quote_asset=Asset("USDC", asset_type=Asset.AssetType.CRYPTO))
+       strategy = PacificaBuyOnce(quote_asset=Asset("USDC", asset_type=Asset.AssetType.CRYPTO))
        strategy.run_live()
 
 Agentic trading example: an AI agent that trades on Pacifica
@@ -168,7 +167,7 @@ Agentic trading means an AI agent reads the market and decides what to do. In th
                allow_trading=True,
                system_prompt=(
                    "You manage a small crypto account on Pacifica. "
-                   "You may trade the BTC/USDC:USDC perpetual contract (asset_type 'crypto_future'), long or short, or stay flat. "
+                   "You may trade BTC and ETH against USDC (asset_type 'crypto', quote_symbol 'USDC'), or hold cash. "
                    "Before every order, call account_portfolio, account_positions and "
                    "market_last_price for that exact symbol in the same run. "
                    "Keep each order under 10% of the account value. "
@@ -178,7 +177,7 @@ Agentic trading means an AI agent reads the market and decides what to do. In th
 
        def on_trading_iteration(self):
            self.agents["trader"].run(
-               task_prompt="Review recent BTC/USDC:USDC prices and your current position, then decide whether to buy, sell or hold.",
+               task_prompt="Review recent BTC/USDC and ETH/USDC prices and your current holdings, then decide whether to buy, sell or hold.",
                context={"exchange": "Pacifica", "quote": "USDC", "date": self.get_datetime().isoformat()},
            )
 
@@ -200,7 +199,7 @@ What you can trade on Pacifica
    * - Market
      - Listed by CCXT
    * - Spot
-     - No
+     - Yes
    * - Margin
      - No
    * - Perpetual swaps
@@ -210,9 +209,46 @@ What you can trade on Pacifica
    * - Options
      - No
 
-CCXT lists these order features for Pacifica: market orders, limit orders, stop orders, reduce-only orders, editing open orders, canceling orders.
+CCXT lists these order features for Pacifica: stop orders, reduce-only orders, editing open orders, canceling orders.
 
-For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDC:USDC``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
+For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDT:USDT``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
+
+Perpetual futures example on Pacifica
+-------------------------------------
+
+Pacifica also lists perpetual swaps. This bot opens one small long position in ``BTC/USDC:USDC`` worth about 50 USDC and then holds it. LumiBot treats a perpetual as ``asset_type="crypto_future"`` and sizes it in contracts, the same model as LumiBot's Bitunix futures broker. Contract symbols can differ by exchange, so check the symbol in ``self.broker.api.markets`` before going live. In hedge mode, add ``position_side="long"`` to ``create_order``. Pacifica accepts only limit orders through CCXT, so the example places a limit order just above the last price.
+
+.. code-block:: python
+
+   from lumibot.entities import Asset
+   from lumibot.strategies import Strategy
+
+
+   class PacificaOpenOneLong(Strategy):
+       """Open one small long BTC perpetual position, then hold it."""
+
+       def initialize(self):
+           self.sleeptime = "1H"
+           self.set_market("24/7")  # crypto trades all day, every day
+
+       def on_trading_iteration(self):
+           # The full CCXT symbol keeps the settlement currency clear.
+           contract = self.broker.get_asset("BTC/USDC:USDC")
+           if self.get_position(contract) is not None:
+               return  # already holding the position
+           price = self.get_last_price(contract)
+           if price:
+               # Each contract covers contract.multiplier BTC; size the order to about 50 USDC.
+               quantity = round(50 / (price * contract.multiplier), 6)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(contract, quantity, "buy", limit_price=price * 1.002)
+               self.submit_order(order)
+
+
+   if __name__ == "__main__":
+       # LumiBot reads TRADING_BROKER and the keys from your .env file.
+       strategy = PacificaOpenOneLong(quote_asset=Asset("USDC", asset_type=Asset.AssetType.CRYPTO))
+       strategy.run_live()
 
 Fees and partner IDs on Pacifica
 --------------------------------
@@ -249,7 +285,7 @@ Yes. The agentic example above gives one agent permission to trade. You control 
 
 **Can I trade Pacifica perpetual futures with LumiBot?**
 
-CCXT lists perpetual swaps for this exchange. Use the full contract symbol, such as ``BTC/USDC:USDC``.
+CCXT lists perpetual swaps for this exchange. Use the full contract symbol, such as ``BTC/USDT:USDT``.
 
 **Is LumiBot free?**
 
@@ -267,10 +303,10 @@ Related guides
 
 * :doc:`How crypto exchange setup works <brokers.ccxt>`
 * :doc:`AI agents quickstart <agents_quickstart>`
-* :doc:`AftermathFinance trading bot <brokers.ccxt.aftermath>`
-* :doc:`Apex trading bot <brokers.ccxt.apex>`
-* :doc:`BloFin trading bot <brokers.ccxt.blofin>`
-* :doc:`dYdX trading bot <brokers.ccxt.dydx>`
+* :doc:`BigONE trading bot <brokers.ccxt.bigone>`
+* :doc:`BingX trading bot <brokers.ccxt.bingx>`
+* :doc:`Bitrue trading bot <brokers.ccxt.bitrue>`
+* :doc:`Gemini trading bot <brokers.ccxt.gemini>`
 
 Sources
 -------
@@ -283,4 +319,5 @@ Sources
 * `Pacifica Docs: Market Symbols <https://docs.pacifica.fi/api-documentation/api/market-symbols>`_ (read 2026-10-23)
 * `Pacifica Docs: Rate Limits <https://docs.pacifica.fi/api-documentation/api/rate-limits>`_ (read 2026-10-23)
 * `CCXT Pacifica adapter source (credential and agentAddress options) <https://github.com/ccxt/ccxt/blob/master/python/ccxt/pacifica.py>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* `CCXT 4.5.91 pacifica adapter source <https://github.com/ccxt/ccxt/blob/v4.5.91/python/ccxt/pacifica.py>`_ (read 2026-11-01)
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

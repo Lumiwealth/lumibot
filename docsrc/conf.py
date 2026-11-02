@@ -1029,13 +1029,18 @@ def _ccxt_index_rows(srcdir):
 
     facts_path = Path(srcdir) / "_data" / "ccxt_exchange_facts.json"
     facts = {fx["id"]: fx for fx in json.loads(facts_path.read_text(encoding="utf-8"))["exchanges"]}
+    notes_path = Path(srcdir) / "_data" / "ccxt_exchange_notes.json"
+    retired = json.loads(notes_path.read_text(encoding="utf-8")).get("retired", {})
     rows = []
     for page in sorted(Path(srcdir).glob("brokers.ccxt.*.rst")):
         exchange_id = page.stem.split(".", 2)[2]
-        fact = facts.get(exchange_id)
+        fact = retired.get(exchange_id) or facts.get(exchange_id)
         if fact is None:
             raise ValueError(f"{page.name} has no entry in {facts_path.name}")
-        markets = ", ".join(label for key, label in _CCXT_MARKET_LABELS if fact["markets"].get(key))
+        if exchange_id in retired:
+            markets = retired[exchange_id]["reason"]
+        else:
+            markets = ", ".join(label for key, label in _CCXT_MARKET_LABELS if fact["markets"].get(key))
         kind = CCXT_DEX if fact.get("dex") else CCXT_CENTRALIZED
         name = fact["name"]
         if name.lower() in {row[0].lower() for row in HAND_WRITTEN_BROKERS}:
@@ -1088,6 +1093,7 @@ class BrokerIndexDirective(Directive):
         only = self.options.get("only")
         rows = broker_index_rows(env.srcdir, only)
         env.note_dependency(str(Path(env.srcdir) / "_data" / "ccxt_exchange_facts.json"))
+        env.note_dependency(str(Path(env.srcdir) / "_data" / "ccxt_exchange_notes.json"))
         caption = {
             None: f"All {len(rows)} LumiBot broker and exchange guides, A to Z",
             "ccxt-centralized": f"{len(rows)} centralized crypto exchanges, A to Z",
@@ -1152,6 +1158,7 @@ class ExchangeToctreeDirective(Directive):
     def run(self):
         env = self.state.document.settings.env
         env.note_dependency(str(Path(env.srcdir) / "_data" / "ccxt_exchange_facts.json"))
+        env.note_dependency(str(Path(env.srcdir) / "_data" / "ccxt_exchange_notes.json"))
         lines = [".. toctree::", "   :maxdepth: 1", "   :hidden:", ""]
         lines += [f"   {label} <{doc}>" for label, doc in exchange_menu_entries(env.srcdir)]
         container = nodes.container()

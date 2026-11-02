@@ -7,13 +7,20 @@ reasoning effort; qualification follows that recorded configuration. Market and
 broker responses are deterministic fixtures, so the eval measures agent behavior
 without placing a trade or requiring paid market data.
 
-Semantic quality is scored by a real ChatGPT GPT-6.1 Sol judge. Both roles use
+Semantic quality is scored by a real ChatGPT GPT-6 Luna High judge. Both roles use
 the developer's own authenticated ChatGPT connection with no API-key billing.
 Private login credentials stay outside the repository and CI.
 
 Deterministic checks cover only
 machine facts such as tool order, order count, exact leg sides and quantities,
 and final fixture positions.
+
+Portfolio cases exercise nine- and twenty-five-name completion, existing-position
+rebalancing, current executable quote sizing, dated historical-row selection and
+a basket with one unavailable constituent. The native broker's fills, quantities
+and cash are checked alongside the semantic judge. A one-repetition `--pilot`
+run finds setup or behavior failures without lowering the configured five-pass
+requirement; successful compatible repetitions are retained on resume.
 
 Cases declare three or five required consecutive repetitions. The current
 catalog selects five because it exercises shared runtime and security behavior.

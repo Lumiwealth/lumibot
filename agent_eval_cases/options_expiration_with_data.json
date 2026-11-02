@@ -12,7 +12,6 @@
       "account_portfolio",
       "account_positions",
       "orders_open_orders",
-      "market_last_price",
       "options_get_chain",
       "options_get_greeks",
       "options_evaluate_market",
@@ -20,7 +19,15 @@
     ],
     "legTopology": "iron_condor",
     "expirationMustBe": "2026-08-28",
-    "explicitLimitBetweenBidAsk": true
+    "explicitLimitBetweenBidAsk": true,
+    "requiredBeforeOrderAny": [
+      [
+        "market_quote",
+        "market_quotes",
+        "market_last_price",
+        "market_last_prices"
+      ]
+    ]
   },
   "judgeRubric": "Pass only if the agent independently loaded the options skill and submitted exactly one atomic iron condor whose legs all use one listed expiration that has usable quotes, at a limit price between the bid and ask. A no-trade answer fails because a later listed expiration has complete bid and ask. Ordering the expiration that has no quotes fails. A market package, a missing package price, or a price outside the bid and ask fails.",
   "requiredRepetitions": 5

@@ -88,7 +88,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "btcturk",
        "apiKey": os.environ.get("BTCTURK_API_KEY"),
        "secret": os.environ.get("BTCTURK_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -106,7 +106,7 @@ BtcTurk has no sandbox, and CCXT lists no test URL for it, so test with a very s
 Algorithmic trading example: a simple BTCTurk bot
 -------------------------------------------------
 
-This bot buys about 2500 TRY of BTC on BTCTurk once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount.
+This bot buys about 2500 TRY of BTC on BTCTurk once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. BTCTurk accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -128,7 +128,8 @@ This bot buys about 2500 TRY of BTC on BTCTurk once and then holds it. It is a s
            price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
                quantity = round(2500 / price, 6)  # about 2500 TRY worth
-               order = self.create_order(coin, quantity, "buy", quote=self.quote_asset)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
@@ -203,7 +204,7 @@ What you can trade on BTCTurk
    * - Options
      - No
 
-CCXT lists these order features for BTCTurk: market orders, limit orders, editing open orders, canceling orders.
+CCXT lists these order features for BTCTurk: editing open orders, canceling orders.
 
 Fees and partner IDs on BTCTurk
 -------------------------------
@@ -271,4 +272,4 @@ Sources
 * `BtcTurk Support Center: BtcTurk | Kripto API <https://btc-helpdesk.infoset.app/kriptobilgibankasi/en/articles/851-btcturk-or-kripto-api>`_ (read 2026-10-23)
 * `BtcTurk Bilgi Platformu: BtcTurk'e nasıl üye olunur? <https://bilgiplatformu.btcturk.com/btcturk-kripto/btcturke-nasil-uye-olunur/>`_ (read 2026-10-23)
 * `BtcTurk broker API docs (GitHub): authentication <https://github.com/BTCTrader/broker-api-docs/blob/master/README-pro.md>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

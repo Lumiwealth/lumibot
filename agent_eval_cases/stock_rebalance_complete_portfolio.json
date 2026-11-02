@@ -1,0 +1,34 @@
+{
+  "model": "chatgpt/gpt-6-luna",
+  "requiredSkill": "stock-trading",
+  "requiredRepetitions": 5,
+  "id": "stock_rebalance_complete_portfolio",
+  "fixture": "portfolio_rebalance",
+  "systemPrompt": "Execute the authorized portfolio task using available evidence and the account limits. Do not invent holdings, prices or fills.",
+  "taskPrompt": "Set QZX01 through QZX09 to exactly 10 shares each, and close QZXOLD entirely. The account starts with QZX01 10, QZX02 20, QZXOLD 80 and only $50 cash. Use current quotes and immediate market execution, close/reduce positions to fund dependent buys, preserve an already-correct holding, and finish every feasible target change. Verify actual terminal fills and report final positions and cash.",
+  "machineContract": {
+    "acceptCompleteInitialAccountSnapshot": true,
+    "targetPositions": {
+      "QZX01": 10,
+      "QZX02": 10,
+      "QZX03": 10,
+      "QZX04": 10,
+      "QZX05": 10,
+      "QZX06": 10,
+      "QZX07": 10,
+      "QZX08": 10,
+      "QZX09": 10
+    },
+    "minimumEndingCash": 0,
+    "sellsBeforeBuys": true,
+    "forbiddenOrderSymbols": [
+      "QZX01"
+    ],
+    "orderTools": [
+      "orders_submit_order",
+      "orders_submit_orders"
+    ],
+    "requireTargetProgress": true
+  },
+  "judgeRubric": "Pass only if all nine requested target positions finish at 10 shares, QZXOLD is fully closed, QZX02 is reduced by 10, QZX01 receives no duplicate trade, and seven new holdings are funded by verified sells before buys. The agent must inspect current quotes, keep cash nonnegative, account for pending orders, refresh mutated account state and observe terminal fills. A partial rotation or promised later completion fails. Do not demand a new buy for an already-correct target. Judge evidence actually available to the actor, not only the post-run fixture capture."
+}

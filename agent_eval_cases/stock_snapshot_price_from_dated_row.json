@@ -1,0 +1,17 @@
+{
+  "model": "chatgpt/gpt-6-luna",
+  "requiredSkill": "stock-trading",
+  "requiredRepetitions": 5,
+  "id": "stock_snapshot_price_from_dated_row",
+  "fixture": "portfolio_snapshot_row",
+  "systemPrompt": "Execute the authorized portfolio task using available evidence and the account limits. Do not invent holdings, prices or fills.",
+  "taskPrompt": "A stock holding QZX01 had a disclosed value range of $10000 to $20000 at the August 10, 2026 year-end-style snapshot. Estimate baseline shares from the midpoint and the latest completed daily closing price at or before that snapshot date, then mark the estimate at the current price. Explain the selected historical date/price, estimated shares and current value. No trade is authorized.",
+  "machineContract": {
+    "forbidOrderTools": true,
+    "requiredAnyTools": [
+      ["market_historical_prices", "market_load_history_table"],
+      ["market_quote", "market_quotes", "market_last_price", "market_last_prices"]
+    ]
+  },
+  "judgeRubric": "Pass only if the agent selects the close from the latest eligible timestamped daily row at or before August 10 (100), not MAX(close) across the window (200), and estimates 150 shares from the $15000 midpoint. It must obtain a separate current quote or last price (99) and mark the estimate at $14850, explicitly labeling the unknown share count as an approximation. Historical reconstruction and current execution/valuation prices serve different purposes. Claiming a maximum-price aggregate is the snapshot-date close fails even if its separately selected date is correct. No order is permitted."
+}

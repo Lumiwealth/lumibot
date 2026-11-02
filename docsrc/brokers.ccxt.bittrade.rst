@@ -91,7 +91,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "bittrade",
        "apiKey": os.environ.get("BITTRADE_API_KEY"),
        "secret": os.environ.get("BITTRADE_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -109,7 +109,7 @@ BitTrade has no sandbox, and CCXT lists no test URL for it, so test with a very 
 Algorithmic trading example: a simple BitTrade bot
 --------------------------------------------------
 
-This bot buys about 7500 JPY of BTC on BitTrade once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount.
+This bot buys about 7500 JPY of BTC on BitTrade once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. BitTrade accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -131,7 +131,8 @@ This bot buys about 7500 JPY of BTC on BitTrade once and then holds it. It is a 
            price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
                quantity = round(7500 / price, 6)  # about 7500 JPY worth
-               order = self.create_order(coin, quantity, "buy", quote=self.quote_asset)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
@@ -206,7 +207,7 @@ What you can trade on BitTrade
    * - Options
      - No
 
-CCXT lists these order features for BitTrade: market orders, limit orders, editing open orders, canceling orders.
+CCXT lists these order features for BitTrade: editing open orders, canceling orders.
 
 Fees and partner IDs on BitTrade
 --------------------------------
@@ -273,4 +274,4 @@ Sources
 * `BitTrade API Reference <https://api-doc.bittrade.co.jp/>`_ (read 2026-10-23)
 * `BitTrade Support: 口座開設ガイド (Account opening guide) <https://support.bittrade.co.jp/hc/ja/articles/360015613513>`_ (read 2026-10-23)
 * `BitTrade Support: 二段階認証の設定方法 (Two-factor setup) <https://support.bittrade.co.jp/hc/ja/articles/360036436353>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

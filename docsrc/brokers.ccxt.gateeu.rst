@@ -28,7 +28,7 @@ Gate EU at a glance
    * - Credentials
      - API key, API secret
    * - Live data streams
-     - None listed; LumiBot uses REST
+     - prices, order book, trades, candles, your orders, your balance, your positions
    * - CCXT request spacing
      - about 20 ms between requests
    * - Official site
@@ -89,7 +89,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "gateeu",
        "apiKey": os.environ.get("GATEEU_API_KEY"),
        "secret": os.environ.get("GATEEU_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -204,7 +204,7 @@ What you can trade on Gate EU
    * - Options
      - Not listed by CCXT
 
-CCXT lists these order features for Gate EU: market orders, limit orders, stop orders, stop-loss orders, take-profit orders, reduce-only orders, editing open orders, canceling orders.
+CCXT lists these order features for Gate EU: market orders, stop orders, stop-loss orders, take-profit orders, reduce-only orders, editing open orders, canceling orders.
 
 Fees and partner IDs on Gate EU
 -------------------------------
@@ -270,4 +270,4 @@ Sources
 * `Gate EU home page <https://www.gate.com/en-eu>`_ (read 2026-10-23)
 * `Gate EU sign-up page <https://www.gate.com/en-eu/signup>`_ (read 2026-10-23)
 * `Gate Help: How to Create and Manage API Keys on Gate (Web) <https://www.gate.com/help/guide/faq/17521>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

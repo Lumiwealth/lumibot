@@ -482,3 +482,14 @@ class TestProjectXBrokerIntegration:
         assert positions[0].quantity == 5
         assert positions[1].asset.symbol == "NQ"
         assert positions[1].quantity == -2 
+
+
+def test_actual_contract_metadata_preserves_exchange_root_and_multiplier(projectx_broker):
+    # Shape recorded from ProjectX Contract/search on 2026-11-01 (ES, not internal EP root).
+    projectx_broker.client.get_contract_details.return_value = {
+        'id': 'CON.F.US.EP.Z26', 'name': 'ESZ6',
+        'description': 'E-Mini S&P 500: December 2026', 'tickSize': .25,
+        'tickValue': 12.5, 'activeContract': True, 'symbolId': 'F.US.EP'}
+    asset = projectx_broker._get_asset_from_contract_id_cached('CON.F.US.EP.Z26')
+    assert asset.symbol == 'ES'
+    assert asset.multiplier == 50

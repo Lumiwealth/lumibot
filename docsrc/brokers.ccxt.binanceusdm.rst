@@ -112,7 +112,7 @@ CCXT sends sandbox requests to: https://testnet.binancefuture.com/dapi/v1, https
 Algorithmic trading example: a simple Binance USDⓈ-M bot
 --------------------------------------------------------
 
-CCXT lists no spot market for Binance USDⓈ-M, so this example trades a perpetual contract. It opens one small long BTC position worth about 50 USDT and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. If your account uses hedge mode, add ``position_side="long"`` to ``create_order``.
+CCXT lists no spot market for Binance USDⓈ-M, so this example trades a perpetual contract. It opens one small long BTC position worth about 50 USDT and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. If your account uses hedge mode, add ``position_side="long"`` to ``create_order``. Binance USDⓈ-M accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -136,7 +136,8 @@ CCXT lists no spot market for Binance USDⓈ-M, so this example trades a perpetu
            if price:
                # Each contract covers contract.multiplier BTC; size the order to about 50 USDT.
                quantity = round(50 / (price * contract.multiplier), 6)
-               order = self.create_order(contract, quantity, "buy")
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(contract, quantity, "buy", limit_price=price * 1.002)
                self.submit_order(order)
 
 
@@ -211,7 +212,7 @@ What you can trade on Binance USDⓈ-M
    * - Options
      - Not listed by CCXT
 
-CCXT lists these order features for Binance USDⓈ-M: market orders, limit orders, stop orders, stop-loss orders, take-profit orders, reduce-only orders, editing open orders, canceling orders.
+CCXT lists these order features for Binance USDⓈ-M: stop orders, stop-loss orders, take-profit orders, reduce-only orders, editing open orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDT:USDT``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
 
@@ -269,7 +270,7 @@ Related guides
 * :doc:`Binance COIN-M trading bot <brokers.ccxt.binancecoinm>`
 * :doc:`Kraken Futures trading bot <brokers.ccxt.krakenfutures>`
 * :doc:`KuCoin Futures trading bot <brokers.ccxt.kucoinfutures>`
-* :doc:`AftermathFinance trading bot <brokers.ccxt.aftermath>`
+* :doc:`Apex trading bot <brokers.ccxt.apex>`
 
 Sources
 -------
@@ -278,4 +279,4 @@ Sources
 * `Binance FAQ: How to Test Functions on Binance Spot Testnet and Futures Demo Trading? <https://www.binance.com/en/support/faq/detail/ab78f9a1b8824cf0a106b4229c76496d>`_ (read 2026-10-23)
 * `Binance FAQ: What Are USDⓈ-Margined Futures and COIN-Margined Futures? <https://www.binance.com/en/support/faq/what-are-usd%E2%93%A2-margined-futures-and-coin-margined-futures-85eac2bba0b342819122dc9bd4745e9b>`_ (read 2026-10-23)
 * `Binance Developer Docs: USDⓈ-M Futures General Info <https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/general-info>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

@@ -44,10 +44,16 @@ def _parse_datetime(value):
 
 def _metamask_config():
     return {
-        "BROKER_URL": os.environ.get("METAMASK_BROKER_URL", "http://127.0.0.1:8766"),
+        "BROKER_URL": os.environ.get("METAMASK_BROKER_URL"),
         "BROKER_TOKEN": os.environ.get("METAMASK_BROKER_TOKEN"),
+        "SESSION_FILE": os.environ.get("METAMASK_SESSION_FILE"),
+        "STATE_FILE": os.environ.get("METAMASK_STATE_FILE"),
+        "AGENT_ID": os.environ.get("METAMASK_AGENT_ID"),
+        "PROJECT_ID": os.environ.get("METAMASK_PROJECT_ID"),
+        "ACCESS_TOKEN": os.environ.get("METAMASK_ACCESS_TOKEN"),
+        "REFRESH_TOKEN": os.environ.get("METAMASK_REFRESH_TOKEN"),
         "WALLET_ADDRESS": os.environ.get("METAMASK_WALLET_ADDRESS"),
-        "NETWORK": os.environ.get("METAMASK_NETWORK", "testnet"),
+        "NETWORK": os.environ.get("METAMASK_NETWORK"),
         "MODE": os.environ.get("METAMASK_MODE", "perp"),
     }
 

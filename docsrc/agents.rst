@@ -90,6 +90,8 @@ tools and backtesting broker. Market observations and research responses are
 fixtures; actor and judge calls use real models. Execution scenarios require a
 broker-observed simulated fill, not merely an order claim in model prose.
 Historical research fixtures also exercise MCP schema discovery and as-of binding.
+Each production evaluation fixture releases its own database and stream
+resources after use, including failed runs.
 
 How ``@agent_tool`` Works
 -------------------------
@@ -223,9 +225,9 @@ LumiBot includes a full set of built-in trading tools that are available to ever
 The built-in tools cover everything a trading agent needs:
 
 - **Account:** ``account.positions``, ``account.portfolio`` -- current holdings and portfolio state
-- **Market data:** ``market.last_price``, ``market.load_history_table`` -- real-time quotes and historical bars
+- **Market data:** ``market.quote``, ``market.quotes``, ``market.last_price``, ``market.load_history_table`` -- current quotes, price fallbacks and historical bars
 - **DuckDB:** ``duckdb.query`` -- SQL queries over time-series data loaded into DuckDB tables
-- **Orders:** ``orders.submit``, ``orders.cancel``, ``orders.modify``, ``orders.open_orders`` -- full order management
+- **Orders:** ``orders.submit``, ``orders.submit_orders``, ``orders.cancel``, ``orders.modify``, ``orders.open_orders`` -- individual orders, explicit baskets and order management
 - **Documentation:** ``docs.search`` -- search LumiBot's own API docs for guidance
 
 These tools give the agent access to positions, prices, history, and order execution without any setup. If you want to add external data on top of these, use ``@agent_tool`` or add MCP servers.
@@ -647,6 +649,22 @@ Backtest vs. live behavior
 
 **Live trading invariant**: an AI agent call never stops a live trading bot. Ever. Even a completely missing API key will log an error and continue — the operator can fix the env var and the bot resumes on the next iteration without a process restart. This is intentional: shutting down a live bot with real money at risk because of a provider hiccup is unacceptable.
 
+An incomplete decision does not prove that no order actions occurred. Failed
+runs retain observed tool events and usage. The failed result's
+``broker_mutation_attempted`` field is ``True``, ``False`` or ``None`` when
+evidence is missing. Attempted mutations or unknown trading effects produce
+unknown broker certainty, a non-retryable outcome and operator attention.
+Reconcile actual orders and account state before further action. The runtime
+does not replay the whole agent attempt after a broker mutation.
+
+Mark custom tools that submit, change or cancel orders with
+``@agent_tool(mutates_trading=True)``. Research permissions and retry protection
+use this bound metadata even when model-facing tool names are aliased.
+
+Report purchase cost from confirmed fills and fees. Current equity uses position
+marks, which can differ from execution prices. Calculate comparisons with a tool;
+otherwise report returned cash and equity without an invented gain or loss.
+
 **Backtest philosophy**: surface bugs loudly. A silent +0% tearsheet caused by a wrong API key is worse than a clear error message — the user just started the run, can fix it, and re-run. Transient errors (including rate limits that outlast their retries) skip the bar, but never silently: a backtest with skipped bars ran with missing AI decisions, and its results must say so.
 
 Skipped bars in backtest results
@@ -654,7 +672,7 @@ Skipped bars in backtest results
 
 Every skipped agent call is counted and reported in three places:
 
-- the log, as ``BACKTEST INCOMPLETE: agent '<name>' ... could not run at <time>``;
+- the log, as ``BACKTEST INCOMPLETE: agent '<name>' ... did not complete at <time>``;
 - the tear sheet's **Parameters Used** panel, as ``agent_<name>_skipped_runs`` and ``agent_skipped_runs_total``;
 - the backtest ``settings.json``, as an ``agent_health`` block:
 
@@ -676,12 +694,16 @@ Every skipped agent call is counted and reported in three places:
 Skipped iteration result shape
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-When the safety net returns a graceful skip, the ``AgentRunResult`` includes:
+When the safety net returns an incomplete decision, the ``AgentRunResult`` includes:
 
-- ``summary`` starting with ``"RESULT: Skipped this iteration. Agent call failed (category=...)"``
+- ``summary`` starting with ``"RESULT: Agent decision incomplete. Agent call failed (category=...)"``
 - a text event with payload ``{"runtime_error": True, "error_category": "...", "error_class": "...", "error_message": "...", "traceback": "..."}``
 - a warning in ``result.warnings`` with ``kind="agent_runtime_failure_skipped"`` and the category
-- ``cache_key = None`` (failures are never cached — next iteration retries fresh)
+- observed tool events and usage, plus an execution outcome describing broker certainty and retryability
+- ``cache_key = None`` because failures are never cached
+
+Inspect the execution outcome before further action. An uncached result does
+not authorize replaying orders; unknown effects require reconciliation.
 
 Strategy authors can count skipped iterations with ``len([w for w in result.warnings if w.get("kind") == "agent_runtime_failure_skipped"])`` for post-run analysis.
 

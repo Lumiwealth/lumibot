@@ -114,7 +114,7 @@ CCXT sends sandbox requests to: https://api-public.sandbox.exchange.coinbase.com
 Algorithmic trading example: a simple Coinbase Exchange bot
 -----------------------------------------------------------
 
-This bot buys about 50 USD of BTC on Coinbase Exchange once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount.
+This bot buys about 50 USD of BTC on Coinbase Exchange once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. Coinbase Exchange accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -136,7 +136,8 @@ This bot buys about 50 USD of BTC on Coinbase Exchange once and then holds it. I
            price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
                quantity = round(50 / price, 6)  # about 50 USD worth
-               order = self.create_order(coin, quantity, "buy", quote=self.quote_asset)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
@@ -211,7 +212,7 @@ What you can trade on Coinbase Exchange
    * - Options
      - No
 
-CCXT lists these order features for Coinbase Exchange: market orders, limit orders, stop orders, editing open orders, canceling orders.
+CCXT lists these order features for Coinbase Exchange: stop orders, editing open orders, canceling orders.
 
 Fees and partner IDs on Coinbase Exchange
 -----------------------------------------
@@ -278,4 +279,4 @@ Sources
 * `Coinbase Help: Getting started with your Exchange account <https://help.coinbase.com/en/exchange/getting-started/getting-started-with-your-exchange-account>`_ (read 2026-10-23)
 * `Coinbase Developer docs: Exchange REST API authentication <https://docs.cdp.coinbase.com/exchange/rest-api/authentication>`_ (read 2026-10-23)
 * `Coinbase Developer docs: Exchange sandbox <https://docs.cdp.coinbase.com/exchange/introduction/sandbox>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

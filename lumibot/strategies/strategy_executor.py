@@ -1589,12 +1589,7 @@ class StrategyExecutor(Thread):
         order_tag = getattr(order, "tag", None)
         belongs = True
         if not self.broker.IS_BACKTESTING_BROKER and local_name and (order_tag or order_strategy):
-            from lumibot.brokers.broker import Broker as _Broker
-
-            if order_tag:
-                belongs = _Broker.strategy_tag_matches(order_tag, local_name)
-            else:
-                belongs = _Broker.strategy_tag_matches(order_strategy, local_name)
+            belongs = not self.broker.order_is_foreign_to_local_strategy(order, local_name)
         if not belongs:
             return
         self.strategy.on_partially_filled_order(position, order, price, quantity, multiplier)
@@ -1608,12 +1603,7 @@ class StrategyExecutor(Thread):
         order_tag = getattr(order, "tag", None)
         belongs = True
         if not self.broker.IS_BACKTESTING_BROKER and local_name and (order_tag or order_strategy):
-            from lumibot.brokers.broker import Broker as _Broker
-
-            if order_tag:
-                belongs = _Broker.strategy_tag_matches(order_tag, local_name)
-            else:
-                belongs = _Broker.strategy_tag_matches(order_strategy, local_name)
+            belongs = not self.broker.order_is_foreign_to_local_strategy(order, local_name)
         if not belongs:
             if self.strategy.logger.isEnabledFor(20):
                 self.strategy.logger.info(

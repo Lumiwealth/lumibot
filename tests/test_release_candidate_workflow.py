@@ -222,3 +222,12 @@ def test_manual_publication_recovery_requires_the_exact_existing_tag(release_che
              'GITHUB_EVENT_NAME':'workflow_dispatch','GITHUB_REF_NAME':'dev','RECOVER_TAG':recovery_tag},
         capture_output=True,text=True)
     assert result.returncode == expected_exit,result.stderr
+
+
+def test_installed_package_proof_uses_a_clean_environment():
+    script = next(step['run'] for step in _workflow()['jobs']['validate-build']['steps']
+        if step.get('name') == 'Build package')
+    assert 'python -m venv "${RUNNER_TEMP}/lumibot-release-install"' in script
+    assert '"${package_python}" -m pip install dist/*.whl -c requirements_agent_evals.txt' in script
+    assert '"${package_python}" -m pip check' in script
+    assert '--force-reinstall' not in script

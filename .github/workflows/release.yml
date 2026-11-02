@@ -92,11 +92,13 @@ jobs:
         run: |
           set -euo pipefail
           python -m build --wheel
-          pip install --force-reinstall dist/*.whl -c requirements_agent_evals.txt
-          pip check
-          python -I -c "import lumibot; import importlib.metadata as m; print(m.version('lumibot'), lumibot.__file__)"
-          python -I -c "from lumibot.components.agents.chatgpt_llm import ChatGPTPlanLlm; print(ChatGPTPlanLlm.__module__)"
-          python -I -m lumibot.components.agents.chatgpt_auth --help
+          python -m venv "${RUNNER_TEMP}/lumibot-release-install"
+          package_python="${RUNNER_TEMP}/lumibot-release-install/bin/python"
+          "${package_python}" -m pip install dist/*.whl -c requirements_agent_evals.txt
+          "${package_python}" -m pip check
+          "${package_python}" -I -c "import lumibot; import importlib.metadata as m; print(m.version('lumibot'), lumibot.__file__)"
+          "${package_python}" -I -c "from lumibot.components.agents.chatgpt_llm import ChatGPTPlanLlm; print(ChatGPTPlanLlm.__module__)"
+          "${package_python}" -I -m lumibot.components.agents.chatgpt_auth --help
 
       - name: Upload dist
         uses: actions/upload-artifact@v4

@@ -34,13 +34,14 @@ def intent(**values):
 
 
 @pytest.fixture
-def engine(tmp_path):
+def engine(tmp_path, request):
+    network = getattr(request, "param", "testnet")
     journal = Journal(tmp_path / "broker.sqlite")
     journal.bind(
         {
             "id": "agent",
             "wallet": WALLET,
-            "network": "testnet",
+            "network": network,
             "enabled": True,
             "expiresAt": int(time.time() * 1000) + 86400000,
             "policyDigest": "a" * 64,
@@ -57,7 +58,7 @@ def engine(tmp_path):
     provider.credentials.return_value = Credentials("project", "access")
     provider.policy.return_value = GuardPolicy("policy", "a" * 64)
     venue = Mock(spec=HyperliquidVenue)
-    venue.network = "testnet"
+    venue.network = network
     venue.market.return_value = Market("BTC", 0, 5, 40)
     venue.price.return_value = Decimal("20000")
     venue.fee_rate.return_value = Decimal("0.00045")
@@ -125,6 +126,67 @@ def test_checkpoint_before_each_external_mutation_and_duplicate_id_never_resends
     assert engine.venue.submit_action.call_count == 2
     with pytest.raises(MetaMaskError, match="ID_CONFLICT"):
         engine.submit(intent(quantity="0.0005"))
+
+
+@pytest.mark.parametrize("engine", ["testnet", "mainnet"], indirect=True)
+@pytest.mark.parametrize("failure", ["ACCOUNT_MODE_UNSUPPORTED", "INVALID_RESPONSE", "VENUE_UNAVAILABLE"])
+def test_unusable_account_never_reserves_or_signs_a_new_intent(engine, failure):
+    engine.venue.account.side_effect = MetaMaskError(failure, "Account cannot be validated")
+    with pytest.raises(MetaMaskError, match=failure):
+        engine.submit(intent())
+    assert engine.journal.operations("agent") == []
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize("engine", ["testnet", "mainnet"], indirect=True)
+@pytest.mark.parametrize("changed_at", ["updateLeverage", "order"])
+def test_account_mode_change_during_signing_prevents_that_venue_handoff(engine, changed_at):
+    original = engine.provider.submit_signature.side_effect
+
+    def sign(request_id, wallet, network, data, action):
+        result = original(request_id, wallet, network, data, action)
+        if action["type"] == changed_at:
+            engine.venue.account.side_effect = MetaMaskError("ACCOUNT_MODE_UNSUPPORTED", "Account mode changed")
+        return result
+
+    engine.provider.submit_signature.side_effect = sign
+    result = engine.submit(intent())
+    assert result["state"] == "rejected"
+    step = "leverage" if changed_at == "updateLeverage" else "order"
+    effect = engine.journal.effect("agent", "one", step)
+    assert effect["phase"] == "provider" and effect["failureCode"] == "ACCOUNT_MODE_UNSUPPORTED"
+    assert all(call.args[0]["type"] != changed_at for call in engine.venue.submit_action.call_args_list)
+    assert engine.venue.submit_action.call_count == (0 if step == "leverage" else 1)
+
+
+@pytest.mark.parametrize("engine", ["testnet", "mainnet"], indirect=True)
+def test_unsupported_account_mode_does_not_block_canceling_existing_order(engine):
+    engine.submit(intent())
+    reads = engine.venue.account.call_count
+    engine.venue.account.side_effect = MetaMaskError("ACCOUNT_MODE_UNSUPPORTED", "Account mode changed")
+
+    def sign(request_id, wallet, network, data, action):
+        signature = "0x" + SIGNER.sign_message(encode_typed_data(full_message=data)).signature.hex().removeprefix("0x")
+        return SignatureJob(request_id, wallet, "SIGNED", signature)
+
+    engine.provider.submit_signature.side_effect = sign
+
+    def cancel(*args):
+        original = engine.venue.order_status.side_effect
+
+        def canceled(*values):
+            result = original(*values)
+            result["order"]["status"] = "canceled"
+            return result
+
+        engine.venue.order_status.side_effect = canceled
+        return {"status": "ok", "response": {"type": "cancel", "data": {"statuses": ["success"]}}}
+
+    engine.venue.submit_action.side_effect = cancel
+    assert engine.cancel("one")["state"] == "canceled"
+    assert engine.venue.account.call_count == reads
+    assert engine.venue.submit_action.call_args.args[0]["type"] == "cancel"
 
 
 def test_normal_mark_movement_during_signing_fits_reviewed_reservation(engine):

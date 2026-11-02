@@ -124,6 +124,41 @@ candles from the selected network. Public perpetual data needs only an explicit
 ``NETWORK``. The venue retains at most 5,000 bars per interval. Spot candles
 and historical account equity are not provided.
 
+Testnet and mainnet
+-------------------
+
+Choose the network explicitly and preserve separate network bindings and
+journals. Startup does not turn testnet authority into mainnet authority.
+Market inventories and asset IDs differ, so metadata is resolved on the chosen
+network. Perpetual signing uses EIP-712 chain ``1337`` on both networks, with
+source ``a`` for mainnet and ``b`` for testnet. These are distinct from HyperEVM
+chain IDs. See the `official signing source <https://github.com/hyperliquid-dex/hyperliquid-python-sdk/blob/master/hyperliquid/utils/signing.py>`_.
+
+The adapter validates supported account valuation before reserving a fresh
+execution and after approval before releasing leverage or order actions.
+Portfolio margin, unknown modes and unreadable account state block new execution.
+Cancellation and original-order reconciliation remain available.
+
+Perpetual position inventory covers the default USDC DEX. Unified accounts can
+share collateral across DEXs, so this does not establish wallet-wide flatness.
+Use a dedicated managed wallet without manual positions or orders on other
+DEXs. Cross-DEX inventory and collateral require separate qualification. See
+`account modes <https://hyperliquid.gitbook.io/hyperliquid-docs/trading/account-abstraction-modes>`_
+and `margining <https://hyperliquid.gitbook.io/hyperliquid-docs/trading/margining>`_.
+
+Fees, funding, liquidity and liquidation depend on actual venue state. A grant
+or leverage setting is not a maximum-loss guarantee. Venue minimum-notional
+errors remain explicit rejections; the adapter does not enlarge an order or
+apply an unverified minimum to reduce-only cleanup. See
+`venue errors <https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/error-responses>`_.
+
+REST limits are shared across the public IP. Respect the documented
+`request weights <https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/rate-limits-and-user-limits>`_
+across all strategies. There is no global weighted rate scheduler. Read errors
+are explicit; uncertain writes retain their original identity and are never
+automatically retransmitted. Research and public metadata reads do not establish
+funded mainnet execution.
+
 Same-chain swaps
 ----------------
 
@@ -138,8 +173,17 @@ The native implementation verifies quote identity, fee-net source amount,
 slippage, bounded allowances, sequential simulation and durable managed
 transaction requests. MetaMask signs and broadcasts; Python never rebroadcasts
 the signed transaction. Completion requires matching mined transaction identity,
-nonce, bounded gas, canonical receipt and actual net ERC20 output transfers.
+nonce, bounded gas, RPC-finalized canonical receipt and actual net ERC20 output transfers.
 Quote estimates are not fill receipts.
+
+The configured RPC must support ``eth_getBlockByNumber("finalized", false)``.
+One later block does not establish finality. Pending finality retains submitted
+state; unsupported finality or conflicting block identity holds reconciliation.
+Old filled records without finality provenance are rechecked read-only, retaining
+recorded quantities, fees and spending history. Missing evidence cannot release
+a new trade or replay the old swap. This is the selected chain/RPC's finality
+contract, not a bridge withdrawal guarantee. See
+`Ethereum block tags <https://ethereum.org/developers/docs/apis/json-rpc/#the-block-parameter>`_.
 
 Testnet swap routes, native output without qualified trace proof, gasless or
 delegated routes, bridges and non-source-denominated fees are unsupported and

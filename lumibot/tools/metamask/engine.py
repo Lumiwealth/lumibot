@@ -67,6 +67,7 @@ class ExecutionEngine:
             raise MetaMaskError("EXECUTION_IN_PROGRESS", "Another wallet execution is already in progress")
         try:
             binding, snapshot = self._authority()
+            self.venue.account(binding.wallet)
             if ":" in intent.symbol:
                 raise MetaMaskError(
                     "DEX_EXECUTION_UNQUALIFIED", "HIP3 collateral and effective fee metadata need native qualification"
@@ -376,6 +377,8 @@ class ExecutionEngine:
             ):
                 raise MetaMaskError("INTENT_CHANGED", "Persisted signing payload differs from the frozen action")
             if not step.startswith("cancel-"):
+                # Account abstraction can change while managed approval is pending.
+                self.venue.account(binding.wallet)
                 intent = PerpIntent.parse(json_object(operation["request"]))
                 with localcontext(Context(prec=160, rounding=ROUND_CEILING)):
                     fresh_usd = (

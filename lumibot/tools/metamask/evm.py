@@ -416,10 +416,17 @@ class EvmWallet:
             return None
         receipt = json_object(receipt, "transaction receipt")
         transaction = json_object(self._rpc(chain, "eth_getTransactionByHash", [tx_hash]), "mined transaction")
+        block_hash = receipt.get("blockHash")
+        if not isinstance(block_hash, str) or not re.fullmatch(r"0x[0-9a-fA-F]{64}", block_hash):
+            raise MetaMaskError("TRANSACTION_MISMATCH", "Mined receipt is missing a complete block identity")
+        try:
+            sender, recipient = address(transaction.get("from")), address(transaction.get("to"))
+        except ValueError:
+            raise MetaMaskError("TRANSACTION_MISMATCH", "Mined transaction addresses are malformed") from None
         if (
             str(transaction.get("hash", "")).lower() != tx_hash.lower()
-            or address(transaction.get("from")) != expected["from"]
-            or address(transaction.get("to")) != expected["to"]
+            or sender != expected["from"]
+            or recipient != expected["to"]
             or str(transaction.get("input", "")).lower() != expected["data"].lower()
             or integer(transaction.get("value")) != integer(expected["value"])
             or integer(transaction.get("chainId")) != chain
@@ -433,11 +440,23 @@ class EvmWallet:
         ) > integer(expected["maxFeePerGas"]):
             raise MetaMaskError("GAS_BUDGET_EXCEEDED", "Mined transaction exceeded its frozen gas budget")
         number = integer(receipt.get("blockNumber"))
-        block = json_object(self._rpc(chain, "eth_getBlockByNumber", [hex(number), False]), "receipt block")
-        if block.get("hash") != receipt.get("blockHash"):
-            raise MetaMaskError("REORG_PENDING", "Receipt is not on the current canonical chain")
-        if integer(self._rpc(chain, "eth_blockNumber", [])) < number + 1:
+        if integer(transaction.get("blockNumber")) != number:
+            raise MetaMaskError("TRANSACTION_MISMATCH", "Transaction and receipt block heights differ")
+        finalized = self._rpc(chain, "eth_getBlockByNumber", ["finalized", False])
+        if finalized is None:
             return None
+        finalized = json_object(finalized, "finalized block")
+        if not isinstance(finalized.get("hash"), str) or not re.fullmatch(r"0x[0-9a-fA-F]{64}", finalized["hash"]):
+            raise MetaMaskError("FINALITY_UNAVAILABLE", "Configured RPC did not provide a verifiable finalized block")
+        if integer(finalized.get("number")) < number:
+            return None
+        block = json_object(self._rpc(chain, "eth_getBlockByNumber", [hex(number), False]), "receipt block")
+        if (
+            block.get("hash") != block_hash
+            or integer(block.get("number")) != number
+            or (integer(finalized["number"]) == number and finalized["hash"] != receipt.get("blockHash"))
+        ):
+            raise MetaMaskError("REORG_PENDING", "Receipt is not on the current canonical chain")
         return receipt
 
     def _advance(self, operation):
@@ -450,6 +469,12 @@ class EvmWallet:
             return self._save(current, state="unknown", lastErrorCode=error.code, message=str(error))
 
     def _advance_inner(self, operation):
+        if operation.get("settlementRecheckRequired") or (
+            operation["state"] == "filled" and operation.get("settlementFinality") != "rpc_finalized"
+        ):
+            # Persist the read-only lane before validation, including when old evidence is malformed.
+            operation = self._save(operation, state="unknown", settlementRecheckRequired=True)
+            return self._reconcile_completed(operation)
         if operation["state"] in {"filled", "rejected", "canceled"}:
             return operation
         intent = SwapIntent.parse(json_object(operation["request"]))
@@ -638,31 +663,13 @@ class EvmWallet:
                     message="Transaction reverted; earlier allowances and gas costs may remain",
                 )
         # Receipt logs establish net ERC20 output, not the quoted estimate.
-        output_atomic = 0
         if intent.destination.address == "native":
             return self._save(
                 operation,
                 state="unknown",
                 message="Native-output receipt needs supported trace verification; no replacement swap",
             )
-        logs = receipts[-1].get("logs")
-        if not isinstance(logs, list):
-            raise MetaMaskError("INVALID_RESPONSE", "Mined receipt is missing its output transfer logs")
-        for raw in logs:
-            log = json_object(raw, "receipt log")
-            topics = log.get("topics")
-            if (
-                str(log.get("address", "")).lower() == intent.destination.address
-                and isinstance(topics, list)
-                and len(topics) == 3
-                and str(topics[0]).lower() == _TRANSFER
-            ):
-                wallet_topic = "0x" + plan["wallet"][2:].rjust(64, "0")
-                units = integer(log.get("data"))
-                if str(topics[2]).lower() == wallet_topic:
-                    output_atomic += units
-                if str(topics[1]).lower() == wallet_topic:
-                    output_atomic -= units
+        output_atomic = self._received_output(receipts[-1], intent.destination, plan["wallet"])
         if output_atomic < integer(plan["minimumOutput"]):
             return self._save(
                 operation, state="unknown", message="Mined output does not satisfy the frozen quote minimum"
@@ -674,8 +681,104 @@ class EvmWallet:
             filledQuantity=format(output, "f"),
             inputAmount=format(intent.amount, "f"),
             outputAmount=format(output, "f"),
+            settlementFinality="rpc_finalized",
             lastErrorCode=None,
             message="Managed swap transaction and net output reconciled",
+        )
+
+    @staticmethod
+    def _received_output(receipt, destination, wallet):
+        output_atomic = 0
+        logs = receipt.get("logs")
+        if not isinstance(logs, list):
+            raise MetaMaskError("INVALID_RESPONSE", "Mined receipt is missing its output transfer logs")
+        for raw in logs:
+            log = json_object(raw, "receipt log")
+            topics = log.get("topics")
+            if (
+                str(log.get("address", "")).lower() == destination.address
+                and isinstance(topics, list)
+                and len(topics) == 3
+                and str(topics[0]).lower() == _TRANSFER
+            ):
+                wallet_topic = "0x" + wallet[2:].rjust(64, "0")
+                units = integer(log.get("data"))
+                if str(topics[2]).lower() == wallet_topic:
+                    output_atomic += units
+                if str(topics[1]).lower() == wallet_topic:
+                    output_atomic -= units
+        return output_atomic
+
+    def _reconcile_completed(self, operation):
+        """Upgrade old inclusion-only settlement evidence without any mutation request."""
+        try:
+            intent = SwapIntent.parse(json_object(operation.get("request"), "completed swap intent"))
+            binding = Binding.parse(self.journal.binding(self.agent_id))
+        except (ValueError, TypeError):
+            raise MetaMaskError("SETTLEMENT_UNRESOLVED", "Completed swap intent or binding is malformed") from None
+        hashes = operation.get("hashes")
+        if (
+            not isinstance(hashes, list)
+            or not hashes
+            or any(not isinstance(value, str) or not re.fullmatch(r"0x[0-9a-fA-F]{64}", value) for value in hashes)
+        ):
+            raise MetaMaskError("SETTLEMENT_UNRESOLVED", "Completed transaction hash history is malformed")
+        plan = json_object(self.journal.effect(self.agent_id, intent.identifier, "swap-plan"), "completed swap plan")
+        approvals = plan.get("approvals")
+        if (
+            not isinstance(approvals, list)
+            or plan.get("wallet") != binding.wallet
+            or plan.get("network") != binding.network
+            or binding.network != self.network
+            or intent.destination.address == "native"
+        ):
+            raise MetaMaskError("SETTLEMENT_UNRESOLVED", "Completed swap identity needs explicit reconciliation")
+        transactions = [*approvals, json_object(plan.get("trade"), "completed swap trade")]
+        total_fee, receipt = 0, None
+        estimates = plan.get("feeEstimates")
+        if estimates is not None and (not isinstance(estimates, list) or len(estimates) != len(transactions)):
+            raise MetaMaskError("SETTLEMENT_UNRESOLVED", "Completed fee estimates are incomplete")
+        for index, planned in enumerate(transactions):
+            effect = json_object(self.journal.effect(self.agent_id, intent.identifier, f"swap-{index}"), "swap effect")
+            tx = json_object(effect.get("transaction"), "completed transaction")
+            tx_hash = effect.get("txHash")
+            if (
+                not isinstance(tx_hash, str)
+                or not re.fullmatch(r"0x[0-9a-fA-F]{64}", tx_hash)
+                or tx_hash not in hashes
+                or not {"from", "to", "chainId", "data", "value", "nonce", "gasLimit", "maxFeePerGas"} <= tx.keys()
+                or tx.get("from") != binding.wallet
+                or tx.get("chainId") != intent.source.chain_id
+                or not isinstance(tx.get("data"), str)
+                or not _HEX.fullmatch(tx["data"])
+                or any(tx.get(key) != value for key, value in json_object(planned).items())
+            ):
+                raise MetaMaskError("SETTLEMENT_UNRESOLVED", "Completed transaction differs from retained intent")
+            receipt = self._receipt(tx_hash, tx)
+            if receipt is None:
+                raise MetaMaskError("FINALITY_PENDING", "Completed swap is awaiting RPC-finalized receipt evidence")
+            model = json_object(estimates[index], "fee estimate").get("model") if estimates else None
+            fees = receipt_fees(self._rpc, tx["chainId"], receipt, model)
+            if integer(receipt.get("status")) != 1 or effect.get("actualFees") != fees:
+                raise MetaMaskError("SETTLEMENT_UNRESOLVED", "Finalized receipt conflicts with recorded status or fees")
+            total_fee += integer(fees["totalFee"])
+        output = intent.destination.from_atomic(self._received_output(receipt, intent.destination, plan["wallet"]))
+        expected_fees = [{"asset": "native", "chainId": intent.source.chain_id, "atomicAmount": str(total_fee)}]
+        if (
+            output != decimal(operation.get("filledQuantity"))
+            or output != decimal(operation.get("outputAmount"))
+            or intent.amount != decimal(operation.get("inputAmount"))
+            or intent.destination.to_atomic(output) < integer(plan.get("minimumOutput"))
+            or operation.get("fees") != expected_fees
+        ):
+            raise MetaMaskError("SETTLEMENT_UNRESOLVED", "Finalized output or fees conflict with recorded execution")
+        return self._save(
+            operation,
+            state="filled",
+            settlementFinality="rpc_finalized",
+            settlementRecheckRequired=False,
+            lastErrorCode=None,
+            message="Historical swap receipts and recorded execution verified against RPC finality",
         )
 
     def order(self, operation_id):

@@ -110,13 +110,61 @@ Standard account cash uses actual withdrawable funds and margin. Unified account
 
 Environment selection uses `TRADING_BROKER=metamask`, optional `DATA_SOURCE=metamask`, `METAMASK_SESSION_FILE`, `METAMASK_STATE_FILE`, `METAMASK_AGENT_ID`, `METAMASK_PROJECT_ID`, `METAMASK_ACCESS_TOKEN`, `METAMASK_REFRESH_TOKEN`, `METAMASK_WALLET_ADDRESS`, `METAMASK_NETWORK`, and `METAMASK_MODE`. Keep secrets in your own secret manager.
 
+## Testnet and mainnet
+
+Select the network explicitly. Preserve separate network bindings and journals;
+startup never converts testnet authority into mainnet authority. Hyperliquid uses
+different API origins and market inventories. Resolve asset IDs and precision
+from that network's metadata. Perpetual signatures use EIP-712 chain `1337` on
+both networks, with source `a` for mainnet and `b` for testnet. These are distinct
+from HyperEVM chain IDs. See the [official signing implementation](https://github.com/hyperliquid-dex/hyperliquid-python-sdk/blob/master/hyperliquid/utils/signing.py).
+
+Supported account valuation is checked before a fresh execution reservation and
+again after approval before releasing a leverage or order action. Portfolio
+margin, unknown account modes and unreadable account state cannot proceed to
+new execution. Cancellation and original-order reconciliation remain available.
+
+The supported perpetual inventory covers the default USDC DEX. Unified accounts
+can share collateral across DEXs, so this inventory does not prove wallet-wide
+flatness. Keep the managed wallet dedicated to this adapter, without manual
+positions or orders on other DEXs. Cross-DEX exposure needs separate inventory
+and collateral qualification. See [account modes](https://hyperliquid.gitbook.io/hyperliquid-docs/trading/account-abstraction-modes)
+and [margining](https://hyperliquid.gitbook.io/hyperliquid-docs/trading/margining).
+
+Mainnet liquidity, fee tiers, funding and liquidation are venue state, not
+testnet constants or local grant limits. Low leverage and a spending grant do
+not cap liquidation loss or funding. Opening orders below the venue minimum
+can receive an explicit rejection; never enlarge them automatically or apply an
+unverified minimum to reduce-only residual cleanup. See [venue errors](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/error-responses)
+and [liquidations](https://hyperliquid.gitbook.io/hyperliquid-docs/trading/liquidations).
+
+REST rate limits are shared across the public IP. Keep aggregate polling within
+the [documented request weights](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/rate-limits-and-user-limits).
+The current adapter fails explicitly on read errors and has no global weighted
+rate scheduler. Uncertain writes retain their original identity and are never
+automatically retransmitted. A safe read retry is not permission to repeat an order.
+
+Primary-source findings and remaining boundaries are recorded in
+[the mainnet contract audit](investigations/2026-11-02_METAMASK_MAINNET_CONTRACT_AUDIT.md).
+Public metadata checks and deterministic mainnet contract tests need no funded
+account; they do not establish funded mainnet execution.
+
 ## Same-chain exact-input swaps
 
 `MODE="spot"` exposes `broker.swap(input_asset, output_asset, input_amount, identifier=...)` and `broker.get_swap(identifier)`. It does not reinterpret an exact-input swap as an exact-output buy order.
 
 Register exact chain IDs, contracts and decimals in the binding's `assets`. Native assets use `address="native"`. Configure `CHAIN_RPC_URLS` for every approved chain. Quote transactions must contain gas ceilings; when absent, configure explicit per-chain `GAS_LIMITS`. The native gas asset must be registered for valuation and balance checks.
 
-The Python path binds the provider quote ID, wallet, recipient, chains, token identities, fee-net input, slippage and exact transaction. ERC20 allowance grants are capped to exact input, with a separate zero reset when needed. Simulation runs after prerequisite allowances mine. Each managed request is persisted before MetaMask signs and broadcasts; the broker never rebroadcasts its signed transaction. It verifies mined transaction identity, nonce, gas ceiling, canonical receipt and net ERC20 output transfers. Quote output is never reported as a received amount.
+The Python path binds the provider quote ID, wallet, recipient, chains, token identities, fee-net input, slippage and exact transaction. ERC20 allowance grants are capped to exact input, with a separate zero reset when needed. Simulation runs after prerequisite allowances settle. Each managed request is persisted before MetaMask signs and broadcasts; the broker never rebroadcasts its signed transaction. It verifies mined transaction identity, nonce, gas ceiling, RPC-finalized canonical receipt and net ERC20 output transfers. Quote output is never reported as a received amount.
+
+The configured RPC must support `eth_getBlockByNumber("finalized", false)`.
+One later block is not finality. Pending finality retains submitted state;
+unsupported finality or contradictory block identity holds reconciliation.
+Historical filled records without finality provenance are checked read-only.
+Missing or conflicting evidence retains their recorded fills, fees and spending
+history and blocks new execution; it never resubmits the old swap. Finality is
+the selected chain/RPC's contract, not a bridge withdrawal guarantee. See the
+[Ethereum RPC block tags](https://ethereum.org/developers/docs/apis/json-rpc/#the-block-parameter).
 
 Current limits are explicit: testnet swap routing, native output without trace proof, gasless/delegated routes, bridges and non-source-denominated quote fees are unsupported. These refuse before execution. Spot balances value only the approved asset registry in USD using actual provider prices, with zero synthetic USD cash. Missing prices raise an error, including unpriced test tokens. Mainnet swaps have not been funded-qualified for this native candidate.
 

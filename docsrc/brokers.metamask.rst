@@ -97,7 +97,7 @@ reconciliation and fee holds stay in force.
 Use a dedicated managed wallet, one durable journal owner and a reviewed grant.
 The launcher checks venue open orders because journal-backed ``get_orders()``
 cannot discover foreign or manual orders. Grant expiry and remaining daily
-capacity must cover entry and closing legs. ``get_cash()`` is withdrawable USDC,
+capacity must cover entry and closing legs. ``get_cash()`` is broker-reported USDC cash,
 not remaining policy budget. Startup never renews authority. Stop and join
 Trader before calling ``broker.close()`` to release workers and the native client.
 

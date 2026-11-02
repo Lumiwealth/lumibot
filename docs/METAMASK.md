@@ -96,7 +96,7 @@ MetaMask-specific setup stays outside the strategy class. Use a dedicated manage
 wallet, one journal owner and an explicitly reviewed grant. The launcher checks
 venue open orders because journal-backed `get_orders()` cannot discover manual
 or foreign orders. Grant expiry and remaining daily capacity must cover the
-closing leg as well as entry; `get_cash()` reports withdrawable USDC, not remaining
+closing leg as well as entry; `get_cash()` reports broker-reported USDC cash, not remaining
 policy budget. Startup does not renew authority. Stop and join `Trader` before
 calling `broker.close()` to release polling, order workers and the native client.
 

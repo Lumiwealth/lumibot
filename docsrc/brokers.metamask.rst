@@ -72,6 +72,32 @@ a potentially consumed token. Keep credentials outside strategy source.
 Perpetual execution
 -------------------
 
+The runnable example is ``lumibot/example_strategies/metamask_perpetual.py``.
+Select ``TRADING_BROKER=metamask``, ``METAMASK_NETWORK=testnet`` and
+``METAMASK_MODE=perp`` with an existing authorized session and journal:
+
+.. code-block:: bash
+
+   python -m lumibot.example_strategies.metamask_perpetual
+
+``MetaMaskPerpetualRoundTrip`` uses normal Strategy order, price, position and
+cash methods with continuous Trader scheduling. It buys 0.005 ETH at 1x and
+closes actual executed quantity through a reduce-only order on a later iteration.
+Check current price, minimum notional and lot precision before running. A
+rejected or zero-fill entry does not count as a successful round trip.
+
+The same strategy name and parameters resume the journaled cycle without a new
+entry. A different name intentionally starts another cycle. The example keeps
+checking late fills and positions after reaching flat. Unknown submission
+outcomes hold execution; a rejected close requires reconciliation.
+
+Use a dedicated managed wallet, one durable journal owner and a reviewed grant.
+The launcher checks venue open orders because journal-backed ``get_orders()``
+cannot discover foreign or manual orders. Grant expiry and remaining daily
+capacity must cover entry and closing legs. ``get_cash()`` is withdrawable USDC,
+not remaining policy budget. Startup never renews authority. Stop and join
+Trader before calling ``broker.close()`` to release workers and the native client.
+
 The native candidate supports Hyperliquid's default USDC perpetual DEX with
 market and limit buy/sell orders. ``reduce_only=True`` survives shared closing
 methods and restored snapshots. Legacy ``custom_params={"reduce_only": True}``

@@ -69,32 +69,33 @@ Local Python checks are cooperative controls. Strategy code in the same process 
 
 ## Ordinary LumiBot usage
 
-```python
-from lumibot.brokers import MetaMask
-from lumibot.entities import Asset
-from lumibot.strategies import Strategy
+The runnable example is `lumibot/example_strategies/metamask_perpetual.py`.
+With an existing authorized testnet session and journal, select
+`TRADING_BROKER=metamask`, `METAMASK_NETWORK=testnet` and `METAMASK_MODE=perp`, then run:
 
-class PerpetualStrategy(Strategy):
-    def initialize(self):
-        self.sleeptime = "1M"
-
-    def on_trading_iteration(self):
-        # Your strategy chooses its price, quantity and when to trade.
-        pass
-
-broker = MetaMask(config)
-strategy = PerpetualStrategy(
-    broker=broker,
-    quote_asset=Asset("USDC", asset_type="crypto"),
-    benchmark_asset=None,
-)
-
-# Inside on_trading_iteration, use self.create_order()/self.submit_order():
-# asset = Asset("BTC", asset_type="crypto_future", leverage=1)
-# order = self.create_order(asset, quantity, "buy", order_type="limit",
-#                          limit_price=chosen_price, time_in_force="gtc")
-# self.submit_order(order)
+```bash
+python -m lumibot.example_strategies.metamask_perpetual
 ```
+
+`MetaMaskPerpetualRoundTrip` uses normal `Strategy` order, position, price and cash
+methods with continuous `Trader` scheduling. It buys 0.005 ETH at 1x, then closes
+the actual executed quantity with a reduce-only order on a later iteration.
+Check current price, minimum notional, lot precision and available authority
+before running. A rejected or zero-fill entry is not a successful round trip.
+
+Reuse the same strategy name and parameters to resume the journaled round trip
+without a new entry. A different name intentionally starts a new cycle. The
+strategy continues checking positions and late fills after reaching flat.
+Unknown submission outcomes hold execution instead of creating replacement IDs.
+Stop and reconcile a rejected close before submitting a new closing intent.
+
+MetaMask-specific setup stays outside the strategy class. Use a dedicated managed
+wallet, one journal owner and an explicitly reviewed grant. The launcher checks
+venue open orders because journal-backed `get_orders()` cannot discover manual
+or foreign orders. Grant expiry and remaining daily capacity must cover the
+closing leg as well as entry; `get_cash()` reports withdrawable USDC, not remaining
+policy budget. Startup does not renew authority. Stop and join `Trader` before
+calling `broker.close()` to release polling, order workers and the native client.
 
 Quantities are base units with multiplier 1. Supported orders are buy/sell market or limit, with canonical `reduce_only=True` for closing positions. `custom_params` may contain `leverage` and `reduce_only`; it cannot weaken canonical reduce-only intent. Limit orders require `gtc`, `ioc` or `alo`. Market orders become a frozen slippage-bounded IOC limit. Conditional, bracket, OCO and automatic cancel/replace orders are unsupported.
 

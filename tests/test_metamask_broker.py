@@ -1,6 +1,7 @@
 """MetaMask broker contract and lifecycle regressions; no external credentials."""
 
 from decimal import Decimal, localcontext
+from threading import Event, Thread, current_thread
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -17,6 +18,75 @@ from tests.test_metamask_native_engine import engine as engine
 
 WALLET = "0x" + "1" * 40
 CONFIG = {"WALLET_ADDRESS": WALLET, "NETWORK": "testnet", "AGENT_ID": "agent"}
+
+
+def test_close_waits_for_actual_poller_before_releasing_native_client(monkeypatch):
+    entered, release, closed = Event(), Event(), Event()
+
+    def polling(instance):
+        entered.set()
+        release.wait(5)
+
+    monkeypatch.setattr(MetaMask, "do_polling", polling)
+    instance = MetaMask({**CONFIG, "POLL_INTERVAL": 0.01}, start_orders_thread=False)
+    instance.client.close = Mock(side_effect=closed.set)
+    owner = Thread(target=instance.close)
+    try:
+        assert entered.wait(1)
+        owner.start()
+        assert not closed.wait(0.05)
+        release.set()
+        owner.join(2)
+        assert not owner.is_alive() and closed.is_set()
+        assert not instance._stream_thread.is_alive()
+        instance.close()
+        instance.client.close.assert_called_once()
+    finally:
+        release.set()
+        if owner.ident is not None:
+            owner.join(2)
+        instance.close()
+
+
+def test_close_waits_for_delayed_stream_start_without_polling_after_shutdown(monkeypatch):
+    release, closed = Event(), Event()
+
+    def delayed_launch(instance):
+        instance._register_stream_events()
+
+        def start():
+            release.wait(5)
+            instance._run_stream()
+
+        Thread(target=start, daemon=True).start()
+
+    monkeypatch.setattr(MetaMask, "_launch_stream", delayed_launch)
+    monkeypatch.setattr(MetaMask, "do_polling", Mock())
+    instance = MetaMask(CONFIG, start_orders_thread=False)
+    instance.client.close = Mock(side_effect=closed.set)
+    owner = Thread(target=instance.close)
+    try:
+        owner.start()
+        assert not closed.wait(0.05)
+        release.set()
+        owner.join(2)
+        assert not owner.is_alive() and closed.is_set()
+        MetaMask.do_polling.assert_not_called()
+    finally:
+        release.set()
+        owner.join(2)
+        instance.close()
+
+
+def test_close_from_owned_worker_is_rejected_before_changing_shutdown_state(broker):
+    broker._stream_thread = current_thread()
+    try:
+        with pytest.raises(RuntimeError, match="from its owner"):
+            broker.close()
+        assert not broker._stop_event.is_set()
+        broker.client.close.assert_not_called()
+    finally:
+        broker._stream_thread = None
 
 
 @pytest.fixture

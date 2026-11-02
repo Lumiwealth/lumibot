@@ -1,175 +1,245 @@
-"""Explicit testnet ETH round trip through real Strategy and Trader callbacks."""
+"""Exercise the shipped MetaMask example through normal scheduling and restart.
+
+Run as python -m scripts.qualify_metamask_strategy. Provider-specific preflight,
+evidence and emergency cleanup stay outside the unmodified example strategy.
+"""
 
 import argparse
+import functools
+import hashlib
 import json
 import time
-from decimal import ROUND_DOWN, Decimal
+from contextlib import ExitStack
+from decimal import Decimal
 from pathlib import Path
+from threading import Event
+from unittest.mock import patch
 
 from lumibot.brokers import MetaMask
-from lumibot.entities import Asset, Order
-from lumibot.strategies import Strategy
+from lumibot.entities import Asset
+from lumibot.example_strategies.metamask_perpetual import MetaMaskPerpetualRoundTrip
 from lumibot.traders import Trader
+from scripts.qualify_metamask_partial import Evidence, cleanup, cleanup_budget_room, validate_authority
+
+
+def stop_strategy(trader, strategy, broker, iteration_idle, evidence):
+    """Keep ownership until the actual user iteration and scheduler have stopped."""
+    trader.stop_all()
+    failure = None
+
+    def record_wait(worker):
+        nonlocal failure
+        try:
+            evidence.stage("shutdown_wait", worker=worker)
+        except Exception as error:
+            failure = error
+
+    while not iteration_idle.wait(30):
+        record_wait("user_iteration")
+    if strategy is not None:
+        while strategy._executor.is_alive():
+            strategy._executor.join(timeout=30)
+            if strategy._executor.is_alive():
+                record_wait("strategy_executor")
+    broker._orders_queue.join()
+    return failure
+
+
+def exercise(config, name, evidence, *, restart, daily_cap, timeout):
+    broker = MetaMask(config)
+    phase = "restart" if restart else "live"
+    trader = Trader(quiet_logs=True, logfile=str(evidence.path.parent / f"{evidence.path.stem}-{phase}.log"))
+    created, callbacks, errors, iterations = [], [], [], []
+    strategy = None
+    successful = False
+    iteration_idle = Event()
+    iteration_idle.set()
+    observers = ExitStack()
+    try:
+        identity = broker.client.verify()
+        binding = broker.client.journal.binding(config["AGENT_ID"])
+        validate_authority(binding, 0, int(time.time() * 1000), (daily_cap, 150))
+        if not restart:
+            cleanup_budget_room(broker.client.journal, config["AGENT_ID"], binding, int(time.time() * 1000))
+        before = broker.client.account("perp")
+        if before["positions"] or broker.client.venue.info({"type": "openOrders", "user": identity["wallet"]}):
+            raise RuntimeError("Qualification must start with a flat dedicated wallet and no venue open orders")
+        starting_ids = {row["id"] for row in broker.client.journal.operations(config["AGENT_ID"])}
+        evidence.stage("strategy_start", restart=restart, before=before, starting_operation_count=len(starting_ids))
+
+        original_iteration = MetaMaskPerpetualRoundTrip.on_trading_iteration
+        original_submit = MetaMaskPerpetualRoundTrip.submit_order
+
+        @functools.wraps(original_iteration)
+        def observe_iteration(instance):
+            iteration_idle.clear()
+            try:
+                result = original_iteration(instance)
+                iterations.append(time.time())
+                return result
+            finally:
+                try:
+                    evidence.stage(
+                        "iteration",
+                        restart=restart,
+                        number=len(iterations),
+                        completed=instance.vars.completed,
+                        result=instance.vars.result,
+                    )
+                finally:
+                    iteration_idle.set()
+
+        @functools.wraps(original_submit)
+        def observe_submission(instance, order, *args, **kwargs):
+            created.append(order)
+            evidence.stage(
+                "submission",
+                restart=restart,
+                id=str(order.identifier),
+                side=str(order.side),
+                quantity=str(order.quantity),
+                reduce_only=order.reduce_only,
+            )
+            return original_submit(instance, order, *args, **kwargs)
+
+        # The executor captures its iteration callable during Strategy construction.
+        observers.enter_context(patch.object(MetaMaskPerpetualRoundTrip, "on_trading_iteration", observe_iteration))
+        observers.enter_context(patch.object(MetaMaskPerpetualRoundTrip, "submit_order", observe_submission))
+        strategy = MetaMaskPerpetualRoundTrip(
+            broker=broker,
+            name=name,
+            quote_asset=Asset("USDC", asset_type="crypto"),
+            benchmark_asset=None,
+            analyze_backtest=False,
+            should_backup_variables_to_database=False,
+            should_send_summary_to_discord=False,
+        )
+        market = broker.client.venue.market(strategy.parameters["symbol"])
+        quantity = Decimal(str(strategy.parameters["quantity"]))
+        if quantity != quantity.quantize(Decimal(1).scaleb(-market.size_decimals)):
+            raise ValueError("The shipped example quantity does not match venue lot precision")
+        for callback_name in ("on_partially_filled_order", "on_filled_order", "on_canceled_order", "on_bot_crash"):
+            original = getattr(strategy, callback_name)
+
+            def observe_callback(*args, callback_name=callback_name, original=original, **kwargs):
+                if callback_name == "on_bot_crash":
+                    errors.append(str(args[0]))
+                    values = {"error": str(args[0])}
+                elif callback_name == "on_canceled_order":
+                    values = {"id": str(args[0].identifier)}
+                else:
+                    values = {"id": str(args[1].identifier), "price": str(args[2]), "quantity": str(args[3])}
+                callbacks.append({"event": callback_name, **values})
+                evidence.stage("callback", restart=restart, event=callback_name, **values)
+                return original(*args, **kwargs)
+
+            setattr(strategy, callback_name, functools.wraps(original)(observe_callback))
+
+        trader.add_strategy(strategy)
+        trader.run_all(
+            async_=True,
+            run_once=False,
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            show_indicators=False,
+        )
+        deadline = time.monotonic() + timeout
+        minimum_iterations = 2 if restart else 3
+        while not errors and time.monotonic() < deadline:
+            if strategy.vars.get("completed", False) and len(iterations) >= minimum_iterations:
+                break
+            time.sleep(0.25)
+        if errors or not strategy.vars.get("completed", False) or len(iterations) < minimum_iterations:
+            raise RuntimeError("Ordinary scheduled strategy did not complete; inspect callbacks and iteration evidence")
+        if strategy.vars.result != "completed":
+            raise RuntimeError("Flat rejected entry is not a successful round trip")
+        shutdown_failure = stop_strategy(trader, strategy, broker, iteration_idle, evidence)
+        if shutdown_failure is not None:
+            raise shutdown_failure
+        if errors or not strategy.vars.completed or strategy.vars.result != "completed":
+            raise RuntimeError("Final scheduled iteration did not retain a successful completed round trip")
+        after = broker.client.account("perp")
+        if after["positions"] or broker.client.venue.info({"type": "openOrders", "user": identity["wallet"]}):
+            raise RuntimeError("Ordinary strategy left an open position or order")
+        cash = strategy.get_cash()
+        if cash is None or Decimal(str(cash)) != Decimal(after["cash"]):
+            raise RuntimeError("Strategy cash differs from authoritative settled USDC cash")
+        ending_ids = {row["id"] for row in broker.client.journal.operations(config["AGENT_ID"])}
+        if restart:
+            if created or callbacks or ending_ids != starting_ids:
+                raise RuntimeError("Restart replayed a submission or historical callback")
+        elif not created or not any(event["event"] == "on_filled_order" for event in callbacks):
+            raise RuntimeError("No actual Strategy/Trader execution callbacks were observed")
+        evidence.stage(
+            "strategy_complete",
+            restart=restart,
+            iterations=len(iterations),
+            submissions=len(created),
+            callbacks=callbacks,
+            after=after,
+            strategy_cash=str(cash),
+            new_operation_count=len(ending_ids - starting_ids),
+        )
+        successful = True
+    finally:
+        shutdown_failure = stop_strategy(trader, strategy, broker, iteration_idle, evidence)
+        try:
+            if not successful and created:
+                recorded = [
+                    order
+                    for order in created
+                    if broker.client.journal.get(config["AGENT_ID"], str(order.identifier)) is not None
+                ]
+                if recorded:
+                    cleanup(broker, recorded, strategy.entry_id.removesuffix("-entry") + "-emergency", evidence, 0)
+        finally:
+            try:
+                broker.close()
+            finally:
+                observers.close()
+        if shutdown_failure is not None:
+            raise shutdown_failure
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--evidence", type=Path, required=True)
+    parser.add_argument("--name", default="metamask-perpetual-round-trip")
+    parser.add_argument("--daily-cap", type=int, default=300)
+    parser.add_argument("--timeout-seconds", type=int, default=240)
     parser.add_argument("--execute", action="store_true", required=True)
     args = parser.parse_args()
-    if args.evidence.exists() or args.evidence.is_symlink():
-        raise ValueError("Choose a new evidence path; existing files and symlinks must be preserved")
-    config = json.loads(args.config.read_text())[0]
-    if config["NETWORK"] != "testnet":
-        raise ValueError("Mainnet qualification is forbidden")
-    record = {"network": "testnet", "symbol": "ETH", "prepared": [], "callbacks": []}
-
-    def save():
-        args.evidence.parent.mkdir(parents=True, exist_ok=True)
-        args.evidence.write_text(json.dumps(record, indent=2) + "\n")
-        args.evidence.chmod(0o600)
-
-    broker = MetaMask(config, connect_stream=False, start_orders_thread=False)
+    if args.daily_cap <= 0 or args.timeout_seconds <= 0:
+        parser.error("Daily cap and timeout must be positive")
+    values = json.loads(args.config.read_text())
+    if not isinstance(values, (dict, list)) or not values:
+        raise ValueError("Configuration must be an object or nonempty list of objects")
+    config = values[0] if isinstance(values, list) else values
+    if not isinstance(config, dict):
+        raise ValueError("Selected wallet configuration must be an object")
+    if config.get("NETWORK") != "testnet" or config.get("MODE", "perp") != "perp":
+        raise ValueError("Only explicit testnet perpetual configuration is allowed")
+    protected = {args.config.resolve()}
+    protected.update(
+        Path(config[key]).expanduser().resolve()
+        for key in ("STATE_FILE", "SESSION_FILE", "LEGACY_SESSION_FILE")
+        if config.get(key)
+    )
+    if args.evidence.exists() or args.evidence.is_symlink() or args.evidence.resolve() in protected:
+        raise ValueError("Choose a new evidence path; preserve configuration, sessions, journals and older receipts")
+    example = Path(__file__).resolve().parents[1] / "lumibot/example_strategies/metamask_perpetual.py"
+    evidence = Evidence(args.evidence, args.name)
+    evidence.stage("prepared", example_sha256=hashlib.sha256(example.read_bytes()).hexdigest(), run_once=False)
     try:
-        identity = broker.client.verify()
-        binding = broker.client.journal.binding(config["AGENT_ID"])
-        if (
-            binding["enabled"] is not True
-            or binding["expiresAt"] <= int(time.time() * 1000)
-            or binding["markets"] != ["BTC", "ETH"]
-            or binding["maxOrderUsd"] != "25"
-            or binding["maxDailyUsd"] != "300"
-            or binding["maxLeverage"] != 1
-            or binding["maxSlippageBps"] != 50
-        ):
-            raise ValueError("Authority differs from the approved testnet limits")
-        before = broker.client.account("perp")
-        if before["positions"] or broker.client.venue.info({"type": "openOrders", "user": identity["wallet"]}):
-            raise ValueError("Qualification requires a flat dedicated wallet without existing orders")
-        record["before"] = before
-        mark = broker.client.price("ETH")
-        step = Decimal(1).scaleb(-broker.client.venue.market("ETH").size_decimals)
-        quantity = (Decimal("12") / mark).quantize(step, rounding=ROUND_DOWN)
-        if not Decimal("10") <= mark * quantity < Decimal("13"):
-            raise ValueError("Venue lot size cannot satisfy the bounded test amount")
-        save()
-
-        class RoundTrip(Strategy):
-            def initialize(self, parameters=None):
-                self.sleeptime = "1S"
-                self.open_id = self.close_id = None
-
-            def on_trading_iteration(self):
-                opening = self.create_order(
-                    Asset("ETH", asset_type="crypto_future", leverage=1),
-                    quantity,
-                    "buy",
-                    order_type="market",
-                    time_in_force="ioc",
-                )
-                self.open_id = str(opening.identifier)
-                record["prepared"].append(self.open_id)
-                save()
-                self.submit_order(opening)
-
-            def on_filled_order(self, position, order, price, quantity, multiplier):
-                identifier = str(order.identifier)
-                record["callbacks"].append(
-                    {"id": identifier, "price": str(price), "quantity": str(quantity), "side": str(order.side)}
-                )
-                save()
-                if identifier == self.open_id and self.close_id is None:
-                    filled = sum((Decimal(str(t.quantity)) for t in order.transactions), Decimal(0))
-                    closing = self.create_order(
-                        order.asset, filled, "sell", order_type="market", time_in_force="ioc", reduce_only=True
-                    )
-                    self.close_id = str(closing.identifier)
-                    record["prepared"].append(self.close_id)
-                    save()
-                    self.submit_order(closing)
-                elif identifier != self.close_id:
-                    raise RuntimeError("Unexpected or duplicate fill callback")
-
-        strategy = RoundTrip(
-            broker=broker,
-            name="native-strategy-qualification",
-            quote_asset=Asset("USDC", asset_type="crypto"),
-            benchmark_asset=None,
-            analyze_backtest=False,
-        )
-        trader = Trader(quiet_logs=True)
-        trader.add_strategy(strategy)
-        trader.run_all(
-            run_once=True, show_plot=False, show_tearsheet=False, save_tearsheet=False, show_indicators=False
-        )
-        if len(record["callbacks"]) != 2 or len(set(x["id"] for x in record["callbacks"])) != 2:
-            raise RuntimeError("The real strategy did not receive exactly one opening and closing fill callback")
-        record["operations"] = [broker.client.get_order(identifier) for identifier in record["prepared"]]
-        if any(op["state"] != "filled" for op in record["operations"]):
-            raise RuntimeError("Strategy orders did not both reconcile as filled")
-        record["strategy_cash"] = strategy.get_cash()
-        record["after"] = broker.client.account("perp")
-        if record["after"]["positions"] or broker.client.venue.info({"type": "openOrders", "user": identity["wallet"]}):
-            raise RuntimeError("Strategy round trip left an open position or order")
-        record["complete"] = True
-        save()
-        print(json.dumps({"complete": True, "callbacks": len(record["callbacks"]), "positions": 0}), flush=True)
-    except BaseException as error:
-        record["error"] = str(error)
-        try:
-            recorded_ids = [
-                identifier
-                for identifier in record["prepared"]
-                if broker.client.journal.get(config["AGENT_ID"], identifier) is not None
-            ]
-            record["unsubmitted_ids"] = [
-                identifier for identifier in record["prepared"] if identifier not in recorded_ids
-            ]
-            operations = [broker.client.get_order(identifier) for identifier in recorded_ids]
-            for op in operations:
-                if op["state"] not in {"filled", "canceled", "rejected"}:
-                    broker.client.cancel(op["id"])
-            operations = [broker.client.get_order(identifier) for identifier in recorded_ids]
-            if any(op["state"] not in {"filled", "canceled", "rejected"} for op in operations):
-                raise RuntimeError("Unknown strategy orders prevent residual cleanup")
-            if broker.client.venue.info({"type": "openOrders", "user": config["WALLET_ADDRESS"]}):
-                raise RuntimeError("Open venue orders prevent safe residual cleanup")
-            known = sum(
-                (Decimal(op["filledQuantity"]) * (1 if op["request"]["side"] == "buy" else -1) for op in operations),
-                Decimal(0),
+        for restart in (False, True):
+            exercise(
+                config, args.name, evidence, restart=restart, daily_cap=args.daily_cap, timeout=args.timeout_seconds
             )
-            positions = broker.client.account("perp")["positions"]
-            if known:
-                if len(positions) != 1 or positions[0]["symbol"] != "ETH" or Decimal(positions[0]["quantity"]) != known:
-                    raise RuntimeError("Residual position does not match the strategy's exact known fills")
-                cleanup = Order(
-                    "native-strategy-qualification",
-                    Asset("ETH", asset_type="crypto_future", leverage=1),
-                    abs(known),
-                    "sell" if known > 0 else "buy",
-                    quote=Asset("USDC", asset_type="crypto"),
-                    order_type="market",
-                    time_in_force="ioc",
-                    reduce_only=True,
-                )
-                record["prepared"].append(str(cleanup.identifier))
-                save()
-                broker.submit_order(cleanup)
-                if broker.client.get_order(str(cleanup.identifier))["state"] != "filled":
-                    raise RuntimeError("Residual close requires reconciliation")
-            if broker.client.account("perp")["positions"] or broker.client.venue.info(
-                {"type": "openOrders", "user": config["WALLET_ADDRESS"]}
-            ):
-                raise RuntimeError("Qualification cleanup left positions or open orders")
-            record["failure_cleanup_flat"] = True
-        except Exception as cleanup_error:
-            record["cleanup_error"] = str(cleanup_error)
-        save()
-        raise
+        evidence.data["complete"] = True
     finally:
-        broker._stop_event.set()
-        broker.client.close()
+        evidence.stage("finished", success=evidence.data["complete"])
 
 
 if __name__ == "__main__":

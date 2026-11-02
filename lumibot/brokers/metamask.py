@@ -1,7 +1,7 @@
 """Native Python MetaMask managed-wallet broker."""
 
 from decimal import Context, Decimal
-from threading import RLock
+from threading import Event, RLock, current_thread
 from uuid import uuid4
 
 import requests
@@ -32,12 +32,38 @@ class MetaMask(Broker):
         self.client = MetaMaskClient(config)
         self._observations = {}
         self._event_lock = RLock()
+        self._close_lock = RLock()
+        self._closed = False
+        self._stream_thread = None
+        self._stream_ready = Event()
+        if not connect_stream:
+            self._stream_ready.set()
         self._poll_interval = float(config.get("POLL_INTERVAL", 10))
         data_source = data_source or MetaMaskData(config, client=self.client)
         super().__init__(
             name="metamask", config=config, data_source=data_source, connect_stream=connect_stream, **kwargs
         )
         self.market = "24/7"
+
+    def close(self):
+        """Release this broker after its Strategy/Trader execution has stopped.
+
+        Stop dispatch, wait for owned polling/submission workers, then release
+        the native session and journal. Never close from an owned worker.
+        """
+        workers = (getattr(self, "_orders_thread", None), self._stream_thread)
+        if current_thread() in workers:
+            raise RuntimeError("Close MetaMask from its owner after stopping Strategy/Trader execution")
+        with self._close_lock:
+            if self._closed:
+                return
+            self.cleanup_streams()
+            self._stream_ready.wait()
+            for worker in (getattr(self, "_orders_thread", None), self._stream_thread):
+                if worker is not None:
+                    worker.join()
+            self.client.close()
+            self._closed = True
 
     def _submit_order(self, order):
         if self.mode != "perp" or order.asset.asset_type != "crypto_future":
@@ -275,6 +301,8 @@ class MetaMask(Broker):
         self.stream.add_action(self.stream.POLL_EVENT)(self.do_polling)
 
     def _run_stream(self):
+        self._stream_thread = current_thread()
+        self._stream_ready.set()
         self._stream_established()
         self.stream._run()
 

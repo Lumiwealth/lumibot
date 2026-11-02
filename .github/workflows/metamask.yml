@@ -54,4 +54,4 @@ jobs:
       - run: python -m pip check
       - run: python -m ruff check lumibot/tools/metamask lumibot/tools/metamask_client.py lumibot/brokers/metamask.py lumibot/data_sources/metamask_data.py lumibot/example_strategies/metamask_perpetual.py scripts/qualify_metamask_strategy.py tests/test_metamask*.py
       - run: python -m ruff format --check lumibot/tools/metamask lumibot/tools/metamask_client.py lumibot/brokers/metamask.py lumibot/data_sources/metamask_data.py lumibot/example_strategies/metamask_perpetual.py scripts/qualify_metamask_strategy.py tests/test_metamask*.py
-      - run: python -m pytest tests/test_metamask_broker.py tests/test_metamask_native*.py tests/test_metamask_example_strategy.py -q
+      - run: python -m pytest tests/test_metamask*.py -q

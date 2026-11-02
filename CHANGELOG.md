@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.6.44 - Unreleased
+
+- Carry the current shared runtime forward with portfolio example transaction-ledger verification and release packaging repairs.
+
 ## 4.6.42 - 2026-11-01
 
 ### Added

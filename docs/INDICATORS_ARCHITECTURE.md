@@ -258,14 +258,3 @@ final day's MTM (cosmetic, see "Known gaps").
   `_fallback_length` reduced from 100k to 10k. Commit `fa12dee5`.
 - **2026-04-15** — Initial subsystem landed as `12a77a9a` alongside 4.5.0
   version bump.
-
-
-### Cached bars preserve their availability boundary
-
-A `Data` cache stores each bar's eventual OHLCV, including a currently forming
-bar. Indicator calculations now use the same `Data._get_bars_row_bounds`
-visibility boundary as ordinary historical reads before consuming that cache.
-This applies to built-in, custom and streaming indicators. Minute/hour bar
-closes are unavailable until their actual cadence completes; daily and bare
-provider-frame contracts remain unchanged. The provider frame is never mutated.
-A completed final bar remains visible even when no following row exists.

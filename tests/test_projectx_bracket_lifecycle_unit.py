@@ -58,7 +58,9 @@ def broker():
     original_client_cls = projectx_module.ProjectXClient
     projectx_module.ProjectXClient = lambda cfg: StubClient()
     try:
-        b = ProjectX(config, data_source=data, connect_stream=False)
+        # These tests submit directly and do not own a background order worker.
+        with patch.object(ProjectX, "_start_orders_thread"):
+            b = ProjectX(config, data_source=data, connect_stream=False)
     finally:
         projectx_module.ProjectXClient = original_client_cls
     # Use our stub client instance
@@ -182,7 +184,7 @@ def test_child_stream_before_ack_keeps_oco_link_on_canonical_order(broker, mes):
     broker.client.order_cancel.assert_called_once_with(1, int(children['sl']))
 
 
-def test_child_fill_before_ack_cancels_sibling_after_links_are_registered(broker, mes):
+def test_child_fill_before_ack_prevents_unnecessary_sibling_submission(broker, mes):
     from unittest.mock import Mock
     parent = _make_bracket_entry(mes, tp=5050, sl=4975)
     original = broker.client.order_place
@@ -204,8 +206,11 @@ def test_child_fill_before_ack_cancels_sibling_after_links_are_registered(broker
     broker._submit_order(parent)
     broker._process_trade_event(parent, broker.FILLED_ORDER, price=5000,
                                filled_quantity=1, multiplier=5)
-    children = parent._synthetic_bracket['children']
-    broker.client.order_cancel.assert_called_once_with(1, int(children['sl']))
+    # A known completed exit must prevent creation of another exit, rather
+    # than submitting and then canceling an unnecessary live order.
+    assert parent._synthetic_bracket['children'].keys() == {'tp'}
+    assert len(broker.client.placed) == 2
+    broker.client.order_cancel.assert_not_called()
 
 
 def test_fractional_contract_size_is_not_silently_truncated(broker, mes):
@@ -369,8 +374,9 @@ def test_bracket_child_fill_cancels_sibling(broker, mes):
     sl_order = broker.get_order(sl_id)
     assert (getattr(sl_order, 'status', '') or '').lower() in {"canceled", "cancelled", "cancelling",
                                                                "fill", "filled", "error"}
-    # Bracket deactivated
-    assert meta['active'] is False
+    # Cancel acknowledgement is not terminal evidence; retain pending tracking.
+    assert meta['active'] is True
+    assert sl_order.status == 'cancelling'
 
 
 def test_partial_entry_protects_only_filled_contracts_and_resizes_existing_exits(broker, mes):
@@ -466,3 +472,225 @@ def test_order_stream_ignores_other_account(broker, mes):
     broker._handle_order_update({'id': 789, 'accountId': 999, 'contractId': 'CON.F.US.MES.Z25',
                                 'size': 1, 'status': 2, 'fillVolume': 1, 'filledPrice': 5000.})
     broker._convert_broker_order_to_lumibot_order.assert_not_called()
+
+
+@pytest.mark.parametrize('parent_before_ack', [False, True])
+def test_child_fill_during_sibling_ack_cancels_registered_sibling(broker, mes, parent_before_ack):
+    from unittest.mock import Mock
+    parent = _make_bracket_entry(mes, tp=5050, sl=4975)
+    original = broker.client.order_place
+
+    def place(**kwargs):
+        response = original(**kwargs)
+        if kwargs['type'] == 2 and parent_before_ack:
+            observed = Order(strategy='Strat', asset=mes, quantity=1, side='buy',
+                             identifier=str(response['orderId']))
+            observed.tag = kwargs['custom_tag']
+            broker._process_trade_event(observed, broker.NEW_ORDER)
+            broker._process_trade_event(observed, broker.FILLED_ORDER, price=5000,
+                                       filled_quantity=1, multiplier=5)
+        elif kwargs['type'] == 4:
+            tracked = broker.get_tracked_order(parent.identifier)
+            tp = broker.get_tracked_order(tracked._synthetic_bracket['children']['tp'])
+            broker._process_trade_event(tp, broker.FILLED_ORDER, price=5050,
+                                       filled_quantity=1, multiplier=5)
+        return response
+
+    broker.client.order_place = place
+    broker.client.order_cancel = Mock(wraps=broker.client.order_cancel)
+    broker._submit_order(parent)
+    if not parent_before_ack:
+        broker._process_trade_event(parent, broker.FILLED_ORDER, price=5000,
+                                   filled_quantity=1, multiplier=5)
+    tracked = broker.get_tracked_order(parent.identifier)
+    sl = broker.get_tracked_order(tracked._synthetic_bracket['children']['sl'])
+    broker.client.order_cancel.assert_called_once_with(1, int(sl.identifier))
+    assert sl.is_active() and not sl.is_canceled()  # Cancel acceptance is not terminal evidence.
+
+
+def _filled_bracket(broker, mes):
+    parent = _make_bracket_entry(mes, tp=5050, sl=4975)
+    broker._submit_order(parent)
+    broker._process_trade_event(parent, broker.FILLED_ORDER, price=5000,
+                               filled_quantity=1, multiplier=5)
+    children = parent._synthetic_bracket['children']
+    return parent, broker.get_tracked_order(children['tp']), broker.get_tracked_order(children['sl'])
+
+
+@pytest.mark.parametrize('failure', [False, RuntimeError('lost cancel acknowledgement')])
+def test_failed_sibling_cancel_retries_on_normal_sync_without_replaying_fills(broker, mes, failure):
+    from unittest.mock import Mock
+    parent, tp, sl = _filled_bracket(broker, mes)
+    broker.client.order_cancel = Mock(side_effect=[failure, {'success': True}])
+    broker._process_trade_event(tp, broker.FILLED_ORDER, price=5050,
+                               filled_quantity=1, multiplier=5)
+    assert parent._synthetic_bracket['active']
+    assert sl.is_active() and not sl.is_canceled()
+    broker._pull_all_orders = Mock(return_value=broker.get_all_orders())
+    before = list(tp.transactions)
+    broker.sync_orders('Strat')
+    broker.sync_orders('Strat')
+    assert broker.client.order_cancel.call_count == 2
+    assert tp.transactions == before
+    assert len(broker.client.placed) == 3
+    assert sl.is_active() and not sl.is_canceled()
+
+
+def test_missing_registered_sibling_keeps_cancellation_unresolved(broker, mes):
+    from unittest.mock import Mock
+    parent, tp, sl = _filled_bracket(broker, mes)
+    lookup = broker.get_tracked_order
+    broker.get_tracked_order = Mock(side_effect=lambda oid: None if oid == sl.identifier else lookup(oid))
+    broker.client.order_cancel = Mock()
+    broker._process_trade_event(tp, broker.FILLED_ORDER, price=5050,
+                               filled_quantity=1, multiplier=5)
+    assert parent._synthetic_bracket['active']
+    broker.client.order_cancel.assert_not_called()
+    broker.get_tracked_order = lookup
+    broker._pull_all_orders = Mock(return_value=broker.get_all_orders())
+    broker.sync_orders('Strat')
+    broker.client.order_cancel.assert_called_once_with(1, int(sl.identifier))
+
+
+def test_successful_sibling_cancel_is_not_repeated_before_terminal_confirmation(broker, mes):
+    from unittest.mock import Mock
+    parent, tp, sl = _filled_bracket(broker, mes)
+    broker.client.order_cancel = Mock(return_value={'success': True})
+    broker._process_trade_event(tp, broker.FILLED_ORDER, price=5050,
+                               filled_quantity=1, multiplier=5)
+    assert parent._synthetic_bracket['active']
+    broker._handle_bracket_child_fill(tp)
+    broker._pull_all_orders = Mock(return_value=broker.get_all_orders())
+    broker.sync_orders('Strat')
+    broker.client.order_cancel.assert_called_once_with(1, int(sl.identifier))
+    assert sl.is_active() and not sl.is_canceled()
+    broker._process_trade_event(sl, broker.CANCELED_ORDER)
+    broker.sync_orders('Strat')
+    assert not parent._synthetic_bracket['active']
+    broker.client.order_cancel.assert_called_once()
+
+
+@pytest.mark.parametrize('rejected', [False, True])
+def test_filled_child_with_unsubmitted_or_rejected_sibling_does_not_create_exit(broker, mes, rejected):
+    from unittest.mock import Mock
+    parent = _make_bracket_entry(mes, tp=5050, sl=4975)
+    original = broker.client.order_place
+    def place(**kwargs):
+        if rejected and kwargs['type'] == 4:
+            return {'success': False, 'errorMessage': 'rejected'}
+        response = original(**kwargs)
+        if not rejected and kwargs['type'] == 1:
+            observed = Order(strategy='Strat', asset=mes, quantity=1, side='sell',
+                             identifier=str(response['orderId']))
+            observed.tag = kwargs['custom_tag']
+            broker._process_trade_event(observed, broker.NEW_ORDER)
+            broker._process_trade_event(observed, broker.FILLED_ORDER, price=5050,
+                                       filled_quantity=1, multiplier=5)
+        return response
+    broker.client.order_place = Mock(side_effect=place)
+    broker._submit_order(parent)
+    broker._process_trade_event(parent, broker.FILLED_ORDER, price=5000,
+                               filled_quantity=1, multiplier=5)
+    if rejected:
+        tp = broker.get_tracked_order(parent._synthetic_bracket['children']['tp'])
+        broker._process_trade_event(tp, broker.FILLED_ORDER, price=5050,
+                                   filled_quantity=1, multiplier=5)
+    attempts = broker.client.order_place.call_count
+    broker._maybe_spawn_bracket_children(parent)
+    assert broker.client.order_place.call_count == attempts
+    assert parent._synthetic_bracket['children'].keys() == {'tp'}
+    assert len(broker.client.placed) == 2
+
+
+def test_strategy_sync_does_not_cancel_another_strategys_sibling(broker, mes):
+    from unittest.mock import Mock
+    parent, tp, sl = _filled_bracket(broker, mes)
+    broker.client.order_cancel = Mock(return_value=False)
+    broker._process_trade_event(tp, broker.FILLED_ORDER, price=5050,
+                               filled_quantity=1, multiplier=5)
+    broker.client.order_cancel.reset_mock()
+    broker._pull_all_orders = Mock(return_value=broker.get_all_orders())
+    broker.sync_orders('OtherStrategy')
+    broker.client.order_cancel.assert_not_called()
+    broker.client.order_cancel.return_value = {'success': True}
+    broker.sync_orders('Strat')
+    broker.client.order_cancel.assert_called_once_with(1, int(sl.identifier))
+
+
+@pytest.mark.parametrize('provider_rejected', [False, True])
+def test_sibling_error_requires_provider_rejection_evidence(broker, mes, provider_rejected):
+    from unittest.mock import Mock
+    parent, tp, sl = _filled_bracket(broker, mes)
+    sl.status = 'error'
+    if provider_rejected:
+        sl.broker_status = 'rejected'
+    broker.client.order_cancel = Mock(return_value={'success': True})
+    broker._process_trade_event(tp, broker.FILLED_ORDER, price=5050,
+                               filled_quantity=1, multiplier=5)
+    assert parent._synthetic_bracket['active'] is not provider_rejected
+    assert broker.client.order_cancel.call_count == (0 if provider_rejected else 1)
+
+
+def test_stream_fill_can_progress_while_sibling_ack_is_waiting(broker, mes):
+    import threading
+    from unittest.mock import Mock
+    parent = _make_bracket_entry(mes, tp=5050, sl=4975)
+    original = broker.client.order_place
+    sibling_waiting = threading.Event()
+    release_ack = threading.Event()
+    errors = []
+    def place(**kwargs):
+        response = original(**kwargs)
+        if kwargs['type'] == 2:
+            observed = Order(strategy='Strat', asset=mes, quantity=1, side='buy',
+                             identifier=str(response['orderId']))
+            observed.tag = kwargs['custom_tag']
+            broker._process_trade_event(observed, broker.NEW_ORDER)
+            broker._process_trade_event(observed, broker.FILLED_ORDER, price=5000,
+                                       filled_quantity=1, multiplier=5)
+        elif kwargs['type'] == 4:
+            sibling_waiting.set()
+            if not release_ack.wait(5):
+                raise RuntimeError('test did not release acknowledgement')
+        return response
+    def submit():
+        try:
+            broker._submit_order(parent)
+        except BaseException as exc:
+            errors.append(exc)
+    broker.client.order_place = place
+    broker.client.order_cancel = Mock(return_value={'success': True})
+    worker = threading.Thread(target=submit)
+    worker.start()
+    try:
+        assert sibling_waiting.wait(5)
+        tracked = broker.get_tracked_order(parent.identifier)
+        tp = broker.get_tracked_order(tracked._synthetic_bracket['children']['tp'])
+        snapshot = Order(strategy='Strat', asset=mes, quantity=1, side='sell', identifier=tp.identifier)
+        snapshot.status = 'filled'
+        snapshot.filled_quantity = 1
+        snapshot.avg_fill_price = 5050
+        broker._detect_and_dispatch_order_changes(snapshot)
+        assert tp.is_filled()
+    finally:
+        release_ack.set()
+        worker.join(5)
+    assert not worker.is_alive() and not errors
+    sibling = tracked._synthetic_bracket['children']['sl']
+    broker.client.order_cancel.assert_called_once_with(1, int(sibling))
+
+
+def test_cancel_terminal_callback_wins_over_failed_acknowledgement(broker, mes):
+    from unittest.mock import Mock
+    parent, tp, sl = _filled_bracket(broker, mes)
+    def canceled_before_ack(*args):
+        broker._process_trade_event(sl, broker.CANCELED_ORDER)
+        return False
+    broker.client.order_cancel = Mock(side_effect=canceled_before_ack)
+    broker._process_trade_event(tp, broker.FILLED_ORDER, price=5050,
+                               filled_quantity=1, multiplier=5)
+    broker._pull_all_orders = Mock(return_value=broker.get_all_orders())
+    broker.sync_orders('Strat')
+    assert sl.is_canceled()
+    assert not parent._synthetic_bracket['active']
+    broker.client.order_cancel.assert_called_once()

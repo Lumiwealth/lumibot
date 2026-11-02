@@ -1107,6 +1107,7 @@ class ProjectX(Broker):
             # Set additional properties
             order.identifier = broker_order_id
             order.status = status
+            order.broker_status = self.ORDER_STATUS_MAPPING.get(status_id)
             order.limit_price = broker_order.get("limitPrice")
             order.stop_price = broker_order.get("stopPrice")
             order.tag = broker_order.get("customTag")
@@ -1347,6 +1348,8 @@ class ProjectX(Broker):
     def _dispatch_status_change(self, cached_order, new_order):
         """Apply cumulative provider fills once, then preserve any terminal state."""
         status = str(new_order.status).lower()
+        if getattr(new_order, "broker_status", None) is not None:
+            cached_order.broker_status = new_order.broker_status
         previous_status = str(cached_order.status).lower()
         quantity = getattr(new_order, "filled_quantity", None)
         if not quantity and status in {"fill", "filled"}:
@@ -1379,7 +1382,7 @@ class ProjectX(Broker):
     # ======== Synthetic Bracket Helpers =========
     # A BRACKET parent order (order_class=BRACKET) carries only the entry details; TP/SL are
     # supplied via secondary_limit_price / secondary_stop_price and captured into synthetic
-    # metadata (no native broker OCO linkage). On parent submission we:
+    # metadata for this synthetic path. On parent submission we:
     #   1. Build meta (tp/sl/base_tag/children flags) and early-store under temp key.
     #   2. After broker assigns real order id, meta is migrated & children may spawn immediately
     #      (handles ultra-fast fills racing earlier implementations).
@@ -1446,6 +1449,8 @@ class ProjectX(Broker):
                 else:
                     self.logger.debug(f"[BRACKET SPAWN META RESTORE] parent={parent.identifier} restored_from_map=True")
                 parent._synthetic_bracket = meta
+            if self._reconcile_bracket_children(parent):
+                return
             eligible, reason = should_spawn_bracket_children(meta, parent)
             if not eligible:
                 self.logger.debug(f"[BRACKET SPAWN ABORT] parent={parent.identifier} reason={reason}")
@@ -1468,24 +1473,28 @@ class ProjectX(Broker):
             tp_price = meta.get('tp_price')
             sl_price = meta.get('sl_price')
             base_tag = meta.get('base_tag') or derive_base_tag(parent.tag or '')
-            if tp_price is not None and not meta['children'].get('tp'):
+            for kind, price in (('tp', tp_price), ('sl', sl_price)):
+                with self._order_update_lock:
+                    # Registration and its in-flight marker must be atomic with
+                    # stream fills. Do not submit another exit after a known fill.
+                    if self._reconcile_bracket_children(parent):
+                        return
+                    if meta.get('submitting_child'):
+                        return
+                    if price is None or meta['children'].get(kind):
+                        continue
+                    meta['submitting_child'] = kind
+                child = None
                 try:
-                    self.logger.debug(f"[BRACKET SPAWN] creating TP child parent={parent.identifier} price={tp_price}")
-                    tp_child = self._create_bracket_child(parent, kind='tp', price=tp_price, base_tag=base_tag)
-                    if tp_child and tp_child.identifier and str(tp_child.status).lower() not in {'error', 'rejected'}:
-                        meta['children']['tp'] = tp_child.identifier
-                        self._bracket_parent_by_child_id[tp_child.identifier] = parent.identifier
-                except Exception as e:
-                    self.logger.error(f"Failed to submit TP child for parent {parent.identifier}: {e}")
-            if sl_price is not None and not meta['children'].get('sl'):
-                try:
-                    self.logger.debug(f"[BRACKET SPAWN] creating SL child parent={parent.identifier} price={sl_price}")
-                    sl_child = self._create_bracket_child(parent, kind='sl', price=sl_price, base_tag=base_tag)
-                    if sl_child and sl_child.identifier and str(sl_child.status).lower() not in {'error', 'rejected'}:
-                        meta['children']['sl'] = sl_child.identifier
-                        self._bracket_parent_by_child_id[sl_child.identifier] = parent.identifier
-                except Exception as e:
-                    self.logger.error(f"Failed to submit SL child for parent {parent.identifier}: {e}")
+                    child = self._create_bracket_child(parent, kind=kind, price=price, base_tag=base_tag)
+                except Exception as exc:
+                    self.logger.error(f"Failed to submit {kind} child for parent {parent.identifier}: {exc}")
+                finally:
+                    with self._order_update_lock:
+                        if child and child.identifier and str(child.status).lower() not in {'error', 'rejected'}:
+                            meta['children'][kind] = child.identifier
+                            self._bracket_parent_by_child_id[child.identifier] = parent.identifier
+                        meta.pop('submitting_child', None)
             complete = ((tp_price is None or bool(meta['children'].get('tp')))
                         and (sl_price is None or bool(meta['children'].get('sl'))))
             complete = complete and resized
@@ -1493,12 +1502,7 @@ class ProjectX(Broker):
             if complete:
                 meta['protected_quantity'] = target
             parent._bracket_children_submitted = complete
-            # A child may already have filled before its acknowledgement and
-            # before both accepted sibling identifiers were registered.
-            for child_id in tuple(meta['children'].values()):
-                child = self.get_tracked_order(child_id)
-                if child is not None and child.is_filled():
-                    self._handle_bracket_child_fill(child)
+            self._reconcile_bracket_children(parent)
             self.logger.debug(f"[BRACKET SPAWN COMPLETE] parent={parent.identifier} tp_child={meta.get('children',{}).get('tp')} sl_child={meta.get('children',{}).get('sl')}")
         except Exception as e:
             self.logger.error(f"[BRACKET SPAWN ERROR] parent={getattr(parent,'id',None)} error={e}")
@@ -1542,39 +1546,71 @@ class ProjectX(Broker):
             self.logger.debug(f"Bracket child submitted: parent={parent.identifier} kind={kind} id={submitted.identifier} price={price}")
         return submitted
 
-    def _handle_bracket_child_fill(self, child: Order):
-        """Cancel sibling when one bracket child fills."""
-        parent_id = self._bracket_parent_by_child_id.get(child.identifier)
-        if not parent_id:
-            return
-        parent = self.get_tracked_order(parent_id)
-        if not parent or not getattr(parent, '_synthetic_bracket', None):
-            return
-        meta = parent._synthetic_bracket
-        if not meta.get('active', False):
-            return
-        # Determine sibling
-        siblings = meta.get('children', {})
-        sibling_id = None
-        for k, v in siblings.items():
-            if v != child.identifier:
-                sibling_id = v
-                break
+    def _reconcile_bracket_children(self, parent: Order) -> bool:
+        """Revisit known executions without submitting or replaying any fill."""
+        found_fill = False
+        meta = getattr(parent, '_synthetic_bracket', None) or {}
+        for child_id in tuple(meta.get('children', {}).values()):
+            child = self.get_tracked_order(child_id)
+            if child is not None and child.is_filled():
+                found_fill = True
+                self._handle_bracket_child_fill(child)
+        return found_fill
 
-        sibling_order = self.get_tracked_order(sibling_id)
-        if sibling_order:
-            # Cancel only if not terminal already
-            sibling_status = (getattr(sibling_order, 'status', '') or '').lower()
-            if sibling_status not in {"fill", "filled", "canceled", "cancelled", "error"}:
-                try:
-                    sibling_order.status = "cancelling"
-                    self.cancel_order(sibling_order)
-                    self.logger.debug(f"[BRACKET SIBLING CANCEL] canceled sibling={sibling_id} after child_fill={child.identifier}")
-                except Exception as e:
-                    self.logger.error(f"Failed cancel sibling {sibling_id} for parent {parent_id}: {e}")
-        # Deactivate bracket
-        meta['active'] = False
-            
+    def sync_orders(self, strategy):
+        super().sync_orders(strategy)
+        # A failed cancel remains outstanding even if no new fill event arrives.
+        # Reuse the normal reconciliation cadence and the same accepted IDs.
+        strategy_name = self._strategy_name_from_input(strategy)
+        for parent_id in tuple(self._bracket_meta):
+            parent = self.get_tracked_order(parent_id)
+            if parent is not None and self.order_belongs_to_local_strategy(parent, strategy_name):
+                self._reconcile_bracket_children(parent)
+
+    def _handle_bracket_child_fill(self, child: Order):
+        """Cancel an accepted sibling; acknowledgement alone is not terminal."""
+        with self._order_update_lock:
+            parent_id = self._bracket_parent_by_child_id.get(child.identifier)
+            parent = self.get_tracked_order(parent_id) if parent_id else None
+            if not parent or not getattr(parent, '_synthetic_bracket', None):
+                return
+            meta = parent._synthetic_bracket
+            if not meta.get('active', False):
+                return
+            sibling_id = next((identifier for identifier in meta.get('children', {}).values()
+                               if identifier != child.identifier), None)
+            if sibling_id is None:
+                # A sibling accepted by the venue may still be awaiting its ID.
+                # Without an in-flight submission, no further exit is needed.
+                if not meta.get('submitting_child'):
+                    meta['active'] = False
+                return
+            sibling = self.get_tracked_order(sibling_id)
+            if sibling is None:
+                return  # Missing local evidence cannot prove the sibling closed.
+            terminal = sibling.is_filled() or sibling.status in {'canceled', 'expired', 'replaced'}
+            rejected = sibling.status == 'error' and getattr(sibling, 'broker_status', None) == 'rejected'
+            if terminal or rejected:
+                meta['active'] = False
+                return
+            if meta.get('cancel_requested') == sibling_id:
+                return
+            previous_status = sibling.status
+            sibling.status = 'cancelling'
+            # Reserve before handoff too: callbacks can re-enter this method.
+            meta['cancel_requested'] = sibling_id
+            try:
+                accepted = self.cancel_order(sibling)
+            except Exception as exc:
+                accepted = False
+                self.logger.error(f"Failed cancel sibling {sibling_id} for parent {parent_id}: {exc}")
+            if not accepted:
+                meta.pop('cancel_requested', None)
+                if sibling.status == 'cancelling':
+                    sibling.status = previous_status
+            else:
+                self.logger.debug(f"[BRACKET SIBLING CANCEL] requested sibling={sibling_id} after child_fill={child.identifier}")
+
     def _handle_pre_existing_order(self, order):
         """Handle orders that existed before strategy started."""
         try:

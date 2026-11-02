@@ -470,3 +470,15 @@ receipt must cover the complete current catalog and calibration controls,
 with original model-call provenance. Do not broaden source-compatibility
 exemptions to make an incompatible receipt pass. After fresh inference replaces
 an anchor, retire obsolete one-time executor or validator exceptions.
+
+
+Literal agent policies in reference examples
+------------------------------------------
+
+The native catalog constructs its own Pandas-fixture strategies and never
+executes reference examples. Its compatibility verifier can retain original
+shared-runtime proof when only a plain string supplied as an example agent's
+`system_prompt` changes. Every surrounding call, role, permission, model,
+docstring and executable expression remains bound. This does not validate the
+changed investment policy: the actual strategy still requires separate real-model
+and backtest evidence. No original trial source, timestamp or verdict is rewritten.

@@ -72,11 +72,13 @@ jobs:
         run: |
           set -euo pipefail
           python -m build --wheel
-          pip install --force-reinstall dist/*.whl -c requirements_agent_evals.txt
-          pip check
-          python -I -c "import lumibot; import importlib.metadata as m; print(m.version('lumibot'), lumibot.__file__)"
-          python -I -c "from lumibot.components.agents.chatgpt_llm import ChatGPTPlanLlm; print(ChatGPTPlanLlm.__module__)"
-          python -I -m lumibot.components.agents.chatgpt_auth --help
+          python -m venv "${RUNNER_TEMP}/lumibot-release-install"
+          package_python="${RUNNER_TEMP}/lumibot-release-install/bin/python"
+          "${package_python}" -m pip install dist/*.whl -c requirements_agent_evals.txt
+          "${package_python}" -m pip check
+          "${package_python}" -I -c "import lumibot; import importlib.metadata as m; print(m.version('lumibot'), lumibot.__file__)"
+          "${package_python}" -I -c "from lumibot.components.agents.chatgpt_llm import ChatGPTPlanLlm; print(ChatGPTPlanLlm.__module__)"
+          "${package_python}" -I -m lumibot.components.agents.chatgpt_auth --help
 
       - name: Upload dist
         uses: actions/upload-artifact@v4
@@ -174,8 +176,19 @@ jobs:
           )
           PY
 
-          python -m pytest -m "${PYTEST_MARKERS}" \
-            --tb=short -q --durations=30 -x $(cat shard_files.txt)
+          python - <<'PYTEST'
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          selected = Path("shard_files.txt").read_text(encoding="utf-8").splitlines()
+          subprocess.run(
+              [sys.executable, "-m", "pytest", "-m", os.environ["PYTEST_MARKERS"],
+               "--tb=short", "-q", "--durations=30", "-x", *selected],
+              check=True,
+          )
+          PYTEST
 
   backtest-tests:
     name: Backtest Tests (shard ${{ matrix.shard }}/4)
@@ -254,8 +267,19 @@ jobs:
           )
           PY
 
-          python -m pytest -m "${PYTEST_MARKERS}" \
-            --tb=short -q --durations=30 -x $(cat shard_nodeids.txt)
+          python - <<'PYTEST'
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          selected = Path("shard_nodeids.txt").read_text(encoding="utf-8").splitlines()
+          subprocess.run(
+              [sys.executable, "-m", "pytest", "-m", os.environ["PYTEST_MARKERS"],
+               "--tb=short", "-q", "--durations=30", "-x", *selected],
+              check=True,
+          )
+          PYTEST
 
   agent-evals:
     name: Real-Model Agent Evals

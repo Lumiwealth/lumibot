@@ -183,3 +183,39 @@ def test_portable_gate_keeps_offline_tradier_checks_and_excludes_live_api(tmp_pa
     api_selected = [line for line in api_result.stdout.splitlines() if "::TestTradierData::" in line]
     assert len(api_selected) == 10
     assert "tests/test_tradier_data.py::TestTradierData::test_get_last_price_stock" in api_selected
+
+
+@pytest.mark.parametrize("workflow_name", ["release.yml", "cicd.yaml"])
+@pytest.mark.parametrize("job", ["unit-tests", "backtest-tests"])
+def test_shards_preserve_complete_test_names(tmp_path, workflow_name, job):
+    """Execute the actual workflow with space-bearing file and parameter names."""
+    root = Path(__file__).resolve().parents[1]
+    workflow = yaml.load(
+        (root / ".github/workflows" / workflow_name).read_text(), Loader=yaml.BaseLoader,
+    )
+    command = next(step["run"] for step in workflow["jobs"][job]["steps"]
+                   if step.get("name", "").startswith("Run ") and "--collect-only" in step.get("run", ""))
+    folder = tmp_path / "tests" / ("backtest" if job == "backtest-tests" else "unit") / "interval samples"
+    folder.mkdir(parents=True)
+    (folder / "test_interval.py").write_text(
+        'import pytest\n'
+        '@pytest.mark.parametrize("interval", ["1 minute", "1 hour"])\n'
+        'def test_interval(interval):\n'
+        '    assert interval in {"1 minute", "1 hour"}\n'
+    )
+    result = subprocess.run(
+        ["bash", "-c", command], cwd=tmp_path, capture_output=True, text=True,
+        env={**os.environ, "PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", ""),
+             "SHARD_INDEX": "0", "SHARD_TOTAL": "1", "PYTEST_ADDOPTS": ""},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "2 passed" in result.stdout
+
+
+def test_installed_package_proof_uses_a_clean_environment():
+    script = next(step['run'] for step in _workflow()['jobs']['validate-build']['steps']
+        if step.get('name') == 'Build package')
+    assert 'python -m venv "${RUNNER_TEMP}/lumibot-release-install"' in script
+    assert '"${package_python}" -m pip install dist/*.whl -c requirements_agent_evals.txt' in script
+    assert '"${package_python}" -m pip check' in script
+    assert '--force-reinstall' not in script

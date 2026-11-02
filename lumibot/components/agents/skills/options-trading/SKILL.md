@@ -12,6 +12,13 @@ submitting an option order.
 
 ## Core workflow
 
+Apply the workflow to your assigned role. A non-trading researcher gathers
+evidence needed for the research question and gives a compact dated assessment;
+it need not repeat the trader's complete account/contract/order-readiness
+checklist. The trading agent independently establishes execution readiness
+immediately before each action and never treats an upstream answer as that
+verification.
+
 An instruction to open or close a bounded position when stated checks pass is
 authorization to act once those checks pass. Do not require a second instruction
 or add an unstated history length, signal, risk percentage, or sizing condition.
@@ -87,6 +94,12 @@ broker, approval, liquidity and risk limits.
    policy. Offsetting current Greeks do not guarantee those offsets persist.
    Explain the consequential exposure/risk briefly in the order rationale using
    the actual evidence; do not invent missing Greeks or list every Greek by rote.
+   Preserve each tool-returned contract Greek's sign. Distinguish that raw
+   long-contract Greek from its signed position contribution: multiply by signed
+   contract quantity and the actual multiplier once. A long put's negative delta
+   is not made positive by calling it a protective leg; a short position reverses
+   the raw contribution. Check the signed sum before reporting a net exposure and
+   omit an unsupported numeric claim rather than guessing it.
    Assess exercise, assignment and settlement for the selected contracts too.
    A short option can create an obligation even when another leg bounds the
    package's expiry payoff. Identify the actual contract multiplier, deliverable,

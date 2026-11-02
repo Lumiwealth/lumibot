@@ -2,6 +2,7 @@
 
 # Unit Test modules
 pytest
+pytest-xdist==3.8.0
 pytest-cov
 pytest-mock
 coverage

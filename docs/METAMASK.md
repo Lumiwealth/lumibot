@@ -186,7 +186,8 @@ Native testnet opening, reduce-only closing and cancellation have funded receipt
 
 The explicit `scripts/qualify_metamask_partial.py` testnet harness checks live remaining size against `frontendOpenOrders` and the persisted native client order identity. It retains independent paired-fill, fee, callback and cleanup assertions. `--daily-caps MAKER TAKER` validates separately reviewed existing grants; it does not change authority or erase spending history. Defaults remain 300/150, and each wallet needs at least $50 of reservation room before signing so an entry and residual cleanup fit the $25 order limit.
 
-Order-status evidence must match the persisted `cloid`. Live `frontendOpenOrders`
+Broker reconciliation and qualification require order-status evidence to match
+the persisted `cloid`. Live `frontendOpenOrders`
 records match by `oid` and may omit `cloid`; when supplied, it must agree.
 Remaining-size and fill checks remain mandatory. See the [venue response schemas](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint).
 

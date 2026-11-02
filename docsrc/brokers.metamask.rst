@@ -245,7 +245,8 @@ grants without changing authority or spending history. Defaults remain 300/150;
 each wallet needs $50 reservation room before signing to cover entry and
 residual cleanup within the $25 order limit.
 
-Order-status evidence must match the persisted ``cloid``. Live
+Broker reconciliation and qualification require order-status evidence to match
+the persisted ``cloid``. Live
 ``frontendOpenOrders`` records match by ``oid`` and may omit ``cloid``; when
 supplied, it must agree. Remaining-size and fill checks remain mandatory.
 

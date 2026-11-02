@@ -12,10 +12,10 @@ Audience: LumiBot users and maintainers
 
 `lumibot.brokers.MetaMask` runs in the Python strategy process. It calls MetaMask's managed-wallet API and Hyperliquid's HTTP API directly. Wallet keys remain with MetaMask. Node, Bun, npm, the MetaMask CLI and an embedded JavaScript engine are not required.
 
-The native adapter is included in the published 4.6.42 package. The execution ownership and submission-certainty hardening described here is an unreleased 4.6.44 source candidate. Package availability does not establish production qualification. For candidate source testing, use the shared version branch in a clean environment:
+The native adapter is included in the published 4.6.42 package. The execution ownership and submission-certainty hardening described here is an unreleased 4.6.45 source candidate. Package availability does not establish production qualification. For candidate source testing, use the shared version branch in a clean environment:
 
 ```bash
-pip install 'lumibot[metamask] @ git+https://github.com/Lumiwealth/lumibot.git@version/4.6.44'
+pip install 'lumibot[metamask] @ git+https://github.com/Lumiwealth/lumibot.git@version/4.6.45'
 ```
 
 Default-DEX Hyperliquid perpetuals use normal `Order`, `Position`, strategy methods and fill callbacks. Native same-chain swap code remains experimental and requires separate funded qualification. Existing JavaScript trading receipts do not qualify this replacement.

@@ -276,6 +276,8 @@ def test_installed_package_proof_uses_a_clean_environment():
 
 def test_unit_jobs_preserve_the_inventory_with_process_isolation_and_no_job_deadline():
     root = Path(__file__).resolve().parents[1]
+    # The documented contributor install must provide the worker runner used below.
+    assert "pytest-xdist==3.8.0" in (root / "requirements_dev.txt").read_text().splitlines()
     for name in ('release.yml', 'cicd.yaml'):
         workflow = yaml.load((root / '.github/workflows' / name).read_text(), Loader=UniqueWorkflowLoader)
         unit = workflow['jobs']['unit-tests']

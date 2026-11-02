@@ -208,3 +208,22 @@ def test_example_comment_compatibility_does_not_exempt_shared_runtime():
     source = b'def run():\n    return 3\n'
     with pytest.raises(ValueError, match='affects model qualification'):
         scope.check_change('lumibot/components/agents/runtime.py', source, b'# documentation\n' + source)
+
+
+def test_development_worker_declaration_preserves_direct_native_inference():
+    before = b"-r requirements.txt\npytest\ncoverage\n"
+    after = b"-r requirements.txt\npytest\npytest-xdist==3.8.0\ncoverage\n"
+    scope.check_change('requirements_dev.txt', before, after)
+
+
+@pytest.mark.parametrize('extra', [
+    b'litellm==9.0.0\n',
+    b'pytest-xdist @ https://example.test/unqualified.whl\n',
+    b'pytest-xdist==3.8.0; python_version >= "3.10"\n',
+    b'pytest-xdist[unqualified]==3.8.0\n',
+    b'-r unqualified.txt\n',
+])
+def test_development_worker_scope_rejects_other_dependency_changes(extra):
+    before = b"-r requirements.txt\npytest\n"
+    with pytest.raises(ValueError, match='affects model qualification'):
+        scope.check_change('requirements_dev.txt', before, before + extra)

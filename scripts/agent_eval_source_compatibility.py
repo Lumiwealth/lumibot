@@ -150,6 +150,16 @@ def _without_unused_live_body(source, owner, method, guard):
 def check_change(path, before, after):
     if before == after or path in PROVIDER_ONLY_PATHS:
         return
+    if path == 'requirements_dev.txt':
+        # Direct native actors/judges never invoke or import pytest, xdist or
+        # execnet. Declaring the separately tested CI worker cannot change their
+        # behavior. Preserve every other dependency byte, include and option;
+        # installed model SDK identity is still compared independently.
+        def without_test_worker(source):
+            return b''.join(line for line in source.splitlines(keepends=True)
+                            if not re.fullmatch(rb'pytest-xdist==[0-9]+(?:\.[0-9]+)+', line.strip()))
+        if without_test_worker(before) == without_test_worker(after):
+            return
     if path == 'setup.py':
         # Dependency/package changes remain incompatible; only the release
         # version field may differ. Actual model SDK versions are checked too.

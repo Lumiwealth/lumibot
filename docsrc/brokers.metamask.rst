@@ -15,13 +15,13 @@ Install and connect
 
 The native adapter is included in the published 4.6.42 package. The execution
 ownership and submission-certainty hardening described here is an unreleased
-4.6.44 source candidate. Package availability does not establish production
+4.6.45 source candidate. Package availability does not establish production
 qualification. For candidate source testing, use the shared version branch in
 a clean environment:
 
 .. code-block:: bash
 
-   pip install 'lumibot[metamask] @ git+https://github.com/Lumiwealth/lumibot.git@version/4.6.44'
+   pip install 'lumibot[metamask] @ git+https://github.com/Lumiwealth/lumibot.git@version/4.6.45'
 
 Authorize through the official `MetaMask Agent Wallet sign-in page
 <https://developer.metamask.io/agentic/login>`_. Use the original Google/email
@@ -41,7 +41,7 @@ MetaMask. Before trading, deliberately authorize its local registry, limits and
 expiry using ``MetaMaskClient.authorize()``. Broker startup does not renew or
 broaden authority. See the complete binding example in the repository's
 `MetaMask setup guide
-<https://github.com/Lumiwealth/lumibot/blob/version/4.6.44/docs/METAMASK.md>`_.
+<https://github.com/Lumiwealth/lumibot/blob/version/4.6.45/docs/METAMASK.md>`_.
 
 .. code-block:: python
 

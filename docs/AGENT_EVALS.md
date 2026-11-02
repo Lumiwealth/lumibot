@@ -482,3 +482,11 @@ shared-runtime proof when only a plain string supplied as an example agent's
 docstring and executable expression remains bound. This does not validate the
 changed investment policy: the actual strategy still requires separate real-model
 and backtest evidence. No original trial source, timestamp or verdict is rewritten.
+
+The native actor/judge runner does not invoke or load Pytest, its parallel
+worker or execnet. Declaring an ordinary pinned ``pytest-xdist`` worker in
+``requirements_dev.txt`` therefore preserves direct native inference when
+every other dependency byte and installed model SDK version is unchanged.
+Other dependencies, includes, direct URLs, extras and conditional declarations
+still require fresh qualification. This exception does not qualify unit-test
+execution or contributor setup; their own checks remain required.

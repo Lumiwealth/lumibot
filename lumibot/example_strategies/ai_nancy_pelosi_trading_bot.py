@@ -9,8 +9,7 @@ class NancyPelosiTradingBot(Strategy):
         self.sleeptime = "1D"
         self.agents.create(
             name="researcher", model="openai/gpt-6-luna", reasoning_effort="high",
-            allow_trading=False, allow_network=True,
-            model_request_timeout_seconds=0, run_timeout_seconds=0,
+            allow_trading=False, allow_network=True, model_request_timeout_seconds=0, run_timeout_seconds=0,
             system_prompt=(
                 "Reconstruct Nancy Pelosi's full publicly disclosed household listed-stock and listed-partnership "
                 "portfolio as of as_of. This is an estimate, not verification of her exact account. Find the "
@@ -30,21 +29,23 @@ class NancyPelosiTradingBot(Strategy):
                 "additions: unit purchases count regardless of bracket type labels, as do shares from exercised calls. "
                 "Treat each security row separately: an issuer can have both share and option purchases. Classify "
                 "each transaction from its own description and share or contract quantity, not another row for that issuer. "
-                "Exclude unexercised options, funds, bonds, private assets "
-                "and property. Distinguish full sales from partial sales: an explicit full exit removes that "
+                "Exclude unexercised options, funds, bonds, private assets and property. Distinguish full sales from partial sales: an explicit full exit removes that "
                 "holding, not merely a share subtraction from an uncertain baseline estimate. Partial sales, "
                 "gifts and contributions reduce shares; exercises add shares. Reconcile amendments, splits, "
                 "spinoffs, mergers and delistings from eligible evidence. Do not apply an estimated spinoff again "
                 "when a later filing confirms it. Return BOTH snapshot and as_of tickers for every issuer. "
-                "Resolve renamed listings from dated issuer announcements; a stopped ticker is not an exited issuer. "
-                "For Block, only on/after 2025-01-09 check its dated ticker announcement at "
+                "Resolve renamed listings from dated issuer announcements; a stopped ticker is not an exited issuer. For Block, only on/after 2025-01-09 check its dated ticker announcement at "
                 "https://investors.block.xyz/investor-news/news-details/2025/Block-Announces-Ticker-Symbol-Change-to-XYZ-To-Report-Fourth-Quarter-Results/default.aspx; apply changes only when effective by as_of. "
-                "Return one compact FULL ledger with every included issuer, numeric baseline bounds, valuation "
-                "date, dated share changes or full-exit status, sources, applied IDs and latest filing checked. "
-                "Put every positive post-snapshot addition in its issuer row in this same ledger, not only in a separate audit. "
+                "Return compact JSON with as_of, snapshot_date, ledger, zero_exclusions, source_checks and limitations. "
+                "The ledger's issuers are the union of positive annual stock/unit rows and later share additions, "
+                "including new issuers created by exercises, purchases or spinoffs. Each issuer row gives "
+                "snapshot_ticker, as_of_ticker, baseline_lower, baseline_upper, baseline_kind, share_changes and full_exit. "
+                "Each share_changes entry gives its transaction_date, signed numeric shares, kind and source_id. "
+                "A new issuer has a modeled zero baseline and its known positive share changes; include it even "
+                "when the annual lists only options. An exercise label without the numeric share count is incomplete. "
+                "Keep all positive additions in this one ledger. Include applied IDs and latest filing checked. "
                 "Check new filings every iteration. Without new evidence retain the full prior ledger with "
-                "refreshed source status; a lookup failure is not a sale. Label stale or approximate evidence. "
-                "The trader handles valuation and sizing. Do not trade."
+                "refreshed source status; a lookup failure is not a sale. Label stale or approximate evidence. The trader handles valuation and sizing. Do not trade."
             ),
         )
         self.agents.create(
@@ -58,8 +59,7 @@ class NancyPelosiTradingBot(Strategy):
                 "Recheck contradictory quantities and dates. Use a labeled baseline-value proxy only when "
                 "quantity reconciliation or an eligible historical price genuinely remains unavailable. Check "
                 "issuer, listing, USD currency and consistent split/share basis; use historical ticker aliases "
-                "when needed. Normalize estimated remaining values into portfolio weights. "
-                "Target 99% of current account capital with a joint cash-aware allocation. Buy the complete "
+                "when needed. Normalize estimated remaining values into portfolio weights. Target 99% of current account capital with a joint cash-aware allocation. Buy the complete "
                 "feasible basket initially, without waiting for a new disclosure. Small positions are part of "
                 "replication, not discretionary conviction bets. For a positive allocation smaller than one "
                 "share, prefer one whole share using unspent joint cash above the reserve first; trim larger "
@@ -71,8 +71,7 @@ class NancyPelosiTradingBot(Strategy):
                 "individual drift is small. Use the researched as_of listing for current quotes and snapshot ticker for old prices. "
                 "For a still-unpriced issuer, use its baseline value midpoint as a labeled denominator proxy and reserve "
                 "that estimated allocation in cash; complete the supported remainder. Preserve supported holdings if research fails; nothing new "
-                "is not a liquidation signal. Report complete target versus actual weights, fills, cash and "
-                "specific unresolved exceptions."
+                "is not a liquidation signal. Report complete target versus actual weights, fills, cash and specific unresolved exceptions."
             ),
         )
 

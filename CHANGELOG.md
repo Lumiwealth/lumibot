@@ -2,8 +2,10 @@
 
 ## 4.6.44 - Unreleased
 
-- Carry the current shared runtime forward with portfolio example transaction-ledger verification and release packaging repairs.
-
+### Fixed
+- Keep individual stock and listed-unit purchases, exercises and new issuers in the example researcher's complete numeric portfolio ledger. Both agents still run each iteration and all investment logic stays in their prompts.
+- Preserve generic real-model fixture proof when only literal policy text in unexecuted reference examples changes. Actual example behavior still requires separate execution evidence.
+- Preserve complete test names in release shards, isolate installed-wheel validation from test-only dependencies, and include the canonical immutable-tag recovery and unit-worker cleanup repairs.
 - Retain locally sent ProjectX orders through uncertain acknowledgements, prevent duplicate handoffs for the same identity, and reconcile exact receipts into the original order. ProjectX and MetaMask order tools expose submission uncertainty without claiming acceptance or permitting a blind retry.
 - ProjectX synthetic brackets protect cumulative residual entry exposure with distinct exit generations, preserve partial-exit quantities and explicit cancellation intent, and hold uncertain restored history instead of inventing new orders.
 

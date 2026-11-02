@@ -2223,7 +2223,7 @@ class StrategyExecutor(Thread):
             iteration_count += 1
 
             # Stop after we pass the backtesting end date
-            if self.broker.IS_BACKTESTING_BROKER and self.broker.datetime > self.broker.data_source.datetime_end:
+            if self.broker.IS_BACKTESTING_BROKER and self.broker.datetime >= self.broker.data_source.datetime_end:
                 break
 
             if not self._is_pandas_daily_data_source():
@@ -2357,7 +2357,7 @@ class StrategyExecutor(Thread):
             # should be a warm-cache, bounded run.
             try:
                 datetime_end = getattr(getattr(self.broker, "data_source", None), "datetime_end", None)
-                if datetime_end is not None and self.broker.datetime > datetime_end:
+                if datetime_end is not None and self.broker.datetime >= datetime_end:
                     # Still run the close lifecycle once so stats/tearsheets have a final mark-to-market
                     # snapshot, but avoid advancing time beyond the configured backtest window.
                     if self.broker.is_market_open():

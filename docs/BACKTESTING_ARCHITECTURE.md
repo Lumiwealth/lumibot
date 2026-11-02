@@ -1007,3 +1007,14 @@ OHLCV raises an error rather than fabricating prices. Local publication is atomi
 Each concurrent writer publishes a complete month, never a partial window.
 `historyCache` dataframe attributes expose lookup, provider, and write timing
 separately from cache hits and original fetch time.
+
+
+### Terminal simulation clock
+
+`BacktestingBroker._update_datetime` caps normal clock advances at the configured
+backtest end. At that terminal bound it retains the clock instead of applying
+the ordinary non-advancing timestamp fallback. The executor does not begin a
+new iteration there or advance to a later market close. Final lifecycle and
+held-position valuation still run against the bounded terminal time. This
+preserves actual data-integrity errors inside the requested window; it does not
+extend stale-price tolerance or manufacture later quotes.

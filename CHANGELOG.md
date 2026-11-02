@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.41 - Unreleased
+## 4.6.41 - 2026-11-02
 
 ### Added
 - Indicators can declare an `infer(state, bar)` hook for expensive or side-effecting work (for example an AI model call). It runs only on live closed bars on its own schedule (`infer_every_bars`, `infer_min_seconds`), never during history replay, catch-up or forming-bar previews.

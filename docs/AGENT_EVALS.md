@@ -120,6 +120,16 @@ quantities, final positions and cash; the judge checks interpretation and the
 reported explanation. Fixture-backed success does not establish historical
 provider integration or a complete real-data strategy backtest.
 
+The unified quote, basket-completion and research package has a fresh native
+receipt in `ci/agent-evals/qualification.json`: all150 actor/judge trials pass
+across30 cases, with five passes per case, and all135 judge calibration
+controls pass. The original runtime fingerprint is
+`227f202b82d48789f8891c6ce731bdafac0890204dd2d8fc37098e5ff57618ef`;
+the thirteen recorded SDK versions match the qualified runtime profile.
+Original successful pilots and follow-up repetitions retain their source,
+timestamps and logical trial slots. Native package tests, provider integrations
+and deployed strategy behavior remain separate evidence.
+
 ## Local Commands
 
 Validate schemas, actual tool bindings, MCP discovery and freshness without

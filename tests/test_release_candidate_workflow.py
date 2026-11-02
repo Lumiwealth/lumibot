@@ -79,6 +79,8 @@ def test_source_ci_and_release_share_the_exact_eval_sdk_constraints():
     lint_steps = workflow["jobs"]["lint"]["steps"]
     lint_install = next(step for step in lint_steps if step.get("name") == "Install lint dependencies")
     assert lint_install["run"] == "python -m pip install ruff -c requirements_agent_evals.txt"
+    lint_python = next(step for step in lint_steps if step.get("uses", "").startswith("actions/setup-python@"))
+    assert "cache" not in lint_python["with"]
 
 
 def test_release_and_source_qualification_await_completion_without_shell_deadlines():

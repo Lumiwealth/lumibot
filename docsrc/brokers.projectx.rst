@@ -208,12 +208,26 @@ multiple accounts. An explicitly configured missing account fails visibly.
 Futures quantities must be positive whole contracts. Price multipliers come
 from the provider's tick value divided by tick size.
 
-Bracket exits with absolute target/stop prices remain synthetic: LumiBot submits
-resting protective orders after confirmed entry executions and cancels the
-sibling after an exit fill. Partial entries protect only their filled quantity;
-accepted exits resize as further entry fills arrive. Restart recovery links
-already accepted exits by their persisted tags and does not place them again.
+Bracket exits with absolute target/stop prices remain synthetic. During a
+running strategy, LumiBot sizes protection from cumulative entry executions
+minus observed protective executions. Partial exits retain their own filled
+quantity when their remaining quantity changes. Later entry fills can receive
+fresh protective orders after the previous accepted exits are confirmed
+terminal; filled or canceled order identifiers are never reopened.
+
+A cancellation response acknowledges the request; it does not by itself prove
+that the order is canceled. Failed cancellations remain pending reconciliation.
+Explicitly canceling an exit does not authorize LumiBot to re-arm that exit.
+Canceling all working orders does not create replacement protection.
+
+Restart recovery links accepted exit generations by their persisted tags and
+retains their execution history. Missing history, an unknown submission result
+or unknown strategy intent holds new protective submissions and resizes. Cold
+restart recovery does not infer permission to recreate canceled protection.
+Known sibling cancellation after a proven exit remains available. Review actual
+positions and working orders before continuing: later entry fills may remain
+unprotected while recovery is held.
+
 Sibling cancellation requires the client to be running; these are not atomic
 server-side OCO orders. A restart cannot reconstruct a protection instruction
-that never reached the provider. Review accepted protective orders before
-leaving an automated strategy unattended.
+that never reached the provider.

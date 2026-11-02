@@ -4,7 +4,7 @@ Primary-source comparison of the native broker's testnet proof and mainnet requi
 
 Last Updated: 2026-11-02
 
-Status: Research complete; account-mode and finality repairs under validation. No funded mainnet qualification.
+Status: Research and deterministic protocol repairs verified. No funded mainnet qualification.
 
 Audience: Broker contributors and operators.
 

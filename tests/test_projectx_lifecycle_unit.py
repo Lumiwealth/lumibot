@@ -169,7 +169,8 @@ def test_submit_and_cancel(projectx_broker, mes_asset, caplog):
 def test_rejection_mapping_max_position(projectx_broker, mes_asset):
     # Monkeypatch order_place to simulate risk rejection
     def reject(**kwargs):
-        return {"success": False, "errorMessage": "Maximum position exceeded for symbol"}
+        # Use a definitive provider rejection, not a transport-shaped False result.
+        return {"success": False, "errorCode": 2, "errorMessage": "Maximum position exceeded for symbol"}
     projectx_broker.client.order_place = reject
     order = Order(asset=mes_asset, quantity=9999, order_type="limit", side="buy", limit_price=1.0, strategy="Strat")
     projectx_broker._submit_order(order)
@@ -179,7 +180,7 @@ def test_rejection_mapping_max_position(projectx_broker, mes_asset):
 
 def test_rejection_generic(projectx_broker, mes_asset):
     def reject(**kwargs):
-        return {"success": False, "errorMessage": "Some other error"}
+        return {"success": False, "errorCode": 2, "errorMessage": "Some other error"}
     projectx_broker.client.order_place = reject
     order = Order(asset=mes_asset, quantity=1, order_type="limit", side="buy", limit_price=1.0, strategy="Strat")
     projectx_broker._submit_order(order)

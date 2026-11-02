@@ -113,6 +113,12 @@ def bracket_child_tag(*args, **kwargs):
     return _bracket_child_tag(*args, **kwargs)
 
 
+def parse_bracket_tag(*args, **kwargs):
+    from lumibot.tools.projectx_helpers import parse_bracket_tag as _parse_bracket_tag
+
+    return _parse_bracket_tag(*args, **kwargs)
+
+
 def derive_base_tag(*args, **kwargs):
     from lumibot.tools.projectx_helpers import derive_base_tag as _derive_base_tag
 
@@ -378,6 +384,8 @@ class ProjectX(Broker):
     def strategy_tag_matches(cls, tag, strategy_name):
         if super().strategy_tag_matches(tag, strategy_name):
             return True
+        if str(tag or '').startswith('BG') and ':' in str(tag) and parse_bracket_tag(str(tag)) is None:
+            return False
         base = derive_base_tag(str(tag or ''))
         if len(base) == 54 and all(c in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-' for c in base):
             from lumibot.tools.projectx_helpers import projectx_strategy_identity
@@ -396,8 +404,11 @@ class ProjectX(Broker):
         order.filled_quantity = sum(float(tx.quantity) for tx in order.transactions)
         if self._is_bracket_parent(order):
             self._maybe_spawn_bracket_children(order)
-        if terminal and self._is_bracket_child(order):
-            self._handle_bracket_child_fill(order)
+        elif self._is_bracket_child(order):
+            parent_id = self._bracket_parent_by_child_id.get(order.identifier)
+            parent = self.get_tracked_order(parent_id) if parent_id else None
+            if parent is not None:
+                self._maybe_spawn_bracket_children(parent)
 
     def _on_filled_order(self, position, order, price, quantity, multiplier):
         self._reconcile_protective_fill(order, terminal=True)
@@ -406,6 +417,13 @@ class ProjectX(Broker):
     def _on_partially_filled_order(self, position, order, price, quantity, multiplier):
         self._reconcile_protective_fill(order, terminal=False)
         super()._on_partially_filled_order(position, order, price, quantity, multiplier)
+
+    def _on_canceled_order(self, order):
+        super()._on_canceled_order(order)
+        parent_id = self._bracket_parent_by_child_id.get(order.identifier)
+        parent = self.get_tracked_order(parent_id) if parent_id else None
+        if parent is not None:
+            self._maybe_spawn_bracket_children(parent)
 
     def _on_new_order(self, order):  # override to suppress duplicates
         if not hasattr(self, '_creation_log_ids'):
@@ -427,8 +445,35 @@ class ProjectX(Broker):
 
     # ========== Required Broker Methods ==========
 
+    def _record_bracket_cancel_intent(self, order):
+        parent_id = self._bracket_parent_by_child_id.get(order.identifier)
+        parent = self.get_tracked_order(parent_id) if parent_id else None
+        meta = getattr(parent, '_synthetic_bracket', None) if parent else None
+        if meta:
+            for children in meta.get('generations', {0: meta['children']}).values():
+                for kind, identifier in children.items():
+                    if identifier == order.identifier:
+                        meta.setdefault('disabled_kinds', set()).add(kind)
+        return meta
+
+    def cancel_orders(self, orders):
+        orders = list(orders)
+        # Record the complete batch before any acknowledgement can re-enter
+        # reconciliation from a worker in the base cancel implementation.
+        for order in orders:
+            self._record_bracket_cancel_intent(order)
+        return super().cancel_orders(orders)
+
     def cancel_order(self, order: Order) -> bool:
-        """Cancel an order at the broker."""
+        """Cancel the requested order without silently re-arming that exit kind."""
+        meta = self._record_bracket_cancel_intent(order)
+        accepted = self._cancel_order_request(order)
+        if accepted and meta:
+            meta.setdefault('cancel_requests', set()).add(order.identifier)
+        return accepted
+
+    def _cancel_order_request(self, order: Order) -> bool:
+        """Send an exact-ID cancel; synthetic rollover does not change user intent."""
         try:
             if not order.identifier:
                 self.logger.error("Cannot cancel order without ID")
@@ -509,6 +554,7 @@ class ProjectX(Broker):
 
     def _submit_order(self, order: Order) -> Order:
         """Submit a new order to the broker."""
+        order._projectx_submission_state = 'not_submitted'
         try:
             from decimal import Decimal
             size = Decimal(str(order.quantity))
@@ -594,22 +640,38 @@ class ProjectX(Broker):
                 if base_tag and hasattr(order, '_synthetic_bracket'):
                     order._synthetic_bracket['base_tag'] = base_tag
 
-            response = self.client.order_place(
-                account_id=self.account_id,
-                contract_id=contract_id,
-                type=order_type,
-                side=order_side,
-                size=order.quantity,
-                limit_price=limit_price,
-                stop_price=stop_price,
-                custom_tag=order.tag
-            )
+            from lumibot.tools.projectx_helpers import ProjectXOrderSubmissionError, projectx_order_placement_outcome
+            order._projectx_submission_state = 'unknown'
+            try:
+                response = self.client.order_place(
+                    account_id=self.account_id,
+                    contract_id=contract_id,
+                    type=order_type,
+                    side=order_side,
+                    size=order.quantity,
+                    limit_price=limit_price,
+                    stop_price=stop_price,
+                    custom_tag=order.tag
+                )
+
+            except ProjectXOrderSubmissionError as exc:
+                response = exc.response
+            order._projectx_submission_state = projectx_order_placement_outcome(response)
+            if order._projectx_submission_state == 'unknown':
+                order.status = 'unknown'
+                order.error = 'Submission outcome unknown; reconcile this exact custom tag before any replacement'
+                order.update_raw(response if isinstance(response, dict) else {'response': response})
+                self.logger.error(f"ProjectX submission outcome unknown for tag {order.tag}")
+                return order
 
             # Log response details
             self.logger.debug(f"Order response: success={response.get('success') if response else 'None'}, "
                             f"orderId={response.get('orderId') if response else 'None'}")
             
-            if response and response.get("success"):
+            if order._projectx_submission_state == 'accepted':
+                if response.get("orderId") is None:
+                    raise ValueError("Accepted order response has no identifier; reconcile its exact tag")
+                order._projectx_submission_state = 'accepted'
                 # Step 1: Update order with broker's ID (matching Alpaca/Tradier pattern)
                 order.identifier = str(response.get("orderId"))  # Critical: Update identifier BEFORE tracking
                 if is_bracket_parent and hasattr(order, '_synthetic_bracket'):
@@ -626,7 +688,7 @@ class ProjectX(Broker):
                     order._synthetic_bracket['parent_id'] = order.identifier
                     # Persist meta map for conversions
                     try:
-                        self._bracket_meta[order.identifier] = dict(order._synthetic_bracket)
+                        self._bracket_meta[order.identifier] = order._synthetic_bracket
                         self.logger.debug(
                             f"[BRACKET META STORE] parent_id={order.identifier} "
                             f"tp={order._synthetic_bracket.get('tp_price')} "
@@ -692,14 +754,14 @@ class ProjectX(Broker):
                 lowered = error_msg.lower()
                 if "maximum position exceeded" in lowered:
                     # Treat as risk/size violation rather than generic reject, so strategy can downsize
-                    order.status = "rejected"
+                    order.status = 'unknown' if order._projectx_submission_state == 'unknown' else 'rejected'
                     order.error = "max_position_exceeded"
                     self.logger.warning(
                         f"ProjectX risk check: maximum position would be exceeded by this order (qty={order.quantity}). "
                         f"Broker message: {error_msg}"
                     )
                 else:
-                    order.status = "rejected"
+                    order.status = 'unknown' if order._projectx_submission_state == 'unknown' else 'rejected'
                     order.error = error_msg
                     # Keep error log for submit failures
                     self.logger.error(f"Failed to submit order: {error_msg}")
@@ -707,7 +769,7 @@ class ProjectX(Broker):
             return order
 
         except Exception as e:
-            order.status = "rejected"
+            order.status = 'unknown' if order._projectx_submission_state == 'unknown' else 'rejected'
             order.error = str(e)
             # Keep error log for visibility
             self.logger.error(f"Error submitting order: {e}")
@@ -968,6 +1030,9 @@ class ProjectX(Broker):
             except Exception as exc:
                 self.logger.warning(f"Execution history recovery unavailable: {type(exc).__name__}")
 
+            # Reconstruct complete generation lineage before core applies any fills.
+            converted = [self._convert_broker_order_to_lumibot_order(row) for row in order_list]
+            self._restore_bracket_links([order for order in converted if order is not None])
             return order_list
 
         except Exception as e:
@@ -1120,7 +1185,10 @@ class ProjectX(Broker):
                 return default
 
             # Quantity & fill info
-            order.filled_quantity = _first_non_none(("fillVolume", "filledSize", "filledQty"), 0)
+            order._projectx_execution_known = (status_id == 2 or any(
+                broker_order.get(key) is not None for key in ("fillVolume", "filledSize", "filledQty")))
+            order.filled_quantity = _first_non_none(("fillVolume", "filledSize", "filledQty"),
+                                                  order.quantity if status_id == 2 else 0)
             order.avg_fill_price = _first_non_none(("filledPrice", "avgFillPrice", "averagePrice", "avgPrice",
                                                     "fillPrice", "price", "lastFillPrice"), None)
 
@@ -1347,6 +1415,10 @@ class ProjectX(Broker):
 
     def _dispatch_status_change(self, cached_order, new_order):
         """Apply cumulative provider fills once, then preserve any terminal state."""
+        if hasattr(new_order, "_projectx_execution_known"):
+            cached_order._projectx_execution_known = self._bracket_snapshot_complete(new_order)
+            if not cached_order._projectx_execution_known:
+                return
         status = str(new_order.status).lower()
         if getattr(new_order, "broker_status", None) is not None:
             cached_order.broker_status = new_order.broker_status
@@ -1394,34 +1466,64 @@ class ProjectX(Broker):
     #   - Spawn predicate centralizes gate conditions; reasons logged at DEBUG for diagnostics.
     # Helpers live in projectx_helpers.py to keep this broker lean and testable.
     def _restore_bracket_links(self, orders):
-        """Reattach already accepted protective orders using their persisted tags."""
+        """Recover all accepted generations; absent history never means zero exits."""
         groups = {}
         for order in orders:
-            tag = str(order.tag or "")
-            for prefix, kind in (("BRK_ENTRY_", "entry"), ("BRK_TP_", "tp"), ("BRK_STOP_", "sl")):
-                if tag.startswith(prefix):
-                    groups.setdefault(tag[len(prefix):], {})[kind] = order
-                    break
-        for base, group in groups.items():
-            parent = group.get("entry")
-            children = {kind: group[kind] for kind in ("tp", "sl") if kind in group}
-            if parent is None or not children:
+            parsed = parse_bracket_tag(str(order.tag or ''))
+            if parsed:
+                kind, generation, base = parsed
+                groups.setdefault(base, []).append((kind, generation, order))
+        for base, records in groups.items():
+            parents = [order for kind, _, order in records if kind == 'entry']
+            if len(parents) != 1:
                 continue
-            meta = self._bracket_meta.get(parent.identifier)
-            if meta is None:
-                meta = create_bracket_meta(getattr(group.get("tp"), "limit_price", None),
-                                           getattr(group.get("sl"), "stop_price", None))
-                meta.update(base_tag=base, children_submitted=True,
-                            protected_quantity=float(getattr(parent, "filled_quantity", 0) or parent.quantity))
-                self._bracket_meta[parent.identifier] = meta
-            parent._synthetic_bracket = meta
-            parent._is_bracket_parent = True
-            parent._bracket_children_submitted = True
-            for kind, child in children.items():
-                meta["children"][kind] = child.identifier
+            observed_parent = parents[0]
+            parent = self.get_tracked_order(observed_parent.identifier) or observed_parent
+            meta = getattr(parent, '_synthetic_bracket', None) or self._bracket_meta.get(parent.identifier)
+            restoring = meta is None
+            if restoring:
+                meta = create_bracket_meta(None, None)
+                meta.update(base_tag=base, generations={}, observed_children={}, restored=True)
+            generations = meta.setdefault('generations', {0: meta['children']})
+            seen = {}
+            for kind, generation, child in records:
+                if kind == 'entry':
+                    continue
+                key = (generation, kind)
+                if key in seen and seen[key] != child.identifier:
+                    meta['history_error'] = 'Ambiguous protective generation identifiers'
+                    continue
+                seen[key] = child.identifier
+                if child.asset != parent.asset or not (
+                        (parent.is_buy_order() and child.is_sell_order())
+                        or (parent.is_sell_order() and child.is_buy_order())):
+                    meta['history_error'] = 'Protective identity does not match its parent'
+                    continue
+                bucket = generations.setdefault(generation, {})
+                if kind in bucket and bucket[kind] != child.identifier:
+                    meta['history_error'] = 'Protective generation identity changed'
+                    continue
+                bucket[kind] = child.identifier
+                meta.setdefault('observed_children', {})[child.identifier] = child
                 child._is_bracket_child = True
                 child._bracket_parent_id = parent.identifier
                 self._bracket_parent_by_child_id[child.identifier] = parent.identifier
+                if meta.get('tp_price' if kind == 'tp' else 'sl_price') is None:
+                    meta['tp_price' if kind == 'tp' else 'sl_price'] = child.limit_price if kind == 'tp' else child.stop_price
+                meta.setdefault('submission_holds', {}).pop((generation, kind), None)
+            if not generations:
+                continue
+            current = max(generations)
+            meta['generation'] = current
+            meta['children'] = generations[current]
+            if meta.get('restored'):
+                # Without both original sides or every prior generation, the
+                # available history cannot establish the complete exit ledger.
+                meta['history_complete'] = (min(generations) == 0 and len(generations) == current + 1
+                    and all(set(children) == {'tp', 'sl'} for children in generations.values()))
+            parent._synthetic_bracket = observed_parent._synthetic_bracket = meta
+            parent._is_bracket_parent = observed_parent._is_bracket_parent = True
+            self._bracket_meta[parent.identifier] = meta
 
     def _is_bracket_parent(self, order: Order) -> bool:
         if getattr(order, '_is_bracket_parent', False):
@@ -1432,80 +1534,218 @@ class ProjectX(Broker):
     def _is_bracket_child(self, order: Order) -> bool:
         return getattr(order, '_is_bracket_child', False)
 
-    def _maybe_spawn_bracket_children(self, parent: Order):
-        """Spawn TP/SL child orders for a filled bracket parent."""
+    @staticmethod
+    def _bracket_execution_quantity(order):
+        from decimal import Decimal
+        if getattr(order, '_projectx_execution_known', True) is False:
+            raise ValueError('Protective execution history is incomplete')
+        values = [Decimal(str(tx.quantity)) for tx in order.transactions]
+        cumulative = Decimal(str(getattr(order, 'filled_quantity', None) or 0))
+        if not values and order.is_filled() and getattr(order, 'filled_quantity', None) is None:
+            cumulative = Decimal(str(order.quantity))
+        for value in [*values, cumulative]:
+            if not value.is_finite() or value < 0 or value != value.to_integral_value():
+                raise ValueError('Invalid cumulative futures execution quantity')
+        total = max(sum(int(value) for value in values), int(cumulative))
+        if total > Decimal(str(order.quantity)):
+            raise ValueError('Execution quantity exceeds accepted order quantity')
+        if order.is_filled() and total != Decimal(str(order.quantity)):
+            raise ValueError('Terminal execution quantity is incomplete')
+        return total
+
+    @staticmethod
+    def _bracket_child_terminal(child):
+        return (child.is_filled() or child.status in {'canceled', 'expired', 'replaced'}
+                or (child.status == 'error' and getattr(child, 'broker_status', None) == 'rejected'))
+
+    def _bracket_child(self, meta, identifier):
+        return self.get_tracked_order(identifier) or meta.get('observed_children', {}).get(identifier)
+
+    def _cancel_bracket_child(self, meta, child):
+        if self._bracket_child_terminal(child):
+            return True
+        pending = meta.setdefault('cancel_requests', set())
+        if child.identifier in pending:
+            return False
+        previous_status = child.status
+        child.status = 'cancelling'
+        pending.add(child.identifier)
         try:
-            self.logger.debug(f"[BRACKET SPAWN ENTER] parent={getattr(parent,'id',None)} is_parent={self._is_bracket_parent(parent)} meta_attached={hasattr(parent,'_synthetic_bracket')}")
-            if not self._is_bracket_parent(parent):
-                if parent.identifier not in self._bracket_meta:
-                    self.logger.debug(f"[BRACKET SPAWN ABORT] not parent and no meta parent={getattr(parent,'id',None)}")
+            accepted = self._cancel_order_request(child)
+        except Exception as exc:
+            self.logger.error(f"Protective cancel failed for {child.identifier}: {exc}")
+            accepted = False
+        if not accepted:
+            pending.discard(child.identifier)
+            if child.status == 'cancelling':
+                child.status = previous_status
+        return self._bracket_child_terminal(child)
+
+    def _maybe_spawn_bracket_children(self, parent: Order):
+        """Reconcile residual exposure against every accepted protective generation."""
+        meta = getattr(parent, '_synthetic_bracket', None) or self._bracket_meta.get(parent.identifier)
+        if not meta:
+            return
+        parent._synthetic_bracket = meta
+        with self._order_update_lock:
+            if getattr(self, '_bracket_sync_depth', 0):
+                owner = getattr(self, '_bracket_sync_threads', {}).get(threading.get_ident())
+                if owner is not None and not self.order_belongs_to_local_strategy(parent, owner):
                     return
-            meta = getattr(parent, '_synthetic_bracket', None)
-            if not meta:
-                meta = self._bracket_meta.get(parent.identifier)
-                if not meta:
-                    self.logger.debug(f"[BRACKET SPAWN ABORT] no meta found parent={parent.identifier}")
-                    return
-                else:
-                    self.logger.debug(f"[BRACKET SPAWN META RESTORE] parent={parent.identifier} restored_from_map=True")
-                parent._synthetic_bracket = meta
-            if self._reconcile_bracket_children(parent):
+                self._bracket_deferred_events = getattr(self, '_bracket_deferred_events', set())
+                self._bracket_deferred_events.add(parent.identifier)
                 return
-            eligible, reason = should_spawn_bracket_children(meta, parent)
-            if not eligible:
-                self.logger.debug(f"[BRACKET SPAWN ABORT] parent={parent.identifier} reason={reason}")
+            if meta.get('reconciling'):
+                meta['reconcile_again'] = True
                 return
-            target = float(getattr(parent, 'filled_quantity', 0) or parent.quantity)
-            previous = meta.get('protected_quantity', target)
-            resized = True
-            for kind, child_id in meta['children'].items():
-                if target <= previous:
-                    continue
-                response = self.client.order_modify(account_id=self.account_id,
-                    order_id=int(child_id), size=int(target))
-                if not response or not response.get('success'):
-                    resized = False
-                    self.logger.error(f"Could not resize protective order {child_id}")
-                else:
-                    child = self.get_tracked_order(child_id)
-                    if child is not None:
-                        child.quantity = target
-            tp_price = meta.get('tp_price')
-            sl_price = meta.get('sl_price')
-            base_tag = meta.get('base_tag') or derive_base_tag(parent.tag or '')
-            for kind, price in (('tp', tp_price), ('sl', sl_price)):
-                with self._order_update_lock:
-                    # Registration and its in-flight marker must be atomic with
-                    # stream fills. Do not submit another exit after a known fill.
-                    if self._reconcile_bracket_children(parent):
-                        return
-                    if meta.get('submitting_child'):
-                        return
-                    if price is None or meta['children'].get(kind):
-                        continue
-                    meta['submitting_child'] = kind
-                child = None
+            meta['reconciling'] = True
+        released = False
+        try:
+            while True:
                 try:
-                    child = self._create_bracket_child(parent, kind=kind, price=price, base_tag=base_tag)
+                    self._reconcile_bracket_state(parent, meta)
                 except Exception as exc:
-                    self.logger.error(f"Failed to submit {kind} child for parent {parent.identifier}: {exc}")
-                finally:
-                    with self._order_update_lock:
-                        if child and child.identifier and str(child.status).lower() not in {'error', 'rejected'}:
-                            meta['children'][kind] = child.identifier
-                            self._bracket_parent_by_child_id[child.identifier] = parent.identifier
-                        meta.pop('submitting_child', None)
-            complete = ((tp_price is None or bool(meta['children'].get('tp')))
-                        and (sl_price is None or bool(meta['children'].get('sl'))))
-            complete = complete and resized
-            meta['children_submitted'] = complete
-            if complete:
-                meta['protected_quantity'] = target
-            parent._bracket_children_submitted = complete
-            self._reconcile_bracket_children(parent)
-            self.logger.debug(f"[BRACKET SPAWN COMPLETE] parent={parent.identifier} tp_child={meta.get('children',{}).get('tp')} sl_child={meta.get('children',{}).get('sl')}")
-        except Exception as e:
-            self.logger.error(f"[BRACKET SPAWN ERROR] parent={getattr(parent,'id',None)} error={e}")
+                    meta['reconciliation_error'] = str(exc)
+                    self.logger.error(f"ProjectX bracket {parent.identifier} requires reconciliation: {exc}")
+                with self._order_update_lock:
+                    if meta.pop('reconcile_again', False):
+                        continue
+                    meta['reconciling'] = False
+                    released = True
+                    return
+        finally:
+            if not released:
+                with self._order_update_lock:
+                    meta['reconciling'] = False
+
+    def _reconcile_bracket_state(self, parent, meta):
+        generations = meta.setdefault('generations', {0: meta['children']})
+        meta.setdefault('generation', max(generations))
+        while True:
+            with self._order_update_lock:
+                if getattr(self, '_bracket_sync_depth', 0):
+                    self._bracket_deferred_events = getattr(self, '_bracket_deferred_events', set())
+                    self._bracket_deferred_events.add(parent.identifier)
+                    return
+            if meta.get('snapshot_incomplete'):
+                raise ValueError('Protective order snapshot was only partially applied')
+            if meta.get('history_error') or meta.get('history_complete') is False:
+                raise ValueError(meta.get('history_error') or 'Protective generation history is incomplete')
+            entered = self._bracket_execution_quantity(parent)
+            if entered <= 0:
+                return
+            known = {}
+            for children in generations.values():
+                for identifier in children.values():
+                    child = self._bracket_child(meta, identifier)
+                    if child is None:
+                        raise ValueError(f'Protective order {identifier} is missing')
+                    known[identifier] = child
+            exited = sum(self._bracket_execution_quantity(child) for child in known.values())
+            residual = entered - exited
+            meta['entry_executed_quantity'] = entered
+            meta['exit_executed_quantity'] = exited
+            meta['residual_quantity'] = residual
+            children = generations[meta['generation']]
+            meta['children'] = children
+            current = [known[identifier] for identifier in children.values()]
+            disabled = meta.get('disabled_kinds', set())
+            enabled = {kind for kind in ('tp', 'sl') if meta.get('tp_price' if kind == 'tp' else 'sl_price') is not None} - disabled
+            if not enabled:
+                meta['active'] = False
+                return
+            old = [child for identifier, child in known.items() if identifier not in children.values()]
+            closing = (residual <= 0 or meta.get('generation_rejected')
+                or any(self._bracket_child_terminal(known[identifier])
+                           for kind, identifier in children.items() if kind not in disabled))
+            if closing:
+                execution_closed = any(child.is_filled() and self._bracket_execution_quantity(child) > 0 for child in current)
+                if meta.get('restored') and residual > 0 and not execution_closed:
+                    raise ValueError('Restored bracket intent is unknown; protective actions require strategy confirmation')
+                for child in current:
+                    self._cancel_bracket_child(meta, child)
+                if any(not self._bracket_child_terminal(child) for child in current):
+                    meta['active'] = True
+                    return
+                if meta.get('submitting_child') or meta.get('submission_holds'):
+                    return
+                meta['active'] = False
+                if residual <= 0:
+                    if residual < 0:
+                        raise ValueError('Protective executions exceed entry executions; reconcile the position')
+                    return
+                # Retain old IDs and fill quantities; only fresh IDs may
+                # protect later entry fills after all old exits are terminal.
+                if meta.get('restored'):
+                    raise ValueError('Restored bracket intent is unknown; new protection requires strategy confirmation')
+                generation = meta['generation'] + 1
+                generations[generation] = {}
+                meta.update(generation=generation, children=generations[generation],
+                            active=True, children_submitted=False, generation_rejected=False)
+                continue
+            if any(not self._bracket_child_terminal(child) for child in old):
+                return
+            if meta.get('submission_holds'):
+                return
+            # Re-read after every remote handoff. A reentrant entry or exit
+            # fill changes the next action, not an already completed order.
+            action = None
+            for kind, price in (('tp', meta.get('tp_price')), ('sl', meta.get('sl_price'))):
+                if price is None or kind in disabled:
+                    continue
+                child = known.get(children.get(kind))
+                if child is None:
+                    action = ('create', kind, price, None)
+                    break
+                if child.status == 'cancelling' or child.identifier in meta.get('cancel_requests', set()):
+                    return
+                required_total = self._bracket_execution_quantity(child) + residual
+                if int(child.quantity) != required_total:
+                    action = ('modify', kind, required_total, child)
+                    break
+            if action is None:
+                meta.update(active=True, protected_quantity=residual, children_submitted=True)
+                parent._bracket_children_submitted = True
+                meta.pop('reconciliation_error', None)
+                return
+            operation, kind, price, child = action
+            if operation == 'modify':
+                if meta.get('restored'):
+                    raise ValueError('Restored bracket intent is unknown; protective actions require strategy confirmation')
+                response = self.client.order_modify(account_id=self.account_id,
+                    order_id=int(child.identifier), size=price)
+                if not response or not response.get('success'):
+                    raise ValueError(f'Protective resize not acknowledged for {child.identifier}')
+                if not self._bracket_child_terminal(child) and child.status != 'cancelling':
+                    child.quantity = price
+                continue
+            if meta.get('restored'):
+                raise ValueError('Restored bracket intent is unknown; new protection requires strategy confirmation')
+            generation = meta['generation']
+            base = meta.get('base_tag') or derive_base_tag(parent.tag or '')
+            tag = bracket_child_tag(kind, base, generation=generation)
+            meta['submitting_child'] = kind
+            meta['submission_quantity'] = residual
+            created = None
+            try:
+                created = self._create_bracket_child(parent, kind=kind, price=price, base_tag=base)
+            except Exception:
+                meta.setdefault('submission_holds', {})[(generation, kind)] = tag
+                raise
+            finally:
+                meta.pop('submitting_child', None)
+                meta.pop('submission_quantity', None)
+            outcome = getattr(created, '_projectx_submission_state', None)
+            if created and created.identifier and (outcome == 'accepted' or (
+                    outcome is None and str(created.status).lower() not in {'error', 'rejected'})):
+                children[kind] = created.identifier
+                self._bracket_parent_by_child_id[created.identifier] = parent.identifier
+            elif outcome == 'unknown':
+                meta.setdefault('submission_holds', {})[(generation, kind)] = tag
+                raise ValueError(f'Protective submission outcome unknown for exact tag {tag}')
+            else:
+                meta['generation_rejected'] = True
+                raise ValueError(f'Protective {kind} submission rejected')
 
     def _create_bracket_child(self, parent: Order, kind: str, price: float, base_tag: str) -> Order:
         """Create and submit a single bracket child (tp or sl)."""
@@ -1513,7 +1753,8 @@ class ProjectX(Broker):
         child = Order(
             strategy=parent.strategy,
             asset=parent.asset,
-            quantity=getattr(parent, "filled_quantity", None) or parent.quantity,
+            quantity=getattr(parent, "_synthetic_bracket", {}).get("submission_quantity",
+                getattr(parent, "filled_quantity", None) or parent.quantity),
             side=spec['side'],
             order_type=spec['order_type'],
             identifier=None
@@ -1526,7 +1767,8 @@ class ProjectX(Broker):
             child.created_at = datetime.now()
         except Exception:
             pass
-        child.tag = spec['tag']
+        generation = getattr(parent, '_synthetic_bracket', {}).get('generation', 0)
+        child.tag = bracket_child_tag(kind, base_tag, generation=generation)
         # Attach lightweight meta pointer for diagnostics (not full meta copy to avoid divergence)
         try:
             child._synthetic_bracket_child = True
@@ -1539,77 +1781,97 @@ class ProjectX(Broker):
             child.stop_price = spec['price_value']
         # Submit
         submitted = self._submit_order(child)
-        if (not submitted or not getattr(submitted, 'identifier', None)
+        if submitted and getattr(submitted, '_projectx_submission_state', None) == 'unknown':
+            self.logger.error(f"Bracket child outcome unknown (kind={kind}) for parent {parent.identifier}")
+        elif (not submitted or not getattr(submitted, 'identifier', None)
                 or str(submitted.status).lower() in {'error', 'rejected'}):
             self.logger.error(f"Bracket child submission failed (kind={kind}) for parent {parent.identifier}")
         else:
             self.logger.debug(f"Bracket child submitted: parent={parent.identifier} kind={kind} id={submitted.identifier} price={price}")
         return submitted
 
-    def _reconcile_bracket_children(self, parent: Order) -> bool:
-        """Revisit known executions without submitting or replaying any fill."""
-        found_fill = False
-        meta = getattr(parent, '_synthetic_bracket', None) or {}
-        for child_id in tuple(meta.get('children', {}).values()):
-            child = self.get_tracked_order(child_id)
-            if child is not None and child.is_filled():
-                found_fill = True
-                self._handle_bracket_child_fill(child)
-        return found_fill
+    def _bracket_snapshot_complete(self, order):
+        from decimal import Decimal
+        try:
+            quantity = self._bracket_execution_quantity(order)
+            return quantity == 0 or self._valid_fill_price(order, Decimal(str(order.avg_fill_price)))
+        except (ValueError, TypeError, ArithmeticError):
+            return False
+
+    def _apply_direct_order_observation(self, order_lumi, matched_order):
+        thread_rows = getattr(self, '_bracket_sync_rows', {}).get(threading.get_ident())
+        if thread_rows is not None:
+            parent_id = (order_lumi.identifier if self._is_bracket_parent(order_lumi)
+                         else self._bracket_parent_by_child_id.get(order_lumi.identifier))
+            if parent_id:
+                thread_rows.setdefault(parent_id, set()).add(order_lumi.identifier)
+        if hasattr(matched_order, '_projectx_execution_known'):
+            order_lumi._projectx_execution_known = self._bracket_snapshot_complete(matched_order)
+            if not order_lumi._projectx_execution_known:
+                raise ValueError('ProjectX cumulative execution evidence is incomplete')
+        return super()._apply_direct_order_observation(order_lumi, matched_order)
 
     def sync_orders(self, strategy):
-        super().sync_orders(strategy)
-        # A failed cancel remains outstanding even if no new fill event arrives.
-        # Reuse the normal reconciliation cadence and the same accepted IDs.
         strategy_name = self._strategy_name_from_input(strategy)
-        for parent_id in tuple(self._bracket_meta):
-            parent = self.get_tracked_order(parent_id)
-            if parent is not None and self.order_belongs_to_local_strategy(parent, strategy_name):
-                self._reconcile_bracket_children(parent)
+        with self._order_update_lock:
+            self._bracket_sync_depth = getattr(self, '_bracket_sync_depth', 0) + 1
+            self._bracket_sync_threads = getattr(self, '_bracket_sync_threads', {})
+            previous_owner = self._bracket_sync_threads.get(threading.get_ident())
+            self._bracket_sync_threads[threading.get_ident()] = strategy_name
+            self._bracket_sync_rows = getattr(self, '_bracket_sync_rows', {})
+            previous_rows = self._bracket_sync_rows.get(threading.get_ident())
+            self._bracket_sync_rows[threading.get_ident()] = {}
+        completed = False
+        try:
+            super().sync_orders(strategy)
+            completed = True
+            with self._order_update_lock:
+                if not hasattr(self, '_bracket_synced_strategies'):
+                    self._bracket_synced_strategies = set()
+                self._bracket_synced_strategies.add(strategy_name)
+        finally:
+            with self._order_update_lock:
+                rows = self._bracket_sync_rows.pop(threading.get_ident())
+                if previous_rows is not None:
+                    self._bracket_sync_rows[threading.get_ident()] = previous_rows
+                    for parent_id, identifiers in rows.items():
+                        previous_rows.setdefault(parent_id, set()).update(identifiers)
+                for parent_id, identifiers in rows.items():
+                    parent = self.get_tracked_order(parent_id)
+                    meta = getattr(parent, '_synthetic_bracket', None) if parent else None
+                    if meta is not None:
+                        required = {parent_id}
+                        for children in meta.get('generations', {0: meta.get('children', {})}).values():
+                            required.update(children.values())
+                        if not completed:
+                            meta['snapshot_incomplete'] = True
+                        elif required.issubset(identifiers):
+                            meta.pop('snapshot_incomplete', None)
+                self._bracket_sync_depth -= 1
+                if previous_owner is None:
+                    self._bracket_sync_threads.pop(threading.get_ident(), None)
+                else:
+                    self._bracket_sync_threads[threading.get_ident()] = previous_owner
+                owners = set()
+                if not self._bracket_sync_depth:
+                    owners = getattr(self, '_bracket_synced_strategies', set())
+                    self._bracket_synced_strategies = set()
+                deferred = set()
+                if not self._bracket_sync_depth:
+                    deferred = getattr(self, '_bracket_deferred_events', set())
+                    self._bracket_deferred_events = set()
+            # Apply all cumulative rows before deciding whether an exit is live.
+            for parent_id in tuple(self._bracket_meta):
+                parent = self.get_tracked_order(parent_id)
+                if parent is not None and (parent_id in deferred or any(
+                        self.order_belongs_to_local_strategy(parent, name) for name in owners)):
+                    self._maybe_spawn_bracket_children(parent)
 
     def _handle_bracket_child_fill(self, child: Order):
-        """Cancel an accepted sibling; acknowledgement alone is not terminal."""
-        with self._order_update_lock:
-            parent_id = self._bracket_parent_by_child_id.get(child.identifier)
-            parent = self.get_tracked_order(parent_id) if parent_id else None
-            if not parent or not getattr(parent, '_synthetic_bracket', None):
-                return
-            meta = parent._synthetic_bracket
-            if not meta.get('active', False):
-                return
-            sibling_id = next((identifier for identifier in meta.get('children', {}).values()
-                               if identifier != child.identifier), None)
-            if sibling_id is None:
-                # A sibling accepted by the venue may still be awaiting its ID.
-                # Without an in-flight submission, no further exit is needed.
-                if not meta.get('submitting_child'):
-                    meta['active'] = False
-                return
-            sibling = self.get_tracked_order(sibling_id)
-            if sibling is None:
-                return  # Missing local evidence cannot prove the sibling closed.
-            terminal = sibling.is_filled() or sibling.status in {'canceled', 'expired', 'replaced'}
-            rejected = sibling.status == 'error' and getattr(sibling, 'broker_status', None) == 'rejected'
-            if terminal or rejected:
-                meta['active'] = False
-                return
-            if meta.get('cancel_requested') == sibling_id:
-                return
-            previous_status = sibling.status
-            sibling.status = 'cancelling'
-            # Reserve before handoff too: callbacks can re-enter this method.
-            meta['cancel_requested'] = sibling_id
-            try:
-                accepted = self.cancel_order(sibling)
-            except Exception as exc:
-                accepted = False
-                self.logger.error(f"Failed cancel sibling {sibling_id} for parent {parent_id}: {exc}")
-            if not accepted:
-                meta.pop('cancel_requested', None)
-                if sibling.status == 'cancelling':
-                    sibling.status = previous_status
-            else:
-                self.logger.debug(f"[BRACKET SIBLING CANCEL] requested sibling={sibling_id} after child_fill={child.identifier}")
+        parent_id = self._bracket_parent_by_child_id.get(child.identifier)
+        parent = self.get_tracked_order(parent_id) if parent_id else None
+        if parent is not None:
+            self._maybe_spawn_bracket_children(parent)
 
     def _handle_pre_existing_order(self, order):
         """Handle orders that existed before strategy started."""

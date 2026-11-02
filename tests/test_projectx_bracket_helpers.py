@@ -191,3 +191,62 @@ def test_unfilled_parent_cannot_spawn_exit_orders(status):
     parent = SimpleNamespace(status=status, _bracket_children_submitted=False)
     eligible, _ = should_spawn_bracket_children(create_bracket_meta(110, 90), parent)
     assert eligible is False
+
+
+@pytest.mark.parametrize('generation', [1, 35, 36, 2**31-1])
+def test_generation_tags_preserve_full_parent_and_strategy_identity(generation):
+    from lumibot.brokers.projectx import ProjectX
+    from lumibot.tools.projectx_helpers import parse_bracket_tag
+    order = SimpleNamespace(tag=None, strategy='Full strategy Ω identity ' * 5)
+    base = build_unique_order_tag(order)
+    for kind in ('tp', 'sl'):
+        tag = bracket_child_tag(kind, base, generation=generation)
+        assert len(tag.encode('utf-8')) <= 64
+        assert parse_bracket_tag(tag) == (kind, generation, base)
+        assert derive_base_tag(tag) == base
+        assert ProjectX.strategy_tag_matches(tag, order.strategy)
+        assert not ProjectX.strategy_tag_matches(tag, order.strategy + 'foreign')
+
+
+@pytest.mark.parametrize('tag', ['BG0T:BASE', 'BG01T:BASE', 'BG-T:BASE', 'BG1X:BASE', 'BG1T:', 'BGZZZZZZZT:' + 'x'*54])
+def test_ambiguous_generation_tag_is_not_accepted(tag):
+    from lumibot.tools.projectx_helpers import parse_bracket_tag
+    assert parse_bracket_tag(tag) is None
+
+
+def test_generation_tag_limit_rejects_before_submission():
+    with pytest.raises(ValueError, match='64-character'):
+        bracket_child_tag('tp', 'x'*54, generation=36**6)
+
+
+@pytest.mark.parametrize('alias', ['order_place', 'place_order'])
+@pytest.mark.parametrize('status,payload,outcome', [
+    (200, {'success': True, 'errorCode': 0, 'orderId': 123}, 'accepted'),
+    (200, {'success': 'false', 'errorCode': 0, 'orderId': 123}, 'unknown'),
+    (200, {'success': False, 'errorCode': 6, 'orderId': 123}, 'unknown'),
+    (500, {'success': True, 'errorCode': 0, 'orderId': 123}, 'unknown'),
+    (200, {'success': False, 'errorCode': 2, 'orderId': 123}, 'rejected'),
+])
+def test_real_client_placement_aliases_share_the_structured_receipt_contract(alias, status, payload, outcome):
+    from unittest.mock import Mock
+    from lumibot.tools.projectx_helpers import ProjectX, ProjectXClient, ProjectXOrderSubmissionError
+    api = ProjectX({'firm': 'TEST', 'base_url': 'https://example.test/'}, 'synthetic')
+    response = Mock(status_code=status)
+    response.json.return_value = payload
+    api._post = Mock(return_value=response)
+    client = object.__new__(ProjectXClient)
+    client.api = api
+    def submit():
+        if alias == 'place_order':
+            return client.place_order(account_id=1, contract_id='CON.F.US.MES.Z25', side='buy', quantity=1, order_type=1, price=5000)
+        return client.order_place(account_id=1, contract_id='CON.F.US.MES.Z25', side=0, size=1, type=1, limit_price=5000)
+    if outcome == 'accepted':
+        result = submit()
+        assert result['success'] is True and result['orderId'] == 123
+    else:
+        with pytest.raises(ProjectXOrderSubmissionError) as error:
+            submit()
+        assert error.value.outcome == outcome
+        assert error.value.response['success'] == payload['success']
+    api._post.assert_called_once()
+    assert api._post.call_args.kwargs['json']['type'] == 1

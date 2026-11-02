@@ -17,6 +17,7 @@
 - Native same-chain ERC20-output swap code verifies bounded approvals and actual receipts. HIP3 writes, native-output swaps and unsupported fee/delegation variants remain explicit holds. Native funded swap qualification remains pending; previous JavaScript receipts do not qualify this replacement.
 
 ### Fixed
+- ProjectX synthetic brackets protect cumulative residual entry exposure with distinct exit generations, preserve partial-exit quantities and explicit cancellation intent, and hold uncertain restored history instead of inventing new orders.
 - Retry empty research windows against available older observations without relaxing the historical cutoff or claiming stale evidence is current.
 - Live market-open and market-close waits wake when their strategy is stopped, including the Alpaca close override. Direct callers retain their normal wait interval.
 - ProjectX acknowledgement and stream duplicates notify the strategy of a new order once.

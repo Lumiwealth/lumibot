@@ -396,7 +396,7 @@ class ProjectX(Broker):
         order.filled_quantity = sum(float(tx.quantity) for tx in order.transactions)
         if self._is_bracket_parent(order):
             self._maybe_spawn_bracket_children(order)
-        if terminal and self._is_bracket_child(order):
+        if self._is_bracket_child(order):
             self._handle_bracket_child_fill(order)
 
     def _on_filled_order(self, position, order, price, quantity, multiplier):
@@ -922,12 +922,29 @@ class ProjectX(Broker):
             return cached_order
         return None
 
+    def sync_orders(self, strategy):
+        super().sync_orders(strategy)
+        strategy_name = self._strategy_name_from_input(strategy)
+        # Imported historical fills are already in broker cash/positions. Finish
+        # their protective cancellation without replaying those executions.
+        for child_id in list(self._bracket_parent_by_child_id):
+            child = self.get_tracked_order(child_id)
+            if (child is not None and (child.is_filled() or float(getattr(child, 'filled_quantity', 0) or 0) > 0)
+                    and not self.order_is_foreign_to_local_strategy(child, strategy_name)):
+                self._handle_bracket_child_fill(child)
+
+    def _pull_all_orders(self, strategy_name, strategy_object):
+        """Restore accepted bracket links on the ordinary strategy startup/sync path."""
+        orders = super()._pull_all_orders(strategy_name, strategy_object)
+        self._restore_bracket_links(orders)
+        return orders
+
     def _pull_broker_all_orders(self) -> List[dict]:
         """Get all orders from broker, including recently filled ones via trades."""
         try:
             # Get all orders from today to catch any recent activity
             end_date = datetime.now(_default_pytz()).replace(hour=23, minute=59, second=59)
-            start_date = end_date.replace(hour=0, minute=0, second=0)
+            start_date = end_date.replace(hour=0, minute=0, second=0) - timedelta(days=self.order_lookback_days)
 
             self.logger.debug(f"Searching orders: account={self.account_id}, "
                             f"start={start_date.isoformat()}, end={end_date.isoformat()}")
@@ -972,7 +989,7 @@ class ProjectX(Broker):
 
         except Exception as e:
             self.logger.error(f"Error getting all orders: {e}")
-            return []
+            raise RuntimeError("ProjectX order state is unavailable") from e
     
     def _search_recent_trades(self, start_date, end_date) -> List[dict]:
         """Search for recent trades to identify filled orders."""
@@ -1400,10 +1417,11 @@ class ProjectX(Broker):
                     groups.setdefault(tag[len(prefix):], {})[kind] = order
                     break
         for base, group in groups.items():
-            parent = group.get("entry")
+            parsed_parent = group.get("entry")
             children = {kind: group[kind] for kind in ("tp", "sl") if kind in group}
-            if parent is None or not children:
+            if parsed_parent is None or not children:
                 continue
+            parent = self.get_tracked_order(parsed_parent.identifier) or parsed_parent
             meta = self._bracket_meta.get(parent.identifier)
             if meta is None:
                 meta = create_bracket_meta(getattr(group.get("tp"), "limit_price", None),
@@ -1411,13 +1429,16 @@ class ProjectX(Broker):
                 meta.update(base_tag=base, children_submitted=True,
                             protected_quantity=float(getattr(parent, "filled_quantity", 0) or parent.quantity))
                 self._bracket_meta[parent.identifier] = meta
-            parent._synthetic_bracket = meta
-            parent._is_bracket_parent = True
-            parent._bracket_children_submitted = True
+            for target in (parent, parsed_parent):
+                target._synthetic_bracket = meta
+                target._is_bracket_parent = True
+                target._bracket_children_submitted = True
             for kind, child in children.items():
                 meta["children"][kind] = child.identifier
-                child._is_bracket_child = True
-                child._bracket_parent_id = parent.identifier
+                for target in (child, self.get_tracked_order(child.identifier)):
+                    if target is not None:
+                        target._is_bracket_child = True
+                        target._bracket_parent_id = parent.identifier
                 self._bracket_parent_by_child_id[child.identifier] = parent.identifier
 
     def _is_bracket_parent(self, order: Order) -> bool:
@@ -1451,24 +1472,10 @@ class ProjectX(Broker):
                 self.logger.debug(f"[BRACKET SPAWN ABORT] parent={parent.identifier} reason={reason}")
                 return
             target = float(getattr(parent, 'filled_quantity', 0) or parent.quantity)
-            previous = meta.get('protected_quantity', target)
-            resized = True
-            for kind, child_id in meta['children'].items():
-                if target <= previous:
-                    continue
-                response = self.client.order_modify(account_id=self.account_id,
-                    order_id=int(child_id), size=int(target))
-                if not response or not response.get('success'):
-                    resized = False
-                    self.logger.error(f"Could not resize protective order {child_id}")
-                else:
-                    child = self.get_tracked_order(child_id)
-                    if child is not None:
-                        child.quantity = target
             tp_price = meta.get('tp_price')
             sl_price = meta.get('sl_price')
             base_tag = meta.get('base_tag') or derive_base_tag(parent.tag or '')
-            if tp_price is not None and not meta['children'].get('tp'):
+            if tp_price is not None and not meta['children'].get('tp') and self._bracket_remaining_quantity(parent) > 0:
                 try:
                     self.logger.debug(f"[BRACKET SPAWN] creating TP child parent={parent.identifier} price={tp_price}")
                     tp_child = self._create_bracket_child(parent, kind='tp', price=tp_price, base_tag=base_tag)
@@ -1477,7 +1484,7 @@ class ProjectX(Broker):
                         self._bracket_parent_by_child_id[tp_child.identifier] = parent.identifier
                 except Exception as e:
                     self.logger.error(f"Failed to submit TP child for parent {parent.identifier}: {e}")
-            if sl_price is not None and not meta['children'].get('sl'):
+            if sl_price is not None and not meta['children'].get('sl') and self._bracket_remaining_quantity(parent) > 0:
                 try:
                     self.logger.debug(f"[BRACKET SPAWN] creating SL child parent={parent.identifier} price={sl_price}")
                     sl_child = self._create_bracket_child(parent, kind='sl', price=sl_price, base_tag=base_tag)
@@ -1488,6 +1495,8 @@ class ProjectX(Broker):
                     self.logger.error(f"Failed to submit SL child for parent {parent.identifier}: {e}")
             complete = ((tp_price is None or bool(meta['children'].get('tp')))
                         and (sl_price is None or bool(meta['children'].get('sl'))))
+            complete = complete or self._bracket_remaining_quantity(parent) <= 0
+            resized = self._resize_bracket_children(parent)
             complete = complete and resized
             meta['children_submitted'] = complete
             if complete:
@@ -1503,13 +1512,46 @@ class ProjectX(Broker):
         except Exception as e:
             self.logger.error(f"[BRACKET SPAWN ERROR] parent={getattr(parent,'id',None)} error={e}")
 
+    @staticmethod
+    def _bracket_executed_quantity(order):
+        quantity = float(getattr(order, 'filled_quantity', 0) or 0)
+        return quantity or (float(order.quantity) if order.is_filled() else 0.0)
+
+    def _bracket_remaining_quantity(self, parent):
+        meta = getattr(parent, '_synthetic_bracket', None) or {}
+        exited = sum(self._bracket_executed_quantity(child)
+                     for child_id in meta.get('children', {}).values()
+                     if (child := self.get_tracked_order(child_id)) is not None)
+        return max(0.0, self._bracket_executed_quantity(parent) - exited)
+
+    def _resize_bracket_children(self, parent):
+        remaining = self._bracket_remaining_quantity(parent)
+        if remaining <= 0:
+            return True
+        success = True
+        for child_id in parent._synthetic_bracket.get('children', {}).values():
+            child = self.get_tracked_order(child_id)
+            if child is None or not child.is_active():
+                continue
+            target = remaining + self._bracket_executed_quantity(child)
+            if float(child.quantity) == target:
+                continue
+            response = self.client.order_modify(account_id=self.account_id,
+                order_id=int(child_id), size=int(target))
+            if response and response.get('success'):
+                child.quantity = target
+            else:
+                success = False
+                self.logger.error(f"Could not resize protective order {child_id}")
+        return success
+
     def _create_bracket_child(self, parent: Order, kind: str, price: float, base_tag: str) -> Order:
         """Create and submit a single bracket child (tp or sl)."""
         spec = build_bracket_child_spec(parent, kind, price, base_tag)
         child = Order(
             strategy=parent.strategy,
             asset=parent.asset,
-            quantity=getattr(parent, "filled_quantity", None) or parent.quantity,
+            quantity=self._bracket_remaining_quantity(parent),
             side=spec['side'],
             order_type=spec['order_type'],
             identifier=None
@@ -1553,6 +1595,9 @@ class ProjectX(Broker):
         meta = parent._synthetic_bracket
         if not meta.get('active', False):
             return
+        if self._bracket_remaining_quantity(parent) > 0:
+            self._resize_bracket_children(parent)
+            return
         # Determine sibling
         siblings = meta.get('children', {})
         sibling_id = None
@@ -1561,20 +1606,27 @@ class ProjectX(Broker):
                 sibling_id = v
                 break
 
+        if sibling_id is None:
+            if meta.get('children_submitted'):
+                meta['active'] = False
+            return
         sibling_order = self.get_tracked_order(sibling_id)
-        if sibling_order:
-            # Cancel only if not terminal already
-            sibling_status = (getattr(sibling_order, 'status', '') or '').lower()
-            if sibling_status not in {"fill", "filled", "canceled", "cancelled", "error"}:
-                try:
-                    sibling_order.status = "cancelling"
-                    self.cancel_order(sibling_order)
-                    self.logger.debug(f"[BRACKET SIBLING CANCEL] canceled sibling={sibling_id} after child_fill={child.identifier}")
-                except Exception as e:
-                    self.logger.error(f"Failed cancel sibling {sibling_id} for parent {parent_id}: {e}")
-        # Deactivate bracket
-        meta['active'] = False
-            
+        if sibling_order is None:
+            return
+        sibling_status = (getattr(sibling_order, 'status', '') or '').lower()
+        if sibling_status in {"fill", "filled", "canceled", "cancelled", "error"}:
+            meta['active'] = False
+            return
+        try:
+            if self.cancel_order(sibling_order):
+                sibling_order.status = "cancelling"
+                meta['active'] = False
+                self.logger.debug(f"[BRACKET SIBLING CANCEL] accepted sibling={sibling_id} after child_fill={child.identifier}")
+            # Rejected or uncertain cancellations keep the intent active. The
+            # next ordinary broker snapshot reconciles state before retrying.
+        except Exception as e:
+            self.logger.error(f"Failed cancel sibling {sibling_id} for parent {parent_id}: {e}")
+
     def _handle_pre_existing_order(self, order):
         """Handle orders that existed before strategy started."""
         try:

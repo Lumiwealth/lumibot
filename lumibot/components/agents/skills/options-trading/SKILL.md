@@ -177,6 +177,12 @@ remains.
   and one short, not one of each. Balanced 3/3 holdings represent three 1/1
   packages; 6/3 holdings represent three 2/1 packages. Distinguish package units,
   leg ratios and total absolute contract quantities; do not multiply them twice.
+- A fixed user-requested contract count or package count is an exact mandate,
+  not permission to scale that count up to a spending cap. Check both requested
+  counts and the relative ratio before submission. If the user specifies only
+  a ratio and a risk budget, choose the number of units under that policy;
+  otherwise preserve the stated count. A budget ceiling does not require
+  spending all of it. The trader owns this decision and submits the exact legs.
 - Reconcile the pricing helper's result against ratio-weighted exact-leg prices
   and the contract multiplier before choosing the actual package quantity and
   submitting. A helper result that omits a ratio is inconsistent evidence, not
@@ -246,6 +252,14 @@ into the equation and reconcile the result with the explanation before saving;
 knowing the formula does not establish that your chosen number satisfies it.
 Keep the chosen review loss distinct from maximum possible package loss.
 Marks request attention; refresh executable prices before ordering.
+
+While an exit is working, retain the chosen protection for still-held or
+partially filled exposure. An order-status watch observes execution progress;
+it does not replace a price/value risk condition. Do not remove exposure-risk
+conditions merely because a close was submitted. When replacing protection,
+verify that its replacement covers the stated policy before retiring the old
+condition. This preserves the chosen policy; it does not impose an earlier
+stop or require a duplicate monitor where verified native protection suffices.
 
 After a confirmed close, inspect your attention conditions and remove those
 belonging to the completed operation. Do this before a new entry reuses the same

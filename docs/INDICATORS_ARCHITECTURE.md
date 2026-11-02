@@ -169,7 +169,23 @@ User docs: `docsrc/building_indicators.rst`.
   `get_historical_prices`, then `on_bar`).
 - `Indicators.get()` in `indicators.py`: keeps one live v2 instance per
   (asset, timestep, key, version, inputs, quote, exchange) and feeds only bars
-  that appeared since the last call.
+  that appeared since the last call. Older catch-up bars go through `feed`;
+  only the newest bar is a live `update`.
+
+Commits and inference (2026-11-01, pinned by
+`tests/test_indicator_atomic_and_inference.py`):
+
+- A live `update(bar, closed=True)` runs `step` (and `infer` when due) on a
+  staged copy and swaps it in only when both succeed. History (`feed`,
+  `compute`) commits in place without a copy.
+- `IndicatorRunner.on_bar(closed=True)` holds each instance's result for the
+  bar until every instance succeeded. If one raises, kept bars and series do
+  not move; a retry of the same bar reuses the held results instead of
+  applying the bar twice.
+- `infer` runs only on live closed bars on its schedule (`infer_every_bars`,
+  `infer_min_seconds` of bar time). History replay, runner `load_history` and
+  late `add`, strategy catch-up and forming previews never call it, because
+  those runs repeat or are discarded and a model call cannot be undone.
 
 Invariants (all pinned by `tests/test_indicators_v2.py`):
 

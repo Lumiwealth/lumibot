@@ -39,6 +39,19 @@ def _bar_dict(bar: Bar) -> dict:
     }
 
 
+def _replay(instance, bars) -> dict:
+    """History for one instance as series. ``feed`` replays without calling
+    ``infer``; an executor proxy without ``feed`` gets one closed update per bar."""
+    feed = getattr(instance, "feed", None)
+    if feed is not None:
+        return feed(list(bars))
+    out = {spec.id: [] for spec in instance.outputs}
+    for bar in bars:
+        for output_id, value in instance.update(bar, closed=True).items():
+            out[output_id].append(value)
+    return out
+
+
 class IndicatorRunner:
     """One asset and timestep, any number of indicator instances.
 
@@ -75,6 +88,9 @@ class IndicatorRunner:
         self._instances: dict[str, Indicator] = {}
         self._series: dict[str, dict[str, deque]] = {}
         self._ids = itertools.count(1)
+        # A closed bar some instances already committed while another raised.
+        self._pending_bar = None
+        self._pending: dict[str, dict] = {}
 
     # ---- indicators --------------------------------------------------------
 
@@ -89,9 +105,8 @@ class IndicatorRunner:
         if instance_id in self._instances:
             raise ValueError(f"indicator instance {instance_id!r} already exists")
         series = {spec.id: deque(maxlen=self._bars.maxlen) for spec in instance.outputs}
-        for bar in self._bars:
-            for output_id, value in instance.update(bar, closed=True).items():
-                series[output_id].append(value)
+        for output_id, values in _replay(instance, self._bars).items():
+            series[output_id].extend(values)
         self._instances[instance_id] = instance
         self._series[instance_id] = series
         return instance_id
@@ -131,12 +146,12 @@ class IndicatorRunner:
             forming = bars.pop()
         maxlen = self._max_bars or max(length, 1)
         self._bars = deque(bars, maxlen=maxlen)
+        self._pending_bar, self._pending = None, {}
         for instance_id, instance in self._instances.items():
             instance.reset(instance.inputs)
             series = {spec.id: deque(maxlen=maxlen) for spec in instance.outputs}
-            for bar in bars:
-                for output_id, value in instance.update(bar, closed=True).items():
-                    series[output_id].append(value)
+            for output_id, values in _replay(instance, bars).items():
+                series[output_id].extend(values)
             self._series[instance_id] = series
         snapshot = self.snapshot()
         if forming is not None:
@@ -146,18 +161,25 @@ class IndicatorRunner:
     def on_bar(self, bar, closed: bool) -> dict:
         """Apply one live bar to every instance. Returns ``{id: {output: value}}``.
 
-        Forming bars (``closed=False``) never change state; a closed bar is
-        committed and appended to the kept series."""
+        Forming bars (``closed=False``) never change state. A closed bar is
+        committed for every instance or for none: values from instances that
+        already committed it are held until all succeed, so if one instance
+        raises, the kept bars and series do not move and retrying the same
+        bar does not apply it twice to the instances that already took it."""
         bar = to_bar(bar)
-        result = {}
+        if not closed:
+            return {iid: instance.update(bar, closed=False) for iid, instance in self._instances.items()}
+        if self._pending_bar != bar:
+            self._pending_bar, self._pending = bar, {}
         for instance_id, instance in self._instances.items():
-            values = instance.update(bar, closed=closed)
-            result[instance_id] = values
-            if closed:
-                for output_id, value in values.items():
-                    self._series[instance_id][output_id].append(value)
-        if closed:
-            self._bars.append(bar)
+            if instance_id not in self._pending:
+                self._pending[instance_id] = instance.update(bar, closed=True)
+        result = {iid: self._pending[iid] for iid in self._instances}
+        for instance_id, values in result.items():
+            for output_id, value in values.items():
+                self._series[instance_id][output_id].append(value)
+        self._bars.append(bar)
+        self._pending_bar, self._pending = None, {}
         return result
 
     def snapshot(self) -> dict:

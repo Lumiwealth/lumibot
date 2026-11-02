@@ -100,6 +100,18 @@ broker, approval, liquidity and risk limits.
    is not made positive by calling it a protective leg; a short position reverses
    the raw contribution. Check the signed sum before reporting a net exposure and
    omit an unsupported numeric claim rather than guessing it.
+   For a reported aggregate across multiple legs, use an available calculation
+   tool, normally the existing `duckdb_query`, with one VALUES row per exact leg: its unchanged
+   raw Greek, signed contract quantity and multiplier. Sum
+   `quantity * raw_greek` for contract-weighted units, and
+   `quantity * multiplier * raw_greek` for underlying-share-equivalent exposure.
+   Calculate all relevant aggregates in one query. A VALUES calculation needs
+   no previously loaded market table or extra price-history request. Inspect the
+   returned rows before reporting the result; do not copy an upstream net value
+   or reverse a raw put sign while transcribing inputs. A researcher that does
+   not need an aggregate may report the actual raw observations instead.
+   If a configured toolset has no calculator, show the signed calculation and
+   units and disclose that it was not independently tool-checked.
 6. Before constructing an opening multi-leg payload, read
    `references/common-option-structures.md` and verify each buy/sell side,
    strike ordering and ratio against the intended structure. For credit

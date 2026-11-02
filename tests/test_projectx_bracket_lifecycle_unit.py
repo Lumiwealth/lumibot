@@ -466,3 +466,31 @@ def test_order_stream_ignores_other_account(broker, mes):
     broker._handle_order_update({'id': 789, 'accountId': 999, 'contractId': 'CON.F.US.MES.Z25',
                                 'size': 1, 'status': 2, 'fillVolume': 1, 'filledPrice': 5000.})
     broker._convert_broker_order_to_lumibot_order.assert_not_called()
+
+
+def test_normal_startup_recovers_accepted_protection_without_resubmission(broker, mes):
+    from unittest.mock import Mock
+    common = {'accountId': 1, 'contractId': 'CON.F.US.MES.Z25', 'size': 1,
+              'creationTimestamp': '2026-11-01T23:58:23.786264+00:00', 'fillVolume': 0}
+    rows = [
+        {**common, 'id': 101, 'status': 2, 'type': 2, 'side': 0, 'fillVolume': 1,
+         'filledPrice': 7642.25, 'customTag': 'BRK_ENTRY_SYNTHETIC'},
+        {**common, 'id': 102, 'status': 1, 'type': 1, 'side': 1,
+         'limitPrice': 7672.25, 'customTag': 'BRK_TP_SYNTHETIC'},
+        {**common, 'id': 103, 'status': 1, 'type': 4, 'side': 1,
+         'stopPrice': 7627.0, 'customTag': 'BRK_STOP_SYNTHETIC'}]
+    broker.client.order_search = Mock(return_value=rows)
+    broker._search_recent_trades = Mock(return_value=[])
+    broker._get_asset_from_contract_id_cached = Mock(return_value=mes)
+    orders = broker._pull_all_orders('Strat', SimpleNamespace(name='Strat'))
+    assert len(orders) == 3
+    assert broker._bracket_parent_by_child_id == {'102': '101', '103': '101'}
+    assert broker._bracket_meta['101']['children'] == {'tp': '102', 'sl': '103'}
+    assert broker.client.placed == []
+
+
+def test_normal_startup_surfaces_order_read_failure(broker):
+    from unittest.mock import Mock
+    broker.client.order_search = Mock(side_effect=RuntimeError('Provider order read failed'))
+    with pytest.raises(RuntimeError, match='order state is unavailable'):
+        broker._pull_all_orders('Strat', SimpleNamespace(name='Strat'))

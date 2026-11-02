@@ -922,12 +922,18 @@ class ProjectX(Broker):
             return cached_order
         return None
 
+    def _pull_all_orders(self, strategy_name, strategy_object):
+        """Restore accepted bracket links on the ordinary strategy startup/sync path."""
+        orders = super()._pull_all_orders(strategy_name, strategy_object)
+        self._restore_bracket_links(orders)
+        return orders
+
     def _pull_broker_all_orders(self) -> List[dict]:
         """Get all orders from broker, including recently filled ones via trades."""
         try:
             # Get all orders from today to catch any recent activity
             end_date = datetime.now(_default_pytz()).replace(hour=23, minute=59, second=59)
-            start_date = end_date.replace(hour=0, minute=0, second=0)
+            start_date = end_date.replace(hour=0, minute=0, second=0) - timedelta(days=self.order_lookback_days)
 
             self.logger.debug(f"Searching orders: account={self.account_id}, "
                             f"start={start_date.isoformat()}, end={end_date.isoformat()}")
@@ -972,7 +978,7 @@ class ProjectX(Broker):
 
         except Exception as e:
             self.logger.error(f"Error getting all orders: {e}")
-            return []
+            raise RuntimeError("ProjectX order state is unavailable") from e
     
     def _search_recent_trades(self, start_date, end_date) -> List[dict]:
         """Search for recent trades to identify filled orders."""

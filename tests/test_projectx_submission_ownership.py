@@ -468,3 +468,48 @@ def test_tag_and_bound_id_resolving_different_intents_hold_both(broker, mes):
     assert not first.transactions and not second.transactions
     assert first.submission_outcome['reconciliation_required'] is True
     assert second.submission_outcome['reconciliation_required'] is True
+
+
+@pytest.mark.parametrize('mismatch', [{'contractId': 'OTHER'}, {'side': 1}, {'side': False}])
+def test_bound_trade_contradictions_do_not_consume_execution_identity(broker, mes, mismatch):
+    item = ordinary(mes)
+    broker.submit_order(item)
+    broker._update_positions_cache = Mock()
+    trade = {'accountId': 1, 'orderId': int(item.identifier), 'id': 42, 'size': 1, 'price': 5000}
+    broker._handle_trade_update({**trade, **mismatch})
+    assert not item.transactions
+    assert item.submission_outcome['reconciliation_required'] is True
+    # The malformed row must not consume this trade ID; sparse valid rows remain supported.
+    broker._handle_trade_update(trade)
+    broker._handle_trade_update(trade)
+    assert item.is_filled() and sum(t.quantity for t in item.transactions) == 1
+
+
+@pytest.mark.parametrize('filled', [1, 2])
+def test_trade_driven_partial_and_full_protection_release_observation_lock(broker, mes, filled):
+    import threading
+    parent = _make_bracket_entry(mes, qty=2, tp=5050, sl=4975)
+    original = broker.client.order_place
+    availability = []
+    def post(**kwargs):
+        if kwargs['type'] in (1, 4):
+            def probe():
+                acquired = broker._order_update_lock.acquire(timeout=0.5)
+                availability.append(acquired)
+                if acquired:
+                    broker._order_update_lock.release()
+            worker = threading.Thread(target=probe)
+            worker.start()
+            worker.join(2)
+            assert not worker.is_alive()
+        return original(**kwargs)
+    broker.client.order_place = post
+    broker._update_positions_cache = Mock()
+    broker.submit_order(parent)
+    trade = {'accountId': 1, 'orderId': int(parent.identifier), 'id': 42,
+             'size': filled, 'price': 5000}
+    broker._handle_trade_update(trade)
+    broker._handle_trade_update(trade)
+    assert availability == [True, True]
+    assert len(broker.client.placed) == 3
+    assert sum(t.quantity for t in parent.transactions) == filled

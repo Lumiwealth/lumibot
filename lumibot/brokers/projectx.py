@@ -8,6 +8,7 @@ Supports multiple underlying brokers (TSX, TOPONE, etc.) via ProjectX gateway.
 from __future__ import annotations
 
 import threading
+from contextlib import contextmanager
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, LazyPytzTimezoneRef, lazy_class
 from lumibot.brokers.broker import Broker
@@ -1483,6 +1484,30 @@ class ProjectX(Broker):
 
     # ========== Event Dispatch Methods ==========
 
+    @contextmanager
+    def _order_observation(self):
+        """Serialize observations, then reconcile protection outside the stream lock."""
+        deferred = set()
+        previous = None
+        try:
+            with self._order_update_lock:
+                self._bracket_observation_deferred = getattr(self, '_bracket_observation_deferred', {})
+                thread_id = threading.get_ident()
+                previous = self._bracket_observation_deferred.get(thread_id)
+                self._bracket_observation_deferred[thread_id] = deferred
+                try:
+                    yield
+                finally:
+                    self._bracket_observation_deferred.pop(thread_id, None)
+                    if previous is not None:
+                        previous.update(deferred)
+                        self._bracket_observation_deferred[thread_id] = previous
+        finally:
+            for parent_id in deferred if previous is None else ():
+                parent = self.get_tracked_order(parent_id)
+                if parent is not None:
+                    self._maybe_spawn_bracket_children(parent)
+
     def _detect_and_dispatch_order_changes(self, new_order):
         """Detect status changes and dispatch appropriate events.
 
@@ -1492,13 +1517,8 @@ class ProjectX(Broker):
         allows bracket-spawn helpers that re-enter dispatch to proceed without
         deadlocking.
         """
-        deferred = set()
-        previous_deferred = None
         try:
-            with self._order_update_lock:
-                self._bracket_observation_deferred = getattr(self, '_bracket_observation_deferred', {})
-                previous_deferred = self._bracket_observation_deferred.get(threading.get_ident())
-                self._bracket_observation_deferred[threading.get_ident()] = deferred
+            with self._order_observation():
                 cached_order = self.get_tracked_order(new_order.identifier)
                 if cached_order:
                     # Preserve strategy name from cached order
@@ -1520,16 +1540,6 @@ class ProjectX(Broker):
                         self._handle_pre_existing_order(new_order)
         except Exception as e:
             self.logger.error(f"Error detecting order changes for {new_order.identifier}: {e}")
-        finally:
-            with self._order_update_lock:
-                self._bracket_observation_deferred.pop(threading.get_ident(), None)
-                if previous_deferred is not None:
-                    previous_deferred.update(deferred)
-                    self._bracket_observation_deferred[threading.get_ident()] = previous_deferred
-            for parent_id in deferred if previous_deferred is None else ():
-                parent = self.get_tracked_order(parent_id)
-                if parent is not None:
-                    self._maybe_spawn_bracket_children(parent)
 
     def _dispatch_status_change(self, cached_order, new_order):
         """Apply cumulative provider fills once, then preserve any terminal state."""
@@ -2084,7 +2094,7 @@ class ProjectX(Broker):
             if trade.get("accountId") not in (None, self.account_id):
                 continue
             order_id = str(trade.get("orderId"))
-            with self._order_update_lock:
+            with self._order_observation():
                 order = self.get_tracked_order(order_id)
                 if order is None or trade.get("id") is None:
                     continue
@@ -2092,6 +2102,14 @@ class ProjectX(Broker):
                         and getattr(order, '_projectx_provider_id', None) is None):
                     # A trade has no exact tag/terms receipt with which to bind
                     # an unresolved local identifier to the provider's ID.
+                    continue
+                wire = getattr(order, '_projectx_submission_wire', None)
+                if wire is not None and (
+                        ('contractId' in trade and trade['contractId'] != wire['contract_id'])
+                        or ('side' in trade and (type(trade['side']) is not int or trade['side'] != wire['side']))):
+                    order._projectx_reconciliation_trade = dict(trade)
+                    order.submission_outcome['reconciliation_required'] = True
+                    order.error = 'Trade receipt contradicts the bound order identity'
                     continue
                 price, size = trade.get("price"), trade.get("size")
                 if price is None or size is None or float(size) <= 0:

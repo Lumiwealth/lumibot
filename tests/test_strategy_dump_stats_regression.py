@@ -270,3 +270,65 @@ def test_format_stats_tolerates_no_valid_portfolio_values(monkeypatch) -> None:
     assert "cash_adjusted_portfolio_value" in stats.columns
     assert stats["return"].isna().all()
     assert stats["cash_adjusted_portfolio_value"].isna().all()
+
+
+def _duplicate_account_stats(rows):
+    data = PandasDataBacktesting(
+        datetime_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        datetime_end=datetime(2026, 1, 5, tzinfo=timezone.utc),
+    )
+    strategy = _StatsOnlyStrategy(broker=BacktestingBroker(data_source=data))
+    strategy._benchmark_asset = None
+    strategy._stats_file = None
+    for row in rows:
+        strategy._append_row(row)
+    strategy._dump_stats()
+    return strategy
+
+
+def test_duplicate_account_updates_preserve_every_recorded_return():
+    import pytest
+    first = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    strategy = _duplicate_account_stats([
+        {"datetime": first, "portfolio_value": 100.0},
+        {"datetime": first, "portfolio_value": 99.0},
+        {"datetime": first + timedelta(days=1), "portfolio_value": 99.0},
+    ])
+    assert strategy._analysis["total_return"] == pytest.approx(-0.01)
+    assert strategy._analysis["max_drawdown"]["drawdown"] == pytest.approx(0.01)
+
+
+def test_duplicate_account_updates_keep_external_deposits_out_of_return():
+    import pytest
+    first = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    later = first + timedelta(days=1)
+    strategy = _duplicate_account_stats([
+        {"datetime": first, "portfolio_value": 100.0, "cash_adjustments_net_total": 0.0},
+        {"datetime": later, "portfolio_value": 200.0, "cash_adjustments_net_total": 100.0},
+        {"datetime": later, "portfolio_value": 220.0, "cash_adjustments_net_total": 100.0},
+        {"datetime": later + timedelta(days=1), "portfolio_value": 220.0, "cash_adjustments_net_total": 100.0},
+    ])
+    assert strategy._analysis["total_return"] == pytest.approx(0.10)
+
+
+def test_duplicate_account_updates_with_no_value_change_still_have_zero_return():
+    import pytest
+    first = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    strategy = _duplicate_account_stats([
+        {"datetime": first, "portfolio_value": 100.0},
+        {"datetime": first, "portfolio_value": 100.0},
+        {"datetime": first + timedelta(days=1), "portfolio_value": 100.0},
+    ])
+    assert strategy._analysis["total_return"] == pytest.approx(0.0)
+    assert strategy._analysis["max_drawdown"]["drawdown"] == pytest.approx(0.0)
+
+
+def test_duplicate_account_updates_in_one_timestamp_keep_the_initial_drawdown():
+    import pytest
+    first = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    strategy = _duplicate_account_stats([
+        {"datetime": first, "portfolio_value": 100.0},
+        {"datetime": first, "portfolio_value": 99.0},
+    ])
+    assert strategy._analysis["total_return"] == pytest.approx(-0.01)
+    assert strategy._analysis["max_drawdown"]["drawdown"] == pytest.approx(0.01)

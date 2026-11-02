@@ -298,13 +298,18 @@ class MetaMask(Broker):
 
     @staticmethod
     def _set_submission_outcome(order, response):
-        state = response['state']
-        certainty = ('confirmed_submitted' if state in {'open', 'partial_fill', 'filled', 'canceled'}
-                     else 'confirmed_rejected' if state == 'rejected' else 'unknown')
+        state = response["state"]
+        certainty = (
+            "confirmed_submitted"
+            if state in {"open", "partial_fill", "filled", "canceled"}
+            else "confirmed_rejected"
+            if state == "rejected"
+            else "unknown"
+        )
         order.submission_outcome = {
-            'broker_state_certainty': certainty,
-            'reconciliation_required': certainty == 'unknown' or bool(response.get('reconciliationErrorCode')),
-            'state': state,
+            "broker_state_certainty": certainty,
+            "reconciliation_required": certainty == "unknown" or bool(response.get("reconciliationErrorCode")),
+            "state": state,
         }
 
     def _observe(self, order, response):

@@ -100,17 +100,6 @@ broker, approval, liquidity and risk limits.
    is not made positive by calling it a protective leg; a short position reverses
    the raw contribution. Check the signed sum before reporting a net exposure and
    omit an unsupported numeric claim rather than guessing it.
-   Assess exercise, assignment and settlement for the selected contracts too.
-   A short option can create an obligation even when another leg bounds the
-   package's expiry payoff. Identify the actual contract multiplier, deliverable,
-   exercise style and cash or physical settlement where available. For a short
-   physically settled call, explain the potential delivery or resulting short
-   underlying position and how the held longs, account capacity and planned exit
-   would address it. Do not assume an offsetting long exercises automatically or
-   eliminates early-assignment, expiration mismatch or cash/position consequences.
-   Apply this assessment to the actual instrument; do not assume every option is
-   a standard equity contract. Disclose unavailable contract terms and decide
-   whether they are material under the mandate.
 6. Before constructing an opening multi-leg payload, read
    `references/common-option-structures.md` and verify each buy/sell side,
    strike ordering and ratio against the intended structure. For credit
@@ -123,7 +112,21 @@ broker, approval, liquidity and risk limits.
    near-zero price or wrong debit/credit sign is a reason to recheck leg topology
    and returned quotes before concluding that market evidence is unavailable.
    Preserve the requested structure and constraints; never force a trade.
-7. Submit related legs as one atomic multi-leg order. Never submit related legs
+7. Before submitting a package with a short option, include its concrete
+   assignment/settlement consequences and intended handling in the order
+   rationale. Merely naming "assignment risk" does not explain the obligation.
+   Assess exercise, assignment and settlement for the selected contracts too.
+   A short option can create an obligation even when another leg bounds the
+   package's expiry payoff. Identify the actual contract multiplier, deliverable,
+   exercise style and cash or physical settlement where available. For a short
+   physically settled call, explain the potential delivery or resulting short
+   underlying position and how the held longs, account capacity and planned exit
+   would address it. Do not assume an offsetting long exercises automatically or
+   eliminates early-assignment, expiration mismatch or cash/position consequences.
+   Apply this assessment to the actual instrument; do not assume every option is
+   a standard equity contract. Disclose unavailable contract terms and decide
+   whether they are material under the mandate.
+   Submit related legs as one atomic multi-leg order. Never submit related legs
    independently, including entry, exit, adjustment, or cleanup. If atomic
    package submission is unavailable, make a no-trade decision and report that
    broker capability as the blocker.

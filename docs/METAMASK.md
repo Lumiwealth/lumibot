@@ -154,6 +154,14 @@ New signature requests use the same fixed provider-origin metadata as MetaMask's
 
 Native broker qualification has exercised actual testnet ALO placement/cancellation and market opening/reduce-only closing through Python on two dedicated wallets. A real Strategy/Trader ETH round trip delivered unique fill callbacks and reconciled ending cash exactly, including fees. The installed wheel passed native regression and connected-history tests on Python 3.10 and 3.12 with JavaScript runtimes absent from PATH and child processes denied during connected checks. The current wheel also recovered an actual canceled-partial receipt with matching venue fills and fees and no replayed callbacks. Fresh live partial-flow attempts remain inconclusive; no production or mainnet-swap qualification is claimed. Earlier JavaScript receipts remain historical evidence only.
 
+## Local cancellation and release evidence
+
+A prepared native order can be canceled locally only when its persisted native plan and signing checkpoints positively prove that the order was not released. Its structured `orderRelease` receipt distinguishes this from a venue cancellation. Generic order tools report `confirmed_not_submitted`, with an incomplete, non-retryable submission result. This says only that the order was not sent: prior signatures, leverage changes and audit history remain recorded.
+
+Legacy or malformed records without release evidence remain unresolved; missing effects do not establish that nothing happened. Cancellation cannot clear their existing execution hold. A historical canceled label without venue identity, executions or positively observed acceptance projects as unknown and requires operator reconciliation. This projection does not reconstruct a hold already lost in a historical journal. Actual venue cancellations, including zero-fill and partial-fill cancellations, retain confirmed acceptance; late executions are still reconciled.
+
+Cancellation signing and pending-signature release require a matching live venue observation without a reconciliation error. An unresolved or contradictory observation holds the cancellation as well as the entry. If an explicit local cancellation retry later obtains valid no-release proof and settled leverage evidence, it clears the resolved reconciliation hold while retaining prior effects and fee-review flags.
+
 ## Frequently asked questions
 
 ### Do I need Node or a local MetaMask service?
@@ -170,18 +178,10 @@ Yes. Retain the exact state file, agent and wallet identity. Known venue orders 
 
 ### What should I do after an approval timeout or unknown outcome?
 
-Inspect `order.submission_outcome`: `broker_state_certainty` distinguishes confirmed submission, confirmed rejection and unknown outcomes; `reconciliation_required` marks unresolved or conflicting evidence. Agent submission tools preserve this state and return incomplete, non-retryable results while uncertainty remains. An acknowledgement is not a fill.
+Inspect `order.submission_outcome`: `broker_state_certainty` distinguishes `confirmed_submitted`, `confirmed_rejected`, `confirmed_not_submitted` for proven pre-release cancellation, and `unknown`. `reconciliation_required` marks unresolved or conflicting evidence. Agent submission tools preserve this state and return incomplete, non-retryable results while uncertainty remains. An acknowledgement is not a fill.
 
-Inspect the recorded operation with `broker.client.get_order(operation_id)`. Reuse its identity and reconcile the original request before creating another trade. Do not bypass Guard Mode or increase permissions to clear a failure.
+Inspect the recorded operation with `broker.client.get_order(operation_id)`. Reuse that operation's identity and reconcile the original request before creating another trade. Do not bypass Guard Mode or increase permissions to clear a failure.
 
 ### Does testnet qualification establish production swap readiness?
 
 No. Native perps have funded testnet evidence, with the remaining limits recorded above. Mainnet trading and funded native swaps remain unqualified; earlier JavaScript receipts do not establish Python readiness.
-
-### Local cancellation and release evidence
-
-A prepared native order can be canceled locally only when its persisted native plan and signing checkpoints positively prove that the order was not released. Its structured `orderRelease` receipt distinguishes this from a venue cancellation. Generic order tools report `confirmed_not_submitted`, with an incomplete, non-retryable submission result. This says only that the order was not sent: prior signatures, leverage changes and audit history remain recorded.
-
-Legacy or malformed records without release evidence remain unresolved; missing effects do not establish that nothing happened. Cancellation cannot clear their existing execution hold. A historical canceled label without venue identity, executions or positively observed acceptance projects as unknown and requires operator reconciliation. This projection does not reconstruct a hold already lost in a historical journal. Actual venue cancellations, including zero-fill and partial-fill cancellations, retain confirmed acceptance; late executions are still reconciled.
-
-Cancellation signing and pending-signature release require a matching live venue observation without a reconciliation error. An unresolved or contradictory observation holds the cancellation as well as the entry. If an explicit local cancellation retry later obtains valid no-release proof and settled leverage evidence, it clears the resolved reconciliation hold while retaining prior effects and fee-review flags.

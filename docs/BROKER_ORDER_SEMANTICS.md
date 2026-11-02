@@ -418,8 +418,10 @@ ProjectX, Tradovate and CCXT retain expiration as distinct from cancellation.
 
 ProjectX and MetaMask expose `Order.submission_outcome` independently of order
 lifecycle status. `broker_state_certainty` is `confirmed_submitted`,
-`confirmed_rejected`, or `unknown`; `reconciliation_required` marks an unresolved
-handoff or conflicting evidence. Submission acknowledgement is never a fill.
+`confirmed_rejected`, `confirmed_not_submitted` for a proven native MetaMask
+pre-release cancellation, or `unknown`. `reconciliation_required` marks an
+unresolved handoff or conflicting evidence. Submission acknowledgement is never
+a fill.
 
 Single-order, order-list and submission tools retain this metadata. Unknown or
 malformed explicit certainty produces an incomplete, non-retryable submission

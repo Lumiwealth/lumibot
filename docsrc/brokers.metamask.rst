@@ -229,6 +229,25 @@ callbacks. Fresh live partial-flow attempts remain inconclusive. This is not
 production or mainnet-swap qualification. Earlier JavaScript receipts cannot
 qualify this implementation.
 
+Local cancellation and release evidence
+---------------------------------------
+
+Local cancellation needs positive persisted native evidence that the order was
+not released. Such orders expose ``confirmed_not_submitted`` to generic tools,
+with an incomplete, non-retryable submission outcome. Earlier signing and
+leverage effects remain in the audit history. Missing legacy evidence remains
+unknown and cannot be cleared by local cancellation. A historical canceled label
+alone is not acceptance proof; operator reconciliation is required, and this
+projection does not recreate a journal hold already lost in the past. Known
+venue identities and actual fills remain authoritative.
+
+Cancellation signing and pending-signature release require a matching live
+venue observation without a reconciliation error. An unresolved or
+contradictory observation holds the cancellation as well as the entry. If an
+explicit local cancellation retry later obtains valid no-release proof and
+settled leverage evidence, it clears the resolved reconciliation hold while
+retaining prior effects and fee-review flags.
+
 Frequently asked questions
 --------------------------
 
@@ -255,15 +274,17 @@ tokens are not MetaMask access tokens, and startup never renews authority.
 What should I do after an approval timeout or unknown outcome?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Inspect the recorded operation with ``broker.client.get_order(operation_id)``.
 Inspect ``order.submission_outcome``: ``broker_state_certainty`` distinguishes
-confirmed submission, confirmed rejection and unknown outcomes;
-``reconciliation_required`` marks unresolved or conflicting evidence. Agent
+``confirmed_submitted``, ``confirmed_rejected``, ``confirmed_not_submitted`` for
+proven pre-release cancellation, and ``unknown``. ``reconciliation_required``
+marks unresolved or conflicting evidence. Agent
 submission tools preserve this state and return incomplete, non-retryable results
 while uncertainty remains. An acknowledgement is not a fill.
 
-Reuse its identity and reconcile the original request before creating another
-trade. Do not bypass Guard Mode or increase permissions to clear a failure.
+Inspect the recorded operation with ``broker.client.get_order(operation_id)``.
+Reuse that operation's identity and reconcile the original request before
+creating another trade. Do not bypass Guard Mode or increase permissions to clear
+a failure.
 
 Does testnet qualification establish production swap readiness?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -271,19 +292,3 @@ Does testnet qualification establish production swap readiness?
 No. Native perps have funded testnet evidence, with the remaining qualification
 limits recorded above. Mainnet trading and funded native swaps remain
 unqualified; earlier JavaScript receipts do not establish Python readiness.
-
-Local cancellation needs positive persisted native evidence that the order was
-not released. Such orders expose ``confirmed_not_submitted`` to generic tools,
-with an incomplete, non-retryable submission outcome. Earlier signing and
-leverage effects remain in the audit history. Missing legacy evidence remains
-unknown and cannot be cleared by local cancellation. A historical canceled label
-alone is not acceptance proof; operator reconciliation is required, and this
-projection does not recreate a journal hold already lost in the past. Known
-venue identities and actual fills remain authoritative.
-
-Cancellation signing and pending-signature release require a matching live
-venue observation without a reconciliation error. An unresolved or
-contradictory observation holds the cancellation as well as the entry. If an
-explicit local cancellation retry later obtains valid no-release proof and
-settled leverage evidence, it clears the resolved reconciliation hold while
-retaining prior effects and fee-review flags.

@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.41 - Unreleased
+## 4.6.42 - Unreleased
 
 ### Added
 - ProjectX historical backtesting through the existing PandasData and BacktestingBroker engine, with paginated provider bars, normal strategy entry points and preserved bar-completion semantics. Historical trade bars do not invent bid/ask quotes.
@@ -17,6 +17,7 @@
 - Native same-chain ERC20-output swap code verifies bounded approvals and actual receipts. HIP3 writes, native-output swaps and unsupported fee/delegation variants remain explicit holds. Native funded swap qualification remains pending; previous JavaScript receipts do not qualify this replacement.
 
 ### Fixed
+- Restore accepted ProjectX protection through normal strategy startup and synchronization, cancel unused exits after offline fills without replaying executions, and retain cancellation intent after provider rejection. Partial protective fills reduce remaining exit sizes and later entry fills preserve the actual remaining exposure.
 - Retry empty research windows against available older observations without relaxing the historical cutoff or claiming stale evidence is current.
 - Live market-open and market-close waits wake when their strategy is stopped, including the Alpaca close override. Direct callers retain their normal wait interval.
 - ProjectX acknowledgement and stream duplicates notify the strategy of a new order once.

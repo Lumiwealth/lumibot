@@ -3,8 +3,10 @@
 The native receipt remains byte-identical. Its original full source hash is rebuilt
 from Git objects, then every model-relevant byte is compared with the candidate.
 Only exact live-provider modules, guarded live-sync method bodies unused by the
-maintained Pandas fixtures, package version metadata, and AST-identical comments
-in unexecuted examples are outside that comparison.
+maintained Pandas fixtures, package version metadata, and comments or literal
+agent policies in unexecuted examples are outside that comparison. Changed
+example policies still require their own strategy validation; this retains only
+the shared Pandas-fixture proof that never executes those policies.
 Any actor, judge, fixture, SDK, case, skill or shared trading change still expires
 proof. This is compatibility verification, never new case freshness.
 """
@@ -158,11 +160,12 @@ def check_change(path, before, after):
             return
     if path.startswith('lumibot/example_strategies/') and path.endswith('.py'):
         # The maintained catalog instantiates its own Pandas-fixture strategies,
-        # never an example. Retain only comment/formatting edits whose complete
-        # executable AST, including every docstring and prompt, is unchanged.
+        # never an example. Literal policies cannot add Python execution; every
+        # call, role, permission, model, docstring and other value stays bound.
+        # This is not qualification of the changed example's investment policy.
         try:
-            old_tree = ast.parse(before, type_comments=True)
-            new_tree = ast.parse(after, type_comments=True)
+            old_tree = _example_execution_tree(before)
+            new_tree = _example_execution_tree(after)
             if ast.dump(old_tree, include_attributes=False) == ast.dump(new_tree, include_attributes=False):
                 return
         except (SyntaxError, ValueError, UnicodeError):
@@ -178,6 +181,18 @@ def check_change(path, before, after):
         if old is not None and old == new:
             return
     raise ValueError(f'Source change affects model qualification: {path}')
+
+
+def _example_execution_tree(source):
+    tree = ast.parse(source, type_comments=True)
+    agent_create = ast.dump(ast.parse('self.agents.create', mode='eval').body)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and ast.dump(node.func) == agent_create:
+            for keyword in node.keywords:
+                if (keyword.arg == 'system_prompt' and isinstance(keyword.value, ast.Constant)
+                        and isinstance(keyword.value.value, str)):
+                    keyword.value.value = '<unexecuted-example-agent-policy>'
+    return tree
 
 
 def _without_alpaca_benchmark_body(source):

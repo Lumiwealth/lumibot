@@ -252,3 +252,30 @@ def test_unit_jobs_preserve_the_inventory_with_process_isolation_and_no_job_dead
         assert 'pip install pytest-xdist==3.8.0' in commands
         assert 'python -m pytest -n2 --dist loadfile -m "${PYTEST_MARKERS}"' in commands
         assert "PYTEST_MARKERS='not apitest and not downloader'" in commands
+
+
+@pytest.mark.parametrize("workflow_name", ["release.yml", "cicd.yaml"])
+@pytest.mark.parametrize("job", ["unit-tests", "backtest-tests"])
+def test_shards_preserve_complete_test_names(tmp_path, workflow_name, job):
+    """Execute the actual workflow with space-bearing file and parameter names."""
+    root = Path(__file__).resolve().parents[1]
+    workflow = yaml.load(
+        (root / ".github/workflows" / workflow_name).read_text(), Loader=yaml.BaseLoader,
+    )
+    command = next(step["run"] for step in workflow["jobs"][job]["steps"]
+                   if step.get("name", "").startswith("Run ") and "--collect-only" in step.get("run", ""))
+    folder = tmp_path / "tests" / ("backtest" if job == "backtest-tests" else "unit") / "interval samples"
+    folder.mkdir(parents=True)
+    (folder / "test_interval.py").write_text(
+        'import pytest\n'
+        '@pytest.mark.parametrize("interval", ["1 minute", "1 hour"])\n'
+        'def test_interval(interval):\n'
+        '    assert interval in {"1 minute", "1 hour"}\n'
+    )
+    result = subprocess.run(
+        ["bash", "-c", command], cwd=tmp_path, capture_output=True, text=True,
+        env={**os.environ, "PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", ""),
+             "SHARD_INDEX": "0", "SHARD_TOTAL": "1", "PYTEST_ADDOPTS": ""},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "2 passed" in result.stdout

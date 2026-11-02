@@ -34,7 +34,7 @@ WOO X at a glance
    * - Official site
      - https://woox.io/
    * - API docs
-     - https://docs.woox.io/
+     - https://developer.woox.io/
    * - Fees
      - https://support.woox.io/hc/en-001/articles/4404611795353--Trading-Fees
 
@@ -209,7 +209,7 @@ What you can trade on WOO X
    * - Options
      - No
 
-CCXT lists these order features for WOO X: limit orders, stop-loss orders, take-profit orders, reduce-only orders, editing open orders, canceling orders.
+CCXT lists these order features for WOO X: stop-loss orders, take-profit orders, reduce-only orders, editing open orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDT:USDT``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
 
@@ -304,8 +304,8 @@ Related guides
 * :doc:`AI agents quickstart <agents_quickstart>`
 * :doc:`Backpack trading bot <brokers.ccxt.backpack>`
 * :doc:`Bitfinex trading bot <brokers.ccxt.bitfinex>`
-* :doc:`BitMart trading bot <brokers.ccxt.bitmart>`
-* :doc:`CoinEx trading bot <brokers.ccxt.coinex>`
+* :doc:`Bitget trading bot <brokers.ccxt.bitget>`
+* :doc:`DigiFinex trading bot <brokers.ccxt.digifinex>`
 
 Sources
 -------
@@ -317,4 +317,4 @@ Sources
 * `WOO X blog: Getting started with WOO X API <https://woox.io/blog/getting-started-woo-x-api-step-by-step-guide-to-setup>`_ (read 2026-10-23)
 * `WOO X API Reference (domains) <https://docs.woox.io/>`_ (read 2026-10-23)
 * `WOO X developer guide (V3) <https://developer.woox.io/api-reference/guide>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

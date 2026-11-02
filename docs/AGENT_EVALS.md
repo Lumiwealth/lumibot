@@ -2,7 +2,7 @@
 
 > Real-model release gates for LumiBot's built-in trading-agent behavior.
 
-**Last Updated:** 2026-10-31
+**Last Updated:** 2026-11-01
 **Status:** Active
 **Audience:** Both
 
@@ -13,7 +13,7 @@
 LumiBot agent evals call the real trading model and a separate real LLM judge.
 Both use the explicitly selected ChatGPT subscription connection. Actors default
 to `chatgpt/gpt-6-luna` on High reasoning; semantic judges use the same Luna
-model on XHigh reasoning after recorded failures of cheaper reasoning profiles.
+model on High reasoning and must pass the maintained labeled calibration controls.
 The candidate still requires complete source-bound qualification. API-funded model selections are rejected
 for both roles, including when ordinary provider API keys are present. Connect
 your own account with `python -m lumibot.components.agents.chatgpt_auth login`.
@@ -38,6 +38,12 @@ This is not a claim of hosted authorization or provider-data integration.
 The judge sees broker-observed order states separately from the model's claims.
 Execution cases fail if no simulated fill exists; provider/runtime failures
 cannot pass as completed decisions.
+
+Each production fixture explicitly closes its owned DuckDB connection and
+registered tables during final cleanup, including broker/web cleanup errors.
+Completed fixtures may remain referenced by captured tools; database worker
+release does not rely on garbage collection. Parallel workers and other fixtures
+retain independent connections.
 
 Each repetition receives a unique strategy identity and local replay directory;
 remote replay reads/writes are disabled at the cache transport boundary. Live
@@ -80,24 +86,45 @@ condition to match the latest completed-bar window and its tool-computed value.
   actor, judge, continuation and outer retry. It also records each repetition
   and resumes only missing or failed work.
 
-## Initial Catalog
+## Trading Catalog Highlights
 
 | Case | Release behavior |
 | --- | --- |
 | `options_iron_condor_atomic_open` | Loads options guidance, verifies four contracts, prices the package, and submits one atomic iron condor. |
 | `options_iron_condor_limit_between_bid_ask` | Submits one iron condor whose explicit package price sits between the bid and ask, without the prompt saying to use a limit. |
 | `options_expiration_with_data` | Opens the iron condor on the listed expiration that has quotes when a nearer listed expiration has none. The prompt does not name that fallback. |
-| `congress_public_filings_only` | Uses the House disclosure tool and trades only filings already public at the simulated clock. |
 | `options_credit_spread_close_signed_quantities` | Maps signed positions to correct closing sides and prevents duplicate or escalating closes. |
 | `options_single_leg_chain_and_quote` | Retrieves a chain, verifies the exact contract, and checks current option market evidence. |
 | `stock_price_before_order` | Retrieves current stock price evidence before any stock order. |
 | `stock_pending_exit_no_duplicate` | Inspects an existing pending exit and refuses to submit a duplicate position change. |
 | `stock_orb_completed_bars` | Uses a completed 09:30 ET opening range and a completed breakout bar before ordering. |
+| `stock_complete_portfolio_25` | Establishes every affordable target in a 25-name basket and reconciles native positions, fills and cash. |
+| `stock_complete_portfolio_9` | Establishes a different-size basket without a fixed trade-count stopping rule. |
+| `stock_rebalance_complete_portfolio` | Reduces and exits holdings, settles funding sells before dependent buys, adds missing targets and avoids buying an already-correct holding again. |
+| `stock_size_from_current_quote` | Distinct historical, last, bid and ask prices expose sizing from the wrong field. |
+| `stock_snapshot_price_from_dated_row` | Uses the requested snapshot date's close rather than an earlier historical high. |
+| `stock_complete_supported_portfolio_with_gap` | Completes supported targets with a current-price fallback and preserves only the unavailable holding's allocation in cash. |
 | `rules_active_override_strategy_prompt` | Applies only active canonical rules and gives them precedence over conflicting strategy prose. |
 
 The preserved credit-spread red baseline lives under `agent_eval_baselines/`.
 It records the real historical reversing sides, repeated closes, and quantity
 escalation that the repaired catalog protects against.
+
+The portfolio baseline in
+`agent_eval_baselines/2026-10-28_portfolio-completion-and-sizing.json` preserves
+all 30 original outcomes before the shared instruction repair: 13 failed and
+17 passed. Large/small basket completion and unavailable-holding sizing exposed
+actual failures. Funded rebalancing, explicit single-stock quote sizing and
+dated-row selection already passed those initial trials; their results are
+retained as coverage, without inventing a failing run. Native attempt IDs and
+evidence digests bind the compact record to the original private artifacts.
+
+Portfolio qualification uses five successful repetitions per new or repaired
+case with Luna High for actor and judge, on Standard/default tier through Login
+with ChatGPT. Independent machine checks use broker-observed orders, fills,
+quantities, final positions and cash; the judge checks interpretation and the
+reported explanation. Fixture-backed success does not establish historical
+provider integration or a complete real-data strategy backtest.
 
 ## Local Commands
 
@@ -177,15 +204,39 @@ double-counting. A zero API-spend field does not establish the connected
 account's separate subscription-credit setting. Keep the same append-only
 ledger across actor work, judge-only recovery, calibration and resumed batches.
 
+Typed retryable inference failures with explicit no-mutation evidence, including
+LiteLLM `InternalServerError` wrappers around DNS errors, are infrastructure
+errors rather than actor decisions for the semantic judge. Captured broker
+receipts must not contradict that evidence. Deterministic machine checks always
+run and remain on error rows. Every failed actor must satisfy these conditions;
+one actor's pre-mutation error cannot hide another actor's unknown effects.
+Post-mutation failures, unknown effects, completed
+decisions and tool failures retain ordinary grading. Preserve every failed
+attempt and unknown usage reservation; this classification does not replay live orders.
+
 SDK retries are disabled; outer retries require another ledger reservation.
 No paid token-counting endpoint is used. Subscription quota and revoked grants
-produce visible failures, not successful decisions. A corrupt ledger fails visibly; compatible technical window amendments preserve all historical records. Do not switch output directories to reset an approved
-release-attempt allowance. Actor, judge and rubric calibration need the same attempt
+produce visible failures, not successful decisions. A corrupt ledger fails visibly; compatible technical window amendments preserve all historical records. Do not switch output directories to reset usage history.
+Actor, judge and rubric calibration need the same attempt
 ledger. CI verifies the completed evidence without inference. No prompt or credential
 is written to the per-call ledger.
 
+Portfolio completion cases score actual target holdings and progress toward them,
+not an unstated number of orders. Verified top-ups may complete a feasible residual.
+The machine gate rejects wrong-side or unrelated trades, overshoot and round trips,
+unfinished or unobserved terminal orders, inconsistent fill ledgers, and cumulative
+execution above an allocation cap. Final cash reserves, quote evidence, and semantic
+verification remain required. Cases that explicitly require an order count retain
+that contract. A canceled order with partial executions remains unqualified when
+its status receipt lacks the cumulative filled quantity; an unchanged average price
+cannot prove the actor observed a late fill. Status tools expose cumulative and
+remaining quantities from actual retained transactions when available, without
+inventing zero for missing history. Earlier receipts keep their original verdict
+and fingerprint; a changed contract requires fresh qualification rather than
+relabeling old results.
+
 Fingerprints include indicator and broker code plus installed ADK, GenAI,
-LiteLLM, pandas-ta, pandas, NumPy, Alpaca, HTTPX, OpenAI, PyJWT, FileLock and Pydantic
+LiteLLM, pandas-ta, pandas, NumPy, Alpaca, HTTPX, OpenAI, PyJWT, FileLock, Pydantic and Massive
 versions. Install `requirements_dev.txt` with `-c requirements_agent_evals.txt`
 for the authenticated qualification. Compatible passes retain
 their original timestamp rather than being renewed when an unchanged gate skips
@@ -211,7 +262,9 @@ python scripts/qualify_agent_evals.py verify
 ```
 
 Before exporting, resume the full actor catalog and judge controls using the
-same owned directories and immutable call allowance. `--gate --repeat 1` still
+same owned directories and append-only call ledger. `--max-model-calls` sets an
+automatically replenished reporting window, not a hard request or spending cap.
+`--gate --repeat 1` still
 requires every new or changed case's configured three or five consecutive passes;
 it preserves completed matching repetitions and only schedules missing or failed
 work. Avoid `--force` when resuming a qualification. Set `TMPDIR` to a dedicated
@@ -220,15 +273,15 @@ path, including failures.
 
 ```bash
 python scripts/run_agent_evals.py --preflight-only --gate --repeat 1 \
-  --max-cost-usd 0 --max-model-calls <existing-call-cap> \
+  --max-cost-usd 0 --max-model-calls <reporting-window-calls> \
   --output-root <owned-actor-output> --freshness-state <owned-freshness-file>
 python scripts/run_agent_evals.py --gate --repeat 1 --max-workers 5 \
-  --max-cost-usd 0 --max-model-calls <existing-call-cap> \
+  --max-cost-usd 0 --max-model-calls <reporting-window-calls> \
   --output-root <owned-actor-output> --freshness-state <owned-freshness-file>
 python scripts/check_agent_judge_calibration.py \
   --model-call-ledger <owned-actor-output>/model_calls.jsonl \
   --output-root <owned-calibration-output> \
-  --max-model-calls <existing-call-cap> --max-cost-usd 0
+  --max-model-calls <reporting-window-calls> --max-cost-usd 0
 ```
 
 Normal release qualification runs on the version branch's pull request into

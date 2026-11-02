@@ -224,6 +224,9 @@ def _start_agent_tool_audit(
 
 
 def _finish_agent_tool_audit(call: dict[str, Any], result: Any, context: dict[str, Any], *, native: bool = False) -> None:
+    if isinstance(result, dict) and isinstance(result.get("execution_outcome"), dict):
+        if result["execution_outcome"].get("broker_state_certainty") == "unknown":
+            call["broker_state_certainty"] = "unknown"
     failed = isinstance(result, dict) and (result.get("tool_error") is True or (native and bool(result.get("error"))))
     status = "failed" if failed else "completed"
     if "action_id" in call:
@@ -274,6 +277,9 @@ def _wrap_tool_callable(
                         "ok": not (isinstance(result, dict) and result.get("tool_error") is True),
                     }
                     calls.append(call_record)
+                    if isinstance(result, dict) and isinstance(result.get("execution_outcome"), dict):
+                        if result["execution_outcome"].get("broker_state_certainty") == "unknown":
+                            call_record["broker_state_certainty"] = "unknown"
                 else:
                     try:
                         _finish_agent_tool_audit(call_record, result, tool_context)
@@ -287,6 +293,10 @@ def _wrap_tool_callable(
                             "next_offset", "filters", "snapshot_id",
                         )
                     }
+                if tool.name in {"market_quote", "market_quotes"} and isinstance(result, dict):
+                    rows = result.get("quotes", []) if tool.name == "market_quotes" else [result]
+                    call_record["market_coverage"] = [row["asset"] for row in rows
+                                                      if row.get("available") is True and isinstance(row.get("asset"), dict)]
         return result
 
     wrapper.__name__ = _tool_function_name(tool.name)
@@ -1614,8 +1624,18 @@ def _resolve_model_for_adk(
 
 
 _BROKER_MUTATING_TOOLS = frozenset(
-    {"orders_submit_order", "orders_submit_multileg", "orders_cancel_order", "orders_modify_order"}
+    {"orders_submit_order", "orders_submit_orders", "orders_submit_multileg", "orders_cancel_order", "orders_modify_order"}
 )
+
+
+def _trading_mutation_tool_names(request: Any) -> set[str]:
+    # Audit records retain BoundTool.name even when the model-facing name is
+    # normalized or aliased. Keep legacy order names for older request records.
+    return set(_BROKER_MUTATING_TOOLS) | {
+        tool.name
+        for tool in getattr(request, "bound_tools", ())
+        if (tool.metadata or {}).get("mutates_trading")
+    }
 
 
 def _attempt_tool_call_log(request: Any) -> list[dict[str, Any]]:
@@ -1634,7 +1654,8 @@ def _attempt_touched_broker(request: Any) -> bool:
     calls = getattr(request, "_attempt_tool_calls", None)
     if not isinstance(calls, list):
         return False
-    return any(isinstance(call, dict) and call.get("tool_name") in _BROKER_MUTATING_TOOLS for call in calls)
+    mutations = _trading_mutation_tool_names(request)
+    return any(isinstance(call, dict) and call.get("tool_name") in mutations for call in calls)
 
 
 class GoogleADKRuntime:
@@ -1728,7 +1749,13 @@ class GoogleADKRuntime:
             lines.append(f"- Available tool names for this run: {tool_names}.")
             lines.append("- Only call tool names that appear in the available tool list for this run.")
         lines.append("- Use DuckDB when the decision requires time-series analysis and historical tables are available. A current-evidence execution mandate does not require an additional history-based signal unless the user or active rules require one.")
-        lines.append("- Return a short final summary after you finish using tools.")
+        lines.append(
+            "- Return a short final summary of the requested outcome, observed state and any unresolved task exceptions. "
+            "Do not add an unsolicited valuation reconciliation, profit/loss estimate or other optional numeric comparison to a completed action. "
+            "If a derived number is required for the task or a material exception, calculate it with a tool and copy the latest returned value exactly, including its sign and decimal magnitude. "
+            "The returned result overrides earlier reasoning or a drafted answer; update conflicting draft numbers before finalizing. "
+            "Otherwise report the observed quantities, fills, cash and equity separately."
+        )
         return "\n".join(lines).strip()
 
     def _before_model_context_pruning_callback(self, request: RuntimeRequest):
@@ -1971,6 +1998,8 @@ class GoogleADKRuntime:
             parts=[genai_types.Part(text=self._build_user_text(request))],
         )
         events: list[AgentTraceEvent] = []
+        # Preserve only events actually received if a later provider call fails.
+        request._attempt_events = events
         run_config = run_config_module.RunConfig(max_llm_calls=sys.maxsize - 1)
         async for event in runner.run_async(
             user_id=user_id,
@@ -1994,13 +2023,14 @@ class GoogleADKRuntime:
             timestamp = _utc_iso_timestamp()
             for normalized_event in normalized_events:
                 normalized_event.timestamp = timestamp
+                if normalized_event.tool_name:
+                    normalized_event.tool_name = tool_name_map.get(
+                        normalized_event.tool_name,
+                        tool_name_map.get(
+                            _normalize_tool_name_typo(normalized_event.tool_name), normalized_event.tool_name
+                        ),
+                    )
             events.extend(normalized_events)
-        for event in events:
-            if event.tool_name:
-                mapped = tool_name_map.get(event.tool_name)
-                if mapped is None:
-                    mapped = tool_name_map.get(_normalize_tool_name_typo(event.tool_name), event.tool_name)
-                event.tool_name = mapped
         summary = None
         text_chunks = [event.text for event in events if event.kind == "text" and event.text]
         if text_chunks:
@@ -2098,7 +2128,8 @@ class GoogleADKRuntime:
                 return max(int(raw), 1)
             except Exception:
                 pass
-        if any(tool.name in _BROKER_MUTATING_TOOLS for tool in request.bound_tools):
+        mutations = _trading_mutation_tool_names(request)
+        if any(tool.name in mutations for tool in request.bound_tools):
             # Retrying the whole agent run after a broker-side effect can duplicate orders.
             # Research-only agents keep the larger retry budget; trading agents fail fast
             # and let the next scheduled/bar iteration re-evaluate from current broker state.
@@ -2168,6 +2199,7 @@ class GoogleADKRuntime:
             attempt += 1
             # Fresh per-attempt record of tool calls (see _attempt_tool_call_log).
             request._attempt_tool_calls = []
+            request._attempt_events = []
             try:
                 if timeout_seconds is None:
                     return asyncio.run(self._run_async(request))

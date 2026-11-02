@@ -5,6 +5,7 @@ import copy
 import json
 import re
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -20,7 +21,7 @@ unavailable = "research_unavailable" in sys.argv[1:]
 AS_OF_DESCRIPTION = (
     "Historical availability ceiling, preferably a timezone-aware ISO timestamp. "
     "Calendar-period selection alone is not publication-time or original-vintage replay. "
-    "Unqualified source history returns unsupported_capability."
+    "Unverified versions remain usable with an explicit historical approximation."
 )
 
 
@@ -67,7 +68,7 @@ def _error(code: str, message: str, details: dict | None = None) -> CallToolResu
     )
 
 
-def _refuse_unqualified_replay(dataset_id: str, as_of: str | None, *, allow_calendar=False):
+def _validate_asof(dataset_id: str, as_of: str | None):
     if as_of is None:
         return None
     calendar_date = _valid_calendar_date(as_of)
@@ -83,22 +84,20 @@ def _refuse_unqualified_replay(dataset_id: str, as_of: str | None, *, allow_cale
     ) and _valid_calendar_date(as_of[:10])
     if not calendar_date and not instant:
         return _error("invalid_request", "asOf must be a valid date or timezone-aware ISO timestamp")
-    if allow_calendar and calendar_date:
-        return None
-    return _error(
-        "unsupported_capability",
-        f"Dataset {dataset_id} cannot verify original versions and publication time "
-        "at the requested historical instant",
-        {
-            "datasetId": dataset_id,
-            "asOf": as_of,
-            "requiredCapability": "original_vintage_at_utc_instant",
-            "pointInTimeQualified": False,
-            "remedy": (
-                "Use a qualified original-release archive. Calendar bounds do not establish historical availability."
-            ),
-        },
-    )
+    return None
+
+
+def _ceiling_day(as_of):
+    if as_of is None or _valid_calendar_date(as_of):
+        return as_of
+    normalized = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", as_of.replace("Z", "+00:00"))
+    return datetime.fromisoformat(normalized).astimezone(timezone.utc).date().isoformat()
+
+
+def _historical_context(as_of):
+    return {"requestedAsOf": as_of, "originalVintageVerified": False,
+            "exactPublicationTimeVerified": False,
+            "caveat": "Historical approximation; original versions and exact publication times are unverified."}
 
 
 def _in_calendar_range(day: str, time_range: dict | None) -> bool:
@@ -267,24 +266,21 @@ def query_data(
     filters: Annotated[dict, Field(default=None)],
     limit: Annotated[int, Field(default=None, ge=1, le=250)],
 ) -> dict:
-    """Read recorded calendar-period data. Original-vintage UTC replay is unsupported."""
+    """Read recorded calendar data with disclosed vintage and publication-time uncertainty."""
     value = recorded["sources"].get(datasetId)
     if value is None:
         return {"available": False, "datasetId": datasetId, "error": "unsupported_dataset"}
-    refusal = _refuse_unqualified_replay(datasetId, asOf)
+    refusal = _validate_asof(datasetId, asOf)
     if refusal is not None:
         return refusal
     if unavailable:
-        return {
-            "available": False,
-            "error": "managed_research_unavailable",
-            "message": "No research observations were returned. Do not infer or invent values.",
-        }
+        return _error("provider_unavailable", "Recorded source is temporarily unavailable", {"datasetId": datasetId, "asOf": asOf})
     return {
         "available": True,
         "datasetId": datasetId,
         "capturedAt": recorded["capturedAt"],
-        "asOf": None,
+        "asOf": asOf,
+        "historicalContext": _historical_context(asOf),
         "pointInTimeQualified": False,
         **value,
         "rows": [
@@ -293,6 +289,7 @@ def query_data(
             if _in_calendar_range(
                 row["date"] if datasetId == "treasury.fiscaldata" else row["observationDate"], timeRange
             )
+            and (not asOf or row.get("releaseDate", row.get("date", row.get("observationDate"))) <= _ceiling_day(asOf))
         ][:limit],
     }
 
@@ -308,9 +305,9 @@ def search_documents(
     timeRange: Annotated[DocumentTimeRange, Field(default=None)],
     limit: Annotated[int, Field(default=None, ge=1, le=100)],
 ) -> dict:
-    """Search recorded filing-date metadata; original-vintage UTC replay is unsupported."""
+    """Search recorded filings; dates bound availability without verifying original versions."""
     datasetId = datasetId or "sec.filings"
-    refusal = _refuse_unqualified_replay(datasetId, asOf)
+    refusal = _validate_asof(datasetId, asOf)
     if refusal is not None:
         return refusal
     if datasetId != "sec.filings":
@@ -327,12 +324,13 @@ def search_documents(
     ]
     if entity.upper() not in {"ACME", "ACME CORP"} or (documentTypes and "10-Q" not in documentTypes):
         rows = []
-    rows = [row for row in rows if _in_calendar_range(row["filingDate"], timeRange)]
+    rows = [row for row in rows if _in_calendar_range(row["filingDate"], timeRange) and (not asOf or row["filingDate"] <= _ceiling_day(asOf))]
     return {
         "datasetId": "sec.filings",
         "source": "SEC",
         "attribution": "SEC EDGAR",
         "pointInTimeQualified": False,
+        "historicalContext": _historical_context(asOf),
         "rows": rows[:limit],
     }
 
@@ -346,18 +344,16 @@ def get_document(
     asOf: OptionalAsOf,
 ) -> dict:
     """Read one recorded document. Legacy date bounds do not qualify original-version replay."""
-    refusal = _refuse_unqualified_replay(datasetId, asOf, allow_calendar=True)
+    refusal = _validate_asof(datasetId, asOf)
     if refusal is not None:
         return refusal
     if datasetId != "sec.filings":
         return _error("invalid_request", "This fixture only records sec.filings")
     if documentId != DOCUMENT_ID:
         return _error("not_found", "No matching document was recorded")
-    if asOf is not None:
-        # This recorded document has no SEC archive-index last-modified proof.
-        # Its filingDate cannot establish the availability of these bytes.
+    if asOf is not None and FILING_DATE > _ceiling_day(asOf):
         return _error(
-            "invalid_request", "The document availability date could not be verified for the requested asOf bound"
+            "invalid_request", "The document is known to be from after the requested historical ceiling"
         )
     return {
         "datasetId": "sec.filings",
@@ -367,7 +363,8 @@ def get_document(
         "filingDate": FILING_DATE,
         "asOf": asOf,
         "pointInTimeQualified": False,
-        "availabilityPolicy": "calendar_last_modified_only",
+        "availabilityPolicy": "filing_calendar_date",
+        "historicalContext": _historical_context(asOf),
         "limitations": [
             "Only filingDate is recorded; original version, SEC acceptance and last-modified times are unverified."
         ],

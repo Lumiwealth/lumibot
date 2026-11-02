@@ -46,7 +46,7 @@ theta_jar_path = PROJECT_ROOT / "lumibot" / "resources" / "ThetaTerminal.jar"
 
 setuptools.setup(
     name="lumibot",
-    version="4.6.39",
+    version="4.6.42",
     author="Robert Grzesik",
     author_email="rob@botspot.trade",
     description="Python framework for algorithmic trading: backtesting and live deployment for stocks, options, crypto, futures, and forex. Same code for backtest and live trading.",
@@ -62,7 +62,7 @@ setuptools.setup(
     license="GPL-3.0",
     include_package_data=True,
     install_requires=[
-        "polygon-api-client>=1.13.3",
+        "massive>=2.9.1,<3",
         "alpaca-py>=0.42.0",
         "alpha_vantage",
         "ibapi==9.81.1.post1",
@@ -74,7 +74,7 @@ setuptools.setup(
         "pandas>=2.2.0",
         "polars>=1.32.3",
         "pandas_market_calendars>=5.4.0",
-        "pandas-ta-classic>=0.3.14b0",
+        "pandas-ta-classic>=0.6.52",
         "plotly>=5.18.0",
         "sqlalchemy",
         "bcrypt",
@@ -104,20 +104,23 @@ setuptools.setup(
         "holidays",
         "psutil",
         "openai",
-        "setuptools<81",
+        "setuptools>=84.1.0",
         "google-adk[extensions]>=2.9.1,<3.0.0",
         "google-genai>=2.24.0,<3.0.0",
-        "litellm>=1.105.0",
+        # LiteLLM 1.106 imports MCP 2 catalog types on the Responses path;
+        # the remote-tool SDK here uses MCP 1.
+        "litellm>=1.105.0,<1.106.0",
         "anyio>=4.10.0",
         "mcp>=1.26.0,<2",
         "schwab-py>=1.5.0",
         "Flask>=2.3",
         "free-proxy",
         "requests-oauthlib",
+        "signalrcore>=1.0.2,<2",  # ProjectX authenticated market and account streams
         "boto3>=1.40.64",
         "httpx",
         "filelock>=3.0",
-        "PyJWT[crypto]>=2.0",
+        "PyJWT[crypto]>=2.15.1",
         "pypdf>=5.0.0",
     ],
     # Include configuration files, and only include ThetaTerminal.jar if present
@@ -131,6 +134,12 @@ setuptools.setup(
         ] + (["resources/ThetaTerminal.jar"] if theta_jar_path.exists() else []),
     },
     extras_require={
+        "metamask": [
+            "hyperliquid-python-sdk==0.24.0",
+            "PyYAML>=6.0.2,<7",
+            "urllib3>=2.8.0,<3",
+            "certifi>=2026.10.19",
+        ],
         "browser": [
             "patchright>=1.62.3,<2",
         ],

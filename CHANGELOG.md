@@ -1,5 +1,52 @@
 # Changelog
 
+## 4.6.42 - 2026-11-01
+
+### Added
+- ProjectX historical backtesting through the existing PandasData and BacktestingBroker engine, with paginated provider bars, normal strategy entry points and preserved bar-completion semantics. Historical trade bars do not invent bid/ask quotes.
+- AI agents can use native single and batch quotes, including exact option contracts, supplied source timestamps and multipliers. Shared trading guidance uses executable quote sides for immediate orders and current last prices when usable quote fields are unavailable.
+- AI agents can submit explicit independent baskets through the existing `Strategy.submit_orders` method. Each row retains its explanation and actual broker result; partial or uncertain results require reconciliation before retrying. Atomic option packages keep their existing multi-leg tool.
+- Release-gated portfolio behavior covers complete large and small baskets, funding sells before dependent buys, current-quote sizing, exact dated-row selection, and completing supported holdings when one is unavailable. Assertions reconcile native positions, fills, quantities and cash alongside a real-model judge.
+
+### Changed
+- Reconcile live MetaMask partial fills from current open-order remainders, retain late terminal execution deltas without reopening orders, and fence new spending while fill evidence disagrees. Share wallet observation reads, avoid unchanged historical status queries, and use a 10-second default polling interval.
+- Harden native MetaMask signing-domain/network binding, final authority handoff, uncertain cancellation and leverage recovery, cumulative accessor fills, exact token arithmetic, reverted-gas budgets, and OP Stack L1/operator fee accounting. Preserve actual overrun charges pending explicit owner review. Native funded qualification remains in progress.
+- Replace the retired Polygon SDK dependency with maintained Massive while retaining Polygon keys and endpoint behavior; require patched MetaMask HTTP and CA-store dependencies and reject unsafe session lock files.
+- MetaMask now runs in Python through the normal LumiBot broker and data source. The optional Python extra replaces the required Node service, npm install and localhost transport. Browser sign-in and durable OAuth refresh use native Python.
+- Breaking configuration change: replace MetaMask BROKER_URL/BROKER_TOKEN with an explicit native session, durable journal, agent and wallet identity. Preserve old journals and pending receipts; local limits and expiry never reset at startup. Native cancellation, signing checkpoints and fill recovery retain separate operation identities.
+- Native same-chain ERC20-output swap code verifies bounded approvals and actual receipts. HIP3 writes, native-output swaps and unsupported fee/delegation variants remain explicit holds. Native funded swap qualification remains pending; previous JavaScript receipts do not qualify this replacement.
+
+### Fixed
+- Preserve source clock times and UTC offsets when agents report document availability. Requalified all 30 actor/judge cases, including five current trials of the repaired reporting case, and the complete 141-slot judge calibration. Established-case regression proof retains original source and usage identities.
+- Preserve caller-supplied Community request identifiers across explicit post or reply retries, so a compatible server can return the original publication after an uncertain response without creating a duplicate. The client does not retry automatically.
+- Restore accepted ProjectX protection through normal strategy startup and synchronization, cancel unused exits after offline fills without replaying executions, and retain cancellation intent after provider rejection. Partial protective fills reduce remaining exit sizes and later entry fills preserve the actual remaining exposure.
+- Retry empty research windows against available older observations without relaxing the historical cutoff or claiming stale evidence is current.
+- Live market-open and market-close waits wake when their strategy is stopped, including the Alpaca close override. Direct callers retain their normal wait interval.
+- ProjectX acknowledgement and stream duplicates notify the strategy of a new order once.
+- Preserve complete strategy ownership in unique ProjectX order tags and use the broker's ownership checks at both fill-delivery layers. Polling, partial fills and fills received before acknowledgement create protection through the same fill owner.
+- Generated ProjectX entry and protective-order tags fit the provider's 64-character limit, including long or non-ASCII strategy names, while preserving exact strategy ownership.
+- Restore ProjectX bracket metadata with LumiBot order identifiers and report accepted protective children accurately.
+- Preserve protective-child links when a stream update wins the REST acknowledgement race, and cancel unused siblings when a child fills before those links finish registering.
+- Honor declared custom trading-tool mutations when preventing whole-agent retries, including aliased tool names.
+- Reconcile reported purchase cost from actual fills and fees while keeping current marked equity distinct from execution cost.
+- Preserve observed agent tool events and usage when inference fails after order actions. Report attempted or unknown broker effects honestly and require reconciliation without replaying the attempt; retain deterministic broker grading for every failed evaluation.
+- Classify typed retryable inference failures wrapped by LiteLLM as infrastructure errors when no actor decision completed. Preserve ordinary grading for completed decisions and tool failures, along with every prior attempt and usage reservation.
+- Keep clean agent installations on the compatible LiteLLM 1.105 and MCP 1 SDK generations; LiteLLM 1.106 requires MCP 2 catalog types on its Responses path.
+- Exercise usable, explicitly unqualified historical research in recorded agent tests while retaining known-future exclusions and visible provider failures.
+- Grade historical research by its meaning and returned fields, with a retained real-answer control and a separate fabricated-answer control.
+- ProjectX uses actual streamed bid/ask prices and source times, exact configured account selection, expiration-aware contract lookup, provider contract multipliers and the documented single-contract response. Reject fractional/invalid contract sizes instead of truncating or defaulting them.
+- ProjectX reconciles partial executions and duplicate/reordered events through the shared cumulative-fill owner, preserves cancellation after partial fills, and restores accepted protective-order links after restart. Account read failures remain visible; older working orders are retained.
+- ProjectX verifies stream connection/subscription success, renews rejected/expiring sessions, updates reconnect credentials and redacts SDK authentication diagnostics. Its SignalR dependency is installed with the package.
+- Preserve parametrized test IDs containing spaces when CI launches collected test shards.
+- Refresh exchange documentation from CCXT 4.5.91, including current market capabilities, contract examples and WEEX futures-only simulation. Retire the removed Aftermath, BitMart, BitMEX and CoinEx setup guides while preserving their URLs, historical guides and older installed-adapter behavior.
+- Preserve numeric fields across wrapped document rows and filtered inventory audits. Real-model coverage distinguishes complete asset-value ranges from continuation lines, unrelated income fields and truly unavailable data.
+- Simulated stock market orders use the execution bar at the simulated time when intraday data is already loaded, including strategies with daily cadence. Daily-only sources and limit/stop behavior retain their existing data path; this change does not force minute-data downloads.
+- Keep Polygon daily research history and minute execution data in independent interval-aware entries. Repeated history/price reads reuse loaded data without replacing daily bars or downloading minute history for a daily request. Memory limits count each dataset once and retire every alias when it is evicted.
+
+- Keep empty IBKR history-health reports scoped to IBKR data sources; preserve actual IBKR series, warnings and failures when another source is also used.
+- Value CCXT wallets and settlement PnL through available exchange cross rates when the reporting currency has no direct pair. Prefer spot routes, keep contract reference prices distinct from option premiums, and retain direct/inverse conversion behavior.
+- Preserve decimal units across fractional position creation, synchronization and fills, so matched closing quantities leave no artificial residual while genuine tiny positions remain intact.
+
 ## 4.6.39 - 2026-11-01
 
 Deploy marker: `9a7df5f32220c56524446efe62f276f200e4364e`.

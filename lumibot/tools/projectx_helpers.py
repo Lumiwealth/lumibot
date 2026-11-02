@@ -6,6 +6,8 @@ integrated into Lumibot's architecture based on the actual working Project X lib
 """
 
 import time
+import logging
+import threading
 import warnings
 from datetime import datetime
 from typing import Callable, Optional, Dict, List
@@ -31,6 +33,19 @@ try:
     SIGNALR_AVAILABLE = True
 except ImportError:
     SIGNALR_AVAILABLE = False
+
+
+class _SignalRCredentialFilter(logging.Filter):
+    """Retain SDK diagnostics without its token/Authorization debug values."""
+    def filter(self, record):
+        import re
+        message = record.getMessage()
+        message = re.sub(r"auth function result[^\n]*", "auth function result [redacted]", message)
+        message = re.sub(r"(Bearer\s+)[^'\"\s,}]+", r"\1[redacted]", message, flags=re.I)
+        message = re.sub(r"(access_token=)[^&\s]+", r"\1[redacted]", message, flags=re.I)
+        record.msg, record.args = message, ()
+        return True
+
 
 
 class ProjectXAuth:
@@ -85,179 +100,221 @@ class ProjectXAuth:
 
 
 class ProjectXStreaming:
-    """ProjectX SignalR Streaming Client"""
-    
+    """Authenticated user and market hubs with observable connection state."""
+
     def __init__(self, config: dict, token: str, account_id: int = None):
         if not SIGNALR_AVAILABLE:
-            raise ImportError("signalrcore library is required for streaming functionality")
-        
+            raise ImportError("signalrcore library is required for ProjectX streaming")
+        sdk_logger = logging.getLogger("SignalRCoreClient")
+        if not any(isinstance(item, _SignalRCredentialFilter) for item in sdk_logger.filters):
+            sdk_logger.addFilter(_SignalRCredentialFilter())
+        self.config = config
         self.firm = config.get("firm")
         self.token = token
+        self.token_provider = None
         self.account_id = account_id
-        
-        # Get base URL from config
-        streaming_base_url = config.get("streaming_base_url")
-        if streaming_base_url:
-            self.base_url = streaming_base_url
-        else:
-            self.base_url = config.get("base_url")
-        
-        if self.base_url.endswith('/'):
-            self.base_url = self.base_url[:-1]
-        
-        # SignalR connection URLs
+        self.base_url = (config.get("streaming_base_url") or config.get("base_url")).rstrip('/')
         self.user_hub_url = f"{self.base_url}/hubs/user"
-        
-        # Connection objects
+        self.market_hub_url = f"{self.base_url}/hubs/market"
         self.user_connection = None
+        self.market_connection = None
         self.is_user_connected = False
-        
-        # Event handlers
-        self.on_account_update: Optional[Callable] = None
-        self.on_order_update: Optional[Callable] = None
-        self.on_position_update: Optional[Callable] = None
-        self.on_trade_update: Optional[Callable] = None
-        
-        # Setup logging
+        self.is_market_connected = False
+        self._user_ready = threading.Event()
+        self._market_ready = threading.Event()
+        self._start_lock = threading.RLock()
+        self._quote_lock = threading.RLock()
+        self._quotes = {}
+        self._quote_events = {}
+        self._quote_contracts = set()
+        self._subscribe_user = False
+        self.on_account_update = None
+        self.on_order_update = None
+        self.on_position_update = None
+        self.on_trade_update = None
         self.logger = get_logger(f"ProjectXStreaming_{self.firm}")
-    
+
+    def _access_token(self):
+        if self.token_provider is not None:
+            self.token = self.token_provider()
+        return self.token
+
+    def _build_hub(self, url):
+        return (HubConnectionBuilder()
+                .with_url(url, options={"access_token_factory": self._access_token})
+                .with_automatic_reconnect({"type": "raw", "keep_alive_interval": 10,
+                                          "reconnect_interval": 5, "max_attempts": 5})
+                .build())
+
     def start_user_hub(self) -> bool:
-        """Start the user hub connection"""
-        try:
-            import time
-            self.logger.info(f"Connecting to user hub: {self.user_hub_url}")
-            
-            hub_url_with_auth = f"{self.user_hub_url}?access_token={self.token}"
-            
-            self.user_connection = HubConnectionBuilder() \
-                .with_url(hub_url_with_auth) \
-                .with_automatic_reconnect({
-                    "type": "raw",
-                    "keep_alive_interval": 10,
-                    "reconnect_interval": 5,
-                    "max_attempts": 5
-                }) \
-                .build()
-            
-            # Setup event handlers
-            self.user_connection.on_open(lambda: self._on_user_hub_open())
-            self.user_connection.on_close(lambda: self._on_user_hub_close())
-            self.user_connection.on_error(lambda data: self._on_user_hub_error(data))
-            
-            # Setup message handlers
-            self.user_connection.on("GatewayUserAccount", self._handle_account_update)
-            self.user_connection.on("GatewayUserOrder", self._handle_order_update)
-            self.user_connection.on("GatewayUserPosition", self._handle_position_update)
-            self.user_connection.on("GatewayUserTrade", self._handle_trade_update)
-            
-            # Start connection
-            self.user_connection.start()
-            
-            # Wait for connection
-            connection_timeout = 10
-            start_time = time.time()
-            
-            while time.time() - start_time < connection_timeout:
-                if hasattr(self.user_connection, 'transport') and self.user_connection.transport:
-                    if hasattr(self.user_connection.transport, 'state') and self.user_connection.transport.state == "connected":
-                        self.is_user_connected = True
-                        self.logger.info("User hub connected successfully")
-                        return True
-                time.sleep(0.1)
-            
-            # Try a test message
+        with self._start_lock:
+            if (self.is_user_connected and self.user_connection is not None
+                    and self.user_connection.transport.is_connected()):
+                return True
+            self._user_ready.clear()
             try:
-                self.user_connection.send('SubscribeAccounts', [])
-                self.is_user_connected = True
-                self.logger.info("User hub connected successfully (confirmed via test message)")
-                return True
-            except Exception:
-                # Assume connection is working
-                self.is_user_connected = True
-                self.logger.info("User hub connected successfully (assumed)")
-                return True
-            
-        except Exception as e:
-            self.logger.error(f"Failed to connect to user hub: {e}")
-            return False
-    
+                if self.user_connection is not None:
+                    self.user_connection.stop()
+                self.user_connection = self._build_hub(self.user_hub_url)
+                self.user_connection.on_open(self._on_user_hub_open)
+                self.user_connection.on_reconnect(self._on_user_hub_open)
+                self.user_connection.on_close(self._on_user_hub_close)
+                self.user_connection.on_error(self._on_user_hub_error)
+                for event, handler in (("GatewayUserAccount", self._handle_account_update),
+                                       ("GatewayUserOrder", self._handle_order_update),
+                                       ("GatewayUserPosition", self._handle_position_update),
+                                       ("GatewayUserTrade", self._handle_trade_update)):
+                    self.user_connection.on(event, handler)
+                self.user_connection.start()
+                if not self._user_ready.wait(self.config.get("streaming_connect_timeout", 10)):
+                    self.user_connection.stop()
+                    self.is_user_connected = False
+                    self.logger.warning("User hub did not establish a connection")
+                return self.is_user_connected
+            except Exception as exc:
+                self._on_user_hub_close()
+                self.logger.error("User hub connection failed (%s)", type(exc).__name__)
+                return False
+
     def _on_user_hub_open(self):
-        """Handle user hub connection open"""
-        self.logger.info("User hub connection opened")
-    
+        self.is_user_connected = True
+        if self._subscribe_user and not self.subscribe_all(self.account_id):
+            self.is_user_connected = False
+            return
+        self._user_ready.set()
+
     def _on_user_hub_close(self):
-        """Handle user hub connection close"""
-        self.logger.info("User hub connection closed")
-    
+        self.is_user_connected = False
+        self._user_ready.clear()
+
     def _on_user_hub_error(self, data):
-        """Handle user hub connection error"""
-        self.logger.error(f"User hub error: {data}")
-    
+        self._on_user_hub_close()
+        self.logger.error("ProjectX user hub reported an error")
+
     def _handle_account_update(self, *args):
-        """Handle account update event - SignalR might pass multiple args"""
-        data = args[0] if args else None
         if self.on_account_update:
-            self.on_account_update(data)
-    
+            self.on_account_update(args[0] if args else None)
+
     def _handle_order_update(self, *args):
-        """Handle order update event - SignalR might pass multiple args"""
-        # SignalR can pass data as multiple arguments
-        data = args[0] if args else None
         if self.on_order_update:
-            self.on_order_update(data)
-    
+            self.on_order_update(args[0] if args else None)
+
     def _handle_position_update(self, *args):
-        """Handle position update event - SignalR might pass multiple args"""
-        data = args[0] if args else None
         if self.on_position_update:
-            self.on_position_update(data)
-    
+            self.on_position_update(args[0] if args else None)
+
     def _handle_trade_update(self, *args):
-        """Handle trade update event - SignalR might pass multiple args"""
-        data = args[0] if args else None
         if self.on_trade_update:
-            self.on_trade_update(data)
-    
+            self.on_trade_update(args[0] if args else None)
+
     def subscribe_all(self, account_id: int = None) -> bool:
-        """Subscribe to all data streams for the account"""
+        if account_id is not None:
+            self.account_id = account_id
+        self._subscribe_user = True
+        if not self.is_user_connected or self.user_connection is None:
+            return False
         try:
-            if not self.is_user_connected:
-                self.logger.warning("User hub not connected, cannot subscribe")
-                return False
-            
-            if not self.user_connection:
-                self.logger.warning("No user connection available for subscription")
-                return False
-            
-            # Add a small delay to ensure connection is fully established
-            import time
-            time.sleep(0.5)
-            
-            # Check if connection is ready for messages
-            try:
-                # Subscribe to all available streams
-                self.user_connection.send('SubscribeAccounts', [])
-                if account_id:
-                    self.user_connection.send('SubscribeOrders', [account_id])
-                    self.user_connection.send('SubscribePositions', [account_id])
-                    self.user_connection.send('SubscribeTrades', [account_id])
-                
-                self.logger.info("Subscribed to all data streams")
-                return True
-                
-            except Exception as send_error:
-                # Don't fail completely if streaming subscription fails
-                self.logger.warning(f"Could not subscribe to streams (non-critical): {send_error}")
-                return False
-            
-        except Exception as e:
-            self.logger.error(f"Failed to subscribe to streams: {e}")
+            self.user_connection.send('SubscribeAccounts', [])
+            if self.account_id is not None:
+                for topic in ('SubscribeOrders', 'SubscribePositions', 'SubscribeTrades'):
+                    self.user_connection.send(topic, [self.account_id])
+            return True
+        except Exception as exc:
+            self._on_user_hub_close()
+            self.logger.warning("User subscriptions failed (%s)", type(exc).__name__)
             return False
 
+    def start_market_hub(self) -> bool:
+        with self._start_lock:
+            if (self.is_market_connected and self.market_connection is not None
+                    and self.market_connection.transport.is_connected()):
+                return True
+            self._market_ready.clear()
+            try:
+                if self.market_connection is not None:
+                    self.market_connection.stop()
+                self.market_connection = self._build_hub(self.market_hub_url)
+                self.market_connection.on_open(self._on_market_hub_open)
+                self.market_connection.on_reconnect(self._on_market_hub_open)
+                self.market_connection.on_close(self._on_market_hub_close)
+                self.market_connection.on_error(self._on_market_hub_error)
+                self.market_connection.on('GatewayQuote', self._handle_quote)
+                self.market_connection.start()
+                if not self._market_ready.wait(self.config.get("streaming_connect_timeout", 10)):
+                    self.market_connection.stop()
+                    self.is_market_connected = False
+                    self.logger.warning("Market hub did not establish a connection")
+                return self.is_market_connected
+            except Exception as exc:
+                self._on_market_hub_close()
+                self.logger.error("Market hub connection failed (%s)", type(exc).__name__)
+                return False
+
+    def _on_market_hub_open(self):
+        self.is_market_connected = True
+        try:
+            with self._quote_lock:
+                contracts = tuple(self._quote_contracts)
+            for contract_id in contracts:
+                self.market_connection.send('SubscribeContractQuotes', [contract_id])
+            self._market_ready.set()
+        except Exception as exc:
+            self._on_market_hub_close()
+            self.logger.warning("Market subscriptions failed (%s)", type(exc).__name__)
+
+    def _on_market_hub_close(self):
+        self.is_market_connected = False
+        self._market_ready.clear()
+        with self._quote_lock:
+            self._quotes.clear()
+            for event in self._quote_events.values():
+                event.clear()
+
+    def _on_market_hub_error(self, data):
+        self._on_market_hub_close()
+        self.logger.error("ProjectX market hub reported an error")
+
+    def _handle_quote(self, *args):
+        values = args[0] if len(args) == 1 and isinstance(args[0], (list, tuple)) else args
+        if len(values) != 2:
+            return
+        contract_id, payload = values
+        if not isinstance(contract_id, str) or not isinstance(payload, dict):
+            return
+        with self._quote_lock:
+            prior = self._quotes.get(contract_id, {})
+            prior.update(payload)
+            self._quotes[contract_id] = prior
+            self._quote_events.setdefault(contract_id, threading.Event()).set()
+
+    def get_market_quote(self, contract_id: str, timeout: float = 10):
+        if not self.start_market_hub():
+            return None
+        with self._quote_lock:
+            first_subscription = contract_id not in self._quote_contracts
+            self._quote_contracts.add(contract_id)
+            event = self._quote_events.setdefault(contract_id, threading.Event())
+        if first_subscription:
+            try:
+                self.market_connection.send('SubscribeContractQuotes', [contract_id])
+            except Exception as exc:
+                with self._quote_lock:
+                    self._quote_contracts.discard(contract_id)
+                self.logger.warning("Quote subscription failed (%s)", type(exc).__name__)
+                return None
+        if not event.is_set():
+            event.wait(timeout)
+        with self._quote_lock:
+            payload = self._quotes.get(contract_id)
+            return dict(payload) if payload else None
+
     def stop(self):
-        """Stop streaming connection"""
-        if self.user_connection:
-            self.user_connection.stop()
+        self._subscribe_user = False
+        for connection in (self.user_connection, self.market_connection):
+            if connection is not None:
+                connection.stop()
+        self._on_user_hub_close()
+        self._on_market_hub_close()
 
 
 class ProjectX:
@@ -286,6 +343,21 @@ class ProjectX:
         """Get streaming client instance"""
         return ProjectXStreaming(self.config, self.token, account_id)
     
+    def _post(self, url, **kwargs):
+        # A definitive 401 rejects the request before order acceptance. Never replay
+        # order writes after a timeout or an ambiguous server/network failure.
+        provider = getattr(self, "token_provider", None)
+        if provider is not None:
+            self.token = provider()
+            self.headers["Authorization"] = f"Bearer {self.token}"
+        response = requests.post(url, headers=self.headers, **kwargs)
+        refresher = getattr(self, "token_refresher", None)
+        if response.status_code == 401 and refresher is not None:
+            self.token = refresher()
+            self.headers["Authorization"] = f"Bearer {self.token}"
+            response = requests.post(url, headers=self.headers, **kwargs)
+        return response
+
     def account_search(self, only_active_accounts: bool = True) -> dict:
         """Returns a list of accounts for the user"""
         url = f"{self.base_url}api/account/search"
@@ -298,7 +370,7 @@ class ProjectX:
             self.logger.debug(f"API Request: POST {url}")
             self.logger.debug(f"Request Data: {payload}")
             
-            response = requests.post(url, headers=self.headers, json=payload)
+            response = self._post(url, json=payload)
             
             self.logger.debug(f"Response Status: {response.status_code}")
             
@@ -331,7 +403,7 @@ class ProjectX:
             self.logger.debug(f"API Request: POST {url}")
             self.logger.debug(f"Request Data: {payload}")
             
-            response = requests.post(url, headers=self.headers, json=payload, timeout=10)
+            response = self._post(url, json=payload, timeout=10)
             
             self.logger.debug(f"Response Status: {response.status_code}")
             
@@ -371,7 +443,7 @@ class ProjectX:
             self.logger.debug(f"API Request: POST {url}")
             self.logger.debug(f"Request Data: {payload}")
             
-            response = requests.post(url, headers=self.headers, json=payload, timeout=10)
+            response = self._post(url, json=payload, timeout=10)
             
             self.logger.debug(f"Response Status: {response.status_code}")
             
@@ -412,7 +484,7 @@ class ProjectX:
             self.logger.debug(f"API Request: POST {url}")
             self.logger.debug(f"Request Data: {payload}")
             
-            response = requests.post(url, headers=self.headers, json=payload, timeout=10)
+            response = self._post(url, json=payload, timeout=10)
             
             self.logger.debug(f"Response Status: {response.status_code}")
             
@@ -440,12 +512,14 @@ class ProjectX:
         """Place an order for a contract"""
         url = f"{self.base_url}api/order/place"
         
-        # --- Sanitize & normalize inputs ---
+        from decimal import Decimal, InvalidOperation
         try:
-            size_int = int(size)
-        except (TypeError, ValueError):
-            self.logger.warning(f"⚠️ Invalid size '{size}' - defaulting to 1")
-            size_int = 1
+            value = Decimal(str(size))
+            if not value.is_finite() or value <= 0 or value != value.to_integral_value():
+                raise ValueError("ProjectX futures quantities must be positive whole contracts")
+            size_int = int(value)
+        except (InvalidOperation, TypeError):
+            raise ValueError("ProjectX futures quantities must be positive whole contracts") from None
 
         # Remove None values to avoid API model binding issues
         def _clean(d: dict) -> dict:
@@ -468,7 +542,7 @@ class ProjectX:
         self.logger.debug(f"ProjectX.order_place payload: {base_payload}")
 
         def _post(json_payload):
-            return requests.post(url, headers=self.headers, json=json_payload, timeout=10)
+            return self._post(url, json=json_payload, timeout=10)
 
         try:
             response = _post(base_payload)
@@ -515,7 +589,7 @@ class ProjectX:
         url = f"{self.base_url}api/order/cancel"
         payload = {"accountId": account_id, "orderId": order_id}
         try:
-            response = requests.post(url, headers=self.headers, json=payload, timeout=10)
+            response = self._post(url, json=payload, timeout=10)
             try:
                 data = response.json()
             except ValueError:
@@ -540,7 +614,7 @@ class ProjectX:
         # Remove None values to avoid API model binding issues
         payload = {k: v for k, v in payload.items() if v is not None}
         try:
-            response = requests.post(url, headers=self.headers, json=payload, timeout=10)
+            response = self._post(url, json=payload, timeout=10)
             try:
                 data = response.json()
             except ValueError:
@@ -560,7 +634,7 @@ class ProjectX:
         }
         
         try:
-            response = requests.post(url, headers=self.headers, json=payload)
+            response = self._post(url, json=payload)
             return response.json()
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Error: {e}")
@@ -579,7 +653,7 @@ class ProjectX:
             import time
             time.sleep(0.05)  # 50ms delay between requests
             
-            response = requests.post(url, headers=self.headers, json=payload, timeout=10)
+            response = self._post(url, json=payload, timeout=10)
             
             if response.status_code == 200:
                 try:
@@ -628,7 +702,7 @@ class ProjectX:
         }
         
         try:
-            response = requests.post(url, headers=self.headers, json=payload)
+            response = self._post(url, json=payload)
             result = response.json()
             
             if not result.get("success"):
@@ -701,7 +775,10 @@ class ProjectXClient:
             raise Exception(f"Failed to authenticate with {self.firm}")
         
         # Initialize ProjectX API client
+        self._auth_lock = threading.RLock()
         self.api = ProjectX(config, self.token)
+        self.api.token_provider = self._ensure_auth_token
+        self.api.token_refresher = self._refresh_auth_token
         
         # Streaming client
         self.streaming = None
@@ -714,10 +791,47 @@ class ProjectXClient:
         self._account_cache_time = 0
         self._positions_cache = None
         self._positions_cache_time = 0
+        self._positions_cache_key = None
         self._orders_cache = None
         self._orders_cache_time = 0
+        self._orders_cache_key = None
         self._cache_ttl = 5  # 30 seconds cache
     
+    def _refresh_auth_token(self):
+        with self._auth_lock:
+            token = ProjectXAuth.get_auth_token(self.config)
+            if not token:
+                raise RuntimeError("ProjectX session renewal failed")
+            self.token = token
+            self.api.token = token
+            self.api.headers["Authorization"] = f"Bearer {token}"
+            if self.streaming is not None:
+                self.streaming.token = token
+                for hub in (self.streaming.user_connection, self.streaming.market_connection):
+                    if hub is None:
+                        continue
+                    hub.token = token
+                    hub.headers["Authorization"] = f"Bearer {token}"
+                    transport = getattr(hub, "transport", None)
+                    if transport is not None:
+                        transport.token = token
+                        transport.headers["Authorization"] = f"Bearer {token}"
+            return token
+
+    def _ensure_auth_token(self):
+        # Expiry is a scheduling hint only; the provider still validates the JWT.
+        import base64
+        import json
+        try:
+            encoded = self.token.split('.')[1]
+            claims = json.loads(base64.urlsafe_b64decode(encoded + '=' * (-len(encoded) % 4)))
+            expiry = claims.get('exp')
+        except (ValueError, TypeError, IndexError):
+            expiry = None
+        if isinstance(expiry, (int, float)) and expiry <= time.time() + 60:
+            return self._refresh_auth_token()
+        return self.token
+
     def get_accounts(self) -> List[Dict]:
         """Get list of available accounts"""
         # Use cached data if available and fresh
@@ -755,8 +869,7 @@ class ProjectXClient:
                     self.logger.info(f"✅ Using preferred account: {preferred_name} (ID: {account_id}, Balance: ${account_balance:,.2f})")
                     return account_id
             
-            # If preferred account not found, log warning but continue
-            self.logger.warning(f"⚠️ Preferred account '{preferred_name}' not found, using highest balance account")
+            raise ValueError(f"Preferred account '{preferred_name}' was not found; no other account was selected")
         
         # Fallback: Select account with highest balance
         selected_account = max(accounts, key=lambda x: x.get('balance', 0))
@@ -784,7 +897,7 @@ class ProjectXClient:
     def get_positions(self, account_id: int) -> List[Dict]:
         """Get open positions with caching"""
         # Use cached data if available and fresh
-        if (self._positions_cache is not None and 
+        if (self._positions_cache is not None and self._positions_cache_key == account_id and
             time.time() - self._positions_cache_time < self._cache_ttl):
             self.logger.debug(f"🚀 Using cached positions data")
             return self._positions_cache
@@ -794,23 +907,27 @@ class ProjectXClient:
             positions = response.get("positions", [])
             # Update cache
             self._positions_cache = positions
+            self._positions_cache_key = account_id
             self._positions_cache_time = time.time()
             return positions
         elif response and response.get("error") == "Rate limited":
             # For rate limiting, return cached data if available, otherwise empty list
-            return self._positions_cache if self._positions_cache is not None else []
+            if self._positions_cache is not None and self._positions_cache_key == account_id:
+                return self._positions_cache
+            raise RuntimeError("ProjectX positions unavailable: rate limited")
         else:
             raise Exception(f"Failed to retrieve positions: {response}")
     
     def get_orders(self, account_id: int, start_date: str = None, end_date: str = None) -> List[Dict]:
         """Get orders within date range with caching"""
+        cache_key = (account_id, start_date, end_date)
         if not start_date:
             # Default to last 30 days
             from datetime import datetime, timedelta
             start_date = (datetime.now() - timedelta(days=30)).isoformat()
         
         # Use cached data if available and fresh
-        if (self._orders_cache is not None and 
+        if (self._orders_cache is not None and self._orders_cache_key == cache_key and
             time.time() - self._orders_cache_time < self._cache_ttl):
             self.logger.debug(f"🚀 Using cached orders data")
             return self._orders_cache
@@ -820,11 +937,14 @@ class ProjectXClient:
             orders = response.get("orders", [])
             # Update cache
             self._orders_cache = orders
+            self._orders_cache_key = cache_key
             self._orders_cache_time = time.time()
             return orders
         elif response and response.get("error") == "Rate limited":
             # For rate limiting, return cached data if available, otherwise empty list
-            return self._orders_cache if self._orders_cache is not None else []
+            if self._orders_cache is not None and self._orders_cache_key == cache_key:
+                return self._orders_cache
+            raise RuntimeError("ProjectX orders unavailable: rate limited")
         else:
             raise Exception(f"Failed to retrieve orders: {response}")
     
@@ -974,8 +1094,8 @@ class ProjectXClient:
         response = self.api.contract_search_id(contract_id)
         if response and response.get("success"):
             contracts = response.get("contracts", [])
-            if contracts:
-                contract_details = contracts[0]  # Return first match
+            contract_details = response.get("contract") or (contracts[0] if contracts else None)
+            if isinstance(contract_details, dict):
                 # Cache the result
                 self._contract_cache[contract_id] = contract_details
                 return contract_details
@@ -989,7 +1109,7 @@ class ProjectXClient:
             # For other errors, return empty dict instead of raising exception
             return {}
     
-    def find_contract_by_symbol(self, symbol: str) -> str:
+    def find_contract_by_symbol(self, symbol: str, expiration=None) -> str:
         """Find contract ID by searching for symbol using Asset class continuous futures logic"""
         try:
             from lumibot.entities import Asset
@@ -1004,61 +1124,55 @@ class ProjectXClient:
                 if contracts:
                     self.logger.info(f"📋 Found {len(contracts)} contracts via search")
 
-                    # Find the most recent/active contract (usually sorted by expiry)
-                    active_contracts = [c for c in contracts if c.get('active', True)]
-                    to_search = active_contracts if active_contracts else contracts
-                    # If the 'name' field exists, try to match symbol
-                    to_search = [c for c in to_search if c.get('name', '').startswith(symbol_upper)] or to_search
+                    def matches(contract):
+                        name = str(contract.get('name') or contract.get('symbol') or contract.get('Symbol') or '').upper()
+                        if not (name == symbol_upper or name.startswith(symbol_upper)):
+                            return False
+                        # Searching ES can also return MES; only match the requested root.
+                        suffix = name[len(symbol_upper):]
+                        if suffix and (suffix[0] not in 'FGHJKMNQUVXZ' or not suffix[1:].isdigit()):
+                            return False
+                        if expiration is not None:
+                            month = 'FGHJKMNQUVXZ'[expiration.month - 1]
+                            cid = str(contract.get('contractId') or contract.get('id') or contract.get('ContractId') or '')
+                            return (cid.endswith(f'.{month}{expiration.year % 100:02d}')
+                                    or name in {f'{symbol_upper}{month}{expiration.year}',
+                                                f'{symbol_upper}{month}{expiration.year % 100:02d}',
+                                                f'{symbol_upper}{month}{expiration.year % 10}'})
+                        return contract.get('activeContract', contract.get('active', True)) is not False
 
-                    # Try different possible field names for contract ID
-                    contract_id = (to_search[0].get('contractId') or
-                                   to_search[0].get('id') or
-                                   to_search[0].get('symbol') or '')
-                    self.logger.info(f"✅ Using active contract: {contract_id}")
-                    return contract_id
+                    matching = [contract for contract in contracts if matches(contract)]
+                    if matching:
+                        contract = matching[0]
+                        contract_id = (contract.get('contractId') or contract.get('id')
+                                       or contract.get('ContractId') or '')
+                        if contract_id:
+                            self._contract_cache[contract_id] = contract
+                            return contract_id
 
                 else:
                     self.logger.warning(f"⚠️ No contracts found via API search, falling back to search Asset logic")
             except Exception as search_e:
                 self.logger.error(f"❌ API search failed: {search_e}, falling back to search Asset logic")
 
-            # Use Asset class logic for continuous futures resolution
+            if expiration is not None:
+                self.logger.warning("No contract matched requested expiration for %s", symbol)
+                return ''
+
+            # Asset month codes are search hints, never an execution contract ID.
             try:
-                # Create continuous futures asset
                 asset = Asset(symbol_upper, asset_type=Asset.AssetType.CONT_FUTURE)
-                
-                # Get potential contracts using Asset class logic
-                potential_contracts = asset.get_potential_futures_contracts()
-                
-                self.logger.debug(f"📋 Asset class generated {len(potential_contracts)} potential contracts")
-                
-                # Try each potential contract to find one that works
-                for contract_symbol in potential_contracts:
-                    # Convert to ProjectX format: CON.F.US.SYMBOL.EXPIRY
-                    if not contract_symbol.startswith("CON.F.US."):
-                        # Parse symbol like "MESU25" -> "CON.F.US.MES.U25"
-                        if len(contract_symbol) >= 4:
-                            base_symbol = contract_symbol[:-3]  # Remove last 3 chars (month + year)
-                            month_year = contract_symbol[-3:]   # Get month + year code
-                            if len(month_year) == 3:
-                                month_code = month_year[0]
-                                year_code = month_year[1:]
-                                contract_id = f"CON.F.US.{base_symbol}.{month_code}{year_code}"
-                            else:
-                                contract_id = f"CON.F.US.{symbol_upper}.{month_year}"
-                        else:
-                            contract_id = f"CON.F.US.{symbol_upper}.U25"  # Fallback
-                    else:
-                        contract_id = contract_symbol
-                    
-                    # Cache and return the first valid contract
-                    self._contract_cache[contract_id] = {"id": contract_id, "symbol": symbol_upper}
-                    self.logger.info(f"✅ Using Asset class contract: {contract_id}")
-                    return contract_id
-                
-            except Exception as asset_error:
-                self.logger.warning(f"⚠️ Asset class method failed: {asset_error}")
-            
+                for candidate in asset.get_potential_futures_contracts():
+                    for contract in self.search_contracts(candidate):
+                        name = str(contract.get('name') or contract.get('symbol') or '').upper()
+                        if name == candidate.upper():
+                            cid = contract.get('id') or contract.get('contractId')
+                            if cid:
+                                self._contract_cache[cid] = contract
+                                return cid
+            except Exception as exc:
+                self.logger.debug("Contract candidate search failed (%s)", type(exc).__name__)
+
             self.logger.error(f"❌ No contract found for symbol: {symbol}")
             return ''
             
@@ -1087,11 +1201,22 @@ class ProjectXClient:
             return price
     
     def get_streaming_client(self, account_id: int = None) -> ProjectXStreaming:
-        """Get streaming client for real-time data"""
+        """Get the reusable user/market streaming owner."""
         if not self.streaming:
             self.streaming = ProjectXStreaming(self.config, self.token, account_id)
+        if account_id is not None:
+            self.streaming.account_id = account_id
+        self.streaming.token_provider = self._ensure_auth_token
         return self.streaming
-    
+
+    def get_market_quote(self, contract_id: str):
+        self._ensure_auth_token()
+        return self.get_streaming_client().get_market_quote(contract_id)
+
+    def close(self):
+        if self.streaming is not None:
+            self.streaming.stop()
+
     def round_to_tick_size(self, price: float, tick_size: float) -> float:
         """Round price to the nearest tick size increment"""
         if price is None or tick_size is None:
@@ -1111,6 +1236,32 @@ class ProjectXClient:
             return {"success": False, "error": str(e)}
 
 
+def contract_price_multiplier(details):
+    """ProjectX tickValue is dollars per tick; tickSize is price points per tick."""
+    import math
+    if not isinstance(details, dict):
+        return None
+    tick_size, tick_value = details.get("tickSize"), details.get("tickValue")
+    try:
+        value = float(tick_value) / float(tick_size)
+        return value if math.isfinite(value) and value > 0 else None
+    except (ValueError, TypeError, ZeroDivisionError):
+        return None
+
+
+def asset_from_contract_details(details):
+    from lumibot.entities import Asset
+    import re
+    symbol = details.get("symbol") or details.get("Symbol")
+    if not symbol:
+        match = re.fullmatch(r"(.+)[FGHJKMNQUVXZ][0-9]{1,4}", str(details.get("name") or ""))
+        symbol = match.group(1) if match else None
+    if not symbol:
+        return None
+    return Asset(symbol, asset_type=Asset.AssetType.CONT_FUTURE,
+                 multiplier=contract_price_multiplier(details))
+
+
 def _to_utc_iso(dt_or_str, is_est: bool = True) -> str:
     """
     Normalize input (datetime or ISO string) to a UTC ISO formatted string.
@@ -1125,7 +1276,7 @@ def _to_utc_iso(dt_or_str, is_est: bool = True) -> str:
     elif isinstance(dt_or_str, str):
         s = dt_or_str
         if s.endswith('Z'):
-            s = s[:-1]
+            s = s[:-1] + '+00:00'
         # fromisoformat handles YYYY-MM-DDTHH:MM:SS[.ffffff][+HH:MM]
         dt = datetime.fromisoformat(s)
     else:
@@ -1193,28 +1344,35 @@ def normalize_bracket_entry_tag(tag: str):
     return f"BRK_ENTRY_{base}", base
 
 # ================= Additional Low-Risk Helpers =================
+def projectx_strategy_identity(strategy_name):
+    """A stable complete-name identity that fits the provider's 64-character tags."""
+    import base64
+    import hashlib
+    digest = hashlib.sha256(str(strategy_name).encode('utf-8')).digest()[:24]
+    return base64.urlsafe_b64encode(digest).decode('ascii')
+
+
 def build_unique_order_tag(order):
     """Generate (or normalize) a unique order tag.
 
-    Mirrors existing inline logic in ProjectX broker: if tag absent or blank create
-    STRAT-<millis><rand2>. Keeps existing tag if non-empty. Returns tag string.
-    Pure with respect to broker state (only uses order + time/random).
+    Preserve a complete-name strategy identity and append a unique order suffix.
+    Explicit non-empty user tags remain unchanged.
     """
     try:
-        import time, random
-        if not getattr(order, 'tag', None):
+        import base64
+        import uuid
+        if not str(getattr(order, 'tag', '') or '').strip():
             strat_part = ''
             try:
                 if hasattr(order, 'strategy') and order.strategy:
                     strat_name = order.strategy if isinstance(order.strategy, str) else getattr(order.strategy, 'name', '')
-                    strat_part = (strat_name or 'LB')[:8].upper()
+                    strat_part = strat_name or 'LB'
             except Exception:
                 strat_part = 'LB'
-            unique_suffix = f"{int(time.time()*1000)%100000000:08d}{random.randint(10,99)}"
-            order.tag = f"{strat_part}-{unique_suffix}"
-        else:
-            if not str(order.tag).strip():
-                order.tag = f"LB-{int(time.time()*1000)}"
+            unique_suffix = base64.urlsafe_b64encode(uuid.uuid4().bytes).decode('ascii').rstrip('=')
+            # 32 owner characters + 22 random characters, plus the longest
+            # BRK_ENTRY_ prefix, is exactly the provider's 64-character limit.
+            order.tag = projectx_strategy_identity(strat_part) + unique_suffix
     except Exception:
         # Silent; caller already logs on failure in original logic
         pass
@@ -1334,7 +1492,7 @@ def restore_bracket_meta_if_needed(order, cache, meta_map, logger=None):
     try:
         if hasattr(order, '_synthetic_bracket'):
             return False
-        broker_id = getattr(order, 'id', None)
+        broker_id = getattr(order, 'identifier', None) or getattr(order, 'id', None)
         # Check cached order first
         if cache and broker_id in cache:
             cached = cache.get(broker_id)
@@ -1362,9 +1520,16 @@ def should_spawn_bracket_children(meta: dict, parent) -> tuple:
     """
     if meta is None:
         return False, 'no_meta'
+    if str(getattr(parent, 'status', '')).lower() not in {'fill', 'filled', 'partial_fill'}:
+        return False, 'parent_not_filled'
     if meta.get('children') is None:
         return False, 'children_missing'
-    if meta.get('children_submitted') or getattr(parent, '_bracket_children_submitted', False):
+    quantity = float(getattr(parent, 'filled_quantity', 0) or 0)
+    if not quantity and str(getattr(parent, 'status', '')).lower() in {'fill', 'filled'}:
+        quantity = float(parent.quantity)
+    if quantity <= 0:
+        return False, 'parent_not_filled'
+    if (meta.get('children_submitted') or getattr(parent, '_bracket_children_submitted', False)) and quantity <= meta.get('protected_quantity', quantity):
         return False, 'already_submitted'
     tp_price = meta.get('tp_price')
     sl_price = meta.get('sl_price')

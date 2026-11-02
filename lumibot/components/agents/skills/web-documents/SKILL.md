@@ -36,6 +36,13 @@ lookup, not a safe way to inspect metadata; use the discovery metadata already
 returned to explain the exclusion. Apply this check to supplements as well as
 the main index.
 
+After filtering a discovery table, replace its preview with the returned
+eligible rows as your read worklist. Read each selected row once with its own
+URL, timestamp and hash; do not append adjacent rows from the earlier preview.
+If a supplement query returns one eligible row, that authorizes one row's
+linked documents, not every document visible in the unfiltered supplement.
+Find additional eligible rows with another query before extending the list.
+
 Use the simulated datetime from the runtime, not today's date. Find a relevant
 baseline and available updates, read their contents, and provide the best
 supported reconstruction. An exhaustive index or original-version archive is
@@ -128,6 +135,26 @@ number against the calculation output rather than recomputing it in prose.
    Preserve supported prior findings and distinguish stale research from a
    newly supported estimate. Continue feasible relevant lookups, but do not
    make an impossible completeness certificate a condition for answering.
+
+Search hits are an inventory aid, not complete table rows. A wrapped row's upper
+bound or other required value may be on a continuation line, on the next page,
+or across a text-window boundary. Use the surrounding unfiltered text to join
+the whole row, retaining values already read in earlier chunks. A later `find`
+result that omits those lines does not erase their values or establish that a
+field is unavailable. Keep asset values, income and transaction amounts in
+their own columns. Associate each value with its specific instrument, not only
+the issuer or ticker: one issuer can have separate option and common-stock rows.
+An instrument's type marker can occupy its own line between its name and its
+owner/value. Expand that marker to the surrounding complete row; do not classify
+it from an isolated search hit. A positive asset range followed by income `None`
+is still a positive asset, even when another instrument of that issuer has no
+asset value. Reconcile the completed positive-instrument ledger and its count
+against the source inventory before handing it off.
+Before handing off a numeric ledger, verify every requested
+bound against its complete source row. Copy visible values rather than marking
+them unresolved; if a value truly cannot be recovered, explain that specific
+gap and use a permitted labeled approximation without dropping the supported
+remainder.
 
 Before returning the answer, audit the final table against the source rows:
 each holding needs its own instrument evidence, and an issuer heading must not
@@ -256,6 +283,11 @@ metadata to explain the exclusion instead.
 Pass the selected row's normalized instant as `available_at` to `read_document`.
 Pass its retained-original SHA-256 as `expected_sha256` when the source provides
 it. Never invent or move an availability instant to make a document eligible.
+When reporting discovery or publication times, copy each returned timestamp
+exactly, including its date and UTC offset. If a conversion is necessary,
+compute it with a tool first and report the same instant. Never attach one
+timezone's offset to clock digits taken from another timezone.
+
 Retain the exact URL, source timestamp and hash together. These optional
 hash values must be copied in full from the selected row, without abbreviations,
 whitespace or guessed characters. Omit a hash the publisher did not provide.

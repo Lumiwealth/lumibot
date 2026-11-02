@@ -112,7 +112,7 @@ CCXT sends sandbox requests to: https://stage.bitso.com/api. Testnet and live ac
 Algorithmic trading example: a simple Bitso bot
 -----------------------------------------------
 
-This bot buys about 1000 MXN of BTC on Bitso once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount.
+This bot buys about 1000 MXN of BTC on Bitso once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. Bitso accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -134,7 +134,8 @@ This bot buys about 1000 MXN of BTC on Bitso once and then holds it. It is a sta
            price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
                quantity = round(1000 / price, 6)  # about 1000 MXN worth
-               order = self.create_order(coin, quantity, "buy", quote=self.quote_asset)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
@@ -209,7 +210,7 @@ What you can trade on Bitso
    * - Options
      - No
 
-CCXT lists these order features for Bitso: market orders, limit orders, editing open orders, canceling orders.
+CCXT lists these order features for Bitso: editing open orders, canceling orders.
 
 Fees and partner IDs on Bitso
 -----------------------------
@@ -273,4 +274,4 @@ Sources
 * `Bitso Help Center: Create an API key on Bitso <https://support.bitso.com/hc/en-us/articles/4415097148948-Create-an-API-key-on-Bitso>`_ (read 2026-10-23)
 * `Bitso API docs: Generate your API credentials <https://docs.bitso.com/bitso-api/docs/2-generate-your-api-credentials>`_ (read 2026-10-23)
 * `Bitso API docs: Set up your testing environment <https://docs.bitso.com/bitso-api/docs/set-up-your-testing-environment>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

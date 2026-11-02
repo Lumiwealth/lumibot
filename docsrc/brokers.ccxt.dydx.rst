@@ -211,7 +211,7 @@ What you can trade on dYdX
    * - Options
      - No
 
-CCXT lists these order features for dYdX: limit orders, editing open orders, canceling orders.
+CCXT lists these order features for dYdX: editing open orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDC:USDC``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
 
@@ -268,9 +268,9 @@ Related guides
 
 * :doc:`How crypto exchange setup works <brokers.ccxt>`
 * :doc:`AI agents quickstart <agents_quickstart>`
-* :doc:`AftermathFinance trading bot <brokers.ccxt.aftermath>`
 * :doc:`Apex trading bot <brokers.ccxt.apex>`
 * :doc:`BloFin trading bot <brokers.ccxt.blofin>`
+* :doc:`Extended trading bot <brokers.ccxt.extended>`
 * :doc:`Hibachi trading bot <brokers.ccxt.hibachi>`
 
 Sources
@@ -282,4 +282,4 @@ Sources
 * `dYdX Help Center: Secret Phrase on dYdX Chain <https://help.dydx.trade/en/articles/166999-secret-phrase-on-dydx-chain>`_ (read 2026-10-23)
 * `dYdX home page <https://www.dydx.xyz/>`_ (read 2026-10-23)
 * `dYdX testnet front end <https://v4.testnet.dydx.exchange/>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

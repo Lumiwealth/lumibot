@@ -32,9 +32,8 @@ CASE_ROOT = REPO_ROOT / "agent_eval_cases"
 DEFAULT_ACTING_MODEL = "chatgpt/gpt-6-luna"
 DEFAULT_JUDGE_MODEL = "chatgpt/gpt-6-luna"
 EVAL_REASONING_EFFORT = "high"
-# Low, Medium and High judge profiles missed labeled controls. XHigh must
-# independently pass all maintained positive and negative controls.
-JUDGE_REASONING_EFFORT = "xhigh"
+# Qualification requires this profile to pass every maintained labeled control.
+JUDGE_REASONING_EFFORT = "high"
 DEFAULT_FRESHNESS_DAYS = 90
 # A brand new or changed case must pass three times in a row before it is
 # recorded as established. The ongoing gate then runs an established case
@@ -45,11 +44,11 @@ REQUIRED_CONSECUTIVE_PASSES = NEW_CASE_REQUIRED_PASSES  # backwards-compatible a
 MAX_INPUT_TOKENS_PER_MODEL_CALL = 1_048_576
 ACTING_MAX_OUTPUT_TOKENS = 12_000
 JUDGE_MAX_OUTPUT_TOKENS = 4_000  # GPT-6 Luna reasoning tokens count against this cap
-ORDER_TOOLS = {"orders_submit_order", "orders_submit_multileg"}
+ORDER_TOOLS = {"orders_submit_order", "orders_submit_orders", "orders_submit_multileg"}
 LEDGER_LOCK = threading.Lock()
 EVAL_SDK_PACKAGES = (
     "google-adk", "google-genai", "litellm", "pandas-ta-classic", "pandas", "numpy", "alpaca-py",
-    "httpx", "openai", "PyJWT", "filelock", "pydantic",
+    "httpx", "openai", "PyJWT", "filelock", "pydantic", "massive",
 )
 
 
@@ -251,6 +250,8 @@ class FixtureRuntime:
     # Listed on the chain, but the fixture has no bars or quotes for them.
     empty_expirations: tuple[str, ...] = ()
     underlying_price: float = 600.0
+    initial_cash: float = 100_000.0
+    stock_markets: dict[str, dict[str, float | None] | None] = field(default_factory=dict)
 
     def record(self, name: str, arguments: dict[str, Any], result: Any) -> Any:
         self.calls.append({"name": name, "arguments": arguments, "result": result})
@@ -301,6 +302,29 @@ class FixtureRuntime:
 
 def build_fixture(name: str) -> FixtureRuntime:
     fixture = FixtureRuntime(name=name)
+    portfolio_sizes = {
+        "portfolio_initial_25": 25, "portfolio_initial_9": 9,
+        "portfolio_rebalance": 9, "portfolio_quote_sizing": 1,
+        "portfolio_snapshot_row": 1, "portfolio_one_gap": 9,
+    }
+    if name in portfolio_sizes:
+        fixture.stock_markets = {
+            f"QZX{i:02d}": {"price": 99.0, "bid": 99.0, "ask": 100.0}
+            for i in range(1, portfolio_sizes[name] + 1)
+        }
+        if name == "portfolio_quote_sizing":
+            fixture.stock_markets["QZX01"].update(bid=98.0, snapshot_close=150.0)
+        elif name == "portfolio_rebalance":
+            fixture.initial_cash = 50.0
+            fixture.stock_markets["QZXOLD"] = {"price": 99.0, "bid": 99.0, "ask": 100.0}
+            fixture.positions = [
+                {"symbol": "QZX01", "asset_type": "stock", "quantity": 10},
+                {"symbol": "QZX02", "asset_type": "stock", "quantity": 20},
+                {"symbol": "QZXOLD", "asset_type": "stock", "quantity": 80},
+            ]
+        elif name == "portfolio_one_gap":
+            fixture.stock_markets["QZX03"] = {"price": 99.0, "bid": None, "ask": None}
+            fixture.stock_markets["QZXMISSING"] = None
     if name == "open_credit_spread":
         fixture.positions = [
             {
@@ -375,6 +399,8 @@ def compact_transcript(result: Any, fixture: FixtureRuntime) -> dict[str, Any]:
         "submissions": fixture.submissions,
         "rejected_submissions": fixture.rejected_submissions,
         "final_positions": fixture.positions,
+        "final_account": getattr(fixture, "final_account", None),
+        "broker_trade_events": getattr(fixture, "broker_trade_events", None),
     }
 
 
@@ -729,12 +755,140 @@ def _native_journal_failures(contract: dict[str, Any], transcript: dict[str, Any
     return failures
 
 
+def _target_progress_failures(contract: dict[str, Any], transcript: dict[str, Any]) -> list[str]:
+    """Allow verified stock top-ups without permitting round trips or excess exposure."""
+    from fractions import Fraction
+
+    def number(value):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError("non-finite execution quantity or price")
+        return Fraction(str(value))
+
+    def state(order):
+        return {"filled": "fill", "cancelled": "canceled", "rejected": "error"}.get(
+            order.get("status"), order.get("status")
+        )
+
+    failures = []
+    try:
+        context = transcript["initial_runtime_context"]
+        if context.get("account_snapshot", {}).get("positions_complete") is not True:
+            raise ValueError("initial position inventory is incomplete")
+        initial = {}
+        for position in context["positions"]:
+            asset = position["asset"]
+            if asset.get("type") == "forex":
+                continue  # The account cash balance is not a stock target.
+            symbol = asset["symbol"]
+            if asset.get("type") != "stock" or symbol in initial:
+                raise ValueError("initial stock identity is ambiguous")
+            initial[symbol] = number(position["quantity"])
+        targets = {symbol: number(quantity) for symbol, quantity in contract["targetPositions"].items()}
+        if any(quantity < 0 for quantity in [*initial.values(), *targets.values()]):
+            raise ValueError("target progress requires long-stock inventories")
+        delta = {symbol: targets.get(symbol, 0) - initial.get(symbol, 0) for symbol in initial.keys() | targets.keys()}
+        orders = {}
+        for order in transcript["broker_orders"]:
+            identifier, symbol = order["identifier"], order["asset"]["symbol"]
+            if not isinstance(identifier, str) or not identifier or identifier in orders:
+                raise ValueError("broker order identity is missing or duplicated")
+            if (
+                order["asset"].get("type") != "stock" or not delta.get(symbol)
+                or order.get("side") != ("buy" if delta[symbol] > 0 else "sell")
+                or number(order["quantity"]) <= 0
+            ):
+                failures.append("target progress: order does not move a requested stock toward its target")
+            if state(order) not in {"fill", "canceled", "error"}:
+                failures.append("target progress: broker order is not terminal")
+            orders[identifier] = order
+
+        quantities, notionals, executed = {}, {}, {}
+        for event in transcript["broker_trade_events"]:
+            if event.get("status") not in {"fill", "filled", "partial_fill", "partially_filled"}:
+                continue
+            order = orders[event["identifier"]]
+            symbol = order["asset"]["symbol"]
+            quantity, price = number(event["filled_quantity"]), number(event["price"])
+            if event.get("symbol") != symbol or event.get("side") != order["side"] or quantity <= 0 or price <= 0:
+                raise ValueError("fill identity, quantity or price is inconsistent")
+            quantities[symbol] = quantities.get(symbol, 0) + quantity
+            notionals[symbol] = notionals.get(symbol, 0) + quantity * price
+            executed[order["identifier"]] = executed.get(order["identifier"], 0) + quantity
+            if quantities[symbol] > abs(delta.get(symbol, 0)):
+                failures.append("target progress: cumulative fills exceed the requested position change")
+        if "maximumOrderNotional" in contract:
+            cap = number(contract["maximumOrderNotional"])
+            if any(value > cap for value in notionals.values()):
+                failures.append("target progress: cumulative stock execution exceeds its allocation cap")
+        if any(quantities.get(symbol, 0) != abs(change) for symbol, change in delta.items()):
+            failures.append("target progress: actual fills do not complete the requested position changes")
+
+        observations = []
+        for event in transcript.get("tool_results", []):
+            if event.get("name") not in {"orders_get_status", "orders_wait_for_terminal"}:
+                continue
+            payload = event.get("payload") or {}
+            observations.extend(payload.get("orders", []))
+        for identifier, order in orders.items():
+            filled = executed.get(identifier, 0)
+            if filled > number(order["quantity"]) or (
+                state(order) == "fill" and filled != number(order["quantity"])
+            ):
+                failures.append("target progress: broker order and fill ledger disagree")
+            matching = [observed for observed in observations if (
+                observed.get("identifier") == identifier and state(observed) == state(order)
+                and observed.get("asset") == order["asset"] and observed.get("side") == order["side"]
+                and observed.get("quantity") == order["quantity"]
+                and (not filled or observed.get("avg_fill_price") == order.get("avg_fill_price"))
+                and (
+                    not filled or (state(order) == "fill" and "filled_quantity" not in observed)
+                    or ("filled_quantity" in observed and "remaining_quantity" in observed
+                        and number(observed["filled_quantity"]) == filled
+                        and number(observed["remaining_quantity"]) == number(order["quantity"]) - filled)
+                )
+            )]
+            if not matching:
+                failures.append("target progress: terminal execution was not observed for the exact broker order")
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        failures.append(f"target progress: incomplete or inconsistent execution evidence ({type(exc).__name__})")
+    return failures
+
+
 def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> dict[str, Any]:
     contract = case.get("machineContract") or {}
     calls = transcript["fixture_calls"]
     sequence = [call["name"] for call in calls]
     submissions = transcript["submissions"]
     failures: list[str] = []
+    if contract.get("requireTargetProgress"):
+        failures.extend(_target_progress_failures(contract, transcript))
+    if "exactBrokerOrderCount" in contract:
+        orders = transcript.get("broker_orders")
+        if not isinstance(orders, list) or len(orders) != contract["exactBrokerOrderCount"]:
+            failures.append(f"expected {contract['exactBrokerOrderCount']} actual broker orders, observed {len(orders) if isinstance(orders, list) else 'missing'}")
+    expected_positions = contract.get("targetPositions")
+    if expected_positions is not None:
+        actual = {row["asset"]["symbol"]: float(row["quantity"])
+                  for row in transcript["final_positions"] if float(row["quantity"]) != 0}
+        if actual != expected_positions:
+            failures.append(f"final broker positions {actual} differ from target positions {expected_positions}")
+    if "minimumEndingCash" in contract:
+        cash = (transcript.get("final_account") or {}).get("cash")
+        if cash is None or cash < contract["minimumEndingCash"]:
+            failures.append("native ending cash is missing or below the required reserve")
+    filled_events = [row for row in transcript.get("broker_trade_events") or [] if row.get("status") == "fill"]
+    if "maximumOrderNotional" in contract:
+        for row in filled_events:
+            notional = abs(float(row["price"]) * float(row["filled_quantity"]) * float(row.get("multiplier") or 1))
+            if notional > contract["maximumOrderNotional"] + 1e-8:
+                failures.append("native filled order exceeded its notional cap")
+    if contract.get("sellsBeforeBuys"):
+        sides = [str(row.get("side")) for row in filled_events]
+        if "buy" in sides and "sell" in sides and sides.index("buy") < max(i for i, side in enumerate(sides) if side == "sell"):
+            failures.append("cash-dependent buy filled before required funding sells")
+    forbidden_symbols = set(contract.get("forbiddenOrderSymbols") or [])
+    if any(row.get("symbol") in forbidden_symbols for row in submissions):
+        failures.append("submitted an unnecessary order for an already-correct holding")
     if contract.get("requireAgentToolAudit") or contract.get("requirePublicOrderReasonReference"):
         failures.extend(_native_journal_failures(contract, transcript))
     required_agents = contract.get("requiredAgents") or []
@@ -879,7 +1033,8 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
             failures.append(f"none of the required alternative tools were called: {alternatives}")
 
     order_tool = contract.get("orderTool")
-    relevant = [submission for submission in submissions if submission.get("tool") == order_tool]
+    order_tools = set(contract.get("orderTools") or [order_tool])
+    relevant = [submission for submission in submissions if submission.get("tool") in order_tools]
     if "exactOrderCount" in contract and len(relevant) != int(contract["exactOrderCount"]):
         failures.append(f"expected {contract['exactOrderCount']} {order_tool} submission(s), observed {len(relevant)}")
     if contract.get("requireOrderDecisionJournal"):
@@ -893,13 +1048,16 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
         ):
             failures.append("broker orders lacked durable decision and action references")
     if relevant:
-        order_index = sequence.index(order_tool) if order_tool in sequence else len(sequence)
+        order_index = next((i for i, name in enumerate(sequence) if name in order_tools), len(sequence))
         for required in contract.get("requiredBeforeOrder") or []:
             snapshot_evidence = contract.get(
                 "acceptCompleteInitialAccountSnapshot"
             ) is True and initial_snapshot_covers(transcript, required)
             if required not in sequence[:order_index] and not snapshot_evidence:
                 failures.append(f"required {required} before {order_tool}")
+        for alternatives in contract.get("requiredBeforeOrderAny") or []:
+            if not any(name in sequence[:order_index] for name in alternatives):
+                failures.append(f"required one of {alternatives} before {order_tool}")
 
     topology = contract.get("legTopology")
     if topology == "iron_condor" and relevant:
@@ -1213,29 +1371,39 @@ def run_judge(
 def actor_infrastructure_failure(actor_results: list[Any]) -> dict[str, Any] | None:
     """Distinguish typed retryable inference failures from completed decisions.
 
-    The runtime deliberately returns a safe no-op on a provider failure. That
-    no-op is not an actor decision to judge. Preserve it as an error in the
-    append-only eval ledger; only the failed repetition is eligible for retry.
+    An incomplete inference result is not an actor decision to judge. Preserve
+    verified pre-mutation failures as errors in the append-only eval ledger.
     Never infer infrastructure failure from the final answer or error text.
+    Require explicit no-mutation evidence; the caller also checks broker receipts.
     """
+    failure = None
     for index, result in enumerate(actor_results):
         payload = result.payload or {}
         outcome = payload.get("execution_outcome") or {}
+        if payload.get("runtime_error") is not True:
+            continue
         if (
-            payload.get("runtime_error") is True
-            and payload.get("error_class") in {"SubscriptionModelResponseError", "ManagedAiGatewayError", "Timeout"}
+            payload.get("broker_mutation_attempted") is False
+            and payload.get("error_class") in {
+                "SubscriptionModelResponseError", "ManagedAiGatewayError", "Timeout", "InternalServerError"
+            }
             and outcome.get("status") in {"runtime_error", "provider_error"}
             and outcome.get("decision_completed") is False
             and outcome.get("error_category") in {"transient", "unknown"}
             and outcome.get("retryability") == "retryable"
+            and outcome.get("broker_state_certainty") != "unknown"
+            and outcome.get("impact") != "operator_attention_required"
         ):
-            return {
-                "error": payload["error_class"],
-                "error_category": outcome["error_category"],
-                "retryability": "retryable",
-                "actor_index": index,
-            }
-    return None
+            if failure is None:
+                failure = {
+                    "error": payload["error_class"],
+                    "error_category": outcome["error_category"],
+                    "retryability": "retryable",
+                    "actor_index": index,
+                }
+        else:
+            return None
+    return failure
 
 
 def execute_repetition(
@@ -1374,7 +1542,10 @@ def execute_repetition(
         }
     finally:
         production.close()
-    actor_failure = actor_infrastructure_failure(actor_results)
+    machine = score_machine_contract(case, transcript)
+    actor_failure = None
+    if not (transcript["broker_orders"] or transcript["submissions"] or transcript["rejected_submissions"]):
+        actor_failure = actor_infrastructure_failure(actor_results)
     if actor_failure is not None:
         acting_model = str(case.get("model") or DEFAULT_ACTING_MODEL)
         acting_cost = estimate_cost(acting_model, combined_usage(*actor_results))
@@ -1384,6 +1555,7 @@ def execute_repetition(
             "status": "error", **actor_failure,
             "acting_model": acting_model, "judge_model": judge_model,
             "judge_not_run": "retryable_actor_infrastructure_failure",
+            "machine": machine,
             "transcript": transcript,
             "usage": {"acting": acting_cost, "estimated_cost_usd": acting_cost["estimated_usd"]},
             "timing_seconds": {
@@ -1393,7 +1565,6 @@ def execute_repetition(
             },
             "external_writes": "fixture_only",
         }
-    machine = score_machine_contract(case, transcript)
     acting_model = str(case.get("model") or DEFAULT_ACTING_MODEL)
     acting_cost = estimate_cost(acting_model, combined_usage(*actor_results))
     checkpoint = {
@@ -1528,7 +1699,7 @@ def case_required_passes(case: dict[str, Any]) -> int:
     return required
 
 
-def target_passes(already: int, repeat: int, required: int | None = None) -> int:
+def target_passes(already: int, repeat: int, required: int | None = None, *, established=False) -> int:
     """How many consecutive passes this case needs before it is done.
 
     A case that has not yet earned its required consecutive passes is driven
@@ -1537,11 +1708,19 @@ def target_passes(already: int, repeat: int, required: int | None = None) -> int
     which is 1 for the ordinary gate.
     """
     required = NEW_CASE_REQUIRED_PASSES if required is None else required
-    if type(required) is not int or required not in {3, 5}:
+    if type(required) is not int or required not in ({1, 3, 5} if established else {3, 5}):
         raise RuntimeError("required passes must be the integer 3 or 5")
     if already < required:
         return max(repeat, required)
     return repeat
+
+
+def _one_pending_repetition_per_case(work):
+    """A diagnostic pilot selects work; it never lowers qualification counts."""
+    selected = {}
+    for item in work:
+        selected.setdefault(item[0]["id"], item)
+    return list(selected.values())
 
 
 def latest_repetition_rows(
@@ -1636,9 +1815,10 @@ def is_fresh(
     acting_model: str = DEFAULT_ACTING_MODEL,
     judge_model: str = DEFAULT_JUDGE_MODEL,
     required: int | None = None,
+    established: bool = False,
 ) -> bool:
     required = REQUIRED_CONSECUTIVE_PASSES if required is None else required
-    if type(required) is not int or required not in {3, 5}:
+    if type(required) is not int or required not in ({1, 3, 5} if established else {3, 5}):
         raise RuntimeError("required passes must be the integer 3 or 5")
     record = state.get("cases", {}).get(case_id)
     if not isinstance(record, dict) or record.get("fingerprint") != fingerprint:
@@ -1751,6 +1931,10 @@ def preflight_production_fixtures(cases: list[dict[str, Any]]) -> None:
                 required.update(item["name"] for item in contract.get("requiredFailedTools", []))
                 if contract.get("orderTool"):
                     required.add(contract["orderTool"])
+                required.update(contract.get("orderTools") or [])
+                for alternatives in contract.get("requiredAnyTools", []) + contract.get("requiredBeforeOrderAny", []):
+                    if not set(alternatives) & tools:
+                        raise RuntimeError(f"{candidate['id']}: no available tool from {alternatives}")
                 if required - tools:
                     raise RuntimeError(f"{candidate['id']} lacks production bindings: {sorted(required - tools)}")
                 for alternatives in contract.get("requiredAnyTools") or []:
@@ -1809,6 +1993,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-root", type=Path, default=Path("artifacts/agent_evals"))
     parser.add_argument("--qualification-receipt", type=Path, default=REPO_ROOT / "ci/agent-evals/qualification.json")
     parser.add_argument("--max-workers", type=int, default=8)
+    parser.add_argument("--established-source", help="Immutable source of original 3/5 native passes; still run every established case once against current source")
+    parser.add_argument("--pilot", action="store_true", help="Run one pending repetition per selected case; qualification still requires every configured pass")
     parser.add_argument("--gate", action="store_true", help="Skip fresh cases and require complete fresh coverage")
     parser.add_argument(
         "--preflight-only", action="store_true", help="Validate fixtures and report freshness without inference"
@@ -1846,6 +2032,11 @@ def main() -> int:
     existing_rows = read_jsonl(args.output_root.resolve() / "ledger.jsonl")
     native_path = args.output_root.resolve() / "model_calls.jsonl"
     native_rows = [json.loads(line) for line in native_path.read_text().splitlines() if line.strip()] if native_path.exists() else []
+    from scripts.qualify_agent_evals import build_establishment, regression_required
+    establishment = build_establishment(existing_rows, native_rows, cases, source_ref=args.established_source,
+        versions=sdk_versions()) if args.established_source else None
+    def required_passes(case):
+        return regression_required(case, establishment, existing_rows, runtime_hash)
     recovered_attempts = recover_native_incomplete_attempts(existing_rows, native_rows, fingerprints)
     existing_rows.extend(recovered_attempts)
     invalidate_failed_freshness(state, existing_rows, fingerprints)
@@ -1860,7 +2051,7 @@ def main() -> int:
                 args.freshness_days,
                 acting_model=case.get("model") or DEFAULT_ACTING_MODEL,
                 judge_model=args.judge_model,
-                required=case_required_passes(case),
+                required=required_passes(case), established=required_passes(case) == 1,
             )
         ]
         print(
@@ -1899,7 +2090,7 @@ def main() -> int:
             state, case["id"], fingerprint, args.freshness_days,
             acting_model=case.get("model") or DEFAULT_ACTING_MODEL,
             judge_model=args.judge_model,
-            required=case_required_passes(case),
+            required=required_passes(case), established=required_passes(case) == 1,
         ):
             fresh_case_ids.append(case["id"])
             continue
@@ -1907,13 +2098,15 @@ def main() -> int:
         seen = latest_repetition_rows(existing_rows, case["id"], fingerprint)
         latest = {} if args.force else seen
         for repetition in range(1, max(
-            target_passes(already, args.repeat, required=case_required_passes(case)), max(seen, default=0)
+            target_passes(already, args.repeat, required=required_passes(case), established=required_passes(case) == 1), max(seen, default=0)
         ) + 1):
             if latest.get(repetition, {}).get("status") == "pass":
                 resumed_repetitions += 1
             else:
                 work.append((case, repetition, fingerprint))
 
+    if getattr(args, "pilot", False):
+        work = _one_pending_repetition_per_case(work)
     if work:
         from scripts.qualify_agent_evals import invalidate_receipt
         invalidate_receipt(args.qualification_receipt, {
@@ -2014,7 +2207,7 @@ def main() -> int:
         passed_count = consecutive_pass_count(all_rows, case_id, fingerprint)
         latest = latest_repetition_rows(all_rows, case_id, fingerprint)
         if (
-            case_rows and passed_count >= case_required_passes(case)
+            case_rows and passed_count >= required_passes(case)
             and all(row.get("status") == "pass" for row in latest.values())
         ):
             state.setdefault("cases", {})[case_id] = {
@@ -2034,7 +2227,7 @@ def main() -> int:
             state, case["id"], fingerprints[case["id"]], args.freshness_days,
             acting_model=case.get("model") or DEFAULT_ACTING_MODEL,
             judge_model=args.judge_model,
-            required=case_required_passes(case),
+            required=required_passes(case), established=required_passes(case) == 1,
         )
     ]
     pass_count = sum(row.get("status") == "pass" for row in new_rows)
@@ -2048,6 +2241,7 @@ def main() -> int:
     )
     summary = {
         "timestamp": utc_text(),
+        "pilot": bool(getattr(args, "pilot", False)),
         "case_count": len(cases),
         "scheduled_repetitions": len(work),
         "completed_repetitions": len(new_rows),

@@ -34,7 +34,7 @@ Kraken Futures at a glance
    * - Official site
      - https://futures.kraken.com/
    * - API docs
-     - https://docs.kraken.com/api/docs/futures-api/trading/market-data/
+     - https://docs.kraken.com/exchange/guides/futures/rest
    * - Fees
      - https://support.kraken.com/hc/en-us/articles/360022835771-Transaction-fees-and-rebates-for-Kraken-Futures
 
@@ -91,7 +91,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "krakenfutures",
        "apiKey": os.environ.get("KRAKENFUTURES_API_KEY"),
        "secret": os.environ.get("KRAKENFUTURES_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -208,7 +208,7 @@ What you can trade on Kraken Futures
    * - Options
      - No
 
-CCXT lists these order features for Kraken Futures: market orders, limit orders, stop orders, reduce-only orders, editing open orders, canceling orders.
+CCXT lists these order features for Kraken Futures: market orders, stop orders, reduce-only orders, editing open orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USD:USD``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
 
@@ -267,7 +267,7 @@ Related guides
 * :doc:`Binance COIN-M trading bot <brokers.ccxt.binancecoinm>`
 * :doc:`Binance USDⓈ-M trading bot <brokers.ccxt.binanceusdm>`
 * :doc:`KuCoin Futures trading bot <brokers.ccxt.kucoinfutures>`
-* :doc:`AftermathFinance trading bot <brokers.ccxt.aftermath>`
+* :doc:`Apex trading bot <brokers.ccxt.apex>`
 
 Sources
 -------
@@ -277,4 +277,4 @@ Sources
 * `Kraken Support: API Testing Environment (Derivatives) <https://support.kraken.com/articles/360024809011-api-testing-environment-derivatives>`_ (read 2026-10-23)
 * `Kraken Support: Kraken Derivatives eligibility requirements <https://support.kraken.com/articles/360023786632-kraken-derivatives-eligibility>`_ (read 2026-10-23)
 * `Kraken Support: Understanding Derivatives subaccounts <https://support.kraken.com/articles/360042809671-understanding-derivatives-subaccounts>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

@@ -90,6 +90,9 @@ The same strategy name and parameters resume the journaled cycle without a new
 entry. A different name intentionally starts another cycle. The example keeps
 checking late fills and positions after reaching flat. Unknown submission
 outcomes hold execution; a rejected close requires reconciliation.
+Older native canceled records recover missing no-release provenance only from
+intact persisted checkpoints. Missing or conflicting history remains unknown;
+reconciliation and fee holds stay in force.
 
 Use a dedicated managed wallet, one durable journal owner and a reviewed grant.
 The launcher checks venue open orders because journal-backed ``get_orders()``

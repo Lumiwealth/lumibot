@@ -6,6 +6,7 @@
 - Add a runnable MetaMask perpetual round-trip example using normal Strategy APIs and continuous Trader scheduling, exact executed-quantity reduce-only closes, durable order identities and same-name restart recovery.
 
 ### Fixed
+- Restore missing cancellation provenance on older native records only when intact persisted checkpoints prove no order release, preserving execution history and reconciliation or fee holds.
 - Join MetaMask polling and order workers before closing the native client, including delayed stream startup and repeated close calls.
 - Reconcile terminal IOC partial executions as actual fills with canceled unfilled remainder, retaining raw venue status and requiring matching intent, persisted action and fill history instead of assuming a `filled` label means full execution.
 - Validate testnet partial-fill qualification against the identity-matched live order remainder, retain cleanup budget before signing, and accept explicitly reviewed daily-cap checks without changing wallet authority. Actual testnet expiry rejection has been verified without signatures or journal execution changes.

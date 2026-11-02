@@ -1060,6 +1060,72 @@ def test_local_cancel_requires_intact_native_pre_release_evidence(engine, monkey
 
 
 @pytest.mark.parametrize("restart", [False, True])
+def test_old_native_canceled_history_restores_only_provenance_without_execution(engine, monkeypatch, restart):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        operation = engine.submit(intent())
+    original = {
+        **operation,
+        "state": "canceled",
+        "reconciliationErrorCode": "RECONCILIATION_REQUIRED",
+        "budgetReviewRequired": True,
+    }
+    engine.journal.save(original)
+    effects = engine.journal.effects("agent", "one")
+    subject = ExecutionEngine(engine.journal, engine.provider, engine.venue, "agent") if restart else engine
+    result = subject.order("one")
+    assert result["orderRelease"] == {
+        "state": "not_released",
+        "source": "native_plan_local_cancel",
+        "clientOrderId": effects["plan"]["clientOrderId"],
+    }
+    assert all(result[key] == value for key, value in original.items() if key != "updatedAt")
+    assert engine.journal.effects("agent", "one") == effects
+    assert subject.order("one") == result
+    engine.provider.submit_signature.assert_not_called()
+    engine.provider.signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "damage", ["missing_plan", "origin", "identity", "effect", "fills", "existing_release", "leverage"]
+)
+def test_old_canceled_history_without_positive_proof_keeps_unknown_release(engine, monkeypatch, damage):
+    with monkeypatch.context() as patch:
+        patch.setattr(engine, "_advance", lambda operation: operation)
+        operation = engine.submit(intent())
+    plan = engine.journal.effect("agent", "one", "plan")
+    operation["state"] = "canceled"
+    if damage == "missing_plan":
+        plan = None
+    elif damage == "origin":
+        plan["origin"] = "legacy"
+    elif damage == "identity":
+        plan["clientOrderId"] = "0x" + "f" * 32
+    elif damage == "effect":
+        engine.journal.save_effect(operation, "order", {"phase": "unknown", "state": "unknown"})
+    elif damage == "fills":
+        operation["filledQuantity"] = "0.0001"
+    elif damage == "leverage":
+        engine.journal.save_effect(operation, "leverage", {"phase": "venue", "state": "released"})
+    else:
+        operation["orderRelease"] = {"state": "unknown"}
+    engine.journal.save(operation)
+    original_effect = engine.journal.effect
+    monkeypatch.setattr(
+        engine.journal,
+        "effect",
+        lambda agent, operation_id, step: plan if step == "plan" else original_effect(agent, operation_id, step),
+    )
+    result = engine.order("one")
+    assert result.get("orderRelease") == operation.get("orderRelease")
+    assert result["state"] == "canceled" and result["filledQuantity"] == operation["filledQuantity"]
+    engine.provider.submit_signature.assert_not_called()
+    engine.provider.signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
+
+
+@pytest.mark.parametrize("restart", [False, True])
 def test_native_pending_order_cancel_retains_prior_leverage_audit(engine, restart):
     sign = engine.provider.submit_signature.side_effect
 

@@ -88,6 +88,9 @@ without a new entry. A different name intentionally starts a new cycle. The
 strategy continues checking positions and late fills after reaching flat.
 Unknown submission outcomes hold execution instead of creating replacement IDs.
 Stop and reconcile a rejected close before submitting a new closing intent.
+Older native canceled records regain missing no-release provenance only when
+their intact persisted plan and effect checkpoints prove it. Missing or conflicting
+history remains unknown; recovery never clears reconciliation or fee holds.
 
 MetaMask-specific setup stays outside the strategy class. Use a dedicated managed
 wallet, one journal owner and an explicitly reviewed grant. The launcher checks

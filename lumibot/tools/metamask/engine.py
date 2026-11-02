@@ -151,6 +151,26 @@ class ExecutionEngine:
             # Accepted identity dominates an incomplete effect history on every entrypoint.
             return self._reconcile_order(operation, plan or {"clientOrderId": None}, observation=observation)
         if operation["state"] in _TERMINAL:
+            leverage_effect = self.journal.effect(self.agent_id, operation_id, "leverage")
+            if (
+                operation["state"] == "canceled"
+                and "orderRelease" not in operation
+                and not (
+                    leverage_effect
+                    and leverage_effect.get("phase") == "venue"
+                    and leverage_effect.get("state") != "confirmed"
+                )
+                and self._unreleased_native_plan(operation, plan, order_effect)
+            ):
+                # Older native cancels retain positive checkpoints but lack the newer public provenance field.
+                return self._change(
+                    operation,
+                    orderRelease={
+                        "state": "not_released",
+                        "source": "native_plan_local_cancel",
+                        "clientOrderId": plan["clientOrderId"],
+                    },
+                )
             if (
                 order_effect is not None
                 and order_effect.get("phase") == "venue"

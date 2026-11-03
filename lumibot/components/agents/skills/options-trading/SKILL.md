@@ -36,6 +36,9 @@ last price, midpoint, bid and ask labels distinct; a last price is not a quoted
 bid. Preserve the observation's field and units when citing it. A correct later
 trader assessment does not make an earlier research claim correct. Keep the
 packet compact and omit unused numerical claims rather than recopying them.
+Keep actual contract inventory separate from net payoff in a price region.
+Changing the underlying price does not change the strikes or quantities held;
+describe those exact legs before explaining hedges or assignment obligations.
 For a price comparison, check both exact candidates at the same pricing style
 and in the same units before saying cheaper, higher or lower. Prefer the
 returned package totals; if the comparison does not drive the decision, omit it

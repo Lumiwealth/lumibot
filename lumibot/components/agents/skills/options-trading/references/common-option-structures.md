@@ -53,6 +53,14 @@ the position free. A physically settled short call can require delivering the
 underlying before either long is exercised: inspect shares, account capacity,
 dividends and remaining obligations independently of the expiration payoff.
 
+Above the higher strike at expiration, the 2:-1 package's net payoff slope is
+one call's multiplier: two long contributions minus one short contribution.
+That does not turn the inventory into one higher-strike long call. Both actual
+long calls remain at the lower strike. Keep this expiration payoff distinct
+from the package's current delta. A call ratio backspread instead sells a lower
+call and buys two higher calls; it has different intermediate-price risk and
+must not be substituted for the requested two-lower-long/one-higher-short legs.
+
 ## Straddle and strangle
 
 - Long straddle: buy one call and one put at the same strike and expiration.

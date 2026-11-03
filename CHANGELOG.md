@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.45 - Unreleased
+## 4.6.45 - 2026-11-03
 
 ### Added
 - Add a runnable MetaMask perpetual round-trip example using normal Strategy APIs and continuous Trader scheduling, exact executed-quantity reduce-only closes, durable order identities and same-name restart recovery.

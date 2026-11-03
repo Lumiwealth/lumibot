@@ -57,7 +57,7 @@ class AIIronCondorStrategy(Strategy):
             self.agents.attention.watch(owner="lifecycle", watch_id="initial_review",
                 operation_id="initial_setup", metric="time", comparison="gte",
                 value=(self.get_datetime() + timedelta(seconds=max(
-                    0, (self.get_time_to_close() or 0) - 15 * 60))).isoformat(),
+                    0, (self.broker.get_time_to_close() or 0) - 15 * 60))).isoformat(),
                 reason="Initial setup review; verify entry eligibility under your policy",
                 review_scope="setup")
             self.vars.set("attention_started", True)

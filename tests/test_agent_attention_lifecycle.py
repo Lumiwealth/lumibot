@@ -24,7 +24,8 @@ def example(strategy_class):
     strategy.now = datetime(2030, 6, 3, 19, 45, tzinfo=timezone.utc)
     strategy.session_close = strategy.now.replace(hour=20, minute=0)
     strategy.get_datetime = lambda: strategy.now
-    strategy.get_time_to_close = lambda: (strategy.session_close - strategy.now).total_seconds()
+    strategy.broker = SimpleNamespace(
+        get_time_to_close=lambda: (strategy.session_close - strategy.now).total_seconds())
     created, calls, handles = [], [], {}
     manager = SimpleNamespace(attention=AttentionMonitor(strategy))
 
@@ -89,7 +90,7 @@ def test_late_setup_and_followup_keep_polling_until_actual_session_close(close_h
         reason='A new requested source observation is due.', review_scope='research')
     strategy.now += timedelta(minutes=1)
     executor = SimpleNamespace(strategy=strategy,
-        broker=SimpleNamespace(get_time_to_close=strategy.get_time_to_close))
+        broker=strategy.broker)
     assert StrategyExecutor._calculate_should_we_stop(executor) is False
     strategy.on_trading_iteration()
     assert [name for name, _ in calls] == ['researcher', 'trader', 'researcher', 'trader']

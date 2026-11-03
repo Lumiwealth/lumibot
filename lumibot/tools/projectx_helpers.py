@@ -544,41 +544,36 @@ class ProjectX:
         def _post(json_payload):
             return self._post(url, json=json_payload, timeout=10)
 
-        try:
-            response = _post(base_payload)
+        def _receipt(response):
             try:
                 data = response.json()
             except ValueError:
                 data = {"success": False, "error": f"Non-JSON response {response.status_code}"}
+            if not isinstance(data, dict):
+                data = {"success": False, "error": "Malformed order response", "response": data}
+            return {**data, "_projectx_http_status": response.status_code}
 
-            # Fast path success
-            if response.status_code == 200 and data.get("success"):
+        try:
+            response = _post(base_payload)
+            data = _receipt(response)
+            if response.status_code == 200 and data.get("success") is True:
                 return data
 
-            # Detect validation pattern requiring wrapper {"request": {...}}
-            errors = (data or {}).get("errors") or {}
-            needs_wrapper = False
-            if isinstance(errors, dict):
-                if "request" in errors or any("The request field is required" in err for err_list in errors.values() for err in (err_list if isinstance(err_list, list) else [err_list])):
-                    needs_wrapper = True
-            # Also if size conversion failed, we retry after forcing int already and potentially wrapping
-            size_error = any("$.size" in err for err_list in errors.values() for err in (err_list if isinstance(err_list, list) else [err_list])) if errors else False
-            
-            if needs_wrapper or size_error:
-                wrapped_payload = {"request": base_payload}
+            # Only a structured HTTP400 model-validation rejection proves the
+            # first payload could not place an order. Pending/server/transport
+            # failures must never trigger another placement handoff.
+            errors = data.get("errors")
+            needs_wrapper = (response.status_code == 400 and 'errorCode' not in data
+                and isinstance(errors, dict) and bool({'request', '$.size'} & errors.keys()))
+            if needs_wrapper:
                 self.logger.info("Retrying order_place with wrapped 'request' payload structure")
-                retry_resp = _post(wrapped_payload)
-                try:
-                    retry_data = retry_resp.json()
-                except ValueError:
-                    retry_data = {"success": False, "error": f"Non-JSON response {retry_resp.status_code}"}
-                if retry_resp.status_code == 200 and retry_data.get("success"):
+                retry_response = _post({"request": base_payload})
+                retry_data = _receipt(retry_response)
+                if retry_response.status_code == 200 and retry_data.get("success") is True:
                     return retry_data
-                # Merge error context
-                return {"success": False, "error": retry_data.get("error") or retry_data, "first_attempt": data}
-
-            # If no specific wrapper need detected just return original data
-            return data if data else {"success": False, "error": f"HTTP {response.status_code}"}
+                return {"success": False, "error": retry_data, "first_attempt": data,
+                        "_projectx_http_status": retry_response.status_code}
+            return data
 
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Error placing order: {e}")
@@ -752,6 +747,37 @@ class ProjectX:
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Error: {e}")
             return pd.DataFrame()
+
+
+def projectx_order_placement_outcome(response):
+    """Classify structured Place receipts; False alone does not prove rejection.
+
+    https://gateway.docs.projectx.com/docs/api-reference/order/order-place/
+    Codes 6 (pending) and 7 (unknown), transport errors and wrapper failures
+    retain uncertainty. Never infer remote effects from an exception message.
+    """
+    if not isinstance(response, dict) or 'first_attempt' in response:
+        return 'unknown'
+    http_status = response.get('_projectx_http_status')
+    if '_projectx_http_status' in response and (type(http_status) is not int or http_status != 200):
+        return 'unknown'
+    code = response.get('errorCode')
+    valid_code = 'errorCode' not in response or type(code) is int
+    if response.get('success') is True and valid_code and ('errorCode' not in response or code == 0):
+        identifier = response.get('orderId')
+        if not isinstance(identifier, bool) and str(identifier).isdigit() and int(identifier) > 0:
+            return 'accepted'
+    if response.get('success') is False and type(code) is int and code in {1, 2, 3, 4, 5, 8, 9, 10}:
+        return 'rejected'
+    return 'unknown'
+
+
+class ProjectXOrderSubmissionError(Exception):
+    """Preserve a failed/uncertain Place receipt without losing its effect certainty."""
+    def __init__(self, response):
+        self.response = response
+        self.outcome = projectx_order_placement_outcome(response)
+        super().__init__(f"Failed to place order: {response}")
 
 
 class ProjectXClient:
@@ -960,16 +986,15 @@ class ProjectXClient:
         response = self.api.order_place(
             account_id=account_id,
             contract_id=contract_id,
-            order_type=order_type,  # Fixed: use order_type instead of deprecated 'type'
+            type=order_type,
             side=side_int,
             size=quantity,
             limit_price=price if order_type == 1 else None  # Only set price for limit orders
         )
         
-        if response and response.get("success"):
+        if projectx_order_placement_outcome(response) == 'accepted':
             return response
-        else:
-            raise Exception(f"Failed to place order: {response}")
+        raise ProjectXOrderSubmissionError(response)
     
     def cancel_order(self, account_id: int, order_id: str) -> bool:
         """Cancel an order"""
@@ -1072,10 +1097,9 @@ class ProjectXClient:
             linked_order_id=linked_order_id
         )
         
-        if response and response.get("success"):
+        if projectx_order_placement_outcome(response) == 'accepted':
             return response
-        else:
-            raise Exception(f"Failed to place order: {response}")
+        raise ProjectXOrderSubmissionError(response)
     
     def contract_search(self, search_text: str) -> dict:
         """Search for contracts - direct API wrapper"""
@@ -1336,11 +1360,7 @@ def normalize_bracket_entry_tag(tag: str):
     """
     if not tag:
         return tag, None
-    base = tag
-    for prefix in ("BRK_ENTRY_", "BRK_TP_", "BRK_STOP_"):
-        if base.startswith(prefix):
-            base = base[len(prefix):]
-            break
+    base = derive_base_tag(tag)
     return f"BRK_ENTRY_{base}", base
 
 # ================= Additional Low-Risk Helpers =================
@@ -1440,31 +1460,41 @@ def select_effective_prices(order, client, tick_size):
     return limit_price, stop_price
 
 
-def bracket_child_tag(kind: str, base_tag: str) -> str:
-    """Return standardized child tag for bracket order.
+def parse_bracket_tag(tag: str):
+    """Return (kind, generation, parent base) only for an unambiguous bracket tag."""
+    import re
+    if not isinstance(tag, str) or not tag:
+        return None
+    for prefix, kind in (("BRK_ENTRY_", "entry"), ("BRK_TP_", "tp"), ("BRK_STOP_", "sl")):
+        if tag.startswith(prefix) and len(tag) > len(prefix):
+            return kind, 0, tag[len(prefix):]
+    match = re.fullmatch(r"BG([1-9A-Z][0-9A-Z]*)([TS]):(.+)", tag)
+    if match and len(tag.encode('utf-8')) <= 64:
+        return ('tp' if match[2] == 'T' else 'sl'), int(match[1], 36), match[3]
+    return None
 
-    kind: 'tp' or 'sl'. Mirrors existing naming scheme.
-    """
-    if kind == 'tp':
-        return f"BRK_TP_{base_tag}"
-    if kind == 'sl':
-        return f"BRK_STOP_{base_tag}"
-    raise ValueError(f"Unsupported bracket child kind: {kind}")
+
+def bracket_child_tag(kind: str, base_tag: str, generation: int = 0) -> str:
+    """Keep parent identity while assigning every exit generation a unique tag."""
+    if kind not in {'tp', 'sl'} or isinstance(generation, bool) or not isinstance(generation, int) or generation < 0:
+        raise ValueError("Invalid bracket child kind or generation")
+    if not generation:
+        tag = f"{'BRK_TP_' if kind == 'tp' else 'BRK_STOP_'}{base_tag}"
+    else:
+        digits = ''
+        remaining = generation
+        while remaining:
+            remaining, digit = divmod(remaining, 36)
+            digits = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'[digit] + digits
+        tag = f"BG{digits}{'T' if kind == 'tp' else 'S'}:{base_tag}"
+    if not base_tag or len(tag.encode('utf-8')) > 64:
+        raise ValueError("ProjectX bracket tag exceeds the 64-character provider limit")
+    return tag
 
 
 def derive_base_tag(tag: str) -> str:
-    """Derive the base tag (without BRK_*_ prefix). Safe if tag empty.
-
-    Used when restoring meta or spawning children if base_tag missing.
-    """
-    if not tag:
-        return tag
-    base = tag
-    for prefix in ("BRK_ENTRY_", "BRK_TP_", "BRK_STOP_"):
-        if base.startswith(prefix):
-            base = base[len(prefix):]
-            break
-    return base
+    parsed = parse_bracket_tag(tag)
+    return parsed[2] if parsed else tag
 
 
 def early_store_bracket_meta(store: dict, temp_key: str, meta: dict, logger=None):

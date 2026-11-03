@@ -297,6 +297,12 @@ def test_single_leg_modify_failure_falls_back_to_cancel_and_resubmit(mocker):
     broker = _BrokerStub()
     broker.modify_order = mocker.Mock(side_effect=RuntimeError("connection interrupted"))
     broker.cancel_order = mocker.Mock()
+    # A cancellation request alone must no longer authorize resubmission.
+    # This pure executor test models the broker's terminal cancel callback.
+    def confirmed_cancel(order):
+        order.status = Order.OrderStatus.CANCELED
+        order.set_canceled()
+    broker.cancel_order.side_effect = confirmed_cancel
 
     submitted_types: list[str] = []
 

@@ -173,7 +173,12 @@ def builtin_mutation_fixture(tmp_path, operation):
 
     strategy.create_order = create_order
     tracked_order = make_order()
-    strategy.get_order = lambda identifier: tracked_order
+    def get_order(identifier, broker_refresh=True):
+        # Action lookup uses the existing tracked object without advancing pending execution.
+        assert broker_refresh is False
+        return tracked_order
+
+    strategy.get_order = get_order
     binders = {"submit": _bind_submit_order, "submit_multileg": _bind_submit_multileg_order,
                "modify": _bind_modify_order, "cancel": _bind_cancel_order}
     legs = [{"symbol": "SPY", "expiration": "2026-10-16", "strike": strike, "right": "call",

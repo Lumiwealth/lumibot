@@ -1,0 +1,28 @@
+{
+  "kind": "preserved-real-model-baseline",
+  "timestamp": "2026-11-03T08:08:39.481329Z",
+  "source_commit": "a24c67ab80812fad7ea64ac4d36193ea5dbe45e0",
+  "runtime_fingerprint": "29b92f58b367d9ad2b3cfbf256c0cda1a64112ec52b35792c117ad04afe3994d",
+  "models": "Luna High actor and judge, Login with ChatGPT, Standard/default",
+  "api_cash_spend_usd": 0,
+  "external_writes": "isolated native backtesting fixture only",
+  "private_ledger_sha256": "f1ef49384056f4df44e3a8bf584bf8b9d0186bd58211713141c7462d2d0a91fd",
+  "case_id": "stock_complete_supported_portfolio_with_gap",
+  "native_attempt_id": "4c98ab9d-7593-48ba-ae93-4d4397a8990d",
+  "repetition": 2,
+  "case_fingerprint": "61a19fe89375f232e67ebb2ba0f5d64b47896200aceb1da6eccf7ccccc9a6d3c",
+  "machine_pass": false,
+  "judge_pass": false,
+  "mechanism": "The model received current price 99 for QZX03 without bid/ask, but supplied price 100 to its sizing call, bought 99 shares and stopped with an affordable one-share residual. The other eight supported constituents require 99 shares at ask 100; the missing constituent must remain unallocated.",
+  "expected_final_quantity": 100,
+  "actual_final_quantity": 99,
+  "prior_attempt_summary": {
+    "cases": 30,
+    "executions": 150,
+    "pass": 149,
+    "fail": 1,
+    "error": 0
+  },
+  "repair_scope": "Existing stock-trading guidance only: per-symbol quote-to-sizing binding and final affordable-residual reconciliation. The case, broker fixtures, targets, rubric, sizing helper and broker runtime remain unchanged.",
+  "original_verdict_retained": true
+}

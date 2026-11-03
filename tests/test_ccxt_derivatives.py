@@ -292,6 +292,34 @@ def test_amend_uses_unified_api_and_keeps_quantity_and_leg(derivatives):
     assert submitted.limit_price == 20100
 
 
+@pytest.mark.parametrize("symbol", ["BTC/USDT:USDT", "BTC/USDC:USDC", "BTC/USD:BTC"])
+def test_smart_limit_executor_amends_contract_without_losing_hedge_leg(derivatives, symbol, monkeypatch):
+    from lumibot.entities import SmartLimitConfig
+    from lumibot.strategies.strategy_executor import StrategyExecutor
+    from tests.test_smart_limit_broker_lifecycle import _Strategy
+
+    submitted = Order("strategy", derivatives.get_asset(symbol), 4, "buy", limit_price=100,
+                      position_side="short", reduce_only=True)
+    derivatives._submit_order(submitted)
+    submitted.order_type = Order.OrderType.SMART_LIMIT
+    submitted.smart_limit = SmartLimitConfig(preset="fast", step_seconds=1, final_hold_seconds=30)
+    submitted._smart_limit_state = {
+        "created_at": 0, "step_index": 0, "steps": 3, "step_seconds": 1, "final_hold_seconds": 30,
+    }
+    derivatives.api.edit_order = Mock(return_value={"id": submitted.identifier, "status": "open"})
+    strategy = _Strategy(derivatives)
+    strategy._name = "strategy"
+    monkeypatch.setattr("lumibot.strategies.strategy_executor.time.monotonic", lambda: 1.1)
+    StrategyExecutor(strategy)._process_smart_limit_orders()
+
+    args, kwargs = derivatives.api.edit_order.call_args
+    assert args[:4] == (submitted.identifier, symbol, "limit", "buy")
+    assert Decimal(str(args[4])) == 4
+    assert kwargs["params"]["posSide"] == "Short"
+    assert kwargs["params"]["reduceOnly"]
+    assert submitted.order_type == Order.OrderType.SMART_LIMIT
+
+
 def test_single_position_lookup_matches_contract_without_breaking_spot(derivatives):
     derivatives._pull_broker_positions = Mock(return_value=[
         {"currency": "BTC", "total": 1, "free": 1, "used": 0},

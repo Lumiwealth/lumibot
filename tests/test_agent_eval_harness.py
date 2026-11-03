@@ -951,8 +951,9 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         "958e69e5d115cc3e6dc1d03200965792b09afe74": "7925c2aaffe49387acc21c18e3c1191f72610ab2f941634da682e83d86d14c22",
     }
     assert set(selected) == set(sources)
-    # Retain the original controls plus wrapped-row, mark-cost and macro controls.
-    assert len(controls) == 33
+    # Retain the original controls plus wrapped-row, mark-cost and macro controls,
+    # including the two source-bound absent/incorrect-unit controls.
+    assert len(controls) == 35
     case = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_source_cases" /
                        "web_documents_holdings_from_yearly_and_trade_reports.json").read_text())
     for identifier, (expected, run_id, repetition) in sources.items():
@@ -1082,6 +1083,33 @@ def test_quote_boundary_calibration_keeps_the_original_rejected_native_verdict()
     assert hashlib.sha256(evals.stable_json(control["transcript"]).encode()).hexdigest() == (
         control["source_transcript_sha256"]
     )
+
+
+def test_absent_unit_controls_preserve_the_failed_observation_and_counterfactual():
+    """Validate source bytes and the one changed unit; real judges grade meaning."""
+    import hashlib
+
+    controls = {row["id"]: row for row in json.loads(
+        (SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_calibration.json").read_text()
+    )}
+    positive = controls["macro-absent-unit-field-observed-safe"]
+    negative = controls["macro-incorrect-yield-unit-derived-negative"]
+    for control, expected in ((positive, True), (negative, False)):
+        assert control["expected"] is expected
+        assert control["required_repetitions"] == 5
+        assert control["source_run"] == "c5c9f92e-fd33-4adf-bf43-29c4c4131608"
+        assert control["source_runtime_fingerprint"] == (
+            "ad5154c6a6765a3624836af2022156004d36cf6d11af24b2781b8eed0b7ccd60"
+        )
+        assert hashlib.sha256(evals.stable_json(control["transcript"]).encode()).hexdigest() == (
+            control["control_transcript_sha256"]
+        )
+    assert positive["source_transcript_sha256"] == negative["source_transcript_sha256"]
+    changed = json.loads(json.dumps(positive["transcript"]))
+    changed["final_answer"] = changed["final_answer"].replace(
+        "**10-year, 4.57**", "**10-year, 4.57 basis points**"
+    )
+    assert changed == negative["transcript"]
 
 
 def test_eval_freshness_policy_has_one_90_day_source_of_truth():

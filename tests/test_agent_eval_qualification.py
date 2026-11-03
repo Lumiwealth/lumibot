@@ -100,6 +100,7 @@ def make_receipt(metadata):
 def test_established_cases_keep_original_evidence_and_require_a_current_regression(native_metadata, monkeypatch):
     rows, calls, cases, versions, now = deepcopy(native_metadata)
     monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")
+    monkeypatch.setattr(qualification, "_unchanged_establishment_cases", lambda ref, cases: cases)
     proof = qualification.build_establishment(rows, calls, cases, source_ref="a" * 40, versions=versions, now=now)
     assert proof["cases"]["contract"]["repetitions"][0]["run_id"] == rows[0]["run_id"]
     assert qualification.regression_required(cases[0], proof, [], "new-source") == 1
@@ -117,6 +118,7 @@ def test_established_cases_keep_original_evidence_and_require_a_current_regressi
 def test_export_verifies_original_stability_and_one_new_source_regression(native_metadata, monkeypatch):
     rows, calls, cases, versions, now = deepcopy(native_metadata)
     monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")
+    monkeypatch.setattr(qualification, "_unchanged_establishment_cases", lambda ref, cases: cases)
     current = deepcopy(rows[:1])
     current[0]["run_id"] = str(uuid4())
     current[0]["fingerprint"] = evals.case_fingerprint(cases[0], judge_model=evals.DEFAULT_JUDGE_MODEL,
@@ -630,3 +632,48 @@ def test_unknown_judge_exception_never_hides_foreign_scope_or_model(native_metad
     calls.append(old)
     with pytest.raises(ValueError):
         build_with_calibration(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
+
+
+def test_mixed_catalog_preserves_only_unchanged_original_establishment(native_metadata, monkeypatch, tmp_path):
+    import json, subprocess
+    from copy import deepcopy
+    from scripts import agent_eval_source_compatibility as source
+    rows, calls, original_cases, versions, now = deepcopy(native_metadata)
+    root = tmp_path / "source"
+    (root / "agent_eval_cases").mkdir(parents=True)
+    (root / "runtime.py").write_text("VALUE = 1\n")
+    contract = dict(original_cases[0], _path=root / "agent_eval_cases/contract.json")
+    changed = dict(contract, id="changed", judgeRubric="Original policy",
+                   _path=root / "agent_eval_cases/changed.json")
+    for case in [contract, changed]:
+        case["_path"].write_text(json.dumps({k:v for k,v in case.items() if not k.startswith("_")}))
+    def git(*args):
+        return subprocess.check_output(["git", *args], cwd=root, text=True).strip()
+    git("init", "-q")
+    git("add", "runtime.py", "agent_eval_cases/contract.json", "agent_eval_cases/changed.json")
+    git("-c", "user.name=Synthetic Fixture", "-c", "user.email=fixture@example.invalid",
+        "commit", "-qm", "Original neutral qualification inputs")
+    ref = git("rev-parse", "HEAD")
+    monkeypatch.setattr(evals, "REPO_ROOT", root)
+    monkeypatch.setattr(source, "runtime_paths", lambda **kwargs: ["runtime.py"])
+    current_hash = qualification.establishment_runtime(ref, [contract], versions)
+    fp = evals.case_fingerprint(contract, judge_model=evals.DEFAULT_JUDGE_MODEL,
+                                     runtime_hash=current_hash)
+    for row in rows: row["fingerprint"] = fp
+    for call in calls:
+        if call.get("scope"): call["scope"]["fingerprint"] = fp
+    changed["judgeRubric"] = "Materially changed policy"
+    new = dict(contract, id="new", _path=root / "agent_eval_cases/new.json")
+    catalog = [contract, changed, new]
+    proof = qualification.build_establishment(rows, calls, catalog,
+        source_ref=ref, versions=versions, now=now)
+    assert set(proof["cases"]) == {"contract"}
+    qualification.validate_establishment(proof, catalog, versions=versions, now=now)
+    assert qualification.regression_required(contract, proof, [], "current-source") == 1
+    assert qualification.regression_required(changed, proof, [], "current-source") == 3
+    assert qualification.regression_required(new, proof, [], "current-source") == 3
+
+    forged = deepcopy(proof)
+    forged["cases"]["changed"] = deepcopy(proof["cases"]["contract"])
+    with pytest.raises(ValueError, match="new or changed case"):
+        qualification.validate_establishment(forged, catalog, versions=versions, now=now)

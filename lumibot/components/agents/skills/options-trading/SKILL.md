@@ -165,7 +165,13 @@ broker, approval, liquidity and risk limits.
    exercise style and cash or physical settlement where available. For a short
    physically settled call, explain the potential delivery or resulting short
    underlying position and how the held longs, account capacity and planned exit
-   would address it. Do not assume an offsetting long exercises automatically or
+   would address it. State the temporary buying-power or funding obligation
+   separately from the bounded expiry loss: the account may have to support
+   the resulting stock position before a long is exercised or shares are closed.
+   Cash alone does not establish available buying power. If broker capacity is
+   unavailable, identify that uncertainty and the intended handling; do not
+   invent a margin requirement or assume the small package debit covers it.
+   Do not assume an offsetting long exercises automatically or
    eliminates early-assignment, expiration mismatch or cash/position consequences.
    Keep the per-contract deliverable distinct from the position total: multiply
    the actual multiplier by the assigned contract count once, not twice.

@@ -157,6 +157,10 @@ def _history(asset, fixture, quote_asset=None):
     else:
         price = 230.0 if asset.symbol == "AAPL" else fixture.underlying_price
         market_quote = {"bid": price - 0.05, "ask": price + 0.05}
+    if fixture.name == "flat_options_underlying_mark_only" and asset.asset_type != "option":
+        # Recorded last/mark-only quote shape, as supplied by trade-bar sources.
+        # Exact option legs retain their independent two-sided execution quotes.
+        market_quote = {"bid": None, "ask": None}
     frame = pd.DataFrame(
         {"open": price, "high": price + 0.05, "low": price - 0.05, "close": price, "volume": 1000, **market_quote}, index=index
     )

@@ -30,6 +30,10 @@ Missing contract selection, quotes or package prices in a thesis research
 answer are work for the trader through its own tools, not failed research.
 For thesis research, omit account, order-status and P&L commentary unless the
 research question needs it; the trader owns execution reconciliation.
+Aim for roughly 100–200 words in a normal final packet: the decision-driving
+evidence, conclusion and material uncertainty. The persisted tool record keeps
+the full tables. Use more space when the user's question or unresolved exposure
+needs it; brevity never replaces the required checks or disclosure.
 
 Each role checks its own reported facts against its returned evidence. Keep
 last price, midpoint, bid and ask labels distinct; a last price is not a quoted

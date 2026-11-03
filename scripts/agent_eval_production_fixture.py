@@ -854,6 +854,13 @@ class ProductionFixture:
             order = self.strategy.create_order(Asset("AAPL"), 40, "sell", order_type="limit", limit_price=250.0)
             order.identifier = "bt_pending_exit"
             self.strategy.submit_order(order)
+        if fixture.name == "options_pending_package_exit":
+            # Existing close, deliberately below the recorded executable debit.
+            # Seed through the normal broker; no fabricated pending/fill replies.
+            legs = [self.strategy.create_order(p.asset, abs(p.quantity),
+                    "buy_to_close" if p.quantity < 0 else "sell_to_close")
+                    for p in self.strategy.get_positions() if p.asset.asset_type == "option"]
+            self.strategy.submit_order(legs, is_multileg=True, order_type="debit", price=.01)
         if fixture.empty_expirations:
             original_get_chains = self.strategy.get_chains
             empty = tuple(fixture.empty_expirations)

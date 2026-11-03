@@ -351,7 +351,7 @@ def build_fixture(name: str) -> FixtureRuntime:
         elif name == "portfolio_one_gap":
             fixture.stock_markets["QZX03"] = {"price": 99.0, "bid": None, "ask": None}
             fixture.stock_markets["QZXMISSING"] = None
-    if name == "open_credit_spread":
+    if name in {"open_credit_spread", "options_pending_package_exit"}:
         fixture.positions = [
             {
                 "symbol": "SPY",

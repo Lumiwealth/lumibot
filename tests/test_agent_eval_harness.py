@@ -32,6 +32,30 @@ def test_calibration_control_selection_preserves_default_and_named_case_scope():
     assert select_controls(controls, case_ids=["one"], control_ids=["safe"]) == controls[:1]
 
 
+def test_pending_option_package_fixture_reprices_same_order_without_duplicate():
+    fixture = evals.build_fixture("options_pending_package_exit")
+    production = fixture_module.ProductionFixture(fixture)
+    try:
+        strategy = production.strategy
+        held = [p for p in strategy.get_positions() if p.asset.asset_type == "option"]
+        assert sorted(float(p.quantity) for p in held) == [-3, 3]
+        parents = [o for o in strategy.get_orders() if str(o.order_class) == "multileg"]
+        assert len(parents) == 1
+        parent = parents[0]
+        identity = parent.identifier
+        production.broker.process_pending_orders(strategy)
+        assert not parent.is_filled()
+        assert float(parent.limit_price) == .01
+        strategy.modify_order(parent, limit_price=.60)
+        production.broker.process_pending_orders(strategy)
+        assert parent.identifier == identity and parent.is_filled()
+        assert not [p for p in strategy.get_positions()
+                    if p.asset.asset_type == "option" and p.quantity]
+        assert len([o for o in strategy.get_orders() if str(o.order_class) == "multileg"]) == 1
+    finally:
+        production.close()
+
+
 @pytest.mark.parametrize("selection", [{"control_ids": ["missing"]}, {"case_ids": ["missing"]},
                                       {"case_ids": ["two"], "control_ids": ["safe"]}])
 def test_calibration_control_selection_cannot_create_an_empty_passing_run(selection):

@@ -65,6 +65,26 @@ def test_trade_only_preview_keeps_unavailable_spread_quality_unknown():
     assert [row['spread_pct'] for row in details] == [None, None]
 
 
+@pytest.mark.parametrize('old,new,expected', [(1.0,.6,.6),(-1.0,.6,-.6),(0.0,0.0,0.0),(0.0,.6,.6)])
+def test_modified_package_limit_updates_simulator_execution_boundary(old,new,expected):
+    broker = object.__new__(BacktestingBroker)
+    broker.stream = Mock()
+    parent = Order('synthetic', Asset('XYZ'), 1, 'buy', order_type='limit', limit_price=abs(old))
+    parent._package_net_limit = old
+    BacktestingBroker._modify_order(broker, parent, limit_price=new)
+    assert parent._package_net_limit == expected
+    assert broker.stream.dispatch.call_args.kwargs['price'] == new
+
+
+def test_stop_only_modification_preserves_package_boundary_and_ordinary_orders():
+    broker = object.__new__(BacktestingBroker)
+    broker.stream = Mock()
+    order = Order('synthetic', Asset('XYZ'), 1, 'buy', order_type='stop', stop_price=10)
+    BacktestingBroker._modify_order(broker, order, stop_price=11)
+    assert not hasattr(order, '_package_net_limit')
+    assert broker.stream.dispatch.call_args.kwargs['price'] == 11
+
+
 class SubmissionCaptured(BaseException):
     """Stop at the real external-write boundary without fabricating a response."""
 

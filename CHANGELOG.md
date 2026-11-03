@@ -2,6 +2,8 @@
 
 ## 4.6.47 - 2026-11-03
 
+Deploy marker: ef37fd7223b91750067d88695d8be0b44affd85c
+
 ### Fixed
 - Preserve exact option contracts when Alpaca labels individual package legs as multi-leg orders. Only the container with children is a package, so subsequent quote reads and SmartLimit closes retain each leg's expiry, strike, right and multiplier.
 - Bind Alpaca API qualification to one dedicated trading/data connection and exercise normal broker reconciliation, including bounded partial-close continuation only after confirmed cancellation and an exact remaining-quantity read.

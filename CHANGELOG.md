@@ -1,5 +1,30 @@
 # Changelog
 
+## 4.6.45 - 2026-11-03
+
+Deploy marker: 629c49a55c7166f5b119c9ef66f4f4f44919dd48
+
+### Added
+- Add a runnable MetaMask perpetual round-trip example using normal Strategy APIs and continuous Trader scheduling, exact executed-quantity reduce-only closes, durable order identities and same-name restart recovery.
+
+### Fixed
+- Preserve native started-iteration and failure timing for immediate scheduled invocations without inventing an exact clock target; ordinary non-scheduled execution is unchanged.
+- Calibrate research grading against actual returned unit metadata without requiring invented response fields; retain real-answer and explicitly incorrect-unit controls. This changes qualification only, not research or trading behavior.
+- Bind AI stock-basket sizing to each symbol's own observed execution price, reconcile affordable residual allocations, and distinguish final cash from calculated cash above a reserve, without changing broker adapters or user allocation rules.
+- Reconcile Alpaca SDK terminal-status enums before repricing, including partial executions reported with cancellation, rather than attempting to replace an already completed order.
+- Make SmartLimit cancel-and-replace wait for broker-confirmed cancellation, preserve executions and replace only the unfilled remainder with a fresh order identity. Scheduled workers refresh pending mutation outcomes when stream confirmation is delayed; ambiguous replacement/submission outcomes remain visible instead of authorizing duplicate orders.
+- Accept broker-normalized Decimal limit prices during SmartLimit repricing and translate its internal wrapper to CCXT's native limit amendment while preserving spot units, derivative contract quantities, settlement and hedge-side parameters.
+- Validate MetaMask perpetual account support before reservation and again before releasing approved actions; retain cancellation access after account-mode changes. Require RPC-finalized canonical swap receipts and revalidate older completed swaps read-only without losing fills, fees or reservations or replaying transactions.
+- Prevent concurrent ProjectX submissions of the same order object from resetting an in-flight outcome; retain unknown certainty during preparation and confirm rejection only when preflight fails before handoff.
+- Restore missing cancellation provenance on older native records only when intact persisted checkpoints prove no order release, preserving execution history and reconciliation or fee holds.
+- Join MetaMask polling and order workers before closing the native client, including delayed stream startup and repeated close calls.
+- Reconcile terminal IOC partial executions as actual fills with canceled unfilled remainder, retaining raw venue status and requiring matching intent, persisted action and fill history instead of assuming a `filled` label means full execution.
+- Validate testnet partial-fill qualification against the identity-matched live order remainder, retain cleanup budget before signing, and accept explicitly reviewed daily-cap checks without changing wallet authority. Actual testnet expiry rejection has been verified without signatures or journal execution changes.
+- Document all four submission-certainty values for MetaMask and separate local-cancellation recovery guidance from unrelated FAQ answers.
+- Require positive native release provenance before local MetaMask cancellation; require a matching live observation before cancellation release, retain ambiguous legacy execution holds and distinguish confirmed unsubmitted orders from venue cancellations in generic tools.
+- Retain locally sent ProjectX orders through uncertain acknowledgements, prevent duplicate handoffs for the same identity, and reconcile exact receipts into the original order. ProjectX and MetaMask order tools expose submission uncertainty without claiming acceptance or permitting a blind retry.
+- ProjectX synthetic brackets protect cumulative residual entry exposure with distinct exit generations, preserve partial-exit quantities and explicit cancellation intent, and hold uncertain restored history instead of inventing new orders.
+
 ## 4.6.44 - 2026-11-02
 
 ### Fixed

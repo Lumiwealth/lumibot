@@ -1,7 +1,7 @@
 """Native Python MetaMask managed-wallet broker."""
 
 from decimal import Context, Decimal
-from threading import RLock
+from threading import Event, RLock, current_thread
 from uuid import uuid4
 
 import requests
@@ -32,12 +32,38 @@ class MetaMask(Broker):
         self.client = MetaMaskClient(config)
         self._observations = {}
         self._event_lock = RLock()
+        self._close_lock = RLock()
+        self._closed = False
+        self._stream_thread = None
+        self._stream_ready = Event()
+        if not connect_stream:
+            self._stream_ready.set()
         self._poll_interval = float(config.get("POLL_INTERVAL", 10))
         data_source = data_source or MetaMaskData(config, client=self.client)
         super().__init__(
             name="metamask", config=config, data_source=data_source, connect_stream=connect_stream, **kwargs
         )
         self.market = "24/7"
+
+    def close(self):
+        """Release this broker after its Strategy/Trader execution has stopped.
+
+        Stop dispatch, wait for owned polling/submission workers, then release
+        the native session and journal. Never close from an owned worker.
+        """
+        workers = (getattr(self, "_orders_thread", None), self._stream_thread)
+        if current_thread() in workers:
+            raise RuntimeError("Close MetaMask from its owner after stopping Strategy/Trader execution")
+        with self._close_lock:
+            if self._closed:
+                return
+            self.cleanup_streams()
+            self._stream_ready.wait()
+            for worker in (getattr(self, "_orders_thread", None), self._stream_thread):
+                if worker is not None:
+                    worker.join()
+            self.client.close()
+            self._closed = True
 
     def _submit_order(self, order):
         if self.mode != "perp" or order.asset.asset_type != "crypto_future":
@@ -152,6 +178,7 @@ class MetaMask(Broker):
             reduce_only=request.get("reduceOnly", False),
         )
         order.update_raw(response)
+        self._set_submission_outcome(order, response)
         order.status = {
             "filled": "fill",
             "canceled": "canceled",
@@ -274,6 +301,8 @@ class MetaMask(Broker):
         self.stream.add_action(self.stream.POLL_EVENT)(self.do_polling)
 
     def _run_stream(self):
+        self._stream_thread = current_thread()
+        self._stream_ready.set()
         self._stream_established()
         self.stream._run()
 
@@ -295,6 +324,58 @@ class MetaMask(Broker):
                 self._clean_order_trackers(order)
             return result
 
+    @staticmethod
+    def _set_submission_outcome(order, response):
+        state = response["state"]
+        certainty = (
+            "confirmed_submitted"
+            if state in {"open", "partial_fill", "filled"}
+            else "confirmed_rejected"
+            if state == "rejected"
+            else "unknown"
+        )
+        previous = getattr(order, "submission_outcome", None)
+        previous = previous if isinstance(previous, dict) else {}
+        release = response.get("orderRelease")
+        if release is None and "orderRelease" not in response and state == "canceled":
+            release = previous.get("order_release")
+        venue_id = response.get("providerOrderId")
+        valid_venue_id = (type(venue_id) is int and venue_id > 0) or (
+            isinstance(venue_id, str) and venue_id.isdecimal() and int(venue_id) > 0
+        )
+        venue_evidence = (
+            valid_venue_id
+            or decimal_value(response.get("filledQuantity", "0")) > 0
+            or bool(order.transactions)
+            or previous.get("state") in {"open", "partial_fill", "filled"}
+            or previous.get("venue_acceptance_observed") is True
+        )
+        if state == "canceled" and venue_evidence:
+            certainty = "confirmed_submitted"
+        if state == "canceled" and (release is not None or "orderRelease" in response) and not venue_evidence:
+            client_id = release.get("clientOrderId") if isinstance(release, dict) else None
+            proven = (
+                isinstance(release, dict)
+                and release.get("state") == "not_released"
+                and release.get("source") == "native_plan_local_cancel"
+                and isinstance(client_id, str)
+                and len(client_id) == 34
+                and client_id.startswith("0x")
+                and all(character in "0123456789abcdef" for character in client_id[2:])
+                and response.get("providerOrderId") is None
+                and not response.get("fees")
+            )
+            certainty = "confirmed_not_submitted" if proven else "unknown"
+        order.submission_outcome = {
+            "broker_state_certainty": certainty,
+            "reconciliation_required": certainty == "unknown" or bool(response.get("reconciliationErrorCode")),
+            "state": state,
+        }
+        if state in {"open", "partial_fill", "filled"} or venue_evidence:
+            order.submission_outcome["venue_acceptance_observed"] = True
+        if certainty == "confirmed_not_submitted":
+            order.submission_outcome["order_release"] = dict(release)
+
     def _observe(self, order, response):
         with self._event_lock:
             order = self.get_tracked_order(order.identifier) or order
@@ -313,6 +394,8 @@ class MetaMask(Broker):
                 response = {**response, "state": state}
                 if quantity == previous[0]:
                     order.update_raw(response)
+                    # Preserve proven terminal identity despite a stale unknown reply.
+                    self._set_submission_outcome(order, response)
                     return
             value = money.multiply(quantity, decimal_value(response.get("averagePrice", "0")))
             if quantity > previous[0]:
@@ -337,4 +420,5 @@ class MetaMask(Broker):
                     error=MetaMaskAPIError("REJECTED", response.get("message", "Provider rejected order")),
                 )
             order.update_raw(response)
+            self._set_submission_outcome(order, response)
             self._observations[str(order.identifier)] = (quantity, value, state)

@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
-from decimal import ROUND_DOWN, Context, Decimal, localcontext
+from decimal import ROUND_CEILING, ROUND_DOWN, Context, Decimal, localcontext
 from pathlib import Path
 from threading import Event, Lock
 from uuid import uuid4
@@ -20,6 +20,7 @@ from uuid import uuid4
 import lumibot
 from lumibot.brokers import MetaMask
 from lumibot.entities import Asset, Order
+from lumibot.tools.metamask.journal import OUTSTANDING
 from lumibot.tools.metamask.provider import MetaMaskError
 
 TERMINAL = {"filled", "canceled", "rejected"}
@@ -43,12 +44,16 @@ def validate_configs(configs):
     require(configs[0].get("STATE_FILE") and configs[0].get("SESSION_FILE"), "Durable state and session are required")
 
 
-def validate_authority(binding, index, now):
+def validate_authority(binding, index, now, daily_caps=(300, 150)):
+    require(
+        len(daily_caps) == 2 and all(type(value) is int and value > 0 for value in daily_caps),
+        "Exactly two positive reviewed daily caps are required",
+    )
     require(
         binding["network"] == "testnet"
         and binding["enabled"] is True
         and Decimal(binding["maxOrderUsd"]) == 25
-        and Decimal(binding["maxDailyUsd"]) == (300 if index == 0 else 150)
+        and Decimal(binding["maxDailyUsd"]) == daily_caps[index]
         and binding["maxLeverage"] == 1
         and binding["maxSlippageBps"] == 50
         and set(binding["markets"]) == {"BTC", "ETH"}
@@ -191,6 +196,62 @@ def wait_for_eligible_book(venue, market, timeout=60):
     raise TimeoutError("No public book with one tick of room on each side within the eligibility wait")
 
 
+def independent_maker_observation(venue, wallet, operation, client_id):
+    """Read live remaining size separately from the order-status creation snapshot."""
+    venue_id = int(operation["providerOrderId"])
+    original = Decimal(operation["request"]["quantity"])
+    require(isinstance(client_id, str) and len(client_id) == 34, "Native client order identity is missing")
+    status = venue.order_status(wallet, venue_id)
+    require(status.get("status") == "order", "Maker outcome is unknown")
+    current = status["order"]
+    require(current["status"] == "open", "Maker left the book before partial cancellation")
+    matches = [row for row in venue.frontend_open_orders(wallet) if row.get("oid") == venue_id]
+    require(len(matches) == 1, "Exact maker live remaining size is unavailable")
+    live = matches[0]
+    for row in (current["order"], live):
+        require(
+            row.get("coin") == "ETH"
+            and row.get("side") == "B"
+            and row.get("oid") == venue_id
+            and row.get("cloid") == client_id
+            and row.get("reduceOnly") is False
+            and Decimal(row["origSz"]) == original,
+            "Independent venue order differs from the maker intent",
+        )
+    remaining = Decimal(live["sz"])
+    require(remaining.is_finite() and 0 < remaining <= original, "Invalid live maker remaining size")
+    fills = [
+        row
+        for row in venue.fills(wallet, operation["createdAt"] - 5000, int(time.time() * 1000))
+        if row["oid"] == venue_id
+    ]
+    require(all(row["coin"] == "ETH" and row["side"] == "B" for row in fills), "Unexpected maker fill identity")
+    require(len({row["tid"] for row in fills}) == len(fills), "Duplicate maker fill identity")
+    with localcontext(Context(prec=160)):
+        quantity = sum((Decimal(row["sz"]) for row in fills), Decimal(0))
+    require(quantity.is_finite() and 0 <= quantity <= original, "Invalid maker cumulative fill")
+    return status, live, fills, quantity, remaining
+
+
+def cleanup_budget_room(journal, agent, binding, now):
+    """Check the same rolling reservations as Journal.reserve before any signing."""
+    with localcontext(Context(prec=160, rounding=ROUND_CEILING)):
+        used = Decimal(0)
+        for item in journal.operations(agent):
+            possible = item.get("hashes") or any(
+                effect.get("transaction") for effect in journal.effects(agent, str(item["id"])).values()
+            )
+            if item.get("state") == "rejected" and Decimal(item.get("filledQuantity", "0")) == 0 and not possible:
+                continue
+            if Decimal(item["createdAt"]) > now - 86_400_000 or item.get("state") in OUTSTANDING:
+                used += max(
+                    Decimal(item["reservedUsd"]), Decimal(item.get("feeAdjustedReservationUsd", item["reservedUsd"]))
+                )
+        room = Decimal(binding["maxDailyUsd"]) - used
+    require(room >= 50, "Daily budget must cover a $25 entry and $25 residual cleanup before signing")
+    return room
+
+
 def owned_residual(operations, positions, open_orders, owned_ids):
     require(not open_orders, "Venue open orders prevent safe cleanup; foreign orders are never canceled")
     require(all(op["id"] in owned_ids for op in operations), "Cleanup received an unrelated operation")
@@ -259,12 +320,14 @@ def cleanup(broker, created, cleanup_id, evidence, index):
     evidence.stage("cleanup_flat", index=index, account=account, open_orders=open_orders)
 
 
-def run(configs, evidence):
+def run(configs, evidence, daily_caps=(300, 150)):
     validate_configs(configs)
     prefix = evidence.data["run"]
     ids = [f"{prefix}-maker", f"{prefix}-taker"]
     cleanup_ids = [f"{prefix}-cleanup-{i}" for i in range(2)]
-    evidence.stage("prepared", source=source_identity(), ids=ids, cleanup_ids=cleanup_ids)
+    evidence.stage(
+        "prepared", source=source_identity(), ids=ids, cleanup_ids=cleanup_ids, reviewed_daily_caps=list(daily_caps)
+    )
     brokers, gates, futures = [], {}, []
     created = [[], []]
     pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="metamask-partial")
@@ -280,11 +343,17 @@ def run(configs, evidence):
                 broker.client._tokens = brokers[0].client._tokens
             identity = broker.client.verify()
             binding = broker.client.journal.binding(config["AGENT_ID"])
-            validate_authority(binding, index, int(time.time() * 1000))
+            validate_authority(binding, index, int(time.time() * 1000), daily_caps)
             require(
-                all(op["state"] in TERMINAL for op in broker.client.journal.operations(config["AGENT_ID"])),
-                "Pre-existing active or uncertain journal operations prevent qualification",
+                all(
+                    op["state"] in TERMINAL
+                    and not op.get("reconciliationErrorCode")
+                    and not op.get("budgetReviewRequired")
+                    for op in broker.client.journal.operations(config["AGENT_ID"])
+                ),
+                "Pre-existing active, uncertain or unreconciled journal operations prevent qualification",
             )
+            room = cleanup_budget_room(broker.client.journal, config["AGENT_ID"], binding, int(time.time() * 1000))
             account = broker.client.account("perp")
             require(
                 not account["positions"]
@@ -298,6 +367,7 @@ def run(configs, evidence):
                 account=account,
                 expiry=binding["expiresAt"],
                 policy_digest=binding["policyDigest"],
+                remaining_budget_usd=str(room),
             )
         maker, taker = brokers
         provider, original_sign = maker.client.provider, maker.client.provider.submit_signature
@@ -374,36 +444,19 @@ def run(configs, evidence):
         taker_filled = native_wait(taker, items[1], {"filled"})
         require(Decimal(taker_filled["filledQuantity"]) == half, "Taker did not execute the exact planned half")
         evidence.stage("taker_filled", receipt=taker_filled)
+        plan = maker.client.journal.effect(configs[0]["AGENT_ID"], ids[0], "plan")
+        require(isinstance(plan, dict), "Native maker plan is missing")
         deadline = time.monotonic() + 30
         while True:
-            status = maker.client.venue.order_status(configs[0]["WALLET_ADDRESS"], int(maker_open["providerOrderId"]))
-            require(status.get("status") == "order", "Maker outcome is unknown")
-            current = status["order"]
-            require(current["status"] == "open", "Maker left the book before partial cancellation")
-            venue_order = current["order"]
-            require(
-                venue_order["coin"] == "ETH"
-                and venue_order["side"] == "B"
-                and venue_order["oid"] == int(maker_open["providerOrderId"])
-                and Decimal(venue_order["origSz"]) == half * 2,
-                "Independent venue order differs from the maker intent",
+            status, live, fills, quantity, remaining = independent_maker_observation(
+                maker.client.venue, configs[0]["WALLET_ADDRESS"], maker_open, plan.get("clientOrderId")
             )
-            fills = [
-                row
-                for row in maker.client.venue.fills(
-                    configs[0]["WALLET_ADDRESS"], maker_open["createdAt"] - 5000, int(time.time() * 1000)
-                )
-                if row["oid"] == int(maker_open["providerOrderId"])
-            ]
-            require(all(row["coin"] == "ETH" and row["side"] == "B" for row in fills), "Unexpected maker fill identity")
-            with localcontext(Context(prec=160)):
-                quantity = sum((Decimal(row["sz"]) for row in fills), Decimal(0))
             require(quantity <= half, "Maker received excess fills; aborting qualification")
-            if quantity == half and Decimal(venue_order["sz"]) == half:
+            if quantity == half and remaining == half:
                 break
             if time.monotonic() >= deadline:
                 raise TimeoutError("Independent maker partial-fill observation timed out")
-            time.sleep(0.25)
+            time.sleep(3)
         require(not cancel_future.done(), "Cancellation hold ended before partial-fill proof")
         taker_fills = [
             row
@@ -418,7 +471,7 @@ def run(configs, evidence):
             and all(row["coin"] == "ETH" and row["side"] == "A" for row in taker_fills),
             "Independent fills do not prove the intended two-wallet match",
         )
-        evidence.stage("independent_partial", status=status, fills=fills, taker_fills=taker_fills)
+        evidence.stage("independent_partial", status=status, live_order=live, fills=fills, taker_fills=taker_fills)
         cancel_gate.release.set()
         cancel_future.result(timeout=TIMEOUT)
         canceled = native_wait(maker, items[0], {"canceled"})
@@ -499,6 +552,14 @@ def main():
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--evidence", type=Path, required=True)
     parser.add_argument("--execute", action="store_true", required=True)
+    parser.add_argument(
+        "--daily-caps",
+        type=int,
+        nargs=2,
+        default=(300, 150),
+        metavar=("MAKER", "TAKER"),
+        help="Reviewed daily reservation caps; validates existing authority without changing it",
+    )
     args = parser.parse_args()
     configs = json.loads(args.config.read_text())
     validate_configs(configs)
@@ -512,7 +573,7 @@ def main():
     require(args.evidence.resolve() not in protected, "Evidence must not overwrite configuration, session or journal")
     require(not args.evidence.exists(), "Choose a new evidence path to preserve earlier qualification receipts")
     evidence = Evidence(args.evidence, "native-partial-" + uuid4().hex[:12])
-    run(configs, evidence)
+    run(configs, evidence, daily_caps=args.daily_caps)
 
 
 if __name__ == "__main__":

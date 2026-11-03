@@ -2,7 +2,7 @@
 
 > Notes on live broker behavior that affect backtesting semantics (extended hours, order types, and “market closed / no data” handling).
 
-**Last Updated:** 2026-09-06
+**Last Updated:** 2026-11-03
 **Status:** Active
 **Audience:** Developers, AI Agents
 
@@ -73,6 +73,44 @@ limit or inclusive timestamp cursor:
 ---
 
 ## Broker notes (public sources, summarized)
+
+### SmartLimit mutation confirmation
+
+Native broker modification remains the preferred reprice path. If it fails or
+a package must change debit/credit/even type, the executor retains one replacement
+intent instead of immediately submitting the same object again. It refreshes the
+original order through the broker's normalized read and existing observation
+reducer. It follows only broker-reported replacement links, not guessed IDs.
+
+- A cancel acknowledgement is not terminal confirmation. Delayed/missing reads
+  keep the outstanding intent visible and cannot authorize another purchase.
+- A confirmed fill wins the race and suppresses replacement. A confirmed partial
+  cancellation retains its executions; a new order contains only the remainder,
+  with fresh identity and clean lifecycle events/transactions.
+- A package replacement also verifies that remaining leg quantities match the
+  remaining package ratio before submitting. Inconsistent leg observations wait
+  for reconciliation instead of duplicating a partially executed leg.
+- Once a fresh submission is attempted, an uncertain response does not create a
+  second submission identity. Unresolved work fails the existing bounded drain
+  visibly; this is not a claim that a network failure can always be auto-repaired.
+- Final-hold cancellation and pending cancel/replace states receive throttled
+  broker reads even without stream callbacks. Closed historical orders are not
+  scanned in the normal active-order fast path.
+- The Alpaca adapter normalizes SDK enum values and reconciles terminal status
+  before deciding not to modify. Live position snapshots remain broker-owned.
+
+`tests/test_smart_limit_broker_lifecycle.py` exercises the actual Alpaca SDK
+response model, adapter, executor and common reducer without network access.
+The pre-fix regressions reproduce six canceled orders still counted as pending,
+terminal enum misclassification and a resubmission attempt after a fill won the
+reprice race. Pure executor fixtures now distinguish a terminal cancellation
+callback from a no-op cancel request. These are deterministic regressions, not
+proof of real provider execution. Backtesting keeps its existing fill model and
+does not execute the live repricing loop.
+
+Alpaca documents that an existing order can fill before a replacement reaches
+the venue, even when the replace request initially succeeds:
+[retail replacement API](https://docs.alpaca.markets/us/reference/patchorderbyorderid-1).
 
 ### Bitunix futures submission contract
 
@@ -165,7 +203,7 @@ This table is intentionally small and focuses on “closed session / no data” 
 |--------|------------|-----------------------------|--------|--------------|
 | IBKR | US futures | Simulated stop orders only trigger during **regular trading hours** unless configured otherwise. | https://www.interactivebrokers.com/en/trading/us-futures-stop-order.php | Needs LumiBot `apitest` probes for our IBKR live path (paper/live) |
 | Tradovate | Futures | GTC orders placed outside active hours can appear as **Suspended** until conditions allow activation; indicates “accepted/held”, not necessarily rejected. | https://support.tradovate.com/s/article/Tradovate-Order-Statuses?language=en_US | Needs LumiBot `apitest` probes (Tradovate demo/live) |
-| ProjectX | Futures | Order placement API returns `{ success, errorCode, errorMessage }`; docs do not specify “market closed” behavior or which codes represent it. | https://gateway.docs.projectx.com/docs/api-reference/order/order-place/ | Needs LumiBot `apitest` probes (ProjectX demo/live) |
+| ProjectX | Futures | Place receipts document code `5` as `OutsideTradingHours`; actual session-specific order behavior still needs provider probes. | https://gateway.docs.projectx.com/docs/api-reference/order/order-place/ | Needs LumiBot `apitest` probes (ProjectX demo/live) |
 | Coinbase | Crypto | Market orders buy/sell at “market price”; stop orders trigger based on **last trade price**. | https://docs.cdp.coinbase.com/coinbase-app/advanced-trade-apis/guides/orders | Needs LumiBot `apitest` probes for execution-price conventions (bid/ask vs trade) |
 
 ### Alpaca (equities)
@@ -289,10 +327,56 @@ parity does not resolve advisories in the SDK's pinned transitive dependencies.
 Links (public):
 - https://gateway.docs.projectx.com/docs/api-reference/order/order-place/
 - https://gateway.docs.projectx.com/docs/category/orders/
+- https://gateway.docs.projectx.com/docs/realtime/
 
-Backtesting implications:
-- The API surface is documented (order types, params), but market-closed/reject semantics are not clearly specified in the public reference.
-- We should treat this as “unknown until probed” and rely on data-driven backtesting rules in the meantime.
+Candidate execution and recovery contract, reviewed 2026-11-02:
+
+- Classify placement receipts from strict structured fields and HTTP provenance.
+  A timeout, malformed response, pending code `6`, or unknown-error code `7`
+  remains uncertain. Both client placement entry points and the broker use the
+  same classifier. Retain the exact tag for reconciliation; do not create a
+  replacement after an uncertain handoff. Only structured HTTP 400 model
+  validation permits the existing compatibility wrapper retry.
+- Locally sent entries, including bracket parents, stay in active `SUBMITTED`
+  tracking while acceptance is unknown. This status means sent, not accepted or
+  filled. The original object, local identifier, exact tag and immutable intent
+  reserve the handoff before transport. Within a running broker, repeating that
+  identity never posts a second order; conflicting terms fail visibly. A fresh tag is a distinct intent,
+  so callers must reconcile uncertainty before creating replacements.
+- Exact provider receipts bind to the original object and preserve its bracket
+  intent and execution ledger. Conflicting identity or terms cannot authorize a
+  fill. Stream evidence received before the REST reply remains authoritative;
+  later ambiguous replies cannot undo proven executions. An explicit unresolved
+  marker restored without local ownership refuses resubmission; it does not
+  reconstruct a durable ProjectX reservation after restart.
+- Synthetic bracket exposure is cumulative entry executions minus all observed
+  protective executions, including older generations and late fills. A live
+  partial exit's total quantity includes its own fills plus remaining exposure.
+  Wait for old accepted siblings to become terminal before creating fresh exits.
+- A successful cancellation response is an acknowledgement, not terminal order
+  evidence. Internal sibling cancellation preserves strategy intent. An explicit
+  public cancellation disables that exit kind; cancel-all cannot re-arm it.
+- Apply a complete poll batch before protective decisions. A failed batch stays
+  incomplete until every retained family identifier is reconciled. Preserve
+  exact strategy ownership and coalesce concurrent execution updates.
+  Trade events also validate supplied contract and side against the bound intent
+  before recording an execution. Order and trade reducers drain protective
+  requests after releasing the observation lock.
+- Cold recovery links accepted tags and executions, but missing history or
+  unknown current intent holds new submissions and resizes. Proven original
+  sibling closure can still cancel its exact accepted sibling. Later entry fills
+  may remain unprotected during a recovery hold; these are client-managed,
+  non-atomic exits. See [the candidate user guide](../docsrc/brokers.projectx.rst).
+
+These paths have offline regression coverage; this review did not perform live
+ProjectX orders. Venue account support and market-session behavior remain
+integration qualifications. The current
+[Place reference](https://gateway.docs.projectx.com/docs/api-reference/order/order-place/)
+documents code `5` as `OutsideTradingHours`, without proving how every order type
+behaves around a session boundary. The
+[Cancel reference](https://gateway.docs.projectx.com/docs/api-reference/order/order-cancel/)
+also documents account eligibility restrictions. Do not infer live-account
+support from simulated-account tests.
 
 ### Crypto (Coinbase; 24/7)
 
@@ -367,3 +451,33 @@ broad-list miss. IBKR REST preserves the provider side and cumulative quantity;
 a combo average is not assigned as a per-leg fill price. Native tests cover
 partial, duplicate, full, canceled, expired, replaced and rejected observations.
 ProjectX, Tradovate and CCXT retain expiration as distinct from cancellation.
+
+## Submission certainty in agent tools
+
+ProjectX and MetaMask expose `Order.submission_outcome` independently of order
+lifecycle status. `broker_state_certainty` is `confirmed_submitted`,
+`confirmed_rejected`, `confirmed_not_submitted` for a proven native MetaMask
+pre-release cancellation, or `unknown`. `reconciliation_required` marks an
+unresolved handoff or conflicting evidence. Submission acknowledgement is never
+a fill.
+
+ProjectX gives one caller ownership of preparing each order object. Concurrent
+submissions return that object with unknown certainty until preparation and
+handoff resolve; they cannot reset an in-flight outcome. A failed preflight
+reports confirmed rejection and releases preparation ownership without sending
+an order.
+
+Single-order, order-list and submission tools retain this metadata. Unknown or
+malformed explicit certainty produces an incomplete, non-retryable submission
+result requiring reconciliation. Mixed batches retain each returned order and
+cannot report complete success when any result remains uncertain. Adapters
+without this explicit metadata retain their legacy result contract; this does
+not independently qualify their transport semantics.
+
+A native MetaMask local cancellation with validated pre-release provenance reports
+`confirmed_not_submitted`. It is an incomplete, non-retryable order-submission
+outcome, not a claim that no signing or leverage mutation occurred. Unproven
+legacy cancellation stays unknown. Positive venue identity or executions take
+precedence over a stale no-release marker; a canceled status alone proves neither
+acceptance nor absence of submission. Historical missing evidence requires
+operator reconciliation and does not retroactively restore a lost journal hold.

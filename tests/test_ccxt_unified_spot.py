@@ -114,6 +114,32 @@ def test_cancel_uses_unified_pair_and_processes_confirmed_cancellation(make_brok
     assert submitted.is_canceled()
 
 
+def test_smart_limit_executor_amends_spot_as_native_limit(make_broker, monkeypatch):
+    from lumibot.entities import SmartLimitConfig
+    from lumibot.strategies.strategy_executor import StrategyExecutor
+    from tests.test_smart_limit_broker_lifecycle import _Strategy
+
+    broker = make_broker()
+    submitted = order(order_type="limit", limit_price=100)
+    broker._submit_order(submitted)
+    submitted.order_type = Order.OrderType.SMART_LIMIT
+    submitted.smart_limit = SmartLimitConfig(preset="fast", step_seconds=1, final_hold_seconds=30)
+    submitted._smart_limit_state = {
+        "created_at": 0, "step_index": 0, "steps": 3, "step_seconds": 1, "final_hold_seconds": 30,
+    }
+    broker.api.edit_order = Mock(return_value={"id": submitted.identifier, "status": "open"})
+    strategy = _Strategy(broker)
+    strategy._name = "test-strategy"
+    monkeypatch.setattr("lumibot.strategies.strategy_executor.time.monotonic", lambda: 1.1)
+
+    StrategyExecutor(strategy)._process_smart_limit_orders()
+
+    args, _ = broker.api.edit_order.call_args
+    assert args[:4] == (submitted.identifier, "BTC/USDT", "limit", "buy")
+    assert Decimal(args[4]) == submitted.quantity
+    assert submitted.order_type == Order.OrderType.SMART_LIMIT
+
+
 def test_closed_orders_pass_params_by_keyword(make_broker):
     broker = make_broker()
     broker.api.fetch_closed_orders = Mock(return_value=[])

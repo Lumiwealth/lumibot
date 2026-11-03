@@ -1460,8 +1460,18 @@ class Alpaca(Broker):
                 logger.error(f"Could not fetch latest order status from Alpaca: {e}")
                 return
 
-            # Skip if done
-            if str(latest_status).lower() in ("filled", "canceled", "canceled_by_user"):
+            # alpaca-py statuses are str enums: str(OrderStatus.FILLED) is
+            # "OrderStatus.FILLED", not the wire value "filled". A confirmed
+            # terminal observation must also finish local lifecycle processing,
+            # including any execution reported with a partial cancellation.
+            latest_status = str(getattr(latest_status, "value", latest_status)).lower()
+            if latest_status in ("filled", "canceled", "canceled_by_user", "expired", "rejected"):
+                if str(getattr(latest_order, "id", "")) != str(order.identifier):
+                    raise ValueError("Alpaca terminal observation does not match the requested order")
+                observed = self._parse_broker_order(latest_order, order.strategy)
+                if observed is None:
+                    raise ValueError("Cannot reconcile terminal Alpaca order observation")
+                self._apply_direct_order_observation(order, observed)
                 return
 
             # Gather only provided fields

@@ -70,9 +70,11 @@ class ScheduledRunTiming:
         return Path(raw_path)
 
     def record(self, **fields):
-        if not self.exact_enabled():
+        if not self.truthy(os.environ.get("LUMIBOT_SCHEDULED_EXECUTION")):
             return
         payload = {key: value for key, value in fields.items() if value is not None}
+        if not self.exact_enabled():
+            payload["exact_timing_verified"] = False
         self._timing.update(payload)
         self.write()
 

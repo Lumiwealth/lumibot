@@ -83,6 +83,44 @@ def test_native_serializer_records_actual_quantity_without_forcing_correct_repla
     json.dumps(attempts)
 
 
+def test_smart_limit_replacement_waits_for_schwab_cancel_and_preserves_partial_fill(monkeypatch):
+    from lumibot.entities import SmartLimitConfig
+    from lumibot.strategies.strategy_executor import StrategyExecutor
+    from tests.test_smart_limit_broker_lifecycle import _Strategy
+
+    transport, broker, _queues, current = submitted()
+    current.order_type = Order.OrderType.SMART_LIMIT
+    current.smart_limit = SmartLimitConfig(preset="fast", step_seconds=1, final_hold_seconds=999)
+    current.limit_price = 100
+    current._smart_limit_state = {
+        "created_at": 0, "step_index": 0, "steps": 3, "step_seconds": 1, "final_hold_seconds": 999,
+    }
+    transport.queue_order_reads(current.identifier,
+        {"status": "PARTIALLY_FILLED", "filledQuantity": 40, "averagePrice": 100},
+        {"status": "PENDING_CANCEL", "filledQuantity": 40, "averagePrice": 100},
+        {"status": "CANCELED", "filledQuantity": 40, "averagePrice": 100},
+    )
+    monkeypatch.setattr(broker, "_modify_order", lambda *args, **kwargs: (_ for _ in ()).throw(
+        NotImplementedError("native amendment unavailable for this order"),
+    ))
+    strategy = _Strategy(broker)
+    strategy._name = "fixture"
+    executor = StrategyExecutor(strategy)
+    clock = [1.1]
+    monkeypatch.setattr("lumibot.strategies.strategy_executor.time.monotonic", lambda: clock[0])
+    executor._process_smart_limit_orders()
+    assert len(transport.attempted_orders) == 1
+    assert not current._closed_event.is_set()
+    clock[0] = 7
+    executor._process_smart_limit_orders()
+    attempts = transport.attempted_orders
+    assert len(attempts) == 2
+    assert attempts[1]["order_spec"]["orderLegCollection"][0]["quantity"] == 60
+    assert attempts[1]["order_spec"]["orderLegCollection"][0]["instruction"] == "SELL_SHORT"
+    assert sum(tx.quantity for tx in current.transactions) == 40
+    assert current.quantity == 100
+
+
 def test_native_option_serializer_and_parser_keep_actual_contract_and_underlying():
     transport = SchwabLifecycleTransport()
     broker, queues = data_only_schwab_broker(transport)

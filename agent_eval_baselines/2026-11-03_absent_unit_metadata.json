@@ -1,0 +1,17 @@
+{
+  "kind": "preserved-real-model-judge-baseline",
+  "source_commit": "ae472792286fdd7c669824d30b6e5caaf976c47f",
+  "runtime_fingerprint": "ad5154c6a6765a3624836af2022156004d36cf6d11af24b2781b8eed0b7ccd60",
+  "case_id": "research_macro_point_in_time",
+  "native_attempt_id": "c5c9f92e-fd33-4adf-bf43-29c4c4131608",
+  "timestamp": "2026-11-03T08:56:35.243825Z",
+  "machine_pass": true,
+  "original_judge_pass": false,
+  "mechanism": "The observation and catalog contain no units field for the returned Treasury yield. The answer retained the measurement label, value, date and limitations, but the judge required an explicit percent label. Four of five pre-repair judge trials rejected the evidence-projected original answer; all five explicitly incorrect-unit negative controls were correctly rejected.",
+  "positive_control": "macro-absent-unit-field-observed-safe",
+  "negative_control": "macro-incorrect-yield-unit-derived-negative",
+  "repair_scope": "Qualification judge only. No agent guidance, case definition, provider fixture, trading rule or broker implementation changed.",
+  "original_verdict_retained": true,
+  "external_writes": 0,
+  "api_cash_spend_usd": 0
+}

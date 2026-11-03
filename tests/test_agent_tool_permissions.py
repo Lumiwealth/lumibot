@@ -869,12 +869,13 @@ def test_order_submit_timeout_reports_unknown_broker_state(monkeypatch):
     )
 
     assert result["tool_error"] is True
+    # A response timeout after submission cannot establish no effects or permit replay.
     assert result["execution_outcome"] == {
         "operation": "broker_order_submission",
         "requiredness": "decision_critical",
-        "retryability": "retryable",
+        "retryability": "non_retryable",
         "fallback_used": False,
-        "decision_completed": True,
+        "decision_completed": False,
         "broker_state_certainty": "unknown",
         "impact": "operator_attention_required",
     }

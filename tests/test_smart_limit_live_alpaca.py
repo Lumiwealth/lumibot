@@ -1,11 +1,12 @@
 import time
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 import pytest
 
 from lumibot.brokers.alpaca import Alpaca
 from lumibot.components.options_helper import OptionsHelper
-from lumibot.credentials import ALPACA_CONFIG, ALPACA_TEST_CONFIG
+from lumibot.credentials import ALPACA_TEST_CONFIG
 from lumibot.entities import Asset, Order, SmartLimitConfig, SmartLimitPreset
 from lumibot.strategies.strategy import Strategy
 
@@ -23,64 +24,23 @@ class _HarnessStrategy(Strategy):
 
 
 def _alpaca() -> Alpaca:
-    # Prefer the dedicated test keys, but fall back to the default Alpaca config if the test keys are invalid.
-    # This keeps apitests usable even if the paper test key pair was rotated.
-    configs = [
-        ("ALPACA_TEST_CONFIG", ALPACA_TEST_CONFIG),
-        ("ALPACA_CONFIG", ALPACA_CONFIG),
-    ]
-
-    for label, cfg in configs:
-        api_key = cfg.get("API_KEY")
-        api_secret = cfg.get("API_SECRET")
-        if not api_key or not api_secret or api_key == "<your key here>" or api_secret == "<your key here>":
-            continue
-
-        broker = Alpaca(cfg, connect_stream=False)
-        try:
-            broker.api.get_all_positions()
-            return broker
-        except Exception as exc:
-            msg = str(exc).lower()
-            if "unauthorized" in msg or "401" in msg:
-                continue
-            raise RuntimeError(f"Alpaca API failed for {label}: {exc}") from exc
-
-    pytest.skip("Missing/invalid Alpaca credentials in .env (ALPACA_TEST_API_KEY/SECRET or ALPACA_API_KEY/SECRET)")
+    # Never turn an invalid isolated test key into trades on the default account.
+    cfg = dict(ALPACA_TEST_CONFIG)
+    if not cfg.get("API_KEY") or not cfg.get("API_SECRET"):
+        pytest.skip("Missing dedicated ALPACA_TEST_API_KEY / ALPACA_TEST_API_SECRET")
+    cfg["PAPER"] = True
+    broker = Alpaca(cfg, connect_stream=False)
+    account = broker.api.get_account()
+    if getattr(account, "trading_blocked", False):
+        pytest.fail("The dedicated paper test account cannot trade")
+    from alpaca.trading.requests import GetOrdersRequest
+    if broker.api.get_all_positions() or broker.api.get_orders(filter=GetOrdersRequest(status="open")):
+        pytest.skip("SmartLimit API qualification requires an isolated initially flat test account")
+    return broker
 
 
 def _poll_alpaca_order(broker: Alpaca, order: Order):
     return broker.api.get_order_by_id(order.identifier)
-
-def _cancel_alpaca_open_orders_for_symbol(broker: Alpaca, symbol: str) -> None:
-    """Best-effort cleanup for Alpaca to avoid crypto wash-trade rejections in paper."""
-    try:
-        from alpaca.trading.enums import QueryOrderStatus
-        from alpaca.trading.requests import GetOrdersRequest
-    except Exception:
-        return
-
-    target = str(symbol).upper().replace("/", "")
-    try:
-        request = GetOrdersRequest(status=QueryOrderStatus.OPEN, limit=500)
-        open_orders = broker.api.get_orders(filter=request) or []
-    except Exception:
-        return
-
-    for raw in open_orders:
-        raw_symbol = getattr(raw, "symbol", None)
-        if raw_symbol is None and hasattr(raw, "_raw") and isinstance(raw._raw, dict):
-            raw_symbol = raw._raw.get("symbol")
-        if not raw_symbol:
-            continue
-        raw_norm = str(raw_symbol).upper().replace("/", "")
-        if raw_norm != target:
-            continue
-        try:
-            broker.api.cancel_order_by_id(getattr(raw, "id", None) or raw._raw.get("id"))  # noqa: SLF001
-        except Exception:
-            pass
-
 
 def _wait_fill(strategy: _HarnessStrategy, order: Order, *, timeout: int, drive_smart_limit: bool) -> tuple[bool, int, float]:
     start = time.time()
@@ -90,18 +50,15 @@ def _wait_fill(strategy: _HarnessStrategy, order: Order, *, timeout: int, drive_
         if drive_smart_limit:
             strategy._executor._process_smart_limit_orders()
 
-        raw = _poll_alpaca_order(strategy.broker, order)
-        raw_status = getattr(raw, "status", "")
-        if hasattr(raw_status, "value"):
-            raw_status = raw_status.value
-        status = str(raw_status).lower()
-        order.status = status
-
-        price = getattr(raw, "limit_price", None)
+        # Use the real public accessor/reconciliation path. Copying raw status
+        # here used to let this test pass with broken lifecycle callbacks.
+        observed = strategy.get_order(order.identifier, broker_refresh=True, broker_refresh_ttl_seconds=1)
+        assert observed is not None
+        status = str(observed.status).lower()
+        price = observed.limit_price
         if price is not None:
             try:
                 price = float(price)
-                order.limit_price = price
                 if last_price is None:
                     last_price = price
                 elif abs(price - last_price) > 1e-9:
@@ -304,11 +261,10 @@ def test_alpaca_crypto_btcusd_smart_limit_fills_24_7():
     cfg = SmartLimitConfig(preset=SmartLimitPreset.FAST, final_price_pct=1.0, step_seconds=1, final_hold_seconds=180)
     base = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
     quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
-    qty = 0.001
+    qty = Decimal("0.001")
+    owned_orders = []
 
     try:
-        _cancel_alpaca_open_orders_for_symbol(broker, "BTC/USD")
-
         open_order = strategy.create_order(
             base,
             qty,
@@ -319,23 +275,18 @@ def test_alpaca_crypto_btcusd_smart_limit_fills_24_7():
         )
         submitted_open = strategy.submit_order(open_order)
         assert submitted_open is not None
+        owned_orders.append(submitted_open)
         ok_open, reprices_open, open_elapsed = _wait_fill(strategy, submitted_open, timeout=240, drive_smart_limit=True)
         assert ok_open, f"BTCUSD buy did not fill (reprices={reprices_open}, elapsed={open_elapsed:.1f}s)"
 
         # Alpaca crypto can apply fees/rounding such that the filled base quantity is slightly less than requested.
-        # Close whatever we actually have available to avoid "insufficient balance" errors.
-        close_qty = qty
-        try:
-            positions = broker.api.get_all_positions() or []
-            for p in positions:
-                sym = str(getattr(p, "symbol", "")).upper().replace("/", "")
-                if sym.startswith(base.symbol.upper()):
-                    close_qty = float(getattr(p, "qty", close_qty))
-                    break
-        except Exception:
-            pass
-        if close_qty <= 0:
-            close_qty = qty
+        # The initially flat account and this test's maximum bought quantity
+        # bound cleanup. Never sell an unrelated account-wide BTC balance.
+        positions = broker.api.get_all_positions() or []
+        position = next((p for p in positions if str(p.symbol).upper().replace("/", "") == "BTCUSD"), None)
+        assert position is not None, "Filled test buy has no independently visible broker position"
+        close_qty = min(qty, Decimal(str(position.qty)))
+        assert close_qty > 0
 
         close_order = strategy.create_order(
             base,
@@ -346,12 +297,11 @@ def test_alpaca_crypto_btcusd_smart_limit_fills_24_7():
             quote=quote,
         )
         submitted_close = strategy.submit_order(close_order)
+        owned_orders.append(submitted_close)
         ok_close, reprices_close, close_elapsed = _wait_fill(strategy, submitted_close, timeout=240, drive_smart_limit=True)
         if not ok_close:
-            market_close = strategy.create_order(base, qty, Order.OrderSide.SELL, order_type=Order.OrderType.MARKET, quote=quote)
-            submitted_market = strategy.submit_order(market_close)
-            ok_mkt, _, _ = _wait_fill(strategy, submitted_market, timeout=60, drive_smart_limit=False)
-            assert ok_mkt, "BTCUSD market close fallback did not fill"
+            # Do not overlap a possibly active/partial close with another sell.
+            # Preserve the failed SmartLimit result for explicit reconciliation.
             pytest.fail(f"BTCUSD smart close did not fill (reprices={reprices_close}, elapsed={close_elapsed:.1f}s)")
 
         if open_elapsed > cfg.get_step_seconds():
@@ -359,8 +309,7 @@ def test_alpaca_crypto_btcusd_smart_limit_fills_24_7():
         if close_elapsed > cfg.get_step_seconds():
             assert reprices_close >= 1
     finally:
-        # Best-effort cleanup to avoid leaving open orders behind if the test fails mid-way.
-        try:
-            strategy.cancel_open_orders()
-        except Exception:
-            pass
+        # Only orders created by this invocation may be canceled in cleanup.
+        for owned in owned_orders:
+            if owned is not None and owned.is_active():
+                strategy.cancel_order(owned)

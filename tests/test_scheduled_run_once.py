@@ -303,6 +303,32 @@ def test_scheduled_drain_reports_timeout_instead_of_success(monkeypatch):
     assert strategy.broker.closed
 
 
+def test_immediate_scheduled_run_retains_native_iteration_evidence_on_drain_failure(tmp_path, monkeypatch):
+    strategy, executor, clock = _completion_executor(monkeypatch)
+    monkeypatch.delenv("LUMIBOT_SCHEDULED_TARGET_RUN_AT", raising=False)
+    timing_file = tmp_path / "immediate-timing.json"
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_TIMING_FILE", str(timing_file))
+    strategy.broker._orders_queue.put(object())
+    executor._scheduled_work_timeout_seconds = lambda: 1
+    assert executor.run_once() is False
+    assert isinstance(executor.exception, TimeoutError)
+    timing = json.loads(timing_file.read_text())
+    assert timing["iteration_started_at"]
+    assert timing["iteration_finished_at"]
+    assert timing["status"] == "drain_failed"
+    assert timing["target_run_at"] is None
+    assert timing["exact_timing_verified"] is False
+    assert clock["value"] == 1
+
+
+def test_non_scheduled_run_does_not_write_scheduled_lifecycle_file(tmp_path, monkeypatch):
+    monkeypatch.delenv("LUMIBOT_SCHEDULED_EXECUTION", raising=False)
+    path = tmp_path / "not-scheduled.json"
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_TIMING_FILE", str(path))
+    ScheduledRunTiming().record(iteration_started_at="2026-05-11T13:30:00Z", status="iteration_started")
+    assert not path.exists()
+
+
 def test_scheduled_drain_stop_does_not_claim_completion(monkeypatch):
     strategy, executor, clock = _completion_executor(monkeypatch)
     strategy.broker._orders_queue.put(object())

@@ -198,10 +198,19 @@ jobs:
           )
           PY
 
-          selected_files=()
-          while IFS= read -r file; do selected_files+=("$file"); done < shard_files.txt
-          python -m pytest -n2 --dist loadfile -m "${PYTEST_MARKERS}" \
-            --tb=short -q --durations=30 -x "${selected_files[@]}"
+          python - <<'PYTEST'
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          selected = Path("shard_files.txt").read_text(encoding="utf-8").splitlines()
+          subprocess.run(
+              [sys.executable, "-m", "pytest", "-n2", "--dist", "loadfile", "-m", os.environ["PYTEST_MARKERS"],
+               "--tb=short", "-q", "--durations=30", "-x", *selected],
+              check=True,
+          )
+          PYTEST
 
   backtest-tests:
     name: Backtest Tests (shard ${{ matrix.shard }}/4)
@@ -282,10 +291,19 @@ jobs:
           )
           PY
 
-          selected_nodeids=()
-          while IFS= read -r nodeid; do selected_nodeids+=("$nodeid"); done < shard_nodeids.txt
-          python -m pytest -m "${PYTEST_MARKERS}" \
-            --tb=short -q --durations=30 -x "${selected_nodeids[@]}"
+          python - <<'PYTEST'
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          selected = Path("shard_nodeids.txt").read_text(encoding="utf-8").splitlines()
+          subprocess.run(
+              [sys.executable, "-m", "pytest", "-m", os.environ["PYTEST_MARKERS"],
+               "--tb=short", "-q", "--durations=30", "-x", *selected],
+              check=True,
+          )
+          PYTEST
 
   agent-evals:
     name: Real-Model Agent Evals

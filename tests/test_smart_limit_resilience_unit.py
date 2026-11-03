@@ -191,7 +191,11 @@ def test_multileg_final_hold_cancel_failure_is_swallowed(mocker):
 
 def test_multileg_cancel_replace_submit_failure_is_swallowed(mocker):
     broker = _BrokerStub(name="tradier")
-    broker.cancel_order = mocker.Mock()
+    def confirmed_cancel(order):
+        # Model a confirmed callback, not merely a successful cancel request.
+        order.status = Order.OrderStatus.CANCELED
+        order.set_canceled()
+    broker.cancel_order = mocker.Mock(side_effect=confirmed_cancel)
     broker.modify_order = mocker.Mock(side_effect=RuntimeError("modify not supported"))
     broker.submit_orders = mocker.Mock(side_effect=RuntimeError("rate limited"))
     broker.submit_order = mocker.Mock()
@@ -248,7 +252,10 @@ def test_multileg_cancel_replace_submit_failure_is_swallowed(mocker):
 
 def test_multileg_cross_even_to_debit_replaces_with_debit_price(mocker):
     broker = _BrokerStub(name="tradier")
-    broker.cancel_order = mocker.Mock()
+    def confirmed_cancel(order):
+        order.status = Order.OrderStatus.CANCELED
+        order.set_canceled()
+    broker.cancel_order = mocker.Mock(side_effect=confirmed_cancel)
     broker.submit_orders = mocker.Mock(return_value=[Order("unit", asset=Asset("SPY"), quantity=1, side=Order.OrderSide.BUY)])
     broker.modify_order = mocker.Mock()
 

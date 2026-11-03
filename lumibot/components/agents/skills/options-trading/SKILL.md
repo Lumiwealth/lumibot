@@ -10,6 +10,14 @@ not need to have requested options explicitly. If options become relevant while
 you are pursuing a broader mandate, load this skill before selecting contracts or
 submitting an option order.
 
+Before an option submission, make the decision explicit in its order rationale:
+explain the exact package's executable quote quality, signed net exposure from
+the returned Greeks, price and total risk, and any short-option obligation.
+Reading raw Greeks without assessing their signed, quantity-weighted result is
+not this decision. Calculate a net value before reporting it, include its units,
+and distinguish an offset in the present snapshot from risks that can change
+during the holding period. Use the workflow below for the supporting checks.
+
 ## Core workflow
 
 Apply the workflow to your assigned role. A non-trading researcher gathers
@@ -18,6 +26,8 @@ it need not repeat the trader's complete account/contract/order-readiness
 checklist. The trading agent independently establishes execution readiness
 immediately before each action and never treats an upstream answer as that
 verification.
+Missing contract selection, quotes or package prices in a thesis research
+answer are work for the trader through its own tools, not failed research.
 
 Each role checks its own reported facts against its returned evidence. Keep
 last price, midpoint, bid and ask labels distinct; a last price is not a quoted
@@ -159,6 +169,13 @@ broker, approval, liquidity and risk limits.
    Apply this assessment to the actual instrument; do not assume every option is
    a standard equity contract. Disclose unavailable contract terms and decide
    whether they are material under the mandate.
+   Missing optional metadata is not automatically a reason to reject an
+   otherwise authorized bounded package. In a permitted historical simulation,
+   explain any ordinary contract convention used as an assumption and its risk
+   implications; never claim the provider verified it. Verify unusual or
+   adjusted deliverables before relying on them. A researcher need not supply
+   the trader's assignment plan. The trader assesses the available terms,
+   capacity, protection and exit policy and owns that plan.
    Submit related legs as one atomic multi-leg order. Never submit related legs
    independently, including entry, exit, adjustment, or cleanup. If atomic
    package submission is unavailable, make a no-trade decision and report that
@@ -213,6 +230,10 @@ remains.
 
 ## Pricing truth
 
+- Keep exact asset identity and source time separate from a quote object's
+  construction time. A failed read for another asset type does not invalidate
+  a later successful quote for the correct asset. Compare available source
+  quote/bar times with the decision cutoff; never replace them with wall time.
 - Evaluate each exact leg before calculating a package price.
 - Bind every preview to its exact contract identities, sides and quantities.
   Before citing a candidate price, compare that complete returned leg list with
@@ -328,6 +349,9 @@ the identity does not remove earlier conditions automatically.
 
 Use meaningful events and sparse reviews by default. An unchanged pricing-tool
 defect does not become new research merely because another minute passes.
+An unchanged optional-information gap likewise does not justify recreating a
+daily research alert. For an unfilled setup, choose the next genuine entry
+opportunity or expected evidence change; preserve urgent held-exposure reviews.
 Report the exact conflict and choose a useful new-data or recovery review while
 retaining any held-position risk observations. Respect an explicitly requested
 frequent-AI policy rather than imposing a universal call limit.

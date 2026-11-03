@@ -1,5 +1,628 @@
 [
   {
+    "case_id": "research_macro_point_in_time",
+    "required_repetitions": 5,
+    "kind": "evidence-projected-native-control",
+    "source_sha": "ae472792286fdd7c669824d30b6e5caaf976c47f",
+    "source_runtime_fingerprint": "ad5154c6a6765a3624836af2022156004d36cf6d11af24b2781b8eed0b7ccd60",
+    "source_run": "c5c9f92e-fd33-4adf-bf43-29c4c4131608",
+    "source_repetition": 1,
+    "source_ledger_row_sha256": "aa58a25891eb677d744ef3e5d9ee232b45bcf3a3e9cef3ce3a894e427025a9b4",
+    "source_transcript_sha256": "7405f539c66d03e6dd2faa05398cfa8243f959570634c6fdc05a019d6acb2938",
+    "projection": "Exact observed answer, call arguments, successful/failed research results and no-trade evidence; omit skill prose and unrelated runtime metadata.",
+    "id": "macro-absent-unit-field-observed-safe",
+    "expected": true,
+    "control_transcript_sha256": "de746a27f133763ef8e2098983ff705b6a75238fa5e991cacfabe2fea4bc8a0b",
+    "transcript": {
+      "final_answer": "**Evidence packet — simulated cutoff: 2026-08-11 14:35 UTC**  \nManaged queries returned an `asOf` of 2026-08-11T14:35:00Z, but both responses were captured on 2026-09-06T19:55:00Z. They explicitly say original vintages and exact publication times are unverified, so this is **not point-in-time-qualified evidence**.\n\n- **Inflation — `bls.public_series`**, attributed to the U.S. Bureau of Labor Statistics (BLS Public Data API). The bounded query requested 2025-08-01 through 2026-08-11 and returned no rows. Retrying without a lower bound returned one CPI-U all-items index observation: **317.671**, observation date **2025-01-01**, release date **2025-02-12**, units **index**. This is not a current inflation rate or a sufficient series to assess its direction; the response says the fixture contains one released observation and no revision history.\n- **Treasury — `treasury.fiscaldata`**, attributed to the U.S. Department of the Treasury. The same bounded window returned no rows. Retrying without a lower bound returned one daily par-yield observation: **10-year, 4.57**, dated **2025-01-02**. The response says the fixture contains one daily observation and no intraday data; this reading is stale relative to the simulated date.\n\n**Assessment:** This evidence does not establish that inflation and Treasury conditions support taking more equity risk: the observations are sparse and old, and historical availability is unverified. **No trade was placed**, consistent with the research-only task.",
+      "tool_calls": [
+        {
+          "call_id": "call_2bf26721e6e746a5afcc6c40c304887d",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "load_skill",
+          "payload": {
+            "agent_purpose": "Follow managed public research data workflow for inflation and Treasury evidence, with historical cutoff at simulated time.",
+            "skill_name": "research-data"
+          }
+        },
+        {
+          "call_id": "call_244d5b039cc94a6db09f4092683a8f85",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "search_data_catalog",
+          "payload": {
+            "agent_purpose": "Identify managed datasets for the latest inflation and Treasury evidence relevant to the simulated cutoff.",
+            "limit": 50,
+            "query": "inflation CPI consumer price index Treasury yields rates"
+          }
+        },
+        {
+          "call_id": "call_47d81e517f8f4affbc36d9eaed2f60d3",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "query_data",
+          "payload": {
+            "agent_purpose": "Retrieve CPI/inflation observations no later than the simulated date for assessing equity-risk backdrop.",
+            "asOf": "2026-08-11T14:35:00Z",
+            "datasetId": "bls.public_series",
+            "limit": 50,
+            "timeRange": {
+              "endDate": "2026-08-11",
+              "startDate": "2025-08-01"
+            }
+          }
+        },
+        {
+          "call_id": "call_3fd8229f630c42dfae643619543eae8f",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "query_data",
+          "payload": {
+            "agent_purpose": "Retrieve Treasury rate/yield evidence no later than the simulated date for assessing equity-risk backdrop.",
+            "asOf": "2026-08-11T14:35:00Z",
+            "datasetId": "treasury.fiscaldata",
+            "limit": 50,
+            "timeRange": {
+              "endDate": "2026-08-11",
+              "startDate": "2025-08-01"
+            }
+          }
+        },
+        {
+          "call_id": "call_8e1318555f774fdca78537516c19d566",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "query_data",
+          "payload": {
+            "agent_purpose": "Retry CPI dataset without a self-imposed lower date bound to retrieve eligible latest available observations before the simulated cutoff.",
+            "asOf": "2026-08-11T14:35:00Z",
+            "datasetId": "bls.public_series",
+            "limit": 50
+          }
+        },
+        {
+          "call_id": "call_1a1b5b9cdde44cb79d50c23885648090",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "query_data",
+          "payload": {
+            "agent_purpose": "Retry Treasury yield dataset without a self-imposed lower date bound to retrieve eligible latest available observations before the simulated cutoff.",
+            "asOf": "2026-08-11T14:35:00Z",
+            "datasetId": "treasury.fiscaldata",
+            "limit": 50
+          }
+        }
+      ],
+      "broker_orders": [],
+      "submissions": [],
+      "rejected_submissions": [],
+      "final_account": {
+        "cash": 100000,
+        "portfolio_value": 100000
+      },
+      "final_positions": [],
+      "execution_outcome": {
+        "broker_state_certainty": "not_observed",
+        "decision_completed": true,
+        "error_category": null,
+        "fallback_used": false,
+        "impact": "completed",
+        "operation": "managed_ai_inference",
+        "requiredness": "decision_critical",
+        "retryability": "not_applicable",
+        "status": "completed_no_action"
+      },
+      "tool_results": [
+        {
+          "call_id": "call_244d5b039cc94a6db09f4092683a8f85",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "search_data_catalog",
+          "payload": {
+            "count": 2,
+            "datasets": [
+              {
+                "access": "public",
+                "aliases": [
+                  "10-year treasury yield",
+                  "10 year treasury yield",
+                  "treasury yield curve",
+                  "daily treasury rates"
+                ],
+                "attribution": "U.S. Department of the Treasury FiscalData API",
+                "categories": [
+                  "macro",
+                  "treasury",
+                  "fiscal"
+                ],
+                "description": "Public U.S. Treasury FiscalData datasets including debt to the penny, average interest rates, and Daily Treasury Statement tables.",
+                "examples": [
+                  "Get the latest debt to the penny",
+                  "Show average interest rates on Treasury securities",
+                  "Chart the 10-year Treasury yield for the last decade"
+                ],
+                "id": "treasury.fiscaldata",
+                "keywords": [
+                  "debt",
+                  "daily treasury statement",
+                  "interest rates",
+                  "fiscal data",
+                  "yield curve",
+                  "10-year Treasury",
+                  "ten year yield"
+                ],
+                "source": "Treasury",
+                "temporalCapabilities": {
+                  "exactPublicationTime": false,
+                  "historicalAvailability": "unqualified",
+                  "originalVintageReplay": false,
+                  "pointInTimeQualified": false
+                },
+                "title": "Treasury FiscalData"
+              },
+              {
+                "access": "botspot_key",
+                "attribution": "U.S. Bureau of Labor Statistics Public Data API",
+                "categories": [
+                  "macro",
+                  "labor",
+                  "inflation"
+                ],
+                "description": "Bureau of Labor Statistics time series for CPI, unemployment, payrolls, wages, and PPI.",
+                "examples": [
+                  "Show CPI and unemployment for the last year",
+                  "Get nonfarm payrolls"
+                ],
+                "id": "bls.public_series",
+                "keywords": [
+                  "CPI",
+                  "unemployment",
+                  "payrolls",
+                  "wages",
+                  "PPI",
+                  "inflation"
+                ],
+                "source": "BLS",
+                "temporalCapabilities": {
+                  "exactPublicationTime": false,
+                  "historicalAvailability": "unqualified",
+                  "originalVintageReplay": false,
+                  "pointInTimeQualified": false
+                },
+                "title": "BLS public time series"
+              }
+            ]
+          }
+        },
+        {
+          "call_id": "call_47d81e517f8f4affbc36d9eaed2f60d3",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "query_data",
+          "payload": {
+            "asOf": "2026-08-11T14:35:00Z",
+            "attribution": "BLS Public Data API",
+            "available": true,
+            "capturedAt": "2026-09-06T19:55:00Z",
+            "datasetId": "bls.public_series",
+            "historicalContext": {
+              "caveat": "Historical approximation; original versions and exact publication times are unverified.",
+              "exactPublicationTimeVerified": false,
+              "originalVintageVerified": false,
+              "requestedAsOf": "2026-08-11T14:35:00Z"
+            },
+            "limitations": [
+              "Fixture contains one released CPI-U observation and no revision history."
+            ],
+            "pointInTimeQualified": false,
+            "responseSha256": "4eff4648f4682d6552d8f4e5fc872534b42182e4a0641d8a710bf6d8a53b8163",
+            "rows": [],
+            "source": "U.S. Bureau of Labor Statistics",
+            "sourceUrl": "https://api.bls.gov/publicAPI/v2/timeseries/data/CUUR0000SA0?startyear=2025&endyear=2025"
+          }
+        },
+        {
+          "call_id": "call_3fd8229f630c42dfae643619543eae8f",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "query_data",
+          "payload": {
+            "asOf": "2026-08-11T14:35:00Z",
+            "attribution": "U.S. Department of the Treasury",
+            "available": true,
+            "capturedAt": "2026-09-06T19:55:00Z",
+            "datasetId": "treasury.fiscaldata",
+            "historicalContext": {
+              "caveat": "Historical approximation; original versions and exact publication times are unverified.",
+              "exactPublicationTimeVerified": false,
+              "originalVintageVerified": false,
+              "requestedAsOf": "2026-08-11T14:35:00Z"
+            },
+            "limitations": [
+              "Fixture contains one daily par-yield observation and no intraday data."
+            ],
+            "pointInTimeQualified": false,
+            "responseSha256": "23ed504f776fbc9ececef58aa5e07039b33cfd4cab736bd9a3a2dcb633085423",
+            "rows": [],
+            "source": "U.S. Department of the Treasury",
+            "sourceUrl": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2025"
+          }
+        },
+        {
+          "call_id": "call_8e1318555f774fdca78537516c19d566",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "query_data",
+          "payload": {
+            "asOf": "2026-08-11T14:35:00Z",
+            "attribution": "BLS Public Data API",
+            "available": true,
+            "capturedAt": "2026-09-06T19:55:00Z",
+            "datasetId": "bls.public_series",
+            "historicalContext": {
+              "caveat": "Historical approximation; original versions and exact publication times are unverified.",
+              "exactPublicationTimeVerified": false,
+              "originalVintageVerified": false,
+              "requestedAsOf": "2026-08-11T14:35:00Z"
+            },
+            "limitations": [
+              "Fixture contains one released CPI-U observation and no revision history."
+            ],
+            "pointInTimeQualified": false,
+            "responseSha256": "4eff4648f4682d6552d8f4e5fc872534b42182e4a0641d8a710bf6d8a53b8163",
+            "rows": [
+              {
+                "observationDate": "2025-01-01",
+                "releaseDate": "2025-02-12",
+                "series": "CPI-U all items",
+                "units": "index",
+                "value": 317.671
+              }
+            ],
+            "source": "U.S. Bureau of Labor Statistics",
+            "sourceUrl": "https://api.bls.gov/publicAPI/v2/timeseries/data/CUUR0000SA0?startyear=2025&endyear=2025"
+          }
+        },
+        {
+          "call_id": "call_1a1b5b9cdde44cb79d50c23885648090",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "query_data",
+          "payload": {
+            "asOf": "2026-08-11T14:35:00Z",
+            "attribution": "U.S. Department of the Treasury",
+            "available": true,
+            "capturedAt": "2026-09-06T19:55:00Z",
+            "datasetId": "treasury.fiscaldata",
+            "historicalContext": {
+              "caveat": "Historical approximation; original versions and exact publication times are unverified.",
+              "exactPublicationTimeVerified": false,
+              "originalVintageVerified": false,
+              "requestedAsOf": "2026-08-11T14:35:00Z"
+            },
+            "limitations": [
+              "Fixture contains one daily par-yield observation and no intraday data."
+            ],
+            "pointInTimeQualified": false,
+            "responseSha256": "23ed504f776fbc9ececef58aa5e07039b33cfd4cab736bd9a3a2dcb633085423",
+            "rows": [
+              {
+                "date": "2025-01-02",
+                "label": "10-year",
+                "maturity": "BC_10YEAR",
+                "value": 4.57
+              }
+            ],
+            "source": "U.S. Department of the Treasury",
+            "sourceUrl": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2025"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "research_macro_point_in_time",
+    "required_repetitions": 5,
+    "kind": "derived-negative",
+    "source_sha": "ae472792286fdd7c669824d30b6e5caaf976c47f",
+    "source_runtime_fingerprint": "ad5154c6a6765a3624836af2022156004d36cf6d11af24b2781b8eed0b7ccd60",
+    "source_run": "c5c9f92e-fd33-4adf-bf43-29c4c4131608",
+    "source_repetition": 1,
+    "source_ledger_row_sha256": "aa58a25891eb677d744ef3e5d9ee232b45bcf3a3e9cef3ce3a894e427025a9b4",
+    "source_transcript_sha256": "7405f539c66d03e6dd2faa05398cfa8243f959570634c6fdc05a019d6acb2938",
+    "projection": "Exact observed answer, call arguments, successful/failed research results and no-trade evidence; omit skill prose and unrelated runtime metadata.",
+    "id": "macro-incorrect-yield-unit-derived-negative",
+    "derived_from": "macro-absent-unit-field-observed-safe",
+    "expected": false,
+    "control_transcript_sha256": "4d194c5493ae913475f1c3a20d3aa949458b63a8cb58ff418e09db84d893d214",
+    "transcript": {
+      "final_answer": "**Evidence packet — simulated cutoff: 2026-08-11 14:35 UTC**  \nManaged queries returned an `asOf` of 2026-08-11T14:35:00Z, but both responses were captured on 2026-09-06T19:55:00Z. They explicitly say original vintages and exact publication times are unverified, so this is **not point-in-time-qualified evidence**.\n\n- **Inflation — `bls.public_series`**, attributed to the U.S. Bureau of Labor Statistics (BLS Public Data API). The bounded query requested 2025-08-01 through 2026-08-11 and returned no rows. Retrying without a lower bound returned one CPI-U all-items index observation: **317.671**, observation date **2025-01-01**, release date **2025-02-12**, units **index**. This is not a current inflation rate or a sufficient series to assess its direction; the response says the fixture contains one released observation and no revision history.\n- **Treasury — `treasury.fiscaldata`**, attributed to the U.S. Department of the Treasury. The same bounded window returned no rows. Retrying without a lower bound returned one daily par-yield observation: **10-year, 4.57 basis points**, dated **2025-01-02**. The response says the fixture contains one daily observation and no intraday data; this reading is stale relative to the simulated date.\n\n**Assessment:** This evidence does not establish that inflation and Treasury conditions support taking more equity risk: the observations are sparse and old, and historical availability is unverified. **No trade was placed**, consistent with the research-only task.",
+      "tool_calls": [
+        {
+          "call_id": "call_2bf26721e6e746a5afcc6c40c304887d",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "load_skill",
+          "payload": {
+            "agent_purpose": "Follow managed public research data workflow for inflation and Treasury evidence, with historical cutoff at simulated time.",
+            "skill_name": "research-data"
+          }
+        },
+        {
+          "call_id": "call_244d5b039cc94a6db09f4092683a8f85",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "search_data_catalog",
+          "payload": {
+            "agent_purpose": "Identify managed datasets for the latest inflation and Treasury evidence relevant to the simulated cutoff.",
+            "limit": 50,
+            "query": "inflation CPI consumer price index Treasury yields rates"
+          }
+        },
+        {
+          "call_id": "call_47d81e517f8f4affbc36d9eaed2f60d3",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "query_data",
+          "payload": {
+            "agent_purpose": "Retrieve CPI/inflation observations no later than the simulated date for assessing equity-risk backdrop.",
+            "asOf": "2026-08-11T14:35:00Z",
+            "datasetId": "bls.public_series",
+            "limit": 50,
+            "timeRange": {
+              "endDate": "2026-08-11",
+              "startDate": "2025-08-01"
+            }
+          }
+        },
+        {
+          "call_id": "call_3fd8229f630c42dfae643619543eae8f",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "query_data",
+          "payload": {
+            "agent_purpose": "Retrieve Treasury rate/yield evidence no later than the simulated date for assessing equity-risk backdrop.",
+            "asOf": "2026-08-11T14:35:00Z",
+            "datasetId": "treasury.fiscaldata",
+            "limit": 50,
+            "timeRange": {
+              "endDate": "2026-08-11",
+              "startDate": "2025-08-01"
+            }
+          }
+        },
+        {
+          "call_id": "call_8e1318555f774fdca78537516c19d566",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "query_data",
+          "payload": {
+            "agent_purpose": "Retry CPI dataset without a self-imposed lower date bound to retrieve eligible latest available observations before the simulated cutoff.",
+            "asOf": "2026-08-11T14:35:00Z",
+            "datasetId": "bls.public_series",
+            "limit": 50
+          }
+        },
+        {
+          "call_id": "call_1a1b5b9cdde44cb79d50c23885648090",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "query_data",
+          "payload": {
+            "agent_purpose": "Retry Treasury yield dataset without a self-imposed lower date bound to retrieve eligible latest available observations before the simulated cutoff.",
+            "asOf": "2026-08-11T14:35:00Z",
+            "datasetId": "treasury.fiscaldata",
+            "limit": 50
+          }
+        }
+      ],
+      "broker_orders": [],
+      "submissions": [],
+      "rejected_submissions": [],
+      "final_account": {
+        "cash": 100000,
+        "portfolio_value": 100000
+      },
+      "final_positions": [],
+      "execution_outcome": {
+        "broker_state_certainty": "not_observed",
+        "decision_completed": true,
+        "error_category": null,
+        "fallback_used": false,
+        "impact": "completed",
+        "operation": "managed_ai_inference",
+        "requiredness": "decision_critical",
+        "retryability": "not_applicable",
+        "status": "completed_no_action"
+      },
+      "tool_results": [
+        {
+          "call_id": "call_244d5b039cc94a6db09f4092683a8f85",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "search_data_catalog",
+          "payload": {
+            "count": 2,
+            "datasets": [
+              {
+                "access": "public",
+                "aliases": [
+                  "10-year treasury yield",
+                  "10 year treasury yield",
+                  "treasury yield curve",
+                  "daily treasury rates"
+                ],
+                "attribution": "U.S. Department of the Treasury FiscalData API",
+                "categories": [
+                  "macro",
+                  "treasury",
+                  "fiscal"
+                ],
+                "description": "Public U.S. Treasury FiscalData datasets including debt to the penny, average interest rates, and Daily Treasury Statement tables.",
+                "examples": [
+                  "Get the latest debt to the penny",
+                  "Show average interest rates on Treasury securities",
+                  "Chart the 10-year Treasury yield for the last decade"
+                ],
+                "id": "treasury.fiscaldata",
+                "keywords": [
+                  "debt",
+                  "daily treasury statement",
+                  "interest rates",
+                  "fiscal data",
+                  "yield curve",
+                  "10-year Treasury",
+                  "ten year yield"
+                ],
+                "source": "Treasury",
+                "temporalCapabilities": {
+                  "exactPublicationTime": false,
+                  "historicalAvailability": "unqualified",
+                  "originalVintageReplay": false,
+                  "pointInTimeQualified": false
+                },
+                "title": "Treasury FiscalData"
+              },
+              {
+                "access": "botspot_key",
+                "attribution": "U.S. Bureau of Labor Statistics Public Data API",
+                "categories": [
+                  "macro",
+                  "labor",
+                  "inflation"
+                ],
+                "description": "Bureau of Labor Statistics time series for CPI, unemployment, payrolls, wages, and PPI.",
+                "examples": [
+                  "Show CPI and unemployment for the last year",
+                  "Get nonfarm payrolls"
+                ],
+                "id": "bls.public_series",
+                "keywords": [
+                  "CPI",
+                  "unemployment",
+                  "payrolls",
+                  "wages",
+                  "PPI",
+                  "inflation"
+                ],
+                "source": "BLS",
+                "temporalCapabilities": {
+                  "exactPublicationTime": false,
+                  "historicalAvailability": "unqualified",
+                  "originalVintageReplay": false,
+                  "pointInTimeQualified": false
+                },
+                "title": "BLS public time series"
+              }
+            ]
+          }
+        },
+        {
+          "call_id": "call_47d81e517f8f4affbc36d9eaed2f60d3",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "query_data",
+          "payload": {
+            "asOf": "2026-08-11T14:35:00Z",
+            "attribution": "BLS Public Data API",
+            "available": true,
+            "capturedAt": "2026-09-06T19:55:00Z",
+            "datasetId": "bls.public_series",
+            "historicalContext": {
+              "caveat": "Historical approximation; original versions and exact publication times are unverified.",
+              "exactPublicationTimeVerified": false,
+              "originalVintageVerified": false,
+              "requestedAsOf": "2026-08-11T14:35:00Z"
+            },
+            "limitations": [
+              "Fixture contains one released CPI-U observation and no revision history."
+            ],
+            "pointInTimeQualified": false,
+            "responseSha256": "4eff4648f4682d6552d8f4e5fc872534b42182e4a0641d8a710bf6d8a53b8163",
+            "rows": [],
+            "source": "U.S. Bureau of Labor Statistics",
+            "sourceUrl": "https://api.bls.gov/publicAPI/v2/timeseries/data/CUUR0000SA0?startyear=2025&endyear=2025"
+          }
+        },
+        {
+          "call_id": "call_3fd8229f630c42dfae643619543eae8f",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "query_data",
+          "payload": {
+            "asOf": "2026-08-11T14:35:00Z",
+            "attribution": "U.S. Department of the Treasury",
+            "available": true,
+            "capturedAt": "2026-09-06T19:55:00Z",
+            "datasetId": "treasury.fiscaldata",
+            "historicalContext": {
+              "caveat": "Historical approximation; original versions and exact publication times are unverified.",
+              "exactPublicationTimeVerified": false,
+              "originalVintageVerified": false,
+              "requestedAsOf": "2026-08-11T14:35:00Z"
+            },
+            "limitations": [
+              "Fixture contains one daily par-yield observation and no intraday data."
+            ],
+            "pointInTimeQualified": false,
+            "responseSha256": "23ed504f776fbc9ececef58aa5e07039b33cfd4cab736bd9a3a2dcb633085423",
+            "rows": [],
+            "source": "U.S. Department of the Treasury",
+            "sourceUrl": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2025"
+          }
+        },
+        {
+          "call_id": "call_8e1318555f774fdca78537516c19d566",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "query_data",
+          "payload": {
+            "asOf": "2026-08-11T14:35:00Z",
+            "attribution": "BLS Public Data API",
+            "available": true,
+            "capturedAt": "2026-09-06T19:55:00Z",
+            "datasetId": "bls.public_series",
+            "historicalContext": {
+              "caveat": "Historical approximation; original versions and exact publication times are unverified.",
+              "exactPublicationTimeVerified": false,
+              "originalVintageVerified": false,
+              "requestedAsOf": "2026-08-11T14:35:00Z"
+            },
+            "limitations": [
+              "Fixture contains one released CPI-U observation and no revision history."
+            ],
+            "pointInTimeQualified": false,
+            "responseSha256": "4eff4648f4682d6552d8f4e5fc872534b42182e4a0641d8a710bf6d8a53b8163",
+            "rows": [
+              {
+                "observationDate": "2025-01-01",
+                "releaseDate": "2025-02-12",
+                "series": "CPI-U all items",
+                "units": "index",
+                "value": 317.671
+              }
+            ],
+            "source": "U.S. Bureau of Labor Statistics",
+            "sourceUrl": "https://api.bls.gov/publicAPI/v2/timeseries/data/CUUR0000SA0?startyear=2025&endyear=2025"
+          }
+        },
+        {
+          "call_id": "call_1a1b5b9cdde44cb79d50c23885648090",
+          "model_call_id": "031edd28510d2f347b5c85cb253e38ec33b739fee3bfffd60dc5cea2dfdee40d",
+          "name": "query_data",
+          "payload": {
+            "asOf": "2026-08-11T14:35:00Z",
+            "attribution": "U.S. Department of the Treasury",
+            "available": true,
+            "capturedAt": "2026-09-06T19:55:00Z",
+            "datasetId": "treasury.fiscaldata",
+            "historicalContext": {
+              "caveat": "Historical approximation; original versions and exact publication times are unverified.",
+              "exactPublicationTimeVerified": false,
+              "originalVintageVerified": false,
+              "requestedAsOf": "2026-08-11T14:35:00Z"
+            },
+            "limitations": [
+              "Fixture contains one daily par-yield observation and no intraday data."
+            ],
+            "pointInTimeQualified": false,
+            "responseSha256": "23ed504f776fbc9ececef58aa5e07039b33cfd4cab736bd9a3a2dcb633085423",
+            "rows": [
+              {
+                "date": "2025-01-02",
+                "label": "10-year",
+                "maturity": "BC_10YEAR",
+                "value": 4.57
+              }
+            ],
+            "source": "U.S. Department of the Treasury",
+            "sourceUrl": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2025"
+          }
+        }
+      ]
+    }
+  },
+  {
     "case_id": "research_unavailable_safe_fallback",
     "expected": true,
     "id": "research_unavailable_safe_fallback-observed-safe",

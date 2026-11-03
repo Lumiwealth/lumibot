@@ -6,6 +6,7 @@
 - Add a runnable MetaMask perpetual round-trip example using normal Strategy APIs and continuous Trader scheduling, exact executed-quantity reduce-only closes, durable order identities and same-name restart recovery.
 
 ### Fixed
+- Calibrate research grading against actual returned unit metadata without requiring invented response fields; retain real-answer and explicitly incorrect-unit controls. This changes qualification only, not research or trading behavior.
 - Bind AI stock-basket sizing to each symbol's own observed execution price, reconcile affordable residual allocations, and distinguish final cash from calculated cash above a reserve, without changing broker adapters or user allocation rules.
 - Reconcile Alpaca SDK terminal-status enums before repricing, including partial executions reported with cancellation, rather than attempting to replace an already completed order.
 - Make SmartLimit cancel-and-replace wait for broker-confirmed cancellation, preserve executions and replace only the unfilled remainder with a fresh order identity. Scheduled workers refresh pending mutation outcomes when stream confirmation is delayed; ambiguous replacement/submission outcomes remain visible instead of authorizing duplicate orders.

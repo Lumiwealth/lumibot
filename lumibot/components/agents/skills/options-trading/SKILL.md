@@ -51,6 +51,9 @@ broker, approval, liquidity and risk limits.
    and strikes returned by tools. A risk-reducing close of verified exact held
    contracts does not require a broad new candidate search; use their returned
    identities and refresh their execution evidence.
+   Request chain coverage through the mandate's expiration horizon and inspect
+   returned range/pagination limits. A default shorter query window is not
+   evidence that longer-dated listed contracts are unavailable.
    Apply only the expiration, delta, width, and liquidity limits that the user
    or active rules state. Do not add your own days-to-expiration minimum or
    strike-count threshold; when the user names no expiration window, choose
@@ -110,6 +113,10 @@ broker, approval, liquidity and risk limits.
    is not made positive by calling it a protective leg; a short position reverses
    the raw contribution. Check the signed sum before reporting a net exposure and
    omit an unsupported numeric claim rather than guessing it.
+   Assess the selected package's signed net exposure and the Greeks material to
+   its thesis; listing raw leg values alone is not that assessment. Explain the
+   supported directional or risk implication. Calculate a numeric aggregate
+   before citing one, rather than filling the answer with unused Greek values.
    For a reported aggregate across multiple legs, use an available calculation
    tool, normally the existing `duckdb_query`, with one VALUES row per exact leg: its unchanged
    raw Greek, signed contract quantity and multiplier. Sum

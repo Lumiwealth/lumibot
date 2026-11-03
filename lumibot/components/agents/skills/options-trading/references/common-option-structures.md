@@ -35,6 +35,14 @@ and buys one higher-strike call with the same expiration and normally equal wing
 widths. A long put butterfly uses the analogous put legs. Preserve the 1:-2:1
 ratio.
 
+Compute each wing width from its adjacent strikes. Shifting all three strikes
+up or down changes the center and moneyness, not the width when those differences
+remain equal. Compare the actual center, debit, payoff bounds and signed net
+Greeks. For any raw Greek g, the one-package contribution is
+`g_lower - 2*g_middle + g_upper`, scaled by the actual multiplier when reporting
+share-equivalent exposure. Small net delta alone does not remove gamma, time-decay
+or volatility risk as the underlying approaches or leaves the center.
+
 ## Two-long/one-short call stock replacement
 
 Buy two lower-strike calls and sell one higher-strike call at one expiration.

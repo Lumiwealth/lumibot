@@ -347,12 +347,17 @@ class AttentionMonitor:
                         self._save(state)
             result = decision.run(
                 task_prompt=("Review the attention evidence and dated research under your policy. "
+                    "The supplied attention packet has already been claimed for this review; "
+                    "it need not remain in your pending-watch list. "
                     "You own every decision and action through your tools. Leave the next needed attention conditions. "
                     "Use review_scope=setup for an eligible new-setup review, research when fresh research is needed, "
                     "and management for a decision using still-relevant dated research. Setup/research scopes run the "
                     "declared researchers before your next decision; watch names do not select roles. "
-                    "If an action requires missing research, defer that action and request a research review; "
-                    "the subsequent coordinator cycle supplies it. Do not claim future research or unobserved fills."),
+                    "Obtain current instrument, quote, account and order evidence through your own tools. "
+                    "These execution checks are your responsibility, not missing upstream research. "
+                    "Request another research review only for missing thesis or source evidence needed under your policy; "
+                    "defer the dependent action while that research is missing. "
+                    "The subsequent coordinator cycle supplies it. Do not claim future research or unobserved fills."),
                 context={**common, "dated_research": answers()})
             completed(result, decision_agent)
 

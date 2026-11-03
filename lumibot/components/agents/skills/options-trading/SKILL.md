@@ -50,6 +50,10 @@ broker, approval, liquidity and risk limits.
    Do not repeat unchanged complete reads merely to satisfy a ritual sequence.
 2. Read the underlying's current price. Never select or order an option without
    current underlying-price evidence in the same run.
+   A current underlying last price or mark can support contract selection even
+   when that underlying's bid/ask is unavailable. Assess the exact option legs'
+   execution quotes independently; missing stock quote sides do not establish
+   that option quotes are missing. Preserve the actual price label.
    For several exact contracts, `market_quotes` reads their bid/ask evidence in
    one tool call using the native provider's batching where available. Keep
    different expirations, strikes and rights distinct, inspect missing rows,
@@ -411,8 +415,12 @@ override user rules, or force a trade.
 ## Explain consequential order actions
 
 Supply an explicit `reason` before every submission, modification or cancellation.
-Use at least 200 characters; aim for 600–2,500 when the decision needs it. Explain
-the thesis, dated evidence, sizing, material risks and what would invalidate it.
+Use at least 200 characters. Keep it focused on the choice, verified net price
+and risk, sizing, material obligations and management. Explain the thesis and
+what would invalidate it without reproducing quote or Greek tables already
+retained in tool results. Repeat only decision-driving numbers, with their exact
+observed labels and units; do not rename a last price or midpoint as a bid/ask.
+Provide a detailed audit when requested rather than making every order one.
 State missing evidence honestly. This is a decision summary, not hidden internal
 reasoning, and must contain no credentials or account identifiers. The order
 service commits it before execution. Report only observed order status and fills;

@@ -677,3 +677,36 @@ def test_mixed_catalog_preserves_only_unchanged_original_establishment(native_me
     forged["cases"]["changed"] = deepcopy(proof["cases"]["contract"])
     with pytest.raises(ValueError, match="new or changed case"):
         qualification.validate_establishment(forged, catalog, versions=versions, now=now)
+
+    # The canonical compact receipt is the retained native evidence when an
+    # earlier private actor journal is no longer in this release's directory.
+    receipt_path = root / "ci/agent-evals/qualification.json"
+    receipt_path.parent.mkdir(parents=True)
+    receipt_path.write_text(json.dumps({
+        "kind": qualification.KIND, "version": qualification.VERSION,
+        "funding": "chatgpt-plan", "api_spend_usd": 0,
+        "sdk_versions": versions, "establishment": proof,
+    }))
+    git("add", "ci/agent-evals/qualification.json")
+    git("-c", "user.name=Synthetic Fixture", "-c", "user.email=fixture@example.invalid",
+        "commit", "-qm", "Retain reviewed native establishment")
+    reused = qualification.build_establishment([], calls[:1], catalog,
+        source_ref=ref, versions=versions, now=now)
+    assert reused == proof
+    assert qualification.regression_required(contract, reused, [], "current-source") == 1
+    assert qualification.regression_required(changed, reused, [], "current-source") == 3
+    # A working file cannot replace the reviewed, committed source.
+    receipt_path.write_text("{}")
+    assert qualification.build_establishment([], calls[:1], catalog,
+        source_ref=ref, versions=versions, now=now) == proof
+    assert qualification.build_establishment([], calls[:1], catalog,
+        source_ref=ref, versions={"sdk": "2"}, now=now)["cases"] == {}
+    later_failure = dict(rows[0], status="fail", run_id=str(uuid4()),
+                         timestamp=now.isoformat(), started_at=now.isoformat())
+    assert qualification.build_establishment([later_failure], calls[:1], catalog,
+        source_ref=ref, versions=versions, now=now)["cases"] == {}
+    # Expired historical proof selects full current trials instead of blocking
+    # an otherwise valid fresh release.
+    assert qualification.build_establishment([], calls[:1], catalog,
+        source_ref=ref, versions=versions,
+        now=now + timedelta(days=evals.DEFAULT_FRESHNESS_DAYS + 1))["cases"] == {}

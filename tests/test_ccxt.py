@@ -33,7 +33,12 @@ def test_initialize_ccxt_broker_legacy(mocker):
     This test to make sure the legacy way of initializing the broker still works.
     """
 
+    # This constructor contract has no separately configured data override.
+    # Other tests can initialize the cached credentials module with one.
+    mocker.patch("lumibot.strategies._strategy.DATA_SOURCE", None)
+    mocker.patch("lumibot.strategies._strategy.get_default_data_source", return_value=None)
     broker = Ccxt(KRAKEN_CONFIG)
+    original_data_source = broker.data_source
     mocker.patch.object(broker, '_get_balances_at_broker', return_value=None)
     mocker.patch.object(broker, '_set_initial_positions')
 
@@ -46,6 +51,7 @@ def test_initialize_ccxt_broker_legacy(mocker):
 
     # Assert that strategy.data_source is InteractiveBrokersData object
     assert isinstance(strategy.broker.data_source, CcxtData)
+    assert strategy.broker.data_source is original_data_source
 
 
 def test_ccxt_data_constructor_defers_load_markets(mocker):

@@ -271,6 +271,39 @@ def _unchanged_establishment_cases(source_ref, cases):
     return unchanged
 
 
+def _committed_establishment(source_ref, cases, *, versions, now):
+    """Read already reviewed native proof, never an editable working receipt."""
+    from scripts import agent_eval_source_compatibility as source
+
+    path = "ci/agent-evals/qualification.json"
+    if not source._git("ls-tree", "HEAD", "--", path, root=evals.REPO_ROOT).strip():
+        return {}
+    receipt = json.loads(source._git("show", f"HEAD:{path}", root=evals.REPO_ROOT))
+    if (receipt.get("kind") != KIND or receipt.get("version") != VERSION
+            or receipt.get("funding") != "chatgpt-plan" or receipt.get("api_spend_usd") != 0
+            or receipt.get("sdk_versions") != versions):
+        return {}
+    proof = receipt.get("establishment")
+    if not isinstance(proof, dict) or proof.get("source_commit") != source_ref:
+        return {}
+    eligible = {case["id"] for case in cases}
+    proof = {**proof, "cases": {identity: record for identity, record in proof["cases"].items()
+                                if identity in eligible}}
+    by_id = {case["id"]: case for case in cases}
+    fresh = {}
+    for identity, record in proof["cases"].items():
+        try:
+            validate_record(record, by_id[identity], runtime_hash=proof["runtime_fingerprint"], now=now)
+        except ValueError:
+            # Unusable retained proof grants no shortcut. Fresh current trials
+            # remain available, including after the historical evidence expires.
+            continue
+        fresh[identity] = record
+    proof["cases"] = fresh
+    validate_establishment(proof, cases, versions=versions, now=now)
+    return proof["cases"]
+
+
 def build_establishment(rows, call_rows, cases, *, source_ref, versions, now=None):
     now = now or evals.utc_now()
     runtime_hash = establishment_runtime(source_ref, [], versions)
@@ -284,6 +317,21 @@ def build_establishment(rows, call_rows, cases, *, source_ref, versions, now=Non
                 and all(row.get("status") == "pass" for row in latest.values())):
             established.append(case)
     records = project_case_records(rows, calls, established, runtime_hash=runtime_hash, now=now)
+    missing = [case for case in unchanged if case["id"] not in records]
+    for identity, record in _committed_establishment(source_ref, missing, versions=versions, now=now).items():
+        original = {row["repetition"]: row for row in record["repetitions"]}
+        original_runs = {row["run_id"] for row in original.values()}
+        latest_original = max(timestamp(row["timestamp"], now=now) for row in original.values())
+        newer_row = any(row.get("case_id") == identity and row.get("fingerprint") == record["fingerprint"]
+            and timestamp(row["timestamp"], now=now) > (
+                timestamp(original[row["repetition"]]["timestamp"], now=now)
+                if row.get("repetition") in original else latest_original) for row in rows)
+        newer_call = any((call.get("scope") or {}).get("case_id") == identity
+            and (call.get("scope") or {}).get("fingerprint") == record["fingerprint"]
+            and (call.get("scope") or {}).get("run_id") not in original_runs
+            and timestamp(call["timestamp"], now=now) >= latest_original for call in calls.values())
+        if not newer_row and not newer_call:
+            records.setdefault(identity, record)
     proof = {"source_commit": source_ref, "runtime_fingerprint": runtime_hash, "cases": records}
     validate_establishment(proof, cases, versions=versions, now=now)
     return proof

@@ -65,7 +65,7 @@ orders, build a parent Order with ``order_class=Order.OrderClass.MULTILEG`` and 
 the child leg orders on ``child_orders``.
 
 Live repricing and cancellation
-------------------------------
+--------------------------------
 
 SmartLimit first uses the broker's native price-modification operation. If a
 cancel-and-replace is needed, requesting cancellation does not authorize another
@@ -85,7 +85,7 @@ again. Unresolved work remains visible and can fail the bounded scheduled drain;
 neither acceptance nor a price update guarantees a fill.
 
 Scheduled and run-once execution
--------------------------------
+---------------------------------
 
 ``Trader.run_all(run_once=True)`` runs one trading iteration, then continues
 advancing active SmartLimit orders until they fill or their configured final

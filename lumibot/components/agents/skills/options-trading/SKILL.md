@@ -43,10 +43,13 @@ packet compact and omit unused numerical claims rather than recopying them.
 Keep actual contract inventory separate from net payoff in a price region.
 Changing the underlying price does not change the strikes or quantities held;
 describe those exact legs before explaining hedges or assignment obligations.
-For a price comparison, check both exact candidates at the same pricing style
-and in the same units before saying cheaper, higher or lower. Prefer the
-returned package totals; if the comparison does not drive the decision, omit it
-instead of adding an unchecked advantage to the rationale.
+State the reference for a comparison: premium, distance from the current
+underlying, exposure and risk are different quantities. Check both exact
+candidates on that same basis before saying cheaper, nearer, higher or lower.
+For prices, use the same pricing style and units and prefer returned package
+totals. For distance, compare each actual strike or package center with the
+same observed underlying price. If the comparison does not drive the decision,
+omit it instead of adding an unchecked advantage to the rationale.
 When a read rejects malformed tool arguments, correct the reported format and
 retry that read before finishing. An argument error is not unavailable market
 data. Keep correction bounded and report a persistent error as unresolved.

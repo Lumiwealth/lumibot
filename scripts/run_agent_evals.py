@@ -1327,6 +1327,12 @@ def run_judge(
         from lumibot.components.agents.attention import AttentionMonitor
 
         declared["coordinatorSourceContract"] = inspect.getsource(AttentionMonitor.dispatch_team)
+        declared["continuationDeliveryContract"] = (
+            "Each continuation is delivered only when that turn begins, through the current "
+            "attention reason and team_context.user_request. Later continuation prompts and "
+            "advanceMinutes are the evaluator plan, not instructions previously given to the actor. "
+            "Actual earlier policy and saved review times still govern; do not excuse a missing "
+            "required review or a fabricated claim that a watch was saved.")
     reported = []
     role_runs = transcript.get("agent_runs") or [{
         "role": None, "final_answer": transcript.get("final_answer"),

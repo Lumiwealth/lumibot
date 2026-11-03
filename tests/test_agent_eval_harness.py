@@ -4914,6 +4914,8 @@ def test_judge_receives_declared_role_authority_and_user_continuations(monkeypat
     for field in ("systemPrompt", "researcherSystemPrompt", "taskPrompt", "continuationTurns"):
         assert declared[field] == case[field]
     assert declared["coordinatorSourceContract"] == inspect.getsource(AttentionMonitor.dispatch_team)
+    assert "Each continuation is delivered only when that turn begins" in declared["continuationDeliveryContract"]
+    assert "Actual earlier policy and saved review times still govern" in declared["continuationDeliveryContract"]
     # Keep every actual role answer and decision rationale visible after the
     # full evidence too; a later correct trade must not hide earlier claims.
     claims = json.loads(prompt.split("\n\nREPORTED CLAIMS TO VERIFY:\n", 1)[1].split("\n\nORDERED STATE OBSERVATIONS:\n", 1)[0])

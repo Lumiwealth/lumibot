@@ -3478,7 +3478,11 @@ class OptionsHelper:
     # Advanced / Risk Management Functions
     # ============================================================
 
-    def aggregate_portfolio_greeks(self, positions: List, underlying_asset: Asset) -> Dict[str, float]:
+    def aggregate_portfolio_greeks(self, positions: List, underlying_asset: Asset, *,
+                                   include_details: bool = False,
+                                   underlying_price: Optional[float] = None,
+                                   risk_free_rate: Optional[float] = None,
+                                   query_greeks: bool = False) -> Dict[str, Any]:
         """
         Aggregate the Greeks (delta, gamma, theta, and vega) for a list of option positions.
         Useful for obtaining an overall risk profile of the options portfolio.
@@ -3493,31 +3497,62 @@ class OptionsHelper:
         Returns
         -------
         Dict[str, float]
-            A dictionary with aggregated values for "delta", "gamma", "theta", and "vega".
+        A dictionary with contract-weighted delta, gamma, theta and vega.
+        include_details adds exact-leg evidence, multiplier-scaled totals and
+        completeness. In that format an unknown field stays null; it is never
+        presented as a verified zero. The default retains the legacy four-key
+        best-effort result for compatible direct callers.
         """
         self.strategy.log_message("Aggregating portfolio greeks.", color="blue")
-        total_delta = total_gamma = total_theta = total_vega = 0.0
-        underlying_price = self.strategy.get_last_price(underlying_asset)
+        names = ("delta", "gamma", "theta", "vega")
+        totals = dict.fromkeys(names, 0.0)
+        scaled = dict.fromkeys(names, 0.0)
+        complete = dict.fromkeys(names, True)
+        legs = []
+        if underlying_price is None:
+            underlying_price = self.strategy.get_last_price(underlying_asset)
+        greek_arguments = {"underlying_price": underlying_price}
+        if risk_free_rate is not None:
+            greek_arguments["risk_free_rate"] = risk_free_rate
+        if query_greeks:
+            greek_arguments["query_greeks"] = True
         for pos in positions:
             option = pos.asset
+            failure = None
             try:
-                greeks = self.strategy.get_greeks(option, underlying_price=underlying_price)
+                greeks = self.strategy.get_greeks(option, **greek_arguments)
             except Exception as e:
                 self.strategy.log_message(f"Error getting greeks for {option.symbol}: {e}", color="red")
-                continue
-            quantity = pos.quantity
-            total_delta += greeks.get("delta", 0) * quantity
-            total_gamma += greeks.get("gamma", 0) * quantity
-            total_theta += greeks.get("theta", 0) * quantity
-            total_vega  += greeks.get("vega", 0) * quantity
-        aggregated = {
-            "delta": total_delta,
-            "gamma": total_gamma,
-            "theta": total_theta,
-            "vega": total_vega
-        }
-        self.strategy.log_message(f"Aggregated Greeks: {aggregated}", color="blue")
-        return aggregated
+                greeks, failure = None, type(e).__name__
+            quantity = float(pos.quantity)
+            multiplier = float(option.multiplier)
+            raw, contribution = {}, {}
+            for name in names:
+                value = greeks.get(name) if isinstance(greeks, dict) else None
+                try:
+                    value = float(value)
+                    if not math.isfinite(value):
+                        value = None
+                except (TypeError, ValueError):
+                    value = None
+                raw[name] = value
+                contribution[name] = value * quantity if value is not None else None
+                if value is None:
+                    complete[name] = False
+                else:
+                    totals[name] += value * quantity
+                    scaled[name] += value * quantity * multiplier
+            legs.append({"asset": option, "quantity": quantity, "multiplier": multiplier,
+                         "underlying_quantity": quantity * multiplier, "greeks": raw,
+                         "contract_weighted_greeks": contribution,
+                         **({"error_type": failure} if failure else {})})
+        reported = {name: totals[name] if complete[name] else None for name in names}
+        self.strategy.log_message(f"Aggregated Greeks: {reported if include_details else totals}", color="blue")
+        if not include_details:
+            return totals
+        return {"greeks": reported,
+                "underlying_equivalent_greeks": {name: scaled[name] if complete[name] else None for name in names},
+                "complete": complete, "available": all(complete.values()), "legs": legs}
 
     def check_spread_profit(self, initial_cost: float, orders: List[Order], contract_multiplier: int = 100) -> Optional[float]:
         """

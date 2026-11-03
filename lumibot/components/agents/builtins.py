@@ -1906,15 +1906,48 @@ def _bind_options_get_strikes(strategy: Any, manager: Any) -> BoundTool:
 def _bind_options_get_greeks(strategy: Any, manager: Any) -> BoundTool:
     def get_greeks(
         *,
-        symbol: str,
-        expiration: str,
-        strike: float,
-        right: OptionRightArg,
+        symbol: str | None = None,
+        expiration: str | None = None,
+        strike: float | None = None,
+        right: OptionRightArg | None = None,
         underlying_price: float | None = None,
         option_price: float | None = None,
         risk_free_rate: float | None = None,
         query_greeks: bool = False,
+        legs_json: str | None = None,
+        underlying_asset_type: AssetTypeArg = "stock",
     ) -> dict[str, Any]:
+        if legs_json is not None:
+            from lumibot.entities import Asset, Position
+
+            if option_price is not None:
+                raise ValueError("option_price describes one contract; omit it for package Greeks or query contracts individually.")
+            orders = _parse_option_legs(strategy, legs_json)
+            raw_legs = json.loads(legs_json)
+            groups, indices = {}, {}
+            for index, (order, raw) in enumerate(zip(orders, raw_legs)):
+                key = (order.asset.symbol, raw.get("underlying_asset_type", underlying_asset_type))
+                signed_quantity = float(order.quantity) * (1 if order.is_buy_order() else -1)
+                groups.setdefault(key, []).append(Position(strategy.name, order.asset, signed_quantity))
+                indices.setdefault(key, []).append(index)
+            if underlying_price is not None and len(groups) != 1:
+                raise ValueError("A single supplied underlying_price needs one underlying; omit it to read each underlying separately.")
+            results = [_options_helper_for_strategy(strategy).aggregate_portfolio_greeks(
+                positions, Asset(name, asset_type=kind), include_details=True, underlying_price=underlying_price,
+                risk_free_rate=risk_free_rate, query_greeks=query_greeks)
+                for (name, kind), positions in groups.items()]
+            names = ("delta", "gamma", "theta", "vega")
+            complete = {name: all(result["complete"][name] for result in results) for name in names}
+            result = {key: {name: sum(row[key][name] for row in results) if complete[name] else None
+                            for name in names} for key in ("greeks", "underlying_equivalent_greeks")}
+            returned_legs = [{**leg, "asset": _asset_to_dict(leg["asset"]), "input_index": index}
+                for group_indices, row in zip(indices.values(), results)
+                for index, leg in zip(group_indices, row["legs"])]
+            result.update(available=all(complete.values()), complete=complete,
+                legs=sorted(returned_legs, key=lambda leg: leg["input_index"]),
+                units="greeks sums raw Greek * signed contracts; underlying_equivalent_greeks also applies each contract multiplier once",
+                datetime=strategy.get_datetime().isoformat())
+            return _jsonable(result)
         option = _option_asset(
             strategy,
             symbol=symbol,
@@ -1939,9 +1972,10 @@ def _bind_options_get_greeks(strategy: Any, manager: Any) -> BoundTool:
     return BoundTool(
         name="options_get_greeks",
         description=(
-            "Get Greeks for one exact listed option contract. "
+            "Get Greeks for one exact listed option contract or an exact agent-selected package. "
             "Arguments: symbol, expiration, strike, right, and optional underlying_price, option_price, risk_free_rate, query_greeks. "
             "Use the exact expiration and strike returned by options_get_chain/options_get_strikes. The result proves Greeks only for the exact strike and right named in the result. Never transfer or reuse that delta for a neighboring strike. A null greeks result means the data source cannot value that contract at the current runtime datetime. "
+            "For a package, pass legs_json with the same exact identities, quantities and buy/sell sides used for pricing. This reads all leg Greeks in one tool call and uses OptionsHelper.aggregate_portfolio_greeks for signed totals. The returned legs retain raw Greeks, signed contract quantity and per-contract multiplier; underlying_quantity applies that multiplier once. greeks contains contract-weighted totals; underlying_equivalent_greeks additionally applies each actual multiplier. Unknown fields stay null with complete=false; partial data is not a verified zero. Do not describe a currently offset net Greek as nonzero merely because that risk is common to the structure. Use optional underlying_asset_type, or each leg's underlying_asset_type, for non-stock underlyings. The tool selects no contracts, quantities, risk policy or orders. "
             "Example: options_get_greeks(symbol='SPY', expiration='2026-09-18', strike=650, right='call')."
         ),
         function=get_greeks,
@@ -5093,7 +5127,7 @@ class _OptionsTools:
     def get_greeks(self) -> ToolDefinition:
         return ToolDefinition(
             name="options_get_greeks",
-            description="Get Greeks for one exact option contract.",
+            description="Get Greeks for one exact option contract or an agent-selected package.",
             binder=_bind_options_get_greeks,
         )
 

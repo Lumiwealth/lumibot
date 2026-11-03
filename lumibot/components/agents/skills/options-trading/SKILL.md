@@ -127,16 +127,17 @@ broker, approval, liquidity and risk limits.
    its thesis; listing raw leg values alone is not that assessment. Explain the
    supported directional or risk implication. Calculate a numeric aggregate
    before citing one, rather than filling the answer with unused Greek values.
-   For a reported aggregate across multiple legs, use an available calculation
-   tool, normally the existing `duckdb_query`, with one VALUES row per exact leg: its unchanged
-   raw Greek, signed contract quantity and multiplier. Sum
-   `quantity * raw_greek` for contract-weighted units, and
-   `quantity * multiplier * raw_greek` for underlying-share-equivalent exposure.
-   Calculate all relevant aggregates in one query. A VALUES calculation needs
-   no previously loaded market table or extra price-history request. Inspect the
-   returned rows before reporting the result; do not copy an upstream net value
-   or reverse a raw put sign while transcribing inputs. A researcher that does
-   not need an aggregate may report the actual raw observations instead.
+   For a package, prefer `options_get_greeks(legs_json=...)` with the exact
+   selected identities, sides and quantities. It reads every leg and computes
+   all signed net Greeks in one model/tool round trip. `greeks` uses signed
+   contract quantities; `underlying_equivalent_greeks` also applies each actual
+   multiplier once. Inspect completeness and each returned leg before citing a
+   total. A zero current net theta, gamma or vega is an offset in that snapshot,
+   not evidence of negative decay or nonzero exposure; those risks may change.
+   In an older configured toolset without package input, use `duckdb_query`
+   with one VALUES row per exact leg's unchanged raw Greek, signed quantity and
+   multiplier. Sum `quantity * raw_greek` or `quantity * multiplier * raw_greek`
+   in one query. A researcher need not calculate an unused aggregate.
    In an order explanation, report the calculated net value and its units;
    do not recopy a tuple that mixes raw Greeks with signed contributions or
    claim that raw contract Greeks themselves cancel. If a net value is not
@@ -166,6 +167,8 @@ broker, approval, liquidity and risk limits.
    underlying position and how the held longs, account capacity and planned exit
    would address it. Do not assume an offsetting long exercises automatically or
    eliminates early-assignment, expiration mismatch or cash/position consequences.
+   Keep the per-contract deliverable distinct from the position total: multiply
+   the actual multiplier by the assigned contract count once, not twice.
    Apply this assessment to the actual instrument; do not assume every option is
    a standard equity contract. Disclose unavailable contract terms and decide
    whether they are material under the mandate.
@@ -227,6 +230,14 @@ If a close does not produce flat positions, inspect its exact status and open
 orders. Do not switch tools, change quantities, or submit another close until
 the prior order's terminal state and the current signed positions prove what
 remains.
+
+After a terminal unfilled entry, diagnose its returned status and refresh the
+selected contracts' quote activity and available source-bar times with
+`market_quotes`. Compare eligible alternatives or the limit within the mandate;
+do not simply repeat an unchanged unfilled package each day. A usable historical
+last-trade pricing anchor does not prove all legs have execution data in the
+same minute. Preserve the requested expiration/structure and report a remaining
+data or liquidity limitation rather than manufacturing a fill.
 
 ## Pricing truth
 

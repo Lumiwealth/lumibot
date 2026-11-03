@@ -162,3 +162,21 @@ def test_hosted_partial_or_failed_stream_is_not_retried_or_reported_complete(mon
     with pytest.raises(SubscriptionModelResponseError):
         consume(model)
     assert len(requests) == 1
+
+
+def test_hosted_revoked_capability_cannot_renew_or_change_funding(monkeypatch):
+    import httpx
+    from lumibot.components.agents.managed_gateway import ManagedAiGatewayError
+    requests, renewals = [], []
+    def handle(request):
+        requests.append(str(request.url))
+        return httpx.Response(401, json={'error': {'code': 'workload_token_expired'}})
+    def renew(url, token, body):
+        renewals.append(url)
+        return 403, {'error': 'renewal_denied', 'message': 'Workload is not authorized'}
+    model = hosted_model(monkeypatch, handle, renew)
+    with pytest.raises(ManagedAiGatewayError) as error:
+        consume(model)
+    assert error.value.status_code == 403
+    assert error.value.code == 'renewal_denied'
+    assert len(requests) == len(renewals) == 1

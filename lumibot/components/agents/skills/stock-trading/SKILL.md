@@ -84,6 +84,10 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    Reconcile the final summary with the mutation tools and the final account
    reads. If an order tool returned a submitted identifier, never say that no
    order was entered. Report the exact observed status instead.
+   Report the final account read's cash verbatim: reserved cash remains part of
+   that balance, not a debit. If explaining cash above a reserve, compute final
+   cash minus the reserve once with an arithmetic tool and label it as excess,
+   never as the total cash balance. Omit a comparison that was not computed.
    Reconcile cash from confirmed fill quantities, execution prices and fees.
    Portfolio value already includes cash and current position valuation; do not
    add cash again or equate that total with the gross purchase debit.

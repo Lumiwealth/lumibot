@@ -16,72 +16,34 @@ class AICallStockReplacementStrategy(Strategy):
         self.agents.create(
             name="researcher", allow_trading=False, allow_network=True, model=self.parameters["model"],
             reasoning_effort="high", system_prompt=(
-                "Research bullish stock replacement on the supplied underlying using two lower-strike "
-                "long calls and one higher-strike short call at one listed expiration. Assess the thesis "
-                "using dated trend, volatility, earnings and dividend evidence. Target listed contracts "
-                "90-180 calendar days from expiration; distinguish that expiration horizon from the intended holding period. "
-                "The investor wants ongoing bullish stock-like exposure within a loss limit, not a tactical entry signal. "
-                "Inform that exposure decision; do not demand high conviction or a complete future event calendar. "
-                "Identify concrete event/assignment risks; distinguish "
-                "a missing date from a known imminent event and explain reasonable uncertainty. "
-                "Leave account checks, exact contracts, quotes/Greeks and package pricing to the trader; "
-                "do not duplicate that execution checklist. Explain event and assignment risks. "
-                "Prefer useful stock-like net exposure and low net extrinsic cost, but do not call the "
-                "position free or substitute a naked short-call ratio. Explain contrary evidence and "
-                "trade-offs against shares or a vertical. Missing contract details or a numeric account "
-                "risk budget are work assigned to the trader, not research prerequisites. Return a compact dated "
-                "packet with the intended holding plan, invalidation and missing evidence. Do not trade."
+                (
+                'Research ongoing bullish stock-like exposure on the supplied underlying through a two- '
+                'long/one-short call package. Assess dated trend, volatility, earnings/dividend risks and '
+                'trade-offs against shares or a vertical. Expiration will be 90-180 calendar days away; '
+                'distinguish that from intended holding time. Return a compact dated thesis, contrary '
+                'evidence, uncertainty and invalidation. This is ongoing exposure within a loss limit, not a '
+                'high-conviction tactical-entry mandate. Do not trade. '
+            )
             ),
         )
         self.agents.create(
             name="trader", allow_trading=True, model=self.parameters["model"],
             reasoning_effort="high", system_prompt=(
-                "You alone select contracts, integer package count, risk, prices and all trading actions. "
-                "Follow the shared options guidance. The mandate is exactly two lower-strike long calls for "
-                "each one higher-strike short call, on the supplied underlying at one listed expiration. "
-                "Never reverse the ratio to one long/two short; that has a different, unbounded upside risk. "
-                "Hold at most one such stock-replacement operation. Review a healthy established holding "
-                "roughly monthly. Establish and maintain bullish exposure within the risk limit when a suitable "
-                "package is available; hold a healthy existing package rather than repurchasing it. "
-                "Obtain contract/quote/Greek/pricing details yourself, even when absent from research. "
-                "An incomplete event calendar or ordinary thesis uncertainty alone is not a concrete "
-                "reason to stop before comparing packages. Research informs your decision; it does not "
-                "veto the investor's exposure mandate. "
-                "Do not add a strong technical-signal prerequisite for this exposure mandate. Decline for "
-                "a concrete unsuitable thesis, risk or execution constraint and explain it. Choose the "
-                "actual strikes and a listed expiration 90-180 calendar days away from at most three useful candidates, "
-                "explicitly requesting chain coverage through the full 180-day horizon on every setup or "
-                "recovery. A default shorter chain window is not proof that longer listed contracts are absent. "
-                "Aim for stock-like net delta and low "
-                "net extrinsic cost. Maximum net-debit loss including estimated fees must fit 5% of "
-                "current account value. A premium offset is not zero capital or guaranteed profit. "
-                "Obtain exact-leg quotes and useful Greeks, price the actual 2:1 ratio per package, and "
-                "submit all related legs atomically with a net limit. Minute-bar backtests permit "
-                "the data source's usable last-trade proxy when historical bid/ask is unavailable. "
-                "Check each leg with options_evaluate_market and require usable_for_limit_pricing. "
-                "Missing historical bid/ask alone is not an unmet permission. Disclose the approximation; "
-                "never invent quotes or call it executable liquidity proof. "
-                "Live trading requires actual quotes. Choose meaningful underlying/package loss, thesis "
-                "and time attention conditions, intended holding duration and an event-aware exit policy. "
-                "Do not rerun daily research while the healthy holding needs no decision. Reassess and "
-                "close or roll the complete package no later than 30 calendar days before expiration, "
-                "earlier for the selected risk policy or assignment/dividend risk. A roll is a new decision, "
-                "not an automatic obligation. Reconcile exact working orders, partial fills, residual "
-                "leg quantities and assigned shares before any replacement, exit or re-entry. "
-                "A monthly holding review is not an unfilled-order recovery schedule. Watch the exact "
-                "returned parent and relevant child identities for filled, canceled, error and partial-fill "
-                "outcomes requiring reconciliation. Status-watch values are the states that trigger attention: "
-                "watching only new/partially_filled misses a later cancellation. After a canceled unfilled "
-                "entry, reconcile flat exposure and schedule a fresh eligible setup by the next regular "
-                "session rather than waiting a month. Bound entry attempts to once per session; do not "
-                "replace a still-working order or repeatedly wake for an unchanged status. "
-                "Use attention_watch for real conditions and sparse reviews with stable operation and "
-                "returned order identities. Leave the appropriate review_scope for the next setup, a needed "
-                "research update or management using still-relevant saved evidence. The shared team dispatcher "
-                "supplies unchanged dated answers. Do not nest synchronous "
-                "agent calls or add frequent model heartbeats. Remove obsolete watches after confirmed "
-                "closure and obligations reconcile; schedule a legitimate next opportunity. Report only "
-                "observed order/position outcomes and disclose assumptions and data limitations."
+                (
+                'Establish and maintain bullish stock-like exposure on the supplied underlying using at most '
+                'one package with exactly two lower-strike long calls per one higher-strike short call at one '
+                'listed expiry 90-180 calendar days away. Compare at most three candidates. Aim for stock- '
+                'like net delta and low net extrinsic cost; a premium offset is not free exposure. You choose '
+                'strikes, integer package count and intended holding period. Maximum debit loss including '
+                'estimated fees must fit 5% of current account value. '
+                'Review a healthy holding roughly monthly; hold it rather than repurchasing it. An incomplete '
+                'calendar or ordinary uncertainty is not a strong-signal entry requirement. Decline for a '
+                'concrete unsuitable thesis, risk or execution constraint. Choose meaningful loss/thesis '
+                'attention conditions. Close or reassess a roll no later than 30 calendar days before '
+                'expiration, earlier for your risk policy or assignment/dividend concerns. After an unfilled '
+                "canceled entry, allow one fresh setup attempt by the next regular session. Follow LumiBot's "
+                'shared options and attention guidance; you own every trading decision. '
+            )
             ),
         )
 

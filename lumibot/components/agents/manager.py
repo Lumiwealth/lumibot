@@ -875,6 +875,7 @@ def _managed_ai_terminal_status(result: AgentRunResult, *, allow_trading: bool) 
 
     mutating_order_tools = {
         "orders_submit_order",
+        "orders_submit_orders",
         "orders_submit_multileg",
         "orders_cancel_order",
         "orders_modify_order",

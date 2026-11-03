@@ -34,6 +34,10 @@ broker, approval, liquidity and risk limits.
    Do not repeat unchanged complete reads merely to satisfy a ritual sequence.
 2. Read the underlying's current price. Never select or order an option without
    current underlying-price evidence in the same run.
+   For several exact contracts, `market_quotes` reads their bid/ask evidence in
+   one tool call using the native provider's batching where available. Keep
+   different expirations, strikes and rights distinct, inspect missing rows,
+   source times and sizes, and do not turn a last price into a bid or ask.
 3. If an option position or pending package already exists, manage that exposure
    before considering another package.
 4. For new contract selection, call `options_get_chain` in the current agent run
@@ -191,6 +195,13 @@ remains.
 ## Pricing truth
 
 - Evaluate each exact leg before calculating a package price.
+- In a historical minute-bar simulation, use only the pricing evidence the data
+  source actually provides. `options_evaluate_market` reports whether that
+  evidence is `usable_for_limit_pricing` and identifies a last-trade/bar proxy
+  when historical bid/ask is unavailable. If that approximation is permitted by
+  the simulation mandate, it can support approximate lifecycle testing; disclose
+  it and do not claim executable historical liquidity. Live execution needs
+  actual quotes. Never fetch historical ticks or invent bid/ask to fill a gap.
 - Preserve the intended relative leg quantities when calculating a per-unit
   package debit or credit: one 2-long/1-short package contains two long contracts
   and one short, not one of each. Balanced 3/3 holdings represent three 1/1
@@ -291,6 +302,27 @@ defect does not become new research merely because another minute passes.
 Report the exact conflict and choose a useful new-data or recovery review while
 retaining any held-position risk observations. Respect an explicitly requested
 frequent-AI policy rather than imposing a universal call limit.
+
+Separate new-setup research from management. A new setup needs the relevant
+dated research and the trader; urgent management may reuse still-relevant
+research and refresh it when necessary. With a team attention dispatcher,
+leave the appropriate `review_scope` on the next review; it supplies the dated
+answers without nested synchronous agent calls. Schedule the next eligible
+opportunity after closure or a no-entry decision, using the mandate's cadence.
+Do not confuse a healthy holding's monthly review with pending-order recovery:
+watch the exact returned parent/children for terminal and partial-fill changes,
+reconcile residual exposure and obligations, then choose a suitable recovery
+review. A working close prevents another close for that operation, while
+unrelated working orders do not suspend its risk monitoring. Combine related
+events in one decision and do not create a frequent AI heartbeat for an unchanged
+warning. Account for model/tool continuations when measuring actual usage.
+
+For independent orders, `orders_submit_orders` exposes the existing native batch
+API. It is not atomic: reconcile every result and any uncertain partial outcome
+before retrying. Related option legs instead use `orders_submit_multileg` so
+each spread, condor, butterfly or ratio is submitted as a package. The trader
+chooses every instrument, quantity, price and action; these tools carry out that
+decision without selecting a strategy.
 
 ## References
 

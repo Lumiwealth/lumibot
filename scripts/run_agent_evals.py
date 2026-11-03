@@ -45,7 +45,7 @@ REQUIRED_CONSECUTIVE_PASSES = NEW_CASE_REQUIRED_PASSES  # backwards-compatible a
 MAX_INPUT_TOKENS_PER_MODEL_CALL = 1_048_576
 ACTING_MAX_OUTPUT_TOKENS = 12_000
 JUDGE_MAX_OUTPUT_TOKENS = 4_000  # GPT-6 Luna reasoning tokens count against this cap
-ORDER_TOOLS = {"orders_submit_order", "orders_submit_multileg"}
+ORDER_TOOLS = {"orders_submit_order", "orders_submit_orders", "orders_submit_multileg"}
 LEDGER_LOCK = threading.Lock()
 EVAL_SDK_PACKAGES = (
     "google-adk", "google-genai", "litellm", "pandas-ta-classic", "pandas", "numpy", "alpaca-py",

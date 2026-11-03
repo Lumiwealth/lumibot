@@ -35,6 +35,16 @@ and buys one higher-strike call with the same expiration and normally equal wing
 widths. A long put butterfly uses the analogous put legs. Preserve the 1:-2:1
 ratio.
 
+## Two-long/one-short call stock replacement
+
+Buy two lower-strike calls and sell one higher-strike call at one expiration.
+Preserve the 2:-1 ratio; one long and two shorts is a different structure with
+unbounded upside loss. Evaluate the actual debit, intrinsic/extrinsic premium,
+signed net Greeks and downside loss. Offsetting extrinsic cost does not make
+the position free. A physically settled short call can require delivering the
+underlying before either long is exercised: inspect shares, account capacity,
+dividends and remaining obligations independently of the expiration payoff.
+
 ## Straddle and strangle
 
 - Long straddle: buy one call and one put at the same strike and expiration.

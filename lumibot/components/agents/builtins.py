@@ -223,6 +223,7 @@ def _has_successful_tool_call(tool_name: str) -> bool:
 
 _ACCOUNT_MUTATING_ORDER_TOOLS = {
     "orders_submit_order",
+    "orders_submit_orders",
     "orders_submit_multileg",
     "orders_cancel_order",
     "orders_modify_order",
@@ -1249,6 +1250,61 @@ def _fred_hint(missing: Any) -> dict[str, str]:
             "only what was published by the strategy date."
         )
     }
+
+
+def _json_object_batch(raw: str, name: str) -> list[dict[str, Any]]:
+    values = json.loads(raw)
+    if not isinstance(values, list) or not values or any(not isinstance(item, dict) for item in values):
+        raise ValueError(f"{name} must be a nonempty JSON array of objects.")
+    return values
+
+
+def _bind_quotes(strategy: Any, manager: Any) -> BoundTool:
+    def quotes(*, assets_json: str) -> dict[str, Any]:
+        groups: dict[Any, list[Any]] = {}
+        requested = []
+        for item in _json_object_batch(assets_json, "assets_json"):
+            arguments = dict(item)
+            exchange = arguments.pop("exchange", None)
+            arguments["symbol"] = _require_single_symbol_text("symbol", arguments.get("symbol"))
+            arguments.setdefault("asset_type", "stock")
+            arguments["expiration"] = _coerce_expiration(arguments.get("expiration"))
+            asset, quote = resolve_asset_and_quote(strategy, **arguments)
+            group = (quote, exchange)
+            groups.setdefault(group, []).append(asset)
+            requested.append((group, asset))
+        returned = {
+            group: strategy.get_quotes(list(dict.fromkeys(assets)), quote=group[0], exchange=group[1])
+            for group, assets in groups.items()
+        }
+        rows = []
+        for group, asset in requested:
+            snapshot = returned[group].get(asset)
+            row = {"asset": _asset_to_dict(asset), "quote": _asset_to_dict(group[0]) if group[0] else None,
+                   "available": snapshot is not None}
+            for field in ("price", "bid", "ask", "bid_size", "ask_size", "volume"):
+                row[field] = _optional_finite_number(getattr(snapshot, field, None))
+            row["mid_price"] = (row["bid"] + row["ask"]) / 2 if row["bid"] is not None and row["ask"] is not None else None
+            for field in ("timestamp", "quote_time", "bid_time", "ask_time"):
+                row[field] = _jsonable(getattr(snapshot, field, None))
+            rows.append(row)
+        return {"quotes": rows, "observed_at": strategy.get_datetime().isoformat()}
+
+    return BoundTool(
+        name="market_quotes",
+        description=(
+            "Read bid/ask quotes for exact assets through LumiBot's existing batch quote API. "
+            "assets_json is a JSON array of objects: symbol, optional asset_type (default stock), "
+            "expiration/strike/right for options, quote_symbol and exchange. Different contracts on the same "
+            "underlying remain separate rows. Returned quote times and sizes may be absent; observed_at is "
+            "the runtime clock, not an exchange timestamp. Missing bid/ask remain null, never replaced by last price. "
+            "Inspect all selected legs and spread quality; use options_evaluate_market for option execution "
+            "assessment and options_get_greeks for exact-contract risk. Native batching depends on the provider. "
+            "One native batch failure is visible and is not silently retried as many single requests."
+        ),
+        function=quotes,
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
+    )
 
 
 def _bind_last_price(strategy: Any, manager: Any) -> BoundTool:
@@ -4528,6 +4584,64 @@ def _bind_close_thesis(strategy: Any, manager: Any) -> BoundTool:
     )
 
 
+def _prepare_agent_order(
+    strategy: Any, *, symbol: str, quantity: float, side: OrderSideArg,
+    asset_type: AssetTypeArg = "stock", expiration: str | None = None,
+    strike: float | None = None, right: str | None = None,
+    order_type: OrderTypeArg = "market", limit_price: float | None = None,
+    stop_price: float | None = None, stop_limit_price: float | None = None,
+    trail_price: float | None = None, trail_percent: float | None = None,
+    quote_symbol: str | None = None, exchange: str | None = None,
+    time_in_force: TimeInForceArg = "day",
+) -> Any:
+    """Prepare a single or independent-batch item before any broker mutation."""
+    for name, value, contract in (("side", side, OrderSideArg), ("asset_type", asset_type, AssetTypeArg),
+                                  ("order_type", order_type, OrderTypeArg), ("time_in_force", time_in_force, TimeInForceArg)):
+        if value not in contract.__args__:
+            raise ValueError(f"Invalid {name}: {value!r}.")
+    symbol = _require_single_symbol_text("symbol", symbol)
+    quantity = _require_positive_number("quantity", quantity)
+    _require_agent_order_readiness(symbol)
+    if order_type == "limit" and limit_price is None:
+        raise ValueError("orders_submit_order with order_type='limit' requires limit_price.")
+    if order_type in {"stop", "stop_limit"} and stop_price is None:
+        raise ValueError(f"orders_submit_order with order_type={order_type!r} requires stop_price.")
+    if order_type == "stop_limit" and stop_limit_price is None and limit_price is None:
+        raise ValueError(
+            "orders_submit_order with order_type='stop_limit' requires stop_limit_price or limit_price."
+        )
+    if order_type == "trailing_stop" and trail_price is None and trail_percent is None:
+        raise ValueError(
+            "orders_submit_order with order_type='trailing_stop' requires trail_price or trail_percent."
+        )
+    asset, quote = resolve_asset_and_quote(
+        strategy,
+        symbol=symbol,
+        asset_type=asset_type,
+        expiration=_coerce_expiration(expiration),
+        strike=strike,
+        right=right,
+        quote_symbol=quote_symbol,
+    )
+    created = strategy.create_order(
+        asset,
+        quantity,
+        side,
+        order_type=order_type,
+        limit_price=limit_price,
+        stop_price=stop_price,
+        stop_limit_price=stop_limit_price,
+        trail_price=trail_price,
+        trail_percent=trail_percent,
+        exchange=exchange,
+        quote=quote,
+        time_in_force=time_in_force,
+    )
+    _require_option_chain_before_opening(strategy, [created])
+    _validate_option_closing_orders(strategy, [created])
+    return created
+
+
 def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
     def submit_order(
         *,
@@ -4553,46 +4667,13 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
         from lumibot.components.memory.store import validate_order_reason
 
         reason = validate_order_reason(reason, required=True)
-        symbol = _require_single_symbol_text("symbol", symbol)
-        quantity = _require_positive_number("quantity", quantity)
-        _require_agent_order_readiness(symbol)
-        if order_type == "limit" and limit_price is None:
-            raise ValueError("orders_submit_order with order_type='limit' requires limit_price.")
-        if order_type in {"stop", "stop_limit"} and stop_price is None:
-            raise ValueError(f"orders_submit_order with order_type={order_type!r} requires stop_price.")
-        if order_type == "stop_limit" and stop_limit_price is None and limit_price is None:
-            raise ValueError(
-                "orders_submit_order with order_type='stop_limit' requires stop_limit_price or limit_price."
-            )
-        if order_type == "trailing_stop" and trail_price is None and trail_percent is None:
-            raise ValueError(
-                "orders_submit_order with order_type='trailing_stop' requires trail_price or trail_percent."
-            )
-        asset, quote = resolve_asset_and_quote(
-            strategy,
-            symbol=symbol,
-            asset_type=asset_type,
-            expiration=_coerce_expiration(expiration),
-            strike=strike,
-            right=right,
-            quote_symbol=quote_symbol,
+        created = _prepare_agent_order(
+            strategy, symbol=symbol, quantity=quantity, side=side, asset_type=asset_type,
+            expiration=expiration, strike=strike, right=right, order_type=order_type,
+            limit_price=limit_price, stop_price=stop_price, stop_limit_price=stop_limit_price,
+            trail_price=trail_price, trail_percent=trail_percent, quote_symbol=quote_symbol,
+            exchange=exchange, time_in_force=time_in_force,
         )
-        created = strategy.create_order(
-            asset,
-            quantity,
-            side,
-            order_type=order_type,
-            limit_price=limit_price,
-            stop_price=stop_price,
-            stop_limit_price=stop_limit_price,
-            trail_price=trail_price,
-            trail_percent=trail_percent,
-            exchange=exchange,
-            quote=quote,
-            time_in_force=time_in_force,
-        )
-        _require_option_chain_before_opening(strategy, [created])
-        _validate_option_closing_orders(strategy, [created])
         memory = getattr(strategy, "memory", None)
         memory_context = _agent_memory_context_kwargs()
         try:
@@ -4660,6 +4741,48 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
         )
         + _PUBLIC_ORDER_REASON_DESCRIPTION,
         function=submit_order,
+        metadata={"kind": "builtin", "replay_on_cache": True},
+    )
+
+
+def _bind_submit_orders(strategy: Any, manager: Any) -> BoundTool:
+    def submit_orders(*, orders_json: str, reason: str, public_reason: str | None = None) -> dict[str, Any]:
+        from lumibot.components.memory.store import validate_order_reason
+
+        reason = validate_order_reason(reason, required=True)
+        orders = [_prepare_agent_order(strategy, **item) for item in _json_object_batch(orders_json, "orders_json")]
+        # Validate summed closes as well as individual items before sending any order.
+        _validate_option_closing_orders(strategy, orders)
+        requested = [_order_to_dict(order) for order in orders]
+        try:
+            evidence = {"evidence": {"public_reason": public_reason}} if public_reason is not None else {}
+            submitted = strategy.submit_order(orders, is_multileg=False, reason=reason, **evidence)
+        except Exception as exc:
+            return {"ok": False, "tool_error": True, "tool_name": "orders_submit_orders",
+                    "requested": requested, "atomic": False,
+                    "error": {"type": exc.__class__.__name__, "message": str(exc)},
+                    "execution_outcome": _broker_submission_outcome(certainty="unknown")}
+        returned = submitted if isinstance(submitted, list) else [submitted]
+        accepted = [_order_to_dict(order) for order in returned if order is not None]
+        complete = len(accepted) == len(orders)
+        return {"submitted": accepted, "requested": requested, "atomic": False,
+                "execution_outcome": _broker_submission_outcome(certainty="confirmed_submitted" if complete else "unknown")}
+
+    return BoundTool(
+        name="orders_submit_orders",
+        description=(
+            "Submit independent agent-selected orders in one call. orders_json is a nonempty JSON array "
+            "using orders_submit_order fields (symbol, quantity, side and optional asset/order fields); "
+            "reason and optional public_reason apply to the whole batch. Each item follows the same "
+            "account, current-price, chain and closing-position checks as a single order. Every item is "
+            "validated before submission. The native broker owns batching; this is NOT atomic or all-or-none. "
+            "Use orders_submit_multileg for related option legs, spreads, condors, butterflies and rolls. "
+            "Inspect returned identifiers, failures and positions separately; an exception can leave some "
+            "orders submitted. Reconcile before any retry. Refresh account evidence after this mutation. "
+            "The shared private reason requires at least 200 trimmed characters explaining the actions, "
+            "evidence, sizing, risks and invalidation."
+        ) + _PUBLIC_ORDER_REASON_DESCRIPTION,
+        function=submit_orders,
         metadata={"kind": "builtin", "replay_on_cache": True},
     )
 
@@ -4771,6 +4894,9 @@ class _AccountTools:
 
 
 class _MarketTools:
+    def quotes(self) -> ToolDefinition:
+        return ToolDefinition(name="market_quotes", description="Read bid/ask quotes for exact assets in a batch.", binder=_bind_quotes)
+
     def last_price(self) -> ToolDefinition:
         return ToolDefinition(
             name="market_last_price",
@@ -5266,6 +5392,10 @@ class _MemoryTools:
 
 
 class _OrderTools:
+    def submit_orders(self) -> ToolDefinition:
+        return ToolDefinition(name="orders_submit_orders", description="Submit a batch of independent orders." + _PUBLIC_ORDER_REASON_DESCRIPTION,
+                              binder=_bind_submit_orders, metadata={"mutates_trading": True})
+
     def submit(self) -> ToolDefinition:
         return ToolDefinition(
             name="orders_submit_order",
@@ -5426,6 +5556,7 @@ class _BuiltinTools:
             self.account.portfolio(),
             self.market.last_price(),
             self.market.last_prices(),
+            self.market.quotes(),
             self.market.historical_prices(),
             self.market.load_history_table(),
             self.risk.calculate_stock_quantity(),
@@ -5495,6 +5626,7 @@ class _BuiltinTools:
             self.memory.update_thesis(),
             self.memory.close_thesis(),
             self.orders.submit(),
+            self.orders.submit_orders(),
             self.orders.submit_multileg(),
             self.orders.cancel(),
             self.orders.open_orders(),

@@ -17,70 +17,36 @@ class AIIronCondorStrategy(Strategy):
         self.agents.create(
             name="researcher", allow_trading=False, allow_network=True, model=self.parameters["model"],
             reasoning_effort="high", system_prompt=(
-                "Research the requested short iron condor opportunity at the strategy's current time. "
-                "Use available dated volatility, trend and event evidence; obtain the previous completed "
-                "VIX close where available. Explain suitability, contrary evidence and relevant events. "
-                "Prefer available FRED and broker news; use official published calendars when an event "
-                "date matters. Identify calendar approximations when original-vintage availability is "
-                "unknown. Do not seek an exhaustive certification that no event can occur. "
-                "Focus event risks on the intended overnight holding window, through the next session's "
-                "close; a distant event is not an imminent risk. Separate a verified scheduled release "
-                "inside that window from general background news and an unavailable calendar. Give the "
-                "trader evidence and uncertainty, not an unconditional safe/unsafe verdict. A mixed news "
-                "day is ordinary, not by itself a reason to remain in cash. Return a compact dated market/thesis "
-                "packet and limitations. Leave account checks, "
-                "contract selection, exact-leg quotes/Greeks and package pricing to the trader; do not "
-                "duplicate that execution checklist. Do not trade."
+                (
+                'Research the supplied underlying for a short iron condor held overnight through the next '
+                'trading session. Use dated volatility, trend and event evidence, including the previous '
+                'completed VIX close. Focus on material events inside that holding window. Distinguish known '
+                'events from unavailable calendar evidence; give the trader a compact dated assessment, '
+                'contrary evidence and uncertainty. Do not trade. '
+            )
             ),
         )
         self.agents.create(
             name="trader", allow_trading=True, model=self.parameters["model"],
             reasoning_effort="high", system_prompt=(
-                "You alone select contracts, quantity, package price, risk and every order/recovery action. "
-                "Follow the shared options guidance. Hold at most one short/net-credit iron condor on the supplied symbol. "
-                "Consider a new setup only in the final 15 regular-session minutes, at most once per session. "
-                "Use this session's dated setup research before a new entry. Do not enter if the previous completed VIX close "
-                "is above 25 or that prior close cannot be obtained. Exact contracts and usable execution "
-                "evidence are also required before submission. An incomplete event calendar is a "
-                "research limitation, not proof of an imminent event or an automatic entry prohibition. "
-                "The mandate is routine defined-risk premium collection when the stated risk limits and "
-                "priced range are reasonable, not waiting for an exceptionally strong tactical signal. "
-                "You may decline a verified major scheduled release during the holding window or a "
-                "demonstrated directional breakout/gap risk that makes the candidate's range unsuitable. "
-                "Explain the specific evidence and why the actual strikes/credit do not compensate that risk. "
-                "Ordinary mixed headlines, the researcher's cautious adjective, a missing calendar, or the "
-                "disclosed historical price approximation alone are not independent entry vetoes. "
-                "Unless an explicit hard limit or verified imminent major release blocks entry, compare "
-                "the actual candidate premiums and risk before deciding. Do not invent a new confidence "
-                "certification requirement or demand proof of a profitable future outcome. "
-                "Contract/quote/Greek/pricing details absent from the research packet are your work "
-                "to obtain, not an unmet research prerequisite. "
-                "Use a listed next-trading-day expiration, short put/call near 0.14 absolute delta and "
-                "one-dollar outer protective wings. Include the supplied estimated per-contract/per-side fee "
-                "for entry and closing when comparing net credit and maximum loss; the estimate is configurable, "
-                "not a broker fee claim. Maximum package loss including those fees must fit 3% of current account value; "
-                "you choose the integer package count. Submit related legs atomically with a net limit. "
-                "Compare at most three useful packages and obtain exact-leg quotes and Greeks. "
-                "Minute-bar backtests permit the data source's usable last-trade price proxy when "
-                "historical bid/ask is unavailable. Check each leg with options_evaluate_market and "
-                "require usable_for_limit_pricing. Missing historical bid/ask alone is not an unmet "
-                "permission. Disclose the approximation; never invent quotes or claim executable "
-                "liquidity. Live trading needs actual quotes. "
-                "For a held package save underlying attention boundaries at 40% of the distance from the "
-                "short-strike midpoint toward either short strike. A breach requires your close decision. "
-                "Close all residual legs atomically no later than 30 minutes before the expiration session ends. "
-                "Manage assignment/share obligations before another entry. Reconcile exact working orders and "
-                "partial fills before replacing or submitting; a working close is not flat exposure. "
-                "Use dated saved research for urgent management; refresh only when relevant evidence needs it. "
-                "Leave setup reviews and research-update requests through attention_watch with the appropriate "
-                "review_scope; the shared team dispatcher supplies the unchanged dated answers. "
-                "Management reviews may reuse still-relevant research. Do not nest synchronous agent calls. "
-                "Use attention_watch to save actual boundaries, quantity/order changes and the next review time, "
-                "with stable operation and exact returned order identities. Plan the next eligible setup review "
-                "after confirmed closure; do not repeat research daily while a healthy position needs no decision. "
-                "Remove obsolete watches only after closure and obligations reconcile. An unchanged warning "
-                "does not justify another ten-minute model heartbeat. Leave a real changed condition or next "
-                "eligible review. Explain your actual resulting state without claiming unobserved fills."
+                (
+                'Trade at most one short/net-credit iron condor on the supplied underlying. Consider a new '
+                'setup only in the final 15 regular-session minutes, at most once per session, using this '
+                "session's setup research. Require the previous completed VIX close at or below 25. Use next- "
+                'trading-day expiry, short strikes near 0.14 absolute delta and one-dollar outer wings. '
+                'Compare at most three candidates. You choose integer package count; maximum loss including '
+                'estimated round-trip per-contract fees must fit 3% of current account value. The supplied '
+                'fee is an estimate, not a broker fee claim. '
+                'The mandate is routine defined-risk premium collection when the priced range is reasonable. '
+                'Compare candidate premiums and risk before deciding; decline for a concrete limit, known '
+                'imminent major release or demonstrated breakout/gap risk. Ordinary mixed news or a missing '
+                'calendar is not itself a veto. '
+                'Set underlying review boundaries 40% of the distance from the short-strike midpoint toward '
+                'either short strike; a breach requires your close decision. Close remaining exposure no '
+                'later than 30 minutes before the expiration session ends. Leave the next eligible setup '
+                "review after closure. Follow LumiBot's shared options and attention guidance; you own every "
+                'trading decision. '
+            )
             ),
         )
 

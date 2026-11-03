@@ -1614,7 +1614,7 @@ def _resolve_model_for_adk(
 
 
 _BROKER_MUTATING_TOOLS = frozenset(
-    {"orders_submit_order", "orders_submit_multileg", "orders_cancel_order", "orders_modify_order"}
+    {"orders_submit_order", "orders_submit_orders", "orders_submit_multileg", "orders_cancel_order", "orders_modify_order"}
 )
 
 

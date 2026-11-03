@@ -1016,7 +1016,7 @@ def test_judge_receives_only_called_builtin_contracts_and_preserves_observed_evi
         }
     ]
     request = next(request for request in seen if request.agent_name == "eval_judge")
-    emitted = json.loads(request.task_prompt.split("RUN:\n", 1)[1])
+    emitted = json.loads(request.task_prompt.split("RUN:\n", 1)[1].split("\n\nCLAIM AUDIT:\n", 1)[0])
     assert emitted["builtin_tool_contracts"] == transcript["builtin_tool_contracts"]
     assert emitted["tool_results"] == transcript["tool_results"]
     assert "the tool explicitly derives" in request.system_prompt
@@ -4870,12 +4870,26 @@ def test_judge_receives_declared_role_authority_and_user_continuations(monkeypat
             "researcherSystemPrompt": "Research only; do not trade.", "taskPrompt": "Open the requested exposure.",
             "continuationTurns": [{"taskPrompt": "Close", "reviewScope": "management"}],
             "judgeRubric": "Honor the actual role and user authority."}
-    evals.run_judge(case, {"agent_runs": []}, evals.DEFAULT_JUDGE_MODEL, None)
+    reports = [{"role": "researcher", "final_answer": "An observed structural claim to verify.",
+                "tool_calls": []},
+               {"role": "trader", "final_answer": "A separately observed decision outcome.",
+                "tool_calls": [{"name": "orders_submit_multileg",
+                    "payload": {"reason": "The actual candidate comparison.",
+                                "public_reason": "The reported decision rationale."}}]}]
+    evals.run_judge(case, {"agent_runs": reports}, evals.DEFAULT_JUDGE_MODEL, None)
     prompt = observed[0].task_prompt
     declared = json.loads(prompt.split("DECLARED WORKFLOW:\n", 1)[1].split("\n\nRUN:\n", 1)[0])
     for field in ("systemPrompt", "researcherSystemPrompt", "taskPrompt", "continuationTurns"):
         assert declared[field] == case[field]
     assert declared["coordinatorSourceContract"] == inspect.getsource(AttentionMonitor.dispatch_team)
+    # Keep every actual role answer and decision rationale visible after the
+    # full evidence too; a later correct trade must not hide earlier claims.
+    claims = json.loads(prompt.split("\n\nREPORTED CLAIMS TO VERIFY:\n", 1)[1])
+    assert [row["answer"] for row in claims] == [row["final_answer"] for row in reports]
+    assert [row["role"] for row in claims] == [row["role"] for row in reports]
+    assert claims[1]["rationales"] == [{"tool": "orders_submit_multileg",
+        "reason": "The actual candidate comparison.",
+        "public_reason": "The reported decision rationale."}]
 
 
 @pytest.mark.parametrize("change,accepted", [("judge", True), ("actor", False), ("library", False), ("new_library", False)])

@@ -5,6 +5,8 @@ order. The trader saves its next attention conditions. Quiet minutes invoke no
 model. This example requires the attention API in the installed LumiBot runtime.
 Historical Alpaca option bars do not establish executable historical bid/ask.
 """
+from datetime import timedelta
+
 from lumibot.strategies import Strategy
 
 
@@ -13,7 +15,7 @@ class AIIronCondorStrategy(Strategy):
 
     def initialize(self):
         self.sleeptime = "1M"
-        self.minutes_before_closing = 15
+        self.minutes_before_closing = 0
         self.agents.create(
             name="researcher", allow_trading=False, allow_network=True, model=self.parameters["model"],
             reasoning_effort="high", system_prompt=(
@@ -50,11 +52,13 @@ class AIIronCondorStrategy(Strategy):
             ),
         )
 
-    def before_market_closes(self):
+    def before_starting_trading(self):
         if not self.vars.get("attention_started", False):
             self.agents.attention.watch(owner="lifecycle", watch_id="initial_review",
                 operation_id="initial_setup", metric="time", comparison="gte",
-                value=self.get_datetime().isoformat(), reason="First scheduled setup opportunity",
+                value=(self.get_datetime() + timedelta(seconds=max(
+                    0, (self.get_time_to_close() or 0) - 15 * 60))).isoformat(),
+                reason="Initial setup review; verify entry eligibility under your policy",
                 review_scope="setup")
             self.vars.set("attention_started", True)
         self.on_trading_iteration()

@@ -22,7 +22,9 @@ def example(strategy_class):
     strategy.vars = Vars()
     strategy._is_backtesting = True
     strategy.now = datetime(2030, 6, 3, 19, 45, tzinfo=timezone.utc)
+    strategy.session_close = strategy.now.replace(hour=20, minute=0)
     strategy.get_datetime = lambda: strategy.now
+    strategy.get_time_to_close = lambda: (strategy.session_close - strategy.now).total_seconds()
     created, calls, handles = [], [], {}
     manager = SimpleNamespace(attention=AttentionMonitor(strategy))
 
@@ -47,7 +49,7 @@ def example(strategy_class):
 
 def start_setup(strategy):
     if isinstance(strategy, AIIronCondorStrategy):
-        strategy.before_market_closes()
+        strategy.before_starting_trading()
     else:
         strategy.before_starting_trading()
         strategy.now += timedelta(minutes=30)
@@ -64,6 +66,35 @@ def test_example_registers_research_and_one_trading_owner(strategy_class):
     assert {(entry['name'], entry['allow_trading']) for entry in created} == {
         ('researcher', False), ('trader', True)}
     assert all('tools' not in entry for entry in created)
+
+
+@pytest.mark.parametrize('close_hour', [20, 17])
+def test_late_setup_and_followup_keep_polling_until_actual_session_close(close_hour):
+    from lumibot.strategies.strategy_executor import StrategyExecutor
+
+    strategy, _, calls, _ = example(AIIronCondorStrategy)
+    close = strategy.session_close.replace(hour=close_hour)
+    strategy.session_close = close
+    strategy.now = close - timedelta(hours=2)
+    strategy.before_starting_trading()
+    strategy.now = close - timedelta(minutes=16)
+    strategy.on_trading_iteration()
+    assert calls == []
+    strategy.now = close - timedelta(minutes=15)
+    strategy.on_trading_iteration()
+    assert [name for name, _ in calls] == ['researcher', 'trader']
+
+    strategy.agents.attention.watch(owner='trader', watch_id='followup', operation_id='setup',
+        metric='time', comparison='gte', value=(strategy.now + timedelta(minutes=1)).isoformat(),
+        reason='A new requested source observation is due.', review_scope='research')
+    strategy.now += timedelta(minutes=1)
+    executor = SimpleNamespace(strategy=strategy,
+        broker=SimpleNamespace(get_time_to_close=strategy.get_time_to_close))
+    assert StrategyExecutor._calculate_should_we_stop(executor) is False
+    strategy.on_trading_iteration()
+    assert [name for name, _ in calls] == ['researcher', 'trader', 'researcher', 'trader']
+    strategy.now = close
+    assert StrategyExecutor._calculate_should_we_stop(executor) is True
 
 
 @pytest.mark.parametrize('strategy_class', [AIBullCallSpreadStrategy, AICallStockReplacementStrategy])

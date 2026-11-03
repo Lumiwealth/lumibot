@@ -2,6 +2,8 @@
 
 ## 4.6.45 - 2026-11-03
 
+Deploy marker: 629c49a55c7166f5b119c9ef66f4f4f44919dd48
+
 ### Added
 - Add a runnable MetaMask perpetual round-trip example using normal Strategy APIs and continuous Trader scheduling, exact executed-quantity reduce-only closes, durable order identities and same-name restart recovery.
 

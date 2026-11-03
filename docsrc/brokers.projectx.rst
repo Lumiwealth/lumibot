@@ -171,6 +171,9 @@ Data and backtesting
 ``get_quote`` returns the provider's actual bid, ask and source timestamp. If
 only historical trades are available, bid and ask remain unavailable. A stream
 connection alone does not mean a quote is fresh; inspect its source time.
+New subscriptions and reconnections can begin with an older cached snapshot.
+The client waits for a live update within the existing quote timeout. If no
+update arrives, it returns the available snapshot with its original timestamp.
 
 Use ``ProjectXBacktesting`` with an account's existing history entitlement:
 

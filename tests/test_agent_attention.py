@@ -69,6 +69,25 @@ def test_setup_scope_refreshes_research_without_requiring_a_magic_watch_name():
     assert monitor.pending() == []
 
 
+def test_research_review_delivers_mandate_and_eligibility_guidance_to_trader():
+    _, monitor, calls, _ = team()
+    team_watch(monitor, "research")
+    monitor.poll()
+    policy = {"entry_window": "later in the session", "risk_exit": "allowed whenever required"}
+    monitor.dispatch_team(decision_agent="decision", research_agents=["research-a"], context={"policy": policy})
+    assert [name for name, _, _ in calls] == ["research-a", "decision"]
+    assert calls[-1][1]["team_context"] == {"policy": policy}
+    brief = calls[-1][2]
+    for instruction in (
+        "An attention event requests review; it does not grant new entry authorization.",
+        "Apply the strategy's date/time windows, retry limits and risk rules before choosing an action.",
+        "Research readiness before an entry window opens is not entry eligibility.",
+        "Management of existing exposure follows its own policy, including permitted exits outside entry windows.",
+        "Distinguish mandatory evidence from optional uncertainty under the strategy's actual policy.",
+    ):
+        assert instruction in brief
+
+
 def test_management_uses_retained_answers_and_research_scope_refreshes_them():
     strategy, monitor, calls, _ = team()
     for scope in ("setup", "management", "research"):

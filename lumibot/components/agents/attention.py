@@ -347,6 +347,11 @@ class AttentionMonitor:
                         self._save(state)
             result = decision.run(
                 task_prompt=("Review the attention evidence and dated research under your policy. "
+                    "An attention event requests review; it does not grant new entry authorization. "
+                    "Apply the strategy's date/time windows, retry limits and risk rules before choosing an action. "
+                    "Research readiness before an entry window opens is not entry eligibility. "
+                    "Management of existing exposure follows its own policy, including permitted exits outside entry windows. "
+                    "Distinguish mandatory evidence from optional uncertainty under the strategy's actual policy. "
                     "The supplied attention packet has already been claimed for this review; "
                     "it need not remain in your pending-watch list. "
                     "You own every decision and action through your tools. Leave the next needed attention conditions. "

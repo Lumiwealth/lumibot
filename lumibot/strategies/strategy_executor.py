@@ -272,7 +272,7 @@ class StrategyExecutor(Thread):
         return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
     def _scheduled_record_timing(self, **fields):
-        if not self._scheduled_exact_enabled():
+        if not _truthy(os.environ.get("LUMIBOT_SCHEDULED_EXECUTION")):
             return
         self._get_scheduled_timing().record(**fields)
 

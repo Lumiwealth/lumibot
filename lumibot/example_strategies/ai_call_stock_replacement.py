@@ -34,7 +34,7 @@ class AICallStockReplacementStrategy(Strategy):
                 'one package with exactly two lower-strike long calls per one higher-strike short call at one '
                 'listed expiry 90-180 calendar days away. Compare at most three candidates. Aim for stock- '
                 'like net delta and low net extrinsic cost; a premium offset is not free exposure. You choose '
-                'strikes and intended holding period. Maximum debit loss including '
+                'strikes, integer package count and intended holding period. Maximum debit loss including '
                 'estimated fees must fit 5% of current account value. '
                 'Review a healthy holding roughly monthly; hold it rather than repurchasing it. An incomplete '
                 'calendar or ordinary uncertainty is not a strong-signal entry requirement. Decline for a '

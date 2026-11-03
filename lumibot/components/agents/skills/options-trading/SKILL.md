@@ -36,6 +36,10 @@ last price, midpoint, bid and ask labels distinct; a last price is not a quoted
 bid. Preserve the observation's field and units when citing it. A correct later
 trader assessment does not make an earlier research claim correct. Keep the
 packet compact and omit unused numerical claims rather than recopying them.
+For a price comparison, check both exact candidates at the same pricing style
+and in the same units before saying cheaper, higher or lower. Prefer the
+returned package totals; if the comparison does not drive the decision, omit it
+instead of adding an unchecked advantage to the rationale.
 
 An instruction to open or close a bounded position when stated checks pass is
 authorization to act once those checks pass. Do not require a second instruction

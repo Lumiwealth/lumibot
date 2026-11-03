@@ -2,7 +2,7 @@
 
 > Notes on live broker behavior that affect backtesting semantics (extended hours, order types, and “market closed / no data” handling).
 
-**Last Updated:** 2026-11-02
+**Last Updated:** 2026-11-03
 **Status:** Active
 **Audience:** Developers, AI Agents
 
@@ -73,6 +73,44 @@ limit or inclusive timestamp cursor:
 ---
 
 ## Broker notes (public sources, summarized)
+
+### SmartLimit mutation confirmation
+
+Native broker modification remains the preferred reprice path. If it fails or
+a package must change debit/credit/even type, the executor retains one replacement
+intent instead of immediately submitting the same object again. It refreshes the
+original order through the broker's normalized read and existing observation
+reducer. It follows only broker-reported replacement links, not guessed IDs.
+
+- A cancel acknowledgement is not terminal confirmation. Delayed/missing reads
+  keep the outstanding intent visible and cannot authorize another purchase.
+- A confirmed fill wins the race and suppresses replacement. A confirmed partial
+  cancellation retains its executions; a new order contains only the remainder,
+  with fresh identity and clean lifecycle events/transactions.
+- A package replacement also verifies that remaining leg quantities match the
+  remaining package ratio before submitting. Inconsistent leg observations wait
+  for reconciliation instead of duplicating a partially executed leg.
+- Once a fresh submission is attempted, an uncertain response does not create a
+  second submission identity. Unresolved work fails the existing bounded drain
+  visibly; this is not a claim that a network failure can always be auto-repaired.
+- Final-hold cancellation and pending cancel/replace states receive throttled
+  broker reads even without stream callbacks. Closed historical orders are not
+  scanned in the normal active-order fast path.
+- The Alpaca adapter normalizes SDK enum values and reconciles terminal status
+  before deciding not to modify. Live position snapshots remain broker-owned.
+
+`tests/test_smart_limit_broker_lifecycle.py` exercises the actual Alpaca SDK
+response model, adapter, executor and common reducer without network access.
+The pre-fix regressions reproduce six canceled orders still counted as pending,
+terminal enum misclassification and a resubmission attempt after a fill won the
+reprice race. Pure executor fixtures now distinguish a terminal cancellation
+callback from a no-op cancel request. These are deterministic regressions, not
+proof of real provider execution. Backtesting keeps its existing fill model and
+does not execute the live repricing loop.
+
+Alpaca documents that an existing order can fill before a replacement reaches
+the venue, even when the replace request initially succeeds:
+[retail replacement API](https://docs.alpaca.markets/us/reference/patchorderbyorderid-1).
 
 ### Bitunix futures submission contract
 

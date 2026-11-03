@@ -6,6 +6,9 @@
 - Add a runnable MetaMask perpetual round-trip example using normal Strategy APIs and continuous Trader scheduling, exact executed-quantity reduce-only closes, durable order identities and same-name restart recovery.
 
 ### Fixed
+- Reconcile Alpaca SDK terminal-status enums before repricing, including partial executions reported with cancellation, rather than attempting to replace an already completed order.
+- Make SmartLimit cancel-and-replace wait for broker-confirmed cancellation, preserve executions and replace only the unfilled remainder with a fresh order identity. Scheduled workers refresh pending mutation outcomes when stream confirmation is delayed; ambiguous replacement/submission outcomes remain visible instead of authorizing duplicate orders.
+- Accept broker-normalized Decimal limit prices during SmartLimit repricing and translate its internal wrapper to CCXT's native limit amendment while preserving spot units, derivative contract quantities, settlement and hedge-side parameters.
 - Validate MetaMask perpetual account support before reservation and again before releasing approved actions; retain cancellation access after account-mode changes. Require RPC-finalized canonical swap receipts and revalidate older completed swaps read-only without losing fills, fees or reservations or replaying transactions.
 - Prevent concurrent ProjectX submissions of the same order object from resetting an in-flight outcome; retain unknown certainty during preparation and confirm rejection only when preflight fails before handoff.
 - Restore missing cancellation provenance on older native records only when intact persisted checkpoints prove no order release, preserving execution history and reconciliation or fee holds.

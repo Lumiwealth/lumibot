@@ -16,7 +16,19 @@ order lists here; prefer broker “active order” fast paths (e.g., `broker.get
 
 ### 1) One-time setup
 
-- Put broker creds in `.env` (repo root). The tests load it automatically.
+- Configure dedicated Alpaca test credentials. Never use a live-money account or
+  a shared account with existing positions/orders for these execution tests.
+- The Alpaca harness uses only ``ALPACA_TEST_API_KEY`` and
+  ``ALPACA_TEST_API_SECRET``. Invalid test keys fail rather than falling back to
+  the default trading account. The test requires an initially flat isolated
+  account; it never resets an account or clears unrelated orders.
+- The wait helper uses the ordinary strategy order accessor and broker
+  reconciliation. It must not copy raw provider status into the local Order.
+- Crypto cleanup cancels only this invocation's orders and bounds closing
+  quantity by this invocation's acquired units, not an account-wide balance.
+  A failed/uncertain close is reported, not overlapped with a blind market sell.
+- Caller-owned SDK clients remain supported for account-bound managed test
+  connections. Private connection provisioning stays outside the public SDK.
 
 ### 2) Run unit tests (any time)
 

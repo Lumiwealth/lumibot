@@ -46,6 +46,10 @@ LIVE_METHOD_SCOPES = {
     'lumibot/strategies/strategy_executor.py': (
         'StrategyExecutor', 'sync_broker', 'self.broker.IS_BACKTESTING_BROKER'),
     'lumibot/brokers/alpaca.py': ('Alpaca', 'do_polling', None),
+    'lumibot/tools/projectx_helpers.py': tuple(
+        ('ProjectXStreaming', method, None)
+        for method in ('__init__', '_on_market_hub_open', '_on_market_hub_close', 'get_market_quote')
+    ),
 }
 
 
@@ -106,43 +110,53 @@ def entry_digest(node):
                                     separators=(",", ":")).encode()).hexdigest()
 
 
-def _without_unused_live_body(source, owner, method, guard):
+def _without_unused_live_bodies(source, scopes):
     """Preserve exact bytes except a body that no native fixture can execute.
 
     Shared methods retain their signature, docstring, and unchanged immediate
     backtesting return. The catalog's real binding test proves every broker is a
-    BacktestingBroker. Alpaca is never instantiated by any native fixture.
+    BacktestingBroker. The native fixture contract also prevents constructing
+    the ProjectX streaming owner, including during actual native quote reads.
     """
     try:
-        classes = [n for n in ast.parse(source).body if isinstance(n, ast.ClassDef) and n.name == owner]
-        if len(classes) != 1:
-            return None
-        methods = [n for n in classes[0].body if isinstance(n, ast.FunctionDef) and n.name == method]
-        if len(methods) != 1:
-            return None
-        fn = methods[0]
-        body = fn.body
-        prefix_end = fn.lineno
-        if (isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant)
-                and isinstance(body[0].value.value, str)):
-            prefix_end = body[0].end_lineno
-            body = body[1:]
-        if guard:
-            guards = [n for n in body if isinstance(n, ast.If)
-                      and ast.dump(n.test) == ast.dump(ast.parse(guard, mode='eval').body)]
-            if len(guards) != 1:
+        tree = ast.parse(source)
+        if isinstance(scopes[0], str):
+            scopes = (scopes,)
+        ranges = []
+        for owner, method, guard in scopes:
+            classes = [n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == owner]
+            if len(classes) != 1:
                 return None
-            first = guards[0]
-            if not (len(first.body) == 1 and isinstance(first.body[0], ast.Return)
-                    and first.body[0].value is None and not first.orelse):
+            methods = [n for n in classes[0].body if isinstance(n, ast.FunctionDef) and n.name == method]
+            if len(methods) != 1:
                 return None
-            prefix_end = first.end_lineno
-        elif fn.decorator_list:
-            # No decorators exist on the unused adapter poller; don't allow a
-            # newly decorated method to acquire import-time behavior.
+            fn = methods[0]
+            body = fn.body
+            prefix_end = body[0].lineno - 1
+            if (isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant)
+                    and isinstance(body[0].value.value, str)):
+                prefix_end = body[0].end_lineno
+                body = body[1:]
+            if guard:
+                guards = [n for n in body if isinstance(n, ast.If)
+                          and ast.dump(n.test) == ast.dump(ast.parse(guard, mode='eval').body)]
+                if len(guards) != 1:
+                    return None
+                first = guards[0]
+                if not (len(first.body) == 1 and isinstance(first.body[0], ast.Return)
+                        and first.body[0].value is None and not first.orelse):
+                    return None
+                prefix_end = first.end_lineno
+            elif fn.decorator_list:
+                return None
+            ranges.append((prefix_end, fn.end_lineno))
+        ordered = sorted(ranges)
+        if any(start < prior_end for (_prior_start, prior_end), (start, _end) in zip(ordered, ordered[1:])):
             return None
         lines = source.splitlines(keepends=True)
-        return b''.join(lines[:prefix_end]) + b'<unused-live-body>\n' + b''.join(lines[fn.end_lineno:])
+        for start, end in reversed(ordered):
+            lines[start:end] = [b'<unused-live-body>\n']
+        return b''.join(lines)
     except (SyntaxError, IndexError, ValueError):
         return None
 
@@ -181,8 +195,8 @@ def check_change(path, before, after):
         except (SyntaxError, ValueError, UnicodeError):
             pass
     if path in LIVE_METHOD_SCOPES:
-        old = _without_unused_live_body(before, *LIVE_METHOD_SCOPES[path])
-        new = _without_unused_live_body(after, *LIVE_METHOD_SCOPES[path])
+        old = _without_unused_live_bodies(before, LIVE_METHOD_SCOPES[path])
+        new = _without_unused_live_bodies(after, LIVE_METHOD_SCOPES[path])
         if old is not None and old == new:
             return
     if path == 'lumibot/strategies/_strategy.py':

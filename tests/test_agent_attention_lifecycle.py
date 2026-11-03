@@ -87,6 +87,7 @@ def test_configured_contract_fee_reaches_the_trader_as_an_input(strategy_class):
     strategy.before_market_closes()
     assert calls[-1][0] == 'trader'
     assert calls[-1][1]['context']['team_context']['estimated_contract_fee'] == 0.13
+    assert calls[-1][1]['context']['team_context']['estimated_contract_fee_units'] == 'USD per contract per side'
 
 
 def test_research_warnings_reach_trader_and_survive_monitor_restart(strategy_class):

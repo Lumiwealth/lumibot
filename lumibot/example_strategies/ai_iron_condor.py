@@ -63,7 +63,8 @@ class AIIronCondorStrategy(Strategy):
         self.agents.attention.poll()
         self.agents.attention.dispatch_team(decision_agent="trader", research_agents=["researcher"],
             context={"symbol": self.parameters["symbol"],
-                     "estimated_contract_fee": self.parameters.get("estimated_contract_fee", 0.65)})
+                     "estimated_contract_fee": self.parameters.get("estimated_contract_fee", 0.65),
+                     "estimated_contract_fee_units": "USD per contract per side"})
 
     def on_strategy_end(self):
         self.agents.attention.join()

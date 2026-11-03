@@ -88,7 +88,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "bit2c",
        "apiKey": os.environ.get("BIT2C_API_KEY"),
        "secret": os.environ.get("BIT2C_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -106,7 +106,7 @@ Bit2C has no sandbox, so test with a very small amount. With environment variabl
 Algorithmic trading example: a simple Bit2C bot
 -----------------------------------------------
 
-This bot buys about 150 NIS of BTC on Bit2C once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount.
+This bot buys about 150 NIS of BTC on Bit2C once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. Bit2C accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -128,7 +128,8 @@ This bot buys about 150 NIS of BTC on Bit2C once and then holds it. It is a star
            price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
                quantity = round(150 / price, 6)  # about 150 NIS worth
-               order = self.create_order(coin, quantity, "buy", quote=self.quote_asset)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
@@ -203,7 +204,7 @@ What you can trade on Bit2C
    * - Options
      - No
 
-CCXT lists these order features for Bit2C: market orders, limit orders, editing open orders, canceling orders.
+CCXT lists these order features for Bit2C: editing open orders, canceling orders.
 
 Fees and partner IDs on Bit2C
 -----------------------------
@@ -267,4 +268,4 @@ Sources
 * `Bit2C API <https://bit2c.co.il/home/api>`_ (read 2026-10-23)
 * `Bit2C FAQ: registration and two-step verification <https://bit2c.co.il/home/faq>`_ (read 2026-10-23)
 * `Bit2C guide: protecting your account with SMS two-step verification <https://bit2c.co.il/Bitcoin/watch/595>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

@@ -55,6 +55,7 @@ def test_alpaca_sdk_bars_produce_real_fills_and_correct_cash(monkeypatch, tmp_pa
         budget=10000, benchmark_asset=None, analyze_backtest=False,
         show_plot=False, show_tearsheet=False, save_tearsheet=False,
         show_indicators=False, save_logfile=False, show_progress_bar=False,
+        full_window=True,
     )
     assert requests, "The real Alpaca adapter must request its bars through the SDK"
     fills = strategy.broker._trade_event_log_df
@@ -63,3 +64,4 @@ def test_alpaca_sdk_bars_produce_real_fills_and_correct_cash(monkeypatch, tmp_pa
     assert list(fills["price"].astype(float)) == [100.0]  # open, never the future close
     assert float(strategy.get_position("SPY").quantity) == 10
     assert strategy.cash == pytest.approx(9000.0)
+    assert strategy.portfolio_value == pytest.approx(10020.0)

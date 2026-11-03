@@ -88,7 +88,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "mercado",
        "apiKey": os.environ.get("MERCADO_API_KEY"),
        "secret": os.environ.get("MERCADO_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -203,7 +203,7 @@ What you can trade on Mercado Bitcoin
    * - Options
      - No
 
-CCXT lists these order features for Mercado Bitcoin: market orders, limit orders, editing open orders, canceling orders.
+CCXT lists these order features for Mercado Bitcoin: market orders, editing open orders, canceling orders.
 
 Fees and partner IDs on Mercado Bitcoin
 ---------------------------------------
@@ -267,4 +267,4 @@ Sources
 * `MB Central de Ajuda: Gestão de chave de API <https://central.ajuda.mercadobitcoin.com.br/servicedesk/customer/portal/22/article/667811896>`_ (read 2026-10-23)
 * `MB Central de Ajuda: API de Negociação <https://central.ajuda.mercadobitcoin.com.br/servicedesk/customer/portal/22/article/667549737>`_ (read 2026-10-23)
 * `Mercado Bitcoin API v4 docs <https://api.mercadobitcoin.net/api/v4/docs>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

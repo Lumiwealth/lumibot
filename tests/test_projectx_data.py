@@ -35,6 +35,36 @@ class TestProjectXDataSource:
     and contract mapping issues that caused problems.
     """
 
+    def test_quote_uses_provider_book_and_timestamp(self, projectx_data_source):
+        # GatewayQuote shape and values from the official ProjectX realtime example.
+        payload = {"symbol": "F.US.EP", "symbolName": "/ES", "lastPrice": 2100.25,
+                   "bestBid": 2100.0, "bestAsk": 2100.5, "volume": 12000,
+                   "lastUpdated": "2024-07-21T13:45:00Z",
+                   "timestamp": "2024-07-21T13:45:00Z"}
+        projectx_data_source.client.get_market_quote.return_value = payload
+        projectx_data_source.get_last_price = MagicMock(return_value=5150.25)
+        asset = Asset(symbol='ES', asset_type=Asset.AssetType.CONT_FUTURE)
+        quote = projectx_data_source.get_quote(asset)
+        assert (quote.price, quote.bid, quote.ask) == (2100.25, 2100.0, 2100.5)
+        assert pd.Timestamp(quote.timestamp) == pd.Timestamp(payload['timestamp'])
+
+    def test_missing_book_never_invents_a_spread(self, projectx_data_source):
+        projectx_data_source.client.get_market_quote.return_value = None
+        projectx_data_source.get_last_price = MagicMock(return_value=5150.25)
+        asset = Asset(symbol='ES', asset_type=Asset.AssetType.CONT_FUTURE)
+        quote = projectx_data_source.get_quote(asset)
+        assert quote.price == 5150.25
+        assert quote.bid is None and quote.ask is None
+        assert quote.raw_data.get('live') is False
+
+    def test_different_expirations_do_not_share_contract_cache(self, projectx_data_source):
+        first = Asset('ES', asset_type=Asset.AssetType.FUTURE, expiration=dt.date(2027, 3, 19))
+        second = Asset('ES', asset_type=Asset.AssetType.FUTURE, expiration=dt.date(2027, 6, 18))
+        projectx_data_source.client.find_contract_by_symbol.side_effect = [
+            'CON.F.US.EP.H27', 'CON.F.US.EP.M27']
+        assert projectx_data_source._get_contract_id_from_asset(first) == 'CON.F.US.EP.H27'
+        assert projectx_data_source._get_contract_id_from_asset(second) == 'CON.F.US.EP.M27'
+
     def test_data_source_initialization(self, mock_projectx_config):
         """Test basic data source initialization"""
         with patch('lumibot.data_sources.projectx_data.ProjectXClient'):
@@ -207,12 +237,12 @@ class TestProjectXDataSource:
                 mock_api_lookup.assert_not_called()
                 mock_contracts.assert_not_called()
 
-                # Test Asset method called if cache cleared
+                # A failed provider lookup cannot fabricate an execution contract.
                 projectx_data_source._contract_cache.clear()
                 mock_api_lookup.return_value = None
                 contract_id = projectx_data_source._get_contract_id_from_asset(asset)
-                mock_contracts.assert_called_once()
-                assert contract_id == "CON.F.US.MES.U25"
+                mock_contracts.assert_not_called()
+                assert contract_id is None
 
     def test_error_handling_no_contracts_found(self, projectx_data_source):
         """Test error handling when no contracts are found"""
@@ -278,7 +308,10 @@ class TestProjectXDataSource:
         """Test quote retrieval"""
         from lumibot.entities import Quote
 
-        # Mock last price
+        # A real GatewayQuote supplies each side independently.
+        projectx_data_source.client.get_market_quote.return_value = {
+            "lastPrice": 5150.25, "bestBid": 5150., "bestAsk": 5150.5,
+            "timestamp": "2024-07-21T13:45:00Z"}
         projectx_data_source.get_last_price = MagicMock(return_value=5150.25)
 
         asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
@@ -299,7 +332,7 @@ class TestProjectXDataSource:
 
         # Mock successful bars retrieval
         mock_df = pd.DataFrame({
-            'time': pd.date_range('2024-01-15 09:30:00', periods=1, freq='1min'),
+            'time': pd.date_range('2024-01-15 09:30:00', periods=1, freq='1min', tz='America/New_York'),
             'open': [5150.0],
             'high': [5155.0],
             'low': [5148.0],
@@ -351,3 +384,87 @@ class TestProjectXDataSourceIntegration:
         assert len(bars.df) == 2
         assert bars.asset.symbol == "MES"
         assert bars.source == "PROJECTX"  # Source is uppercase
+
+
+def test_history_range_has_utc_sorted_index_and_pages(projectx_data_source):
+    asset = Asset('ES', asset_type=Asset.AssetType.CONT_FUTURE)
+    source = projectx_data_source
+    source.HISTORY_PAGE_SIZE = 2
+    # RetrieveBars documented descending payload, converted by ProjectXClient.
+    def frame(hours):
+        return pd.DataFrame([{'datetime': f'2024-12-20T{hour}:00:00+00:00',
+                              'open': 2208.1, 'high': 2217., 'low': 2206.7,
+                              'close': 2210.1, 'volume': 87} for hour in hours])
+    source.client.history_retrieve_bars.side_effect = [frame(['14', '13']), frame(['12', '11']), frame(['10'])]
+    bars = source.get_bars_from_datetime(asset, pd.Timestamp('2024-12-20T10:00Z'),
+                                        pd.Timestamp('2024-12-20T15:00Z'), 'hour')
+    assert isinstance(bars.df.index, pd.DatetimeIndex)
+    assert bars.df.index.tz is not None
+    assert bars.df.index.tz_convert('UTC')[0] == pd.Timestamp('2024-12-20T10:00Z')
+    assert bars.df.index.is_monotonic_increasing
+    assert len(bars.df) == 5
+    calls = source.client.history_retrieve_bars.call_args_list
+    assert len(calls) == 3
+    assert all(call.kwargs['include_partial_bar'] is False for call in calls)
+    assert pd.Timestamp(calls[1].kwargs['end_datetime']) < pd.Timestamp('2024-12-20T13:00Z')
+
+
+def test_projectx_backtest_uses_simulation_clock_without_forming_close(projectx_data_source):
+    from lumibot.backtesting import ProjectXBacktesting
+    asset = Asset('ES', asset_type=Asset.AssetType.CONT_FUTURE, multiplier=50)
+    frame = pd.DataFrame({'open': [2100., 2101., 2102.], 'high': [2101., 2102., 2103.],
+                          'low': [2099., 2100., 2101.], 'close': [2100.5, 2101.5, 2102.5],
+                          'volume': [87, 536, 180]},
+                         index=pd.date_range('2024-12-20T14:00Z', periods=3, freq='min'))
+    projectx_data_source.get_bars_from_datetime = MagicMock(return_value=Bars(frame, 'PROJECTX', asset))
+    source = ProjectXBacktesting(pd.Timestamp('2024-12-20T14:00Z').to_pydatetime(),
+        pd.Timestamp('2024-12-20T14:03Z').to_pydatetime(), projectx_data=projectx_data_source,
+        assets=[asset], show_progress_bar=False)
+    source._update_datetime(pd.Timestamp('2024-12-20T14:01Z').to_pydatetime())
+    history = source.get_historical_prices(asset, 10, 'minute')
+    assert list(history.df.close) == [2100.5]
+    assert source.get_last_price(asset) == 2101.
+    assert source.get_quote(asset).bid is None
+
+
+def test_contract_lookup_does_not_invent_a_contract(projectx_data_source):
+    source = projectx_data_source
+    source.client.find_contract_by_symbol.return_value = ''
+    assert source._get_contract_id_from_asset(Asset('ES', asset_type=Asset.AssetType.CONT_FUTURE)) is None
+
+
+def test_normal_projectx_backtest_executes_long_and_short_with_fees(projectx_data_source, monkeypatch):
+    from lumibot.backtesting import ProjectXBacktesting
+    from lumibot.strategies import Strategy
+    from lumibot.entities import TradingFee
+    monkeypatch.setenv('BACKTESTING_DATA_SOURCE', 'projectx')
+    frame = pd.DataFrame({'open': [2100. + i for i in range(10)],
+                          'high': [2101. + i for i in range(10)],
+                          'low': [2099. + i for i in range(10)],
+                          'close': [2100.5 + i for i in range(10)],
+                          'volume': [87] * 10},
+                         index=pd.date_range('2024-12-20T14:00Z', periods=10, freq='min'))
+    asset = Asset('ES', asset_type='cont_future', multiplier=50)
+    projectx_data_source.get_bars_from_datetime = MagicMock(return_value=Bars(frame, 'PROJECTX', asset))
+
+    class ContractRoundTrip(Strategy):
+        def initialize(self):
+            self.sleeptime = '1M'
+            self.set_market('us_futures')
+            self.vars.iteration = 0
+        def on_trading_iteration(self):
+            self.vars.iteration += 1
+            side = {1: 'buy', 3: 'sell', 5: 'sell', 7: 'buy'}.get(self.vars.iteration)
+            if side:
+                self.submit_order(self.create_order(asset, 1, side))
+
+    result, strategy = ContractRoundTrip.run_backtest(ProjectXBacktesting,
+        frame.index[0].to_pydatetime(), (frame.index[-1] + pd.Timedelta(minutes=1)).to_pydatetime(),
+        projectx_data=projectx_data_source, assets=[asset], budget=150000, benchmark_asset=None,
+        buy_trading_fees=[TradingFee(flat_fee=2.5)], sell_trading_fees=[TradingFee(flat_fee=2.5)],
+        show_plot=False, show_tearsheet=False, save_tearsheet=False, save_stats_file=False,
+        show_progress_bar=False, analyze_backtest=False)
+    fills = [order for order in strategy.broker.get_all_orders() if order.is_filled()]
+    assert len(fills) == 4
+    assert not [p for p in strategy.get_positions() if p.asset.asset_type == 'cont_future' and p.quantity]
+    assert result is not None

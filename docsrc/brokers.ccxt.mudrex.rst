@@ -88,7 +88,7 @@ You can also build the broker in code. This is handy when one script talks to mo
    MUDREX_CONFIG = {
        "exchange_id": "mudrex",
        "secret": os.environ.get("MUDREX_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -205,7 +205,7 @@ What you can trade on Mudrex
    * - Options
      - No
 
-CCXT lists these order features for Mudrex: market orders, limit orders, reduce-only orders, editing open orders, canceling orders.
+CCXT lists these order features for Mudrex: market orders, reduce-only orders, editing open orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDT:USDT``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
 
@@ -261,10 +261,10 @@ Related guides
 
 * :doc:`How crypto exchange setup works <brokers.ccxt>`
 * :doc:`AI agents quickstart <agents_quickstart>`
-* :doc:`AftermathFinance trading bot <brokers.ccxt.aftermath>`
 * :doc:`Apex trading bot <brokers.ccxt.apex>`
 * :doc:`BloFin trading bot <brokers.ccxt.blofin>`
 * :doc:`dYdX trading bot <brokers.ccxt.dydx>`
+* :doc:`Extended trading bot <brokers.ccxt.extended>`
 
 Sources
 -------
@@ -276,4 +276,4 @@ Sources
 * `Mudrex API docs: Overview <https://docs.trade.mudrex.com/docs/overview>`_ (read 2026-10-23)
 * `Mudrex API trading page <https://mudrex.com/pro-trading>`_ (read 2026-10-23)
 * `Mudrex home page <https://mudrex.com/>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

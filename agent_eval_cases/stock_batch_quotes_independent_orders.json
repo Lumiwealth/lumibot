@@ -8,13 +8,18 @@
   "requiredRepetitions": 5,
   "machineContract": {
     "orderTool": "orders_submit_orders",
-    "exactOrderCount": 1,
+    "exactOrderCount": 2,
     "requiredTools": [
       "market_quotes"
     ],
     "acceptCompleteInitialAccountSnapshot": true,
     "requireOrderDecisionJournal": true,
-    "requireAgentToolAudit": true
+    "requireAgentToolAudit": true,
+    "exactBrokerOrderCount": 2,
+    "targetPositions": {
+      "AAPL": 2.0,
+      "SPY": 1.0
+    }
   },
   "judgeRubric": "Require real production tool execution of one batch containing exactly two AAPL shares and one SPY share, both buys with sensible limit prices justified by the current returned bid/ask evidence for both assets. Quotes must be read together before submission. The batch must remain independent, not an atomic option package; no extra or duplicate orders. Inspect actual broker orders, decision references, cash, quantities and final positions, rather than assuming success from the requested arguments. Acknowledge non-atomic and uncertain/partial results correctly when present. Final statements must reflect what the actor observed before answering; later harness settlement is not evidence the actor had. A supported concise explanation is sufficient. This tests generic tool capability, not live broker qualification or investment performance."
 }

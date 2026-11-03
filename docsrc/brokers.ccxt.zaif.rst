@@ -90,7 +90,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "zaif",
        "apiKey": os.environ.get("ZAIF_API_KEY"),
        "secret": os.environ.get("ZAIF_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -206,7 +206,7 @@ What you can trade on Zaif
    * - Options
      - No
 
-CCXT lists these order features for Zaif: limit orders, editing open orders, canceling orders.
+CCXT lists these order features for Zaif: editing open orders, canceling orders.
 
 Fees and partner IDs on Zaif
 ----------------------------
@@ -274,4 +274,4 @@ Sources
 * `Zaif Support: market orders FAQ <https://support.zaif.jp/hc/ja/articles/18691187330073>`_ (read 2026-10-23)
 * `Zaif Support: getting started <https://support.zaif.jp/hc/ja/articles/8740631139993>`_ (read 2026-10-23)
 * `Zaif home page <https://zaif.jp/>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

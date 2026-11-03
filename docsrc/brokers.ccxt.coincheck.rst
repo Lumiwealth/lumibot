@@ -91,7 +91,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "coincheck",
        "apiKey": os.environ.get("COINCHECK_API_KEY"),
        "secret": os.environ.get("COINCHECK_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -109,7 +109,7 @@ Coincheck has no sandbox. Test with a very small amount, leave ``COINCHECK_SANDB
 Algorithmic trading example: a simple Coincheck bot
 ---------------------------------------------------
 
-This bot buys about 7500 JPY of BTC on Coincheck once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount.
+This bot buys about 7500 JPY of BTC on Coincheck once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. Coincheck accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -131,7 +131,8 @@ This bot buys about 7500 JPY of BTC on Coincheck once and then holds it. It is a
            price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
                quantity = round(7500 / price, 6)  # about 7500 JPY worth
-               order = self.create_order(coin, quantity, "buy", quote=self.quote_asset)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
@@ -206,7 +207,7 @@ What you can trade on Coincheck
    * - Options
      - No
 
-CCXT lists these order features for Coincheck: market orders, limit orders, editing open orders, canceling orders.
+CCXT lists these order features for Coincheck: editing open orders, canceling orders.
 
 Fees and partner IDs on Coincheck
 ---------------------------------
@@ -271,4 +272,4 @@ Sources
 * `Coincheck Exchange API document <https://coincheck.com/documents/exchange/api>`_ (read 2026-10-23)
 * `Coincheck FAQ: 口座開設の流れを教えてください (Account opening steps) <https://faq.coincheck.com/answer/689f270f8101194e3f93b83d/>`_ (read 2026-10-23)
 * `Coincheck FAQ: アプリから口座開設する方法を教えてください (Open an account in the app) <https://faq.coincheck.com/answer/6886c199d5225ee0cf695a6a>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

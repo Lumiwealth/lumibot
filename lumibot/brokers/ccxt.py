@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import time
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from copy import deepcopy
 from threading import Lock
 
@@ -277,20 +277,57 @@ class Ccxt(Broker):
                 used = Decimal(str(total)) - Decimal(str(free))
             yield {"currency": currency, "total": total, "free": free, "used": used}
 
+    def _currency_conversion_path(self, currency, quote):
+        """Use quoted base/quote prices without assuming currency parity.
+
+        Preserve the existing direct/inverse pair choice. Prefer a spot-only
+        route before using contract reference prices; option premiums cannot
+        value their underlying currency.
+        """
+        direct, inverse = f"{currency}/{quote}", f"{quote}/{currency}"
+        if direct in self.api.markets:
+            return [(direct, False)]
+        if inverse in self.api.markets:
+            return [(inverse, True)]
+        markets = [market for market in self.api.markets.values()
+                   if market.get("active") is not False and not market.get("option")
+                   and market.get("base") and market.get("quote")]
+        for include_contracts in (False, True):
+            edges = {}
+            for market in markets:
+                if market.get("contract") and not include_contracts:
+                    continue
+                base, target, symbol = market["base"], market["quote"], market["symbol"]
+                edges.setdefault(base, []).append((target, symbol, False))
+                edges.setdefault(target, []).append((base, symbol, True))
+            pending, seen = deque([(currency, [])]), {currency}
+            while pending:
+                current, path = pending.popleft()
+                for target, symbol, inverted in edges.get(current, []):
+                    if target in seen:
+                        continue
+                    next_path = path + [(symbol, inverted)]
+                    if target == quote:
+                        return next_path
+                    seen.add(target)
+                    pending.append((target, next_path))
+        return None
+
     def _currency_value(self, currency, units, quote_asset):
         if currency == quote_asset.symbol:
             return units
-        direct = f"{currency}/{quote_asset.symbol}"
-        inverse = f"{quote_asset.symbol}/{currency}"
-        symbol = direct if direct in self.api.markets else inverse
-        if symbol not in self.api.markets:
+        path = self._currency_conversion_path(currency, quote_asset.symbol)
+        if path is None:
             logger.warning("No %s valuation market for %s; excluded from CCXT equity", quote_asset, currency)
             return Decimal("0")
-        price = self.api.fetch_ticker(symbol).get("last")
-        if price is None or Decimal(str(price)) <= 0:
-            raise ValueError(f"No usable CCXT valuation price for {symbol}")
-        price = Decimal(str(price))
-        return units * price if symbol == direct else units / price
+        value = units
+        for symbol, inverted in path:
+            price = self.api.fetch_ticker(symbol).get("last")
+            if price is None or Decimal(str(price)) <= 0:
+                raise ValueError(f"No usable CCXT valuation price for {symbol}")
+            price = Decimal(str(price))
+            value = value / price if inverted else value * price
+        return value
 
     def _get_balances_at_broker(self, quote_asset, strategy):
         """Return cash, non-cash holdings plus PnL, and equity in quote units."""

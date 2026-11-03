@@ -15,9 +15,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
-from filelock import FileLock
-
-from .chatgpt_auth import PLAN_SCOPE, read_private
+from .chatgpt_auth import PLAN_SCOPE, _private_metadata, private_lock, read_private
 
 
 def is_run_profile(path: Path) -> bool:
@@ -80,12 +78,11 @@ class RunBudget:
         fingerprint = hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
         if fingerprint != self.header["credential_fingerprint"]:
             raise ValueError("Run credential contract changed; prior usage must not reset")
-        with FileLock(str(self.path) + ".lock", mode=0o600, timeout=30):
+        with private_lock(Path(str(self.path) + ".lock"), timeout=30):
             flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
             descriptor = os.open(self.path, flags, 0o600)
             with os.fdopen(descriptor, "r+", encoding="utf-8") as stream:
-                if os.name == "posix" and os.fstat(stream.fileno()).st_mode & 0o077:
-                    raise ValueError("Run usage ledger must be owner-only")
+                _private_metadata(os.fstat(stream.fileno()))
                 rows = [json.loads(line) for line in stream]
                 if not rows:
                     self._append(stream, self.header)

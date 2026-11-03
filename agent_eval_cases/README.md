@@ -16,6 +16,13 @@ Deterministic checks cover only
 machine facts such as tool order, order count, exact leg sides and quantities,
 and final fixture positions.
 
+Portfolio cases exercise nine- and twenty-five-name completion, existing-position
+rebalancing, current executable quote sizing, dated historical-row selection and
+a basket with one unavailable constituent. The native broker's fills, quantities
+and cash are checked alongside the semantic judge. A one-repetition `--pilot`
+run finds setup or behavior failures without lowering the configured five-pass
+requirement; successful compatible repetitions are retained on resume.
+
 Cases declare three or five required consecutive repetitions. The current
 catalog selects five because it exercises shared runtime and security behavior.
 Preserve genuine failing attempts; never manufacture a red result or relabel

@@ -3,7 +3,10 @@
 The native receipt remains byte-identical. Its original full source hash is rebuilt
 from Git objects, then every model-relevant byte is compared with the candidate.
 Only exact live-provider modules, guarded live-sync method bodies unused by the
-maintained Pandas fixtures, and package version metadata are outside that comparison.
+maintained Pandas fixtures, package version metadata, and comments or literal
+agent policies in unexecuted examples are outside that comparison. Changed
+example policies still require their own strategy validation; this retains only
+the shared Pandas-fixture proof that never executes those policies.
 Any actor, judge, fixture, SDK, case, skill or shared trading change still expires
 proof. This is compatibility verification, never new case freshness.
 """
@@ -19,6 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PROVIDER_ONLY_PATHS = frozenset({
     'lumibot/backtesting/routed_backtesting.py',
+    'lumibot/backtesting/alpaca_backtesting.py',
     'lumibot/tools/ibkr_equity_basis.py',
     'lumibot/tools/ibkr_helper.py',
     'lumibot/tools/ibkr_history_health.py',
@@ -47,7 +51,7 @@ LIVE_METHOD_SCOPES = {
 
 def _git(*args, root=ROOT, data=None):
     return subprocess.run(['git', *args], cwd=root, input=data, check=True,
-                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30).stdout
+                          capture_output=True, timeout=30).stdout
 
 
 def runtime_paths(*, root=ROOT, source_ref=None):
@@ -119,7 +123,8 @@ def _without_unused_live_body(source, owner, method, guard):
         fn = methods[0]
         body = fn.body
         prefix_end = fn.lineno
-        if isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
+        if (isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant)
+                and isinstance(body[0].value.value, str)):
             prefix_end = body[0].end_lineno
             body = body[1:]
         if guard:
@@ -145,6 +150,16 @@ def _without_unused_live_body(source, owner, method, guard):
 def check_change(path, before, after):
     if before == after or path in PROVIDER_ONLY_PATHS:
         return
+    if path == 'requirements_dev.txt':
+        # Direct native actors/judges never invoke or import pytest, xdist or
+        # execnet. Declaring the separately tested CI worker cannot change their
+        # behavior. Preserve every other dependency byte, include and option;
+        # installed model SDK identity is still compared independently.
+        def without_test_worker(source):
+            return b''.join(line for line in source.splitlines(keepends=True)
+                            if not re.fullmatch(rb'pytest-xdist==[0-9]+(?:\.[0-9]+)+', line.strip()))
+        if without_test_worker(before) == without_test_worker(after):
+            return
     if path == 'setup.py':
         # Dependency/package changes remain incompatible; only the release
         # version field may differ. Actual model SDK versions are checked too.
@@ -153,12 +168,66 @@ def check_change(path, before, after):
         new, new_count = re.subn(version, b'version="<release>"', after)
         if old_count == new_count == 1 and old == new:
             return
+    if path.startswith('lumibot/example_strategies/') and path.endswith('.py'):
+        # The maintained catalog instantiates its own Pandas-fixture strategies,
+        # never an example. Literal policies cannot add Python execution; every
+        # call, role, permission, model, docstring and other value stays bound.
+        # This is not qualification of the changed example's investment policy.
+        try:
+            old_tree = _example_execution_tree(before)
+            new_tree = _example_execution_tree(after)
+            if ast.dump(old_tree, include_attributes=False) == ast.dump(new_tree, include_attributes=False):
+                return
+        except (SyntaxError, ValueError, UnicodeError):
+            pass
     if path in LIVE_METHOD_SCOPES:
         old = _without_unused_live_body(before, *LIVE_METHOD_SCOPES[path])
         new = _without_unused_live_body(after, *LIVE_METHOD_SCOPES[path])
         if old is not None and old == new:
             return
+    if path == 'lumibot/strategies/_strategy.py':
+        old = _without_alpaca_benchmark_body(before)
+        new = _without_alpaca_benchmark_body(after)
+        if old is not None and old == new:
+            return
     raise ValueError(f'Source change affects model qualification: {path}')
+
+
+def _example_execution_tree(source):
+    tree = ast.parse(source, type_comments=True)
+    agent_create = ast.dump(ast.parse('self.agents.create', mode='eval').body)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and ast.dump(node.func) == agent_create:
+            for keyword in node.keywords:
+                if (keyword.arg == 'system_prompt' and isinstance(keyword.value, ast.Constant)
+                        and isinstance(keyword.value.value, str)):
+                    keyword.value.value = '<unexecuted-example-agent-policy>'
+    return tree
+
+
+def _without_alpaca_benchmark_body(source):
+    """Exclude only reporting dispatched to the unused Alpaca provider.
+
+    Keep the dispatch condition and every surrounding byte, including the
+    Pandas/default branch. Native fixture construction proves this exact type
+    condition is false; shared valuation/trading methods are never excluded.
+    """
+    try:
+        owner = next(n for n in ast.parse(source).body
+                     if isinstance(n, ast.ClassDef) and n.name == '_Strategy')
+        method = next(n for n in owner.body
+                      if isinstance(n, ast.FunctionDef) and n.name == '_dump_benchmark_stats')
+        expected = ast.dump(ast.parse('type(self.broker.data_source) == AlpacaBacktesting', mode='eval').body)
+        branches = [n for n in ast.walk(method) if isinstance(n, ast.If) and ast.dump(n.test) == expected]
+        if len(branches) != 1 or not branches[0].body:
+            return None
+        branch = branches[0]
+        lines = source.splitlines(keepends=True)
+        return (b''.join(lines[:branch.body[0].lineno - 1])
+                + b'<unused-alpaca-report-body>\n'
+                + b''.join(lines[branch.body[-1].end_lineno:]))
+    except (SyntaxError, StopIteration, IndexError, ValueError):
+        return None
 
 
 def compatible_runtime(receipt, receipt_bytes, anchor, *, root=ROOT):

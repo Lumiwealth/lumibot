@@ -44,6 +44,9 @@ class BatchStrategy:
         self.submissions.append((orders, kwargs))
         return orders
 
+    def submit_orders(self, orders, **kwargs):
+        return self.submit_order(orders, **kwargs)
+
     def get_positions(self, **kwargs):
         return []
 
@@ -88,7 +91,7 @@ def test_batch_quotes_do_not_fabricate_spread_or_retry_a_native_failure():
 
     strategy.get_quotes = unavailable
     result = tool("market_quotes", strategy)(assets_json='[{"symbol":"XYZ"},{"symbol":"ABC"}]')
-    assert result["tool_error"] is True
+    assert all(row["error"]["type"] == "ConnectionError" for row in result["quotes"])
     assert len(calls) == 1
 
 
@@ -99,6 +102,14 @@ def test_batch_quotes_group_distinct_quote_currencies_without_losing_asset_ident
         {"symbol": "ETH", "asset_type": "crypto", "quote_symbol": "USDT"},
     ]))
     assert {call[1]["quote"].symbol for call in strategy.quote_calls} == {"USD", "USDT"}
+
+
+def test_batch_quotes_retain_an_explicit_provider_midpoint_without_bid_ask():
+    strategy = BatchStrategy()
+    strategy.get_quotes = lambda assets, **kwargs: {asset: Quote(asset, price=2.2, mid_price=2.3) for asset in assets}
+    result = tool("market_quotes", strategy)(assets_json='[{"symbol":"XYZ"}]')
+    assert result["quotes"][0]["mid_price"] == 2.3
+    assert result["quotes"][0]["bid"] is None and result["quotes"][0]["ask"] is None
 
 
 def test_independent_batch_submits_once_and_preserves_selected_quantities_and_limits():
@@ -114,8 +125,7 @@ def test_independent_batch_submits_once_and_preserves_selected_quantities_and_li
     ]
     assert kwargs["is_multileg"] is False
     assert kwargs["reason"] == REASON
-    assert len(result["submitted"]) == 2
-    assert result["atomic"] is False
+    assert len(result["returned_orders"]) == 2
 
 
 def test_independent_option_orders_do_not_become_an_implicit_package():
@@ -170,8 +180,9 @@ def test_batch_partial_result_preserves_returned_orders_and_unknown_remainder():
         {"symbol": "XYZ", "quantity": 3, "side": "buy"},
         {"symbol": "ABC", "quantity": 7, "side": "buy"},
     ]), reason=REASON)
-    assert len(result["submitted"]) == 1
-    assert len(result["requested"]) == 2
+    assert sum(order is not None for order in result["returned_orders"]) == 1
+    assert result["returned_orders"][1] is None
+    assert len(result["orders"]) == 2
     assert result["execution_outcome"]["broker_state_certainty"] == "unknown"
 
 
@@ -196,7 +207,7 @@ def test_batch_mutation_requires_fresh_account_reads_before_a_second_submission(
                              "positions_complete": True, "open_orders_complete": True}}
     first = tool("orders_submit_orders", strategy, context)(
         orders_json='[{"symbol":"XYZ","quantity":1,"side":"buy"}]', reason=REASON)
-    assert len(first["submitted"]) == 1
+    assert len(first["returned_orders"]) == 1
     second = tool("orders_submit_order", strategy, context)(symbol="XYZ", quantity=1, side="buy", reason=REASON)
     assert second["tool_error"] is True
     assert "account_portfolio" in second["error"]["message"]

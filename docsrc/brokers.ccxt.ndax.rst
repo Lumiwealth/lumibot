@@ -96,7 +96,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "password": os.environ.get("NDAX_API_PASSPHRASE"),
        "secret": os.environ.get("NDAX_API_SECRET"),
        "uid": os.environ.get("NDAX_UID"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -114,7 +114,7 @@ NDAX's own help pages do not describe a public test environment. CCXT lists a st
 Algorithmic trading example: a simple NDAX bot
 ----------------------------------------------
 
-This bot buys about 70 CAD of BTC on NDAX once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount.
+This bot buys about 70 CAD of BTC on NDAX once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. NDAX accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -136,7 +136,8 @@ This bot buys about 70 CAD of BTC on NDAX once and then holds it. It is a starti
            price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
                quantity = round(70 / price, 6)  # about 70 CAD worth
-               order = self.create_order(coin, quantity, "buy", quote=self.quote_asset)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
@@ -211,7 +212,7 @@ What you can trade on NDAX
    * - Options
      - No
 
-CCXT lists these order features for NDAX: market orders, limit orders, stop orders, editing open orders, canceling orders.
+CCXT lists these order features for NDAX: stop orders, editing open orders, canceling orders.
 
 Fees and partner IDs on NDAX
 ----------------------------
@@ -280,4 +281,4 @@ Sources
 * `NDAX Help Center: How to delete my Ndax API key? <https://ndax.io/en/support/api_access_and_developer_tools/delete-ndax-api-key>`_ (read 2026-10-23)
 * `NDAX Help Center: How can I create an account on Ndax? <https://ndax.io/en/support/getting_started_and_verification/account-creation>`_ (read 2026-10-23)
 * `NDAX API documentation (AuthenticateUser with APIKey, Signature, UserId, Nonce) <https://apidoc.ndax.io/>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

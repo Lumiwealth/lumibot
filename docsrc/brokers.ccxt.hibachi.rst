@@ -33,6 +33,8 @@ Hibachi at a glance
      - about 100 ms between requests
    * - Official site
      - https://www.hibachi.xyz/
+   * - API docs
+     - https://api-doc.hibachi.xyz/
 
 What is Hibachi?
 ----------------
@@ -88,7 +90,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "accountId": os.environ.get("HIBACHI_ACCOUNT_ID"),
        "apiKey": os.environ.get("HIBACHI_API_KEY"),
        "privateKey": os.environ.get("HIBACHI_PRIVATE_KEY"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -206,7 +208,7 @@ What you can trade on Hibachi
    * - Options
      - No
 
-CCXT lists these order features for Hibachi: limit orders, editing open orders, canceling orders.
+CCXT lists these order features for Hibachi: editing open orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDT:USDT``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
 
@@ -262,10 +264,10 @@ Related guides
 
 * :doc:`How crypto exchange setup works <brokers.ccxt>`
 * :doc:`AI agents quickstart <agents_quickstart>`
-* :doc:`AftermathFinance trading bot <brokers.ccxt.aftermath>`
 * :doc:`Apex trading bot <brokers.ccxt.apex>`
 * :doc:`BloFin trading bot <brokers.ccxt.blofin>`
 * :doc:`dYdX trading bot <brokers.ccxt.dydx>`
+* :doc:`Extended trading bot <brokers.ccxt.extended>`
 
 Sources
 -------
@@ -274,4 +276,4 @@ Sources
 * `Hibachi Docs: Signing Up <https://docs.hibachi.xyz/hibachi-docs/getting-started/signing-up>`_ (read 2026-10-23)
 * `Hibachi Docs: About Hibachi <https://docs.hibachi.xyz/hibachi-docs/about-hibachi>`_ (read 2026-10-23)
 * `Hibachi Docs: Trading (leverage by market) <https://docs.hibachi.xyz/hibachi-docs/trading>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

@@ -2745,6 +2745,19 @@ class Broker(ABC):
         running live or in backtesting mode"""
         time.sleep(sleeptime)
 
+    def _sleep_unless_stopped(self, sleeptime, strategy=None):
+        """Sleep up to ``sleeptime`` seconds, returning early once the strategy is stopped.
+
+        The market-hours waits can last a full trading day (or a weekend). Waiting on the
+        strategy executor's ``stop_event`` instead of a bare sleep lets a stop request take
+        effect at once. Without an executor (direct callers), this is ``self.sleep``.
+        """
+        stop_event = getattr(getattr(strategy, "_executor", None), "stop_event", None)
+        if stop_event is None:
+            self.sleep(sleeptime)
+        else:
+            stop_event.wait(sleeptime)
+
     def _await_market_to_open(self, timedelta=None, strategy=None):
         """Executes infinite loop until market opens"""
         isOpen = self.is_market_open()
@@ -2755,7 +2768,7 @@ class Broker(ABC):
 
             sleeptime = max(0, time_to_open)
             self.logger.info("Sleeping until the market opens")
-            self.sleep(sleeptime)
+            self._sleep_unless_stopped(sleeptime, strategy)
 
     def _await_market_to_close(self, timedelta=None, strategy=None):
         """Sleep until market closes"""
@@ -2767,7 +2780,7 @@ class Broker(ABC):
 
             sleeptime = max(0, time_to_close)
             self.logger.info("Sleeping until the market closes")
-            self.sleep(sleeptime)
+            self._sleep_unless_stopped(sleeptime, strategy)
 
     # =========Positions functions==================
     @staticmethod

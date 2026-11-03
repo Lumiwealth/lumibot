@@ -90,7 +90,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "latoken",
        "apiKey": os.environ.get("LATOKEN_API_KEY"),
        "secret": os.environ.get("LATOKEN_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -108,7 +108,7 @@ LATOKEN has no sandbox, and CCXT lists no test URL for it, so test with a very s
 Algorithmic trading example: a simple Latoken bot
 -------------------------------------------------
 
-This bot buys about 50 USDT of BTC on Latoken once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount.
+This bot buys about 50 USDT of BTC on Latoken once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. Latoken accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -130,7 +130,8 @@ This bot buys about 50 USDT of BTC on Latoken once and then holds it. It is a st
            price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
                quantity = round(50 / price, 6)  # about 50 USDT worth
-               order = self.create_order(coin, quantity, "buy", quote=self.quote_asset)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
@@ -205,7 +206,7 @@ What you can trade on Latoken
    * - Options
      - No
 
-CCXT lists these order features for Latoken: market orders, limit orders, stop orders, editing open orders, canceling orders.
+CCXT lists these order features for Latoken: stop orders, editing open orders, canceling orders.
 
 Fees and partner IDs on Latoken
 -------------------------------
@@ -273,4 +274,4 @@ Sources
 * `LATOKEN Help Center: How to Enable 2FA <https://latoken.zendesk.com/hc/en-us/articles/4404736421138--How-to-Enable-2FA-Two-Factor-Authentication>`_ (read 2026-10-23)
 * `LATOKEN Help Center: What is LATOKEN? <https://latoken.zendesk.com/hc/en-us/articles/360000272752-What-is-LATOKEN>`_ (read 2026-10-23)
 * `LATOKEN Help Center: How to Buy & Sell on LATOKEN? (BTC/USDT example) <https://latoken.zendesk.com/hc/en-us/articles/360011049439-How-to-Buy-Sell-on-LATOKEN>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

@@ -88,7 +88,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "foxbit",
        "apiKey": os.environ.get("FOXBIT_API_KEY"),
        "secret": os.environ.get("FOXBIT_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -106,7 +106,7 @@ Foxbit has no sandbox, and its API docs say requests run against the real enviro
 Algorithmic trading example: a simple Foxbit bot
 ------------------------------------------------
 
-This bot buys about 250 BRL of BTC on Foxbit once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount.
+This bot buys about 250 BRL of BTC on Foxbit once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. Foxbit accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -128,7 +128,8 @@ This bot buys about 250 BRL of BTC on Foxbit once and then holds it. It is a sta
            price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
                quantity = round(250 / price, 6)  # about 250 BRL worth
-               order = self.create_order(coin, quantity, "buy", quote=self.quote_asset)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
@@ -203,7 +204,7 @@ What you can trade on Foxbit
    * - Options
      - Not listed by CCXT
 
-CCXT lists these order features for Foxbit: market orders, limit orders, editing open orders, canceling orders.
+CCXT lists these order features for Foxbit: editing open orders, canceling orders.
 
 Fees and partner IDs on Foxbit
 ------------------------------
@@ -268,4 +269,4 @@ Sources
 * `Foxbit FAQ: Cadastro Pessoa física <https://faq.foxbit.com.br/hc/pt-br/articles/29522760275981-Cadastro-Pessoa-f%C3%ADsica>`_ (read 2026-10-23)
 * `Foxbit FAQ: Como criar uma API Key com chaves assimétricas <https://faq.foxbit.com.br/hc/pt-br/articles/49089205023757-Como-criar-uma-API-Key-com-chaves-assim%C3%A9tricas>`_ (read 2026-10-23)
 * `Foxbit REST API v3 <https://docs.foxbit.com.br/rest/v3/>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

@@ -59,8 +59,9 @@ class AlpacaBacktesting(DataSourceBacktesting):
     - Option prices come from Alpaca historical option bars, which are trade prints.
       They are kept as-is: no reindexing, no forward fill, no back fill (RULE #1 in
       ``docs/BACKTESTING_ARCHITECTURE.md``). ``get_last_price()`` returns the open of a
-      bar that printed in the current minute (or day), otherwise the close of the most
-      recent earlier print, and ``None`` before the first print. ``BacktestingBroker``
+      bar that printed in the current minute, otherwise the close of the most
+      recent earlier print, and ``None`` before the first print. Daily marks switch
+      from open to close at the actual exchange session close. ``BacktestingBroker``
       fills an option order only on a bar that printed in the current bucket, so orders
       wait for a real trade instead of filling at a stale price.
     - A contract with no bars at all logs one clear error and returns ``None``.
@@ -373,7 +374,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             quote: Asset | None = None,
             exchange: str | None = None
     ) -> float | Decimal | None:
-        """Returns the open price of the current bar.
+        """Return an available mark, using a daily close only after its session ends.
 
         Options use real trade prints only: the open of a bar that printed in the current
         bucket, otherwise the close of the latest earlier print, otherwise ``None``.
@@ -396,11 +397,13 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if bars is None or bars.df.empty:
             return None
 
+        if self._timestep == "day":
+            return self._daily_bar_mark(bars.df, asset, quote)
+
         # The backtesting_broker, fills market orders using the open price of the current bar, so
         # get_last_price should also return the open. (It would be weird to fill on the open but provide the close
-        # as the last price). This approach works for daily and minute bars. For daily bars, this returns the open
-        # price, even if now is 9:30 and the daily bar was indexed at 00:00. Thats the only weird thing. But it makes
-        # sense. The open of the daily bar for stocks was not at 00:00. It was at 9:30 anyway.
+        # as the last price). Daily bars use the session-aware mark above; this
+        # remaining path preserves the existing intraday fill-price convention.
         # Support both pandas and polars-backed Bars without exceptions
         df_local = bars.df
         if hasattr(df_local, "iloc"):
@@ -411,6 +414,50 @@ class AlpacaBacktesting(DataSourceBacktesting):
             price = df_local["open"][0]
         num_decimals = get_decimals(price)
         return quantize_to_num_decimals(price, num_decimals)
+
+    def _daily_bar_mark(self, frame, asset, quote):
+        """Use the opening mark during a session and its close after completion.
+
+        Daily stock bars are midnight-labeled. Their open is unavailable before
+        the exchange opens; their close is unavailable until the actual exchange
+        close, including shortened sessions. Crypto retains its full-day window.
+        """
+        stamp = pd.Timestamp(frame.index[-1])
+        now = pd.Timestamp(self._datetime)
+        if str(getattr(asset, "asset_type", "")).lower() == "crypto":
+            opened, closed = stamp, stamp + pd.Timedelta(days=1)
+        else:
+            sessions = self._trading_days
+            # Alpaca equity daily labels denote the New York session even
+            # when the caller requested another display timezone.
+            session_date = stamp.tz_convert("America/New_York").date()
+            matched = sessions[sessions["market_open"].dt.tz_convert("America/New_York").dt.date == session_date]
+            if matched.empty or self.market in ("24/7", "24/5"):
+                # Warmup may precede the loaded backtest calendar. Stock marks
+                # also retain equity sessions when the strategy trades crypto.
+                matched = get_trading_days(
+                    market="NYSE" if self.market in ("24/7", "24/5") else self.market,
+                    start_date=pd.Timestamp(session_date),
+                    end_date=pd.Timestamp(session_date) + pd.Timedelta(days=1),
+                    tzinfo=self.tzinfo,
+                )
+            if matched.empty:
+                return None
+            opened = max(pd.Timestamp(matched.iloc[0]["market_open"]), stamp)
+            closed = pd.Timestamp(matched.iloc[0]["market_close"])
+        if now < opened:
+            previous = self.get_historical_prices(
+                asset=asset, quote=quote, length=1, timestep="day",
+                timeshift=now - stamp.normalize(),
+                remove_incomplete_current_bar=True,
+            )
+            if previous is None or previous.df.empty or previous.df.index[-1] >= stamp.normalize():
+                return None
+            return self._daily_bar_mark(previous.df, asset, quote)
+        price = frame["close" if now >= closed else "open"].iloc[-1]
+        if price is None or pd.isna(price):
+            return None
+        return quantize_to_num_decimals(price, get_decimals(price))
 
     def get_historical_prices(
             self,
@@ -1134,12 +1181,11 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if bars is None or bars.df.empty:
             return None
         df_local = bars.df
+        if timestep == "day":
+            return self._daily_bar_mark(df_local, asset, quote)
         bar_ts = pd.Timestamp(df_local.index[-1])
         now = pd.Timestamp(self._datetime)
-        if timestep == "day":
-            printed_now = bar_ts.date() == now.date()
-        else:
-            printed_now = bar_ts.floor("min") == now.floor("min")
+        printed_now = bar_ts.floor("min") == now.floor("min")
         # A bar that printed now: its open, which is the fill price the broker uses.
         # Otherwise the close of the latest earlier print is the last real trade.
         price = df_local["open"].iloc[-1] if printed_now else df_local["close"].iloc[-1]

@@ -1,3 +1,8 @@
+> Retired service reference. Current LumiBot MetaMask execution runs in Python.
+> Install `lumibot[metamask]` and follow `docs/METAMASK.md`. This directory is
+> retained for historical receipts and source review, not required by the broker.
+> Preserve private state and pending requests; do not run both implementations.
+
 # MetaMask broker service
 
 Optional local companion to LumiBot's `MetaMask` broker. Use the Python adapter

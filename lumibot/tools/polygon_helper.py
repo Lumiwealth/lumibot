@@ -10,10 +10,10 @@ from urllib.parse import urlparse, urlunparse
 
 import pandas as pd
 import pandas_market_calendars as mcal
-from polygon.exceptions import BadResponse
+from massive.exceptions import AuthError, BadResponse
 
 # noinspection PyPackageRequirements
-from polygon.rest import RESTClient
+from massive.rest import RESTClient
 from termcolor import colored
 from tqdm import tqdm
 from urllib3.exceptions import MaxRetryError
@@ -917,6 +917,13 @@ class PolygonClient(RESTClient):
     WAIT_SECONDS_RETRY = 60
 
     def __init__(self, *args, **kwargs):
+        # Keep Polygon credentials and origin when using the renamed upstream SDK.
+        if not args:
+            kwargs.setdefault("api_key", POLYGON_API_KEY)
+        if (args[0] if args else kwargs["api_key"]) is None:
+            raise AuthError("Must specify env var POLYGON_API_KEY or pass api_key in constructor")
+        if len(args) < 6:  # base is the SDK's sixth positional argument.
+            kwargs.setdefault("base", "https://api.polygon.io")
         super().__init__(*args, **kwargs)
 
         # Time of last "rate limit reached" log (epoch time).
@@ -955,7 +962,7 @@ class PolygonClient(RESTClient):
         >>> client = PolygonClient.create(api_key='your_api_key_here')
 
         """
-        if 'api_key' not in kwargs or kwargs.get('api_key') is None:
+        if not args and kwargs.get('api_key') is None:
             kwargs['api_key'] = POLYGON_API_KEY
 
         return cls(*args, **kwargs)
@@ -973,7 +980,7 @@ class PolygonClient(RESTClient):
         slept = 0
         while True:
             try:
-                # Normal get from polygon-api-client
+                # Normal get from the upstream SDK
                 return super()._get(*args, **kwargs)
 
             except MaxRetryError as e:

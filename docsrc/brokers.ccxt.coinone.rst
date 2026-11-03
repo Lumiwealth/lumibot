@@ -88,7 +88,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "exchange_id": "coinone",
        "apiKey": os.environ.get("COINONE_API_KEY"),
        "secret": os.environ.get("COINONE_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -204,7 +204,7 @@ What you can trade on CoinOne
    * - Options
      - No
 
-CCXT lists these order features for CoinOne: limit orders, editing open orders, canceling orders.
+CCXT lists these order features for CoinOne: editing open orders, canceling orders.
 
 Fees and partner IDs on CoinOne
 -------------------------------
@@ -272,4 +272,4 @@ Sources
 * `Coinone support: 가입부터 계좌연결까지, 코인원 시작 가이드 <https://support.coinone.co.kr/support/solutions/articles/31000162621>`_ (read 2026-10-23)
 * `Coinone notice: 코인원 회원가입 개편 <https://coinone.co.kr/info/notice/5672>`_ (read 2026-10-23)
 * `Coinone support: (추가채널 인증) 네이버 간편인증 등록하기 <https://support.coinone.co.kr/support/solutions/articles/31000170584>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

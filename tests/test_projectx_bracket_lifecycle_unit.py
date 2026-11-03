@@ -1,6 +1,6 @@
 import pytest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from lumibot.brokers.projectx import ProjectX
 from lumibot.entities import Asset, Order
@@ -98,6 +98,211 @@ def test_bracket_parent_submission_stores_meta_and_normalizes_tag(broker, mes):
     assert sent.get("stop_price") is None
 
 
+def test_parent_acknowledgement_does_not_place_exit_orders(broker, mes):
+    parent = _make_bracket_entry(mes, limit=5000, tp=5050, sl=4975)
+    broker._submit_order(parent)
+    assert len(broker.client.placed) == 1
+    assert parent._synthetic_bracket['children'] == {}
+
+
+def test_core_polled_fill_spawns_protective_orders(broker, mes):
+    parent = _make_bracket_entry(mes, limit=5000, tp=5050, sl=4975)
+    broker._submit_order(parent)
+    broker._process_trade_event(parent, broker.FILLED_ORDER, price=5000,
+                               filled_quantity=1, multiplier=5)
+    assert len(broker.client.placed) == 3
+    assert set(parent._synthetic_bracket['children']) == {'tp', 'sl'}
+
+
+def test_accepted_child_is_not_reported_as_submission_failure(broker, mes, caplog):
+    parent = _make_bracket_entry(mes, tp=5050, sl=4975)
+    parent.status = 'filled'
+    parent.filled_quantity = 1
+    child = broker._create_bracket_child(parent, 'tp', 5050, 'BASE')
+    assert child.identifier
+    assert 'Bracket child submission failed' not in caplog.text
+
+
+def test_bracket_meta_restores_using_real_order_identifier(broker, mes):
+    from lumibot.tools.projectx_helpers import create_bracket_meta, restore_bracket_meta_if_needed
+    parent = Order(strategy='Strat', asset=mes, quantity=1, side='buy', identifier='1001')
+    meta = create_bracket_meta(5050, 4975)
+    broker._bracket_meta[parent.identifier] = meta
+    assert broker._is_bracket_parent(parent)
+    assert restore_bracket_meta_if_needed(parent, {}, broker._bracket_meta)
+    assert parent._synthetic_bracket['tp_price'] == 5050
+
+
+def test_fill_before_acknowledgement_protects_the_tracked_parent(broker, mes):
+    parent = _make_bracket_entry(mes, tp=5050, sl=4975)
+    original = broker.client.order_place
+
+    def fill_before_ack(**kwargs):
+        response = original(**kwargs)
+        if kwargs['type'] == 2:
+            observed = Order(strategy='Strat', asset=mes, quantity=1, side='buy',
+                             identifier=str(response['orderId']))
+            observed.tag = kwargs['custom_tag']
+            broker._process_trade_event(observed, broker.NEW_ORDER)
+            broker._process_trade_event(observed, broker.FILLED_ORDER, price=5000,
+                                       filled_quantity=1, multiplier=5)
+        return response
+
+    broker.client.order_place = fill_before_ack
+    broker._submit_order(parent)
+    tracked = broker.get_tracked_order(parent.identifier)
+    assert len(broker.client.placed) == 3
+    assert tracked.is_filled()
+    assert set(tracked._synthetic_bracket['children']) == {'tp', 'sl'}
+
+
+def test_child_stream_before_ack_keeps_oco_link_on_canonical_order(broker, mes):
+    from unittest.mock import Mock
+    parent = _make_bracket_entry(mes, tp=5050, sl=4975)
+    original = broker.client.order_place
+
+    def new_before_ack(**kwargs):
+        response = original(**kwargs)
+        if kwargs['type'] in (1, 4):
+            observed = Order(strategy='Strat', asset=mes, quantity=1,
+                             side='sell', identifier=str(response['orderId']))
+            observed.tag = kwargs['custom_tag']
+            broker._process_trade_event(observed, broker.NEW_ORDER)
+        return response
+
+    broker.client.order_place = new_before_ack
+    broker.client.order_cancel = Mock(wraps=broker.client.order_cancel)
+    broker._submit_order(parent)
+    broker._process_trade_event(parent, broker.FILLED_ORDER, price=5000,
+                               filled_quantity=1, multiplier=5)
+    children = parent._synthetic_bracket['children']
+    tp = broker.get_tracked_order(children['tp'])
+    assert tp._is_bracket_child
+    assert tp._bracket_parent_id == parent.identifier
+    broker._process_trade_event(tp, broker.FILLED_ORDER, price=5050,
+                               filled_quantity=1, multiplier=5)
+    broker.client.order_cancel.assert_called_once_with(1, int(children['sl']))
+
+
+def test_child_fill_before_ack_cancels_sibling_after_links_are_registered(broker, mes):
+    from unittest.mock import Mock
+    parent = _make_bracket_entry(mes, tp=5050, sl=4975)
+    original = broker.client.order_place
+
+    def child_event_before_ack(**kwargs):
+        response = original(**kwargs)
+        if kwargs['type'] in (1, 4):
+            observed = Order(strategy='Strat', asset=mes, quantity=1, side='sell',
+                             identifier=str(response['orderId']))
+            observed.tag = kwargs['custom_tag']
+            broker._process_trade_event(observed, broker.NEW_ORDER)
+            if kwargs['type'] == 4:
+                tp_id = parent._synthetic_bracket['children']['tp']
+                tp_order = broker.get_tracked_order(tp_id)
+                broker._process_trade_event(tp_order, broker.FILLED_ORDER, price=5050,
+                                           filled_quantity=1, multiplier=5)
+        return response
+
+    broker.client.order_place = child_event_before_ack
+    broker.client.order_cancel = Mock(wraps=broker.client.order_cancel)
+    broker._submit_order(parent)
+    broker._process_trade_event(parent, broker.FILLED_ORDER, price=5000,
+                               filled_quantity=1, multiplier=5)
+    children = parent._synthetic_bracket['children']
+    broker.client.order_cancel.assert_called_once_with(1, int(children['sl']))
+
+
+def test_fractional_contract_size_is_not_silently_truncated(broker, mes):
+    order = Order(asset=mes, quantity=1.5, side='buy', order_type='market', strategy='Strat')
+    broker._submit_order(order)
+    assert broker.client.placed == []
+    assert order.status == 'error'
+
+
+def test_subscription_failure_does_not_report_broker_stream_ready(broker):
+    from unittest.mock import Mock
+    streaming = Mock()
+    streaming.start_user_hub.return_value = True
+    streaming.subscribe_all.return_value = False
+    broker.client.get_streaming_client = Mock(return_value=streaming)
+    broker._stream_established = Mock()
+    broker._setup_streaming()
+    broker._stream_established.assert_not_called()
+
+
+def test_default_broker_has_its_own_projectx_data_source():
+    from lumibot.data_sources.projectx_data import ProjectXData
+    config = {'firm': 'TEST', 'api_key': 'test-key', 'username': 'test-user',
+              'base_url': 'https://example.test/'}
+    instance = ProjectX(config, connect_stream=False)
+    assert isinstance(instance.data_source, ProjectXData)
+    assert instance.client is instance.data_source.client
+
+
+def test_trade_events_dispatch_partial_then_complete_and_ignore_duplicate(broker, mes):
+    from unittest.mock import Mock
+    order = Order(asset=mes, quantity=2, side='buy', order_type='market', strategy='Strat', identifier='789')
+    order.status = 'new'
+    broker._process_new_order(order)
+    broker._update_positions_cache = Mock()
+    dispatch = Mock(wraps=broker._process_trade_event)
+    broker._process_trade_event = dispatch
+    # GatewayUserTrade documented payload shape; only IDs/prices vary for the two fills.
+    first = {'id': 101112, 'accountId': 1, 'contractId': 'CON.F.US.EP.U25',
+             'creationTimestamp': '2024-07-21T13:47:00Z', 'price': 2100.75,
+             'profitAndLoss': 50.25, 'fees': 2.5, 'side': 0, 'size': 1,
+             'voided': False, 'orderId': 789}
+    second = {**first, 'id': 101113, 'price': 2101.25}
+    broker._handle_trade_update(first)
+    assert order.status == 'partial_fill'
+    broker._handle_trade_update(first)
+    broker._handle_trade_update(second)
+    events = [call.args[1] for call in dispatch.call_args_list]
+    assert events == [broker.PARTIALLY_FILLED_ORDER, broker.FILLED_ORDER]
+    assert sum(tx.quantity for tx in order.transactions) == 2
+    assert order.avg_fill_price == 2101.0
+
+
+def test_failed_protection_can_retry_without_duplicating_accepted_child(broker, mes):
+    from unittest.mock import Mock
+    from lumibot.tools.projectx_helpers import create_bracket_meta
+
+    parent = _make_bracket_entry(mes, tp=5050, sl=4975)
+    parent.identifier = 'parent'
+    parent.status = 'filled'
+    parent._is_bracket_parent = True
+    parent._synthetic_bracket = create_bracket_meta(5050, 4975)
+    tp = Order(asset=mes, quantity=1, side='sell', order_type='limit',
+               limit_price=5050, strategy='Strat', identifier='tp')
+    sl = Order(asset=mes, quantity=1, side='sell', order_type='stop',
+               stop_price=4975, strategy='Strat', identifier='sl')
+    broker._create_bracket_child = Mock(side_effect=[tp, RuntimeError('rejected'), sl])
+    broker._maybe_spawn_bracket_children(parent)
+    assert parent._synthetic_bracket['children'] == {'tp': 'tp'}
+    assert not parent._synthetic_bracket.get('children_submitted', False)
+    broker._maybe_spawn_bracket_children(parent)
+    assert broker._create_bracket_child.call_count == 3
+    assert parent._synthetic_bracket['children'] == {'tp': 'tp', 'sl': 'sl'}
+    assert parent._synthetic_bracket['children_submitted'] is True
+
+
+@pytest.mark.parametrize('limit_price', [None, 5000])
+def test_missing_execution_price_is_not_fabricated(broker, mes, limit_price):
+    from unittest.mock import Mock
+
+    cached = Order(asset=mes, quantity=1, side='buy', strategy='Strat',
+                   order_type='limit' if limit_price else 'market', limit_price=limit_price,
+                   identifier='entry')
+    cached.status = 'new'
+    filled = Order(asset=mes, quantity=1, side='buy', strategy='Strat',
+                   order_type='market', identifier='entry')
+    filled.status = 'filled'
+    broker._process_trade_event = Mock()
+    broker._dispatch_status_change(cached, filled)
+    assert not any(call.args[1] == broker.FILLED_ORDER
+                   for call in broker._process_trade_event.call_args_list)
+
+
 def test_bracket_children_spawn_on_fill_and_tagging(broker, mes):
     # Submit parent
     parent = _make_bracket_entry(mes, limit=5000.0, tp=5050.0, sl=4975.0)
@@ -108,6 +313,8 @@ def test_bracket_children_spawn_on_fill_and_tagging(broker, mes):
     filled.id = pid
     filled.identifier = pid
     filled.status = "filled"
+    filled.avg_fill_price = 5000.0
+    filled.filled_quantity = 1
     # Sync cache with parent to preserve meta
     broker._process_new_order(parent)
     broker._dispatch_status_change(parent, filled)
@@ -145,6 +352,8 @@ def test_bracket_child_fill_cancels_sibling(broker, mes):
     filled.id = pid
     filled.identifier = pid
     filled.status = "filled"
+    filled.avg_fill_price = 5000.0
+    filled.filled_quantity = 1
     broker._dispatch_status_change(parent, filled)
 
     meta = parent._synthetic_bracket
@@ -166,3 +375,223 @@ def test_bracket_child_fill_cancels_sibling(broker, mes):
                                                                "fill", "filled", "error"}
     # Bracket deactivated
     assert meta['active'] is False
+
+
+def test_partial_entry_protects_only_filled_contracts_and_resizes_existing_exits(broker, mes):
+    from unittest.mock import Mock
+    from lumibot.tools.projectx_helpers import create_bracket_meta
+    parent = _make_bracket_entry(mes, qty=3, tp=5050, sl=4975)
+    parent.identifier = 'entry'
+    parent._is_bracket_parent = True
+    parent._synthetic_bracket = create_bracket_meta(5050, 4975)
+    parent.status = 'partial_fill'
+    parent.filled_quantity = 1
+    broker._maybe_spawn_bracket_children(parent)
+    assert [row['size'] for row in broker.client.placed] == [1, 1]
+    broker.client.order_modify = Mock(return_value={'success': True, 'errorCode': 0, 'errorMessage': None})
+    parent.filled_quantity = 3
+    parent.status = 'fill'
+    broker._maybe_spawn_bracket_children(parent)
+    assert len(broker.client.placed) == 2
+    assert [call.kwargs['size'] for call in broker.client.order_modify.call_args_list] == [3, 3]
+
+
+def test_restart_recovers_existing_protective_links_without_placing_orders(broker, mes):
+    from unittest.mock import Mock
+    common = {'accountId': 1, 'contractId': 'CON.F.US.MES.Z25', 'size': 1,
+              'creationTimestamp': '2024-07-21T13:47:00Z', 'fillVolume': 0}
+    rows = [
+        {**common, 'id': 101, 'status': 2, 'type': 2, 'side': 0,
+         'fillVolume': 1, 'filledPrice': 5000., 'customTag': 'BRK_ENTRY_SYNTHETIC'},
+        {**common, 'id': 102, 'status': 1, 'type': 1, 'side': 1,
+         'limitPrice': 5050., 'customTag': 'BRK_TP_SYNTHETIC'},
+        {**common, 'id': 103, 'status': 1, 'type': 4, 'side': 1,
+         'stopPrice': 4975., 'customTag': 'BRK_STOP_SYNTHETIC'}]
+    broker.client.get_orders = Mock(return_value=rows)
+    broker._get_asset_from_contract_id_cached = Mock(return_value=mes)
+    orders = broker._get_orders_at_broker()
+    assert broker._bracket_parent_by_child_id == {'102': '101', '103': '101'}
+    parent = next(order for order in orders if order.identifier == '101')
+    assert parent._synthetic_bracket['children'] == {'tp': '102', 'sl': '103'}
+    broker._maybe_spawn_bracket_children(parent)
+    assert broker.client.placed == []
+
+
+def test_all_returned_orders_are_recovered_including_older_open_orders(broker, mes):
+    from unittest.mock import Mock
+    row = {'accountId': 1, 'contractId': 'CON.F.US.MES.Z25', 'size': 1,
+           'status': 1, 'type': 1, 'side': 0, 'fillVolume': 0, 'limitPrice': 4900.}
+    broker.client.get_orders = Mock(return_value=[{**row, 'id': 1000+i} for i in range(61)])
+    broker._get_asset_from_contract_id_cached = Mock(return_value=mes)
+    assert len(broker._get_orders_at_broker()) == 61
+
+
+@pytest.mark.parametrize('method, provider_method', [('_get_orders_at_broker', 'get_orders'),
+                                                    ('_get_positions_at_broker', 'get_positions')])
+def test_unavailable_account_state_is_not_reported_as_empty(broker, method, provider_method):
+    from unittest.mock import Mock
+    setattr(broker.client, provider_method, Mock(side_effect=RuntimeError('provider unavailable')))
+    with pytest.raises(Exception, match='(state is unavailable|Unable to retrieve positions)'):
+        getattr(broker, method)()
+
+
+def test_cancelled_partial_execution_is_recorded_before_cancellation(broker, mes):
+    from unittest.mock import Mock
+    original = Order(asset=mes, quantity=3, side='buy', order_type='limit', limit_price=5000,
+                     strategy='Strat', identifier='789')
+    broker._process_new_order(original)
+    broker._get_asset_from_contract_id_cached = Mock(return_value=mes)
+    dispatch = Mock(wraps=broker._process_trade_event)
+    broker._process_trade_event = dispatch
+    broker._handle_order_update({'id': 789, 'accountId': 1, 'contractId': 'CON.F.US.MES.Z25',
+        'size': 3, 'status': 3, 'type': 1, 'side': 0, 'fillVolume': 1,
+        'filledPrice': 5000.25, 'limitPrice': 5000.})
+    assert original.status == 'canceled'
+    assert sum(tx.quantity for tx in original.transactions) == 1
+    assert [call.args[1] for call in dispatch.call_args_list] == [broker.PARTIALLY_FILLED_ORDER, broker.CANCELED_ORDER]
+
+
+def test_position_stream_does_not_append_account_totals_as_strategy_positions(broker, mes):
+    from unittest.mock import Mock
+    from lumibot.entities import Position
+    position = Position(strategy='', asset=mes, quantity=1, avg_fill_price=5000)
+    broker._convert_broker_position_to_lumibot_position = Mock(return_value=position)
+    event = {'id': 123, 'accountId': 1, 'contractId': 'CON.F.US.MES.Z25',
+             'type': 1, 'size': 1, 'averagePrice': 5000.}
+    broker._handle_position_update(event)
+    broker._handle_position_update(event)
+    assert len(broker._filled_positions) == 0
+    assert len(broker._positions_cache) == 1
+
+
+def test_order_stream_ignores_other_account(broker, mes):
+    from unittest.mock import Mock
+    broker._convert_broker_order_to_lumibot_order = Mock()
+    broker._handle_order_update({'id': 789, 'accountId': 999, 'contractId': 'CON.F.US.MES.Z25',
+                                'size': 1, 'status': 2, 'fillVolume': 1, 'filledPrice': 5000.})
+    broker._convert_broker_order_to_lumibot_order.assert_not_called()
+
+
+def test_normal_startup_recovers_accepted_protection_without_resubmission(broker, mes):
+    from unittest.mock import Mock
+    common = {'accountId': 1, 'contractId': 'CON.F.US.MES.Z25', 'size': 1,
+              'creationTimestamp': '2026-11-01T23:58:23.786264+00:00', 'fillVolume': 0}
+    rows = [
+        {**common, 'id': 101, 'status': 2, 'type': 2, 'side': 0, 'fillVolume': 1,
+         'filledPrice': 7642.25, 'customTag': 'BRK_ENTRY_SYNTHETIC'},
+        {**common, 'id': 102, 'status': 1, 'type': 1, 'side': 1,
+         'limitPrice': 7672.25, 'customTag': 'BRK_TP_SYNTHETIC'},
+        {**common, 'id': 103, 'status': 1, 'type': 4, 'side': 1,
+         'stopPrice': 7627.0, 'customTag': 'BRK_STOP_SYNTHETIC'}]
+    broker.client.order_search = Mock(return_value=rows)
+    broker._search_recent_trades = Mock(return_value=[])
+    broker._get_asset_from_contract_id_cached = Mock(return_value=mes)
+    orders = broker._pull_all_orders('Strat', SimpleNamespace(name='Strat'))
+    assert len(orders) == 3
+    assert broker._bracket_parent_by_child_id == {'102': '101', '103': '101'}
+    assert broker._bracket_meta['101']['children'] == {'tp': '102', 'sl': '103'}
+    assert broker.client.placed == []
+
+
+def test_normal_startup_surfaces_order_read_failure(broker):
+    from unittest.mock import Mock
+    broker.client.order_search = Mock(side_effect=RuntimeError('Provider order read failed'))
+    with pytest.raises(RuntimeError, match='order state is unavailable'):
+        broker._pull_all_orders('Strat', SimpleNamespace(name='Strat'))
+
+
+def test_offline_child_fill_cancels_restored_live_sibling(broker, mes):
+    common = {'accountId':1,'contractId':'CON.F.US.MES.Z25','size':1,
+        'creationTimestamp':'2026-11-01T23:58:23.786264+00:00','fillVolume':0}
+    rows = [
+        {**common,'id':101,'status':2,'type':2,'side':0,'fillVolume':1,
+         'filledPrice':7642.25,'customTag':'BRK_ENTRY_Strat-0123456789abcdef0123456789abcdef'},
+        {**common,'id':102,'status':2,'type':1,'side':1,'fillVolume':1,
+         'filledPrice':7642.5,'limitPrice':7642.5,'customTag':'BRK_TP_Strat-0123456789abcdef0123456789abcdef'},
+        {**common,'id':103,'status':1,'type':4,'side':1,
+         'stopPrice':7627.0,'customTag':'BRK_STOP_Strat-0123456789abcdef0123456789abcdef'}]
+    broker.client.order_search=Mock(return_value=rows)
+    broker.client.order_cancel=Mock(return_value={'success':True})
+    broker._search_recent_trades=Mock(return_value=[])
+    broker._get_asset_from_contract_id_cached=Mock(return_value=mes)
+    broker._first_iteration=True
+    broker.sync_orders(SimpleNamespace(name='Strat'))
+    broker.client.order_cancel.assert_called_once_with(1,103)
+    assert broker.client.placed==[]
+    assert broker.get_tracked_order('102').filled_quantity==1
+
+
+def test_rejected_sibling_cancel_retains_active_recovery_intent(broker, mes):
+    parent=_make_bracket_entry(mes,limit=5000,tp=5050,sl=4975)
+    broker._submit_order(parent);broker._process_new_order(parent)
+    filled=Order(asset=mes,quantity=1,order_type='limit',side='buy',strategy='Strat',identifier=parent.identifier)
+    filled.status='filled';filled.avg_fill_price=5000.;filled.filled_quantity=1
+    broker._dispatch_status_change(parent,filled)
+    meta=parent._synthetic_bracket
+    child=broker.get_tracked_order(meta['children']['tp']);child.status='filled'
+    broker.client.order_cancel=Mock(return_value={'success':False,'errorMessage':'Provider cancel rejected'})
+    broker._handle_bracket_child_fill(child)
+    assert meta['active'] is True
+    broker.client.order_cancel.return_value={'success':True}
+    broker._handle_bracket_child_fill(child)
+    assert broker.client.order_cancel.call_count==2
+    assert meta['active'] is False
+
+
+@pytest.mark.parametrize('side', ['buy', 'sell'])
+def test_partial_protective_fill_resizes_sibling_to_remaining_exposure(broker, mes, side):
+    parent=_make_bracket_entry(mes,side=side,qty=3,tp=5050,sl=4975)
+    broker._submit_order(parent);broker._process_new_order(parent)
+    entry=Order(asset=mes,quantity=3,order_type='market',side=side,strategy='Strat',identifier=parent.identifier)
+    entry.status='filled';entry.avg_fill_price=5000.;entry.filled_quantity=3
+    broker._dispatch_status_change(parent,entry)
+    meta=parent._synthetic_bracket
+    child=broker.get_tracked_order(meta['children']['tp'])
+    update=Order(asset=mes,quantity=3,order_type='limit',side=child.side,strategy='Strat',identifier=child.identifier)
+    update.status='partial_fill';update.avg_fill_price=5050.;update.filled_quantity=1
+    broker.client.order_modify=Mock(return_value={'success':True})
+    broker._dispatch_status_change(child,update)
+    broker.client.order_modify.assert_called_once_with(account_id=1,order_id=int(meta['children']['sl']),size=2)
+    assert broker.get_tracked_order(meta['children']['sl']).quantity==2
+    assert meta['active'] is True
+    broker._dispatch_status_change(child,update)
+    assert broker.client.order_modify.call_count==1
+
+
+def test_later_entry_fill_sizes_exits_after_a_partial_protective_fill(broker, mes):
+    parent=_make_bracket_entry(mes,qty=3,tp=5050,sl=4975)
+    broker._submit_order(parent);broker._process_new_order(parent)
+    entry=Order(asset=mes,quantity=3,order_type='market',side='buy',strategy='Strat',identifier=parent.identifier)
+    entry.status='partial_fill';entry.avg_fill_price=5000.;entry.filled_quantity=2
+    broker._dispatch_status_change(parent,entry)
+    meta=parent._synthetic_bracket
+    child=broker.get_tracked_order(meta['children']['tp'])
+    update=Order(asset=mes,quantity=2,order_type='limit',side='sell',strategy='Strat',identifier=child.identifier)
+    update.status='partial_fill';update.avg_fill_price=5050.;update.filled_quantity=1
+    broker.client.order_modify=Mock(return_value={'success':True})
+    broker._dispatch_status_change(child,update)
+    entry.status='filled';entry.filled_quantity=3
+    broker._dispatch_status_change(parent,entry)
+    assert broker.get_tracked_order(meta['children']['tp']).quantity==3
+    assert broker.get_tracked_order(meta['children']['sl']).quantity==2
+    assert len(broker.client.placed)==3
+
+
+def test_complete_exit_before_next_child_submission_does_not_open_redundant_exit(broker, mes):
+    parent=_make_bracket_entry(mes,tp=5050,sl=4975)
+    original=broker.client.order_place
+    def fill_take_profit_before_ack(**kwargs):
+        response=original(**kwargs)
+        if kwargs['type']==1:
+            observed=Order(strategy='Strat',asset=mes,quantity=1,side='sell',identifier=str(response['orderId']))
+            observed.tag=kwargs['custom_tag']
+            broker._process_trade_event(observed,broker.NEW_ORDER)
+            broker._process_trade_event(observed,broker.FILLED_ORDER,price=5050,filled_quantity=1,multiplier=5)
+        return response
+    broker.client.order_place=fill_take_profit_before_ack
+    broker._submit_order(parent)
+    broker._process_trade_event(parent,broker.FILLED_ORDER,price=5000,filled_quantity=1,multiplier=5)
+    assert len(broker.client.placed)==2
+    assert [row['size'] for row in broker.client.placed]==[1,1]
+    assert set(parent._synthetic_bracket['children'])=={'tp'}
+    assert parent._synthetic_bracket['active'] is False

@@ -12,12 +12,19 @@
     "requiredBeforeOrder": [
       "account_portfolio",
       "account_positions",
-      "market_last_price",
       "options_get_chain",
       "options_get_greeks",
       "options_evaluate_market"
     ],
-    "singleOptionOrder": true
+    "singleOptionOrder": true,
+    "requiredBeforeOrderAny": [
+      [
+        "market_quote",
+        "market_quotes",
+        "market_last_price",
+        "market_last_prices"
+      ]
+    ]
   },
   "judgeRubric": "Pass only if the agent loaded the options skill, retrieved the current underlying price and chain, verified the exact chosen call's delta and actionable quote, and submitted one contract with a limit order. Inventing a strike or expiration, using neighboring Greeks, or ordering before exact quote verification fails.",
   "requiredRepetitions": 5

@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Union
 
 import numpy as np
 import polars as pl
-from polygon.exceptions import BadResponse
+from massive.exceptions import BadResponse
 from termcolor import colored
 
 from lumibot.data_sources import DataSourceBacktesting
@@ -72,7 +72,7 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
         # Memory limit, off by default
         self.MAX_STORAGE_BYTES = max_memory
 
-        # RESTClient API for Polygon.io polygon-api-client
+        # RESTClient API for Polygon.io
         from lumibot.tools.polygon_helper import PolygonClient
         self.polygon_client = PolygonClient.create(api_key=api_key)
 

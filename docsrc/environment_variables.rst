@@ -1342,19 +1342,24 @@ rotate that secret. See
 `Removing sensitive data from a repository <https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository>`_.
 
 
-MetaMask Agent Wallet (beta)
----------------------------
+MetaMask Agent Wallet (native Python beta)
+------------------------------------------
 
 Set ``TRADING_BROKER=metamask`` and optionally ``DATA_SOURCE=metamask``.
-See :doc:`brokers.metamask` for local service setup and qualification limits.
+See :doc:`brokers.metamask` for native setup and qualification limits.
 
-* ``METAMASK_BROKER_URL``: loopback service URL; defaults to
-  ``http://127.0.0.1:8766``.
-* ``METAMASK_BROKER_TOKEN``: required agent-scoped runtime token from setup.
-* ``METAMASK_WALLET_ADDRESS``: required expected agent wallet address.
-* ``METAMASK_NETWORK``: ``testnet`` (default) or ``mainnet``. The service must
-  explicitly enable mainnet; this setting alone does not grant permission.
-* ``METAMASK_MODE``: ``perp`` (default) for Hyperliquid or ``spot`` for exact-input
-  onchain swaps.
+* ``METAMASK_SESSION_FILE``: explicit private native OAuth session file.
+* ``METAMASK_STATE_FILE``: durable local wallet journal, preserving prior history.
+* ``METAMASK_AGENT_ID``: exact owner-reviewed agent binding ID.
+* ``METAMASK_PROJECT_ID``: expected provider project; required with inline tokens.
+* ``METAMASK_ACCESS_TOKEN``: optional provider access token instead of a session.
+* ``METAMASK_REFRESH_TOKEN``: optional refresh credential; rotation requires a
+  durable session file.
+* ``METAMASK_WALLET_ADDRESS``: exact expected dedicated managed wallet address.
+* ``METAMASK_NETWORK``: explicit ``testnet`` or ``mainnet``; no default fallback.
+* ``METAMASK_MODE``: ``perp`` by default or ``spot`` for exact-input swaps.
 
-Keep the local admin token and MetaMask CLI session outside strategy environments.
+``METAMASK_BROKER_URL`` and ``METAMASK_BROKER_TOKEN`` are retired. The old
+agent-scoped service token is not a provider access token. Constructor settings
+``CHAIN_RPC_URLS``, ``GAS_LIMITS`` and explicit legacy-session migration are
+covered in the broker guide. Keep credentials in your own secret manager.

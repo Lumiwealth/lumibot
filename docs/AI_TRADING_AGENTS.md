@@ -8,7 +8,7 @@ The same `Strategy` class can be reused. Its startup code must select
 below only starts a backtest when run directly. See the
 [AI example run-mode inventory](https://lumibot.lumiwealth.com/strategy_run_modes.html).
 
-**Last Updated:** 2026-09-12
+**Last Updated:** 2026-11-01
 **Status:** Active
 **Audience:** Both
 
@@ -34,6 +34,20 @@ Related docs:
 - `docs/AI_TRADING_AGENT_COMPONENT_GUIDE.md` -- internal component guide
 - `docs/AI_TRADING_AGENT_CANONICAL_DEMOS.md` -- canonical demo strategies
 - Public docs: `https://lumibot.lumiwealth.com/agents.html`
+
+## Incomplete decisions after order actions
+
+A provider error can interrupt inference after an order action. Failed runs retain observed tool events and usage instead of claiming no trades occurred. The failed result payload exposes `broker_mutation_attempted` as `True`, `False`, or `None` when evidence is unavailable. Attempted mutations or unknown trading effects produce unknown broker certainty, a non-retryable outcome and operator attention. Reconcile actual orders and account state before further action. The existing runtime guard prevents replaying an entire attempt after a broker mutation; failure results are not cached.
+
+Custom tools that submit, change or cancel orders must declare `@agent_tool(mutates_trading=True)`. Research permissions and retry protection use this bound metadata, including when model-facing tool names are aliased.
+
+On POSIX, ChatGPT credential and run-usage files validate regular-file identity, single-link ownership and private permissions before use. Authentication/run locks also validate their directory ancestry before every acquisition; root-owned sticky system temporary directories remain permitted. This blocks planted linked lock files before FileLock can truncate them. Existing owner-controlled readable locks remain compatible. Windows ACL restrictions remain the operator's responsibility. These checks do not remove the underlying dependency advisories.
+
+Report purchase cost from confirmed fill quantities, execution prices and fees. Current portfolio equity uses position marks, which can differ from those execution prices. Calculate comparisons with a tool; otherwise report returned cash and equity without inventing a gain or loss explanation.
+
+Failure summaries start with `RESULT: Agent decision incomplete.` Observed events and an execution outcome remain available. An uncached failure is not permission to replay an order; inspect retryability and reconcile unknown broker effects first.
+
+For latest-available research, an empty observation window calls for widening or omitting a self-chosen lower date bound before declaring the dataset unavailable. Preserve the historical ceiling and any user-required date range. Older observations remain older evidence with disclosed limitations.
 
 ---
 

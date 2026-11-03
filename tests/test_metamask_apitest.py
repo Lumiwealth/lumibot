@@ -1,13 +1,11 @@
-"""Opt-in connected testnet checks through the real Python broker and local service.
+"""Opt-in native Python testnet reads. No signatures or transactions are sent.
 
-METAMASK_TEST_CONFIG_FILE points to a private JSON list of setup responses
-(agent, token, endpoint, wallet, network). No credentials belong in fixtures.
-These tests read provider state and send only requests denied before signing.
+METAMASK_TEST_CONFIG_FILE selects a private JSON list of native broker config
+objects. Credentials, wallet identities and state paths never belong in fixtures.
 """
 
 import json
 import os
-from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -15,7 +13,7 @@ import pytest
 from lumibot.brokers import MetaMask
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
-from lumibot.tools.metamask_client import MetaMaskAPIError, MetaMaskClient
+from lumibot.tools.metamask_client import MetaMaskAPIError
 from lumibot.traders import Trader
 
 pytestmark = [pytest.mark.apitest, pytest.mark.metamask]
@@ -25,64 +23,47 @@ pytestmark = [pytest.mark.apitest, pytest.mark.metamask]
 def connected():
     path = os.environ.get("METAMASK_TEST_CONFIG_FILE")
     if not path:
-        pytest.skip("Private MetaMask testnet configuration is not supplied")
-    rows = json.loads(Path(path).read_text())
-    assert len(rows) >= 2, "Two dedicated testnet agents are required for isolation checks"
-    assert all(row["network"] == "testnet" for row in rows), "Mainnet test configuration is forbidden"
-    assert len({row["wallet"] for row in rows}) == len(rows)
-    brokers = [
-        MetaMask(
-            {
-                "BROKER_URL": row["endpoint"],
-                "BROKER_TOKEN": row["token"],
-                "WALLET_ADDRESS": row["wallet"],
-                "NETWORK": "testnet",
-                "MODE": "perp",
-            },
-            connect_stream=False,
-            start_orders_thread=False,
-        )
-        for row in rows
-    ]
-    yield rows, brokers
-    for broker in brokers:
-        broker.client.close()
-        broker.data_source.client.close()
-
-
-def test_connected_identity_and_wallet_isolation(connected):
-    rows, brokers = connected
-    for row, broker in zip(rows, brokers):
-        identity = broker.client.verify()
-        assert identity["agent"] == row["agent"]
-        assert identity["wallet"] == row["wallet"]
-        assert identity["network"] == "testnet"
-        with pytest.raises(MetaMaskAPIError, match="UNAUTHORIZED"):
-            broker.client.request("GET", "/admin/status")
-    mismatched = MetaMaskClient(
-        {
-            "BROKER_URL": rows[0]["endpoint"],
-            "BROKER_TOKEN": rows[0]["token"],
-            "WALLET_ADDRESS": rows[1]["wallet"],
-            "NETWORK": "testnet",
-        }
-    )
+        pytest.skip("Private native MetaMask testnet configuration is not supplied")
+    configs = json.loads(Path(path).read_text())
+    assert len(configs) >= 2, "Two dedicated testnet agents are required for isolation checks"
+    assert all(row["NETWORK"] == "testnet" for row in configs), "Mainnet test configuration is forbidden"
+    assert len({row["WALLET_ADDRESS"].lower() for row in configs}) == len(configs)
+    # One journal owner can serve multiple wallet engines inside one process.
+    brokers = []
     try:
-        with pytest.raises(MetaMaskAPIError, match="IDENTITY_MISMATCH"):
-            mismatched.verify()
+        for config in configs:
+            broker = MetaMask(config, connect_stream=False, start_orders_thread=False)
+            if brokers and config["STATE_FILE"] == configs[0]["STATE_FILE"]:
+                broker.client._journal = brokers[0].client.journal
+                broker.client._tokens = brokers[0].client._tokens
+                broker.client._provider = brokers[0].client.provider
+            broker.client.verify()
+            brokers.append(broker)
+        yield configs, brokers
     finally:
-        mismatched.close()
+        for broker in reversed(brokers):
+            broker._stop_event.set()
+            broker.client.close()
 
 
-def test_connected_perpetual_and_spot_account_reads(connected):
+def test_connected_identity_and_guard_policy(connected):
+    configs, brokers = connected
+    for config, broker in zip(configs, brokers):
+        identity = broker.client.verify()
+        assert identity["agent"] == config["AGENT_ID"]
+        assert identity["wallet"] == config["WALLET_ADDRESS"].lower()
+        assert identity["network"] == "testnet"
+        policy = broker.client.provider.policy(identity["wallet"])
+        assert len(policy.digest) == 64
+        assert policy.digest == broker.client.journal.binding(config["AGENT_ID"])["policyDigest"]
+
+
+def test_connected_perpetual_accounts(connected):
     _, brokers = connected
     for broker in brokers:
         cash, holdings, equity = broker._get_balances_at_broker(Asset("USDC", asset_type="crypto"), None)
         assert equity == pytest.approx(cash + holdings)
         assert isinstance(broker._pull_positions("connected-test"), list)
-        spot = broker.client.call("GET", "/v1/account", params={"kind": "spot"})
-        assert spot["currency"] == "USD"
-        assert Decimal(spot["equity"]) == Decimal(spot["cash"]) + Decimal(spot["positionsValue"])
 
 
 def test_connected_market_data_and_closed_candles(connected):
@@ -91,29 +72,40 @@ def test_connected_market_data_and_closed_candles(connected):
     asset = Asset("BTC", asset_type="crypto_future")
     assert source.get_last_price(asset) > 0
     bars = source.get_historical_prices(asset, 3, "minute")
-    assert len(bars.df) == 3
-    assert bars.df.index.is_monotonic_increasing
+    assert len(bars.df) == 3 and bars.df.index.is_monotonic_increasing
     assert (bars.df["high"] >= bars.df["low"]).all()
     assert (bars.df["close"] > 0).all()
 
 
-def test_connected_scope_denials_do_not_create_operations(connected):
+def test_connected_expired_authority_never_signs(connected):
     _, brokers = connected
+    import time
+    from unittest.mock import patch
+
+    checked = 0
     for broker in brokers:
-        before = broker.client.call("GET", "/v1/orders")
-        request = {
-            "kind": "perp",
-            "id": "scope-denial-test",
-            "symbol": "OUTSIDE_SCOPE",
-            "side": "buy",
-            "quantity": "1",
-            "orderType": "market",
-        }
-        with pytest.raises(MetaMaskAPIError, match="MARKET_DENIED"):
-            broker.client.call("POST", "/v1/orders", payload=request)
-        with pytest.raises(MetaMaskAPIError, match="INVALID_INPUT"):
-            broker.client.call("POST", "/v1/orders", payload={"kind": "rawTransaction"})
-        assert broker.client.call("GET", "/v1/orders") == before
+        before = broker.client.journal.operations(broker.client.config["AGENT_ID"])
+        binding = broker.client.journal.binding(broker.client.config["AGENT_ID"])
+        if binding["expiresAt"] > time.time() * 1000:
+            continue
+        with patch.object(
+            broker.client.provider, "submit_signature", side_effect=AssertionError("Expired binding signed")
+        ):
+            with pytest.raises(MetaMaskAPIError, match="REVOKED"):
+                broker.client.submit(
+                    {
+                        "kind": "perp",
+                        "id": "native-expiry-negative-control",
+                        "symbol": "BTC",
+                        "side": "buy",
+                        "quantity": "0.001",
+                        "orderType": "market",
+                    }
+                )
+        assert broker.client.journal.operations(broker.client.config["AGENT_ID"]) == before
+        checked += 1
+    if checked == 0:
+        pytest.skip("Connected grants are active; live expiry rejection was not exercised")
 
 
 def test_connected_strategy_restores_history_without_replaying_fills(connected):
@@ -134,18 +126,20 @@ def test_connected_strategy_restores_history_without_replaying_fills(connected):
             callbacks.append(str(order.identifier))
 
     strategy = ReadOnlyStrategy(
-        broker=broker, name="connected-history-read", quote_asset=Asset("USDC", asset_type="crypto"),
-        benchmark_asset=None, analyze_backtest=False,
+        broker=broker,
+        name="connected-history-read",
+        quote_asset=Asset("USDC", asset_type="crypto"),
+        benchmark_asset=None,
+        analyze_backtest=False,
     )
     trader = Trader(quiet_logs=True)
     trader.add_strategy(strategy)
-    trader.run_all(run_once=True, show_plot=False, show_tearsheet=False,
-                   save_tearsheet=False, show_indicators=False)
-    assert iterations == [True]
-    assert callbacks == []
+    trader.run_all(run_once=True, show_plot=False, show_tearsheet=False, save_tearsheet=False, show_indicators=False)
+    assert iterations == [True] and callbacks == []
+    from decimal import Decimal
+
     for order in broker.get_all_orders():
         raw = order._raw
         if raw and raw.get("averagePrice"):
-            # A cumulative venue snapshot must not gain another full-size fill at startup.
             quantity = sum((Decimal(str(t.quantity)) for t in order.transactions), Decimal(0))
             assert quantity == Decimal(raw["filledQuantity"])

@@ -112,7 +112,7 @@ CCXT sends sandbox requests to: https://api-testnet.bybit.eu. Testnet and live a
 Algorithmic trading example: a simple Bybit EU bot
 --------------------------------------------------
 
-This bot buys about 45 EUR of BTC on Bybit EU once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount.
+This bot buys about 45 EUR of BTC on Bybit EU once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. Bybit EU accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -134,7 +134,8 @@ This bot buys about 45 EUR of BTC on Bybit EU once and then holds it. It is a st
            price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
                quantity = round(45 / price, 6)  # about 45 EUR worth
-               order = self.create_order(coin, quantity, "buy", quote=self.quote_asset)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
@@ -209,7 +210,7 @@ What you can trade on Bybit EU
    * - Options
      - Not listed by CCXT
 
-CCXT lists these order features for Bybit EU: market orders, limit orders, stop orders, stop-loss orders, take-profit orders, reduce-only orders, editing open orders, canceling orders.
+CCXT lists these order features for Bybit EU: stop orders, stop-loss orders, take-profit orders, reduce-only orders, editing open orders, canceling orders.
 
 Fees and partner IDs on Bybit EU
 --------------------------------
@@ -275,4 +276,4 @@ Sources
 * `Bybit EU Learn: What is API trading and how to set it up on Bybit EU <https://www.bybit.eu/en-EU/learn/bybit-guide/what-is-api-trading-and-how-to-set-it-up-on-bybit-eu>`_ (read 2026-10-23)
 * `Bybit EU Help Center: Everything You Need to Know to Get Started on Bybit EU <https://www.bybit.eu/en-EU/help-center/article/Everything-You-Need-to-Know-to-Get-Started-on-Bybit>`_ (read 2026-10-23)
 * `Bybit EU Help Center: How to Register for a Testnet Account and Request for Test Coins <https://www.bybit.eu/en-EU/help-center/article/How-to-Request-Test-Coins-on-Testnet>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

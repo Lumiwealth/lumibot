@@ -22,7 +22,7 @@ One Trading at a glance
    * - CCXT exchange id
      - ``onetrading``
    * - Markets
-     - Spot
+     - Spot, Perpetual swaps, Dated futures
    * - Testnet (sandbox)
      - No
    * - Credentials
@@ -88,7 +88,7 @@ You can also build the broker in code. This is handy when one script talks to mo
    ONETRADING_CONFIG = {
        "exchange_id": "onetrading",
        "apiKey": os.environ.get("ONETRADING_API_KEY"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -106,7 +106,7 @@ One Trading has no sandbox, and CCXT lists no test URL for it, so test with a ve
 Algorithmic trading example: a simple One Trading bot
 -----------------------------------------------------
 
-This bot buys about 50 USDC of BTC on One Trading once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount.
+This bot buys about 50 USDC of BTC on One Trading once and then holds it. It is a starting point to check that your keys, balances and orders work. If the exchange's minimum order is larger, raise the amount. One Trading accepts only limit orders through CCXT, so the example places a limit order just above the last price.
 
 .. code-block:: python
 
@@ -128,7 +128,8 @@ This bot buys about 50 USDC of BTC on One Trading once and then holds it. It is 
            price = self.get_last_price(coin, quote=self.quote_asset)
            if price:
                quantity = round(50 / price, 6)  # about 50 USDC worth
-               order = self.create_order(coin, quantity, "buy", quote=self.quote_asset)
+               # This exchange takes only limit orders through CCXT.
+               order = self.create_order(coin, quantity, "buy", limit_price=price * 1.002, quote=self.quote_asset)
                self.submit_order(order)
 
 
@@ -197,13 +198,15 @@ What you can trade on One Trading
    * - Margin
      - No
    * - Perpetual swaps
-     - No
+     - Yes
    * - Dated futures
-     - No
+     - Yes
    * - Options
      - No
 
-CCXT lists these order features for One Trading: market orders, limit orders, stop orders, editing open orders, canceling orders.
+CCXT lists these order features for One Trading: stop orders, editing open orders, canceling orders.
+
+For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDT:USDT``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
 
 Fees and partner IDs on One Trading
 -----------------------------------
@@ -239,7 +242,7 @@ Yes. The agentic example above gives one agent permission to trade. You control 
 
 **Can I trade One Trading perpetual futures with LumiBot?**
 
-CCXT does not list perpetual swaps for One Trading, so use spot markets.
+CCXT lists perpetual swaps for this exchange. Use the full contract symbol, such as ``BTC/USDT:USDT``.
 
 **Is LumiBot free?**
 
@@ -257,10 +260,10 @@ Related guides
 
 * :doc:`How crypto exchange setup works <brokers.ccxt>`
 * :doc:`AI agents quickstart <agents_quickstart>`
-* :doc:`Alpaca trading bot <brokers.ccxt.alpaca>`
-* :doc:`Bequant trading bot <brokers.ccxt.bequant>`
-* :doc:`Binance US trading bot <brokers.ccxt.binanceus>`
-* :doc:`Bit2C trading bot <brokers.ccxt.bit2c>`
+* :doc:`Coinbase Advanced trading bot <brokers.ccxt.coinbase>`
+* :doc:`BigONE trading bot <brokers.ccxt.bigone>`
+* :doc:`Binance COIN-M trading bot <brokers.ccxt.binancecoinm>`
+* :doc:`Binance USDⓈ-M trading bot <brokers.ccxt.binanceusdm>`
 
 Sources
 -------
@@ -271,4 +274,4 @@ Sources
 * `One Trading API docs (index of endpoints) <https://docs.onetrading.com/llms.txt>`_ (read 2026-10-23)
 * `One Trading API: public instruments <https://api.onetrading.com/fast/v1/instruments>`_ (read 2026-10-23)
 * `One Trading home page <https://www.onetrading.com/>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

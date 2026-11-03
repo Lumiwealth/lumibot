@@ -24,11 +24,11 @@ Weex at a glance
    * - Markets
      - Spot, Perpetual swaps
    * - Testnet (sandbox)
-     - No
+     - Futures simulation only; spot example is live
    * - Credentials
      - API key, API passphrase (CCXT calls it ``password``), API secret
    * - Live data streams
-     - prices, trades, candles, your orders, your balance, your positions
+     - prices, order book, trades, candles, your orders, your balance, your positions
    * - CCXT request spacing
      - about 20 ms between requests
    * - Official site
@@ -46,7 +46,7 @@ Sign up for Weex
 
 #. Create a WEEX account on the website.
 #. Set up your account security. WEEX asks you to pass a security verification when you create an API key.
-#. WEEX has no testnet, so plan to start with a very small trade.
+#. The spot example places live orders. WEEX futures simulation is a separate mode; do not use it as a spot testnet.
 
 `Open a Weex account <https://www.weex.com/>`_
 
@@ -91,7 +91,7 @@ You can also build the broker in code. This is handy when one script talks to mo
        "apiKey": os.environ.get("WEEX_API_KEY"),
        "password": os.environ.get("WEEX_API_PASSPHRASE"),
        "secret": os.environ.get("WEEX_API_SECRET"),
-       "sandbox": False,  # no sandbox for this exchange
+       "sandbox": False,  # live connection
    }
 
    from lumibot.brokers import Ccxt
@@ -104,7 +104,7 @@ Either way, LumiBot turns on CCXT's built-in rate limiting for you.
 Testing on Weex
 ---------------
 
-WEEX has no sandbox. Test with a very small amount, leave ``WEEX_SANDBOX`` unset, and in a code config set ``"sandbox": False``.
+CCXT 4.5.91 supports WEEX futures simulation on shared API hosts, using simulated contract endpoints. It rejects private spot requests in sandbox mode. The spot example here is live: leave ``WEEX_SANDBOX`` unset and set ``"sandbox": False``. Futures simulation requires a separate configuration and supported swap operations; it does not make spot orders simulated.
 
 Algorithmic trading example: a simple Weex bot
 ----------------------------------------------
@@ -268,7 +268,7 @@ Yes. Install LumiBot (``pip install lumibot``), set your Weex keys and use the `
 
 **Does Weex have a testnet?**
 
-No testnet is set up for Weex in LumiBot. Start with a small amount, and in a code config set ``"sandbox": False``.
+CCXT 4.5.91 supports WEEX futures simulation on shared API hosts, using simulated contract endpoints. It rejects private spot requests in sandbox mode. The spot example here is live: leave ``WEEX_SANDBOX`` unset and set ``"sandbox": False``. Futures simulation requires a separate configuration and supported swap operations; it does not make spot orders simulated.
 
 **Which API permissions does a Weex bot need?**
 
@@ -301,7 +301,7 @@ Related guides
 * :doc:`BigONE trading bot <brokers.ccxt.bigone>`
 * :doc:`BingX trading bot <brokers.ccxt.bingx>`
 * :doc:`Bitrue trading bot <brokers.ccxt.bitrue>`
-* :doc:`Bullish trading bot <brokers.ccxt.bullish>`
+* :doc:`Gemini trading bot <brokers.ccxt.gemini>`
 
 Sources
 -------
@@ -310,4 +310,5 @@ Sources
 * `WEEX API docs: Spot Quick Start <https://www.weex.com/api-doc/spot/QuickStart/IntegrationPreparation>`_ (read 2026-10-23)
 * `WEEX API page (spot and futures API, FAQ) <https://www.weex.com/weex-API>`_ (read 2026-10-23)
 * `WEEX API Management page <https://www.weex.com/account/newapi>`_ (read 2026-10-23)
-* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.64 metadata, generated 2026-10-23
+* `CCXT 4.5.91 weex adapter source <https://github.com/ccxt/ccxt/blob/v4.5.91/python/ccxt/weex.py>`_ (read 2026-11-01)
+* Exchange id, URLs, markets, credentials and stream support: CCXT 4.5.91 metadata, generated 2026-11-01

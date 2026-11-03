@@ -77,7 +77,13 @@ def fixture_network_boundary():
         assert_fixture_request(request.url, request.method)
         return await async_send(client, request, **kwargs)
 
+    # Reserved fixture sites have no public search index. Model the native
+    # provider's empty-list response below the unchanged web_search tool, so a
+    # search is neither a dependency on optional ddgs nor an external request.
+    # The actor must still read the supplied fixture website for any facts.
     with patch.object(requests.sessions.Session, "send", requests_only), patch.object(
         httpx.Client, "send", sync_only
-    ), patch.object(httpx.AsyncClient, "send", async_only):
+    ), patch.object(httpx.AsyncClient, "send", async_only), patch(
+        "lumibot.components.agents.builtins._web_search_backend", return_value=lambda **kwargs: []
+    ):
         yield

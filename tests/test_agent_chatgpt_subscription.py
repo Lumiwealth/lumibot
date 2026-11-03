@@ -469,6 +469,10 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
                   'status': 'completed', 'content': [{'type': 'output_text', 'text': 'Checking evidence.', 'annotations': []}]}
     parallel_call = {**call, 'id': 'fc_parallel', 'call_id': 'call_parallel', 'arguments': '{"series":"RATE"}'}
     original_output = [reasoning, commentary, call, parallel_call] if runner_mode else [reasoning, call]
+    evidence_by_series = {
+        'CPI': {'value': 2.5, 'rows': [{'marked_equity': 10876.25, 'cash': 1000.0, 'difference': -123.75}]},
+        'RATE': {'value': 4.0, 'rows': [{'marked_equity': 15321.75, 'cash': 250.0, 'difference': 321.75}]},
+    }
     requests = []
     def handle(request):
         body = json.loads(request.content)
@@ -519,7 +523,7 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
         def get_evidence(series: str) -> dict:
             """Return recorded economic evidence for the requested series."""
             observed.append(series)
-            return {'value': 2.5 if series == 'CPI' else 4.0}
+            return evidence_by_series[series]
         runner = InMemoryRunner(agent=LlmAgent(name='researcher', model=model, tools=[get_evidence]), app_name='replay-contract')
         await runner.session_service.create_session(app_name=runner.app_name, user_id='synthetic', session_id='test')
         events = [event async for event in runner.run_async(user_id='synthetic', session_id='test', new_message=request.contents[0])]
@@ -534,7 +538,7 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
         assert function.args == {'series': 'CPI'}
         request.contents.extend([first[-1].content, types.Content(role='user', parts=[
             types.Part(function_response=types.FunctionResponse(id=function.id, name=function.name,
-                                                                response={'value': 2.5}))])])
+                                                                response=evidence_by_series['CPI']))])])
         return [r async for r in model.generate_content_async(request)]
     if runner_mode:
         asyncio.run(run_runner())
@@ -547,6 +551,14 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
     outputs = second_input[1 + len(original_output):]
     assert all(item['type'] == 'function_call_output' for item in outputs)
     assert {item['call_id'] for item in outputs} == ({'call_contract', 'call_parallel'} if runner_mode else {'call_contract'})
+    # The provider must receive exact signed decimal tool values, including
+    # nested table rows, through both direct and actual ADK-runner conversion.
+    expected = {'call_contract': evidence_by_series['CPI']}
+    if runner_mode:
+        expected['call_parallel'] = evidence_by_series['RATE']
+    assert all(isinstance(item['output'], list) and len(item['output']) == 1
+               and item['output'][0]['type'] == 'input_text' for item in outputs)
+    assert {item['call_id']: json.loads(item['output'][0]['text']) for item in outputs} == expected
     assert 'opaque-contract' not in json.dumps(model.model_dump(mode='json'))
     assert requests[1]['store'] is False
 

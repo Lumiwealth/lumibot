@@ -9,6 +9,7 @@ from lumibot.components.agents.manager import DEFAULT_AGENT_MODEL
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = ROOT / "lumibot" / "example_strategies"
 LUNA = "openai/gpt-6-luna"
+LUNA_PROFILES = {LUNA, "chatgpt/gpt-6-luna"}
 SOURCES = sorted(path for path in EXAMPLES.glob("*.py") if path.name.startswith(("ai_", "agent_")))
 
 
@@ -17,6 +18,13 @@ def _default_model(value, assignments):
         return value.value
     if isinstance(value, ast.Name):
         return _default_model(assignments[value.id], assignments)
+    if (isinstance(value, ast.Subscript) and ast.unparse(value.value) == "self.parameters"
+            and isinstance(assignments.get("parameters"), ast.Dict)):
+        key = ast.literal_eval(value.slice)
+        parameters = assignments["parameters"]
+        for name, configured in zip(parameters.keys, parameters.values):
+            if ast.literal_eval(name) == key:
+                return _default_model(configured, assignments)
     if isinstance(value, ast.Call) and ast.unparse(value.func) == "os.environ.get":
         # Explicit user overrides stay supported; the no-override path is the contract.
         return _default_model(value.args[1], assignments)
@@ -42,7 +50,7 @@ def test_every_explicit_example_model_defaults_to_luna(path):
         for keyword in call.keywords:
             if keyword.arg in {"model", "default_model"}:
                 configured = _default_model(keyword.value, assignments)
-                assert (DEFAULT_AGENT_MODEL if configured is None else configured) == LUNA, path.name
+                assert (DEFAULT_AGENT_MODEL if configured is None else configured) in LUNA_PROFILES, path.name
 
 
 @pytest.mark.parametrize("configured", [None, LUNA, "openai/different-model"])
@@ -50,6 +58,16 @@ def test_parameter_resolution_preserves_the_actual_configured_default(configured
     assignment = ast.parse(f"parameters = {{'model': {configured!r}}}").body[0].value
     value = ast.parse("self.parameters['model']", mode="eval").body
     assert _default_model(value, {"parameters": assignment}) == configured
+
+
+@pytest.mark.parametrize("profile,allowed", [
+    ("openai/gpt-6-luna", True), ("chatgpt/gpt-6-luna", True),
+    ("chatgpt/gpt-6.1-sol", False), ("openai/gpt-6-sol", False),
+])
+def test_parameter_owned_defaults_preserve_the_luna_model_contract(profile, allowed):
+    parameters = ast.parse(repr({"model": profile}), mode="eval").body
+    selection = ast.parse("self.parameters['model']", mode="eval").body
+    assert (_default_model(selection, {"parameters": parameters}) in LUNA_PROFILES) is allowed
 
 
 @pytest.mark.parametrize("variant", ["", "_leveraged"])

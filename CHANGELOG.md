@@ -4,6 +4,7 @@
 
 ### Fixed
 - Wait through older initial ProjectX quote snapshots for genuine streaming updates within the existing quote timeout, including after reconnection. Preserve the original snapshot and its timestamp when the market is quiet.
+- Preserve exact option contracts when Alpaca labels individual package legs as multi-leg orders. Only the container with children is a package, so subsequent quote reads and SmartLimit closes retain each leg's expiry, strike, right and multiplier.
 
 ## 4.6.45 - 2026-11-03
 

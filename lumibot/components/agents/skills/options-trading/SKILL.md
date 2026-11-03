@@ -40,6 +40,11 @@ For a price comparison, check both exact candidates at the same pricing style
 and in the same units before saying cheaper, higher or lower. Prefer the
 returned package totals; if the comparison does not drive the decision, omit it
 instead of adding an unchecked advantage to the rationale.
+When a read rejects malformed tool arguments, correct the reported format and
+retry that read before finishing. An argument error is not unavailable market
+data. Keep correction bounded and report a persistent error as unresolved.
+Do not repeat an order submission because a later read failed; reconcile the
+exact order and remaining exposure first.
 
 An instruction to open or close a bounded position when stated checks pass is
 authorization to act once those checks pass. Do not require a second instruction

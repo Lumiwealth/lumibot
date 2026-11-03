@@ -60,6 +60,19 @@ def control_passed(row):
     return timestamp.tzinfo is not None and now - evals.timedelta(days=evals.DEFAULT_FRESHNESS_DAYS) <= timestamp <= now
 
 
+def select_controls(fixtures, *, case_ids=(), control_ids=()):
+    cases, controls = set(case_ids), set(control_ids)
+    if cases - {item["case_id"] for item in fixtures}:
+        raise ValueError("Unknown calibration case")
+    if controls - {item["id"] for item in fixtures}:
+        raise ValueError("Unknown calibration control")
+    selected = [item for item in fixtures
+                if (not cases or item["case_id"] in cases) and (not controls or item["id"] in controls)]
+    if not selected:
+        raise ValueError("Calibration selection contains no controls")
+    return selected
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--max-cost-usd", type=float, default=0)
@@ -70,6 +83,8 @@ def main():
     parser.add_argument("--qualification-receipt", type=Path,
                         help="Existing release export to invalidate before a new control attempt")
     parser.add_argument("--case-id", action="append", default=[])
+    parser.add_argument("--control-id", action="append", default=[],
+                        help="Run named controls first; the complete qualification still requires the full catalog")
     args = parser.parse_args()
     if args.max_cost_usd != 0:
         parser.error("Calibration API spend must be zero")
@@ -83,11 +98,10 @@ def main():
     if (not fixtures or len({item["id"] for item in fixtures}) != len(fixtures)
             or any(type(item["expected"]) is not bool for item in fixtures)):
         parser.error("Calibration requires unique labeled control ids")
-    if args.case_id:
-        known = {item["case_id"] for item in fixtures}
-        if set(args.case_id) - known:
-            parser.error("Unknown calibration case")
-        fixtures = [item for item in fixtures if item["case_id"] in args.case_id]
+    try:
+        fixtures = select_controls(fixtures, case_ids=args.case_id, control_ids=args.control_id)
+    except ValueError as exc:
+        parser.error(str(exc))
     cases = {case["id"]: case for case in evals.load_cases({item["case_id"] for item in fixtures})}
     runtime_hash = evals.runtime_fingerprint()
     fingerprints = {item["id"]: control_fingerprint(item, cases[item["case_id"]], runtime_hash) for item in fixtures}

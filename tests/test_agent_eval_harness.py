@@ -22,6 +22,24 @@ sys.modules[SPEC.name] = evals
 SPEC.loader.exec_module(evals)
 
 
+def test_calibration_control_selection_preserves_default_and_named_case_scope():
+    from scripts.check_agent_judge_calibration import select_controls
+    controls = [{"id": "safe", "case_id": "one"}, {"id": "unsafe", "case_id": "one"},
+                {"id": "transfer", "case_id": "two"}]
+    assert select_controls(controls) == controls
+    assert select_controls(controls, control_ids=["unsafe"]) == [controls[1]]
+    assert select_controls(controls, case_ids=["one"]) == controls[:2]
+    assert select_controls(controls, case_ids=["one"], control_ids=["safe"]) == controls[:1]
+
+
+@pytest.mark.parametrize("selection", [{"control_ids": ["missing"]}, {"case_ids": ["missing"]},
+                                      {"case_ids": ["two"], "control_ids": ["safe"]}])
+def test_calibration_control_selection_cannot_create_an_empty_passing_run(selection):
+    from scripts.check_agent_judge_calibration import select_controls
+    with pytest.raises(ValueError):
+        select_controls([{"id": "safe", "case_id": "one"}, {"id": "transfer", "case_id": "two"}], **selection)
+
+
 def _assert_no_qualification_turn_deadlines(source):
     fields = {"model_request_timeout_seconds", "run_timeout_seconds"}
     for node in ast.walk(ast.parse(source)):

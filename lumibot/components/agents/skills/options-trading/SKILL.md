@@ -19,6 +19,12 @@ checklist. The trading agent independently establishes execution readiness
 immediately before each action and never treats an upstream answer as that
 verification.
 
+Each role checks its own reported facts against its returned evidence. Keep
+last price, midpoint, bid and ask labels distinct; a last price is not a quoted
+bid. Preserve the observation's field and units when citing it. A correct later
+trader assessment does not make an earlier research claim correct. Keep the
+packet compact and omit unused numerical claims rather than recopying them.
+
 An instruction to open or close a bounded position when stated checks pass is
 authorization to act once those checks pass. Do not require a second instruction
 or add an unstated history length, signal, risk percentage, or sizing condition.
@@ -201,6 +207,12 @@ remains.
 ## Pricing truth
 
 - Evaluate each exact leg before calculating a package price.
+- Bind every preview to its exact contract identities, sides and quantities.
+  Before citing a candidate price, compare that complete returned leg list with
+  the candidate you are describing. An extra leg or a changed strike/ratio is a
+  different package; correct and reprice it rather than attaching its result to
+  another candidate. This also applies to research comparisons and rejected
+  candidates, not only the eventual submitted package.
 - In a historical minute-bar simulation, use only the pricing evidence the data
   source actually provides. `options_evaluate_market` reports whether that
   evidence is `usable_for_limit_pricing` and identifies a last-trade/bar proxy
@@ -229,6 +241,10 @@ remains.
   quantities. Do not invent a conflicting credit from mental arithmetic. If a
   discrepancy appears, recheck the exact sides, ratios and price style with the
   pricing tool before deciding the evidence is inconsistent.
+- Include configured or explicitly supplied commission estimates in the risk
+  comparison. A per-contract/per-side estimate scales with every absolute leg
+  quantity on entry and expected closing, including ratio legs. Identify it as
+  an assumption rather than the broker's actual fee schedule when unverified.
 - Reject prices that contradict the structure's economic bounds.
 - For a standard same-expiration credit iron condor with one contract per leg,
   compute `put_width = short_put - long_put`,

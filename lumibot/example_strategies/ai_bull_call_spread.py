@@ -8,7 +8,7 @@ from lumibot.strategies import Strategy
 
 
 class AIBullCallSpreadStrategy(Strategy):
-    parameters = {"symbol": "SPY", "model": None}
+    parameters = {"symbol": "SPY", "model": None, "estimated_contract_fee": 0.65}
 
     def initialize(self):
         self.sleeptime = "1M"
@@ -57,7 +57,8 @@ class AIBullCallSpreadStrategy(Strategy):
     def on_trading_iteration(self):
         self.agents.attention.poll()
         self.agents.attention.dispatch_team(decision_agent="trader", research_agents=["researcher"],
-            context={"symbol": self.parameters["symbol"]})
+            context={"symbol": self.parameters["symbol"],
+                     "estimated_contract_fee": self.parameters.get("estimated_contract_fee", 0.65)})
 
     def on_strategy_end(self):
         self.agents.attention.join()

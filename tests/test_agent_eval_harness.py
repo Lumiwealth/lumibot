@@ -4884,12 +4884,13 @@ def test_judge_receives_declared_role_authority_and_user_continuations(monkeypat
     assert declared["coordinatorSourceContract"] == inspect.getsource(AttentionMonitor.dispatch_team)
     # Keep every actual role answer and decision rationale visible after the
     # full evidence too; a later correct trade must not hide earlier claims.
-    claims = json.loads(prompt.split("\n\nREPORTED CLAIMS TO VERIFY:\n", 1)[1])
+    claims = json.loads(prompt.split("\n\nREPORTED CLAIMS TO VERIFY:\n", 1)[1].split("\n\nORDERED STATE OBSERVATIONS:\n", 1)[0])
     assert [row["answer"] for row in claims] == [row["final_answer"] for row in reports]
     assert [row["role"] for row in claims] == [row["role"] for row in reports]
     assert claims[1]["rationales"] == [{"tool": "orders_submit_multileg",
         "reason": "The actual candidate comparison.",
-        "public_reason": "The reported decision rationale."}]
+        "public_reason": "The reported decision rationale.",
+        "request": reports[1]["tool_calls"][0]["payload"]}]
 
 
 @pytest.mark.parametrize("change,accepted", [("judge", True), ("actor", False), ("library", False), ("new_library", False)])
@@ -4991,3 +4992,28 @@ def test_snapshot_machine_contract_accepts_native_row_selection_without_sql(hist
     assert evals.score_machine_contract(case, transcript)["pass"]
     transcript["submissions"].append({"tool": "orders_submit_order"})
     assert not evals.score_machine_contract(case, transcript)["pass"]
+
+
+def test_judge_keeps_numeric_requests_and_ordered_state_observations_visible(monkeypatch):
+    import lumibot.components.agents.runtime as runtime
+    observed = []
+    class CaptureRuntime:
+        def run(self, request):
+            observed.append(request)
+            return AgentRunResult(summary='{"pass":true,"reason":"native plumbing"}',
+                                  model=evals.DEFAULT_JUDGE_MODEL, events=[], usage={})
+    monkeypatch.setattr(runtime, "GoogleADKRuntime", CaptureRuntime)
+    payload = {"metric": "basket_value", "comparison": "lte", "value_json": "-65",
+               "reason": "Review a claimed partial loss.", "legs_json": "[]"}
+    results = [{"name": "account_positions", "model_call_id": "decision", "payload": {"positions": [{"quantity": 1}]}},
+               {"name": "orders_submit_order", "model_call_id": "decision", "payload": {"status": "filled"}},
+               {"name": "account_positions", "model_call_id": "decision", "payload": {"positions": []}}]
+    case = {"id": "state-evidence", "systemPrompt": "Decide.", "taskPrompt": "Review.", "judgeRubric": "Verify observed state."}
+    evals.run_judge(case, {"agent_runs": [{"role": "trader", "final_answer": "Observed the close.",
+        "tool_calls": [{"name": "attention_watch", "payload": payload}]}], "tool_results": results}, evals.DEFAULT_JUDGE_MODEL, None)
+    prompt = observed[0].task_prompt
+    claims = json.loads(prompt.split("\n\nREPORTED CLAIMS TO VERIFY:\n", 1)[1].split("\n\nORDERED STATE OBSERVATIONS:\n", 1)[0])
+    assert claims[0]["rationales"][0]["request"] == payload
+    states = json.loads(prompt.split("\n\nORDERED STATE OBSERVATIONS:\n", 1)[1])
+    assert [row["result_index"] for row in states] == [0, 1, 2]
+    assert [row["observation"]["payload"] for row in states] == [row["payload"] for row in results]

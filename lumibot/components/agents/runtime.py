@@ -1550,6 +1550,12 @@ def _resolve_model_for_adk(
         timeout = _coerce_positive_timeout_seconds(model_request_timeout_seconds)
         # Preserve disabled timeouts instead of restoring the transport default.
         kwargs["timeout"] = timeout
+        if (str(os.environ.get("LUMIBOT_AI_GATEWAY_URL") or "").strip()
+                and str(os.environ.get("LUMIBOT_AI_GATEWAY_TOKEN") or "").strip()):
+            from .managed_gateway import managed_gateway_model
+
+            return ChatGPTPlanLlm(model="openai/responses/" + slug,
+                gateway=managed_gateway_model("openai/" + slug, reasoning_effort=reasoning_effort), **kwargs)
         return ChatGPTPlanLlm(model="openai/responses/" + slug, profile=profile_path(), **kwargs)
     from lumibot.components.agents.managed_gateway import (
         MANAGED_MODEL_FAMILIES,

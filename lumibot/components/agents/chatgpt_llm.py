@@ -193,8 +193,9 @@ class _PlanResponsesClient(LiteLLMClient):
     This narrow adapter supplies it to the same transformation. Remove when
     the upstream async bridge forwards clients and the wire contract passes.
     """
-    def __init__(self, handler, token, replay):
+    def __init__(self, handler, token, replay, api_base="https://api.openai.com/v1"):
         self.handler, self.token, self.replay = handler, token, replay
+        self.api_base = api_base
 
     async def acompletion(self, model, messages, tools, **kwargs):
         from datetime import datetime
@@ -223,36 +224,43 @@ class _PlanResponsesClient(LiteLLMClient):
             call_type="acompletion", start_time=datetime.now(), litellm_call_id=str(uuid4()), function_id=str(uuid4()))
         logging.stream_options = {"include_usage": True}
         return await bridge.acompletion(model=slug, messages=messages, optional_params=optional,
-            litellm_params={"api_key": self.token, "api_base": "https://api.openai.com/v1",
+            litellm_params={"api_key": self.token, "api_base": self.api_base,
                            "num_retries": 0, "max_retries": 0, "timeout": kwargs.get("timeout", 180)},
             headers={}, model_response=ModelResponse(), logging_obj=logging, custom_llm_provider="openai")
 
 
 class ChatGPTPlanLlm(BaseLlm):
-    _profile: Path = PrivateAttr()
+    _profile: Path | None = PrivateAttr(default=None)
+    _gateway: Any = PrivateAttr(default=None)
     _kwargs: dict[str, Any] = PrivateAttr()
     _transport: Any = PrivateAttr(default=None)
     _replay: Any = PrivateAttr(default_factory=_ResponsesReplay)
 
-    def __init__(self, *, model: str, profile: Path, transport: Any = None, **kwargs: Any) -> None:
+    def __init__(self, *, model: str, profile: Path | None = None, gateway: Any = None,
+                 transport: Any = None, **kwargs: Any) -> None:
         if not model.startswith("openai/responses/"):
             raise ValueError("ChatGPT plan requires an explicit OpenAI Responses model")
         if kwargs.get("service_tier") not in (None, "default"):
             raise ValueError("Subscription inference does not enable priority/Fast inference")
+        if (profile is None) == (gateway is None):
+            raise ValueError("Select a local subscription profile or a hosted subscription gateway")
         super().__init__(model=model)
         self._profile = profile
+        self._gateway = gateway
         self._kwargs = kwargs
         self._transport = transport
 
     async def generate_content_async(self, llm_request: Any, stream: bool = False) -> AsyncGenerator[Any, None]:
         from .chatgpt_run import is_run_profile
-        pinned_run = is_run_profile(self._profile)
+        pinned_run = self._gateway is not None or is_run_profile(self._profile)
         # A plan usage limit arrives before any output. Cool that account down
         # and retry on the next connected one; any other failure, or a limit
         # after output started, is raised unchanged.
         if not pinned_run and is_cooling(self._profile):
             self._profile = next_connected_profile(self._profile) or self._profile
+        renewed = False
         while True:
+            attempted_token = self._gateway._access_token if self._gateway is not None else None
             produced = False
             try:
                 async for response in self._generate_once(llm_request, stream):
@@ -260,6 +268,17 @@ class ChatGPTPlanLlm(BaseLlm):
                     yield response
                 return
             except SubscriptionModelResponseError as error:
+                if self._gateway is not None and not produced and not renewed and error.status_code == 401:
+                    # Renew the workload capability through its existing owner.
+                    # Only a rejected HTTP request can retry; never replay a
+                    # response that already emitted output or change funding.
+                    def renew():
+                        with self._gateway._renew_lock:
+                            if self._gateway._access_token == attempted_token:
+                                self._gateway._renew()
+                    await asyncio.to_thread(renew)
+                    renewed = True
+                    continue
                 if pinned_run or produced or error.code not in USAGE_LIMIT_CODES:
                     raise
                 mark_exhausted(self._profile)
@@ -269,14 +288,17 @@ class ChatGPTPlanLlm(BaseLlm):
                 self._profile = following
 
     async def _generate_once(self, llm_request: Any, stream: bool = False) -> AsyncGenerator[Any, None]:
-        token = await asyncio.to_thread(access_token, self._profile)
+        token = (self._gateway._access_token if self._gateway is not None
+                 else await asyncio.to_thread(access_token, self._profile))
+        api_base = (self._gateway._gateway_url + "/chatgpt/v1" if self._gateway is not None
+                    else "https://api.openai.com/v1")
         from .chatgpt_run import RunBudget, is_run_profile
-        run_budget = RunBudget(self._profile) if is_run_profile(self._profile) else None
+        run_budget = RunBudget(self._profile) if self._profile is not None and is_run_profile(self._profile) else None
         kwargs = dict(self._kwargs)
         # LiteLLM drops top-level store=False on its completion bridge. The
         # existing Responses extra_body path preserves it (live-verified).
         kwargs["extra_body"] = {**kwargs.get("extra_body", {}), "store": False}
-        kwargs.update(api_key=token, api_base="https://api.openai.com/v1", num_retries=0, service_tier="default")
+        kwargs.update(api_key=token, api_base=api_base, num_retries=0, service_tier="default")
         # Runtime tools own locks/clients and must retain their identity. Only
         # copy the configuration fields this transport changes.
         request = llm_request.model_copy()
@@ -336,7 +358,8 @@ class ChatGPTPlanLlm(BaseLlm):
         http_handler = AsyncHTTPHandler(timeout=self._kwargs.get("timeout", 180),
             event_hooks={"request": [admit_request], "response": [checked_response]}, transport=self._transport, follow_redirects=False)
         try:
-            delegate = LiteLlm(model=self.model, llm_client=_PlanResponsesClient(http_handler, token, self._replay), **kwargs)
+            delegate = LiteLlm(model=self.model,
+                llm_client=_PlanResponsesClient(http_handler, token, self._replay, api_base=api_base), **kwargs)
             async for response in delegate.generate_content_async(request, stream=True):
                 if getattr(response, "error_code", None):
                     raise SubscriptionModelResponseError(response.error_code)

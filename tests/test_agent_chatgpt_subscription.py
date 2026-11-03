@@ -449,7 +449,8 @@ def test_actual_adk_subscription_transport_owns_stream_validation(monkeypatch, t
 @pytest.mark.parametrize('runner_mode', [False, True])
 @pytest.mark.parametrize("content_type", ["text/event-stream", None])
 @pytest.mark.parametrize("argument_deltas", [True, False])
-def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items(monkeypatch, tmp_path, runner_mode, content_type, argument_deltas):
+@pytest.mark.parametrize("hosted", [False, True])
+def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items(monkeypatch, tmp_path, runner_mode, content_type, argument_deltas, hosted):
     """ADK drops Responses reasoning metadata; assert the actual second wire body."""
     import asyncio
 
@@ -475,6 +476,9 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
     }
     requests = []
     def handle(request):
+        if hosted:
+            assert str(request.url) == 'https://gateway.example.invalid/ai/chatgpt/v1/responses'
+            assert request.headers['authorization'] == 'Bearer synthetic-workload-token'
         body = json.loads(request.content)
         requests.append(body)
         output = original_output if len(requests) == 1 else [
@@ -512,8 +516,19 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
                 events.append({'type': 'response.completed', 'response': terminal})
                 yield ''.join('data: ' + json.dumps(event) + '\n\n' for event in events).encode()
         return httpx.Response(200, headers={'content-type': content_type} if content_type else {}, stream=Stream())
-    model = chatgpt_llm.ChatGPTPlanLlm(model='openai/responses/gpt-6-luna', profile=tmp_path/'profile.json',
-                                     transport=httpx.MockTransport(handle))
+    if hosted:
+        from lumibot.components.agents.runtime import _resolve_model_for_adk
+        from lumibot.components.agents import chatgpt_auth
+        monkeypatch.setenv('LUMIBOT_AI_GATEWAY_URL', 'https://gateway.example.invalid/ai')
+        monkeypatch.setenv('LUMIBOT_AI_GATEWAY_TOKEN', 'synthetic-workload-token')
+        def no_local_profile():
+            raise AssertionError('Hosted continuation must not read a local profile')
+        monkeypatch.setattr(chatgpt_auth, 'profile_path', no_local_profile)
+        model = _resolve_model_for_adk('chatgpt/gpt-6-luna', model_request_timeout_seconds=0)
+        model._transport = httpx.MockTransport(handle)
+    else:
+        model = chatgpt_llm.ChatGPTPlanLlm(model='openai/responses/gpt-6-luna', profile=tmp_path/'profile.json',
+                                         transport=httpx.MockTransport(handle))
     request = LlmRequest(contents=[types.Content(role='user', parts=[types.Part(text='get CPI evidence')])],
                          config=types.GenerateContentConfig())
     async def run_runner():

@@ -56,3 +56,15 @@ def test_strategy_executor_does_not_await_market_close_past_backtest_end(monkeyp
 
     # Should return early without calling await_market_to_close().
     executor._run_trading_session()
+
+
+def test_trading_loop_does_not_execute_an_iteration_at_terminal_bound(monkeypatch):
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 6, 1, 9, 35))
+    broker = _DummyBroker(datetime_end=end)
+    executor = StrategyExecutor(_DummyStrategy(broker))
+
+    def unexpected_iteration():
+        raise AssertionError("No new trading iteration is inside the exclusive end bound")
+
+    monkeypatch.setattr(executor, "_on_trading_iteration", unexpected_iteration)
+    executor._run_backtesting_loop(is_continuous_market=True, time_to_close=None)

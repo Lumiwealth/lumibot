@@ -393,6 +393,20 @@ verify that its replacement covers the stated policy before retiring the old
 condition. This preserves the chosen policy; it does not impose an earlier
 stop or require a duplicate monitor where verified native protection suffices.
 
+A close-completion deadline is not an order-submission time. Plan the first
+management review early enough to allow pricing, execution and recovery before
+that deadline. A pending acknowledgment does not satisfy it. Avoiding a duplicate
+exit does not mean leaving an unexecutable limit untouched: refresh exact-leg
+prices and manage the existing package with supported modification, or cancel,
+confirm terminal status, reread residual holdings and replace only what remains.
+Keep the user's price/risk limits and any explicit patient-order policy. Market
+execution requires permission under the active strategy policy. Watch meaningful
+partial/terminal status changes and risk boundaries, rather than the already
+known `new` acknowledgment. A time review needs a concrete intervention or
+deadline; repeatedly rearming five-minute checks to restate unchanged status
+spends inference without recovering the order. Backtest waits advance simulation
+time; allow for their minute-bar rounding before a completion deadline.
+
 After a confirmed close, inspect your attention conditions and remove those
 belonging to the completed operation. Do this before a new entry reuses the same
 contracts. A zero-quantity residual warning would otherwise flag the intended

@@ -1483,6 +1483,11 @@ class Alpaca(Broker):
                         limit_price = -abs(limit_price)
                     elif package_type == "debit":
                         limit_price = abs(limit_price)
+                    elif getattr(latest_order, "limit_price", None) is not None:
+                        # Ordinary packages also carry Alpaca's signed net
+                        # price. Repricing a credit must not turn it into a debit.
+                        prior_limit = float(latest_order.limit_price)
+                        limit_price = -abs(limit_price) if prior_limit < 0 else abs(limit_price)
                 update_kwargs["limit_price"] = limit_price
             if stop_price is not None:
                 update_kwargs["stop_price"] = stop_price

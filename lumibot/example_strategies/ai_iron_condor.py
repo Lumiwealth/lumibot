@@ -46,7 +46,8 @@ class AIIronCondorStrategy(Strategy):
                 'Set underlying review boundaries 40% of the distance from the short-strike midpoint toward '
                 'either short strike; a breach requires your close decision. Close remaining exposure no '
                 'later than 30 minutes before the expiration session ends. Leave the next eligible setup '
-                "review after closure. Follow LumiBot's shared options and attention guidance; you own every "
+                'review after closure. Atomic market exits are permitted if a limit cannot meet a required '
+                "close deadline. Follow LumiBot's shared options and attention guidance; you own every "
                 'trading decision. '
             )
             ),

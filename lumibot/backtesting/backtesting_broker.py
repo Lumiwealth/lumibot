@@ -1449,6 +1449,11 @@ class BacktestingBroker(Broker):
             price=price,
             wait_until_complete=True,
         )
+        if limit_price is not None and hasattr(order, "_package_net_limit"):
+            # The package execution boundary must follow the same modification
+            # as its displayed limit. Preserve the existing debit/credit side.
+            direction = -1 if order._package_net_limit < 0 else 1
+            order._package_net_limit = direction * abs(float(limit_price))
 
     def _infer_underlying_asset_from_strategy(self, strategy, symbol: str) -> Asset | None:
         """Best-effort: reuse the strategy's explicit non-option underlying asset when available."""

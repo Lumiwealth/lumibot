@@ -32,6 +32,24 @@ def test_calibration_control_selection_preserves_default_and_named_case_scope():
     assert select_controls(controls, case_ids=["one"], control_ids=["safe"]) == controls[:1]
 
 
+def test_short_pending_order_wait_advances_one_minute_bar_not_ten():
+    from lumibot.components.agents import BuiltinTools
+
+    fixture = evals.build_fixture("options_pending_package_exit")
+    production = fixture_module.ProductionFixture(fixture)
+    try:
+        strategy = production.strategy
+        parent = next(o for o in strategy.get_orders() if str(o.order_class) == "multileg")
+        before = strategy.get_datetime()
+        tool = BuiltinTools.orders.wait_for_terminal().binder(strategy, strategy.agents)
+        result = tool.function(identifier=parent.identifier, timeout_seconds=10, poll_interval_seconds=1)
+        assert result['all_terminal'] is False
+        assert (strategy.get_datetime() - before).total_seconds() == 60
+        assert not parent.is_filled()
+    finally:
+        production.close()
+
+
 def test_pending_option_package_fixture_reprices_same_order_without_duplicate():
     fixture = evals.build_fixture("options_pending_package_exit")
     production = fixture_module.ProductionFixture(fixture)

@@ -2518,7 +2518,9 @@ def _bind_orders_wait_for_terminal(strategy: Any, manager: Any) -> BoundTool:
             # Prefer minute-scale advances so equity market orders can fill on the
             # next bar even when the agent passes a 1s poll interval.
             backtest_sleep_for = max(poll_value, 60.0)
-            max_sim_seconds = min(timeout_value * max(backtest_sleep_for / max(poll_value, 1e-9), 1.0), 3600.0)
+            # Seconds remain seconds. Round a sub-bar wait up to one minute,
+            # rather than converting every requested poll into another minute.
+            max_sim_seconds = max(timeout_value, backtest_sleep_for)
             sim_slept = 0.0
             broker = getattr(strategy, "broker", None)
             process_pending = getattr(broker, "process_pending_orders", None)
@@ -2595,6 +2597,7 @@ def _bind_orders_wait_for_terminal(strategy: Any, manager: Any) -> BoundTool:
             "Arguments: optional identifier, optional identifiers_json, optional timeout_seconds (default 30, max 120), "
             "optional poll_interval_seconds (default 1). Uses strategy.sleep so pending broker fills can process. "
             "In backtests, use one short bounded wait immediately after your own market-order submission when the simulator must process the pending fill. The wait advances simulated time and is capped, so do not use it as an open-ended polling loop. "
+            "A sub-minute backtest wait rounds up to one minute bar; longer waits retain their requested seconds. Check the strategy's completion deadline before waiting. "
             "Never claim a full fill unless is_filled is true. "
             "Example: orders_wait_for_terminal(identifiers_json='[\"bt_1\"]', timeout_seconds=15)."
         ),
@@ -3695,7 +3698,8 @@ def _bind_modify_order(strategy: Any, manager: Any) -> BoundTool:
         public_evidence = {"evidence": {"public_reason": public_reason}} if public_reason is not None else {}
         strategy.modify_order(order, limit_price=limit_price, stop_price=stop_price, reason=reason, **public_evidence)
         return {
-            "identifier": identifier,
+            "identifier": str(order.identifier),
+            "requested_identifier": identifier,
             "limit_price": limit_price,
             "stop_price": stop_price,
             "decision_journal": getattr(order, "decision_journal", None),
@@ -5073,7 +5077,7 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
             "In reason, assess the selected package's signed, quantity-weighted net Greek exposure and executable quote quality; retrieving raw values alone is not a risk assessment. Calculate reported net values, state their units, and distinguish current offsets from exposure that may change. "
             "To close held option contracts, always pass action='close' and list only symbol, expiration, strike, and right for each held leg, plus an optional quantity (default: the full held quantity). LumiBot derives each closing side from the current signed position (long -> sell_to_close, short -> buy_to_close), so never write closing sides yourself. Close mode rejects contracts with no open position and quantities above the held amount. "
             "Current nonzero option positions remain open until a later account_positions result shows zero quantity. A submitted or filled order result is not itself proof that positions are flat, and a final response must not claim submission unless this tool returned submitted orders. "
-            "If positions are not flat afterward, inspect the exact order status and open orders. Do not switch order tools, reverse sides, change quantities, or submit another close until the prior order has a terminal state and a fresh account_positions result proves what remains. "
+            "If positions are not flat afterward, inspect the exact order status and open orders. Avoid a competing duplicate close; actively manage the existing order when its price or completion deadline requires it. Use supported modification, or request cancellation and wait for its terminal confirmation before refreshing residual positions and replacing only what remains. Never reverse sides or enlarge quantities to work around a pending close. "
             "Before opening more option exposure, compare the proposed legs with all current option positions and pending orders. Do not add another structure when the strategy policy permits only one open structure. "
             "For limit execution, a positive signed net_limit_price is a debit and a negative value is a credit. If omitted, LumiBot calculates the selected best/mid/fastest price. "
             "The agent must validate that signed price against its exact leg quotes and strategy economics before submission. For equal-width credit spreads, credit must be positive and strictly less than the wing width. "

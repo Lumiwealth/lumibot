@@ -1663,8 +1663,8 @@ class OptionsHelper:
             if not valid_quote:
                 self.strategy.log_message(f"Invalid bid/ask for {asset.symbol}; package remains unpriced.", color="red")
                 return None
+            mid = (ask + bid) / 2
             if limit_type == "mid":
-                mid = (ask + bid) / 2
                 quotes.append(mid if order.is_buy_order() else -mid)
             elif limit_type == "best":
                 quotes.append(bid if order.is_buy_order() else -ask)
@@ -1675,6 +1675,7 @@ class OptionsHelper:
             if price_details is not None:
                 details.append({
                     "price_basis": "bid_ask", "bid": bid, "ask": ask,
+                    "spread_pct": (ask - bid) / mid if math.isfinite(mid) and mid > 0 else None,
                     "price": leg_price, "ratio": ratio, "signed_price": quotes[-1],
                 })
         if not quotes:

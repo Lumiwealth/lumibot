@@ -4,6 +4,8 @@ Entry opportunity, expiration, intended hold and attention frequency are separat
 choices. One researcher informs one trader; the trader chooses and submits every
 order. Historical trade-bar simulation does not prove historical bid/ask liquidity.
 """
+from datetime import timedelta
+
 from lumibot.strategies import Strategy
 
 
@@ -12,7 +14,6 @@ class AIBullCallSpreadStrategy(Strategy):
 
     def initialize(self):
         self.sleeptime = "1M"
-        self.minutes_before_closing = 15
         self.agents.create(
             name="researcher", allow_trading=False, allow_network=True, model=self.parameters["model"],
             reasoning_effort="high", system_prompt=(
@@ -45,11 +46,12 @@ class AIBullCallSpreadStrategy(Strategy):
             ),
         )
 
-    def before_market_closes(self):
+    def before_starting_trading(self):
         if not self.vars.get("attention_started", False):
             self.agents.attention.watch(owner="lifecycle", watch_id="initial_review",
                 operation_id="initial_setup", metric="time", comparison="gte",
-                value=self.get_datetime().isoformat(), reason="First scheduled setup opportunity",
+                value=(self.get_datetime() + timedelta(minutes=30)).isoformat(),
+                reason="First setup review after the opening half-hour",
                 review_scope="setup")
             self.vars.set("attention_started", True)
         self.on_trading_iteration()

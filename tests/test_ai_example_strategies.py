@@ -21,7 +21,7 @@ import pytest
 
 from lumibot.strategies._strategy import Vars
 from tests.test_agent_attention_lifecycle import (
-    example as attention_example, AIIronCondorStrategy,
+    example as attention_example, start_setup as start_attention_setup, AIIronCondorStrategy,
     AIBullCallSpreadStrategy, AICallStockReplacementStrategy,
 )
 
@@ -230,7 +230,7 @@ def test_research_is_handed_to_the_trader(name):
         # model response substituted. These sources receive the same handoff
         # proof rather than the former condor-only timed exemption.
         strategy, _, calls, _ = attention_example(strategy_class)
-        strategy.before_market_closes()
+        start_attention_setup(strategy)
         assert [role for role, _ in calls] == REBUILT[name][1]
         answers = strategy.vars.get('_agent_attention')['research_answers']
         assert calls[-1][1]['context']['dated_research'] == answers

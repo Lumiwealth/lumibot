@@ -28,6 +28,8 @@ immediately before each action and never treats an upstream answer as that
 verification.
 Missing contract selection, quotes or package prices in a thesis research
 answer are work for the trader through its own tools, not failed research.
+For thesis research, omit account, order-status and P&L commentary unless the
+research question needs it; the trader owns execution reconciliation.
 
 Each role checks its own reported facts against its returned evidence. Keep
 last price, midpoint, bid and ask labels distinct; a last price is not a quoted
@@ -262,6 +264,9 @@ data or liquidity limitation rather than manufacturing a fill.
   different package; correct and reprice it rather than attaching its result to
   another candidate. This also applies to research comparisons and rejected
   candidates, not only the eventual submitted package.
+  Use that final preview's per-leg `pricing.spread_pct` when citing selected-leg
+  spread quality. It is a fraction of midpoint, not a percentage number; never
+  copy a different candidate's quote-quality table onto the selected package.
 - In a historical minute-bar simulation, use only the pricing evidence the data
   source actually provides. `options_evaluate_market` reports whether that
   evidence is `usable_for_limit_pricing` and identifies a last-trade/bar proxy

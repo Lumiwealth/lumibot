@@ -2103,6 +2103,7 @@ def _backtest_last_trade_multileg_price(
                     "bid": evaluation.bid,
                     "ask": evaluation.ask,
                     "last_price": evaluation.last_price,
+                    "spread_pct": getattr(evaluation, "spread_pct", None),
                     "price": price,
                     "ratio": ratio,
                     "signed_price": signed_price,
@@ -2219,6 +2220,7 @@ def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> Bound
             "When comparing a per-unit multi-leg opening credit with a per-unit closing debit, price one contract per leg here. Use the full absolute position quantities only in the later orders_submit_multileg call. "
             "This is a price preview: no order has been submitted. Leg identifiers, status and order_type describe temporary pricing components, not broker submissions or the eventual package execution policy. The verified signed net_limit_price controls the later atomic limit order. "
             "Independently reconcile the returned net price using each returned leg pricing.signed_price and quantity for the selected price_style. A fastest price uses asks for buys and bids for sells, so it can legitimately differ from midpoint valuation. Reject inconsistent arithmetic or prices that violate the structure's economic bounds. "
+            "Each leg pricing.spread_pct is that exact leg's bid/ask width divided by its midpoint (0.1 means 10%), or null when unavailable. Use the final selected preview rather than quote-quality figures from another candidate. "
             "price_basis='last_trade' means a trade-only backtest priced each leg from its last traded price; reconcile against the leg last prices instead of mids. "
             'Example legs_json: [{"symbol":"SPY","expiration":"2026-09-18","strike":620,"right":"put","quantity":1,"side":"buy_to_open"},{"symbol":"SPY","expiration":"2026-09-18","strike":625,"right":"put","quantity":1,"side":"sell_to_open"}].'
         ),

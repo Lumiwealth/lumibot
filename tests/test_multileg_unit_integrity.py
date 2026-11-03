@@ -44,6 +44,27 @@ def test_trade_bar_package_price_uses_the_same_units(quantities,expected):
     assert _backtest_last_trade_multileg_price(quote_strategy(True),legs(quantities)) == pytest.approx(expected)
 
 
+def test_package_preview_binds_spread_quality_to_each_selected_contract():
+    strategy = quote_strategy()
+    markets = {90: (2.45, 2.60), 100: (1.55, 1.70), 110: (0.90, 1.00), 120: (0.40, 0.50)}
+    def quote(asset):
+        bid, ask = markets[asset.strike]
+        return Quote(asset, price=(bid + ask) / 2, bid=bid, ask=ask)
+    strategy.get_quote = quote
+    details = []
+    value = OptionsHelper(strategy).calculate_multileg_limit_price(legs((1, 2, 1)), 'fastest', price_details=details)
+    assert value == pytest.approx(0.4)
+    assert [row['spread_pct'] for row in details] == pytest.approx([0.15 / 1.625, 0.10 / 0.95, 0.10 / 0.45])
+    assert [row['bid'] for row in details] == [1.55, 0.90, 0.40]
+    assert [row['ask'] for row in details] == [1.70, 1.00, 0.50]
+
+
+def test_trade_only_preview_keeps_unavailable_spread_quality_unknown():
+    details = []
+    assert _backtest_last_trade_multileg_price(quote_strategy(True), legs((2, 1)), details) == 8.0
+    assert [row['spread_pct'] for row in details] == [None, None]
+
+
 class SubmissionCaptured(BaseException):
     """Stop at the real external-write boundary without fabricating a response."""
 

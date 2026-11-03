@@ -276,13 +276,20 @@ data or liquidity limitation rather than manufacturing a fill.
   construction time. A failed read for another asset type does not invalidate
   a later successful quote for the correct asset. Compare available source
   quote/bar times with the decision cutoff; never replace them with wall time.
-- Evaluate each exact leg before calculating a package price.
-- Bind every preview to its exact contract identities, sides and quantities.
+- Before ordering, evaluate each final exact leg; candidate price previews may
+  precede that final evidence check.
+- Bind every quote, Greek assessment and preview to its exact contract
+  identities, sides and quantities.
   Before citing a candidate price, compare that complete returned leg list with
   the candidate you are describing. An extra leg or a changed strike/ratio is a
   different package; correct and reprice it rather than attaching its result to
   another candidate. This also applies to research comparisons and rejected
   candidates, not only the eventual submitted package.
+  After comparing alternatives, finish the selected package's evidence with
+  its exact-leg Greek result and price preview. Report that result's returned
+  aggregate and multiplier-adjusted values, not the latest result for another
+  candidate. If the selected leg list changes, refresh the selected view before
+  ordering or describing its exposure.
   Use that final preview's per-leg `pricing.spread_pct` when citing selected-leg
   spread quality. It is a fraction of midpoint, not a percentage number; never
   copy a different candidate's quote-quality table onto the selected package.

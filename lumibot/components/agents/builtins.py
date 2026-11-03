@@ -2210,14 +2210,16 @@ def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> Bound
     return BoundTool(
         name="options_calculate_multileg_price",
         description=(
-            "For an opening package, first finish both options_get_greeks and options_evaluate_market for EACH "
-            "final contract, including protective buy wings. Short-strike candidate checks do not verify the wings. "
+            "Before submitting an opening package, finish options_get_greeks and options_evaluate_market for EACH "
+            "final contract, including protective buy wings. Candidate price previews may precede those checks. "
+            "Short-strike candidate checks do not verify the wings. "
             "This pricing preview does not perform those Greek checks for you. "
             "Calculate a provider-generic net limit price for two or more exact option legs without submitting them. "
             "Arguments: legs_json, optional price_style='best', 'mid', or 'fastest', and optional action. legs_json must be a JSON array; every leg requires symbol, expiration, strike, right, quantity, and side, except in close mode. "
             "To close held option contracts, always pass action='close': each leg then needs only symbol, expiration, strike, and right plus an optional quantity (default: the full held quantity). LumiBot derives every closing side from the current signed position, so never write closing sides yourself. "
             "Use buy_to_open/sell_to_open when opening. A positive net_limit_price is a debit and a negative value is a credit. "
-            "When comparing a per-unit multi-leg opening credit with a per-unit closing debit, price one contract per leg here. Use the full absolute position quantities only in the later orders_submit_multileg call. "
+            "Package prices are per reduced-ratio unit. Preserve the intended leg proportions: a 2:1 package remains 2:1, never one contract per leg. "
+            "Compare opening and closing prices using the same ratio unit, then submit the actual intended total contract quantities through orders_submit_multileg. "
             "This is a price preview: no order has been submitted. Leg identifiers, status and order_type describe temporary pricing components, not broker submissions or the eventual package execution policy. The verified signed net_limit_price controls the later atomic limit order. "
             "Independently reconcile the returned net price using each returned leg pricing.signed_price and quantity for the selected price_style. A fastest price uses asks for buys and bids for sells, so it can legitimately differ from midpoint valuation. Reject inconsistent arithmetic or prices that violate the structure's economic bounds. "
             "Each leg pricing.spread_pct is that exact leg's bid/ask width divided by its midpoint (0.1 means 10%), or null when unavailable. Use the final selected preview rather than quote-quality figures from another candidate. "

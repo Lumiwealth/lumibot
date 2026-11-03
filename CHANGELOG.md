@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.6.46 - Unreleased
+## 4.6.47 - Unreleased
+
+## 4.6.46 - 2026-11-03
 
 ### Fixed
 - Wait through older initial ProjectX quote snapshots for genuine streaming updates within the existing quote timeout, including after reconnection. Preserve the original snapshot and its timestamp when the market is quiet.

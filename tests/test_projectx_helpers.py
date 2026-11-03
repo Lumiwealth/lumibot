@@ -737,6 +737,87 @@ def test_stream_reconnect_resubscribes_user_and_market(mock_projectx_config):
     assert not stream.is_user_connected and not stream.is_market_connected
 
 
+@pytest.mark.parametrize('already_subscribed', [False, True])
+def test_initial_cached_quote_waits_for_actual_stream_update(mock_projectx_config, already_subscribed):
+    """GatewayQuote can replay an old snapshot before the first live delta."""
+    from lumibot.tools.projectx_helpers import ProjectXStreaming
+
+    stream = ProjectXStreaming(mock_projectx_config, 'synthetic-token', 123)
+    stream.start_market_hub = Mock(return_value=True)
+    stream.market_connection = Mock()
+    contract_id = 'CON.F.US.EP.U25'
+    old_timestamp = (pd.Timestamp.now(tz='UTC') - pd.Timedelta(days=2)).isoformat()
+    snapshot = {'timestamp': old_timestamp, 'lastUpdated': pd.Timestamp.now(tz='UTC').isoformat(),
+                'bestBid': 2100., 'bestAsk': 2100.5, 'lastPrice': 2100.25}
+    event = Mock()
+    is_set = {'value': already_subscribed}
+    event.set.side_effect = lambda: is_set.update(value=True)
+    event.clear.side_effect = lambda: is_set.update(value=False)
+    event.is_set.side_effect = lambda: is_set['value']
+    stream._quote_events[contract_id] = event
+    stream.market_connection.send.side_effect = lambda *_: stream._handle_quote([contract_id, snapshot])
+    live = {}
+
+    def receive_live_delta(_timeout):
+        live.update(timestamp=pd.Timestamp.now(tz='UTC').isoformat(), bestBid=2101., bestAsk=2101.5)
+        stream._handle_quote([contract_id, live])
+        return True
+
+    event.wait.side_effect = receive_live_delta
+    if already_subscribed:
+        stream._quote_contracts.add(contract_id)
+        stream._on_market_hub_open()
+    quote = stream.get_market_quote(contract_id)
+    assert quote['bestBid'] == 2101.
+    assert quote['bestAsk'] == 2101.5
+    assert quote['timestamp'] == live['timestamp']
+    assert quote['lastPrice'] == snapshot['lastPrice']
+    event.wait.assert_called_once()
+
+
+def test_quiet_market_keeps_original_snapshot_time_after_quote_wait(mock_projectx_config):
+    from lumibot.tools.projectx_helpers import ProjectXStreaming
+
+    stream = ProjectXStreaming(mock_projectx_config, 'synthetic-token', 123)
+    stream.start_market_hub = Mock(return_value=True)
+    stream.market_connection = Mock()
+    contract_id = 'CON.F.US.EP.U25'
+    snapshot = {'timestamp': '2020-01-01T12:00:00Z', 'bestBid': 2100., 'bestAsk': 2100.5}
+    event = Mock()
+    state = {'set': False}
+    event.set.side_effect = lambda: state.update(set=True)
+    event.clear.side_effect = lambda: state.update(set=False)
+    event.is_set.side_effect = lambda: state['set']
+    event.wait.return_value = False
+    stream._quote_events[contract_id] = event
+    stream.market_connection.send.side_effect = lambda *_: stream._handle_quote([contract_id, snapshot])
+    assert stream.get_market_quote(contract_id) == snapshot
+    event.wait.assert_called_once()
+
+
+@pytest.mark.parametrize('timestamp', [None, 'unavailable', 'current'])
+def test_available_initial_quote_keeps_optional_time_metadata_compatible(mock_projectx_config, timestamp):
+    from lumibot.tools.projectx_helpers import ProjectXStreaming
+
+    stream = ProjectXStreaming(mock_projectx_config, 'synthetic-token', 123)
+    stream.start_market_hub = Mock(return_value=True)
+    stream.market_connection = Mock()
+    contract_id = 'CON.F.US.EP.U25'
+    event = Mock()
+    event.is_set.return_value = True
+    stream._quote_events[contract_id] = event
+    payload = {'bestBid': 2100., 'bestAsk': 2100.5}
+
+    def receive_initial(*_):
+        if timestamp is not None:
+            payload['timestamp'] = pd.Timestamp.now(tz='UTC').isoformat() if timestamp == 'current' else timestamp
+        stream._handle_quote([contract_id, payload])
+
+    stream.market_connection.send.side_effect = receive_initial
+    assert stream.get_market_quote(contract_id) == payload
+    event.wait.assert_not_called()
+
+
 @pytest.mark.parametrize('size', [1.5, 'bad', 0, -1])
 def test_api_never_truncates_or_defaults_invalid_contract_size(mock_api_client, size):
     with patch('lumibot.tools.projectx_helpers.requests.post') as post:

@@ -141,6 +141,60 @@ def test_closed_futures_mark_expires_at_exact_reopening(when, expected):
     assert closed_futures_mark(frame, timestep="minute", when=pd.Timestamp(when, tz="America/New_York")) == expected
 
 
+@pytest.mark.parametrize("routed", [False, True], ids=["direct", "routed"])
+@pytest.mark.parametrize("symbol,market,multiplier", [
+    ("MES", "CME_Equity", 5),
+    ("MGC", "CMEGlobex_EnergyAndMetals", 10),
+])
+def test_futures_holiday_valuation_uses_initialized_exchange_calendar(monkeypatch, routed, symbol, market, multiplier):
+    """A genuine scheduled early close must not become missing required data."""
+    from lumibot.backtesting import BacktestingBroker, InteractiveBrokersRESTBacktesting
+    from lumibot.strategies import Strategy
+    from lumibot.tools import ibkr_helper
+    from lumibot.tools.ibkr_history_health import reset_ibkr_history_health_for_testing, ibkr_history_health_snapshot
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("LUMIBOT_CACHE_BACKEND", "local")
+    reset_ibkr_history_health_for_testing()
+    start = pd.Timestamp("2026-09-07 12:58", tz="America/New_York")
+    end = pd.Timestamp("2026-09-08 18:01", tz="America/New_York")
+    frame = pd.DataFrame({"open": [100., 100., 200.], "high": [101., 101., 202.],
+                          "low": [99., 99., 199.], "close": [100., 101., 201.], "volume": 1000.},
+                         index=pd.DatetimeIndex([start, start + pd.Timedelta(minutes=1),
+                                                pd.Timestamp("2026-09-07 18:00", tz="America/New_York")]))
+
+    def prices(**kwargs):
+        return frame.loc[(frame.index >= kwargs["start_dt"]) & (frame.index <= kwargs["end_dt"])].copy()
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", prices)
+    source = (_make_router(start, end, {"default": "ibkr", "future": "ibkr"}) if routed
+              else InteractiveBrokersRESTBacktesting(start, end))
+    broker = BacktestingBroker(data_source=source)
+    broker.market = market
+    schedule = mcal.get_calendar(market).schedule("2026-09-06", "2026-09-09")
+    broker.initialize_market_calendars(schedule)
+    asset = Asset(symbol, "future", expiration=datetime(2026, 12, 29).date(), multiplier=multiplier)
+    quote = Asset("USD", "forex")
+    source._update_datetime((start + pd.Timedelta(minutes=1)).to_pydatetime())
+    strategy = Strategy(broker=broker, budget=100000, benchmark_asset=None)
+    entry = strategy.create_order(asset, 1, "buy")
+    strategy.submit_order(entry)
+    broker.process_pending_orders(strategy)
+    strategy._executor.process_queue()
+    assert entry.is_filled(), "Exercise a real native position rather than an empty account."
+    assert entry.get_fill_price() == 100.
+
+    source._update_datetime(pd.Timestamp("2026-09-07 17:00", tz="America/New_York").to_pydatetime())
+    assert source.get_last_price(asset, quote=quote) == 101.
+    assert strategy._update_portfolio_value() == pytest.approx(100000 + multiplier)
+    assert ibkr_history_health_snapshot()["required_complete"] is True
+
+    # A missing bar after a reopening is unknown, not another holiday mark.
+    source._update_datetime(pd.Timestamp("2026-09-08 12:00", tz="America/New_York").to_pydatetime())
+    assert source.get_last_price(asset, quote=quote) is None
+    reset_ibkr_history_health_for_testing()
+
+
 def test_direct_futures_reopening_refreshes_friday_mark_before_valuation(monkeypatch):
     from lumibot.backtesting import InteractiveBrokersRESTBacktesting
     from lumibot.tools import ibkr_helper

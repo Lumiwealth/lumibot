@@ -486,12 +486,46 @@ def _us_futures_closed_interval(
         return False
 
 
-def closed_futures_mark(frame: pd.DataFrame, *, timestep: str, when: datetime) -> Optional[float]:
+def _scheduled_closed_interval(start: pd.Timestamp, end: pd.Timestamp, trading_days: pd.DataFrame) -> Optional[bool]:
+    """Check a fully covered interval against the already initialized calendar.
+
+    Calendar facts may authorize carrying a valuation mark; absent trade bars
+    alone cannot. Return unknown outside schedule coverage, preserving the
+    existing maintenance/weekend fallback for callers without a calendar.
+    """
+    if trading_days is None or trading_days.empty:
+        return None
+    try:
+        opens = pd.DatetimeIndex(trading_days["market_open"])
+        closes = pd.DatetimeIndex(trading_days["market_close"])
+        if opens.tz is None or closes.tz is None or opens.hasnans or closes.hasnans:
+            return None
+        if start < opens.min() or end > closes.max():
+            return None
+        overlapping = trading_days.loc[(opens < end) & (closes > start)]
+        for row in overlapping.itertuples():
+            opened, closed = pd.Timestamp(row.market_open), pd.Timestamp(row.market_close)
+            pause, resume = getattr(row, "break_start", None), getattr(row, "break_end", None)
+            if pd.notna(pause) and pd.notna(resume):
+                pause, resume = pd.Timestamp(pause), pd.Timestamp(resume)
+                if opened <= pause <= resume <= closed:
+                    if (opened < end and pause > start) or (resume < end and closed > start):
+                        return False
+                    continue
+            return False
+        return True
+    except (TypeError, ValueError, KeyError, AttributeError):
+        return None
+
+
+def closed_futures_mark(frame: pd.DataFrame, *, timestep: str, when: datetime,
+                        trading_days: Optional[pd.DataFrame] = None) -> Optional[float]:
     """Use a completed trade close only when every later instant was closed.
 
     This is a valuation fallback, never an executable bar or a gap repair. An
-    absent bar after the next opening remains missing, including holiday gaps
-    not represented by the conservative maintenance/weekend calendar.
+    absent bar after the next opening remains missing. The initialized exchange
+    schedule handles holidays and early closes; callers without one retain the
+    maintenance/weekend fallback.
     """
     if frame is None or frame.empty or "close" not in frame:
         return None
@@ -509,7 +543,13 @@ def closed_futures_mark(frame: pd.DataFrame, *, timestep: str, when: datetime) -
         end = completed.index[-1] + pd.Timedelta(seconds=seconds)
         # Include the valuation instant itself: [last close, reopening) is
         # closed, but at reopening a new executable price may already exist.
-        if not _us_futures_closed_interval(end.to_pydatetime(), (now + pd.Timedelta(microseconds=1)).to_pydatetime()):
+        cutoff = now + pd.Timedelta(microseconds=1)
+        closed = _scheduled_closed_interval(end, cutoff, trading_days)
+        # The generic 24/5 calendar can include the established daily
+        # maintenance interval. Preserve that known closure as well.
+        if not closed:
+            closed = _us_futures_closed_interval(end.to_pydatetime(), cutoff.to_pydatetime())
+        if not closed:
             return None
         price = float(row["close"])
         return price if math.isfinite(price) else None

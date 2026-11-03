@@ -246,6 +246,9 @@ class BacktestingBroker(Broker):
     def initialize_market_calendars(self, trading_days_df):
         """Initialize trading calendar and eagerly build caches for backtesting."""
         super().initialize_market_calendars(trading_days_df)
+        # Valuation adapters need the same exchange closures as the broker.
+        # This schedule is calendar metadata, never synthesized executable bars.
+        self.data_source._backtesting_trading_days = trading_days_df
         # Prepare caches when calendar is set
         self._market_open_cache = {}
         self._trading_day_date_set = set()

@@ -111,9 +111,12 @@ including the opening boundary and excluding the closing boundary. A bar startin
 the close belongs to the next session and cannot change the completed candle's prices
 or volume. This applies to both hourly aggregation and the minute fallback.
 
-During known daily maintenance and weekend closures, futures valuation can
-retain the last completed trade close. This fallback cannot bridge a missing
-open-market interval or supply an executable bar.
+During exchange-scheduled closures, including holidays and early closes,
+futures valuation can retain the last completed trade close. The valuation
+adapter reuses the exchange calendar initialized by the backtesting broker.
+Callers without an initialized calendar retain the maintenance/weekend fallback.
+This does not manufacture historical bars, bridge a missing open-market interval,
+or supply an executable bar. At the exact reopening, a current price is required.
 
 Daily Stocks/Indexes: Warmup + Corporate Actions
 ------------------------------------------------

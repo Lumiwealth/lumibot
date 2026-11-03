@@ -515,6 +515,24 @@ A history request for `minute` (or `hour`, `second`) returns intraday bars or no
 
 Tests: `tests/backtest/test_routed_backtesting_ibkr_prefetch.py` (`test_daily_sleeptime_*`) and `tests/test_thetadata_helper.py::test_minute_request_in_day_mode_never_returns_day_bars`.
 
+## Futures marks during scheduled closures
+
+The backtesting broker supplies its already initialized exchange schedule to
+the data source. IBKR direct and routed valuation readers reuse that schedule
+when a completed futures close is followed only by scheduled closed intervals,
+including holidays, early closes and declared intraday breaks. The complete
+gap must be covered by the schedule and contain no open interval. A future
+bar is never used to value an earlier instant. At reopening, absent current
+data remains a required-data failure. Without usable schedule metadata, the
+existing maintenance/weekend fallback remains available.
+
+This is generic backtesting accounting behavior and would be required without
+any particular strategy: every held futures position needs a causal mark during
+an exchange closure. It changes neither provider bars nor order fill validation.
+Native regressions cover real broker entry and subsequent valuation through a
+recent scheduled early close for equity and metals futures, on direct and routed
+IBKR data sources, plus a missing open-session interval as a negative control.
+
 ## ThetaData Coverage Gap: NDX Underlying (CRITICAL)
 
 ThetaData provides **NDX options** history, but does **not** provide the **NDX index underlying** (price/OHLC) history.
@@ -526,6 +544,7 @@ In practice, `v3/index/history/*` requests for `NDX` can return placeholder all-
   - moneyness checks,
   - strike selection heuristics,
   - portfolio valuation / cash settlement.
+
 - When NDX underlying history is empty/placeholder-only, the backtest can repeatedly refetch and never progress.
 
 **Platform fix (ThetaDataBacktesting only):**

@@ -474,6 +474,10 @@ that deadline. A pending acknowledgment does not satisfy it. Avoiding a duplicat
 exit does not mean leaving an unexecutable limit untouched: refresh exact-leg
 prices and manage the existing package with supported modification, or cancel,
 confirm terminal status, reread residual holdings and replace only what remains.
+An order list can show a package and its child legs separately. Match each
+`parent_identifier` and the package's nested leg identifiers before calling an
+order independent or competing. Manage the existing package as a unit; a child
+listed separately is not evidence of another exit.
 Keep the user's price/risk limits and any explicit patient-order policy. Market
 execution requires permission under the active strategy policy. Watch meaningful
 partial/terminal status changes and risk boundaries, rather than the already

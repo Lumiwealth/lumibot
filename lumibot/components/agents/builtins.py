@@ -754,6 +754,7 @@ def _order_to_dict(order: Any, *, include_legs: bool = True) -> dict[str, Any]:
     outcome = _order_submission_outcome(order)
     if outcome is not None:
         payload["submission_outcome"] = _jsonable(outcome)
+    _put_if_present(payload, "parent_identifier", _jsonable(getattr(order, "parent_identifier", None)))
     quote = getattr(order, "quote", None)
     if quote is not None:
         payload["quote"] = _asset_to_dict(quote)

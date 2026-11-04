@@ -487,6 +487,11 @@ belonging to the completed operation. Do this before a new entry reuses the same
 contracts. A zero-quantity residual warning would otherwise flag the intended
 new holding. Give a new operation its own identity and current watches; changing
 the identity does not remove earlier conditions automatically.
+After completing a scheduled setup or management review, also remove its
+consumed one-off time condition, even if the new position remains open. Its
+acknowledged warning stays quiet, but retaining it does not schedule another
+review. Keep current risk conditions and the actual next review; if you updated
+the same watch to a new future time, preserve that replacement.
 
 Use meaningful events and sparse reviews by default. An unchanged pricing-tool
 defect does not become new research merely because another minute passes.

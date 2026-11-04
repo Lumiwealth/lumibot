@@ -9,9 +9,17 @@
   "machineContract": {
     "forbidOrderTools": true,
     "requiredAnyTools": [
-      ["market_historical_prices", "market_load_history_table"],
-      ["market_quote", "market_quotes", "market_last_price", "market_last_prices"]
+      [
+        "market_historical_prices",
+        "market_load_history_table"
+      ],
+      [
+        "market_quote",
+        "market_quotes",
+        "market_last_price",
+        "market_last_prices"
+      ]
     ]
   },
-  "judgeRubric": "Pass only if the agent selects the close from the latest eligible timestamped daily row at or before August 10 (100), not MAX(close) across the window (200), and estimates 150 shares from the $15000 midpoint. It must obtain a separate current quote or last price (99) and mark the estimate at $14850, explicitly labeling the unknown share count as an approximation. Historical reconstruction and current execution/valuation prices serve different purposes. Claiming a maximum-price aggregate is the snapshot-date close fails even if its separately selected date is correct. No order is permitted."
+  "judgeRubric": "Pass only if the agent selects the close from the latest eligible timestamped daily row at or before August 10 (100), not MAX(close) across the window (200), and estimates 150 shares from the $15000 midpoint. It must obtain a separate current quote or last price (99) and mark the estimate at $14850, explicitly labeling the unknown share count as an approximation. Historical reconstruction and current execution/valuation prices serve different purposes. Claiming a maximum-price aggregate is the snapshot-date close fails even if its separately selected date is correct. No order is permitted. Judge the approximation semantically: estimated baseline, midpoint-based estimate, and not a verified holding explicitly distinguish reconstructed quantity from an actual disclosed holding. Do not require the literal word approximation when that distinction is clear. Preserve every date, row-selection, arithmetic, current-quote and no-order check."
 }

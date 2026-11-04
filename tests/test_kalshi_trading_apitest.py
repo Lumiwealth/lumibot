@@ -9,6 +9,7 @@ the initially flat selected market. It makes real demo API writes.
 import json
 import os
 import time
+import uuid
 from decimal import Decimal
 
 import pytest
@@ -16,7 +17,7 @@ import pytest
 from lumibot.brokers import Kalshi
 from lumibot.entities import Asset, Order
 from lumibot.strategies import Strategy
-from lumibot.tools.kalshi_client import KalshiClient
+from lumibot.tools.kalshi_client import KalshiAPIError, KalshiClient
 
 pytestmark = [pytest.mark.apitest, pytest.mark.kalshi]
 
@@ -165,6 +166,76 @@ def test_demo_fresh_strategy_recovers_owned_order_and_delivers_one_fill(native_d
             "cash": restarted.get_cash()}, default=str))
     finally:
         broker.close()
+        client.close()
+
+
+def test_demo_lost_ack_and_cold_retry_keep_one_native_order(native_demo, tmp_path):
+    strategy, broker, ticker, owned = native_demo
+    asset = Asset(ticker, "prediction_contract", outcome="yes")
+    assert strategy.get_quote(asset).ask > .02
+    caller_id = str(uuid.uuid4())
+    order = strategy.create_order(asset, Decimal(".25"), "buy", limit_price=.01,
+                                  custom_params={"client_order_id": caller_id})
+    owned.append(order)
+    actual_request = broker._client.request
+    accepted = {}
+    writes = []
+
+    def lose_first_ack(method, path, **kwargs):
+        response = actual_request(method, path, **kwargs)
+        if method == "POST" and path == "/portfolio/events/orders":
+            writes.append(response["order_id"])
+            accepted.update(response)
+            # The exchange really accepted the order. Only its transport
+            # acknowledgement is lost; no exchange result is fabricated.
+            raise KalshiAPIError("Injected connection loss after the real exchange accepted the order")
+        return response
+
+    broker._client.request = lose_first_ack
+    try:
+        try:
+            strategy.submit_order(order)
+        except KalshiAPIError:
+            pass
+        assert len(writes) == 1
+        identifier = accepted["order_id"]
+        while strategy.get_order(identifier) is None:
+            time.sleep(.5)
+        try:
+            strategy.submit_order(order)
+        except ValueError:
+            pass
+        assert len(writes) == 1, "The same attempted Order must not be posted twice"
+    finally:
+        broker._client.request = actual_request
+
+    client = KalshiClient({"IS_DEMO": True, "BASE_URL": KalshiClient.DEMO_URL,
+                           "API_KEY_ID": os.environ["KALSHI_API_KEY_ID"],
+                           "PRIVATE_KEY_PATH": os.environ["KALSHI_PRIVATE_KEY_PATH"]})
+    fresh = Kalshi(client=client, connect_stream=False)
+    try:
+        restarted = Strategy(broker=fresh, name=strategy.name, analyze_backtest=False,
+                             synchronize_broker_on_start=False)
+        retry = restarted.create_order(asset, Decimal(".25"), "buy", limit_price=.01,
+                                        custom_params={"client_order_id": caller_id})
+        try:
+            restarted.submit_order(retry)
+        except KalshiAPIError as error:
+            assert error.status_code == 409
+        while restarted.get_order(identifier) is None:
+            time.sleep(.5)
+        wire = broker._state(order)["client_order_id"]
+        matches = [row for row in restarted.get_orders()
+                   if getattr(row, "_raw", {}).get("client_order_id") == wire]
+        assert len(matches) == 1 and matches[0].identifier == identifier
+        restarted.cancel_order(matches[0])
+        while restarted.get_order(identifier).is_active():
+            time.sleep(.5)
+        (tmp_path / "native-lost-ack-retry.json").write_text(json.dumps({
+            "orderId": identifier, "sameInstanceCreateCount": len(writes),
+            "coldRetryOrderCount": len(matches), "finalOrder": restarted.get_order(identifier).to_dict()}, default=str))
+    finally:
+        fresh.close()
         client.close()
 
 

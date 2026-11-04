@@ -11,6 +11,88 @@ from scripts import qualify_agent_evals as qualification
 from scripts import run_agent_evals as evals
 
 
+def test_only_expanding_tool_routes_preserves_old_stricter_establishment():
+    before = {"id": "neutral", "taskPrompt": "Inspect and act.", "judgeRubric": "Require exact observed effects.",
+              "machineContract": {"requiredBeforeOrder": ["quotes_one", "positions"],
+                                  "exactOrderCount": 1, "positionsMustEndFlat": True}}
+    after = deepcopy(before)
+    after["machineContract"]["requiredBeforeOrder"].remove("quotes_one")
+    after["machineContract"]["requiredBeforeOrderAny"] = [["quotes_one", "quotes_batch"]]
+    assert qualification._establishment_case_compatible(before, after)
+    assert before["machineContract"]["requiredBeforeOrder"] == ["quotes_one", "positions"]
+    for field, value in [("taskPrompt", "Different mandate"), ("judgeRubric", "Different semantics")]:
+        changed = deepcopy(after)
+        changed[field] = value
+        assert not qualification._establishment_case_compatible(before, changed)
+    for field, value in [("exactOrderCount", 2), ("positionsMustEndFlat", False)]:
+        changed = deepcopy(after)
+        changed["machineContract"][field] = value
+        assert not qualification._establishment_case_compatible(before, changed)
+    changed = deepcopy(after)
+    changed["machineContract"]["requiredBeforeOrderAny"] = [["quotes_batch", "last_price"]]
+    assert not qualification._establishment_case_compatible(before, changed)
+
+
+def test_a_new_judging_profile_retains_native_calls_across_acting_only_changes(native_metadata):
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    controls, judge_calls, summary = calibration_metadata(cases, now, runtime_hash="source")
+    for row in controls:
+        row["runtime_fingerprint"] = "original-acting-sdk"
+        row["judge_runtime_fingerprint"] = qualification.calibration.judge_runtime_fingerprint()
+    original = deepcopy(controls)
+    receipt = qualification.build_receipt(rows, [*calls, *judge_calls], cases, runtime_hash="source",
+        versions=versions, now=now, calibration_rows=controls, calibration_summary=summary)
+    qualification.verify_receipt(receipt, cases, runtime_hash="source", versions=versions, now=now)
+    assert controls == original
+    exported = receipt["calibration"]["controls"]["accept-control"]["repetitions"][0]
+    assert exported["fingerprint"] == original[0]["fingerprint"]
+    assert exported["timestamp"] == original[0]["timestamp"]
+    assert exported["native_evidence_digest"] == qualification.digest(original[0])
+
+
+@pytest.mark.parametrize("tamper", [None, "actor_scope", "missing_origin", "source", "early_judge", "missing_actor"])
+def test_regraded_actor_binds_original_calls_and_new_judges(native_metadata, monkeypatch, tamper):
+    # Normal receipt contracts only. Immutable-source comparisons are exercised
+    # independently by the real-Git recovery tests, never fabricated as evals.
+    receipt = make_receipt(native_metadata)
+    case = native_metadata[2][0]
+    source_commit = "a" * 40
+    old_fp = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash="old-runtime")
+    def verified_origin(commit, case, completed_at, *, runtime_hash):
+        return {"source_commit": source_commit, "runtime_fingerprint": "old-runtime",
+                "fingerprint": old_fp, "case_digest": "original-case", "completed_at": completed_at,
+                "compatibility_digest": "verified-native-comparison"}
+    monkeypatch.setattr(qualification, "actor_origin", verified_origin)
+    for row in receipt["cases"][case["id"]]["repetitions"]:
+        started = datetime.fromisoformat(row["started_at"])
+        completed_at = (started + timedelta(seconds=10)).isoformat()
+        row["actor_origin"] = verified_origin(source_commit, case, completed_at, runtime_hash="source")
+        for call in row["calls"]:
+            if call["scope"]["role"] == "acting":
+                call["scope"]["fingerprint"] = old_fp
+            else:
+                call["timestamp"] = (started + timedelta(seconds=11)).isoformat()
+                call["settled_at"] = (started + timedelta(seconds=15)).isoformat()
+    row = receipt["cases"][case["id"]]["repetitions"][0]
+    if tamper == "actor_scope":
+        next(c for c in row["calls"] if c["scope"]["role"] == "acting")["scope"]["fingerprint"] = row["fingerprint"]
+    elif tamper == "missing_origin":
+        del row["actor_origin"]
+    elif tamper == "source":
+        row["actor_origin"]["source_commit"] = "b" * 40
+    elif tamper == "early_judge":
+        next(c for c in row["calls"] if c["scope"]["role"] == "judge")["timestamp"] = row["started_at"]
+    elif tamper == "missing_actor":
+        row["calls"] = [c for c in row["calls"] if c["scope"]["role"] != "acting"]
+    if tamper:
+        with pytest.raises(ValueError):
+            qualification.verify_receipt(receipt, native_metadata[2], runtime_hash="source",
+                                         versions=native_metadata[3], now=native_metadata[4])
+    else:
+        qualification.verify_receipt(receipt, native_metadata[2], runtime_hash="source",
+                                     versions=native_metadata[3], now=native_metadata[4])
+
+
 @pytest.fixture(autouse=True)
 def maintained_contract_controls(monkeypatch, tmp_path):
     # Tiny labeled metadata stays in ordinary contracts, never the real eval catalog.
@@ -634,7 +716,8 @@ def test_unknown_judge_exception_never_hides_foreign_scope_or_model(native_metad
         build_with_calibration(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
 
 
-def test_mixed_catalog_preserves_only_unchanged_original_establishment(native_metadata, monkeypatch, tmp_path):
+@pytest.mark.parametrize("receipt_version", [2, qualification.VERSION])
+def test_mixed_catalog_preserves_only_unchanged_original_establishment(native_metadata, monkeypatch, tmp_path, receipt_version):
     import json, subprocess
     from copy import deepcopy
     from scripts import agent_eval_source_compatibility as source
@@ -642,7 +725,8 @@ def test_mixed_catalog_preserves_only_unchanged_original_establishment(native_me
     root = tmp_path / "source"
     (root / "agent_eval_cases").mkdir(parents=True)
     (root / "runtime.py").write_text("VALUE = 1\n")
-    contract = dict(original_cases[0], _path=root / "agent_eval_cases/contract.json")
+    contract = dict(original_cases[0], _path=root / "agent_eval_cases/contract.json",
+                    machineContract={"requiredBeforeOrder": ["quotes_one"], "exactOrderCount": 1})
     changed = dict(contract, id="changed", judgeRubric="Original policy",
                    _path=root / "agent_eval_cases/changed.json")
     for case in [contract, changed]:
@@ -662,12 +746,16 @@ def test_mixed_catalog_preserves_only_unchanged_original_establishment(native_me
     for row in rows: row["fingerprint"] = fp
     for call in calls:
         if call.get("scope"): call["scope"]["fingerprint"] = fp
+    contract["machineContract"] = {"requiredBeforeOrder": [], "exactOrderCount": 1,
+                                   "requiredBeforeOrderAny": [["quotes_one", "quotes_batch"]]}
+    contract["_path"].write_text(json.dumps({k:v for k,v in contract.items() if not k.startswith("_")}))
     changed["judgeRubric"] = "Materially changed policy"
     new = dict(contract, id="new", _path=root / "agent_eval_cases/new.json")
     catalog = [contract, changed, new]
     proof = qualification.build_establishment(rows, calls, catalog,
         source_ref=ref, versions=versions, now=now)
     assert set(proof["cases"]) == {"contract"}
+    assert proof["cases"]["contract"]["fingerprint"] == fp
     qualification.validate_establishment(proof, catalog, versions=versions, now=now)
     assert qualification.regression_required(contract, proof, [], "current-source") == 1
     assert qualification.regression_required(changed, proof, [], "current-source") == 3
@@ -683,7 +771,7 @@ def test_mixed_catalog_preserves_only_unchanged_original_establishment(native_me
     receipt_path = root / "ci/agent-evals/qualification.json"
     receipt_path.parent.mkdir(parents=True)
     receipt_path.write_text(json.dumps({
-        "kind": qualification.KIND, "version": qualification.VERSION,
+        "kind": qualification.KIND, "version": receipt_version,
         "funding": "chatgpt-plan", "api_spend_usd": 0,
         "sdk_versions": versions, "establishment": proof,
     }))

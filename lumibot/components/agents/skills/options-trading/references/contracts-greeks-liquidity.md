@@ -24,7 +24,10 @@ turning the final answer into a list of every returned field.
 
 ## Quote quality
 
-Call `options_evaluate_market` for every intended leg. Treat unavailable,
+Inspect current exact-leg bid/ask evidence, using `market_quotes` for a group
+of contracts or `options_evaluate_market` for individual quality analysis.
+Assess every selected leg; a complete usable batch need not be fetched again
+one contract at a time. Treat unavailable,
 non-finite, crossed, or excessively wide quotes as insufficient evidence.
 Pass `max_spread_pct` only when the user or active rules set a spread limit;
 otherwise use the tool's own `usable_for_limit_pricing` verdict. A cheap

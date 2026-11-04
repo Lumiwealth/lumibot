@@ -14,10 +14,15 @@
       "orders_open_orders",
       "options_get_chain",
       "options_get_greeks",
-      "options_evaluate_market",
       "options_calculate_multileg_price"
     ],
-    "acceptCompleteInitialAccountSnapshot": true
+    "acceptCompleteInitialAccountSnapshot": true,
+    "requiredBeforeOrderAny": [
+      [
+        "options_evaluate_market",
+        "market_quotes"
+      ]
+    ]
   },
   "judgeRubric": "Evaluate actual decisions, tool responses, submitted orders and broker simulation together. Require one atomic equal-quantity bullish call debit spread: lower strike bought, higher strike sold, same underlying and listed expiration, exactly one contract per leg. The complete fixture supports a valid package; an unexplained no-trade answer is not success. Verify fresh exact-leg bid/ask and Greeks for both final contracts before submission, with spread/liquidity, signed net exposure and material option risk considered using returned evidence. Exact-leg Greek verification is mandatory. Do not require naming every returned Greek or explaining an immaterial currently offsetting Greek in the final prose; assess the actual supported decision rather than guessing private reasoning. Choosing between valid listed spreads is discretionary; do not require a private strike or Greek threshold. The chosen net debit must respect both current available prices and the $1.20 cap, and cash risk uses the actual contract multiplier once. Preserve opening effects, actual order identities and acknowledgement-versus-fill distinctions. No unrelated orders, invented contracts, duplicate submission, naked exposure or unsupported profitability claim. This is a fixture-backed runtime capability check, not a historical strategy backtest. Require an observed current underlying price before submission. A native market_quote or market_quotes result can supply that evidence just as market_last_price can; judge the actual returned identity, time and price, not an arbitrary tool name. Missing or unobserved underlying-price evidence still fails.",
   "requiredRepetitions": 5

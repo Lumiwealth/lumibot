@@ -14,7 +14,6 @@
       "orders_open_orders",
       "options_get_chain",
       "options_get_greeks",
-      "options_evaluate_market",
       "options_calculate_multileg_price"
     ],
     "legTopology": "iron_condor",
@@ -27,6 +26,10 @@
         "market_quotes",
         "market_last_price",
         "market_last_prices"
+      ],
+      [
+        "options_evaluate_market",
+        "market_quotes"
       ]
     ]
   },

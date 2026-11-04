@@ -32,6 +32,22 @@ fingerprints. Release CI verifies complete source-bound actor/judge qualificatio
 and separately required positive/negative judge calibration. It does not copy a
 developer's rotating login or fall back to API billing.
 
+Actor and judging evidence have different compatibility boundaries. Actor proof
+binds the complete acting runtime, tools, skills and case. Judge calibration binds
+the actual tool-free judging request, rubric, labeled control, model profile and
+judging protocol/dependencies. Unrelated acting changes do not require buying the
+same unchanged judge decisions again. The maintained calibration runner accepts
+`--reuse-source <full-commit>` only after verifying the immutable original source,
+native call identity and exact judging input. Original verdicts, times and logical
+repetition slots remain unchanged. The legacy adapter applies only to still-fresh
+records from the previous fingerprint algorithm and can retire with those records.
+
+Use the maintained rejudge command for grading-only repairs. It verifies unchanged
+actor inputs and records the actor's original source separately from the new judge.
+Equivalent exact-contract quote tools may satisfy the existing alternative-tool
+contract; order counts, quantities, identities and semantic quote quality remain
+required. A changed actor prompt, skill or runtime requires fresh actor evidence.
+
 The existing release workflow also supports manual candidate validation with
 `gh workflow run release.yml --ref version/4.6.19`. It runs the same package
 build/install, unit, backtest and native qualification gates without publishing.

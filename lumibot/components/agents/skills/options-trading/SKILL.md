@@ -17,6 +17,11 @@ For a short leg, state the actual deliverable quantity and the underlying
 position or cash obligation assignment could create before a long is exercised,
 plus any temporary funding/capacity requirement or unverified capacity. A generic
 "assignment risk" label does not describe those concrete consequences.
+Keep returned exercise style, settlement and deliverable terms distinct from
+assumptions about standard contracts. If those terms were not supplied, disclose
+that limitation and label any standard-contract assumption used in the obligation
+assessment. Missing optional terms do not automatically veto a permitted trade;
+apply the mandate and retain a management plan for the actual uncertainty.
 Reading raw Greeks without assessing their signed, quantity-weighted result is
 not this decision. Calculate a net value before reporting it, include its units,
 and distinguish an offset in the present snapshot from risks that can change
@@ -54,6 +59,11 @@ For prices, use the same pricing style and units and prefer returned package
 totals. For distance, compare each actual strike or package center with the
 same observed underlying price. If the comparison does not drive the decision,
 omit it instead of adding an unchecked advantage to the rationale.
+Use the verified signed package total when explaining an order. If expanding
+the leg arithmetic, reconcile every sign with the action: buying to close pays
+cash and selling to close receives cash. Check the expansion against the returned
+total before reporting it; omit an unnecessary expansion rather than publishing
+an unchecked formula beside a correct tool result.
 
 Keep expiration payoff separate from profit. Gross expiration payoff is the
 signed sum of the legs' intrinsic values, with their quantities and multipliers.

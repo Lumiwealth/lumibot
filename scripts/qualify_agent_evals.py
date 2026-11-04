@@ -24,7 +24,7 @@ from scripts.agent_eval_call_budget import EvalCallBudget as EvalCallBudget
 from scripts.agent_eval_subscription_budget import subscription_call_state
 
 KIND = "lumibot-real-model-qualification"
-VERSION = 2
+VERSION = 3
 DEFAULT_PATH = evals.REPO_ROOT / "ci/agent-evals/qualification.json"
 CALIBRATION_CATALOG_PATH = evals.REPO_ROOT / "tests/fixtures/agent_judge_calibration.json"
 
@@ -74,6 +74,25 @@ def validate_call(call, *, row, role, model, now):
         raise ValueError("Native model usage falls outside its attempt")
 
 
+def actor_origin(source_commit, case, completed_at, *, runtime_hash):
+    """Verify a grading-only recovery against immutable original actor inputs."""
+    from scripts import rejudge_agent_eval as recovery
+
+    if (not isinstance(source_commit, str) or len(source_commit) != 40
+            or any(value not in "0123456789abcdef" for value in source_commit)):
+        raise ValueError("Recovered actor needs an immutable full source commit")
+    proof = recovery.source_compatibility(source_commit)
+    original_case, case_proof = recovery.compare_case(evals.REPO_ROOT, source_commit, case)
+    if proof["currentRuntimeFingerprint"] != runtime_hash:
+        raise ValueError("Recovered actor comparison does not match the qualified source")
+    return {"source_commit": source_commit, "runtime_fingerprint": proof["originalRuntimeFingerprint"],
+            "fingerprint": evals.case_fingerprint(original_case, judge_model=evals.DEFAULT_JUDGE_MODEL,
+                                                   runtime_hash=proof["originalRuntimeFingerprint"]),
+            "case_digest": evals.actor_case_digest(original_case), "completed_at": completed_at,
+            "compatibility_digest": digest({"source": proof, "case": case_proof,
+                "recovery_tool_sha256": hashlib.sha256(Path(recovery.__file__).read_bytes()).hexdigest()})}
+
+
 def validate_record(record, case, *, runtime_hash, now, required=None):
     acting_model = str(case.get("model") or evals.DEFAULT_ACTING_MODEL)
     judge_model = evals.DEFAULT_JUDGE_MODEL
@@ -87,7 +106,7 @@ def validate_record(record, case, *, runtime_hash, now, required=None):
     for row in rows:
         required_keys = {"case_id", "repetition", "run_id", "fingerprint", "started_at", "timestamp", "status",
                          "acting_model", "judge_model", "machine_pass", "judge_pass", "native_evidence_digest", "calls"}
-        if not isinstance(row, dict) or set(row) != required_keys:
+        if not isinstance(row, dict) or set(row) not in (required_keys, required_keys | {"actor_origin"}):
             raise ValueError("Unexpected qualification fields; native transcripts must stay private")
         rep = row["repetition"]
         identity(row["run_id"])
@@ -103,6 +122,14 @@ def validate_record(record, case, *, runtime_hash, now, required=None):
         if not isinstance(source_digest, str) or len(source_digest) != 64 or any(c not in "0123456789abcdef" for c in source_digest):
             raise ValueError("Invalid native evidence digest")
         timestamp(row["timestamp"], now=now)
+        origin = row.get("actor_origin")
+        if origin is not None:
+            if (not isinstance(origin, dict) or actor_origin(origin.get("source_commit"), case,
+                    origin.get("completed_at"), runtime_hash=runtime_hash) != origin):
+                raise ValueError("Recovered actor source/mandate compatibility is unproved")
+            completed = timestamp(origin["completed_at"], now=now)
+            if not timestamp(row["started_at"], now=now) <= completed <= timestamp(row["timestamp"], now=now):
+                raise ValueError("Recovered actor chronology is invalid")
         calls = row["calls"]
         if not isinstance(calls, list) or not calls:
             raise ValueError("Qualification is missing native model calls")
@@ -114,7 +141,11 @@ def validate_record(record, case, *, runtime_hash, now, required=None):
             role = call["scope"].get("role")
             if role not in {"acting", "judge"} or call["id"] in call_ids:
                 raise ValueError("Duplicated or unsupported model call")
-            validate_call(call, row=row, role=role, model=acting_model if role == "acting" else judge_model, now=now)
+            call_row = row
+            if origin:
+                call_row = ({**row, "fingerprint": origin["fingerprint"], "timestamp": origin["completed_at"]}
+                            if role == "acting" else {**row, "started_at": origin["completed_at"]})
+            validate_call(call, row=call_row, role=role, model=acting_model if role == "acting" else judge_model, now=now)
             roles.add(role)
             call_ids.add(call["id"])
         if roles != {"acting", "judge"}:
@@ -146,8 +177,18 @@ def load_calibration_catalog(cases):
 
 def validate_calibration_record(record, control, case, *, runtime_hash, now):
     fingerprint = calibration.control_fingerprint(control, case, runtime_hash)
-    if not isinstance(record, dict) or set(record) != {"fingerprint", "repetitions"} or record["fingerprint"] != fingerprint:
+    required = {"fingerprint", "repetitions"}
+    if (not isinstance(record, dict) or set(record) not in (required, required | {"compatible_sources"})
+            or record["fingerprint"] != fingerprint):
         raise ValueError("Calibration control/source fingerprint mismatch")
+    origins = record.get("compatible_sources", [])
+    if not isinstance(origins, list):
+        raise ValueError("Invalid original calibration sources")
+    for origin in origins:
+        if (not isinstance(origin, dict) or not isinstance(origin.get("source_commit"), str)
+                or calibration.compatible_control_source(control, case, origin["source_commit"]) != origin):
+            raise ValueError("Unproved original judge input or runtime compatibility")
+    allowed = {fingerprint, *(origin["fingerprint"] for origin in origins)}
     rows = record["repetitions"]
     if not isinstance(rows, list) or len(rows) != control["required_repetitions"]:
         raise ValueError("Missing required calibration repetitions")
@@ -164,7 +205,7 @@ def validate_calibration_record(record, control, case, *, runtime_hash, now):
             raise ValueError("Duplicate or invalid calibration repetition")
         repetitions.add(rep)
         attempts.add(row["run_id"])
-        if (row["id"] != control["id"] or row["case_id"] != case["id"] or row["fingerprint"] != fingerprint
+        if (row["id"] != control["id"] or row["case_id"] != case["id"] or row["fingerprint"] not in allowed
                 or row["expected"] is not control["expected"] or row["passed"] is not True
                 or row["judge_pass"] is not control["expected"] or row["status"] != "pass"
                 or row["judge_model"] != evals.DEFAULT_JUDGE_MODEL):
@@ -197,29 +238,44 @@ def build_calibration(rows, summary, calls, cases, *, runtime_hash, now):
             or summary.get("creates_case_freshness") is not False):
         raise ValueError("Complete judge-only calibration with no external writes is required")
     by_case = {case["id"]: case for case in cases}
+    source_refs = summary.get("compatible_source_commits", [])
+    if (not isinstance(source_refs, list) or any(not isinstance(ref, str) for ref in source_refs)
+            or len(source_refs) != len(set(source_refs))):
+        raise ValueError("Invalid calibration source selection")
+    origins = calibration.control_sources(controls, by_case, source_refs)
+    judge_protocol = calibration.judge_runtime_fingerprint()
     records = {}
     for control in controls:
         fingerprint = calibration.control_fingerprint(control, by_case[control["case_id"]], runtime_hash)
-        latest = evals.latest_repetition_rows(
-            [{**row, "case_id": row.get("id"), "_native": row} for row in rows], control["id"], fingerprint
-        )
+        latest = {rep: row for (identity, rep), row in calibration.latest_control_rows(
+            rows, {control["id"]: fingerprint}, {control["id"]: control["required_repetitions"]},
+            origins).items() if identity == control["id"]}
         if set(latest) != set(range(1, control["required_repetitions"] + 1)) or any(
             row.get("status") != "pass" or row.get("passed") is not True for row in latest.values()
         ):
             raise ValueError("Calibration is missing, failed, or superseded by an incomplete attempt")
         projected = []
-        for rep, normalized in sorted(latest.items()):
+        used_origins = []
+        for rep, row in sorted(latest.items()):
             # The calibration runner's native case_id links the control to its
             # actor case; its model-call scope instead identifies the control.
-            row = normalized["_native"]
-            if (row.get("case_id") != control["case_id"] or row.get("runtime_fingerprint") != runtime_hash
+            original = next((proof for proof in origins[control["id"]]
+                             if row.get("fingerprint") == proof["fingerprint"]
+                             and row.get("runtime_fingerprint") == proof["runtime_fingerprint"]), None)
+            if original and original not in used_origins:
+                used_origins.append(original)
+            if (row.get("case_id") != control["case_id"]
+                    or (row.get("runtime_fingerprint") != runtime_hash and not original and not (
+                        row.get("fingerprint") == fingerprint and
+                        row.get("judge_runtime_fingerprint") == judge_protocol))
                     or row.get("actor_runs", 0) != 0 or row.get("external_writes", 0) != 0):
                 raise ValueError("Calibration native case/runtime link or write boundary mismatch")
             started = timestamp(row.get("started_at"), now=now)
             for call in calls.values():
                 scope = call.get("scope") or {}
                 if (scope.get("case_id") == control["id"] and scope.get("repetition") == rep
-                        and scope.get("fingerprint") == fingerprint and scope.get("run_id") != row.get("run_id")
+                        and scope.get("fingerprint") in {fingerprint, row["fingerprint"]}
+                        and scope.get("run_id") != row.get("run_id")
                         and timestamp(call.get("timestamp"), now=now, require_fresh=False) >= started):
                     raise ValueError("A newer incomplete calibration attempt supersedes the prior pass")
                 if scope.get("run_id") == row.get("run_id") and scope.get("role") != "judge_calibration":
@@ -234,8 +290,51 @@ def build_calibration(rows, summary, calls, cases, *, runtime_hash, now):
                                 "reserved_nano_usd", "usage", "timestamp", "settled_at")} for call in bound])
             projected.append(value)
         records[control["id"]] = {"fingerprint": fingerprint, "repetitions": projected}
+        if used_origins:
+            records[control["id"]]["compatible_sources"] = used_origins
     return {"catalog_digest": digest(controls), "actor_runs": 0, "external_writes": 0,
             "creates_case_freshness": False, "controls": records}
+
+
+def _establishment_case_compatible(before, after):
+    """Retain stricter old tool-call proof when only equivalent routes expand.
+
+    Actor requests, semantics, quantities, order counts and every other check
+    remain identical. An old mandatory call logically satisfies an added
+    alternative group containing that call. New paths still need a current
+    real actor/judge regression; old verdicts are never relabeled.
+    """
+    before = {key: value for key, value in before.items() if not key.startswith("_")}
+    after = {key: value for key, value in after.items() if not key.startswith("_")}
+    if before == after:
+        return True
+    left, right = dict(before), dict(after)
+    prior_contract, current_contract = left.pop("machineContract", {}), right.pop("machineContract", {})
+    if not isinstance(prior_contract, dict) or not isinstance(current_contract, dict):
+        return False
+    old, new = dict(prior_contract), dict(current_contract)
+    if left != right:
+        return False
+    removed = set()
+    for key in ("requiredTools", "requiredBeforeOrder"):
+        prior, current = old.pop(key, []), new.pop(key, [])
+        if (not isinstance(prior, list) or not isinstance(current, list)
+                or any(not isinstance(x, str) or not x for x in [*prior, *current])
+                or any(x not in prior for x in current)):
+            return False
+        removed.update(set(prior) - set(current))
+    prior, current = old.pop("requiredBeforeOrderAny", []), new.pop("requiredBeforeOrderAny", [])
+    if (not isinstance(prior, list) or not isinstance(current, list)
+            or any(not isinstance(group, list) or not group or
+                   any(not isinstance(name, str) or not name for name in group) for group in [*prior, *current])):
+        return False
+    if old != new or any(group not in current for group in prior):
+        return False
+    additions = [group for group in current if group not in prior]
+    if not removed or any(not isinstance(group, list) or len(group) < 2
+                          or len(set(group) & removed) != 1 for group in additions):
+        return False
+    return removed == {name for group in additions for name in group if name in removed}
 
 
 def establishment_runtime(source_ref, cases, versions):
@@ -248,8 +347,8 @@ def establishment_runtime(source_ref, cases, versions):
     original = source._blobs(source_ref, source.runtime_paths(root=evals.REPO_ROOT, source_ref=source_ref), root=evals.REPO_ROOT)
     for case in cases:
         path = Path(case["_path"]).relative_to(evals.REPO_ROOT).as_posix()
-        before = json.loads(source._git("show", f"{source_ref}:{path}", root=evals.REPO_ROOT))
-        if before != {key: value for key, value in case.items() if not key.startswith("_")}:
+        before = json.loads(calibration.original_case_bytes(evals.REPO_ROOT.resolve(), source_ref, path))
+        if not _establishment_case_compatible(before, case):
             raise ValueError("A new or changed case requires its complete targeted repetitions")
     return source._fingerprint(original, versions)
 
@@ -258,16 +357,15 @@ def _unchanged_establishment_cases(source_ref, cases):
     """New or edited cases retain full trial counts instead of blocking peers."""
     from scripts import agent_eval_source_compatibility as source
 
-    paths = set(source._git("ls-tree", "-r", "--name-only", source_ref,
-                            "--", "agent_eval_cases", root=evals.REPO_ROOT).decode().splitlines())
+    paths = calibration.original_case_paths(evals.REPO_ROOT.resolve(), source_ref)
     unchanged = []
     for case in cases:
         path = Path(case["_path"]).relative_to(evals.REPO_ROOT).as_posix()
         if path not in paths:
             continue
-        before = json.loads(source._git("show", f"{source_ref}:{path}", root=evals.REPO_ROOT))
-        if before == {key: value for key, value in case.items() if not key.startswith("_")}:
-            unchanged.append(case)
+        before = json.loads(calibration.original_case_bytes(evals.REPO_ROOT.resolve(), source_ref, path))
+        if _establishment_case_compatible(before, case):
+            unchanged.append({**before, "_path": case["_path"]})
     return unchanged
 
 
@@ -279,17 +377,17 @@ def _committed_establishment(source_ref, cases, *, versions, now):
     if not source._git("ls-tree", "HEAD", "--", path, root=evals.REPO_ROOT).strip():
         return {}
     receipt = json.loads(source._git("show", f"HEAD:{path}", root=evals.REPO_ROOT))
-    if (receipt.get("kind") != KIND or receipt.get("version") != VERSION
+    if (receipt.get("kind") != KIND or receipt.get("version") not in {2, VERSION}
             or receipt.get("funding") != "chatgpt-plan" or receipt.get("api_spend_usd") != 0
             or receipt.get("sdk_versions") != versions):
         return {}
     proof = receipt.get("establishment")
     if not isinstance(proof, dict) or proof.get("source_commit") != source_ref:
         return {}
-    eligible = {case["id"] for case in cases}
+    by_id = {case["id"]: case for case in _unchanged_establishment_cases(source_ref, cases)}
+    eligible = set(by_id)
     proof = {**proof, "cases": {identity: record for identity, record in proof["cases"].items()
                                 if identity in eligible}}
-    by_id = {case["id"]: case for case in cases}
     fresh = {}
     for identity, record in proof["cases"].items():
         try:
@@ -346,13 +444,15 @@ def validate_establishment(proof, cases, *, versions, now):
     if set(proof["cases"]) - set(by_id):
         raise ValueError("Unknown established case")
     recorded_cases = [by_id[identity] for identity in proof["cases"]]
-    if len(_unchanged_establishment_cases(proof["source_commit"], recorded_cases)) != len(recorded_cases):
+    originals = _unchanged_establishment_cases(proof["source_commit"], recorded_cases)
+    if len(originals) != len(recorded_cases):
         raise ValueError("Original establishment includes a new or changed case")
     runtime_hash = establishment_runtime(proof["source_commit"], recorded_cases, versions)
     if proof["runtime_fingerprint"] != runtime_hash:
         raise ValueError("Original establishment source/SDK fingerprint mismatch")
+    original_cases = {case["id"]: case for case in originals}
     for case_id, record in proof["cases"].items():
-        validate_record(record, by_id[case_id], runtime_hash=runtime_hash, now=now)
+        validate_record(record, original_cases[case_id], runtime_hash=runtime_hash, now=now)
 
 
 def regression_required(case, establishment, rows, runtime_hash):
@@ -384,6 +484,23 @@ def project_case_records(rows, calls, cases, *, runtime_hash, now, required_coun
                         and timestamp(call.get("timestamp"), now=now, require_fresh=False) >= started):
                     raise ValueError("A newer incomplete native attempt supersedes the prior pass")
             bound_calls = [call for call in calls.values() if (call.get("scope") or {}).get("run_id") == attempt]
+            origin = None
+            if row.get("actor_reused"):
+                from scripts import rejudge_agent_eval as recovery
+                source_commit = (row.get("source_compatibility") or {}).get("originalSourceCommit")
+                origin = actor_origin(source_commit, case, row.get("actor_original_completed_at"),
+                                      runtime_hash=runtime_hash)
+                original_case, _ = recovery.compare_case(evals.REPO_ROOT, source_commit, case)
+                if (row.get("actor_original_fingerprint") != origin["fingerprint"]
+                        or row.get("actor_original_case_digest") != origin["case_digest"]
+                        or row.get("actor_case_digest") != evals.actor_case_digest(case)
+                        or row.get("machine") != evals.score_machine_contract(case, row.get("transcript") or {})
+                        or row.get("actor_original_machine") != evals.score_machine_contract(
+                            original_case, row.get("transcript") or {})):
+                    raise ValueError("Recovered actor native evidence does not match its declared source")
+                bound_calls = [call for call in bound_calls if
+                    (call.get("scope") or {}).get("fingerprint") == (
+                        origin["fingerprint"] if (call.get("scope") or {}).get("role") == "acting" else fingerprint)]
             # A transport-failed judge may have unknown usage. Retain its native
             # reservation in the full cumulative journal, while qualifying only
             # a later completed judge over this same completed actor attempt.
@@ -402,6 +519,8 @@ def project_case_records(rows, calls, cases, *, runtime_hash, now, required_coun
                                                        "timestamp", "status", "acting_model", "judge_model")}
             projected.update(machine_pass=(row.get("machine") or {}).get("pass"),
                              judge_pass=(row.get("judge") or {}).get("pass"), native_evidence_digest=digest(row))
+            if origin:
+                projected["actor_origin"] = origin
             projected["calls"] = [{key: call.get(key) for key in (
                 "id", "kind", "scope", "model", "nano_usd", "reserved_nano_usd", "usage", "timestamp", "settled_at"
             )} for call in bound_calls]

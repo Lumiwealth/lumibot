@@ -1318,10 +1318,10 @@ def builtin_tool_contracts(bound_tools: list[Any]) -> list[dict[str, Any]]:
     return contracts
 
 
-def run_judge(
+def build_judge_request(
     case: dict[str, Any], transcript: dict[str, Any], judge_model: str, budget: Any
-) -> tuple[dict[str, Any], Any, float]:
-    from lumibot.components.agents.runtime import GoogleADKRuntime, RuntimeRequest
+) -> Any:
+    from lumibot.components.agents.runtime import RuntimeRequest
     import inspect
 
     declared = {key: case[key] for key in ("systemPrompt", "researcherSystemPrompt", "taskPrompt", "continuationTurns")
@@ -1504,6 +1504,26 @@ def run_judge(
         model_call_budget=budget,
         reasoning_effort=JUDGE_REASONING_EFFORT,
     )
+    modes = {run.get("runtime_context", {}).get("mode")
+             for run in (transcript.get("agent_runs") or [])
+             if isinstance(run.get("runtime_context"), dict)}
+    if modes == {"live"}:
+        request.system_prompt += (
+            " This recorded workflow is explicitly live. A strategy clock by itself does not "
+            "impose a historical availability ceiling on authorized live research. Assess the "
+            "actual requested date bounds and the response's effective asOf; an accurately "
+            "disclosed capture date and unqualified stale evidence do not claim original-version "
+            "availability. Preserve any historical cutoff the actual user requested, even in "
+            "live mode. A false freshness, retrieval-bound or historical-availability claim still fails.")
+    return request
+
+
+def run_judge(
+    case: dict[str, Any], transcript: dict[str, Any], judge_model: str, budget: Any
+) -> tuple[dict[str, Any], Any, float]:
+    from lumibot.components.agents.runtime import GoogleADKRuntime
+
+    request = build_judge_request(case, transcript, judge_model, budget)
     started = time.perf_counter()
     result = GoogleADKRuntime().run(request)
     elapsed = time.perf_counter() - started

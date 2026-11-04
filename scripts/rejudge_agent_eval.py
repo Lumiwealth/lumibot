@@ -1,7 +1,8 @@
 """Recover judging with original actors after a proved judge-only source repair.
 
 Uses the canonical runner, ledger, model profile and freshness owner. It never
-executes an actor or changes a case's user request, policies or machine contract.
+executes an actor or changes its user request or policies. Corrected equivalent
+tool routes rescore the original evidence before any new judge is called.
 """
 from __future__ import annotations
 
@@ -23,6 +24,8 @@ from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
 
 RUNNER = "scripts/run_agent_evals.py"
 JUDGE_CONTROLS = "tests/fixtures/agent_judge_calibration.json"
+GRADING_ONLY_PATHS = {JUDGE_CONTROLS, "scripts/check_agent_judge_calibration.py",
+                      "scripts/qualify_agent_evals.py"}
 
 
 def _git(root: Path, *arguments: str) -> bytes:
@@ -53,11 +56,12 @@ def compare_source(root: Path, commit: str, paths: list[Path]) -> tuple[dict[str
             def acting_ast(content):
                 module = ast.parse(content)
                 module.body = [node for node in module.body if not (
-                    isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "run_judge")]
+                    isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and node.name in {"run_judge", "build_judge_request"})]
                 return ast.dump(module, include_attributes=False)
             if acting_ast(prior) != acting_ast(current):
                 raise ValueError("Acting runner or profile changed outside run_judge")
-        elif name != JUDGE_CONTROLS:
+        elif name not in GRADING_ONLY_PATHS:
             raise ValueError(f"Acting input changed: {name}")
     proof = {"kind": "judge-only-source-compatibility", "originalSourceCommit": commit,
              "changedPaths": changed, "fileHashes": hashes}
@@ -66,7 +70,7 @@ def compare_source(root: Path, commit: str, paths: list[Path]) -> tuple[dict[str
 
 
 def compare_case(root: Path, commit: str, case: dict) -> tuple[dict, dict]:
-    """Permit a rubric correction only; preserve the exact original actor mandate."""
+    """Permit a grading correction; preserve the exact original actor mandate."""
     if re.fullmatch(r"[0-9a-f]{40}", commit) is None:
         raise ValueError("Original source must be an immutable full Git commit")
     root = root.resolve()
@@ -81,8 +85,15 @@ def compare_case(root: Path, commit: str, case: dict) -> tuple[dict, dict]:
         raise ValueError("Acting case no longer matches its saved source")
     changed = sorted(key for key in original.keys() | current.keys()
                      if original.get(key) != current.get(key))
-    if set(changed) - {"judgeRubric"}:
-        raise ValueError("Acting case changed outside its judge rubric")
+    if set(changed) - {"judgeRubric", "machineContract"}:
+        raise ValueError("Acting case changed outside its grading contract")
+    if "machineContract" in changed:
+        from scripts.qualify_agent_evals import _establishment_case_compatible
+
+        left = {key: value for key, value in original.items() if key != "judgeRubric"}
+        right = {key: value for key, value in current.items() if key != "judgeRubric"}
+        if not _establishment_case_compatible(left, right):
+            raise ValueError("Acting case changed beyond equivalent grading tool routes")
     return original, {"path": name, "changedFields": changed,
         "originalSourceSha256": hashlib.sha256(prior_bytes).hexdigest(),
         "currentSourceSha256": hashlib.sha256(path.read_bytes()).hexdigest(),
@@ -146,15 +157,18 @@ def recover(cases, *, source_commit: str, output_root: Path, repetitions: list[i
             if (not actor or actor.get("actor_case_digest") != evals.actor_case_digest(original_case)
                     or actor.get("acting_model") != case["model"]
                     or actor.get("judge_model") != evals.DEFAULT_JUDGE_MODEL
-                    or actor.get("machine") != evals.score_machine_contract(case, actor["transcript"])
-                    or not actor["machine"]["pass"]):
-                raise ValueError("Missing unchanged completed actor with passing original machine evidence")
+                    or actor.get("machine") != evals.score_machine_contract(original_case, actor["transcript"])):
+                raise ValueError("Missing unchanged completed actor with matching original machine evidence")
+            current_machine = evals.score_machine_contract(case, actor["transcript"])
+            if not current_machine["pass"]:
+                raise ValueError("Saved actor does not pass the corrected machine contract")
             if not any(row.get("scope", {}).get("run_id") == actor["run_id"]
                        and row["scope"].get("fingerprint") == prior_fp
                        and row["scope"].get("role") == "acting"
                        for row in reservations):
                 raise ValueError("Original actor has no settled native model-call evidence")
             checkpoint = {**actor, "fingerprint": current_fp, "actor_reused": True,
+                "machine": current_machine, "actor_original_machine": actor["machine"],
                 "actor_case_digest": case_proof["currentCaseDigest"],
                 "actor_original_case_digest": case_proof["originalCaseDigest"],
                 "actor_original_fingerprint": prior_fp, "actor_original_completed_at": actor["timestamp"],

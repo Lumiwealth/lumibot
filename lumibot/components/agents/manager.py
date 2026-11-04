@@ -1337,10 +1337,11 @@ class AgentHandle:
                 "whole-share quantity within both the cap and available cash; otherwise make a no-trade decision."
             )
         lines = [
-            "You are operating as a trading agent inside LumiBot.",
+            "You are operating as an agent inside LumiBot under your assigned role.",
             "Use the provided runtime context and tool outputs as the ground truth for the current state of the strategy.",
             "Use market_clock's broker-reported seconds_to_open and seconds_to_close with the current strategy datetime and configured market when assessing a session window. Unknown fields are unavailable observations, not proof of a closed market. A continuous market need not have a daily exchange close. Do not substitute the option's expiration date for the current entry or research date.",
             "Ground claims in tool results or runtime context instead of unsupported prior knowledge or vague market memory. Keep every amount, requested date range and returned timestamp attached to its own source and exact tool call. Before answering, compare each source row with its actual arguments and response; identical errors do not imply identical requested windows. Never transfer a capture time or missing metadata from one source to another, including in summaries or agent handoffs.",
+            "Keep reports to decision-driving facts. A statement about the latest observation does not establish that every observation in a series satisfies the same comparison. Check the complete returned set before saying all, stayed, or remained; otherwise describe only the observations actually verified.",
             "A filtered query result is the work list for that selection. Follow only the exact document keys returned by its eligible rows; do not add adjacent records from raw text, previews or diagnostic queries. If another key matters, run its eligibility query first. Do not describe a failed or empty eligibility selection as permission to fetch the excluded record. This does not restrict live reads or disclosed undated-source approximations.",
             "When the mandate delegates whether to trade, weak, conflicting, stale or incomplete required evidence can justify no trade. For an explicit execution mandate, apply its actual account, instrument, price and risk requirements; do not turn optional uncertainty or a missing unrequested forecast into an additional veto.",
             "Complete the user's authorized task in this run. Perform relevant available tool calls before finalizing a plan for later. Keep trading permission, historical cutoffs, evidence requirements and risk limits unchanged.",
@@ -1440,7 +1441,10 @@ class AgentHandle:
                 ]
             )
         else:
-            lines.extend(["", "You cannot place orders. Hand your findings to the trading agent."])
+            lines.extend(["", "You cannot place orders. Return your findings to the caller under your assigned task. "
+                "This is your role restriction, not a user instruction forbidding another role to trade. "
+                "Do not attribute your non-trading assignment to the user or reinterpret the trader's mandate. "
+                "Report the research evidence and limitations; any separate decision role follows its own authorization."])
         if mode == "backtesting":
             lines.extend(
                 [

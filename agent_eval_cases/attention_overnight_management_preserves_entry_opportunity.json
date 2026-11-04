@@ -22,10 +22,15 @@
     "requiredTools": [
       "options_get_chain",
       "options_get_greeks",
-      "options_evaluate_market",
       "options_calculate_multileg_price"
     ],
-    "acceptCompleteInitialAccountSnapshot": true
+    "acceptCompleteInitialAccountSnapshot": true,
+    "requiredBeforeOrderAny": [
+      [
+        "options_evaluate_market",
+        "market_quotes"
+      ]
+    ]
   },
   "requiredRepetitions": 5,
   "id": "attention_overnight_management_preserves_entry_opportunity",

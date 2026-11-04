@@ -4929,6 +4929,33 @@ def test_option_and_attention_grading_controls_preserve_captured_actor_identity(
     assert all(call["name"] != "options_get_greeks" for call in negative["transcript"]["tool_calls"])
 
 
+def test_judge_keeps_role_clocks_without_injecting_the_grading_wall_clock(monkeypatch):
+    import lumibot.components.agents.runtime as runtime
+
+    observed = []
+
+    class CaptureRuntime:
+        def run(self, request):
+            observed.append(request)
+            return AgentRunResult(summary='{"pass":true,"reason":"native clock projection"}',
+                                  model=evals.DEFAULT_JUDGE_MODEL, events=[], usage={})
+
+    monkeypatch.setattr(runtime, "GoogleADKRuntime", CaptureRuntime)
+    initial = {"mode": "backtesting", "current_datetime": "2030-04-10T14:35:00Z"}
+    later = {"mode": "backtesting", "current_datetime": "2030-04-10T15:05:00Z"}
+    transcript = {"initial_runtime_context": initial, "agent_runs": [
+        {"role": "researcher", "runtime_context": initial, "tool_calls": [], "final_answer": "First review."},
+        {"role": "trader", "runtime_context": later, "tool_calls": [], "final_answer": "Later decision."},
+    ]}
+    case = {"id": "clock-projection", "systemPrompt": "Follow the mandate.",
+            "taskPrompt": "Review.", "judgeRubric": "Check the recorded chronology."}
+    evals.run_judge(case, transcript, evals.DEFAULT_JUDGE_MODEL, None)
+    request = observed[0]
+    assert request.runtime_context == {"mode": "eval"}
+    recorded = json.loads(request.task_prompt.split("\n\nRUN:\n", 1)[1].split("\n\nCLAIM AUDIT:", 1)[0])
+    assert recorded == transcript
+
+
 def test_judge_receives_declared_role_authority_and_user_continuations(monkeypatch):
     import inspect
     import lumibot.components.agents.runtime as runtime

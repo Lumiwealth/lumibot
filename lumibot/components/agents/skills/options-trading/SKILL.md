@@ -50,6 +50,27 @@ For prices, use the same pricing style and units and prefer returned package
 totals. For distance, compare each actual strike or package center with the
 same observed underlying price. If the comparison does not drive the decision,
 omit it instead of adding an unchecked advantage to the rationale.
+
+Keep expiration payoff separate from profit. Gross expiration payoff is the
+signed sum of the legs' intrinsic values, with their quantities and multipliers.
+Profit subtracts the opening net debit and applicable fees; an opening credit
+is a negative debit. For a one-to-one debit vertical of width W and multiplier
+M, the gross payoff ceiling is W*M per package and maximum profit is W*M minus
+the paid debit and fees. The premium budget is neither of those ceilings.
+Other ratios require their own signed payoff calculation. At an underlying
+price exactly equal to its strike, an option is at the money with zero intrinsic
+value. An out-of-the-money call has underlying below strike; an out-of-the-money
+put has underlying above strike. Zero intrinsic value alone does not distinguish
+at the money from out of the money.
+
+Track entry opportunities by the actual entry-review or entry date under the
+mandate's trading-session timezone, separately from expiration and management.
+Closing or reviewing a position opened in an earlier session does not consume
+today's entry allowance unless the mandate explicitly counts those actions.
+Check the dated order and decision evidence before claiming an allowance was
+used. Retain unresolved obligations across session changes; after verified
+closure, schedule the next genuinely eligible opportunity, which may be later
+that same session. Do not invent an extra skipped day or cooldown.
 When a read rejects malformed tool arguments, correct the reported format and
 retry that read before finishing. An argument error is not unavailable market
 data. Keep correction bounded and report a persistent error as unresolved.

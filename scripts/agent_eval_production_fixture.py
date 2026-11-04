@@ -140,7 +140,7 @@ def _capture_broker_order(order):
 def _history(asset, fixture, quote_asset=None):
     # Minute observations include today's opening range and prior daily closes.
     now = pd.Timestamp("2026-08-11T14:35:00Z")
-    index = pd.date_range("2026-08-04T13:30:00Z", now + pd.Timedelta(minutes=2), freq="min")
+    index = pd.date_range("2026-08-04T13:30:00Z", pd.Timestamp(fixture.observation_end), freq="min")
     if asset.asset_type == "option":
         market_quote = fixture.quote(float(asset.strike), str(asset.right).lower())
         price = market_quote["last"]
@@ -822,7 +822,7 @@ class ProductionFixture:
         source = PandasDataBacktesting(
             pandas_data=data,
             datetime_start=pd.Timestamp("2026-08-11T14:35:00Z"),
-            datetime_end=pd.Timestamp("2026-08-11T14:37:00Z"),
+            datetime_end=pd.Timestamp(fixture.observation_end),
             show_progress_bar=False,
             market="24/7",
         )

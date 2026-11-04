@@ -4956,6 +4956,23 @@ def test_judge_keeps_role_clocks_without_injecting_the_grading_wall_clock(monkey
     assert recorded == transcript
 
 
+@pytest.mark.parametrize("name,last_day", [
+    ("flat_options_account", "2026-08-11"),
+    ("flat_options_multi_session", "2026-08-12"),
+])
+def test_recorded_option_fixture_covers_its_declared_observation_horizon(name, last_day):
+    from lumibot.entities import Asset
+
+    fixture = evals.build_fixture(name)
+    data = fixture_module._history(Asset("SPY"), fixture)
+    assert data.df.index[-1].date().isoformat() == last_day
+    production = fixture_module.ProductionFixture(fixture)
+    try:
+        assert production.broker.data_source.datetime_end.date().isoformat() == last_day
+    finally:
+        production.close()
+
+
 def test_judge_receives_declared_role_authority_and_user_continuations(monkeypatch):
     import inspect
     import lumibot.components.agents.runtime as runtime

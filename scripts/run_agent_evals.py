@@ -278,6 +278,7 @@ class FixtureRuntime:
     underlying_price: float = 600.0
     initial_cash: float = 100_000.0
     stock_markets: dict[str, dict[str, float | None] | None] = field(default_factory=dict)
+    observation_end: str = "2026-08-11T14:37:00Z"
 
     def record(self, name: str, arguments: dict[str, Any], result: Any) -> Any:
         self.calls.append({"name": name, "arguments": arguments, "result": result})
@@ -328,6 +329,8 @@ class FixtureRuntime:
 
 def build_fixture(name: str) -> FixtureRuntime:
     fixture = FixtureRuntime(name=name)
+    if name == "flat_options_multi_session":
+        fixture.observation_end = "2026-08-12T14:50:00Z"
     portfolio_sizes = {
         "portfolio_initial_25": 25, "portfolio_initial_9": 9,
         "portfolio_rebalance": 9, "portfolio_quote_sizing": 1,

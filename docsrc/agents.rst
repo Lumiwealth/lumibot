@@ -307,6 +307,15 @@ three 32K-token handoffs can already consume roughly 96K tokens before the
 system prompt, tool schemas, runtime context, and the portfolio manager's own
 output.
 
+The runtime snapshot includes the configured market and ``market_clock``:
+the broker's observed open state and seconds until opening and closing.
+Unsupported observations stay unknown. Agents can use these observations to
+interpret the strategy's own session window, including early closes and
+continuous markets, without another calendar lookup. The observation belongs
+to the current strategy datetime; an option's later expiration is a separate
+date. An attention alert requests review under the existing mandate. It
+neither authorizes an unrequested trade nor cancels a standing recurring plan.
+
 Do not add hidden runtime tool-call budgets to trading benchmarks. Blocking
 tools can invalidate results by preventing execution tools, such as order
 submission, from running. If you need to control paid benchmark spend, use an

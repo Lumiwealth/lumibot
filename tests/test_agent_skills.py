@@ -70,6 +70,50 @@ class _CaptureRuntime:
         )
 
 
+@pytest.mark.parametrize("market,is_open,opening,closing", [
+    ("SYNTHETIC_REGULAR", True, 0, 900),
+    ("SYNTHETIC_EARLY_CLOSE", True, 0, 450),
+    ("24/7", True, None, None),
+])
+def test_runtime_context_exposes_native_broker_clock_observations(market, is_open, opening, closing):
+    strategy = _Strategy()
+    strategy.broker = SimpleNamespace(
+        market=market, is_market_open=lambda: is_open,
+        get_time_to_open=lambda: opening, get_time_to_close=lambda: closing,
+    )
+    context = AgentManager(strategy).create(name="clock-observer")._runtime_context()
+    assert context["market"] == market
+    assert context["market_clock"] == {
+        # Clock observations use the snapshot's existing timestamp convention.
+        "as_of": context["current_datetime"],
+        "source": "broker", "is_open": is_open,
+        "seconds_to_open": opening, "seconds_to_close": closing,
+    }
+
+
+def test_runtime_clock_failure_preserves_other_observations_without_inventing_a_closed_market():
+    def unavailable():
+        raise NotImplementedError("Clock observation unavailable")
+
+    strategy = _Strategy()
+    strategy.broker = SimpleNamespace(
+        market="SYNTHETIC_OPTIONAL_CLOCK", is_market_open=unavailable,
+        get_time_to_open=unavailable, get_time_to_close=lambda: 900,
+    )
+    context = AgentManager(strategy).create(name="clock-observer")._runtime_context()
+    assert context["current_datetime"]
+    assert context["market_clock"]["is_open"] is None
+    assert context["market_clock"]["seconds_to_open"] is None
+    assert context["market_clock"]["seconds_to_close"] == 900
+
+
+def test_runtime_context_keeps_strategies_without_broker_clock_capabilities_usable():
+    context = AgentManager(_Strategy()).create(name="clock-observer")._runtime_context()
+    assert context["current_datetime"]
+    assert context["market_clock"]["is_open"] is None
+    assert context["market_clock"]["seconds_to_close"] is None
+
+
 def test_default_agent_model_is_current_and_explicit_pins_are_preserved():
     manager = AgentManager(_Strategy())
     default = manager.create(name="default", _runtime=_CaptureRuntime())

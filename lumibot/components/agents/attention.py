@@ -347,7 +347,10 @@ class AttentionMonitor:
                         self._save(state)
             result = decision.run(
                 task_prompt=("Review the attention evidence and dated research under your policy. "
-                    "An attention event requests review; it does not grant new entry authorization. "
+                    "Apply the user's governing mandate, including its standing authorization for recurring "
+                    "eligible exposure. An attention event neither adds to nor withdraws that authorization. "
+                    "Do not require a new approval or unrequested tactical signal to carry out a standing "
+                    "execution mandate; preserve actual one-time, no-repeat and risk restrictions. "
                     "Apply the strategy's date/time windows, retry limits and risk rules before choosing an action. "
                     "Research readiness before an entry window opens is not entry eligibility. "
                     "Management of existing exposure follows its own policy, including permitted exits outside entry windows. "
@@ -360,7 +363,8 @@ class AttentionMonitor:
                     "declared researchers before your next decision; watch names do not select roles. "
                     "Obtain current instrument, quote, account and order evidence through your own tools. "
                     "These execution checks are your responsibility, not missing upstream research. "
-                    "Request another research review only for missing thesis or source evidence needed under your policy; "
+                    "Assess research freshness at the current decision time, not a later instrument expiration. "
+                    "Request another research review only for research evidence actually required under your policy; "
                     "defer the dependent action while that research is missing. "
                     "The subsequent coordinator cycle supplies it. Do not claim future research or unobserved fills."),
                 context={**common, "dated_research": answers()})

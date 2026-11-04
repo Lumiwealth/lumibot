@@ -79,11 +79,14 @@ def test_research_review_delivers_mandate_and_eligibility_guidance_to_trader():
     assert calls[-1][1]["team_context"] == {"policy": policy}
     brief = calls[-1][2]
     for instruction in (
-        "An attention event requests review; it does not grant new entry authorization.",
+        # Alerts neither create authority nor cancel an existing standing mandate.
+        "An attention event neither adds to nor withdraws that authorization.",
+        "preserve actual one-time, no-repeat and risk restrictions.",
         "Apply the strategy's date/time windows, retry limits and risk rules before choosing an action.",
         "Research readiness before an entry window opens is not entry eligibility.",
         "Management of existing exposure follows its own policy, including permitted exits outside entry windows.",
         "Distinguish mandatory evidence from optional uncertainty under the strategy's actual policy.",
+        "Assess research freshness at the current decision time, not a later instrument expiration.",
     ):
         assert instruction in brief
 

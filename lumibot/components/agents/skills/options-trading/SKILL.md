@@ -13,6 +13,10 @@ submitting an option order.
 Before an option submission, make the decision explicit in its order rationale:
 explain the exact package's executable quote quality, signed net exposure from
 the returned Greeks, price and total risk, and any short-option obligation.
+For a short leg, state the actual deliverable quantity and the underlying
+position or cash obligation assignment could create before a long is exercised,
+plus any temporary funding/capacity requirement or unverified capacity. A generic
+"assignment risk" label does not describe those concrete consequences.
 Reading raw Greeks without assessing their signed, quantity-weighted result is
 not this decision. Calculate a net value before reporting it, include its units,
 and distinguish an offset in the present snapshot from risks that can change

@@ -1,6 +1,9 @@
 # Changelog
 
-## 4.6.47 - Unreleased
+## 4.6.47 - 2026-11-03
+
+### Fixed
+- Initialize the selected ProjectX account before the first REST-only order synchronization. Preserve an existing account selection and report connection failure before requesting orders.
 
 ## 4.6.46 - 2026-11-03
 

@@ -75,6 +75,36 @@ def mes():
     return Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
 
 
+@pytest.mark.parametrize('connected_account', [None, 1])
+def test_rest_order_sync_resolves_the_selected_account_without_streaming(broker, connected_account):
+    broker.account_id = connected_account
+    broker.client.get_preferred_account_id = Mock(return_value=1)
+    broker.client.order_search = Mock(return_value=[])
+    broker.client.trade_search = Mock(return_value=[])
+
+    assert broker._pull_broker_all_orders() == []
+
+    assert broker.client.order_search.call_args.kwargs['account_id'] == 1
+    assert broker.account_id == 1
+    assert broker.client.get_preferred_account_id.call_count == (1 if connected_account is None else 0)
+
+
+@pytest.mark.parametrize('unavailable', [None, RuntimeError('selected account unavailable')])
+def test_initial_order_sync_never_sends_an_empty_account_after_connection_failure(broker, unavailable):
+    broker.account_id = None
+    broker.client.get_preferred_account_id = Mock(
+        side_effect=unavailable if isinstance(unavailable, Exception) else None,
+        return_value=unavailable,
+    )
+    broker.client.order_search = Mock(return_value=[])
+    broker.client.trade_search = Mock(return_value=[])
+
+    with pytest.raises(RuntimeError, match='ProjectX order state is unavailable'):
+        broker._pull_broker_all_orders()
+
+    broker.client.order_search.assert_not_called()
+
+
 def _make_bracket_entry(asset, side="buy", qty=1, limit=None, tp=None, sl=None):
     o = Order(asset=asset, quantity=qty, order_type="limit" if limit is not None else "market", side=side, limit_price=limit, strategy="Strat")
     # Lumibot bracket order class marker

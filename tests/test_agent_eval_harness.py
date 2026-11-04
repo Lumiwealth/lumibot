@@ -619,9 +619,14 @@ def test_research_eval_fixture_modes_preserve_the_bounded_recorded_clock(fixture
     evals.build_tools(fixture)
 
     assert fixture.production.strategy.is_backtesting is expected_backtesting
-    assert fixture.production.strategy.get_datetime().astimezone(timezone.utc).isoformat() == (
-        "2026-08-11T14:35:00+00:00"
-    )
+    expected_clock = ("2026-08-11T14:35:00+00:00" if expected_backtesting
+                      else "2026-09-08T14:35:00+00:00")
+    assert fixture.production.strategy.get_datetime().astimezone(timezone.utc).isoformat() == expected_clock
+    if not expected_backtesting:
+        import json
+        import pandas as pd
+        recorded = json.loads((evals.REPO_ROOT / "agent_eval_fixtures/research_data.json").read_text())
+        assert fixture.production.strategy.get_datetime() > pd.Timestamp(recorded["capturedAt"])
     assert fixture.production.broker.IS_BACKTESTING_BROKER is True  # No live broker or external writes.
 
 
@@ -5064,7 +5069,7 @@ def test_managed_research_refusal_exposes_the_runtime_applied_cutoff():
         assert result["tool_error"] is True
         assert result["error"]["code"] == "provider_unavailable"
         assert "asOf" not in result["arguments"]
-        assert result["applied_arguments"]["asOf"] == "2026-08-11T14:35:00Z"
+        assert result["applied_arguments"]["asOf"] == production.fixture.initial_datetime
         assert "details" not in result and "structuredContent" not in result
     finally:
         production.close()

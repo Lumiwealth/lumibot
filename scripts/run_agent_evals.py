@@ -278,6 +278,7 @@ class FixtureRuntime:
     underlying_price: float = 600.0
     initial_cash: float = 100_000.0
     stock_markets: dict[str, dict[str, float | None] | None] = field(default_factory=dict)
+    initial_datetime: str = "2026-08-11T14:35:00Z"
     observation_end: str = "2026-08-11T14:37:00Z"
 
     def record(self, name: str, arguments: dict[str, Any], result: Any) -> Any:
@@ -329,6 +330,12 @@ class FixtureRuntime:
 
 def build_fixture(name: str) -> FixtureRuntime:
     fixture = FixtureRuntime(name=name)
+    if name in {"research_live_available", "research_unavailable"}:
+        # Live recorded research must be observed after its actual capture.
+        # Historical fixtures keep their original clock and refusal controls.
+        fixture.initial_datetime = "2026-09-08T14:35:00Z"
+        fixture.observation_end = "2026-09-08T14:37:00Z"
+        fixture.expiration = "2026-09-25"
     if name == "flat_options_multi_session":
         fixture.observation_end = "2026-08-12T14:50:00Z"
     portfolio_sizes = {

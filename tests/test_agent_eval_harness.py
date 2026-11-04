@@ -5183,3 +5183,13 @@ def test_ready_eval_work_refills_without_waiting_for_the_slowest_peer():
         consumer.join(5)
     assert not consumer.is_alive()
     assert sorted(completed) == [(1, 1), (2, 2), (3, 3)]
+
+
+def test_limit_semantics_controls_keep_the_terminal_report_consistent():
+    controls = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_calibration.json").read_text())
+    suffixes = ("working-marketable-limit-caveat", "reversed-buy-limit-inequality", "marketability-invented-observed-fill")
+    selected = [row for row in controls if row["id"].endswith(suffixes)]
+    assert len(selected) == 3
+    for row in selected:
+        transcript = row["transcript"]
+        assert transcript["agent_runs"][-1]["final_answer"] == transcript["final_answer"]

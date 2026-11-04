@@ -142,7 +142,11 @@ or across a text-window boundary. Use the surrounding unfiltered text to join
 the whole row, retaining values already read in earlier chunks. A later `find`
 result that omits those lines does not erase their values or establish that a
 field is unavailable. Keep asset values, income and transaction amounts in
-their own columns. Associate each value with its specific instrument, not only
+their own columns. In a mixed summary, label each amount in its cell or row as
+a holding value, purchase/sale amount, income, or explicitly described estimate.
+A purchase range does not establish the remaining holding value; a general
+valuation disclaimer does not identify what an individual table amount measures.
+Associate each value with its specific instrument, not only
 the issuer or ticker: one issuer can have separate option and common-stock rows.
 An instrument's type marker can occupy its own line between its name and its
 owner/value. Expand that marker to the surrounding complete row; do not classify

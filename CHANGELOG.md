@@ -9,6 +9,7 @@ Deploy marker: ef37fd7223b91750067d88695d8be0b44affd85c
 - Optional total-quantity amendments through the normal broker, strategy and order-agent modification APIs while preserving price-only callers.
 
 ### Fixed
+- Preserve the distinction between reported holding values, transaction amounts and estimates in financial research tables.
 - Keep the last simulated clock when the next market opening is outside the backtest window, avoiding closed-day terminal valuation requests and trading-start callbacks after the end.
 - Initialize the selected ProjectX account before the first REST-only order synchronization. Preserve an existing account selection and report connection failure before requesting orders.
 - Keep backtest clocks and final lifecycle marks within their configured end, and make stored indicator bars visible only after their completed history boundary.

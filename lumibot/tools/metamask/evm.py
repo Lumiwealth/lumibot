@@ -192,6 +192,9 @@ class EvmWallet:
     @staticmethod
     def _quote_asset(raw, expected):
         item = json_object(raw, "quote asset")
+        chain = item.get("chainId")
+        if chain is not None and (type(chain) is not int or chain != expected.chain_id):
+            raise MetaMaskError("QUOTE_MISMATCH", "Quote token belongs to another chain")
         contract = str(item.get("address", "")).lower()
         contract = "native" if contract in _NATIVE else address(contract)
         if contract != expected.address or item.get("decimals") != expected.decimals:
@@ -207,10 +210,13 @@ class EvmWallet:
         value = integer(item.get("value", "0x0"))
         tx = {"from": binding.wallet, "to": target, "chainId": chain, "data": data, "value": hex(value)}
         quoted = item.get("gasLimit")
-        ceiling = quoted if quoted is not None else self.gas_limits.get(str(chain), self.gas_limits.get(chain))
+        configured = self.gas_limits.get(str(chain), self.gas_limits.get(chain))
+        ceiling = configured if configured is not None else quoted
         if ceiling is None or integer(ceiling) <= 0:
             raise MetaMaskError("GAS_LIMIT_REQUIRED", "Quote or explicit GAS_LIMITS must bound each transaction")
         gas = integer(ceiling)
+        if quoted is not None and integer(quoted) > gas:
+            raise MetaMaskError("GAS_BUDGET_EXCEEDED", "Provider gas estimate exceeds the explicit owner ceiling")
         latest = json_object(self._rpc(chain, "eth_getBlockByNumber", ["latest", False]), "latest chain block")
         base = integer(latest.get("baseFeePerGas"))
         tip = integer(self._rpc(chain, "eth_maxPriorityFeePerGas", []))
@@ -270,14 +276,18 @@ class EvmWallet:
                     fee = json_object(fee)
                     amount = integer(fee.get("amount"))
                     if amount:
-                        self._quote_asset(fee.get("asset"), intent.source)
-                        sent += amount
+                        try:
+                            self._quote_asset(fee.get("asset"), intent.source)
+                        except MetaMaskError:
+                            self._quote_asset(fee.get("asset"), intent.destination)
+                        else:
+                            sent += amount
                 if sent != atomic:
                     raise MetaMaskError(
                         "QUOTE_MISMATCH", "Quote source amount plus source fees differs from exact input"
                     )
                 minimum, output = integer(quote.get("minDestTokenAmount")), integer(quote.get("destTokenAmount"))
-                if not 0 < minimum <= output or minimum * 10000 < output * (10000 - intent.slippage_bps):
+                if not 0 < minimum <= output or minimum < output * (10000 - intent.slippage_bps) // 10000:
                     raise MetaMaskError("SLIPPAGE_LIMIT", "Quote minimum output exceeds the allowed slippage")
                 quote_id = row.get("quoteId")
                 if not isinstance(quote_id, str) or not quote_id:
@@ -478,13 +488,15 @@ class EvmWallet:
         if operation["state"] in {"filled", "rejected", "canceled"}:
             return operation
         intent = SwapIntent.parse(json_object(operation["request"]))
-        plan = self.journal.effect(self.agent_id, str(operation["id"]), "swap-plan")
-        if plan is None:
+        original_plan = self.journal.effect(self.agent_id, str(operation["id"]), "swap-plan")
+        if original_plan is None:
             return self._save(
                 operation,
                 state="unknown",
                 message="Legacy swap needs explicit transaction-hash reconciliation; no replay",
             )
+        execution_plan = self.journal.effect(self.agent_id, str(operation["id"]), "swap-execution-plan")
+        plan = execution_plan or original_plan
         transactions = [*plan["approvals"], plan["trade"]]
         receipts = []
         actual_fees = []
@@ -492,7 +504,10 @@ class EvmWallet:
         fee_budget = (
             sum(integer(fee["totalEstimate"]) for fee in fee_estimates)
             if fee_estimates is not None
-            else sum(integer(tx["gasLimit"]) * integer(tx["maxFeePerGas"]) for tx in transactions)
+            else sum(
+                integer(tx["gasLimit"]) * integer(tx["maxFeePerGas"])
+                for tx in [*original_plan["approvals"], original_plan["trade"]]
+            )
         )
         for index, tx in enumerate(transactions):
             step = "swap-" + str(index)
@@ -505,11 +520,24 @@ class EvmWallet:
                         message="Interrupted swap was not submitted; existing approvals may remain",
                     )
                 try:
-                    self._binding(execution=True, expected=plan["binding"])
+                    binding, _ = self._binding(execution=True, expected=plan["binding"])
+                    if index == len(transactions) - 1 and plan["approvals"] and execution_plan is None:
+                        # Finalized allowances can outlive the original trade quote.
+                        refreshed = self._quote(binding, intent)
+                        if refreshed["approvals"] or integer(refreshed["minimumOutput"]) < integer(
+                            original_plan["minimumOutput"]
+                        ):
+                            raise MetaMaskError(
+                                "REQUOTE_REQUIRED",
+                                "Fresh trade needs new allowances or weakens the original minimum output",
+                            )
+                        plan = {**plan, **refreshed, "approvals": plan["approvals"]}
+                        self.journal.save_effect(operation, "swap-execution-plan", plan)
+                        tx = plan["trade"]
                     if int(time.time() * 1000) >= integer(plan["expiresAt"]):
                         raise MetaMaskError("QUOTE_EXPIRED", "Swap quote expired before managed submission")
                 except MetaMaskError as error:
-                    return self._save(operation, state="rejected", message=str(error))
+                    return self._save(operation, state="rejected", lastErrorCode=error.code, message=str(error))
                 # Simulate after prior allowances mine, within the frozen gas budget.
                 estimate = integer(
                     self._rpc(
@@ -723,7 +751,11 @@ class EvmWallet:
             or any(not isinstance(value, str) or not re.fullmatch(r"0x[0-9a-fA-F]{64}", value) for value in hashes)
         ):
             raise MetaMaskError("SETTLEMENT_UNRESOLVED", "Completed transaction hash history is malformed")
-        plan = json_object(self.journal.effect(self.agent_id, intent.identifier, "swap-plan"), "completed swap plan")
+        plan = json_object(
+            self.journal.effect(self.agent_id, intent.identifier, "swap-execution-plan")
+            or self.journal.effect(self.agent_id, intent.identifier, "swap-plan"),
+            "completed swap plan",
+        )
         approvals = plan.get("approvals")
         if (
             not isinstance(approvals, list)

@@ -427,7 +427,14 @@ def build_establishment(rows, call_rows, cases, *, source_ref, versions, now=Non
         if (len(latest) >= evals.case_required_passes(case)
                 and all(row.get("status") == "pass" for row in latest.values())):
             established.append(case)
-    records = project_case_records(rows, calls, established, runtime_hash=runtime_hash, now=now)
+    records = {}
+    for case in established:
+        try:
+            records.update(project_case_records(rows, calls, [case], runtime_hash=runtime_hash, now=now))
+        except ValueError:
+            # An unusable older regrade grants no shortcut. Require this case's
+            # full current stability without discarding valid historical peers.
+            continue
     missing = [case for case in unchanged if case["id"] not in records]
     for identity, record in _committed_establishment(source_ref, missing, versions=versions, now=now).items():
         original = {row["repetition"]: row for row in record["repetitions"]}

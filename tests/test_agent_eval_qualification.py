@@ -197,6 +197,21 @@ def test_established_cases_keep_original_evidence_and_require_a_current_regressi
         versions=versions, now=now)["cases"] == {}
 
 
+def test_unusable_historical_regrade_requires_fresh_stability_instead_of_blocking_peers(native_metadata, monkeypatch):
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    monkeypatch.setattr(qualification, 'establishment_runtime', lambda ref, cases, versions: 'source')
+    monkeypatch.setattr(qualification, '_unchanged_establishment_cases', lambda ref, cases: cases)
+    monkeypatch.setattr(qualification, '_committed_establishment', lambda *args, **kwargs: {})
+    rows[0].update(actor_reused=True, source_compatibility={'originalSourceCommit': 'b' * 40})
+    def changed_actor(*args, **kwargs):
+        raise ValueError('Acting input changed: generic order snapshots')
+    monkeypatch.setattr(qualification, 'actor_origin', changed_actor)
+    proof = qualification.build_establishment(rows, calls, cases, source_ref='a' * 40,
+                                              versions=versions, now=now)
+    assert proof['cases'] == {}
+    assert qualification.regression_required(cases[0], proof, [], 'current') == 3
+
+
 def test_export_verifies_original_stability_and_one_new_source_regression(native_metadata, monkeypatch):
     rows, calls, cases, versions, now = deepcopy(native_metadata)
     monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")

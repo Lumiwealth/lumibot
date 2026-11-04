@@ -240,7 +240,11 @@ def test_configured_builder_fee_is_applied_and_logged(monkeypatch, caplog):
         "hyperliquid": {"builder": "0x" + "1" * 40, "feeRate": "0.01%", "feeInt": 10}}))
     monkeypatch.setenv(partner.ENV_REFERRAL_CODES, json.dumps({"hyperliquid": "LUMIREF"}))
     exchange = ccxt.hyperliquid()
-    with caplog.at_level(logging.WARNING):
+    # Other broker tests configure logging for their own runtimes. Capture this
+    # real warning at its actual logger and restore all settings after the test.
+    monkeypatch.setattr(partner.logger, "disabled", False)
+    monkeypatch.setattr(partner.logger, "propagate", True)
+    with caplog.at_level(logging.WARNING, logger=partner.logger.name):
         state = apply_partner_config(exchange)
     assert exchange.options["builderFee"] is True
     assert exchange.options["builder"] == "0x" + "1" * 40

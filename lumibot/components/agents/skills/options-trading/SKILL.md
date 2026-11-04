@@ -17,6 +17,11 @@ For a short leg, state the actual deliverable quantity and the underlying
 position or cash obligation assignment could create before a long is exercised,
 plus any temporary funding/capacity requirement or unverified capacity. A generic
 "assignment risk" label does not describe those concrete consequences.
+Physical short-call assignment delivers shares and receives cash; short-put
+assignment receives shares and pays cash. State actual share inventory and
+available cash separately from unverified broker permissions. Cash is not stock
+already held or a guarantee that a broker will exercise the long option. Do not
+describe cash as absent or insufficient when only delivery capacity is unknown.
 Keep returned exercise style, settlement and deliverable terms distinct from
 assumptions about standard contracts. If those terms were not supplied, disclose
 that limitation and label any standard-contract assumption used in the obligation
@@ -64,6 +69,12 @@ the leg arithmetic, reconcile every sign with the action: buying to close pays
 cash and selling to close receives cash. Check the expansion against the returned
 total before reporting it; omit an unnecessary expansion rather than publishing
 an unchecked formula beside a correct tool result.
+For an ongoing risk watch, signed current holding value is not profit/loss:
+calculate it from the exact signed quantities, multipliers and observed marks;
+profit/loss adds the opening cash flow. Verify a claimed current basket value
+before putting that number in a watch reason or report. A watch reason can simply
+explain why the selected boundary needs attention without reciting an unverified
+current measurement.
 
 Keep expiration payoff separate from profit. Gross expiration payoff is the
 signed sum of the legs' intrinsic values, with their quantities and multipliers.

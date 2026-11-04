@@ -429,6 +429,13 @@ profit and cannot represent that loss. Substitute your actual numbers back
 into the equation and reconcile the result with the explanation before saving;
 knowing the formula does not establish that your chosen number satisfies it.
 Keep the chosen review loss distinct from maximum possible package loss.
+Use the selected package's modeled loss, rather than a larger portfolio or
+spending cap, when describing a partial-loss review. A package with $50 maximum
+expiration loss does not have an earlier partial-loss stop at $200. Either
+choose a coherent earlier review or explicitly accept its full defined risk
+with useful time/thesis reviews, if the mandate permits that choice. An alert
+beyond an expiration-payoff bound may instead monitor anomalous marks or
+liquidity; explain that purpose rather than calling it partial-loss protection.
 Marks request attention; refresh executable prices before ordering.
 
 While an exit is working, retain the chosen protection for still-held or

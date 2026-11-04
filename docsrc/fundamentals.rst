@@ -35,8 +35,12 @@ Point-In-Time Behavior
 
 Backtests must not see future financial statements or filings. LumiBot gates SEC
 facts and filings by the current strategy datetime unless you explicitly pass
-``as_of``. For facts, the SEC ``filed`` date is used. For filings, the SEC
-acceptance datetime is used when available, with filing date as the fallback.
+``as_of``. For facts, the SEC ``filed`` date is used. A date carries no time and
+EDGAR accepts filings until 10 p.m. Eastern, so a fact becomes visible when its
+filing date ends in New York, not at its start: Microsoft's FY2026 10-K is filed
+2026-07-29 but was accepted at 16:08:01 ET, after that day's close. For filings,
+the SEC acceptance datetime is used when available, with filing date (same
+end-of-day rule) as the fallback.
 
 Caching
 -------

@@ -9,6 +9,7 @@ Deploy marker: ef37fd7223b91750067d88695d8be0b44affd85c
 - Optional total-quantity amendments through the normal broker, strategy and order-agent modification APIs while preserving price-only callers.
 
 ### Fixed
+- Initialize the selected ProjectX account before the first REST-only order synchronization. Preserve an existing account selection and report connection failure before requesting orders.
 - Keep backtest clocks and final lifecycle marks within their configured end, and make stored indicator bars visible only after their completed history boundary.
 - Read derivative positions when a CCXT adapter implements its unified positions method but leaves the capability flag unspecified; preserve explicit unsupported declarations.
 - Preserve Kalshi selected-outcome identity across process boundaries with provider-compatible UUID references, while retaining strategy ownership tags for normal fill callbacks.

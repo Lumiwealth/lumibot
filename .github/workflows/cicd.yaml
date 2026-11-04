@@ -104,17 +104,9 @@ jobs:
           echo "Set AIOHTTP_NO_EXTENSIONS=$AIOHTTP_NO_EXTENSIONS so that aiohttp doesn't try to install C extensions"
           python -m pip install --upgrade pip
           pip install requests
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
           # The offline docs checks qualify the declared CCXT metadata version.
-          version = json.loads(Path('docsrc/_data/ccxt_exchange_facts.json').read_text())['ccxt_version']
-          constraint = Path(os.environ['RUNNER_TEMP']) / 'ccxt-metadata-constraint.txt'
-          constraint.write_text(f'ccxt=={version}\n')
-          PY
-          pip install -r requirements_dev.txt -c requirements_agent_evals.txt -c "${RUNNER_TEMP}/ccxt-metadata-constraint.txt"
+          ccxt_docs_version="$(python -c 'import json; from pathlib import Path; print(json.loads(Path("docsrc/_data/ccxt_exchange_facts.json").read_text())["ccxt_version"])')"
+          python -m pip install -r requirements_dev.txt -c requirements_agent_evals.txt "ccxt==${ccxt_docs_version}"
           python -m pip check
           pip install pytest-xdist==3.8.0
 

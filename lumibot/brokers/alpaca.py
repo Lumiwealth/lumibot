@@ -890,11 +890,22 @@ class Alpaca(Broker):
         # Determine order and class types
         order_type_value = getattr(response, 'order_type', None) or resp_raw.get('type')
         order_class_raw = getattr(response, 'order_class', None) or resp_raw.get('order_class')
+        legs_raw = resp_raw.get("legs") if isinstance(resp_raw, dict) else None
+        if legs_raw is None:
+            legs_raw = getattr(response, "legs", None)
         # Default to simple order class if none was found
         if order_class_raw is None:
             order_class_value = Order.OrderClass.SIMPLE
+        elif order_class_raw == "mleg":
+            # Alpaca also labels each leaf option leg "mleg". Only the
+            # container with actual child legs is a package; treating a leaf
+            # as another package discards its option identity and breaks quotes.
+            order_class_value = (
+                Order.OrderClass.MULTILEG if isinstance(legs_raw, list) and legs_raw
+                else Order.OrderClass.SIMPLE
+            )
         else:
-            order_class_value = order_class_raw if order_class_raw != "mleg" else Order.OrderClass.MULTILEG
+            order_class_value = order_class_raw
 
         # Prices and limits
         limit_price_value = getattr(response, 'limit_price', None) or resp_raw.get('limit_price')
@@ -930,9 +941,6 @@ class Alpaca(Broker):
             )
             return None
 
-        legs_raw = resp_raw.get("legs") if isinstance(resp_raw, dict) else None
-        if legs_raw is None:
-            legs_raw = getattr(response, "legs", None)
         child_orders = [
             child for leg in legs_raw or []
             if (child := self._parse_broker_order(leg, strategy_name, strategy_object=strategy_object)) is not None

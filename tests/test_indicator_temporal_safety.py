@@ -196,3 +196,48 @@ def test_equivalent_timezone_windows_are_equal_and_do_not_change_strategy_clock(
         start="2024-01-01T19:00:00-05:00", end="2024-01-02T19:00:00-05:00")
     assert result["value"] == 15
     assert state["now"] == before
+
+
+@pytest.mark.parametrize("timestep,freq", [("hour", "h"), ("minute", "5min")])
+@pytest.mark.parametrize("kind", ["sma", "custom", "stream"])
+def test_cached_data_indicators_obey_completed_bar_history(timestep, freq, kind):
+    """The raw Data cache contains final OHLC values for a still-forming bar."""
+    from lumibot.entities import Data
+
+    asset = Asset("SYN", asset_type="crypto")
+    index = pd.date_range("2026-06-01", periods=60, freq=freq, tz="UTC")
+    frame = pd.DataFrame({"open": 100., "high": 100., "low": 100.,
+                          "close": 100., "volume": 1000.}, index=index)
+    frame.loc[index[50], ["high", "close"]] = 10000.
+    data = Data(asset, frame, timestep=timestep, quote=Asset("USD", asset_type="forex"))
+    now = index[50]
+    public = data.get_bars(now, length=20, timestep=timestep)
+    assert public.index[-1] < now
+    captured = []
+    source = SimpleNamespace(_data_store={(asset, timestep): data},
+                             record_indicator_input=lambda **kw: captured.append(kw["frame"].copy()))
+    strategy = SimpleNamespace(broker=SimpleNamespace(data_source=source), get_datetime=lambda: now)
+    indicators = Indicators(strategy)
+    if kind == "sma":
+        actual = indicators.sma(asset, length=20, timestep=timestep)
+    elif kind == "custom":
+        actual = indicators.custom("mean20", lambda df: df.close.rolling(20).mean(), asset, timestep=timestep)
+    else:
+        actual = indicators.get("sma", asset, length=20, timestep=timestep)["sma"]
+    assert actual == pytest.approx(float(public.close.mean()))
+    assert captured[-1].index[-1] == public.index[-1]
+    assert data.df.loc[index[50], "close"] == 10000.  # Do not mutate provider evidence.
+
+
+def test_cached_data_indicator_includes_last_bar_once_it_really_closes():
+    from lumibot.entities import Data
+
+    asset = Asset("SYN", asset_type="crypto")
+    index = pd.date_range("2026-06-01", periods=30, freq="h", tz="UTC")
+    frame = pd.DataFrame({"open": 100., "high": 110., "low": 90., "close": 100., "volume": 1.}, index=index)
+    frame.loc[index[-1], "close"] = 120.
+    data = Data(asset, frame, timestep="hour", quote=Asset("USD", asset_type="forex"))
+    now = index[-1] + pd.Timedelta(hours=1)
+    strategy = SimpleNamespace(broker=SimpleNamespace(data_source=SimpleNamespace(_data_store={(asset, "hour"): data})),
+                               get_datetime=lambda: now)
+    assert Indicators(strategy).sma(asset, length=20, timestep="hour") == 101.

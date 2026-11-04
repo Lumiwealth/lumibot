@@ -2633,7 +2633,7 @@ class Strategy(_Strategy):
         reference = self._journal_order_action(active_orders, operation="cancel", reason=reason, evidence=evidence)
         return self._perform_journaled_order_action(reference, lambda: self.broker.cancel_open_orders(self.name, active_orders))
 
-    def modify_order(self, order: Order, limit_price: Union[float, None] = None, stop_price: Union[float, None] = None, *, reason: str | None = None, evidence: dict | None = None):
+    def modify_order(self, order: Order, limit_price: Union[float, None] = None, stop_price: Union[float, None] = None, *, quantity=None, reason: str | None = None, evidence: dict | None = None):
         """Modify an order.
 
         Modifies a single open order provided.
@@ -2646,6 +2646,9 @@ class Strategy(_Strategy):
             New limit price for a limit order. Default is None.
         stop_price : float
             New stop price for a stop order. Default is None.
+        quantity : number, optional
+            New total quantity, including fills already received. Availability
+            depends on the broker. Omit to leave quantity unchanged.
 
         Returns
         -------
@@ -2665,13 +2668,18 @@ class Strategy(_Strategy):
         if not order.identifier:
             raise ValueError("Order identifier is not set, unable to modify order. Did you remember to submit it?")
 
+        changes = {"limit_price": limit_price, "stop_price": stop_price}
+        if quantity is not None:
+            changes["quantity"] = quantity
         reference = self._journal_order_action(order, operation="modify", reason=reason, evidence=evidence,
-                                               changes={"limit_price": limit_price, "stop_price": stop_price})
-        result = self._perform_journaled_order_action(reference, lambda: self.broker.modify_order(order, limit_price=limit_price, stop_price=stop_price))
+                                               changes=changes)
+        result = self._perform_journaled_order_action(reference, lambda: self.broker.modify_order(order, **changes))
         if limit_price is not None:
             order.limit_price = limit_price
         if stop_price is not None:
             order.stop_price = stop_price
+        if quantity is not None:
+            order.quantity = quantity
         return result
 
     def sell_all(self, cancel_open_orders: bool = True, is_multileg: bool = False):

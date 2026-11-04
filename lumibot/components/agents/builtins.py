@@ -3683,6 +3683,7 @@ def _bind_modify_order(strategy: Any, manager: Any) -> BoundTool:
         reason: str,
         limit_price: float | None = None,
         stop_price: float | None = None,
+        quantity: float | None = None,
         public_reason: str | None = None,
     ) -> dict[str, Any]:
         from lumibot.components.memory.store import validate_order_reason
@@ -3693,15 +3694,19 @@ def _bind_modify_order(strategy: Any, manager: Any) -> BoundTool:
         order = strategy.get_order(identifier, broker_refresh=False)
         if order is None:
             raise ValueError(f"Unknown order identifier: {identifier}")
-        if limit_price is None and stop_price is None:
-            raise ValueError("orders_modify_order requires at least one of limit_price or stop_price.")
+        if limit_price is None and stop_price is None and quantity is None:
+            raise ValueError("orders_modify_order requires at least one of limit_price, stop_price or quantity.")
         public_evidence = {"evidence": {"public_reason": public_reason}} if public_reason is not None else {}
-        strategy.modify_order(order, limit_price=limit_price, stop_price=stop_price, reason=reason, **public_evidence)
+        changes = {"limit_price": limit_price, "stop_price": stop_price}
+        if quantity is not None:
+            changes["quantity"] = quantity
+        strategy.modify_order(order, reason=reason, **changes, **public_evidence)
         return {
             "identifier": str(order.identifier),
             "requested_identifier": identifier,
             "limit_price": limit_price,
             "stop_price": stop_price,
+            "quantity": quantity,
             "decision_journal": getattr(order, "decision_journal", None),
         }
 
@@ -3709,7 +3714,7 @@ def _bind_modify_order(strategy: Any, manager: Any) -> BoundTool:
         name="orders_modify_order",
         description=(
             "Modify an existing tracked order. "
-            "Arguments: identifier, required reason, optional limit_price, optional stop_price. Explain the new evidence, price change and remaining risk in at least 200 trimmed characters (usually 600-2,500; maximum 100,000). The new explanation is linked to the prior action before execution."
+            "Arguments: identifier, required reason, optional limit_price, optional stop_price, optional quantity (new total including existing fills, when supported by the broker). Explain the new evidence, change and remaining risk in at least 200 trimmed characters (usually 600-2,500; maximum 100,000). The new explanation is linked to the prior action before execution."
         )
         + _PUBLIC_ORDER_REASON_DESCRIPTION,
         function=modify_order,

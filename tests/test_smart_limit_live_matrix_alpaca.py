@@ -1,16 +1,14 @@
-import time
 from datetime import datetime, timedelta
 
 import pytest
 
-from lumibot.brokers.alpaca import Alpaca
 from lumibot.components.options_helper import OptionsHelper
-from lumibot.credentials import ALPACA_CONFIG, ALPACA_TEST_CONFIG
 from lumibot.entities import Asset, Order, SmartLimitConfig, SmartLimitPreset
 from lumibot.strategies.strategy import Strategy
+from tests.test_smart_limit_live_alpaca import _alpaca, _wait_fill
 
 
-pytestmark = [pytest.mark.apitest, pytest.mark.smartlimit_matrix]
+pytestmark = [pytest.mark.apitest, pytest.mark.alpaca, pytest.mark.smartlimit_matrix]
 
 
 class _HarnessStrategy(Strategy):
@@ -20,90 +18,6 @@ class _HarnessStrategy(Strategy):
 
     def on_trading_iteration(self):
         return
-
-
-def _alpaca() -> Alpaca:
-    configs = [
-        ("ALPACA_TEST_CONFIG", ALPACA_TEST_CONFIG),
-        ("ALPACA_CONFIG", ALPACA_CONFIG),
-    ]
-
-    for label, cfg in configs:
-        api_key = cfg.get("API_KEY")
-        api_secret = cfg.get("API_SECRET")
-        if not api_key or not api_secret or api_key == "<your key here>" or api_secret == "<your key here>":
-            continue
-
-        broker = Alpaca(cfg, connect_stream=False)
-        try:
-            broker.api.get_all_positions()
-            return broker
-        except Exception as exc:
-            msg = str(exc).lower()
-            if "unauthorized" in msg or "401" in msg:
-                continue
-            raise RuntimeError(f"Alpaca API failed for {label}: {exc}") from exc
-
-    pytest.skip("Missing/invalid Alpaca credentials in .env (ALPACA_TEST_API_KEY/SECRET or ALPACA_API_KEY/SECRET)")
-
-
-def _poll_alpaca_order(broker: Alpaca, order: Order):
-    try:
-        return broker.api.get_order_by_id(order.identifier)
-    except Exception as exc:
-        # Alpaca can briefly return 404 for newly-submitted orders (or immediately-rejected orders).
-        # Treat as "not yet observable" so apitests can retry instead of hard-failing.
-        msg = str(exc).lower()
-        if "404" in msg or "not found" in msg:
-            return None
-        raise
-
-
-def _wait_fill(strategy: _HarnessStrategy, order: Order, *, timeout: int, drive_smart_limit: bool) -> tuple[bool, int, float]:
-    start = time.time()
-    last_price = None
-    reprices = 0
-    while time.time() - start < timeout:
-        if drive_smart_limit:
-            strategy._executor._process_smart_limit_orders()
-
-        raw = _poll_alpaca_order(strategy.broker, order)
-        if raw is None:
-            time.sleep(1.0)
-            continue
-        raw_status = getattr(raw, "status", "")
-        if hasattr(raw_status, "value"):
-            raw_status = raw_status.value
-        status = str(raw_status).lower()
-        order.status = status
-
-        price = getattr(raw, "limit_price", None)
-        if price is not None:
-            try:
-                price = float(price)
-                order.limit_price = price
-                if last_price is None:
-                    last_price = price
-                elif abs(price - last_price) > 1e-9:
-                    reprices += 1
-                    last_price = price
-            except Exception:
-                pass
-
-        if status in {"filled", "fill"}:
-            elapsed = time.time() - start
-            return True, reprices, elapsed
-        if status in {"canceled", "cancelled", "rejected", "expired", "error"}:
-            elapsed = time.time() - start
-            return False, reprices, elapsed
-
-        time.sleep(1.0)
-
-    try:
-        strategy.broker.cancel_order(order)
-    except Exception:
-        pass
-    return False, reprices, time.time() - start
 
 
 def _strike_step(symbol: str) -> float:

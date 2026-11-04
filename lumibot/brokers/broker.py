@@ -3009,9 +3009,13 @@ class Broker(ABC):
         result = self._parse_broker_orders(response, strategy_name, strategy_object=strategy_object)
         return result
 
-    def modify_order(self, order, stop_price: Union[float, None] = None, limit_price: Union[float, None] = None):
-        """Modify an order"""
-        return self._modify_order(order, stop_price=stop_price, limit_price=limit_price)
+    def modify_order(self, order, stop_price: Union[float, None] = None, limit_price: Union[float, None] = None, *, quantity=None):
+        """Modify an order. Quantity, when supported, is the new total including fills."""
+        changes = {"stop_price": stop_price, "limit_price": limit_price}
+        # Preserve older adapters' price-only signatures for compatible callers.
+        if quantity is not None:
+            changes["quantity"] = quantity
+        return self._modify_order(order, **changes)
 
     def submit_order(self, order) -> Order:
         """Conform an order for an asset to broker constraints and submit it."""

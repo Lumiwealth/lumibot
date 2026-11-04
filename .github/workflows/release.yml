@@ -130,7 +130,21 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          pip install -r requirements_dev.txt -c requirements_agent_evals.txt
+          python - <<'PY'
+          import json
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          # Generated exchange facts and the tests must use the same CCXT
+          # metadata version. Runtime package dependency ranges stay unchanged.
+          version = json.loads(Path('docsrc/_data/ccxt_exchange_facts.json').read_text())['ccxt_version']
+          subprocess.run([
+              sys.executable, '-m', 'pip', 'install', '-r', 'requirements_dev.txt',
+              '-c', 'requirements_agent_evals.txt', f'ccxt=={version}',
+          ], check=True)
+          PY
+          python -m pip check
           pip install pytest-xdist==3.8.0
 
       - name: Run unit tests

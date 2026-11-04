@@ -71,3 +71,28 @@ def test_trading_loop_does_not_execute_an_iteration_at_terminal_bound(monkeypatc
 
     monkeypatch.setattr(executor, "_on_trading_iteration", unexpected_iteration)
     executor._run_backtesting_loop(is_continuous_market=True, time_to_close=None)
+
+
+def test_preopen_buffer_does_not_start_trading_when_actual_open_is_outside_window(monkeypatch):
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 6, 1, 9, 15))
+    broker = _DummyBroker(datetime_end=end)
+    broker.datetime = end - timedelta(minutes=45)
+    broker._end_of_trading_days_reached = False
+    broker.should_continue = lambda: not broker._end_of_trading_days_reached
+    broker.is_market_open = lambda: False
+    strategy = _DummyStrategy(broker)
+    strategy.get_datetime = lambda: broker.datetime
+    waits = []
+    def await_open(timedelta=None):
+        waits.append(timedelta)
+        if timedelta == 0:
+            broker._end_of_trading_days_reached = True
+    strategy.await_market_to_open = await_open
+    executor = StrategyExecutor(strategy)
+    monkeypatch.setattr(executor, "_is_pandas_daily_data_source", lambda: False)
+    monkeypatch.setattr(executor, "_before_market_opens", lambda: None)
+    def unexpected_start():
+        raise AssertionError("The actual session opening is outside the requested window")
+    monkeypatch.setattr(executor, "_before_starting_trading", unexpected_start)
+    assert executor._setup_market_session(has_data_source=True) is False
+    assert waits == [None, 0]

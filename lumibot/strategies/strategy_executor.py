@@ -2317,6 +2317,8 @@ class StrategyExecutor(Thread):
 
         # Now go to the actual open without considering minutes_before_opening
         self.strategy.await_market_to_open(timedelta=0)
+        if not self.broker.should_continue():
+            return False
         self._before_starting_trading()
         self.lifecycle_last_date['before_starting_trading'] = self.strategy.get_datetime().date()
 

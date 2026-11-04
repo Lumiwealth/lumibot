@@ -5734,8 +5734,10 @@ def _bind_attention_list(strategy: Any, manager: Any) -> BoundTool:
 
 def _bind_attention_remove(strategy: Any, manager: Any) -> BoundTool:
     def remove(watch_id: str) -> dict[str, Any]:
-        manager.attention.remove(owner=_attention_owner(), watch_id=watch_id)
-        return {"removed": watch_id}
+        changed = manager.attention.remove(owner=_attention_owner(), watch_id=watch_id)
+        # Keep the legacy echoed identity; report the actual mutation separately.
+        return {"removed": watch_id, "changed": changed,
+                "status": "removed" if changed else "already_absent"}
     return BoundTool(name="attention_remove", function=remove, source="builtin", metadata={"kind": "attention", "replay_on_cache": True},
         description="Remove your obsolete attention condition after confirming the position/operation is finished. "
                     "A submitted exit is not confirmed closure. Check positions and exact pending orders first.")

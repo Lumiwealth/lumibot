@@ -447,6 +447,34 @@ def test_owner_cannot_replace_or_remove_another_agents_watch():
     assert monitor.pending() == []
 
 
+def test_attention_removal_reports_actual_owned_state_change():
+    monitor = AttentionMonitor(Strategy())
+    watch(monitor)
+    assert monitor.remove(owner="researcher", watch_id="boundary") is False
+    assert len(monitor.snapshot(owner="trader")["watches"]) == 1
+    assert monitor.remove(owner="trader", watch_id="missing") is False
+    assert monitor.remove(owner="trader", watch_id="boundary") is True
+    assert monitor.remove(owner="trader", watch_id="boundary") is False
+    assert monitor.snapshot(owner="trader") == {"watches": [], "pending": []}
+
+
+def test_attention_tool_distinguishes_removed_from_already_absent():
+    from types import SimpleNamespace
+    from lumibot.components.agents.builtins import _bind_attention_remove
+    from lumibot.components.agents.tool_context import agent_tool_context
+    strategy = Strategy()
+    monitor = AttentionMonitor(strategy)
+    watch(monitor)
+    tool = _bind_attention_remove(strategy, SimpleNamespace(attention=monitor))
+    with agent_tool_context({"agent_name": "trader"}):
+        assert tool.function(watch_id="missing") == {
+            "removed": "missing", "changed": False, "status": "already_absent"}
+        assert tool.function(watch_id="boundary") == {
+            "removed": "boundary", "changed": True, "status": "removed"}
+        assert tool.function(watch_id="boundary") == {
+            "removed": "boundary", "changed": False, "status": "already_absent"}
+
+
 def test_time_watch_uses_simulation_clock_once_until_agent_reschedules():
     strategy = Strategy()
     monitor = AttentionMonitor(strategy)

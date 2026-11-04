@@ -123,11 +123,16 @@ class AttentionMonitor:
             self._save(state)
             return deepcopy(definition)
 
-    def remove(self, *, owner: str, watch_id: str) -> None:
+    def remove(self, *, owner: str, watch_id: str) -> bool:
         with self._lock:
             state = self._state()
+            key = json.dumps([owner, watch_id], separators=(",", ":"))
+            changed = key in state["watches"] or any(
+                event["owner"] == owner and event["watch_id"] == watch_id
+                for event in state["pending"].values())
             self._remove(state, owner, watch_id)
             self._save(state)
+            return changed
 
     def pending(self) -> list[dict[str, Any]]:
         with self._lock:

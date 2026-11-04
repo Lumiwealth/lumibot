@@ -24,6 +24,7 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
         class _StubDataSource:
             def __init__(self):
                 self.get_datetime = MagicMock()
+                self.datetime_end = pytz.UTC.localize(datetime(2030, 1, 1))
                 self._update_datetime = MagicMock()
 
         # Prevent __init__ from running fully if it causes issues

@@ -69,22 +69,22 @@ class AttentionMonitor:
     def watch(self, *, owner: str, watch_id: str, operation_id: str, metric: str,
               comparison: str, value: Any, reason: str, asset: dict[str, Any] | None = None,
               order_ids: list[str] | None = None, legs: list[dict[str, Any]] | None = None,
-              review_scope: str = "management") -> dict[str, Any]:
+              review_scope: str = "management", entry_cash: float | None = None) -> dict[str, Any]:
         """Create/update one condition. Identical registration preserves its episode."""
         if not owner or not watch_id or not operation_id or not reason.strip():
             raise ValueError("Owner, watch, operation and reason are required")
         if review_scope not in {"setup", "research", "management"}:
             raise ValueError("Review scope must be setup, research or management")
-        if metric not in {"price", "position_quantity", "basket_value", "time", "order_status"}:
-            raise ValueError("Use price, position_quantity, basket_value, time or order_status")
+        if metric not in {"price", "position_quantity", "basket_value", "basket_pnl", "time", "order_status"}:
+            raise ValueError("Use price, position_quantity, basket_value, basket_pnl, time or order_status")
         if comparison not in {"gte", "lte", "eq", "ne", "in"}:
             raise ValueError("Use gte, lte, eq, ne or in")
-        if metric in {"price", "position_quantity", "basket_value"}:
-            if metric != "basket_value" and (not asset or not asset.get("symbol")):
+        if metric in {"price", "position_quantity", "basket_value", "basket_pnl"}:
+            if metric not in {"basket_value", "basket_pnl"} and (not asset or not asset.get("symbol")):
                 raise ValueError("An exact asset is required")
             if comparison == "in" or isinstance(value, bool) or not math.isfinite(float(value)):
                 raise ValueError("A finite numeric threshold is required")
-            if metric == "basket_value":
+            if metric in {"basket_value", "basket_pnl"}:
                 if not legs:
                     raise ValueError("Basket observations need exact legs, signed quantities and multipliers")
                 for leg in legs:
@@ -93,6 +93,9 @@ class AttentionMonitor:
                         for field in ("quantity", "multiplier")
                     ):
                         raise ValueError("Basket legs need finite signed quantities and multipliers")
+            if metric == "basket_pnl" and (entry_cash is None or isinstance(entry_cash, bool)
+                                           or not math.isfinite(float(entry_cash))):
+                raise ValueError("Basket P&L requires a finite signed entry_cash basis")
         elif metric == "time":
             if comparison not in {"gte", "lte"}:
                 raise ValueError("Time comparison must be gte or lte")
@@ -106,6 +109,8 @@ class AttentionMonitor:
                       "asset": asset, "order_ids": list(order_ids or []), "review_scope": review_scope}
         if legs is not None:
             definition["legs"] = deepcopy(legs)
+        if metric == "basket_pnl":
+            definition["entry_cash"] = float(entry_cash)
         with self._lock:
             state = self._state()
             key = json.dumps([owner, watch_id], separators=(",", ":"))
@@ -151,7 +156,8 @@ class AttentionMonitor:
                 state["pending"].pop(event_id, None)
             self._save(state)
 
-    def _observe(self, definition: dict[str, Any], cache: dict[str, Any]) -> Any:
+    def _observe(self, definition: dict[str, Any], cache: dict[str, Any],
+                 observations: dict[str, Any] | None = None) -> Any:
         metric = definition["metric"]
         if metric == "time":
             return self.strategy.get_datetime().isoformat()
@@ -160,12 +166,15 @@ class AttentionMonitor:
                 cache["orders"] = {str(o.identifier): _order_status(o.status) for o in self.strategy.get_orders()}
             statuses = cache["orders"]
             return [statuses.get(identifier) for identifier in definition["order_ids"]]
-        if metric == "basket_value":
-            return sum(float(leg["quantity"]) * float(leg["multiplier"]) * float(
-                self._observe({"metric": "price", "asset": leg["asset"]}, cache))
+        if metric in {"basket_value", "basket_pnl"}:
+            value = sum(float(leg["quantity"]) * float(leg["multiplier"]) * float(
+                self._observe({"metric": "price", "asset": leg["asset"]}, cache, observations))
                 for leg in definition["legs"])
+            return value + float(definition["entry_cash"]) if metric == "basket_pnl" else value
         asset_args = definition["asset"]
         key = observation_key(metric, asset_args)
+        if observations is not None:
+            return observations.get(key)
         if key not in cache:
             asset, quote = resolve_asset_and_quote(self.strategy, **asset_args)
             if metric == "price":
@@ -175,6 +184,31 @@ class AttentionMonitor:
                     cache["positions"] = self.strategy.get_positions()
                 cache[key] = sum(float(p.quantity) for p in cache["positions"] if p.asset == asset)
         return cache[key]
+
+    def _condition(self, definition: dict[str, Any], cache: dict[str, Any],
+                   observations: dict[str, Any] | None = None) -> tuple[Any, bool]:
+        observed = self._observe(definition, cache, observations)
+        metric = definition["metric"]
+        if metric == "order_status":
+            if any(status is None for status in observed):
+                raise ValueError("Tracked order status is unavailable; reconcile exact identifiers")
+            return observed, any(status in definition["value"] for status in observed)
+        actual, target = ((_datetime(observed), _datetime(definition["value"])) if metric == "time"
+                          else (float(observed), float(definition["value"])))
+        if metric != "time" and not math.isfinite(actual):
+            raise ValueError("Observation is not finite")
+        return observed, {"gte": actual >= target, "lte": actual <= target, "eq": actual == target,
+                          "ne": actual != target}[definition["comparison"]]
+
+    def preview(self, definition: dict[str, Any]) -> dict[str, Any]:
+        """Read a condition without changing its warning or acknowledgement state."""
+        try:
+            observed, met = self._condition(definition, {})
+            return {"available": True, "observed": observed, "condition_met": met,
+                    "observed_at": self.strategy.get_datetime().isoformat()}
+        except Exception as exc:
+            return {"available": False, "error_type": type(exc).__name__,
+                    "observed_at": self.strategy.get_datetime().isoformat()}
 
     def poll(self, *, observations: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         """Evaluate saved conditions once. An unavailable observation never clears a breach.
@@ -188,27 +222,10 @@ class AttentionMonitor:
             cache: dict[str, Any] = {}
             for watch in state["watches"].values():
                 definition = watch["definition"]
-                metric, comparison = definition["metric"], definition["comparison"]
+                metric = definition["metric"]
                 observed, error = None, None
                 try:
-                    if observations is not None and metric == "basket_value":
-                        observed = sum(float(leg["quantity"]) * float(leg["multiplier"]) * float(
-                            observations.get(observation_key("price", leg["asset"]))) for leg in definition["legs"])
-                    elif observations is not None and metric not in {"time", "order_status"}:
-                        observed = observations.get(observation_key(metric, definition["asset"]))
-                    else:
-                        observed = self._observe(definition, cache)
-                    if metric == "order_status":
-                        if any(status is None for status in observed):
-                            raise ValueError("Tracked order status is unavailable; reconcile exact identifiers")
-                        met = any(status in definition["value"] for status in observed)
-                    else:
-                        actual, target = ((_datetime(observed), _datetime(definition["value"])) if metric == "time"
-                                          else (float(observed), float(definition["value"])))
-                        if metric != "time" and not math.isfinite(actual):
-                            raise ValueError("Observation is not finite")
-                        met = {"gte": actual >= target, "lte": actual <= target, "eq": actual == target,
-                               "ne": actual != target}[comparison]
+                    observed, met = self._condition(definition, cache, observations)
                 except Exception as exc:
                     error = type(exc).__name__
                 if error:

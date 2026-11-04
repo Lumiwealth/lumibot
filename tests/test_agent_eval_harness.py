@@ -5150,3 +5150,36 @@ def test_judge_keeps_numeric_requests_and_ordered_state_observations_visible(mon
     states = json.loads(prompt.split("\n\nORDERED STATE OBSERVATIONS:\n", 1)[1])
     assert [row["result_index"] for row in states] == [0, 1, 2]
     assert [row["observation"]["payload"] for row in states] == [row["payload"] for row in results]
+
+
+def test_ready_eval_work_refills_without_waiting_for_the_slowest_peer():
+    import concurrent.futures
+    import threading
+    import time
+    first_release = threading.Event()
+    third_started = threading.Event()
+    completed = []
+
+    def run(item):
+        if item == 1:
+            assert first_release.wait(5), "test cleanup failed to release first task"
+        if item == 3:
+            third_started.set()
+        return item
+
+    def consume():
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            for future, item in evals.rolling_futures([1, 2, 3], max_workers=2,
+                    submit=lambda item: executor.submit(run, item)):
+                completed.append((item, future.result()))
+
+    consumer = threading.Thread(target=consume)
+    consumer.start()
+    try:
+        assert third_started.wait(2), "an unrelated slow case held a free model worker idle"
+        assert not first_release.is_set()
+    finally:
+        first_release.set()
+        consumer.join(5)
+    assert not consumer.is_alive()
+    assert sorted(completed) == [(1, 1), (2, 2), (3, 3)]

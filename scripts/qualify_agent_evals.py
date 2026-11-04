@@ -382,6 +382,8 @@ def _committed_establishment(source_ref, cases, *, versions, now):
             or receipt.get("sdk_versions") != versions):
         return {}
     proof = receipt.get("establishment")
+    if isinstance(proof, dict) and "sources" in proof:
+        proof = next((part for part in proof["sources"] if part.get("source_commit") == source_ref), None)
     if not isinstance(proof, dict) or proof.get("source_commit") != source_ref:
         return {}
     by_id = {case["id"]: case for case in _unchanged_establishment_cases(source_ref, cases)}
@@ -404,6 +406,17 @@ def _committed_establishment(source_ref, cases, *, versions, now):
 
 def build_establishment(rows, call_rows, cases, *, source_ref, versions, now=None):
     now = now or evals.utc_now()
+    if isinstance(source_ref, (list, tuple)):
+        sources, records = [], {}
+        for ref in dict.fromkeys(source_ref):
+            remaining = [case for case in cases if case["id"] not in records]
+            part = build_establishment(rows, call_rows, remaining, source_ref=ref, versions=versions, now=now)
+            if part["cases"]:
+                sources.append(part)
+                records.update(part["cases"])
+        proof = {"sources": sources, "cases": records}
+        validate_establishment(proof, cases, versions=versions, now=now)
+        return proof
     runtime_hash = establishment_runtime(source_ref, [], versions)
     unchanged = _unchanged_establishment_cases(source_ref, cases)
     _, calls = subscription_call_state(call_rows)
@@ -436,6 +449,20 @@ def build_establishment(rows, call_rows, cases, *, source_ref, versions, now=Non
 
 
 def validate_establishment(proof, cases, *, versions, now):
+    if isinstance(proof, dict) and set(proof) == {"sources", "cases"}:
+        if not isinstance(proof["sources"], list) or not isinstance(proof["cases"], dict):
+            raise ValueError("Invalid composed establishment evidence")
+        records, refs = {}, set()
+        for part in proof["sources"]:
+            if (not isinstance(part, dict) or "sources" in part
+                    or part.get("source_commit") in refs or set(records) & set(part.get("cases", {}))):
+                raise ValueError("Duplicate establishment source or case")
+            validate_establishment(part, cases, versions=versions, now=now)
+            refs.add(part["source_commit"])
+            records.update(part["cases"])
+        if records != proof["cases"]:
+            raise ValueError("Composed establishment changed original case records")
+        return
     if not isinstance(proof, dict) or set(proof) != {"source_commit", "runtime_fingerprint", "cases"}:
         raise ValueError("Invalid original establishment evidence")
     by_id = {case["id"]: case for case in cases}
@@ -453,6 +480,11 @@ def validate_establishment(proof, cases, *, versions, now):
     original_cases = {case["id"]: case for case in originals}
     for case_id, record in proof["cases"].items():
         validate_record(record, original_cases[case_id], runtime_hash=runtime_hash, now=now)
+
+
+def established_runtime(proof, case_id):
+    parts = proof.get("sources", [proof])
+    return next(part["runtime_fingerprint"] for part in parts if case_id in part["cases"])
 
 
 def regression_required(case, establishment, rows, runtime_hash):
@@ -547,6 +579,10 @@ def build_receipt(rows, call_rows, cases, *, runtime_hash, versions, calibration
         establishment["cases"] = {case["id"]: establishment["cases"][case["id"]]
             for case in cases if case["id"] in establishment["cases"]
             and regression_required(case, establishment, rows, runtime_hash) == 1}
+        if "sources" in establishment:
+            establishment["sources"] = [{**part, "cases": {identity: record
+                for identity, record in part["cases"].items() if identity in establishment["cases"]}}
+                for part in establishment["sources"]]
     required_counts = {case["id"]: regression_required(case, establishment, rows, runtime_hash) for case in cases}
     records = project_case_records(rows, calls, cases, runtime_hash=runtime_hash, now=now,
                                    required_counts=required_counts)
@@ -593,7 +629,7 @@ def verify_receipt(receipt, cases, *, runtime_hash, versions, now=None):
         for case in cases:
             prior = establishment["cases"].get(case["id"])
             if prior:
-                attempts, calls = validate_record(prior, case, runtime_hash=establishment["runtime_fingerprint"], now=now)
+                attempts, calls = validate_record(prior, case, runtime_hash=established_runtime(establishment, case["id"]), now=now)
                 if seen_attempts & attempts or seen_calls & calls:
                     raise ValueError("Establishment reused a native attempt or call")
                 seen_attempts.update(attempts)
@@ -665,7 +701,7 @@ def main():
     parser.add_argument("--calibration-output-root", type=Path)
     parser.add_argument("--model-call-ledger", type=Path)
     parser.add_argument("--receipt", type=Path, default=DEFAULT_PATH)
-    parser.add_argument("--established-source", help="Immutable earlier source with original established native passes; every case still needs current regression proof")
+    parser.add_argument("--established-source", action="append", help="Immutable earlier source with original established native passes; repeat for distinct sources. Every case still needs current regression proof")
     args = parser.parse_args()
     cases, runtime_hash, versions = evals.load_cases(), evals.runtime_fingerprint(), evals.sdk_versions()
     if args.mode == "create":

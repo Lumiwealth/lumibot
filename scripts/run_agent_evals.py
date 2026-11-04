@@ -238,6 +238,27 @@ def initial_repetition_reservation_usd(case: dict[str, Any], judge_model: str) -
     return 0.0
 
 
+def rolling_futures(items, *, max_workers, submit):
+    """Refill a free worker after durable completion handling, without chunk barriers."""
+    pending = iter(items)
+    active = {}
+
+    def fill():
+        while len(active) < max_workers:
+            try:
+                item = next(pending)
+            except StopIteration:
+                break
+            active[submit(item)] = item
+
+    fill()
+    while active:
+        completed, _ = concurrent.futures.wait(active, return_when=concurrent.futures.FIRST_COMPLETED)
+        for future in completed:
+            yield future, active.pop(future)
+            fill()
+
+
 def reserve_budget_batch(
     pending: list[tuple[dict[str, Any], int, str]],
     *,
@@ -1399,6 +1420,12 @@ def build_judge_request(
             "order rationales separately from whether the execution succeeded. Verify comparative "
             "claims such as nearer/farther or larger/smaller using their actual stated reference "
             "and values. A valid order cannot make a reversed factual comparison true. "
+            "A buy limit permits execution at or below its limit; a sell limit at or above. "
+            "A marketable current quote does not prove an actual fill. A generic warning that "
+            "a limit may remain unfilled as quotes change is valid when actual reads still show "
+            "it working. Do not turn that caveat into a claim that the current quote is outside "
+            "the limit. Still reject reversed inequalities, a false stated current cause for "
+            "nonexecution, or an invented fill inferred only from marketability. "
             "Do not invent mandatory report fields: an accurate concise account summary need not "
             "repeat every optional returned field unless the task or rubric requires it. Still "
             "require the observed state and every reported claim to satisfy the actual rubric. "
@@ -2182,7 +2209,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-root", type=Path, default=Path("artifacts/agent_evals"))
     parser.add_argument("--qualification-receipt", type=Path, default=REPO_ROOT / "ci/agent-evals/qualification.json")
     parser.add_argument("--max-workers", type=int, default=8)
-    parser.add_argument("--established-source", help="Immutable source of original 3/5 native passes; still run every established case once against current source")
+    parser.add_argument("--established-source", action="append", help="Immutable source of original 3/5 native passes; repeat for distinct sources. Still run every established case once against current source")
     parser.add_argument("--pilot", action="store_true", help="Run one pending repetition per selected case; qualification still requires every configured pass")
     parser.add_argument("--gate", action="store_true", help="Skip fresh cases and require complete fresh coverage")
     parser.add_argument(
@@ -2316,20 +2343,21 @@ def main() -> int:
     prior_budget = budget.snapshot()
     prior_committed = prior_budget["committed_usd"]
     estimated_total = prior_committed
-    pending = list(work)
-    while pending:
-        remaining_budget = 1.0  # USD is always zero; the per-call subscription cap authorizes requests.
-        batch, pending = reserve_budget_batch(
-            pending,
-            max_workers=args.max_workers,
-            remaining_budget=remaining_budget,
-            judge_model=args.judge_model,
+    attempts = {}
+
+    def run_attempt(case, repetition, fingerprint):
+        attempt = attempts[(case["id"], repetition)]
+        if attempt.get("actor_completed") is True:
+            return resume_judge(case, attempt, judge_model=args.judge_model, budget=budget)
+        return execute_repetition(
+            case, repetition=repetition, fingerprint=fingerprint, judge_model=args.judge_model, budget=budget,
+            run_id=attempt["run_id"], started_at=attempt["started_at"],
+            on_actor_completed=lambda checkpoint: append_jsonl(ledger_path, checkpoint),
         )
-        if not batch:
-            break
-        batch_size = len(batch)
-        attempts = {}
-        for case, repetition, fingerprint, _ in batch:
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=args.max_workers) as executor:
+        def submit_attempt(item):
+            case, repetition, fingerprint = item
             began = utc_text()
             previous = latest_repetition_rows(existing_rows, case["id"], fingerprint).get(repetition, {})
             if previous.get("actor_completed") is True and previous.get("status") in {"actor_completed", "error"}:
@@ -2341,52 +2369,27 @@ def main() -> int:
             append_jsonl(ledger_path, row)
             started_rows.append(row)
             attempts[(case["id"], repetition)] = row
+            return executor.submit(run_attempt, case, repetition, fingerprint)
 
-        def run_attempt(case, repetition, fingerprint):
-            attempt = attempts[(case["id"], repetition)]
-            if attempt.get("actor_completed") is True:
-                return resume_judge(case, attempt, judge_model=args.judge_model, budget=budget)
-            return execute_repetition(
-                case, repetition=repetition, fingerprint=fingerprint, judge_model=args.judge_model, budget=budget,
-                run_id=attempt["run_id"], started_at=attempt["started_at"],
-                on_actor_completed=lambda checkpoint: append_jsonl(ledger_path, checkpoint),
-            )
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=batch_size) as executor:
-            futures = {
-                executor.submit(
-                    run_attempt,
-                    case,
-                    repetition,
-                    fingerprint,
-                ): (case["id"], repetition, reservation)
-                for case, repetition, fingerprint, reservation in batch
-            }
-            for future in concurrent.futures.as_completed(futures):
-                case_id, repetition, reservation = futures[future]
-                try:
-                    row = future.result()
-                except Exception as exc:
-                    attempt = attempts[(case_id, repetition)]
-                    row = harness_error_row(case_id, repetition, fingerprints[case_id], exc,
-                                            run_id=attempt["run_id"], started_at=attempt["started_at"])
-                append_jsonl(ledger_path, row)
-                new_rows.append(row)
-                # Batch estimates schedule workers, but only the shared durable
-                # per-call ledger authorizes spend, including failed/retried
-                # calls and every actor/judge continuation.
-                estimated_total = budget.committed_usd
-                write_json_atomic(
-                    output_root / "progress.json",
-                    {
-                        "completed_repetitions": len(new_rows),
-                        "remaining_repetitions": len(work) - len(new_rows),
-                        "budget": budget.snapshot(),
-                        "ledger_path": str(ledger_path),
-                    },
-                )
-        if estimated_total > args.max_cost_usd:
-            break
+        for future, (case, repetition, fingerprint) in rolling_futures(
+                work, max_workers=args.max_workers, submit=submit_attempt):
+            case_id = case["id"]
+            try:
+                row = future.result()
+            except Exception as exc:
+                attempt = attempts[(case_id, repetition)]
+                row = harness_error_row(case_id, repetition, fingerprint, exc,
+                                        run_id=attempt["run_id"], started_at=attempt["started_at"])
+            append_jsonl(ledger_path, row)
+            new_rows.append(row)
+            # Every request, continuation and retry still reserves through the
+            # same durable subscription ledger before calling the provider.
+            estimated_total = budget.committed_usd
+            write_json_atomic(output_root / "progress.json", {
+                "completed_repetitions": len(new_rows),
+                "remaining_repetitions": len(work) - len(new_rows),
+                "budget": budget.snapshot(), "ledger_path": str(ledger_path),
+            })
 
     all_rows = existing_rows + started_rows + new_rows
     invalidate_failed_freshness(state, all_rows, fingerprints)

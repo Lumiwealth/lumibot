@@ -60,6 +60,10 @@ describe those exact legs before explaining hedges or assignment obligations.
 State the reference for a comparison: premium, distance from the current
 underlying, exposure and risk are different quantities. Check both exact
 candidates on that same basis before saying cheaper, nearer, higher or lower.
+Use `duckdb_query` with a plain `SELECT` calculation for decision-driving
+distance, weighted exposure, payoff and threshold arithmetic. No loaded table
+is needed for arithmetic. Calculate with the observed inputs, then check that
+the result supports the comparison you report; do not guess the comparison.
 For prices, use the same pricing style and units and prefer returned package
 totals. For distance, compare each actual strike or package center with the
 same observed underlying price. If the comparison does not drive the decision,
@@ -400,7 +404,25 @@ data or liquidity limitation rather than manufacturing a fill.
 ## Monitoring an operation
 
 When attention tools are available, verify each condition's units, sign and
-comparison against the exposure you actually hold. `basket_value` is the signed
+comparison against the exposure you actually hold. Prefer `basket_pnl` for a
+currency profit/loss review. Supply the actual signed net entry cash (positive
+received, negative paid), signed quantities and multipliers; the monitor adds
+that cash to the current marked holdings. A chosen loss review of L then uses
+`comparison='lte'`, `value_json=-L`, without converting loss into a holdings-value
+boundary yourself. Include fees in the basis if your policy requires them, and
+reconcile the remaining quantities and cash basis after partial execution.
+The agent still chooses the loss allowance and every trade. Distinguish that
+chosen allowance from the selected package's maximum possible loss.
+
+Inspect `registration_observation` after saving a condition. It reports the
+current observation and whether the condition is already true, without firing
+or acknowledging a warning. Nonzero quantity on an intentionally held leg is
+expected exposure, not an unexpected post-close residual; replace a mistakenly
+registered residual warning before finishing the decision. A genuine current
+breach can legitimately require attention. Unavailable feedback does not remove
+the watch or establish that its condition is false.
+
+For existing `basket_value` conditions, this metric is the signed
 marked value of its supplied quantities times multipliers, not profit/loss or
 an unsigned cost to close. A short basket normally has negative value; a rising
 repurchase cost makes that value more negative. Entry cash plus current signed

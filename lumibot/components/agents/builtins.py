@@ -2670,7 +2670,7 @@ def _bind_duckdb_query(strategy: Any, manager: Any) -> BoundTool:
         description=(
             "Run a read-only SQL query against tables previously loaded into DuckDB. "
             "Arguments: sql, optional limit. Aware timestamp results use UTC; source text and naive market wall clocks retain their values. "
-            "Load a table first with market_load_history_table, then analyze it here. "
+            "For market-data analysis load a table first with market_load_history_table. Pure arithmetic can use SELECT expressions without loading a table. "
             "For LumiBot price tables, prefer datetime for timestamps and close for prices unless the loaded sample rows show different column names. "
             "Caveat: only read-only SQL is allowed. "
             "It is also your calculator: never add up, divide, or scale more than a few numbers in your head. Put "
@@ -5076,9 +5076,9 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
             "Create and submit one atomic multi-leg option order from exact contracts selected by the agent. This is generic and does not choose a strategy or its legs. "
             "Arguments: legs_json, required reason, optional price_style='market', 'best', 'mid', or 'fastest', optional signed net_limit_price, optional time_in_force. legs_json must be a JSON array with at least two legs; each leg requires symbol, expiration, strike, right, quantity, and side. "
             "Explain the package thesis, evidence, net pricing, sizing, risks and invalidation in at least 200 trimmed characters (usually 600-2,500; maximum 100,000). One private decision links all legs before execution. "
-            "Before submitting in the same agent run, inspect the injected account_snapshot, current market_quote/market_quotes or last-price fallback for each underlying symbol, options_get_chain, and options_calculate_multileg_price after evaluating every exact leg. A complete injected account_snapshot satisfies the initial account_portfolio, account_positions, and open-order inspection; after any order mutation, refresh account_portfolio, account_positions, and orders_open_orders before another order. Market and option evidence are always required. "
+            "Before submitting in the same agent run, inspect the injected account_snapshot, current market_quote/market_quotes or last-price fallback for each underlying symbol, options_get_chain, and a package price reconciled to every exact leg's current quote evidence. A complete injected account_snapshot satisfies the initial account_portfolio, account_positions, and open-order inspection; after any order mutation, refresh account_portfolio, account_positions, and orders_open_orders before another order. Market and option evidence are always required. "
             "Opening sides are buy_to_open and sell_to_open. Use matching quantities when the intended position requires matched contracts. "
-            "Before opening a package, call both options_get_greeks and options_evaluate_market for every final leg, including protective buy legs, then calculate the package price. Checks for another strike or a replaced candidate do not verify the final contract. "
+            "Before opening a package, call both options_get_greeks and options_evaluate_market for every final leg, including protective buy legs, and verify its package price. Checks for another strike or a replaced candidate do not verify the final contract. A prior preview remains usable when its exact contracts, quantities and prices still match the final fresh checks; Greek checks alone do not invalidate it. Reprice when the structure or relevant quotes change. "
             "In reason, assess the selected package's signed, quantity-weighted net Greek exposure and executable quote quality; retrieving raw values alone is not a risk assessment. Calculate reported net values, state their units, and distinguish current offsets from exposure that may change. "
             "To close held option contracts, always pass action='close' and list only symbol, expiration, strike, and right for each held leg, plus an optional quantity (default: the full held quantity). LumiBot derives each closing side from the current signed position (long -> sell_to_close, short -> buy_to_close), so never write closing sides yourself. Close mode rejects contracts with no open position and quantities above the held amount. "
             "Current nonzero option positions remain open until a later account_positions result shows zero quantity. A submitted or filled order result is not itself proof that positions are flat, and a final response must not claim submission unless this tool returned submitted orders. "
@@ -5688,15 +5688,16 @@ def _bind_attention_watch(strategy: Any, manager: Any) -> BoundTool:
     def watch(watch_id: str, operation_id: str, metric: str, comparison: str,
               value_json: str, reason: str, asset_json: str | None = None,
               order_ids: list[str] | None = None, legs_json: str | None = None,
-              review_scope: str = "management") -> dict[str, Any]:
+              review_scope: str = "management", entry_cash: float | None = None) -> dict[str, Any]:
         # ISO timestamps are ordinary string inputs to model tools. Preserve
         # JSON-encoded scalar compatibility without requiring nested quoting.
         value = value_json if metric == "time" and not value_json.lstrip().startswith('"') else json.loads(value_json)
-        return manager.attention.watch(owner=_attention_owner(), watch_id=watch_id,
+        definition = manager.attention.watch(owner=_attention_owner(), watch_id=watch_id,
             operation_id=operation_id, metric=metric, comparison=comparison,
             value=value, reason=reason,
             asset=json.loads(asset_json) if asset_json else None, order_ids=order_ids,
-            legs=json.loads(legs_json) if legs_json else None, review_scope=review_scope)
+            legs=json.loads(legs_json) if legs_json else None, review_scope=review_scope, entry_cash=entry_cash)
+        return {**definition, "registration_observation": manager.attention.preview(definition)}
 
     return BoundTool(name="attention_watch", function=watch, source="builtin", metadata={"kind": "attention", "replay_on_cache": True},
         description="Save or update a read-only attention condition for your next decision. This does not place an order. "
@@ -5704,8 +5705,9 @@ def _bind_attention_watch(strategy: Any, manager: Any) -> BoundTool:
         "With dispatch_team, review_scope=setup refreshes research for an eligible entry opportunity; research requests "
         "fresh research for a subsequent decision; management reuses still-relevant dated research. "
         "Choose the scope explicitly for the intended review. Watch names do not select the team. "
-        "Use stable watch_id per condition and operation_id per position/setup. metric: price, position_quantity, basket_value, time, order_status. "
+        "Use stable watch_id per condition and operation_id per position/setup. metric: price, position_quantity, basket_value, basket_pnl, time, order_status. "
         "Numeric comparison: gte/lte/eq/ne and value_json a number. Time: gte/lte and value_json a plain ISO timestamp with timezone; a JSON-encoded timestamp string is also accepted. "
+        "For a currency profit/loss boundary prefer basket_pnl: supply signed legs_json and entry_cash, the actual net cash received (positive) or paid (negative), in the same currency as the marks. Include fees in that basis when your policy requires them. It observes entry_cash plus signed marked legs; a loss allowance L uses comparison=lte and value_json=-L. This is marked P&L, not a guaranteed executable liquidation price. Reconcile partial fills and update the selected cash/remaining-leg basis after an exposure change. "
         "For basket_value supply legs_json: an array of {asset: exact asset object, quantity: signed number, multiplier: number}. "
         "It observes the signed sum of quantity times multiplier times last-price mark; this is attention, not an executable bid/ask. "
         "This is holdings value in currency, not profit/loss or an unsigned closing cost. A negative-valued short basket "
@@ -5719,6 +5721,7 @@ def _bind_attention_watch(strategy: Any, manager: Any) -> BoundTool:
         "such as filled/fill and partially_filled/partial_fill are matched consistently. asset_json is an exact asset object "
         "with symbol, optional asset_type, expiration, strike, right, quote_symbol. Use distinct thresholds for meaningful worsening. "
         "An unchanged condition fires once until it clears or you change its definition. Related conditions form one packet. "
+        "The registration_observation reports whether this condition is already true, without firing or acknowledging it. Inspect that feedback: nonzero quantity while intentionally holding a contract is not an unexpected post-close residual. Unavailable feedback does not invalidate registration. "
         "Choose attention times economically; quiet minute polling costs no inference. Retain risk coverage while an order works. "
         "Save exact associated order_ids so the next trader reconciles working/partial/failed orders before any new submission. "
         "After confirmed closure, inspect and remove obsolete operation watches before re-entry; a new operation_id does not "

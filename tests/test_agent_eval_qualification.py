@@ -798,3 +798,23 @@ def test_mixed_catalog_preserves_only_unchanged_original_establishment(native_me
     assert qualification.build_establishment([], calls[:1], catalog,
         source_ref=ref, versions=versions,
         now=now + timedelta(days=evals.DEFAULT_FRESHNESS_DAYS + 1))["cases"] == {}
+
+
+def test_establishment_composes_immutable_sources_without_relabeling(native_metadata, monkeypatch):
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")
+    monkeypatch.setattr(qualification, "_unchanged_establishment_cases", lambda ref, cases: cases)
+    proof = qualification.build_establishment(rows, calls, cases,
+        source_ref=["a" * 40, "b" * 40], versions=versions, now=now)
+    assert proof["sources"][0]["source_commit"] == "a" * 40
+    assert proof["cases"]["contract"] == proof["sources"][0]["cases"]["contract"]
+    assert proof["cases"]["contract"]["repetitions"][0]["run_id"] == rows[0]["run_id"]
+    qualification.validate_establishment(proof, cases, versions=versions, now=now)
+    forged = deepcopy(proof)
+    forged["cases"]["contract"]["repetitions"][0]["run_id"] = str(uuid4())
+    with pytest.raises(ValueError):
+        qualification.validate_establishment(forged, cases, versions=versions, now=now)
+    duplicate = deepcopy(proof)
+    duplicate["sources"].append(deepcopy(proof["sources"][0]))
+    with pytest.raises(ValueError):
+        qualification.validate_establishment(duplicate, cases, versions=versions, now=now)

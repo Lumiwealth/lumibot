@@ -106,17 +106,15 @@ jobs:
           pip install requests
           python - <<'PY'
           import json
-          import subprocess
-          import sys
+          import os
           from pathlib import Path
 
           # The offline docs checks qualify the declared CCXT metadata version.
           version = json.loads(Path('docsrc/_data/ccxt_exchange_facts.json').read_text())['ccxt_version']
-          subprocess.run([
-              sys.executable, '-m', 'pip', 'install', '-r', 'requirements_dev.txt',
-              '-c', 'requirements_agent_evals.txt', f'ccxt=={version}',
-          ], check=True)
+          constraint = Path(os.environ['RUNNER_TEMP']) / 'ccxt-metadata-constraint.txt'
+          constraint.write_text(f'ccxt=={version}\n')
           PY
+          pip install -r requirements_dev.txt -c requirements_agent_evals.txt -c "${RUNNER_TEMP}/ccxt-metadata-constraint.txt"
           python -m pip check
           pip install pytest-xdist==3.8.0
 

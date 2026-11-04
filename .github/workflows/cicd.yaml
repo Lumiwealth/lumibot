@@ -53,14 +53,9 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
-          cache: pip
 
-      - name: Install dependencies
-        run: |
-          echo "Set AIOHTTP_NO_EXTENSIONS=$AIOHTTP_NO_EXTENSIONS so that aiohttp doesn't try to install C extensions"
-          python -m pip install --upgrade pip
-          pip install requests
-          pip install -r requirements_dev.txt -c requirements_agent_evals.txt
+      - name: Install lint dependencies
+        run: python -m pip install ruff -c requirements_agent_evals.txt
 
       - name: Run Ruff (ThetaData scope)
         run: |

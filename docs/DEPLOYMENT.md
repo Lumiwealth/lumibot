@@ -22,6 +22,12 @@ the already-green candidate as environment proof, not as the first full test
 loop. LumiBot publication, Bot Manager Dev deployment, and Bot Manager
 production deployment each retain their own explicit authorization boundary.
 
+An original establishment source may cover the unchanged subset of a mixed
+case catalog. Only case definitions that exactly match that immutable Git source
+retain the one-regression-run policy. New or changed cases still require all
+configured three or five current actor/judge passes; they cannot inherit another
+case's establishment or the earlier version of their own definition.
+
 ## TL;DR (do this in order)
 
 1) **Run the release preflight first.** If branch, `setup.py`, `CHANGELOG.md`, tag, or `dev` state is inconsistent, stop. Do not tag. Do not deploy BotManager. Fix the branch first.

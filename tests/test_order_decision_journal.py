@@ -77,6 +77,31 @@ def test_intent_is_committed_before_broker_and_modifications_keep_history(tmp_pa
     assert len(rows) == 3
 
 
+def test_quantity_modification_uses_normal_strategy_and_agent_functions(tmp_path):
+    from lumibot.components.agents.builtins import _bind_modify_order
+
+    strategy, calls = make_strategy(tmp_path)
+    order = make_order()
+    strategy.get_order = lambda identifier, **kwargs: order
+    result = _bind_modify_order(strategy, None).function(
+        identifier=order.identifier, quantity=2, reason=REASON)
+    assert order.quantity == 2
+    assert result["quantity"] == 2
+    assert calls[0][0:2] == ("modify", 1)
+    assert order.decision_journal["operation"] == "modify"
+
+
+def test_price_only_modify_preserves_legacy_adapter_signature():
+    from lumibot.brokers.broker import Broker
+
+    calls = []
+    adapter = SimpleNamespace(_modify_order=lambda order, stop_price=None, limit_price=None:
+        calls.append((order, stop_price, limit_price)))
+    order = make_order()
+    Broker.modify_order(adapter, order, limit_price=123)
+    assert calls == [(order, None, 123)]
+
+
 @pytest.mark.parametrize("reason", [None, "too short", "x" * 100001], ids=["missing", "short", "oversize"])
 def test_agent_cannot_execute_without_a_bounded_explanation(tmp_path, reason):
     strategy, calls = make_strategy(tmp_path)

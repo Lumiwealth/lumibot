@@ -14,7 +14,8 @@ from lumibot.data_sources.alpaca_data import AlpacaData
 from lumibot.entities import Asset, Order
 
 
-def test_credit_package_read_normalizes_its_child_contracts_and_links():
+@pytest.mark.parametrize("leg_order_class", ["simple", "mleg"])
+def test_credit_package_read_normalizes_its_child_contracts_and_links(leg_order_class):
     """SDK schema plus the signed mleg response demonstrated in synthetic Dev."""
     at = datetime(2027, 1, 4, tzinfo=timezone.utc)
 
@@ -23,7 +24,9 @@ def test_credit_package_read_normalizes_its_child_contracts_and_links():
             id=UUID(int=number), client_order_id=f"neutral-leg-{number}", asset_id=UUID(int=number + 10),
             created_at=at, updated_at=at, submitted_at=at,
             symbol=symbol, asset_class="us_option", qty="1", filled_qty="1", filled_avg_price=price,
-            side=side, order_class="simple", type="market", time_in_force="day", status="filled", extended_hours=False,
+            # The real provider marks leaf legs as mleg too. They still represent
+            # individual option contracts, not nested packages.
+            side=side, order_class=leg_order_class, type="market", time_in_force="day", status="filled", extended_hours=False,
         )
 
     response = ProviderOrder(
@@ -45,6 +48,8 @@ def test_credit_package_read_normalizes_its_child_contracts_and_links():
     assert [child.parent_identifier for child in parent.child_orders] == [parent.identifier] * 2
     assert [child.asset.strike for child in parent.child_orders] == [100, 105]
     assert all(child.asset.multiplier == 100 and child.asset.symbol == "SYN" for child in parent.child_orders)
+    assert all(child.order_class == Order.OrderClass.SIMPLE for child in parent.child_orders)
+    assert not any(child.is_parent() for child in parent.child_orders)
     assert [child.filled_quantity for child in parent.child_orders] == [1, 1]
 
 

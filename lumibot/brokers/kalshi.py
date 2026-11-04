@@ -1,5 +1,6 @@
 """Kalshi selected-contract trading through the existing LumiBot broker hooks."""
 
+import hashlib
 import uuid
 from datetime import datetime, timedelta
 from datetime import time as day_time
@@ -263,7 +264,7 @@ class Kalshi(Broker):
                 # Order whose _transmitted flag was intentionally not serialized.
                 raise ValueError("Kalshi order has already been attempted; reconcile it before submitting a new order")
             payload = self._order_payload(order)
-            client_id = payload.get("client_order_id") or str(uuid.uuid4())
+            client_id = self._new_client_order_id(order, payload.get("client_order_id"))
             state.update(client_order_id=client_id, fill_count="0", fill_notional="0")
             payload["client_order_id"] = client_id
             self._pending_submissions[client_id] = order
@@ -310,18 +311,22 @@ class Kalshi(Broker):
     def cancel_order(self, order):
         with self._reconcile_lock:
             market = self._kalshi_data._market(order.asset)
-            self._client.request(
+            response = self._client.request(
                 "DELETE",
                 f"/portfolio/events/orders/{KalshiClient.path_id(order.identifier)}",
                 params={"market_ticker": order.asset.symbol, **self._route(market)},
             )
+            self._record_mutation_clock(order, response)
+            order.status = Order.OrderStatus.CANCELLING
             self._invalidate_balance()
         self._refresh_after_mutation(order)
         return order
 
-    def _modify_order(self, order, limit_price=None, stop_price=None):
-        if stop_price is not None or limit_price is None:
-            raise ValueError("Kalshi modify_order supports limit_price; native stop orders are unavailable")
+    def _modify_order(self, order, limit_price=None, stop_price=None, quantity=None):
+        if stop_price is not None or (limit_price is None and quantity is None):
+            raise ValueError(
+                "Kalshi modify_order supports limit_price and quantity; native stop orders are unavailable"
+            )
         with self._reconcile_lock:
             row = self._pull_broker_order(order.identifier)
             state = self._state(order)
@@ -331,12 +336,16 @@ class Kalshi(Broker):
                 raise KalshiAPIError("Kalshi order was not found for modification")
             if not order.is_active():
                 raise ValueError("Kalshi order is no longer active")
+            total = decimal_value(quantity if quantity is not None else order.quantity, "quantity")
+            if total < decimal_value(state.get("fill_count", 0), "fill checkpoint"):
+                raise ValueError("Kalshi total quantity cannot be less than the already filled quantity")
+            price = limit_price if limit_price is not None else order.limit_price
             candidate = Order(
                 order.strategy,
                 order.asset,
-                order.quantity,
+                total,
                 order.side,
-                limit_price=limit_price,
+                limit_price=price,
                 time_in_force=order.time_in_force,
                 good_till_date=order.good_till_date,
             )
@@ -344,7 +353,7 @@ class Kalshi(Broker):
             payload = {key: validated[key] for key in ("ticker", "side", "price", "count")}
             if "exchange_index" in validated:
                 payload["exchange_index"] = validated["exchange_index"]
-            updated_id = str(uuid.uuid4())
+            updated_id = self._new_client_order_id(order)
             payload.update(client_order_id=state["client_order_id"], updated_client_order_id=updated_id)
             response = self._client.request(
                 "POST",
@@ -358,12 +367,23 @@ class Kalshi(Broker):
                 raise KalshiAPIError(
                     "Kalshi amend returned a different order identifier; reconcile before further mutation"
                 )
-            order.limit_price = limit_price
+            order.limit_price = price
+            order.quantity = total
+            self._record_mutation_clock(order, response)
             self._state(order)["client_order_id"] = updated_id
+            order.status = Order.OrderStatus.PENDING_REPLACE
             self._invalidate_balance()
             self._process_trade_event(order, self.MODIFIED_ORDER)
         self._refresh_after_mutation(order)
         return order
+
+    @staticmethod
+    def _record_mutation_clock(order, response):
+        timestamp = response.get("ts_ms")
+        if isinstance(timestamp, int) and not isinstance(timestamp, bool) and timestamp > 0:
+            Kalshi._state(order)["minimum_snapshot_ts_ms"] = max(
+                timestamp, Kalshi._state(order).get("minimum_snapshot_ts_ms", 0)
+            )
 
     def _pull_positions(self, strategy):
         name = self._strategy_name_from_input(strategy)
@@ -393,15 +413,24 @@ class Kalshi(Broker):
         return next((p for p in self._pull_positions(strategy) if p.asset == asset), None)
 
     @staticmethod
-    def _counts(row):
+    def _counts(row, known_total=None):
         filled = decimal_value(row.get("fill_count_fp", row.get("fill_count", 0)), "fill count")
         remaining = decimal_value(row.get("remaining_count_fp", row.get("remaining_count", 0)), "remaining count")
         initial = decimal_value(
             row.get("initial_count_fp", row.get("initial_count", filled + remaining)), "initial count"
         )
-        if min(filled, remaining, initial) < 0 or filled > initial or filled + remaining > initial:
+        if min(filled, remaining, initial) < 0:
             raise KalshiAPIError("Kalshi returned inconsistent order quantities")
-        return filled, remaining, initial
+        # initial_count is the creation size and is unchanged by amendments.
+        # Active orders expose their current size through fills + remaining.
+        # Terminal history omits canceled quantity: retain a tracked amended
+        # total when available, otherwise preserve the provider's creation size.
+        total = (
+            filled + remaining
+            if row.get("status") == "resting"
+            else max(filled, decimal_value(known_total, "known quantity") if known_total is not None else initial)
+        )
+        return filled, remaining, total
 
     @staticmethod
     def _book_side(row):
@@ -414,36 +443,106 @@ class Kalshi(Broker):
             raise KalshiAPIError("Kalshi order has an unknown direction")
         return side
 
+    @staticmethod
+    def _new_client_order_id(order, caller_id=None):
+        # The venue accepts UUID references, not longer arbitrary strings.
+        # UUIDv8 carries a format marker, intent, a 40-bit strategy-tag digest
+        # and 64 random/hash bits. This recovers lifecycle ownership after a
+        # restart without attributing the whole shared account to one strategy.
+        # It is an ownership hint inside an authorized account, not authorization.
+        value = (
+            uuid.uuid5(uuid.NAMESPACE_URL, "https://kalshi.com/lumibot/order/" + caller_id)
+            if caller_id
+            else uuid.uuid4()
+        )
+        raw = bytearray(value.bytes)
+        raw[:2] = b"LK"
+        raw[2] = (raw[2] & 0xFC) | ((order.asset.outcome == "no") << 1) | (order.side == "sell")
+        previous = (order.custom_params or {}).get("_kalshi", {}).get("client_order_id")
+        previous_owner = Kalshi._client_order_owner(previous)
+        tag = Broker.normalize_broker_strategy_tag(order.tag or order.strategy)
+        raw[9:14] = previous_owner or hashlib.sha256(tag.encode()).digest()[:5]
+        raw[6] = (raw[6] & 0x0F) | 0x80
+        raw[8] = (raw[8] & 0x3F) | 0x80
+        return str(uuid.UUID(bytes=bytes(raw)))
+
+    @staticmethod
+    def _client_order_intent(value):
+        try:
+            parsed = uuid.UUID(value) if isinstance(value, str) else None
+        except (ValueError, AttributeError):
+            return None
+        if parsed is None or parsed.version != 8:
+            return None
+        if parsed.bytes[:2] == b"LK":
+            intent = parsed.bytes[2] & 3
+        elif parsed.bytes[:4] == b"LBK1":
+            intent = parsed.bytes[4] & 3
+        else:
+            return None
+        return ("no" if intent & 2 else "yes"), ("sell" if intent & 1 else "buy")
+
+    @staticmethod
+    def _client_order_owner(value):
+        try:
+            parsed = uuid.UUID(value) if isinstance(value, str) else None
+        except (ValueError, AttributeError):
+            return None
+        return parsed.bytes[9:14] if parsed and parsed.version == 8 and parsed.bytes[:2] == b"LK" else None
+
     def _parse_broker_order(self, response, strategy_name, strategy_object=None):
-        filled, remaining, initial = self._counts(response)
+        tracked = self.get_tracked_order(str(response["order_id"])) or self._pending_submissions.get(
+            response.get("client_order_id")
+        )
+        filled, remaining, initial = self._counts(response, tracked.quantity if tracked else None)
         status = {
             "resting": Order.OrderStatus.PARTIALLY_FILLED if filled else Order.OrderStatus.NEW,
             "executed": Order.OrderStatus.FILLED if filled == initial else Order.OrderStatus.CANCELED,
             "canceled": Order.OrderStatus.CANCELED,
             "rejected": Order.OrderStatus.ERROR,
         }.get(response.get("status"), Order.OrderStatus.UNKNOWN)
-        tracked = self.get_tracked_order(str(response["order_id"])) or self._pending_submissions.get(
-            response.get("client_order_id")
-        )
+        intent = self._client_order_intent(response.get("client_order_id"))
+        if intent:
+            expected_book = "bid" if (intent[0] == "yes") == (intent[1] == "buy") else "ask"
+            if expected_book != self._book_side(response):
+                raise KalshiAPIError("Kalshi client order intent disagrees with its native direction")
         asset = (
             tracked.asset
             if tracked
-            else Asset(response["ticker"], "prediction_contract", outcome="yes", precision="0.01")
+            else Asset(
+                response["ticker"], "prediction_contract", outcome=intent[0] if intent else "yes", precision="0.01"
+            )
         )
         yes_price = decimal_value(response["yes_price_dollars"], "order price")
         selected_price = yes_price if asset.outcome == "yes" else Decimal(1) - yes_price
+        owner = self._client_order_owner(response.get("client_order_id"))
+        local_tag = self.normalize_broker_strategy_tag(strategy_name)
+        recovered_tag = (
+            strategy_name
+            if local_tag and owner == hashlib.sha256(local_tag.encode()).digest()[:5]
+            else response.get("client_order_id") or ""
+        )
         order = Order(
             strategy_name,
             asset,
             initial,
-            tracked.side if tracked else ("buy" if self._book_side(response) == "bid" else "sell"),
+            (
+                tracked.side
+                if tracked
+                else intent[1]
+                if intent
+                else ("buy" if self._book_side(response) == "bid" else "sell")
+            ),
             order_type=tracked.order_type if tracked else "limit",
             limit_price=float(selected_price),
             identifier=str(response["order_id"]),
             status=status,
             time_in_force=tracked.time_in_force if tracked else "gtc",
+            tag=tracked.tag if tracked else recovered_tag,
         )
         order.update_raw(response)
+        order.filled_quantity = filled
+        order.remaining_quantity = remaining
         order.broker_create_date = response.get("created_time")
         order.broker_update_date = response.get("last_update_time")
         return order
@@ -475,9 +574,7 @@ class Kalshi(Broker):
             row = next(
                 (
                     row
-                    for row in self._client.pages(
-                        "/historical/orders", "orders", params=params
-                    )
+                    for row in self._client.pages("/historical/orders", "orders", params=params)
                     if str(row.get("order_id")) == str(identifier)
                 ),
                 None,
@@ -565,11 +662,20 @@ class Kalshi(Broker):
         return order
 
     def _apply_snapshot(self, tracked, row):
+        floor = self._state(tracked).get("minimum_snapshot_ts_ms")
+        updated = row.get("last_update_time")
+        if floor is not None and updated:
+            try:
+                observed = int(datetime.fromisoformat(str(updated).replace("Z", "+00:00")).timestamp() * 1000)
+            except (ValueError, TypeError, OverflowError):
+                observed = None
+            if observed is not None and observed < floor:
+                return tracked
         parsed = self._parse_broker_order(row, tracked.strategy)
         if parsed.asset.symbol != tracked.asset.symbol:
             raise KalshiAPIError("Kalshi order snapshot changed market identity")
         state = self._state(tracked)
-        filled, _, initial = self._counts(row)
+        filled, remaining, initial = self._counts(row, tracked.quantity)
         old_count = decimal_value(state.get("fill_count", 0), "fill checkpoint")
         if filled < old_count:
             return tracked
@@ -578,12 +684,16 @@ class Kalshi(Broker):
         ) and parsed.is_active():
             return tracked
         tracked.quantity = initial
+        tracked.filled_quantity = filled
+        tracked.remaining_quantity = remaining
         if tracked.order_type == Order.OrderType.LIMIT:
             tracked.limit_price = parsed.limit_price
         tracked.update_raw(row)
         if row.get("client_order_id"):
             state["client_order_id"] = row["client_order_id"]
         tracked.broker_update_date = row.get("last_update_time")
+        if tracked.status == Order.OrderStatus.PENDING_REPLACE:
+            tracked.status = parsed.status
         if filled > old_count:
             count, notional, fees = self._fill_totals(row, tracked.asset.outcome)
             delta = count - old_count

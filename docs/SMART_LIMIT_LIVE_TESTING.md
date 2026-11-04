@@ -24,16 +24,29 @@ order lists here; prefer broker “active order” fast paths (e.g., `broker.get
   account; it never resets an account or clears unrelated orders.
 - The wait helper uses the ordinary strategy order accessor and broker
   reconciliation. It must not copy raw provider status into the local Order.
+- Smoke and matrix tests share that helper and the same isolated-account
+  selection. Their quote data source is explicitly bound to that account,
+  independent of an unrelated default data source in the developer's settings.
 - Crypto cleanup cancels only this invocation's orders and bounds closing
   quantity by this invocation's acquired units, not an account-wide balance.
   A failed/uncertain close is reported, not overlapped with a blind market sell.
+- The crypto smoke can continue a canceled close at most twice. Each continuation
+  independently requires the exact broker-confirmed cancellation, no active
+  orders, and a quantity bounded by both the unfilled order remainder and the
+  available test-owned position. This tests partial-fill recovery without
+  promising that every priced order fills in its first attempt.
 - Caller-owned SDK clients remain supported for account-bound managed test
   connections. Private connection provisioning stays outside the public SDK.
+- Alpaca returns ``order_class=mleg`` on both a package and its individual
+  option legs. Only an order with child legs is a package. Native parsing tests
+  preserve each leaf's exact option asset and parent link; API qualification
+  must open and close the package through normal broker refresh, without
+  repairing local assets or statuses in the wait helper.
 
 ### 2) Run unit tests (any time)
 
 ```bash
-/Users/robertgrzesik/bin/safe-timeout 1200s python3 -m pytest -q \
+timeout 1200s python3 -m pytest -q \
   tests/test_smart_limit_utils_unit.py \
   tests/test_smart_limit_single_leg_unit.py \
   tests/test_smart_limit_multileg_unit.py \
@@ -45,7 +58,7 @@ order lists here; prefer broker “active order” fast paths (e.g., `broker.get
 These are “fast confidence” tests (stocks + single-leg options + 4-leg options) and should complete quickly.
 
 ```bash
-/Users/robertgrzesik/bin/safe-timeout 2400s python3 -m pytest -q -m "apitest and not smartlimit_matrix" \
+timeout 2400s python3 -m pytest -q -m "apitest and not smartlimit_matrix" \
   tests/test_alpaca_broker_smoke_apitest.py \
   tests/test_tradier_broker_smoke_apitest.py \
   tests/test_smart_limit_live_alpaca.py \
@@ -67,7 +80,7 @@ These are heavier tests that add:
 - non-SMART multi-leg LIMIT UX parity (no debit/credit/even in strategy code)
 
 ```bash
-/Users/robertgrzesik/bin/safe-timeout 7200s python3 -m pytest -q -m smartlimit_matrix \
+timeout 7200s python3 -m pytest -q -m smartlimit_matrix \
   tests/test_smart_limit_live_matrix_alpaca.py \
   tests/test_smart_limit_live_matrix_tradier.py
 ```

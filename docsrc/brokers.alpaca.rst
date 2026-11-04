@@ -24,6 +24,11 @@ Features
 * **Live Streaming**: Real-time trade updates and market data
 * **Cash Events**: Live cloud payloads can include normalized broker cash events such as deposits, withdrawals, interest, dividends, fees, journals, and adjustments
 
+Multi-leg option order reads preserve the package and its individual contracts.
+Alpaca labels both with ``mleg``; LumiBot treats only the container with child
+legs as a package. Individual legs retain their underlying, expiry, strike,
+call/put and multiplier for subsequent quote reads and SmartLimit closes.
+
 Alpaca market-data reads support stocks, options and crypto. Requests for futures,
 continuous futures, crypto futures, forex bases or indices raise ``ValueError``
 before making a provider request. This error remains visible through

@@ -20,13 +20,21 @@ class KalshiAPIError(LumibotBrokerAPIError):
     """Sanitized provider error; response bodies may contain account information."""
 
     FOK_INSUFFICIENT_VOLUME = "fill_or_kill_insufficient_resting_volume"
+    EXCHANGE_BALANCE_UNFUNDED = "insufficient_shard_balance"
 
     def __init__(self, message, *, status_code=None, error_code=None):
+        if error_code == self.EXCHANGE_BALANCE_UNFUNDED:
+            message += (
+                ". The selected Kalshi exchange balance is unfunded or insufficient. "
+                "Use Kalshi's exchange-balance controls to fund it; LumiBot does not transfer funds automatically"
+            )
         super().__init__(message)
         self.status_code = status_code
         # Preserve only explicitly recognized codes, never raw provider messages
         # or arbitrary account-specific values from the error response.
-        self.error_code = error_code if error_code == self.FOK_INSUFFICIENT_VOLUME else None
+        self.error_code = (
+            error_code if error_code in (self.FOK_INSUFFICIENT_VOLUME, self.EXCHANGE_BALANCE_UNFUNDED) else None
+        )
 
 
 def decimal_value(value, name="value"):

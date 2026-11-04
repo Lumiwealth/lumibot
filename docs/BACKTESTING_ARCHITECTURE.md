@@ -1024,3 +1024,13 @@ other. A daily request reuses its native dataset rather than expanding the
 request into minute history. Compatible callers without an interval use the
 finest loaded dataset. Daily-only history requests do not download minute bars.
 Memory limits count an aliased dataset once and evict all of its keys together.
+
+### Terminal simulation clock
+
+`BacktestingBroker._update_datetime` caps normal clock advances at the configured
+backtest end. At that terminal bound it retains the clock instead of applying
+the ordinary non-advancing timestamp fallback. The executor does not begin a
+new iteration there or advance to a later market close. Final lifecycle and
+held-position valuation still run against the bounded terminal time. This
+preserves actual data-integrity errors inside the requested window; it does not
+extend stale-price tolerance or manufacture later quotes.

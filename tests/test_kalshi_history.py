@@ -49,6 +49,8 @@ def test_current_yes_no_bars_preserve_quote_only_and_fractional_volume(source):
     yes = data.get_historical_prices(contract(), None, "hour", start=start, end=end)
     no = data.get_historical_prices(contract("no"), None, "hour", start=start, end=end)
     assert isinstance(yes, Bars) and yes.asset == contract()
+    assert yes.df.attrs["bar_timestamp"] == "end"
+    assert no.df.attrs["bar_timestamp"] == "end"
     # Decimal complements convert to floats once; compare numeric precision, not binary bit patterns.
     y, n = yes.df, no.df
     assert len(y) == len(rows["live"]["markets"][0]["candlesticks"])

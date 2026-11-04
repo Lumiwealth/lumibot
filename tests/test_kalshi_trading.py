@@ -70,6 +70,113 @@ def test_four_directions_keep_original_contract(broker, outcome, action, book, p
     assert (order.asset.outcome, order.side, order.limit_price) == (outcome, action, 0.23)
 
 
+@pytest.mark.parametrize(
+    "outcome,action,book", [("yes", "buy", "bid"), ("yes", "sell", "ask"), ("no", "buy", "ask"), ("no", "sell", "bid")]
+)
+def test_fresh_process_recovers_self_describing_client_order_intent(broker, outcome, action, book):
+    row = {
+        "order_id": "native-order",
+        "ticker": "SYNTHETIC-EVENT",
+        "book_side": book,
+        "status": "resting",
+        "yes_price_dollars": "0.8700",
+        "fill_count_fp": "0",
+        "remaining_count_fp": "1",
+        "client_order_id": broker._new_client_order_id(Order("neutral", contract(outcome), 1, action)),
+    }
+    order = broker._parse_broker_order(row, "neutral")
+    assert (order.asset.outcome, order.side) == (outcome, action)
+    assert order.limit_price == pytest.approx(0.87 if outcome == "yes" else 0.13)
+    assert order.tag == "neutral"
+
+
+def test_opaque_external_client_id_keeps_the_documented_canonical_book_identity(broker):
+    row = {
+        "order_id": "native-order",
+        "ticker": "SYNTHETIC-EVENT",
+        "book_side": "ask",
+        "status": "resting",
+        "yes_price_dollars": "0.8700",
+        "fill_count_fp": "0",
+        "remaining_count_fp": "1",
+        "client_order_id": "externally-chosen-id",
+    }
+    order = broker._parse_broker_order(row, "neutral")
+    assert (order.asset.outcome, order.side) == ("yes", "sell")
+
+
+def test_native_client_reference_never_replaces_the_standard_strategy_ownership_tag(broker, monkeypatch):
+    order = Order("neutral", contract("yes"), 1, "buy", limit_price=0.23, time_in_force="gtc", tag="neutral")
+    monkeypatch.setattr(broker, "_refresh_after_mutation", lambda order: None)
+    original = broker._client.request.side_effect
+
+    def request(method, path, **kwargs):
+        if method == "POST":
+            return {**recorded("create_ack"), "client_order_id": kwargs["json"]["client_order_id"]}
+        return original(method, path, **kwargs)
+
+    broker._client.request.side_effect = request
+    broker._submit_order(order)
+    assert order.tag == "neutral"
+    assert not broker.order_is_foreign_to_local_strategy(order, "neutral")
+    row = {
+        **recorded("resting_order"),
+        "order_id": order.identifier,
+        "client_order_id": broker._state(order)["client_order_id"],
+    }
+    parsed = broker._parse_broker_order(row, "neutral")
+    assert parsed.tag == "neutral"
+
+
+def test_restart_recovers_only_the_original_strategy_ownership(broker):
+    original = Order("neutral owner", contract("no"), 1, "buy", limit_price=0.13)
+    row = {
+        **recorded("resting_order"),
+        "order_id": "restart-order",
+        "book_side": "ask",
+        "client_order_id": broker._new_client_order_id(original),
+    }
+    own = broker._parse_broker_order(row, "neutral owner")
+    foreign = broker._parse_broker_order(row, "different owner")
+    assert broker.order_belongs_to_local_strategy(own, "neutral owner")
+    assert not broker.order_is_foreign_to_local_strategy(own, "neutral owner")
+    assert broker.order_is_foreign_to_local_strategy(foreign, "different owner")
+    assert not broker.order_belongs_to_local_strategy(foreign, "different owner")
+    assert (own.asset.outcome, own.side) == ("no", "buy")
+
+
+def test_amended_active_size_uses_fills_plus_remaining_not_creation_size(broker):
+    row = {
+        "order_id": "native-amended",
+        "ticker": "SYNTHETIC-EVENT",
+        "book_side": "bid",
+        "status": "resting",
+        "yes_price_dollars": "0.2300",
+        "initial_count_fp": "0.25",
+        "fill_count_fp": "0.00",
+        "remaining_count_fp": "0.50",
+    }
+    order = broker._parse_broker_order(row, "neutral")
+    assert order.quantity == Decimal(".50")
+    assert order.filled_quantity == 0
+    assert order.remaining_quantity == Decimal(".50")
+
+
+def test_client_intent_cannot_disagree_with_observed_native_direction(broker):
+    row = {
+        "order_id": "native-order",
+        "ticker": "SYNTHETIC-EVENT",
+        "book_side": "bid",
+        "status": "resting",
+        "yes_price_dollars": "0.8700",
+        "fill_count_fp": "0",
+        "remaining_count_fp": "1",
+        "client_order_id": broker._new_client_order_id(Order("neutral", contract("no"), 1, "buy")),
+    }
+    with pytest.raises(KalshiAPIError, match="direction"):
+        broker._parse_broker_order(row, "neutral")
+
+
 def test_no_quote_complements_and_swaps_book_sides(broker):
     quote = broker.get_quote(contract("no"))
     assert (quote.bid, quote.ask, quote.bid_size, quote.ask_size) == pytest.approx((0.23, 0.26, 4, 4))
@@ -110,21 +217,31 @@ def test_provider_self_trade_option_is_configurable(broker):
 
 
 def test_caller_client_order_id_is_sent_and_checkpointed_once(broker, monkeypatch):
-    order = Order("neutral", contract("yes"), .25, "buy", limit_price=.23,
-                  custom_params={"client_order_id": "synthetic-owner-order"})
+    order = Order(
+        "neutral",
+        contract("yes"),
+        0.25,
+        "buy",
+        limit_price=0.23,
+        custom_params={"client_order_id": "synthetic-owner-order"},
+    )
     monkeypatch.setattr(broker, "_refresh_after_mutation", lambda order: None)
+    expected_id = broker._new_client_order_id(order, "synthetic-owner-order")
+    assert broker._client_order_intent(expected_id) == ("yes", "buy")
     original = broker._client.request.side_effect
 
     def request(method, path, **kwargs):
         if method == "POST":
-            assert kwargs["json"]["client_order_id"] == "synthetic-owner-order"
+            assert kwargs["json"]["client_order_id"] == expected_id
+            assert __import__("uuid").UUID(expected_id).version == 8
             return {**recorded("create_ack"), "client_order_id": kwargs["json"]["client_order_id"]}
         return original(method, path, **kwargs)
 
     broker._client.request.side_effect = request
     broker._submit_order(order)
-    assert broker._state(order)["client_order_id"] == "synthetic-owner-order"
-    assert Order.from_dict(order.to_dict()).custom_params["_kalshi"]["client_order_id"] == "synthetic-owner-order"
+    assert broker._state(order)["client_order_id"] == expected_id
+    assert order.custom_params["client_order_id"] == "synthetic-owner-order"
+    assert Order.from_dict(order.to_dict()).custom_params["_kalshi"]["client_order_id"] == expected_id
     with pytest.raises(ValueError, match="already been attempted"):
         broker._submit_order(order)
     assert sum(call.args[0] == "POST" for call in broker._client.request.call_args_list) == 1
@@ -132,8 +249,7 @@ def test_caller_client_order_id_is_sent_and_checkpointed_once(broker, monkeypatc
 
 @pytest.mark.parametrize("client_id", [None, "", " ", 42])
 def test_invalid_client_order_ids_fail_before_submission(broker, client_id):
-    order = Order("neutral", contract("yes"), 1, "buy", limit_price=.23,
-                  custom_params={"client_order_id": client_id})
+    order = Order("neutral", contract("yes"), 1, "buy", limit_price=0.23, custom_params={"client_order_id": client_id})
     with pytest.raises(ValueError, match="client_order_id must be a non-empty string"):
         broker._submit_order(order)
     assert not any(call.args[0] == "POST" for call in broker._client.request.call_args_list)
@@ -194,6 +310,71 @@ def test_accepted_order_can_be_amended_during_recorded_read_lag(broker, monkeypa
     sent = [c.kwargs["json"] for c in broker._client.request.call_args_list if c.args[0] == "POST"][0]
     assert (sent["side"], sent["price"], sent["count"]) == ("bid", "0.0200", "1.00")
     assert (order.asset.outcome, order.side) == ("no", "sell")
+
+
+def test_read_before_amend_ack_cannot_roll_back_price_quantity_or_client_reference(broker, monkeypatch):
+    order = seed(broker)
+    old = recorded("resting_order")
+    old["order_id"] = order.identifier
+    old["last_update_time"] = "2026-01-01T00:00:00Z"
+    monkeypatch.setattr(broker, "_pull_broker_order", lambda identifier: old)
+    original = broker._client.request.side_effect
+
+    def request(method, path, **kwargs):
+        if path.endswith("/amend"):
+            return {
+                "order_id": order.identifier,
+                "client_order_id": kwargs["json"]["updated_client_order_id"],
+                "ts_ms": 1767225601000,
+            }
+        return original(method, path, **kwargs)
+
+    broker._client.request.side_effect = request
+    broker.modify_order(order, limit_price=0.02, quantity=Decimal("1.50"))
+    assert order.limit_price == 0.02
+    assert order.quantity == Decimal("1.50")
+    assert broker._state(order)["client_order_id"] != old.get("client_order_id")
+    assert order.status == Order.OrderStatus.PENDING_REPLACE
+    fresh = {
+        **old,
+        "last_update_time": "2026-01-01T00:00:02Z",
+        "initial_count_fp": "1.50",
+        "remaining_count_fp": "1.50",
+        "yes_price_dollars": "0.0200",
+        "client_order_id": broker._state(order)["client_order_id"],
+    }
+    broker._apply_snapshot(order, fresh)
+    assert order.status == Order.OrderStatus.NEW
+    assert order.limit_price == 0.02
+
+
+def test_quantity_amend_uses_total_count_and_keeps_selected_outcome(broker, monkeypatch):
+    order = seed(broker, "no", "sell")
+    broker._state(order)["fill_count"] = "0.25"
+    monkeypatch.setattr(broker, "_pull_broker_order", lambda identifier: None)
+    monkeypatch.setattr(broker, "_refresh_after_mutation", lambda order: None)
+    original = broker._client.request.side_effect
+
+    def request(method, path, **kwargs):
+        if path.endswith("/amend"):
+            assert kwargs["json"]["count"] == "0.75"
+            assert kwargs["json"]["side"] == "bid"
+            return {"order_id": order.identifier, "remaining_count": "0.50", "fill_count": "0.25"}
+        return original(method, path, **kwargs)
+
+    broker._client.request.side_effect = request
+    broker.modify_order(order, quantity=Decimal("0.75"))
+    assert order.quantity == Decimal("0.75")
+    assert (order.asset.outcome, order.side, order.limit_price) == ("no", "sell", 0.01)
+
+
+def test_quantity_amend_below_cumulative_fills_never_reaches_provider(broker, monkeypatch):
+    order = seed(broker)
+    broker._state(order)["fill_count"] = "0.50"
+    monkeypatch.setattr(broker, "_pull_broker_order", lambda identifier: None)
+    with pytest.raises(ValueError, match="filled"):
+        broker.modify_order(order, quantity=Decimal("0.25"))
+    assert not any(call.args[0] == "POST" for call in broker._client.request.call_args_list)
 
 
 def test_read_lag_never_falsely_cancels_an_accepted_market_order(broker, monkeypatch):
@@ -338,8 +519,16 @@ def test_ambiguous_submit_reconciles_owned_terminal_fill_by_client_id(broker, mo
 
 @pytest.mark.parametrize("custom", [None, {"reduce_only": False}])
 def test_standard_reduce_only_reaches_provider_without_legacy_override(broker, custom):
-    order = Order("neutral", contract("no"), 5, "buy", limit_price=.23,
-                  time_in_force="ioc", reduce_only=True, custom_params=custom)
+    order = Order(
+        "neutral",
+        contract("no"),
+        5,
+        "buy",
+        limit_price=0.23,
+        time_in_force="ioc",
+        reduce_only=True,
+        custom_params=custom,
+    )
     assert broker._order_payload(order)["reduce_only"] is True
     restored = Order.from_dict(order.to_dict())
     assert restored.reduce_only is True
@@ -347,7 +536,7 @@ def test_standard_reduce_only_reaches_provider_without_legacy_override(broker, c
 
 
 def test_standard_reduce_only_uses_the_existing_provider_time_in_force_rule(broker):
-    order = Order("neutral", contract("yes"), 1, "sell", limit_price=.23, reduce_only=True)
+    order = Order("neutral", contract("yes"), 1, "sell", limit_price=0.23, reduce_only=True)
     with pytest.raises(ValueError, match="reduce_only"):
         broker._order_payload(order)
 

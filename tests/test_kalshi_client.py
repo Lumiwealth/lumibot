@@ -10,6 +10,28 @@ from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
 from lumibot.tools.kalshi_client import KalshiAPIError, KalshiClient, decimal_value
 
 
+def test_unfunded_exchange_balance_is_actionable_without_exposing_provider_details():
+    def response(request):
+        return httpx.Response(
+            404,
+            json={
+                "error": {
+                    "code": "insufficient_shard_balance",
+                    "message": "private-provider-message",
+                    "details": "private-account-details",
+                }
+            },
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(response)) as http:
+        client = KalshiClient(http_client=http)
+        with pytest.raises(KalshiAPIError) as error:
+            client.request("POST", "/portfolio/events/orders", authenticated=False, json={})
+        assert error.value.error_code == "insufficient_shard_balance"
+        assert "exchange balance" in str(error.value)
+        assert "private-" not in str(error.value)
+
+
 @pytest.fixture(scope="module")
 def key():
     return rsa.generate_private_key(public_exponent=65537, key_size=2048)

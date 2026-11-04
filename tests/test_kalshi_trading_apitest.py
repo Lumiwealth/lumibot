@@ -21,6 +21,153 @@ from lumibot.tools.kalshi_client import KalshiClient
 pytestmark = [pytest.mark.apitest, pytest.mark.kalshi]
 
 
+@pytest.fixture
+def native_demo():
+    ticker = os.getenv("KALSHI_TEST_MARKET")
+    key_id = os.getenv("KALSHI_API_KEY_ID")
+    path = os.getenv("KALSHI_PRIVATE_KEY_PATH")
+    if not ticker or not key_id or not path:
+        pytest.skip("Dedicated demo credentials and KALSHI_TEST_MARKET are required")
+    client = KalshiClient(
+        {"IS_DEMO": True, "BASE_URL": KalshiClient.DEMO_URL, "API_KEY_ID": key_id, "PRIVATE_KEY_PATH": path}
+    )
+    broker = Kalshi(client=client, connect_stream=False)
+    strategy = Strategy(broker=broker, analyze_backtest=False, synchronize_broker_on_start=False)
+    owned = []
+    try:
+        assert not [p for p in strategy.get_positions() if p.asset.symbol == ticker]
+        yield strategy, broker, ticker, owned
+    finally:
+        try:
+            for order in owned:
+                row = broker._pull_broker_order(order.identifier) if order.was_transmitted() else None
+                if row and row["status"] == "resting":
+                    strategy.cancel_order(order)
+            while any(
+                (broker._pull_broker_order(order.identifier) or {}).get("status") == "resting"
+                for order in owned if order.was_transmitted()
+            ):
+                time.sleep(0.5)
+            # The configured market is dedicated to this qualification and was
+            # verified flat before any order. Close only its test inventory.
+            for position in [p for p in strategy.get_positions() if p.asset.symbol == ticker]:
+                closing = strategy.submit_order(
+                    strategy.create_order(
+                        position.asset, position.quantity, "sell", order_type="market", time_in_force="ioc"
+                    )
+                )
+                while strategy.get_order(closing.identifier).is_active():
+                    time.sleep(0.5)
+            assert not [p for p in strategy.get_positions() if p.asset.symbol == ticker], (
+                "Native demo cleanup remains incomplete"
+            )
+        finally:
+            broker.close()
+            client.close()
+
+
+def test_demo_normal_batch_keeps_two_orders_and_outcomes_independent(native_demo, tmp_path):
+    strategy, broker, ticker, owned = native_demo
+    yes, no = (Asset(ticker, "prediction_contract", outcome=outcome) for outcome in ("yes", "no"))
+    assert all(strategy.get_quote(asset).ask > 0.02 for asset in (yes, no))
+    owned.extend(
+        strategy.create_order(asset, Decimal(".25"), "buy", limit_price=0.01, time_in_force="gtc")
+        for asset in (yes, no)
+    )
+    submitted = strategy.submit_orders(owned)
+    assert len(submitted) == 2 and len({order.identifier for order in submitted}) == 2
+    while True:
+        orders = strategy.get_orders(
+            identifiers=[order.identifier for order in owned], broker_refresh=True, broker_refresh_ttl_seconds=0
+        )
+        if len(orders) == 2 and all(order.status == Order.OrderStatus.NEW for order in orders):
+            break
+        time.sleep(0.5)
+    assert {order.asset.outcome for order in orders} == {"yes", "no"}
+    assert all(order.quantity == Decimal(".25") and order.filled_quantity == 0 for order in orders)
+    (tmp_path / "native-two-orders.json").write_text(json.dumps([order.to_dict() for order in orders], default=str))
+    for order in orders:
+        strategy.cancel_order(order)
+    while any(strategy.get_order(order.identifier).is_active() for order in orders):
+        time.sleep(.5)
+
+
+def test_demo_real_ioc_partial_fill_reports_only_executed_quantity(native_demo, tmp_path):
+    strategy, broker, ticker, owned = native_demo
+    asset = Asset(ticker, "prediction_contract", outcome="yes")
+    quote = strategy.get_quote(asset)
+    assert quote.ask is not None and quote.ask_size is not None and 0 < quote.ask_size <= 10
+    quantity = Decimal(str(quote.ask_size)) + Decimal(".25")
+    order = strategy.create_order(asset, quantity, "buy", limit_price=quote.ask, time_in_force="ioc")
+    owned.append(order)
+    strategy.submit_order(order)
+    while True:
+        current = strategy.get_order(order.identifier, broker_refresh=True, broker_refresh_ttl_seconds=0)
+        if current is not None and not current.is_active():
+            break
+        time.sleep(0.5)
+    filled = Decimal(broker._state(current)["fill_count"])
+    (tmp_path / "native-ioc-partial.json").write_text(json.dumps(current.to_dict(), default=str))
+    assert Decimal("0") < filled < quantity, (
+        "The actual book did not produce a partial fill; retain the observed result"
+    )
+    assert current.is_canceled()
+    assert current.filled_quantity == filled
+    assert current.remaining_quantity == 0
+    position = strategy.get_position(asset, broker_refresh=True, broker_refresh_ttl_seconds=0)
+    assert position is not None and Decimal(str(position.quantity)) == filled
+
+
+def test_demo_fresh_strategy_recovers_owned_order_and_delivers_one_fill(native_demo, tmp_path):
+    original, _, ticker, owned = native_demo
+    asset = Asset(ticker, "prediction_contract", outcome="no")
+    order = original.create_order(asset, Decimal(".25"), "buy", limit_price=.01, time_in_force="gtc")
+    owned.append(original.submit_order(order))
+    while original.get_order(order.identifier).status != Order.OrderStatus.NEW:
+        time.sleep(.5)
+
+    class RestartedStrategy(Strategy):
+        def initialize(self):
+            self.fill_callbacks = []
+
+        def on_filled_order(self, position, order, price, quantity, multiplier):
+            self.fill_callbacks.append({"id": order.identifier, "outcome": order.asset.outcome, "quantity": quantity})
+
+    # A fresh adapter and executor have no in-memory order/tag checkpoints.
+    client = KalshiClient({"IS_DEMO": True, "BASE_URL": KalshiClient.DEMO_URL,
+                           "API_KEY_ID": os.environ["KALSHI_API_KEY_ID"],
+                           "PRIVATE_KEY_PATH": os.environ["KALSHI_PRIVATE_KEY_PATH"]})
+    broker = Kalshi(client=client, connect_stream=False)
+    try:
+        restarted = RestartedStrategy(broker=broker, name=original.name, analyze_backtest=False,
+                                      synchronize_broker_on_start=False)
+        restarted._executor._initialize()
+        recovered = restarted.get_order(order.identifier)
+        assert recovered.asset == asset and recovered.side == "buy"
+        assert broker.order_belongs_to_local_strategy(recovered, restarted.name)
+        assert not restarted.fill_callbacks
+        ask = restarted.get_quote(asset).ask
+        assert ask is not None and 0 < ask < 1
+        restarted.modify_order(recovered, limit_price=ask)
+        while not restarted.get_order(order.identifier).is_filled():
+            time.sleep(.5)
+        restarted._executor.process_queue(skip_first_iteration_events=False)
+        assert len(restarted.fill_callbacks) == 1
+        assert restarted.fill_callbacks[0]["id"] == order.identifier
+        assert restarted.fill_callbacks[0]["outcome"] == "no"
+        assert Decimal(str(restarted.fill_callbacks[0]["quantity"])) == Decimal(".25")
+        assert Decimal(str(restarted.get_position(asset).quantity)) == Decimal(".25")
+        restarted.get_orders()
+        restarted._executor.process_queue(skip_first_iteration_events=False)
+        assert len(restarted.fill_callbacks) == 1
+        (tmp_path / "native-restarted-strategy.json").write_text(json.dumps({
+            "order": recovered.to_dict(), "callbacks": restarted.fill_callbacks,
+            "cash": restarted.get_cash()}, default=str))
+    finally:
+        broker.close()
+        client.close()
+
+
 @pytest.mark.parametrize("unit", [Decimal("1"), Decimal("0.25")], ids=["whole", "fractional"])
 def test_demo_selected_contract_orders_positions_and_netting(tmp_path, unit):
     ticker = os.environ.get("KALSHI_TEST_MARKET")

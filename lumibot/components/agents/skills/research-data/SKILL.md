@@ -109,18 +109,22 @@ claiming it was published. A visible authorization error means it was not publis
    availability you can reasonably establish or estimate and disclose, or
    explicitly report missing evidence. Never invent a macro value or
    silently substitute present-day data in a historical run.
-   When evidence is blocked, finish with an explicit **Next evidence needed**
+   When required evidence is blocked, finish with an explicit **Next evidence needed**
    handoff. A limitation or refusal summary alone does not complete this handoff.
    For each missing dataset, state the observations or documents to obtain,
    requested observation period, historical UTC cutoff or live snapshot scope,
-   and decision still blocked. Identify the type of qualified source needed:
+   and any decision actually blocked by that requirement. Identify the type of qualified source needed:
    for historical replay, preferably original-release or versioned records with
    the original value or document version and first public release time; an
    undated source is acceptable with a disclosed estimate of when it became public.
    Name a provider only when configured or returned by tools; never claim its
    qualification without proof. If no source is available, say what must be
-   supplied or qualified next. Keep this brief; missing evidence is not a
-   completed analysis.
+   supplied or qualified next. Keep this brief. Missing required evidence remains unresolved.
+   Distinguish required inputs from optional background using the actual mandate.
+   Disclose unavailable optional context without declaring the whole research
+   handoff incomplete or adding an execution veto the user did not request.
+   Pass useful observed evidence and its limitations to the trader, who still
+   applies every actual account, instrument, price and risk requirement.
 7. A researcher may summarize this evidence for a trader, but the trader must
    independently revalidate current account, price, order, and risk state before
    execution.

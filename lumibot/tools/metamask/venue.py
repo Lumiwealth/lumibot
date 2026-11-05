@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import time
@@ -22,6 +23,21 @@ from .provider import MetaMaskError, address, json_object
 URLS = {"testnet": "https://api.hyperliquid-testnet.xyz", "mainnet": "https://api.hyperliquid.xyz"}
 _CLIENT_ID = re.compile(r"0x[0-9a-fA-F]{32}\Z")
 _INTERVALS = {"1m": 60_000, "1h": 3_600_000, "1d": 86_400_000}
+
+
+def ledger_identity(row):
+    """A transaction can contain several coins or transfer legs at one time."""
+    delta = json_object(row.get("delta"), "ledger delta")
+    tx_hash, kind = row.get("hash"), delta.get("type")
+    if not isinstance(tx_hash, str) or not re.fullmatch(r"0x[0-9a-fA-F]{64}", tx_hash):
+        raise MetaMaskError("INVALID_RESPONSE", "Ledger transaction identity is invalid")
+    if not isinstance(kind, str) or not 1 <= len(kind) <= 80:
+        raise MetaMaskError("INVALID_RESPONSE", "Ledger type is missing")
+    identity = [tx_hash.lower(), row.get("time"), kind]
+    identity.extend(delta.get(key) for key in ("coin", "token", "user", "destination", "vault", "toPerp", "nonce"))
+    if any(not isinstance(value, (str, int, bool, type(None))) for value in identity):
+        raise MetaMaskError("INVALID_RESPONSE", "Ledger identity fields are invalid")
+    return hashlib.sha256(json.dumps(identity, separators=(",", ":")).encode()).hexdigest()
 
 
 def canonical_symbol(symbol, names):
@@ -463,6 +479,41 @@ class HyperliquidVenue:
             raise MetaMaskError("FUNDING_HISTORY_INCOMPLETE", "Request a smaller funding interval to avoid truncation")
         parsed = [json_object(row, "funding payment") for row in rows]
         return [row for row in parsed if symbol is None or json_object(row.get("delta")).get("coin") == symbol]
+
+    def ledger(self, wallet: str, kind: str, start: int, end: int):
+        """Exhaust an inclusive millisecond window without skipping tied rows."""
+        if (
+            kind not in {"userFunding", "userNonFundingLedgerUpdates"}
+            or type(start) is not int
+            or type(end) is not int
+            or not 0 <= start <= end
+        ):
+            raise ValueError("Ledger history requires a supported type and ordered millisecond bounds")
+        wallet, cursor, result = address(wallet), start, {}
+        while cursor <= end:
+            rows = self.info({"type": kind, "user": wallet, "startTime": cursor, "endTime": end})
+            if not isinstance(rows, list):
+                raise MetaMaskError("INVALID_RESPONSE", "Account ledger is missing")
+            newest = cursor
+            for raw in rows:
+                item = json_object(raw, "ledger row")
+                stamp = item.get("time")
+                if type(stamp) is not int or not cursor <= stamp <= end:
+                    raise MetaMaskError("INVALID_RESPONSE", "Ledger timestamp is outside the requested page")
+                key = ledger_identity(item)
+                if key in result and result[key] != item:
+                    raise MetaMaskError("CASH_HISTORY_INCOMPLETE", "Ledger contains conflicting transaction evidence")
+                result[key] = item
+                newest = max(newest, stamp)
+            if len(result) > 100_000:
+                raise MetaMaskError("CASH_HISTORY_INCOMPLETE", "Request a smaller ledger window")
+            # The endpoint caps both rows and distinct blocks; query the boundary inclusively.
+            if len(rows) < 500:
+                break
+            if newest <= cursor:
+                raise MetaMaskError("CASH_HISTORY_INCOMPLETE", "Ledger page cannot advance without dropping records")
+            cursor = newest
+        return sorted(result.values(), key=lambda item: (item["time"], ledger_identity(item)))
 
     def close(self):
         if self._owns_session:

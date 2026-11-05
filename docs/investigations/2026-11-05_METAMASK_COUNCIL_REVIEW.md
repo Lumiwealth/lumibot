@@ -4,7 +4,7 @@ Incremental verification of the native broker and PR 1262.
 
 Last Updated: 2026-11-05
 
-Status: In progress; identity approved, execution/fee checkpoint in verification
+Status: In progress; identity and execution approved, cash activity in verification
 
 Audience: LumiBot maintainers and reviewers
 
@@ -84,6 +84,9 @@ New regressions reproduce a zero-reset plus exact-input approval across two
 20-minute finality waits, then a fresh trade quote, pending managed approval,
 restart and final output/fee reconciliation. Negative controls cover revocation,
 changed authority, higher total fees and restart before the next allowance.
+Round 3 approved unanimously. Astra's nonblocking coverage suggestion was
+accepted: explicit grant-expiry and provider-policy mutation cases both passed
+without source changes, retaining the compatible 198-test evidence above.
 The existing restart example also tests an unsettled prior exit after initialize
 clears its pending ID, addressing the previous PR review nitpick without another
 submission. Five new execution/fee cases failed before the fixes; all ten initial
@@ -92,11 +95,52 @@ selection passed 198 tests. Ruff, formatting and whitespace checks passed.
 The checks use real adapter/event paths with synthetic provider/RPC transports;
 they do not qualify funded managed-wallet execution. No funded activity occurred.
 
+## Checkpoint 3: cash activity and truthful coverage
+
+The normal broker now supplies existing `CashEvent` and `CashEventSync`
+contracts. It reads both ledger endpoints only after managed-wallet identity
+verification. Receipts identify the network, wallet, account boundary and exact
+half-open UTC window, defaulting to 60 days. Inclusive page cursors preserve
+timestamp ties; conflicting identities, saturated pages and resource limits
+refuse complete coverage. IDs distinguish funding coins and transaction legs.
+
+Signed default-DEX USDC funding, deposits, zero-fee withdrawals and unambiguous
+zero-fee USDC account/subaccount transfers normalize into standard events.
+Known events survive unresolved categories; account-mode-dependent transfers,
+fee-bearing capital movements, HIP3/non-USDC and unknown types remain partial.
+No net/gross fee split or historical account boundary is invented. These are
+explicit classification limits, not claims of fully qualified capital history.
+Provider/identity failures and unexhausted pagination are unavailable. Spot
+history is unsupported. A checked empty window is distinct from unread history.
+The list-only API refuses incomplete results. Normal Strategy collection uses
+receipts and never reapplies cash already reflected in account balances.
+
+Evidence: the missing-method regression failed before implementation. The first
+affected activity/venue/client/standard-cash selection passed 96 tests. Final
+activity selection, after added foreign-asset/fee controls and latest-event
+limit handling, passed 24 tests. Ruff/format and whitespace checks passed.
+Public real HTTP reads on both testnet and mainnet returned zero funding and
+non-funding records for an unfunded public address over a one-hour window.
+This proves request/empty-response interoperability only. No managed identity,
+authenticated provider capability or funded cash semantics were qualified.
+
+Primary contracts inspected:
+
+- https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint
+- https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint/perpetuals
+- https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/websocket/subscriptions
+- Official Python SDK non-funding/funding test cassettes, with only schema
+  observations retained and synthetic identities used in regression fixtures.
+
+Mobbin's Base Activity flow was consulted before implementation. Its empty
+state and typed sent/received activity support the chosen distinction between
+checked empty history and incomplete/unavailable reads; no UI was added.
+https://mobbin.com/flows/07e1b5a9-a7a8-4b52-85ad-20ad8b1fd30e?tab=screens
+
 ## Remaining checkpoints
 
-1. Council approval or correction of execution/fee checkpoint.
-2. Normalized funding/non-funding cash activity and truthful completeness.
-3. Installation guidance, final artifact/PR evidence, full affected gate and final
+1. Council approval or correction of normalized cash activity.
+2. Installation guidance, final artifact/PR evidence, full affected gate and final
    whole-PR council approval.
 
 Fresh authenticated testnet, controlled maker partial cancellation, funded mainnet
@@ -133,10 +177,15 @@ Round 2 at `5d7a14bdf` approved the corrected identity checkpoint unanimously.
 All reviewers reconciled the registry correction with the distinct limitation
 that provider testnet pricing remains unproven. No new P1/P2 findings.
 
-| Delegate | Round 1, identity at a532366db | Round 2, identity at 5d7a14bdf |
-| --- | --- | --- |
-| GPT-6.1 Terra | 8.5/10, approve | 8.5/10, approve |
-| GPT-6.1 Sol | 9/10, approve | 9/10, approve |
-| GPT-6 Astra | 8/10, request changes | 9/10, approve |
+Round 3 at `351fb8a4d` approved execution/fees unanimously, without P1/P2 findings.
+Each reviewer inspected the connected authority, journal, fee, callback and cash
+paths. They reviewed reported test evidence without rerunning it; synthetic
+transport results do not prove authenticated or funded execution.
+
+| Delegate | Round 1, identity at a532366db | Round 2, identity at 5d7a14bdf | Round 3, execution at 351fb8a4d |
+| --- | --- | --- | --- |
+| GPT-6.1 Terra | 8.5/10, approve | 8.5/10, approve | 8.5/10, approve |
+| GPT-6.1 Sol | 9/10, approve | 9/10, approve | 9/10, approve |
+| GPT-6 Astra | 8/10, request changes | 9/10, approve | 9/10, approve |
 
 Nothing has been pushed by this review task yet.

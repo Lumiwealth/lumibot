@@ -7,6 +7,7 @@
 - Use chain-specific native-token price identities and reject duplicate or unapproved-chain asset registrations before wallet valuation.
 - Let bounded MetaMask allowance prerequisites settle under unchanged owner authority before refreshing the trade quote, retaining fee ceilings and restart replay protection.
 - Project actual MetaMask perpetual fees and maker rebates into cumulative standard order costs without replaying executions or guessing currency conversions.
+- Read MetaMask funding and capital ledgers through standard cash-history receipts, with scoped event identities and explicit incomplete, unavailable and unsupported states.
 
 ## 4.6.47 - 2026-11-05
 

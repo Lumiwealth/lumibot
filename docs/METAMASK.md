@@ -2,7 +2,7 @@
 
 MetaMask managed-wallet execution through ordinary LumiBot strategies, without a JavaScript runtime or localhost service.
 
-Last Updated: 2026-11-02
+Last Updated: 2026-11-05
 
 Status: Native adapter available; execution hardening candidate under review
 
@@ -30,6 +30,7 @@ The integration spans installation, owner authentication, broker/data selection,
 | Browser login, headless session, OAuth refresh and migration | `lumibot/tools/metamask/{auth,owner,provider}.py` | `test_metamask_native_{auth,owner,provider}.py` |
 | Owner-reviewed authority, durable reservations and recovery | `lumibot/tools/metamask/{journal,engine}.py` | `test_metamask_native_{journal,engine}.py` |
 | Perpetual orders, positions, cash, polling and cancellation | `lumibot/brokers/metamask.py`, `lumibot/tools/metamask/venue.py` | `test_metamask_{broker,native_client,native_venue}.py` |
+| Bounded cash activity and explicit history coverage | `lumibot/tools/metamask/activity.py`, broker/client/venue | `test_metamask_cash_events.py`; standard Strategy collector |
 | Public perpetual prices/candles and registered token prices | `lumibot/data_sources/metamask_data.py` | `test_metamask_broker.py`, `test_metamask_native_evm.py` |
 | Experimental same-chain exact-input swaps and fee accounting | `lumibot/tools/metamask/{evm,fees}.py` | `test_metamask_native_{evm,fees}.py`; funded qualification pending |
 | Normal Strategy/Trader round trip, callbacks and restart | `lumibot/example_strategies/metamask_perpetual.py` | `test_metamask_example_strategy.py`; funded testnet evidence below |
@@ -130,6 +131,38 @@ an invented conversion. Account cash already includes fees; reporting them does
 not deduct them again.
 
 Standard account cash uses actual withdrawable funds and margin. Unified account equity uses HyperCore's pooled spot USDC once, without adding perps PnL again. Portfolio-margin accounts are unsupported. HIP3 writes are explicitly held until collateral-aware valuation and DEX fee metadata are qualified; public market reads remain available. Do not assume non-USDC collateral values are USDC.
+
+### Cash activity and history coverage
+
+`broker.get_cash_event_sync(since=aware_datetime, limit=5000)` reads both funding
+and non-funding ledgers for the verified managed wallet. The default window is
+the last 60 days, not all-time history. Receipts identify network, wallet, mode
+and the exact UTC window, with an inclusive start and exclusive end. Pagination
+retains same-millisecond boundary rows and rejects conflicting identities or
+pages that cannot advance. Reads above 100,000 distinct records require a
+smaller window. Stable event IDs include network, wallet, ledger and transaction
+leg; retrying a read does not create new activity identities.
+
+Qualified normalized events are signed default-DEX USDC funding, deposits,
+zero-fee withdrawals and zero-fee USDC account/subaccount transfers with an
+unambiguous selected-wallet leg. Funding is operating activity; qualified
+capital transfers are external to this broker portfolio. Broker cash already
+includes these events and is never changed again by history collection.
+
+Unknown/malformed categories, fee-bearing capital movements, non-USDC assets,
+HIP3 funding, spot transfers, and spot/perp account-class transfers keep history
+`partial`. Historical account-mode changes and capital net/gross fee semantics
+require separate qualification; current account mode does not prove historical
+classification. Known events remain available, without certified coverage.
+Provider/identity failures or unexhausted pagination return `unavailable`;
+onchain spot history is `unsupported`. A successful empty read is `complete`
+only for its checked window. Limits also make the result `partial`.
+
+Normal Strategy cloud collection uses these receipts and marks initial history
+loaded only after a complete read. The list-only `get_cash_events()` refuses
+incomplete results with `CASH_HISTORY_INCOMPLETE`. Raw non-funding records remain
+readable through `client.cash_history(start_ms, end_ms)`; bounds there are
+inclusive. This reporting contract does not qualify funded provider execution.
 
 `MetaMaskData` reads marks and closed minute/hour/day candles from the selected Hyperliquid network. Public perpetual data needs only `NETWORK`; it does not need a wallet credential. Candle history is limited to the venue's latest 5,000 bars. Spot candles and historical account equity are not provided.
 

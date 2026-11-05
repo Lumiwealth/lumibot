@@ -251,6 +251,19 @@ class MetaMask(Broker):
     def get_historical_account_value(self):
         raise NotImplementedError("MetaMask does not expose historical account equity through this adapter")
 
+    def get_cash_event_sync(self, *, since=None, limit=5000):
+        """Read a bounded USDC window with explicit account and coverage evidence."""
+        from lumibot.tools.metamask.activity import cash_event_sync
+
+        return cash_event_sync(self.client, self.mode, since=since, limit=limit)
+
+    def get_cash_events(self, *, since=None, limit=100):
+        """Return complete normalized history, or refuse an ambiguous/truncated list."""
+        result = self.get_cash_event_sync(since=since, limit=limit)
+        if result.state != "complete":
+            raise MetaMaskAPIError("CASH_HISTORY_INCOMPLETE", result.reason_code)
+        return list(result.events)
+
     def get_funding_payments(self, start_time, end_time, symbol=None):
         """Read funding ledger (Unix milliseconds); balances already include these cash flows."""
         if self.mode != "perp":

@@ -521,7 +521,7 @@ def test_quote_mismatch_never_reaches_managed_signing(wallet, mutation):
     wallet.provider.submit_transaction.assert_not_called()
 
 
-@pytest.mark.parametrize("failure", [None, "revoked", "authority", "fees", "restart"])
+@pytest.mark.parametrize("failure", [None, "revoked", "expired", "authority", "policy", "fees", "restart"])
 def test_two_allowances_outlive_trade_quote_without_replay_or_broader_authority(wallet, monkeypatch, failure):
     from lumibot.tools.metamask.fees import estimate_fees
 
@@ -591,6 +591,10 @@ def test_two_allowances_outlive_trade_quote_without_replay_or_broader_authority(
     if failure in {"revoked", "authority"}:
         change = {"enabled": False} if failure == "revoked" else {"maxDailyUsd": "101"}
         wallet.journal.bind({**wallet.journal.binding("agent"), **change})
+    elif failure == "expired":
+        wallet.journal.bind({**wallet.journal.binding("agent"), "expiresAt": int(now[0] * 1000) - 1})
+    elif failure == "policy":
+        wallet.provider.policy.return_value = GuardPolicy("changed-policy", "b" * 64)
     elif failure == "restart":
         wallet.epoch = "restarted-owner"
     elif failure == "fees":
@@ -611,7 +615,9 @@ def test_two_allowances_outlive_trade_quote_without_replay_or_broader_authority(
                 result["lastErrorCode"]
                 == {
                     "revoked": "REVOKED",
+                    "expired": "REVOKED",
                     "authority": "POLICY_CHANGED",
+                    "policy": "POLICY_CHANGED",
                     "fees": "REQUOTE_REQUIRED",
                 }[failure]
             )

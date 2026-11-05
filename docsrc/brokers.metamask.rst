@@ -126,6 +126,36 @@ accounts use pooled HyperCore spot USDC once, without adding perpetual PnL
 again. Portfolio margin is unsupported. HIP3 writes are held until native
 collateral-aware valuation and effective DEX fee inputs are qualified.
 
+Cash activity and history coverage
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``broker.get_cash_event_sync(since=aware_datetime, limit=5000)`` reads funding
+and non-funding ledgers for the verified managed wallet. Its default is the last
+60 days, not all-time history. Receipts identify network, wallet, mode and exact
+UTC window, with an inclusive start and exclusive end. Pagination preserves
+same-millisecond boundary rows and refuses conflicting evidence or stalled
+pages. More than 100,000 distinct records requires a smaller window. Stable IDs
+include network, wallet, ledger and transaction leg.
+
+Qualified events are signed default-DEX USDC funding, deposits, zero-fee
+withdrawals and zero-fee USDC account/subaccount transfers with an unambiguous
+selected-wallet leg. Funding is operating activity; qualified capital transfers
+are external to this broker portfolio. History collection never changes cash.
+
+Unknown/malformed types, fee-bearing capital movements, non-USDC assets, HIP3
+funding, spot transfers and spot/perp account-class transfers keep history
+``partial``. Historical account-mode changes and capital net/gross fee semantics
+need separate qualification. Known events remain available without certified
+coverage. Limits also make results ``partial``. Provider/identity failures and
+unexhausted pagination return ``unavailable``. Onchain spot history is
+``unsupported``. A successful empty read certifies only its checked window.
+
+Normal Strategy cloud collection marks initial history loaded only after a
+complete receipt. The list-only ``get_cash_events()`` raises
+``CASH_HISTORY_INCOMPLETE`` for incomplete results. Raw non-funding records
+remain readable through ``client.cash_history(start_ms, end_ms)``, whose bounds
+are inclusive. Reporting does not qualify funded execution.
+
 ``MetaMaskData`` provides actual perpetual marks and closed minute/hour/day
 candles from the selected network. Public perpetual data needs only an explicit
 ``NETWORK``. The venue retains at most 5,000 bars per interval. Spot candles

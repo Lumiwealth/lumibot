@@ -274,12 +274,22 @@ def test_scheduled_legacy_data_source_alias_uses_same_lazy_getter(monkeypatch):
     import lumibot.credentials as credentials
 
     expected = object()
-    monkeypatch.setattr(credentials, "get_default_data_source", lambda: expected)
-    for name in ("data_source", "DATA_SOURCE"):
-        monkeypatch.delitem(credentials.__dict__, name, raising=False)
+    missing = object()
+    aliases = ("data_source", "DATA_SOURCE")
+    original = {name: credentials.__dict__.get(name, missing) for name in aliases}
+    with monkeypatch.context() as isolated:
+        isolated.setattr(credentials, "get_default_data_source", lambda: expected)
+        for name in aliases:
+            # The lazy getter writes these aliases. Register even an absent
+            # original so undo removes values created by the getter itself.
+            isolated.setitem(credentials.__dict__, name, None)
+            isolated.delitem(credentials.__dict__, name, raising=False)
 
-    assert credentials.data_source is expected
-    assert credentials.DATA_SOURCE is expected
+        assert credentials.data_source is expected
+        assert credentials.DATA_SOURCE is expected
+
+    for name in aliases:
+        assert credentials.__dict__.get(name, missing) is original[name]
 
 
 def test_scheduled_strategy_import_defers_default_broker_resolution():

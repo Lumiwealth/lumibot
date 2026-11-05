@@ -12,6 +12,7 @@ Deploy marker: 698b5b7645611a5d888e1ef869db877ef99afe4e
 - Load Kalshi prediction assets on their first normal backtest price, quote, history or fill request, preserving distinct outcomes and simulated-time bounds without requiring a separate preload list.
 - Preserve a single verified publication timestamp and label transaction amounts, holding values and estimates at their individual report cells.
 - Preserve verified published establishment evidence when private evaluation journals have expired, while retaining original provenance and requiring current-source regression inference and full repetitions for changed or unestablished cases.
+- Restore lazy credential aliases after their qualification test so later broker and strategy tests do not inherit a synthetic data source.
 
 ## 4.6.47 - 2026-11-05
 

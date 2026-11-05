@@ -6,6 +6,7 @@ handled without borrowing Polymarket's close-time resolution shortcut.
 """
 
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
+from threading import RLock
 
 import pandas as pd
 
@@ -47,6 +48,7 @@ class KalshiBacktesting(PandasData):
             raise ValueError("Backtest fee rate must be nonnegative and balance precision positive")
         self._market_metadata = dict(market_metadata or {})
         self._frames = {}
+        self._load_lock = RLock()
         loaded = list(pandas_data.values()) if isinstance(pandas_data, dict) else list(pandas_data or [])
         for asset in assets or []:
             self.kalshi_data._validate_asset(asset, self.quote_asset)
@@ -101,6 +103,7 @@ class KalshiBacktesting(PandasData):
 
     def _available(self, asset, end=None):
         KalshiData._validate_asset(asset)
+        self._ensure_loaded(asset)
         frame = self._frames.get(asset)
         if frame is None:
             return pd.DataFrame(
@@ -108,6 +111,31 @@ class KalshiBacktesting(PandasData):
             )
         end = KalshiData._utc(end if end is not None else self.get_datetime())
         return frame[frame.index <= end]
+
+    def _ensure_loaded(self, asset):
+        """Discover ordinary strategy assets on first use, once per outcome.
+
+        Keep the same bounded provider history, PandasData store and simulated
+        clock as explicitly preloaded assets. Empty histories are cached too;
+        they must not cause a request on every trading iteration.
+        """
+        # The standard bulk-history API uses worker threads. Publish each
+        # outcome's frame/store/calendar together, and avoid duplicate fetches.
+        with self._load_lock:
+            if asset in self._frames:
+                return
+            bars = self.kalshi_data.get_historical_prices(
+                asset, None, f"{self._prediction_period}min",
+                start=self.datetime_start, end=self.datetime_end,
+            )
+            frame = bars.df.copy().sort_index()
+            if asset.symbol not in self._market_metadata:
+                self._market_metadata[asset.symbol] = self.kalshi_data.get_market_metadata(asset)
+            self._frames[asset] = frame
+            if not frame.empty:
+                data = Data(asset, frame, timestep=self._timestep, quote=self.quote_asset)
+                self.pandas_data.update(self._set_pandas_data_keys([data]))
+            self.load_data()
 
     def get_historical_prices(
         self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True, **kwargs
@@ -236,6 +264,7 @@ class KalshiBacktesting(PandasData):
                 raise ValueError("Kalshi post_only order would cross the historical quote")
 
     def get_backtest_fill_price(self, order):
+        self._ensure_loaded(order.asset)
         metadata = self._market_metadata.get(order.asset.symbol, {})
         if metadata.get("close_time") and KalshiData._utc(self.get_datetime()) >= KalshiData._utc(
             metadata["close_time"]

@@ -2,6 +2,9 @@
 
 ## 4.6.48 - Unreleased
 
+### Fixed
+- Load Kalshi prediction assets on their first normal backtest price, quote, history or fill request, preserving distinct outcomes and simulated-time bounds without requiring a separate preload list.
+
 ## 4.6.47 - 2026-11-05
 
 Deploy marker: 97d41b56ff42bd0c200c3b2f1f98f395bf1c8dfc

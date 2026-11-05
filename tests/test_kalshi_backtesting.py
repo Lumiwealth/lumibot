@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from lumibot.backtesting import BacktestingBroker, KalshiBacktesting
-from lumibot.entities import Asset, Data, Order
+from lumibot.entities import Asset, Bars, Data, Order
 from lumibot.strategies import Strategy
 
 
@@ -66,6 +66,107 @@ def make_strategy(source):
     strategy = ContractStrategy(broker=broker, budget=100, analyze_backtest=False)
     strategy._first_iteration = False
     return strategy, broker
+
+
+def test_normal_price_reads_discover_contracts_without_a_preload_list():
+    prepared = make_source()
+    calls = []
+
+    class RecordedCandleSource:
+        def get_historical_prices(self, selected, length, timestep, **bounds):
+            calls.append((selected, length, timestep, bounds))
+            return Bars(prepared._frames[selected].copy(), "KALSHI", selected)
+
+        def get_market_metadata(self, selected):
+            return prepared._market_metadata[selected.symbol].copy()
+
+    source = KalshiBacktesting(
+        prepared.datetime_start,
+        prepared.datetime_end,
+        kalshi_data=RecordedCandleSource(),
+        market="24/7",
+        show_progress_bar=False,
+    )
+    source._update_datetime(pd.Timestamp("2026-01-01T12:01Z").to_pydatetime())
+
+    # Ordinary BotSpot strategies request an Asset through the standard price
+    # methods; they do not provide a special assets= argument to the runner.
+    assert source.get_last_price(asset()) == pytest.approx(0.45)
+    assert source.get_quote(asset()).ask == pytest.approx(0.46)
+    assert source.get_last_price(asset("no")) == pytest.approx(0.55)
+    history = source.get_historical_prices(asset(), 10, "minute").df
+    assert list(history["close"]) == [0.4, 0.45]
+    assert [(a.outcome, length, step) for a, length, step, _ in calls] == [
+        ("yes", None, "1min"), ("no", None, "1min")
+    ]
+    assert all(b == {"start": source.datetime_start, "end": source.datetime_end}
+               for _, _, _, b in calls)
+    assert (asset(), source.quote_asset) in source.pandas_data
+    assert (asset("no"), source.quote_asset) in source.pandas_data
+    # Full-range loading must not make a later candle visible early.
+    assert history.index.max() <= pd.Timestamp(source.get_datetime())
+
+    batch_source = KalshiBacktesting(
+        prepared.datetime_start, prepared.datetime_end,
+        kalshi_data=RecordedCandleSource(), market="24/7", show_progress_bar=False,
+    )
+    batch_source._update_datetime(pd.Timestamp("2026-01-01T12:01Z").to_pydatetime())
+    batches = batch_source.get_bars(
+        [asset(), asset("no")], 2, "minute", chunk_size=1, max_workers=2,
+    )
+    assert set(batches) == {asset(), asset("no")}
+    assert list(batches[asset()].df["close"]) == [0.4, 0.45]
+    assert list(batches[asset("no")].df["close"]) == [0.6, 0.55]
+
+
+def test_normal_strategy_runner_loads_requested_contract_and_records_fills(monkeypatch):
+    monkeypatch.setenv("BACKTESTING_DATA_SOURCE", "kalshi")
+    prepared = make_source()
+    calls = []
+
+    class RecordedCandleSource:
+        def get_historical_prices(self, selected, length, timestep, **bounds):
+            calls.append(selected)
+            return Bars(prepared._frames[selected].copy(), "KALSHI", selected)
+
+        def get_market_metadata(self, selected):
+            return {"ticker": selected.symbol, "close_time": "2026-01-01T13:00Z"}
+
+    class DiscoveredContractStrategy(Strategy):
+        def initialize(self):
+            self.set_market("24/7")
+            self.sleeptime = "1M"
+            self.vars.fills = []
+
+        def on_trading_iteration(self):
+            price = self.get_last_price(asset())
+            if price is None or self.get_orders():
+                return
+            if self.get_position(asset()) is None and price <= 0.45:
+                self.submit_order(self.create_order(asset(), 1, "buy", limit_price=0.5))
+
+        def on_filled_order(self, position, order, price, quantity, multiplier):
+            self.vars.fills.append((order.asset.outcome, float(quantity), float(price)))
+
+    _, strategy = DiscoveredContractStrategy.run_backtest(
+        KalshiBacktesting,
+        prepared.datetime_start,
+        pd.Timestamp("2026-01-01T12:03Z").to_pydatetime(),
+        kalshi_data=RecordedCandleSource(),
+        budget=100,
+        benchmark_asset=None,
+        show_plot=False,
+        show_tearsheet=False,
+        save_tearsheet=False,
+        save_stats_file=False,
+        show_progress_bar=False,
+    )
+    assert calls == [asset()]
+    assert len(strategy.vars.fills) == 1
+    assert strategy.vars.fills[0][0:2] == ("yes", 1.0)
+    assert 0 < strategy.vars.fills[0][2] <= 0.5
+    assert strategy.get_position(asset()).quantity == 1
+    assert strategy.cash < 100
 
 
 def execute(strategy, broker, side, count, action):

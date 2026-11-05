@@ -226,7 +226,9 @@ needed. `get_last_price`, `get_last_prices`, `get_quote`, `get_historical_prices
 `get_historical_prices_for_assets`, `create_order`, `submit_order`, `get_order`,
 `get_orders`, `get_position` and `get_positions` retain their normal interfaces.
 
-Pass your existing Strategy subclass and selected assets to the normal runner:
+Pass your existing Strategy subclass to the normal runner. The optional selected
+assets preload history; ordinary Strategy price, quote and history calls also
+load a newly encountered YES/NO asset on first use:
 
 ```python
 from datetime import datetime, timezone
@@ -256,11 +258,15 @@ placing real orders. An existing `KalshiData` can instead be passed as
 this class through the existing environment override; as usual, an environment
 selection takes precedence over the class argument.
 
-The `assets` list preloads only the requested backtest range. For earlier signal
+The optional `assets` list preloads only the requested backtest range. On-demand
+loading uses that same bounded range, caches each outcome separately and reuses
+the ordinary PandasData store. Every read remains limited to the simulated time;
+loading a complete range does not expose future prices. Empty history is cached
+without retrying the provider on every iteration. For earlier signal
 warm-up, prepare ordinary `Data` objects containing that earlier history and
 pass `pandas_data=`. Supply their matching `market_metadata=` mapping for a fully
-offline replay. All asset identity keys retain the selected outcome. An unloaded
-asset or empty history stays empty and does not break unrelated loaded assets.
+offline replay. All asset identity keys retain the selected outcome. Empty
+history stays empty and does not break unrelated loaded assets.
 
 ### Clock, fills, positions and settlement
 

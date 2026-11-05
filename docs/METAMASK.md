@@ -304,6 +304,13 @@ order test, entry and close under the existing $25 per-order cap. It also uses
 the reviewed authority checks and six-minute minimum remaining grant lifetime.
 These checks neither raise limits nor clear prior spending history.
 
+During failure recovery, receipt-write errors do not block worker settlement,
+owned-order reconciliation or authorized exact residual cleanup. Reporting is
+best-effort in that lane and the qualification verdict stays unsuccessful.
+Journal writes, live ownership checks and financial guards remain mandatory;
+unresolved evidence never authorizes a guessed close. Legacy migration fences
+and rollback journals are also protected evidence destinations.
+
 Offline tests cover provider context, OAuth rotation, journal ownership and reservations, official signing vectors, remote-signature recovery, order replay prevention, cumulative callbacks, cancellation, swap quotes and receipts. Connected Python reads verify actual wallet identity, Guard policy, testnet account, candles and ordinary strategy startup without replaying historical fills. A dependency check reports a compatible Python environment.
 
 Native testnet opening, reduce-only closing and cancellation have funded receipts. Fresh live partial-flow remains unqualified. Actual short-lived testnet grants have expired on both dedicated wallets: new intents returned `REVOKED` without signing or changing orders, execution effects or nonces. The ordinary connected expiry test still skips active grants; offline expiry regressions remain separate evidence. Managed swaps still require their own funded receipts. Broker startup never renews expired local grants; prior JavaScript test results are not carried forward. No production or mainnet trading qualification is claimed.

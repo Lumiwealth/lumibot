@@ -36,9 +36,15 @@ def main():
     args.evidence = prepare_evidence_path(args.evidence, args.config, configs)
     prefix = "native-qualification-" + uuid4().hex[:12]
     evidence = {"run": prefix, "network": "testnet", "wallets": []}
+    recovering, receipt_errors = False, []
 
     def save():
-        save_evidence(args.evidence, evidence)
+        try:
+            save_evidence(args.evidence, evidence)
+        except Exception as error:
+            if not recovering:
+                raise
+            receipt_errors.append(str(error))
 
     save()
 
@@ -138,7 +144,10 @@ def main():
             wallet["complete"] = True
             save()
         except BaseException as error:
+            recovering = True
             wallet["error"] = str(error)
+            wallet["complete"] = False
+            wallet["receipt_errors"] = receipt_errors
             save()
             # Cancel only this run's tracked orders. Uncertain fills need review;
             # never infer that an HTTP failure means the wallet stayed flat.

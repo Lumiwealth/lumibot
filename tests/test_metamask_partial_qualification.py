@@ -366,3 +366,104 @@ def test_evidence_is_private_durable_and_contains_no_signature_material(tmp_path
     assert path.stat().st_mode & 0o077 == 0
     assert "signature" not in path.read_text()
     assert not list(tmp_path.glob(".partial-*"))
+
+
+@pytest.mark.parametrize("caller", ["partial", "strategy"])
+def test_cleanup_receipt_failure_cannot_prevent_exact_reduce_only_close(monkeypatch, caller):
+    import importlib
+
+    module = qualification if caller == "partial" else importlib.import_module("scripts.qualify_metamask_strategy")
+    broker, remaining = Mock(), [Decimal("0.005")]
+    broker.client.config = {"AGENT_ID": "agent", "WALLET_ADDRESS": "0x" + "1" * 40}
+    broker.client.journal.get.return_value = operation(filled="0.005")
+    broker.client.get_order.return_value = operation(filled="0.005")
+    broker.client.account.side_effect = lambda _: {
+        "positions": [] if not remaining[0] else [{"symbol": "ETH", "quantity": str(remaining[0])}]
+    }
+    broker.client.venue.info.return_value = []
+    broker.submit_order.side_effect = lambda item: remaining.__setitem__(0, Decimal(0))
+    monkeypatch.setattr(qualification, "native_wait", Mock(return_value={"state": "filled"}))
+    # Strategy's imported cleanup uses the package module rather than this file's isolated loader.
+    monkeypatch.setattr("scripts.qualify_metamask_partial.native_wait", Mock(return_value={"state": "filled"}))
+    evidence = Mock()
+    evidence.stage.side_effect = OSError("receipt volume full")
+    with pytest.raises(RuntimeError, match="evidence"):
+        module.cleanup(broker, [SimpleNamespace(identifier="owned-maker")], "owned-cleanup", evidence, 0)
+    assert remaining[0] == 0
+    closing = broker.submit_order.call_args.args[0]
+    assert closing.reduce_only and closing.side == "sell" and closing.quantity == Decimal("0.005")
+
+
+def test_partial_failure_reporting_cannot_skip_second_wallet_cleanup(monkeypatch):
+    import time
+
+    values = configs()
+    brokers = [Mock(), Mock()]
+    evidence = Mock(data={"run": "offline-partial"})
+    broken, cleaned = [False], []
+
+    def report(name, **kwargs):
+        if name == "orders_prepared":
+            broken[0] = True
+        if broken[0]:
+            raise OSError("receipt volume full")
+
+    evidence.stage.side_effect = report
+    for i, broker in enumerate(brokers):
+        broker.client.verify.return_value = {"wallet": values[i]["WALLET_ADDRESS"]}
+        broker.client.journal.binding.return_value = {
+            "network": "testnet",
+            "enabled": True,
+            "expiresAt": int(time.time() * 1000) + 3_600_000,
+            "maxOrderUsd": "25",
+            "maxDailyUsd": "300" if i == 0 else "150",
+            "maxLeverage": 1,
+            "maxSlippageBps": 50,
+            "markets": ["BTC", "ETH"],
+            "policyDigest": "a" * 64,
+        }
+        broker.client.journal.operations.return_value = []
+        broker.client.account.return_value = {"positions": [], "cash": "100"}
+        broker.client.venue.info.return_value = []
+        broker.client.venue.market.return_value = SimpleNamespace(size_decimals=4)
+        broker.client.venue.fee_rate.return_value = Decimal("0.00045")
+        broker.client.price.return_value = Decimal("2300")
+    monkeypatch.setattr(qualification, "MetaMask", Mock(side_effect=brokers))
+    monkeypatch.setattr(qualification, "source_identity", lambda: {})
+    monkeypatch.setattr(
+        qualification, "wait_for_eligible_book", lambda *_: tuple(map(Decimal, ("2299.9", "2300.1", "2300", "0.1")))
+    )
+
+    def clean(broker, created, identifier, receipt, index):
+        cleaned.append(index)
+        if index == 0:
+            raise RuntimeError("first cleanup requires review")
+
+    monkeypatch.setattr(qualification, "cleanup", clean)
+    with pytest.raises(RuntimeError, match="Qualification incomplete"):
+        qualification.run(values, evidence)
+    assert cleaned == [0, 1] and evidence.data["complete"] is False
+    for broker in brokers:
+        broker._stop_event.set.assert_called_once()
+        broker.client._journal.close.assert_called_once()
+
+
+@pytest.mark.parametrize("failure", ["unowned", "journal"])
+def test_receipt_failures_never_bypass_financial_cleanup_guards(monkeypatch, failure):
+    broker, evidence = Mock(), Mock()
+    broker.client.config = {"AGENT_ID": "agent", "WALLET_ADDRESS": "0x" + "1" * 40}
+    broker.client.journal.get.return_value = operation(filled="0.005")
+    broker.client.get_order.return_value = operation(filled="0.005")
+    broker.client.account.return_value = {
+        "positions": [{"symbol": "ETH", "quantity": "0.006" if failure == "unowned" else "0.005"}]
+    }
+    broker.client.venue.info.return_value = []
+    evidence.stage.side_effect = OSError("receipt volume full")
+    broker.submit_order.side_effect = OSError("durable journal unavailable")
+    if failure == "unowned":
+        with pytest.raises(RuntimeError, match="Authoritative position differs"):
+            qualification.cleanup(broker, [SimpleNamespace(identifier="owned-maker")], "cleanup", evidence, 0)
+        broker.submit_order.assert_not_called()
+    else:
+        with pytest.raises(OSError, match="durable journal unavailable"):
+            qualification.cleanup(broker, [SimpleNamespace(identifier="owned-maker")], "cleanup", evidence, 0)

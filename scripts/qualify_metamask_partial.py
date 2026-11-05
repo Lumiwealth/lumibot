@@ -49,6 +49,9 @@ def prepare_evidence_path(path, config_path, configs):
                 else (".lock",)
             )
             protected.update(Path(str(selected) + suffix).resolve() for suffix in suffixes)
+            if key == "LEGACY_SESSION_FILE":
+                fence = Path(config[key]).expanduser().parent.resolve() / "session.owner.sqlite"
+                protected.update((fence, Path(str(fence) + "-journal")))
     if path.exists() or path.is_symlink() or path.resolve() in protected:
         raise ValueError("Choose a new evidence path; preserve configuration, sessions, journals and older receipts")
     path = path.resolve()
@@ -70,6 +73,14 @@ def save_evidence(path, data):
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
+
+
+def recovery_stage(evidence, failures, name, **values):
+    """Receipt storage must not interrupt mandatory journal-backed recovery."""
+    try:
+        evidence.stage(name, **values)
+    except Exception as error:
+        failures.append(error)
 
 
 def validate_configs(configs):
@@ -321,6 +332,7 @@ def order(identifier, quantity, side, **values):
 
 
 def cleanup(broker, created, cleanup_id, evidence, index):
+    reporting_failures = []
     for item in list(created):
         if broker.client.journal.get(broker.client.config["AGENT_ID"], str(item.identifier)) is not None:
             broker.cancel_order(item)
@@ -332,7 +344,15 @@ def cleanup(broker, created, cleanup_id, evidence, index):
     wallet = broker.client.config["WALLET_ADDRESS"]
     positions = broker.client.account("perp")["positions"]
     open_orders = broker.client.venue.info({"type": "openOrders", "user": wallet})
-    evidence.stage("cleanup_snapshot", index=index, operations=operations, positions=positions, open_orders=open_orders)
+    recovery_stage(
+        evidence,
+        reporting_failures,
+        "cleanup_snapshot",
+        index=index,
+        operations=operations,
+        positions=positions,
+        open_orders=open_orders,
+    )
     remaining = owned_residual(operations, positions, open_orders, {str(item.identifier) for item in created})
     if remaining:
         closing = order(
@@ -344,13 +364,24 @@ def cleanup(broker, created, cleanup_id, evidence, index):
             reduce_only=True,
         )
         created.append(closing)
-        evidence.stage("cleanup_prepared", index=index, id=cleanup_id, quantity=str(abs(remaining)), reduce_only=True)
+        recovery_stage(
+            evidence,
+            reporting_failures,
+            "cleanup_prepared",
+            index=index,
+            id=cleanup_id,
+            quantity=str(abs(remaining)),
+            reduce_only=True,
+        )
         broker.submit_order(closing)
-        evidence.stage("cleanup_receipt", index=index, receipt=native_wait(broker, closing, {"filled"}))
+        receipt = native_wait(broker, closing, {"filled"})
+        recovery_stage(evidence, reporting_failures, "cleanup_receipt", index=index, receipt=receipt)
     account = broker.client.account("perp")
     open_orders = broker.client.venue.info({"type": "openOrders", "user": wallet})
     require(not account["positions"] and not open_orders, "Cleanup left positions or orders requiring owner review")
-    evidence.stage("cleanup_flat", index=index, account=account, open_orders=open_orders)
+    recovery_stage(evidence, reporting_failures, "cleanup_flat", index=index, account=account, open_orders=open_orders)
+    if reporting_failures:
+        raise RuntimeError("Cleanup settled, but recovery evidence is unavailable") from reporting_failures[0]
 
 
 def run(configs, evidence, daily_caps=(300, 150)):
@@ -532,8 +563,8 @@ def run(configs, evidence, daily_caps=(300, 150)):
         evidence.stage("native_partial_canceled", receipt=canceled, callbacks=before)
         success = True
     except BaseException as error:
-        evidence.stage("failed", error=str(error))
         failures.append(error)
+        recovery_stage(evidence, failures, "failed", error=str(error))
     finally:
         for gate in gates.values():
             gate.abort()
@@ -546,15 +577,15 @@ def run(configs, evidence, daily_caps=(300, 150)):
                 try:
                     future.result()
                 except BaseException as error:
-                    evidence.stage("worker_failed", index=index, error=str(error))
                     failures.append(error)
+                    recovery_stage(evidence, failures, "worker_failed", index=index, error=str(error))
             for index, broker in enumerate(brokers):
                 if created[index]:
                     try:
                         cleanup(broker, created[index], cleanup_ids[index], evidence, index)
                     except BaseException as error:
-                        evidence.stage("cleanup_failed", index=index, error=str(error))
                         failures.append(error)
+                        recovery_stage(evidence, failures, "cleanup_failed", index=index, error=str(error))
         finally:
             closed = set()
             for broker in reversed(brokers):
@@ -573,7 +604,9 @@ def run(configs, evidence, daily_caps=(300, 150)):
                             failures.append(error)
                         closed.add(id(component))
     evidence.data["complete"] = success and not failures
-    evidence.stage("finished", success=evidence.data["complete"])
+    recovery_stage(evidence, failures, "finished", success=evidence.data["complete"])
+    if failures:
+        evidence.data["complete"] = False
     if failures:
         raise RuntimeError(
             "Qualification incomplete; inspect durable evidence and residual cleanup state"

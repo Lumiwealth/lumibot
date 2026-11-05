@@ -9,6 +9,7 @@
 - Project actual MetaMask perpetual fees and maker rebates into cumulative standard order costs without replaying executions or guessing currency conversions.
 - Read MetaMask funding and capital ledgers through standard cash-history receipts, with scoped event identities and explicit incomplete, unavailable and unsupported states.
 - Protect MetaMask qualification evidence from overwriting wallet recovery files, and check remaining journal budget for the resting-order test, entry and closing leg before signing.
+- Keep qualification receipt I/O failures from bypassing owned residual cleanup or worker/resource settlement, while retaining failed verdicts and mandatory journal/financial guards.
 
 ## 4.6.47 - 2026-11-05
 

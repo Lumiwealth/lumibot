@@ -309,3 +309,92 @@ def test_shutdown_diagnostic_failure_never_bypasses_producer_barrier():
     assert isinstance(failure, OSError)
     assert idle.wait.call_count == 2
     broker._orders_queue.join.assert_called_once()
+
+
+def test_strategy_receipt_failure_settles_then_closes_owned_residual_and_resources(tmp_path, monkeypatch):
+    import time
+
+    from scripts import qualify_metamask_partial as partial
+    from scripts import qualify_metamask_strategy as qualification
+
+    broker, trader, evidence = Mock(), Mock(), Mock(path=tmp_path / "receipt.json")
+    remaining, settled, broken = [Decimal(0)], [False], [False]
+    owned = {
+        "id": "owned-entry",
+        "state": "filled",
+        "filledQuantity": "0.005",
+        "request": {"symbol": "ETH", "side": "buy", "quantity": "0.005"},
+    }
+    broker.client.config = {"AGENT_ID": "agent", "WALLET_ADDRESS": "0x" + "1" * 40}
+    broker.client.verify.return_value = {"wallet": broker.client.config["WALLET_ADDRESS"]}
+    broker.client.journal.binding.return_value = {
+        "network": "testnet",
+        "enabled": True,
+        "expiresAt": int(time.time() * 1000) + 3_600_000,
+        "maxOrderUsd": "25",
+        "maxDailyUsd": "300",
+        "maxLeverage": 1,
+        "maxSlippageBps": 50,
+        "markets": ["BTC", "ETH"],
+    }
+    broker.client.journal.operations.return_value = []
+    broker.client.journal.get.return_value = owned
+    broker.client.get_order.return_value = owned
+    broker.client.venue.info.return_value = []
+    broker.client.venue.market.return_value = SimpleNamespace(size_decimals=4)
+    broker.client.account.side_effect = lambda _: {
+        "cash": "100",
+        "positions": [] if not remaining[0] else [{"symbol": "ETH", "quantity": str(remaining[0])}],
+    }
+    broker._orders_queue.join.side_effect = lambda: settled.__setitem__(0, True)
+
+    class ScheduledStrategy:
+        parameters = {"symbol": "ETH", "quantity": "0.005"}
+        entry_id = "owned-entry"
+
+        def __init__(self, broker, **kwargs):
+            self.broker = broker
+            self._executor = Mock()
+            self._executor.is_alive.return_value = False
+            for name in ("on_partially_filled_order", "on_filled_order", "on_canceled_order", "on_bot_crash"):
+                setattr(self, name, Mock())
+
+        def on_trading_iteration(self):
+            pass
+
+        def submit_order(self, item):
+            self.broker.submit_order(item)
+
+    def submit(item):
+        if item.reduce_only:
+            assert settled[0] and item.quantity == remaining[0]
+            remaining[0] = Decimal(0)
+        else:
+            remaining[0] = item.quantity
+
+    def report(name, **values):
+        if name == "callback":
+            broken[0] = True
+        if broken[0]:
+            raise OSError("receipt volume full")
+
+    def run(**kwargs):
+        scheduled = trader.add_strategy.call_args.args[0]
+        item = Order(
+            "offline", Asset("ETH", asset_type="crypto_future"), Decimal("0.005"), "buy", identifier=scheduled.entry_id
+        )
+        scheduled.submit_order(item)
+        scheduled.on_filled_order(None, item, Decimal("2300"), item.quantity, None)
+
+    evidence.stage.side_effect = report
+    broker.submit_order.side_effect = submit
+    trader.run_all.side_effect = run
+    monkeypatch.setattr(qualification, "MetaMask", Mock(return_value=broker))
+    monkeypatch.setattr(qualification, "Trader", Mock(return_value=trader))
+    monkeypatch.setattr(qualification, "MetaMaskPerpetualRoundTrip", ScheduledStrategy)
+    monkeypatch.setattr(partial, "native_wait", Mock(return_value={"state": "filled"}))
+    with pytest.raises(RuntimeError, match="evidence"):
+        qualification.exercise(broker.client.config, "offline", evidence, restart=False, daily_cap=300, timeout=1)
+    assert remaining[0] == 0 and settled[0]
+    trader.stop_all.assert_called_once()
+    broker.close.assert_called_once()

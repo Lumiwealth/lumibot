@@ -314,6 +314,13 @@ test, entry and close under the existing $25 per-order cap. Reviewed authority
 checks require at least six minutes of remaining grant lifetime. No limits are
 raised and prior spending history is preserved.
 
+During failure recovery, receipt-write errors do not block worker settlement,
+owned-order reconciliation or authorized exact residual cleanup. Reporting is
+best-effort in that lane and qualification remains unsuccessful. Journal writes,
+live ownership checks and financial guards stay mandatory; unresolved evidence
+never authorizes a guessed close. Legacy migration fences and rollback journals
+are also protected evidence destinations.
+
 Keys stay with MetaMask. Local Python checks are cooperative process controls;
 strategy code can access its process credentials. Dedicated funding and
 provider-enforced Guard policy are the actual boundaries. MetaMask's

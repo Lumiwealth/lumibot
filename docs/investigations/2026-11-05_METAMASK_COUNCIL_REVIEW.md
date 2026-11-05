@@ -4,7 +4,7 @@ Incremental verification of the native broker and PR 1262.
 
 Last Updated: 2026-11-05
 
-Status: In progress; round-5 harness corrections verified, fresh council review pending
+Status: In progress; recovery-reporting correction verified, fresh council pending
 
 Audience: LumiBot maintainers and reviewers
 
@@ -240,6 +240,44 @@ market reads remain compatible because those paths are unchanged.
 Updated public guide built successfully with no MetaMask diagnostics and one
 unchanged toctree warning. Funded/authenticated and remote CI gates remain open.
 
+## Round-6 recovery-reporting correction
+
+At `3b45613ed`, Terra approved 8.5/10 and Sol approved 9/10. Sol independently
+passed 24 focused checks. Astra requested changes at 8.5/10 with one P2:
+persistent receipt I/O failure after an entry could raise again in recovery
+logging, preventing residual cleanup. Shared cleanup could stop before its
+close; partial-run error logging could skip subsequent wallets. Astra also
+identified a lesser missing future legacy `session.owner.sqlite` fence and its
+rollback journal in destination protection. No new supported broker-execution
+P1/P2 was reported.
+
+Five regressions failed first: two migration-fence destinations, native entry
+followed by persistent receipt failure, and shared cleanup through both partial
+and strategy callers. Recovery reporting is now best-effort with failures
+retained for the final unsuccessful verdict. Native recovery continues past
+failed snapshots and records `complete=False`. Shared cleanup still requires
+exact live ownership and successful journal-backed close/flat verification,
+then raises when reporting failed. Partial-run recovery records errors without
+skipping workers, later wallets or resource closure. Legacy fence paths are
+protected before broker construction.
+
+Additional controls exercise the actual partial-run recovery loop and Strategy
+harness's settlement/cleanup/finally path with synthetic scheduling/provider
+transports. They verify that first-wallet or reporting failure cannot skip the
+second cleanup, and that producers settle before exact reduce-only closure and
+client release. Separate negative controls retain ownership-mismatch refusal
+and mandatory journal-write failure. These are offline failure-flow proofs,
+not funded Strategy/Trader qualification.
+
+The changed harness families passed 104 tests. Full workflow Ruff/format, 35
+files, and whitespace checks passed. Existing 123/590-test evidence remains
+compatible for unchanged paths. Packaged Python is unchanged from `708acfa9f`,
+so the source-matched wheel and installed runtime evidence remain applicable;
+no redundant wheel build or broad suite is required for script-only corrections.
+Updated guide build passed with no MetaMask diagnostics and one unchanged
+toctree warning. Git comparison confirms no packaged `lumibot/` change from
+the source-matched artifact commit.
+
 ## Exhaustive coverage inventory
 
 The initial audit traced all active native modules and connected callers; final
@@ -316,10 +354,13 @@ Round 5 results and accepted corrections are detailed above. No additional
 P1/P2 was reported in the supported broker execution paths. The entire revised
 solution, including shared harness guards, receives a fresh three-model review.
 
-| Delegate | Round 1, identity at a532366db | Round 2, identity at 5d7a14bdf | Round 3, execution at 351fb8a4d | Round 4, cash at 1ad7463ac | Round 5, integration at 387d29149 |
-| --- | --- | --- | --- | --- | --- |
-| GPT-6.1 Terra | 8.5/10, approve | 8.5/10, approve | 8.5/10, approve | 8.5/10, approve | 8.5/10, approve |
-| GPT-6.1 Sol | 9/10, approve | 9/10, approve | 9/10, approve | 8/10, request changes | 8.5/10, request changes |
-| GPT-6 Astra | 8/10, request changes | 9/10, approve | 9/10, approve | cancellation requested, no score | 8/10, request changes |
+Round 6 results and the recovery-reporting correction are detailed above. A new
+three-model pass reviews the full corrected outcome and affected failure paths.
+
+| Delegate | Round 1 identity | Round 2 identity | Round 3 execution | Round 4 cash | Round 5 integration | Round 6 corrections |
+| --- | --- | --- | --- | --- | --- | --- |
+| GPT-6.1 Terra | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve |
+| GPT-6.1 Sol | 9/10 approve | 9/10 approve | 9/10 approve | 8/10 request changes | 8.5/10 request changes | 9/10 approve |
+| GPT-6 Astra | 8/10 request changes | 9/10 approve | 9/10 approve | cancellation requested, no score | 8/10 request changes | 8.5/10 request changes |
 
 Nothing has been pushed by this review task yet.

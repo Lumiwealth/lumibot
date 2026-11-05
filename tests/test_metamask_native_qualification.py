@@ -189,6 +189,88 @@ def test_all_qualification_entrypoints_protect_future_wallet_sidecars(tmp_path, 
     assert not target.exists()
 
 
+@pytest.mark.parametrize("suffix", ["", "-journal"])
+def test_legacy_migration_fence_cannot_be_reserved_as_evidence(tmp_path, monkeypatch, suffix):
+    configs = native_configs(tmp_path)
+    config = tmp_path / "config.json"
+    config.write_text(json.dumps(configs))
+    target = tmp_path / ("session.owner.sqlite" + suffix)
+    monkeypatch.setattr(qualification, "MetaMask", Mock(side_effect=AssertionError("No wallet access")))
+    monkeypatch.setattr(sys, "argv", ["qualify", "--config", str(config), "--evidence", str(target), "--execute"])
+    with pytest.raises(ValueError, match="evidence path"):
+        qualification.main()
+    assert not target.exists()
+
+
+def test_native_receipt_failure_after_entry_still_closes_exact_owned_residual(tmp_path, monkeypatch):
+    configs = native_configs(tmp_path)
+    config = tmp_path / "config.json"
+    config.write_text(json.dumps(configs))
+    broker, position, items, receipts = Mock(), [Decimal(0)], [], {}
+    broker.client.verify.return_value = {"wallet": configs[0]["WALLET_ADDRESS"]}
+    broker.client.journal.binding.return_value = {
+        "network": "testnet",
+        "enabled": True,
+        "expiresAt": int(time.time() * 1000) + 3_600_000,
+        "maxOrderUsd": "25",
+        "maxDailyUsd": "300",
+        "maxLeverage": 1,
+        "maxSlippageBps": 50,
+        "markets": ["BTC", "ETH"],
+    }
+    broker.client.journal.operations.return_value = []
+    broker.client.price.return_value = Decimal("20000")
+    broker.client.venue.market.return_value = SimpleNamespace(size_decimals=5)
+    broker.client.venue.info.return_value = []
+    broker.client.account.side_effect = lambda _: {
+        "positions": [] if not position[0] else [{"symbol": "BTC", "quantity": str(position[0])}]
+    }
+
+    def submit(item):
+        items.append(item)
+        resting = item.identifier.endswith("-rest")
+        if not resting:
+            position[0] += item.quantity if item.side == "buy" else -item.quantity
+        receipts[str(item.identifier)] = {
+            "state": "open" if resting else "filled",
+            "filledQuantity": "0" if resting else str(item.quantity),
+            "request": {"side": str(item.side)},
+            "providerOrderId": str(len(items)),
+        }
+
+    def observe(item, receipt):
+        if receipt["state"] == "filled":
+            item.transactions.append(SimpleNamespace(quantity=item.quantity))
+            item._closed_event.set()
+
+    def cancel(item):
+        if receipts[str(item.identifier)]["state"] == "open":
+            receipts[str(item.identifier)]["state"] = "canceled"
+
+    original_save, broken = qualification.save_evidence, [False]
+
+    def save(path, data):
+        if position[0] or broken[0]:
+            broken[0] = True
+            raise OSError("receipt volume full")
+        original_save(path, data)
+
+    broker.submit_order.side_effect = submit
+    broker.cancel_order.side_effect = cancel
+    broker._observe.side_effect = observe
+    broker.client.get_order.side_effect = lambda identifier: receipts[identifier]
+    monkeypatch.setattr(qualification, "MetaMask", Mock(return_value=broker))
+    monkeypatch.setattr(qualification, "save_evidence", save)
+    monkeypatch.setattr(
+        sys, "argv", ["qualify", "--config", str(config), "--evidence", str(tmp_path / "receipt.json"), "--execute"]
+    )
+    with pytest.raises(OSError, match="receipt volume full"):
+        qualification.main()
+    assert [item.identifier.rsplit("-", 1)[-1] for item in items] == ["rest", "open", "cleanup"]
+    assert position[0] == 0 and items[-1].reduce_only and items[-1].quantity == items[1].quantity
+    broker.client.close.assert_called_once()
+
+
 @pytest.mark.parametrize("network,distinct", [("mainnet", True), ("testnet", False)])
 def test_qualification_rejects_unsafe_configs_before_evidence_or_wallet_use(tmp_path, network, distinct):
     configs = [

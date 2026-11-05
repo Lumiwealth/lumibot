@@ -3741,6 +3741,7 @@ class _Strategy:
         # Filename defaults
         if not logdir:
             logdir = "logs"
+        os.makedirs(logdir, exist_ok=True)
 
         if not plot_file_html:
             plot_file_html = f"{logdir}/{base_filename}_trades.html"

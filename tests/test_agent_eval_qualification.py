@@ -208,6 +208,40 @@ def test_explicit_subscription_attempt_can_qualify_with_approved_call_limit(nati
                                  versions=metadata[3], now=metadata[4])
 
 
+def test_published_establishment_does_not_require_recreated_historical_journal(native_metadata, monkeypatch):
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")
+    monkeypatch.setattr(qualification, "unchanged_establishment_cases", lambda ref, cases: cases)
+    original = qualification.build_establishment(
+        rows, calls, cases, source_ref="a" * 40, versions=versions, now=now,
+    )
+    current = deepcopy(rows[:1])
+    current[0]["run_id"] = str(uuid4())
+    current[0]["fingerprint"] = evals.case_fingerprint(
+        cases[0], judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash="new-source",
+    )
+    current_calls = deepcopy(calls[1:5])
+    identities = {}
+    for call in current_calls:
+        identities.setdefault(call["id"], str(uuid4()))
+        call["id"] = identities[call["id"]]
+        if "scope" in call:
+            call["scope"].update(run_id=current[0]["run_id"], fingerprint=current[0]["fingerprint"])
+    calibration_rows, calibration_calls, summary = calibration_metadata(cases, now, "new-source")
+    monkeypatch.setattr(qualification, "build_establishment", lambda *args, **kwargs: deepcopy(original))
+    journal = [calls[0], *current_calls, *calibration_calls]
+    receipt = qualification.build_receipt(
+        current, journal, cases, runtime_hash="new-source", versions=versions, now=now,
+        calibration_rows=calibration_rows, calibration_summary=summary, established_source="a" * 40,
+    )
+    assert receipt["establishment"] == original
+    assert receipt["call_allowance"]["consumed_calls"] == 8
+    qualification.verify_receipt(receipt, cases, runtime_hash="new-source", versions=versions, now=now)
+    receipt["call_allowance"]["consumed_calls"] = 7
+    with pytest.raises(ValueError, match="cumulative native ledger"):
+        qualification.verify_receipt(receipt, cases, runtime_hash="new-source", versions=versions, now=now)
+
+
 # Positive informational windows may grow; malformed values remain invalid.
 @pytest.mark.parametrize("cap", [0, -1, True, 1.5, "5000"])
 def test_export_and_verification_reject_invalid_subscription_caps(native_metadata, cap):

@@ -28,6 +28,14 @@ retain the one-regression-run policy. New or changed cases still require all
 configured three or five current actor/judge passes; they cannot inherit another
 case's establishment or the earlier version of their own definition.
 
+An explicitly selected immutable published receipt can retain verified original
+establishment when private raw journals expire. Keep its original source, call
+identities, usage, timestamps and evidence digests. The current subscription
+journal accounts for current actors and calibration; historical calls remain
+in their verified establishment proof and must not be recreated as native
+journal entries. Duplicate calls across either proof are still rejected. A
+failed or incomplete original native attempt cannot fall back to an older pass.
+
 ## TL;DR (do this in order)
 
 1) **Run the release preflight first.** If branch, `setup.py`, `CHANGELOG.md`, tag, or `dev` state is inconsistent, stop. Do not tag. Do not deploy BotManager. Fix the branch first.

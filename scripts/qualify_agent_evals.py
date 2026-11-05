@@ -448,6 +448,7 @@ def verify_receipt(receipt, cases, *, runtime_hash, versions, now=None):
                     raise ValueError("Establishment reused a native attempt or call")
                 seen_attempts.update(attempts)
                 seen_calls.update(calls)
+    historical_calls = set(seen_calls)
     for case in cases:
         record = records[case["id"]]
         if not isinstance(record, dict) or set(record) != {"fingerprint", "repetitions"}:
@@ -475,7 +476,11 @@ def verify_receipt(receipt, cases, *, runtime_hash, versions, now=None):
         # One calibration batch legitimately shares its attempt id across
         # controls/repetitions, while every call is independently scoped.
         seen_calls.update(calls)
-    if len(seen_calls) > allowance["consumed_calls"]:
+    # Establishment carries independently verified original call identities.
+    # The current journal need not recreate those expired historical rows.
+    # Retain global duplicate detection above, and bind this journal's usage
+    # to current actor/calibration calls only.
+    if len(seen_calls - historical_calls) > allowance["consumed_calls"]:
         raise ValueError("Qualified calls exceed the cumulative native ledger")
 
 

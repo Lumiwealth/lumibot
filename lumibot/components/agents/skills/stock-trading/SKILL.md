@@ -85,9 +85,12 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    reads. If an order tool returned a submitted identifier, never say that no
    order was entered. Report the exact observed status instead.
    Report the final account read's cash verbatim: reserved cash remains part of
-   that balance, not a debit. If explaining cash above a reserve, compute final
-   cash minus the reserve once with an arithmetic tool and label it as excess,
-   never as the total cash balance. Omit a comparison that was not computed.
+   that balance, not a debit. Use the returned cash balance alone unless a
+   reserve comparison is useful. For that comparison, make an arithmetic-tool
+   call **after the final account read** with `final_cash - requested_reserve`.
+   Copy that returned difference into the explanation. Without that calculation,
+   omit the excess-cash sentence entirely. Never infer the difference from an
+   earlier sizing calculation, the allocation remainder or mental arithmetic.
    Reconcile cash from confirmed fill quantities, execution prices and fees.
    Portfolio value already includes cash and current position valuation; do not
    add cash again or equate that total with the gross purchase debit.

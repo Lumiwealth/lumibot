@@ -453,6 +453,14 @@ class BacktestingBroker(Broker):
             if is_pytz:
                 new_datetime = tz.normalize(new_datetime)
 
+        # The simulation's configured end also bounds final lifecycle marks.
+        # Oversleeping must not make valuation request data outside that window.
+        # Once at the bound, retain the terminal clock instead of the ordinary
+        # non-advancing/DST fallback moving it one more minute into the future.
+        new_datetime = min(new_datetime, self.data_source.datetime_end)
+        if new_datetime <= previous_datetime:
+            return
+
         self.data_source._update_datetime(
             new_datetime,
             cash=cash,
@@ -702,6 +710,13 @@ class BacktestingBroker(Broker):
                     "[BROKER DEBUG] time_to_open <= 0 (%s), returning without advancing time",
                     time_to_open,
                 )
+            return
+
+        # A next session outside the exclusive backtest window is not an
+        # event to simulate. Keep the last real simulation clock for final
+        # valuation rather than jumping to a closed weekend/holiday boundary.
+        if self.datetime.timestamp() + float(time_to_open) >= self.data_source.datetime_end.timestamp():
+            self._end_of_trading_days_reached = True
             return
 
         if logger.isEnabledFor(logging.DEBUG):

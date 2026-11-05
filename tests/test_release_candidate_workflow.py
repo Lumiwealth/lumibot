@@ -71,10 +71,16 @@ def test_candidate_version_check_preserves_the_tag_boundary(tmp_path, event, ref
 def test_source_ci_and_release_share_the_exact_eval_sdk_constraints():
     root = Path(__file__).resolve().parents[1]
     workflow = yaml.load((root / ".github/workflows/cicd.yaml").read_text(), Loader=yaml.BaseLoader)
-    installs = [step["run"] for job in workflow["jobs"].values() for step in job.get("steps", [])
-                if "pip install -r requirements_dev.txt" in step.get("run", "")]
-    assert len(installs) == 3
-    assert all("pip install -r requirements_dev.txt -c requirements_agent_evals.txt" in step for step in installs)
+    # Ruff reads source without importing runtime; executor jobs still need the SDK tuple.
+    installs = {name: step["run"] for name, job in workflow["jobs"].items() for step in job.get("steps", [])
+                if "pip install -r requirements_dev.txt" in step.get("run", "")}
+    assert set(installs) == {"unit-tests", "backtest-tests"}
+    assert all("pip install -r requirements_dev.txt -c requirements_agent_evals.txt" in step for step in installs.values())
+    lint_steps = workflow["jobs"]["lint"]["steps"]
+    lint_install = next(step for step in lint_steps if step.get("name") == "Install lint dependencies")
+    assert lint_install["run"] == "python -m pip install ruff -c requirements_agent_evals.txt"
+    lint_python = next(step for step in lint_steps if step.get("uses", "").startswith("actions/setup-python@"))
+    assert "cache" not in lint_python["with"]
 
 
 def test_release_and_source_qualification_await_completion_without_shell_deadlines():

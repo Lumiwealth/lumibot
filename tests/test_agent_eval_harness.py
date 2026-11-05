@@ -953,7 +953,7 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
     assert set(selected) == set(sources)
     # Retain the original controls plus wrapped-row, mark-cost and macro controls,
     # including the two source-bound absent/incorrect-unit controls.
-    assert len(controls) == 35
+    assert len(controls) == 36
     case = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_source_cases" /
                        "web_documents_holdings_from_yearly_and_trade_reports.json").read_text())
     for identifier, (expected, run_id, repetition) in sources.items():
@@ -985,6 +985,30 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         assert all(
             item["method"] == "GET" and item["url"].startswith("https://filings.example.gov/") for item in requests
         )
+
+
+def test_mixed_range_control_preserves_the_actual_failed_actor_and_source_case():
+    """Check recorded identity and bytes; the real judge decides the label."""
+    import hashlib
+
+    root = SCRIPT_PATH.parent.parent
+    controls = json.loads((root / "tests/fixtures/agent_judge_calibration.json").read_text())
+    control = next(row for row in controls if row["id"] == "mixed-range-amount-observed-negative")
+    source_case = json.loads((root / "tests/fixtures/agent_judge_source_cases" /
+                              "financial_range_meaning_before_clarification.json").read_text())
+    assert control["expected"] is False and control["required_repetitions"] == 5
+    assert control["source_sha"] == "7a78b42d02e4b159badbd535c13c2704fd47c7fc"
+    assert control["source_run"] == "85bc135a-f80a-4722-b8a8-ef8381659b42"
+    assert control["source_status"] == "fail"
+    assert control["source_machine"]["pass"] is True
+    assert control["source_judge"]["pass"] is False
+    assert control["source_case_fingerprint"] == evals.case_fingerprint(
+        source_case, judge_model=control["source_judge_model"],
+        runtime_hash=control["source_runtime_fingerprint"],
+    )
+    assert hashlib.sha256(evals.stable_json(control["transcript"]).encode()).hexdigest() == (
+        control["source_transcript_sha256"]
+    )
 
 
 def test_numeric_ledger_and_mark_controls_preserve_observed_and_counterfactual_provenance():

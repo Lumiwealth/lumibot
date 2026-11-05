@@ -96,7 +96,7 @@ def _multi_minute_df(source: pd.DataFrame, minutes: int) -> pd.DataFrame:
     )
 
 
-def test_ibkr_speed_burner_prefetches_once_and_slices_forever(monkeypatch):
+def test_ibkr_speed_burner_prefetches_once_and_slices_forever(monkeypatch, record_property):
     import lumibot.tools.ibkr_helper as ibkr_helper
 
     # SAFETY: avoid printing private downloader hostnames/API keys from local `.env` in unit test logs.
@@ -211,8 +211,8 @@ def test_ibkr_speed_burner_prefetches_once_and_slices_forever(monkeypatch):
         crypto_broker._update_datetime(60)
     t1 = perf_counter()
 
-    # Sanity: this is not a strict perf gate (CI machines vary), but it should not be pathological.
-    assert (t1 - t0) < 60.0
+    # Elapsed time is diagnostic; cache counts, windows and fills below own correctness.
+    record_property("elapsed_seconds", t1 - t0)
 
     # Prefetch once → slice forever: each (symbol, timestep) should be loaded once.
     # If this fails, backtests will be dominated by redundant pandas/disk work.

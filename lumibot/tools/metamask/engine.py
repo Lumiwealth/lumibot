@@ -556,7 +556,11 @@ class ExecutionEngine:
                 or live.get("coin") != intent.symbol
                 or live.get("side") != order.get("side")
                 or decimal(live.get("origSz"), positive=True) != intent.quantity
-                or (plan.get("clientOrderId") is not None and live.get("cloid") != plan["clientOrderId"])
+                or (
+                    plan.get("clientOrderId") is not None
+                    and live.get("cloid") is not None
+                    and live.get("cloid") != plan["clientOrderId"]
+                )
                 or live.get("reduceOnly") is not intent.reduce_only
             ):
                 raise MetaMaskError("ORDER_IDENTITY_MISMATCH", "Live order differs from the persisted wallet intent")

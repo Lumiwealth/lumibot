@@ -1103,6 +1103,10 @@ class ProjectX(Broker):
     def _pull_broker_all_orders(self) -> List[dict]:
         """Get all orders from broker, including recently filled ones via trades."""
         try:
+            # REST-only callers defer connection until their first read, just
+            # as positions and the other order-read path already do.
+            if not self.account_id and not self.connect():
+                raise RuntimeError("Failed to connect for order retrieval")
             # Get all orders from today to catch any recent activity
             end_date = datetime.now(_default_pytz()).replace(hour=23, minute=59, second=59)
             start_date = end_date.replace(hour=0, minute=0, second=0) - timedelta(days=self.order_lookback_days)

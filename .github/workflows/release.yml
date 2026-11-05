@@ -130,7 +130,19 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          pip install -r requirements_dev.txt -c requirements_agent_evals.txt
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          # Generated exchange facts and the tests must use the same CCXT
+          # metadata version. Runtime package dependency ranges stay unchanged.
+          version = json.loads(Path('docsrc/_data/ccxt_exchange_facts.json').read_text())['ccxt_version']
+          constraint = Path(os.environ['RUNNER_TEMP']) / 'ccxt-metadata-constraint.txt'
+          constraint.write_text(f'ccxt=={version}\n')
+          PY
+          pip install -r requirements_dev.txt -c requirements_agent_evals.txt -c "${RUNNER_TEMP}/ccxt-metadata-constraint.txt"
+          python -m pip check
           pip install pytest-xdist==3.8.0
 
       - name: Run unit tests

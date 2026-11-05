@@ -7,11 +7,12 @@ import pytest
 from lumibot.brokers.alpaca import Alpaca
 from lumibot.components.options_helper import OptionsHelper
 from lumibot.credentials import ALPACA_TEST_CONFIG
+from lumibot.data_sources.alpaca_data import AlpacaData
 from lumibot.entities import Asset, Order, SmartLimitConfig, SmartLimitPreset
 from lumibot.strategies.strategy import Strategy
 
 
-pytestmark = pytest.mark.apitest
+pytestmark = [pytest.mark.apitest, pytest.mark.alpaca]
 
 
 class _HarnessStrategy(Strategy):
@@ -29,7 +30,8 @@ def _alpaca() -> Alpaca:
     if not cfg.get("API_KEY") or not cfg.get("API_SECRET"):
         pytest.skip("Missing dedicated ALPACA_TEST_API_KEY / ALPACA_TEST_API_SECRET")
     cfg["PAPER"] = True
-    broker = Alpaca(cfg, connect_stream=False)
+    # Bind quotes to the same isolated connection, not ambient DATA_SOURCE.
+    broker = Alpaca(cfg, data_source=AlpacaData(cfg), connect_stream=False)
     account = broker.api.get_account()
     if getattr(account, "trading_blocked", False):
         pytest.fail("The dedicated paper test account cannot trade")
@@ -41,6 +43,33 @@ def _alpaca() -> Alpaca:
 
 def _poll_alpaca_order(broker: Alpaca, order: Order):
     return broker.api.get_order_by_id(order.identifier)
+
+
+def _confirmed_crypto_remainder(broker: Alpaca, order: Order, maximum: Decimal) -> Decimal:
+    """Test-only continuation after a confirmed, partially filled cancellation.
+
+    A priced order need not fill in a moving market. Never overlap its recovery
+    with a still-working order or sell more than this invocation's remainder.
+    """
+    from alpaca.trading.requests import GetOrdersRequest
+
+    confirmed = broker.api.get_order_by_id(order.identifier)
+    assert str(confirmed.id) == str(order.identifier), "Cancellation identity changed"
+    status = str(getattr(confirmed.status, "value", confirmed.status)).lower()
+    assert status == "canceled", "Close recovery requires confirmed cancellation"
+    assert not broker.api.get_orders(filter=GetOrdersRequest(status="open")), "Close recovery has active orders"
+    requested = Decimal(str(confirmed.qty))
+    filled = Decimal(str(confirmed.filled_qty))
+    assert 0 <= filled <= requested <= maximum, "Unexpected close execution quantity"
+    positions = broker.api.get_all_positions() or []
+    position = next((p for p in positions if str(p.symbol).upper().replace("/", "") == "BTCUSD"), None)
+    if position is None:
+        return Decimal("0")
+    available = Decimal(str(position.qty_available))
+    quantity = Decimal(str(position.qty))
+    assert 0 <= available <= quantity, "Unexpected remaining crypto position"
+    return min(requested - filled, quantity, available)
+
 
 def _wait_fill(strategy: _HarnessStrategy, order: Order, *, timeout: int, drive_smart_limit: bool) -> tuple[bool, int, float]:
     start = time.time()
@@ -299,10 +328,26 @@ def test_alpaca_crypto_btcusd_smart_limit_fills_24_7():
         submitted_close = strategy.submit_order(close_order)
         owned_orders.append(submitted_close)
         ok_close, reprices_close, close_elapsed = _wait_fill(strategy, submitted_close, timeout=240, drive_smart_limit=True)
-        if not ok_close:
-            # Do not overlap a possibly active/partial close with another sell.
-            # Preserve the failed SmartLimit result for explicit reconciliation.
-            pytest.fail(f"BTCUSD smart close did not fill (reprices={reprices_close}, elapsed={close_elapsed:.1f}s)")
+        for _ in range(2):
+            if ok_close:
+                break
+            # Normal limit execution can cancel an unfilled remainder. Prove a
+            # bounded next-iteration recovery, never a blind overlapping sell.
+            close_qty = _confirmed_crypto_remainder(broker, submitted_close, close_qty)
+            if close_qty == 0:
+                ok_close = True
+                break
+            recovery = strategy.create_order(
+                base, close_qty, Order.OrderSide.SELL,
+                order_type=Order.OrderType.SMART_LIMIT, smart_limit=cfg, quote=quote,
+            )
+            submitted_close = strategy.submit_order(recovery)
+            owned_orders.append(submitted_close)
+            ok_close, reprices, elapsed = _wait_fill(strategy, submitted_close, timeout=240, drive_smart_limit=True)
+            reprices_close += reprices
+            close_elapsed += elapsed
+        assert ok_close, f"BTCUSD smart close did not finish its bounded recovery (reprices={reprices_close}, elapsed={close_elapsed:.1f}s)"
+        assert not broker.api.get_all_positions(), "Test-owned crypto remained after the close"
 
         if open_elapsed > cfg.get_step_seconds():
             assert reprices_open >= 1

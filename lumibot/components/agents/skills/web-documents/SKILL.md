@@ -142,7 +142,11 @@ or across a text-window boundary. Use the surrounding unfiltered text to join
 the whole row, retaining values already read in earlier chunks. A later `find`
 result that omits those lines does not erase their values or establish that a
 field is unavailable. Keep asset values, income and transaction amounts in
-their own columns. Associate each value with its specific instrument, not only
+their own columns. In a mixed summary, label each amount in its cell or row as
+a holding value, purchase/sale amount, income, or explicitly described estimate.
+A purchase range does not establish the remaining holding value; a general
+valuation disclaimer does not identify what an individual table amount measures.
+Associate each value with its specific instrument, not only
 the issuer or ticker: one issuer can have separate option and common-stock rows.
 An instrument's type marker can occupy its own line between its name and its
 owner/value. Expand that marker to the surrounding complete row; do not classify
@@ -175,6 +179,14 @@ returned row. A correct eligibility decision does not excuse a mislabeled
 citation.
 
 ## Historical eligibility comes before reading linked documents
+
+Before each document call, distinguish a source's recorded publication time
+from the simulation cutoff. Supply `available_at` only when that particular
+URL/version has a supported publication time. For an undated discovery page,
+index, ZIP or CSV, omit the field and use the undated-source procedure below.
+Never fill it with the current time, the simulation cutoff or an estimated date
+just to make a request look eligible. Discovery files can still be read without
+that field; their dated linked records are evaluated separately.
 
 Eligibility belongs to the particular URL and version. A transaction date,
 observation period or download time is not the publication date. A known later
@@ -319,6 +331,11 @@ explain any estimate of remaining value; incomplete valuation does not erase it.
 An eligible sale explicitly reported as the entire holding removes that
 identified instrument from the remaining holdings; retain the sale in transaction
 history. A partial sale alone does not prove the entire holding is gone.
+Build the final current-holdings table from the reconciled result, not from a
+copy of the baseline table. A later paragraph cannot correct a stale table:
+remove fully sold instruments from that table and include later purchases even
+when their remaining value is unknown. If showing the baseline separately is
+useful, label its date and show the reconciled table as the current result.
 Reconcile exercises, expiration, gifts and splits when the source establishes
 them. An amendment replaces or corrects its original entry, not another trade.
 Without evidence of a short position, a negative inferred remainder is a

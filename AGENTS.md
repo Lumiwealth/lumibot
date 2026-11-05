@@ -598,3 +598,7 @@ That is the gap these rules close.
   owns the data path. It cannot once the agent reaches an arbitrary page or
   API, so those cases are the only protection that exists there. When you add a
   look-ahead eval, teach the rule in the matching skill in the same change.
+
+## Long-Term Architecture
+
+- Make architectural decisions for the long term. Do not accept a stopgap that only works for now and is meant to be replaced later.

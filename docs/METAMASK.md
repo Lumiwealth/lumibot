@@ -153,9 +153,17 @@ account; they do not establish funded mainnet execution.
 
 `MODE="spot"` exposes `broker.swap(input_asset, output_asset, input_amount, identifier=...)` and `broker.get_swap(identifier)`. It does not reinterpret an exact-input swap as an exact-output buy order.
 
-Register exact chain IDs, contracts and decimals in the binding's `assets`. Native assets use `address="native"`. Configure `CHAIN_RPC_URLS` for every approved chain. Quote transactions must contain gas ceilings; when absent, configure explicit per-chain `GAS_LIMITS`. The native gas asset must be registered for valuation and balance checks.
+Register exact chain IDs, contracts and decimals in the binding's `assets`. Native assets use `address="native"`. Configure `CHAIN_RPC_URLS` for every approved chain. Explicit per-chain `GAS_LIMITS` set the owner ceiling, including when a provider gas estimate is too low. Quotes estimating above that ceiling are rejected. Without an explicit ceiling, the quoted gas limit is retained; a quote without either is rejected. The native gas asset must be registered for valuation and balance checks.
 
 The Python path binds the provider quote ID, wallet, recipient, chains, token identities, fee-net input, slippage and exact transaction. ERC20 allowance grants are capped to exact input, with a separate zero reset when needed. Simulation runs after prerequisite allowances settle. Each managed request is persisted before MetaMask signs and broadcasts; the broker never rebroadcasts its signed transaction. It verifies mined transaction identity, nonce, gas ceiling, RPC-finalized canonical receipt and net ERC20 output transfers. Quote output is never reported as a received amount.
+
+Allowance finality can outlast a trade quote. After all required allowances are
+finalized, the native client obtains and journals a fresh trade quote before
+submitting the trade. It preserves the original input, minimum output, authority
+and total fee reservation. A changed spender needing another allowance, weaker
+minimum output or higher total fees stops execution for owner review. Original
+approval and quote records remain immutable; restart reconciles an already
+submitted trade by its original request ID without signing again.
 
 The configured RPC must support `eth_getBlockByNumber("finalized", false)`.
 One later block is not finality. Pending finality retains submitted state;
@@ -166,7 +174,14 @@ history and blocks new execution; it never resubmits the old swap. Finality is
 the selected chain/RPC's contract, not a bridge withdrawal guarantee. See the
 [Ethereum RPC block tags](https://ethereum.org/developers/docs/apis/json-rpc/#the-block-parameter).
 
-Current limits are explicit: testnet swap routing, native output without trace proof, gasless/delegated routes, bridges and non-source-denominated quote fees are unsupported. These refuse before execution. Spot balances value only the approved asset registry in USD using actual provider prices, with zero synthetic USD cash. Missing prices raise an error, including unpriced test tokens. Mainnet swaps have not been funded-qualified for this native candidate.
+Quote fees may use the exact source or destination asset. Source fees count
+toward exact input; destination fees are already reflected in the quoted net
+output and never increase input. Fee assets with conflicting chains, contracts
+or decimals are rejected. Minimum output may round down by less than one output
+atomic unit; another whole unit below that bound is rejected. Completion still
+uses actual net receipt transfers.
+
+Current limits are explicit: testnet swap routing, native output without trace proof, gasless/delegated routes, bridges and fees in a third asset are unsupported. These refuse before execution. Spot balances value only the approved asset registry in USD using actual provider prices, with zero synthetic USD cash. Missing prices raise an error, including unpriced test tokens. Mainnet swaps have not been funded-qualified for this native candidate.
 
 ## Migrating the retired service
 
@@ -219,6 +234,14 @@ A prepared native order can be canceled locally only when its persisted native p
 Legacy or malformed records without release evidence remain unresolved; missing effects do not establish that nothing happened. Cancellation cannot clear their existing execution hold. A historical canceled label without venue identity, executions or positively observed acceptance projects as unknown and requires operator reconciliation. This projection does not reconstruct a hold already lost in a historical journal. Actual venue cancellations, including zero-fill and partial-fill cancellations, retain confirmed acceptance; late executions are still reconciled.
 
 Cancellation signing and pending-signature release require a matching live venue observation without a reconciliation error. An unresolved or contradictory observation holds the cancellation as well as the entry. If an explicit local cancellation retry later obtains valid no-release proof and settled leverage evidence, it clears the resolved reconciliation hold while retaining prior effects and fee-review flags.
+
+## Recovery and startup identity
+
+When both the broker and data source select MetaMask, environment startup shares
+one native client and journal. Startup does not create or renew signing authority.
+Live order observations may omit an optional client ID; the persisted venue order
+ID and all available identity fields still have to match before reconciliation.
+Strategy refresh continues reconciling late fills after its local round trip ends.
 
 ## Frequently asked questions
 

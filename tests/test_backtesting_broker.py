@@ -899,6 +899,7 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
         # Mock the get_datetime method on the data_source
         self.mock_datetime = pd.Timestamp('2023-01-01 10:00:00', tz='America/New_York')
         self.broker.data_source.get_datetime = MagicMock(return_value=self.mock_datetime)
+        self.broker.data_source.datetime_end = pd.Timestamp('2023-01-02 00:00:00', tz='America/New_York')
 
         # Setup trading days directly on the broker instance for testing internal logic
         # Ensure _trading_days is set correctly after __new__
@@ -1064,3 +1065,55 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def test_clock_advance_stops_at_requested_end_and_cannot_restart_past_it():
+    """Final lifecycle valuation must never request a later simulation date."""
+    from datetime import timedelta
+
+    start = dt(2026, 6, 1, 9, 30)
+    end = dt(2026, 6, 1, 9, 35)
+    source = PandasData(datetime_start=start, datetime_end=end, pandas_data={})
+    broker = BacktestingBroker(data_source=source)
+    broker._update_datetime(timedelta(hours=1))
+    assert broker.datetime == source.datetime_end
+    assert not broker.should_continue()
+    broker._update_datetime(60)
+    assert broker.datetime == source.datetime_end
+
+
+def test_clock_advance_before_end_preserves_normal_progress():
+    from datetime import timedelta
+
+    start = dt(2026, 6, 1, 9, 30)
+    end = dt(2026, 6, 1, 16, 0)
+    source = PandasData(datetime_start=start, datetime_end=end, pandas_data={})
+    broker = BacktestingBroker(data_source=source)
+    expected = broker.datetime + timedelta(minutes=1)
+    broker._update_datetime(60)
+    assert broker.datetime == expected
+    assert broker.should_continue()
+
+
+def test_final_valuation_of_held_position_stays_inside_backtest_window():
+    from lumibot.backtesting import PandasDataBacktesting
+    from tests.test_backtesting_multileg_unit import _StubStrategy
+
+    asset, quote = Asset("SYN"), Asset("USD", asset_type="forex")
+    dates = pd.date_range("2026-06-01 09:30", periods=6, freq="min", tz="America/New_York")
+    frame = pd.DataFrame({"open": 100., "high": 100., "low": 100., "close": 100., "volume": 1000.}, index=dates)
+    source = PandasDataBacktesting(datetime_start=dates[0], datetime_end=dates[-1],
+                                  pandas_data=[Data(asset, frame, timestep="minute")], show_progress_bar=False)
+    source.load_data()
+    broker = BacktestingBroker(source)
+    try:
+        strategy = _StubStrategy(broker=broker, quote_asset=quote, budget=1000,
+                                 starting_positions={asset: 1}, analyze_backtest=False)
+        before = strategy._update_portfolio_value()
+        broker._update_datetime(timedelta(hours=1))
+        assert broker.datetime == source.datetime_end
+        assert strategy._update_portfolio_value() == before
+        assert before == strategy.cash + 100
+        assert strategy.get_position(asset).quantity == 1
+    finally:
+        broker.cleanup_streams()

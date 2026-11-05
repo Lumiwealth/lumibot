@@ -24,6 +24,7 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
         class _StubDataSource:
             def __init__(self):
                 self.get_datetime = MagicMock()
+                self.datetime_end = pytz.UTC.localize(datetime(2030, 1, 1))
                 self._update_datetime = MagicMock()
 
         # Prevent __init__ from running fully if it causes issues
@@ -206,3 +207,41 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def test_next_open_outside_window_keeps_the_last_simulation_clock():
+    from types import SimpleNamespace
+    zone = pytz.timezone("America/New_York")
+    previous = zone.localize(datetime(2026, 5, 29, 16, 1))
+    next_open = zone.localize(datetime(2026, 6, 1, 9, 30))
+    endings = [zone.localize(datetime(2026, 5, 31, 23, 59)),
+               zone.localize(datetime(2026, 6, 1, 9, 15)), next_open]
+    for end in endings:
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        broker.data_source = SimpleNamespace(datetime_end=end, get_datetime=lambda: previous)
+        broker._end_of_trading_days_reached = False
+        broker.process_pending_orders = MagicMock()
+        broker.get_time_to_open = lambda: (next_open - previous).total_seconds()
+        broker._update_datetime = MagicMock()
+        broker._await_market_to_open(strategy=None)
+        broker.process_pending_orders.assert_called_once_with(strategy=None)
+        assert not broker._update_datetime.called, "Waiting for an unavailable next session must not move valuation to a closed terminal date"
+        assert broker._end_of_trading_days_reached
+
+
+def test_next_open_inside_window_and_valid_preopen_buffer_still_advance():
+    from types import SimpleNamespace
+    zone = pytz.timezone("America/New_York")
+    previous = zone.localize(datetime(2026, 5, 29, 16, 1))
+    next_open = zone.localize(datetime(2026, 6, 1, 9, 30))
+    for end, buffer in [(zone.localize(datetime(2026, 6, 1, 10)), None),
+                        (zone.localize(datetime(2026, 6, 1, 9, 15)), 60)]:
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        broker.data_source = SimpleNamespace(datetime_end=end, get_datetime=lambda: previous)
+        broker._end_of_trading_days_reached = False
+        broker.process_pending_orders = MagicMock()
+        broker.get_time_to_open = lambda: (next_open - previous).total_seconds()
+        broker._update_datetime = MagicMock()
+        broker._await_market_to_open(timedelta=buffer, strategy=None)
+        broker._update_datetime.assert_called_once_with((next_open - previous).total_seconds() - (buffer or 0) * 60)
+        assert not broker._end_of_trading_days_reached

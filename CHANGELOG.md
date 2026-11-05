@@ -1,6 +1,29 @@
 # Changelog
 
-## 4.6.46 - Unreleased
+## 4.6.47 - 2026-11-05
+
+Deploy marker: 97d41b56ff42bd0c200c3b2f1f98f395bf1c8dfc
+
+### Added
+- Kalshi native contract search, event metadata and settlement rules through the existing data-source interfaces, with distinct YES/NO assets and selected-environment routing.
+- Optional total-quantity amendments through the normal broker, strategy and order-agent modification APIs while preserving price-only callers.
+
+### Fixed
+- Preserve exact fractional Schwab equity quantities through replacements and advanced-order children.
+- Retain deferred futures expiry identity across Asset serialization and saved-strategy recovery, including older saved dictionaries.
+- Reuse the selected MetaMask client for data, and preserve native quote and fill-reconciliation recovery checks.
+- Preserve the distinction between reported holding values, transaction amounts and estimates in financial research tables.
+- Keep the last simulated clock when the next market opening is outside the backtest window, avoiding closed-day terminal valuation requests and trading-start callbacks after the end.
+- Initialize the selected ProjectX account before the first REST-only order synchronization. Preserve an existing account selection and report connection failure before requesting orders.
+- Keep backtest clocks and final lifecycle marks within their configured end, and make stored indicator bars visible only after their completed history boundary.
+- Read derivative positions when a CCXT adapter implements its unified positions method but leaves the capability flag unspecified; preserve explicit unsupported declarations.
+- Preserve Kalshi selected-outcome identity across process boundaries with provider-compatible UUID references, while retaining strategy ownership tags for normal fill callbacks.
+- Keep acknowledged amendments from rolling back on older broker snapshots, expose pending modification/cancellation states, and read amended active size from fills plus remaining quantity rather than immutable creation size.
+- Declare Kalshi candle end timestamps for downstream chart normalization and provide a sanitized actionable error for an unfunded exchange balance.
+- Preserve exact option contracts when Alpaca labels individual package legs as multi-leg orders. Only the container with children is a package, so subsequent quote reads and SmartLimit closes retain each leg's expiry, strike, right and multiplier.
+- Bind Alpaca API qualification to one dedicated trading/data connection and exercise normal broker reconciliation, including bounded partial-close continuation only after confirmed cancellation and an exact remaining-quantity read.
+
+## 4.6.46 - 2026-11-03
 
 ### Fixed
 - Wait through older initial ProjectX quote snapshots for genuine streaming updates within the existing quote timeout, including after reconnection. Preserve the original snapshot and its timestamp when the market is quiet.

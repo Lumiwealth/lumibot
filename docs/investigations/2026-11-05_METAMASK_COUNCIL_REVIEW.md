@@ -226,8 +226,19 @@ Full workflow Ruff and format passed, now 35 files; whitespace clean. Native
 module `--help` ran without wallet access. Compatible 590-pass evidence above
 is retained for unchanged paths; no second broad suite was launched.
 
-Fresh artifact continuity and documentation checks are recorded below when
-complete. Funded/authenticated and remote CI gates remain open.
+Corrected source commit: `708acfa9fd99f01a5f48738e5db4a4047c6dab8e`.
+Rebuilt wheel from a fresh isolated archive; all 280 packaged Python files match
+that source. Wheel SHA256:
+`e778c645d10a88fdfb8af17ec7e2022dc5b719c670632e97aca9fe3ed9977d7e`.
+Task-local installation retained compatible existing dependencies. Its isolated
+runtime proved exact-window filtering, case-only transfer deduplication and
+in-window unknown classification through real broker/client/venue code with
+synthetic identity/HTTP transports. JavaScript was absent from PATH. This is
+installed-artifact continuity, not authenticated or funded proof. Prior public
+market reads remain compatible because those paths are unchanged.
+
+Updated public guide built successfully with no MetaMask diagnostics and one
+unchanged toctree warning. Funded/authenticated and remote CI gates remain open.
 
 ## Exhaustive coverage inventory
 

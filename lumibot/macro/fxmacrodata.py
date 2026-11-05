@@ -235,7 +235,7 @@ class FXMacroData:
             # satisfies this call or already holds the whole window.
             if (
                 until is None
-                or cached.get("pages_exhausted", True)
+                or cached.get("pages_exhausted", False)
                 or until(cached.get("data") or [])
             ):
                 return cached
@@ -435,12 +435,11 @@ class FXMacroData:
             },
             sort_keys=True,
         )
-        def has_eligible_row(rows: list[Any]) -> bool:
-            return bool(
-                self._normalize_observations(
-                    {"data": rows}, currency_code, indicator_slug, as_of_dt
-                )[0]
+        def has_enough_eligible_rows(rows: list[Any]) -> bool:
+            observations, _ = self._normalize_observations(
+                {"data": rows}, currency_code, indicator_slug, as_of_dt
             )
+            return len(observations) >= (1 if latest_only else max_rows or 1)
 
         payload = self._get_json(
             f"/announcements/{currency_code}/{indicator_slug}",
@@ -451,9 +450,13 @@ class FXMacroData:
                 indicator_slug,
                 f"{hashlib.sha256(cache_key.encode()).hexdigest()}.json",
             ),
-            max_rows=max_rows,
-            first_page_size=FXMACRODATA_LATEST_FIRST_PAGE_SIZE if latest_only else None,
-            until=has_eligible_row if latest_only else None,
+            # Count after as-of gating; future/malformed rows cannot consume
+            # the caller's limit and hide older eligible observations.
+            max_rows=None,
+            first_page_size=(
+                FXMACRODATA_LATEST_FIRST_PAGE_SIZE if latest_only else max_rows
+            ),
+            until=has_enough_eligible_rows if latest_only or max_rows is not None else None,
         )
         observations, dropped = self._normalize_observations(
             payload,

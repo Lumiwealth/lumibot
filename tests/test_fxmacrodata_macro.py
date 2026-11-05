@@ -340,7 +340,8 @@ def test_fxmacrodata_limit_stops_paging_early(fxmacrodata_factory):
 
     assert len(result["observations"]) == 120
     assert result["observations"][-1]["date"] == rows[0]["date"]
-    assert [call["limit"] for call in calls] == [100, 20]
+    # Later pages retain the API page size; only eligible rows satisfy the limit.
+    assert [call["limit"] for call in calls] == [100, 100]
 
 
 def test_fxmacrodata_restarts_pagination_when_dataset_changes(fxmacrodata_factory):
@@ -623,3 +624,35 @@ def test_fxmacrodata_rejects_redirects_without_forwarding_key(fxmacrodata_factor
     assert synthetic_key not in str(exc_info.value)
     assert redirect_url not in str(exc_info.value)
     assert "redirect response" not in str(exc_info.value)
+
+
+
+def test_fxmacrodata_limit_counts_rows_after_as_of_gating(fxmacrodata_factory):
+    calls = []
+    rows = _monthly_rows(250)
+    for row in rows:
+        row["announcement_datetime"] = "2025-01-14T12:00:00Z"
+    for row in rows[:2]:
+        row["announcement_datetime"] = "2025-01-15T13:30:00Z"
+    fxmd = fxmacrodata_factory(_BacktestingStrategy(), _paged_fake_get(rows, calls))
+    result = fxmd.get_series("usd", "inflation", start="2000-01-01", limit=120)
+    assert len(result["observations"]) == 120
+    assert result["observations"][-1]["date"] == rows[2]["date"]
+    assert result["observations"][0]["date"] == rows[121]["date"]
+    assert [call.get("offset") for call in calls] == [None, 100]
+
+
+def test_fxmacrodata_limited_cache_rechecks_earlier_strategy_clock(fxmacrodata_factory):
+    calls = []
+    rows = _monthly_rows(250)
+    for row in rows:
+        row["announcement_datetime"] = "2025-01-14T12:00:00Z"
+    for row in rows[:90]:
+        row["announcement_datetime"] = "2025-01-15T11:00:00Z"
+    fxmd = fxmacrodata_factory(_BacktestingStrategy(), _paged_fake_get(rows, calls))
+    assert len(fxmd.get_series("usd", "inflation", limit=120)["observations"]) == 120
+    earlier = fxmd.get_series("usd", "inflation", limit=120, as_of="2025-01-15T10:00:00Z")
+    assert len(earlier["observations"]) == 120
+    assert earlier["observations"][-1]["date"] == rows[90]["date"]
+    assert earlier["observations"][0]["date"] == rows[209]["date"]
+    assert len(calls) == 5

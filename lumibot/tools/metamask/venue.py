@@ -24,6 +24,15 @@ _CLIENT_ID = re.compile(r"0x[0-9a-fA-F]{32}\Z")
 _INTERVALS = {"1m": 60_000, "1h": 3_600_000, "1d": 86_400_000}
 
 
+def canonical_symbol(symbol, names):
+    if not isinstance(symbol, str) or not 1 <= len(symbol) <= 60:
+        raise ValueError("A venue market symbol is required")
+    matches = [name for name in names if isinstance(name, str) and name.casefold() == symbol.casefold()]
+    if len(matches) != 1:
+        raise MetaMaskError("UNKNOWN_MARKET", "Requested market is absent or ambiguous")
+    return matches[0]
+
+
 def wire_decimal(value: Decimal) -> str:
     text = format(value, "f")
     return text.rstrip("0").rstrip(".") if "." in text else text
@@ -124,17 +133,24 @@ class HyperliquidVenue:
             raise ValueError("A venue market symbol is required")
         dex = symbol.split(":", 1)[0] if ":" in symbol else ""
         with self._lock:
-            if symbol in self._markets and time.monotonic() - self._market_times.get(dex, 0) < 60:
-                return self._markets[symbol]
+            if dex.casefold() in self._market_times and time.monotonic() - self._market_times[dex.casefold()] < 60:
+                return self._markets[canonical_symbol(symbol, self._markets)]
             offset = 0
             if dex:
                 dexs = self.info({"type": "perpDexs"})
                 if not isinstance(dexs, list):
                     raise MetaMaskError("INVALID_RESPONSE", "Venue dex inventory is missing")
-                matches = [i for i, item in enumerate(dexs[1:]) if isinstance(item, dict) and item.get("name") == dex]
+                matches = [
+                    i
+                    for i, item in enumerate(dexs[1:])
+                    if isinstance(item, dict)
+                    and isinstance(item.get("name"), str)
+                    and item["name"].casefold() == dex.casefold()
+                ]
                 if len(matches) != 1:
                     raise MetaMaskError("UNKNOWN_MARKET", "Requested perpetual dex was not found")
                 offset = 110_000 + matches[0] * 10_000
+                dex = dexs[matches[0] + 1]["name"]
             meta = json_object(self.info({"type": "meta", **({"dex": dex} if dex else {})}), "market metadata")
             universe = meta.get("universe")
             if not isinstance(universe, list):
@@ -167,14 +183,13 @@ class HyperliquidVenue:
                 if old_dex == dex:
                     del self._markets[old]
             self._markets.update(refreshed)
-            self._market_times[dex] = time.monotonic()
-            if symbol not in self._markets:
-                raise MetaMaskError("UNKNOWN_MARKET", "Requested perpetual market was not found")
-            return self._markets[symbol]
+            self._market_times[dex.casefold()] = time.monotonic()
+            return self._markets[canonical_symbol(symbol, self._markets)]
 
     def price(self, symbol: str) -> Decimal:
         query = {"type": "metaAndAssetCtxs"}
         if ":" in symbol:
+            symbol = self.market(symbol).symbol
             query["dex"] = symbol.split(":", 1)[0]
         result = self.info(query)
         if not isinstance(result, list) or len(result) != 2:
@@ -184,10 +199,8 @@ class HyperliquidVenue:
         if not isinstance(universe, list) or not isinstance(contexts, list) or len(universe) != len(contexts):
             raise MetaMaskError("INVALID_RESPONSE", "Venue mark-price metadata is incomplete")
         names = [json_object(row).get("name") for row in universe]
-        matches = [i for i, name in enumerate(names) if name == symbol]
-        if len(matches) != 1:
-            raise MetaMaskError("UNKNOWN_MARKET", "Requested mark-price market is absent or ambiguous")
-        return decimal(json_object(contexts[matches[0]], "asset context").get("markPx"), positive=True)
+        resolved = canonical_symbol(symbol, names)
+        return decimal(json_object(contexts[names.index(resolved)], "asset context").get("markPx"), positive=True)
 
     @staticmethod
     def normalize_price(price: Decimal, market: Market) -> Decimal:
@@ -347,6 +360,7 @@ class HyperliquidVenue:
             raise MetaMaskError(
                 "CANDLE_HISTORY_INCOMPLETE", "Venue retains at most the latest 5000 candles per interval"
             )
+        symbol = self.market(symbol).symbol
         cutoff = min(end, int(time.time() * 1000))
         rows = self.info(
             {
@@ -440,6 +454,8 @@ class HyperliquidVenue:
         return sorted(result.values(), key=lambda row: (row["time"], row["tid"]))
 
     def funding(self, wallet: str, start: int, end: int, symbol: str | None = None):
+        if symbol is not None:
+            symbol = self.market(symbol).symbol
         rows = self.info({"type": "userFunding", "user": address(wallet), "startTime": start, "endTime": end})
         if not isinstance(rows, list):
             raise MetaMaskError("INVALID_RESPONSE", "Funding ledger is missing")

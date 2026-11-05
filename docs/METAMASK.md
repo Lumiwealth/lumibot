@@ -124,6 +124,11 @@ Standard account cash uses actual withdrawable funds and margin. Unified account
 
 `MetaMaskData` reads marks and closed minute/hour/day candles from the selected Hyperliquid network. Public perpetual data needs only `NETWORK`; it does not need a wallet credential. Candle history is limited to the venue's latest 5,000 bars. Spot candles and historical account equity are not provided.
 
+LumiBot's uppercase asset symbols resolve to the unique canonical venue name,
+including mixed-case markets such as `kPEPE`. Orders retain that native name in
+their journal; case-only retries reuse the same operation. Ambiguous names are
+rejected rather than selecting another market.
+
 Environment selection uses `TRADING_BROKER=metamask`, optional `DATA_SOURCE=metamask`, `METAMASK_SESSION_FILE`, `METAMASK_STATE_FILE`, `METAMASK_AGENT_ID`, `METAMASK_PROJECT_ID`, `METAMASK_ACCESS_TOKEN`, `METAMASK_REFRESH_TOKEN`, `METAMASK_WALLET_ADDRESS`, `METAMASK_NETWORK`, and `METAMASK_MODE`. Keep secrets in your own secret manager.
 
 When both broker and data source select MetaMask, they share the same native client, session and journal owner in eager and lazy startup. With only `DATA_SOURCE=metamask`, public perpetual reads use an independent client and require only `METAMASK_NETWORK`. Broker shutdown releases the shared client; data-only callers close `data_source.client` when finished.
@@ -172,6 +177,16 @@ account; they do not establish funded mainnet execution.
 `MODE="spot"` exposes `broker.swap(input_asset, output_asset, input_amount, identifier=...)` and `broker.get_swap(identifier)`. It does not reinterpret an exact-input swap as an exact-output buy order.
 
 Register exact chain IDs, contracts and decimals in the binding's `assets`. Native assets use `address="native"`. Configure `CHAIN_RPC_URLS` for every approved chain. Explicit per-chain `GAS_LIMITS` set the owner ceiling, including when a provider gas estimate is too low. Quotes estimating above that ceiling are rejected. Without an explicit ceiling, the quoted gas limit is retained; a quote without either is rejected. The native gas asset must be registered for valuation and balance checks.
+
+Each chain/contract may appear only once in the asset registry, including aliases
+and conflicting decimal declarations. Assets must belong to approved chains.
+Native pricing uses chain-specific CAIP identities: ETH uses `slip44:60`, POL
+`slip44:966`, BNB `slip44:714` and Avalanche C-Chain AVAX `slip44:9005`.
+The native price registry currently covers Ethereum, Optimism, BNB Chain,
+Polygon, zkSync Era, Base, Arbitrum, Avalanche and Linea, plus their explicitly
+listed testnet identities in `models.py`. Unknown native identities refuse
+valuation rather than assuming ETH. A known identity does not establish a
+provider price or funded chain qualification; unpriced test tokens still fail.
 
 The Python path binds the provider quote ID, wallet, recipient, chains, token identities, fee-net input, slippage and exact transaction. ERC20 allowance grants are capped to exact input, with a separate zero reset when needed. Simulation runs after prerequisite allowances settle. Each managed request is persisted before MetaMask signs and broadcasts; the broker never rebroadcasts its signed transaction. It verifies mined transaction identity, nonce, gas ceiling, RPC-finalized canonical receipt and net ERC20 output transfers. Quote output is never reported as a received amount.
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Resolve MetaMask perpetual asset casing to unique native market identities across execution and market data, preserving journaled operation identity on retries.
+- Use chain-specific native-token price identities and reject duplicate or unapproved-chain asset registrations before wallet valuation.
+
 ## 4.6.47 - 2026-11-05
 
 Deploy marker: 97d41b56ff42bd0c200c3b2f1f98f395bf1c8dfc

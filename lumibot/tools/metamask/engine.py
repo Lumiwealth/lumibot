@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import time
+from dataclasses import replace
 from decimal import ROUND_CEILING, Context, Decimal, localcontext
 from uuid import uuid4
 
@@ -60,6 +61,9 @@ class ExecutionEngine:
         canonical = intent.record()
         prior = self.journal.get(self.agent_id, intent.identifier)
         if prior is not None:
+            stored_symbol = json_object(prior["request"]).get("symbol")
+            if isinstance(stored_symbol, str) and stored_symbol.casefold() == intent.symbol.casefold():
+                canonical = replace(intent, symbol=stored_symbol).record()
             if prior.get("request") != canonical:
                 raise MetaMaskError("ID_CONFLICT", "Order ID already belongs to different intent")
             return self.order(intent.identifier)
@@ -72,9 +76,16 @@ class ExecutionEngine:
                 raise MetaMaskError(
                     "DEX_EXECUTION_UNQUALIFIED", "HIP3 collateral and effective fee metadata need native qualification"
                 )
-            if intent.symbol not in binding.markets or intent.leverage > binding.max_leverage:
+            if (
+                intent.symbol.casefold() not in {name.casefold() for name in binding.markets}
+                or intent.leverage > binding.max_leverage
+            ):
                 raise MetaMaskError("MARKET_DENIED", "Market or leverage is outside the agent binding")
             market = self.venue.market(intent.symbol)
+            if market.symbol.casefold() != intent.symbol.casefold():
+                raise MetaMaskError("UNKNOWN_MARKET", "Venue market differs from the requested symbol")
+            intent = replace(intent, symbol=market.symbol)
+            canonical = intent.record()
             if intent.leverage > market.max_leverage:
                 raise MetaMaskError("LEVERAGE_LIMIT", "Leverage exceeds the venue market limit")
             client_id = self._cloid(binding, intent.identifier)

@@ -124,6 +124,10 @@ candles from the selected network. Public perpetual data needs only an explicit
 ``NETWORK``. The venue retains at most 5,000 bars per interval. Spot candles
 and historical account equity are not provided.
 
+Uppercase LumiBot asset symbols resolve to unique native venue names, including
+``kPEPE``. Journaled orders retain that name and case-only retries keep their
+original identity. Ambiguous names are refused.
+
 Testnet and mainnet
 -------------------
 
@@ -170,6 +174,15 @@ binding. Configure ``CHAIN_RPC_URLS``. Explicit per-chain ``GAS_LIMITS`` set the
 owner ceiling even when the provider estimates less gas; estimates above the
 ceiling are rejected. Without that configuration, the quoted gas limit is
 retained. A quote without either limit is rejected.
+
+Register each chain/contract once, including token aliases, with one consistent
+decimal declaration. Every registered asset must belong to an approved chain.
+Native price identities depend on the chain: ETH uses ``slip44:60``, POL
+``slip44:966``, BNB ``slip44:714`` and Avalanche C-Chain AVAX ``slip44:9005``.
+The native price registry covers Ethereum, Optimism, BNB Chain, Polygon,
+zkSync Era, Base, Arbitrum, Avalanche and Linea, plus explicitly listed testnet
+identities. Unknown native identities refuse valuation. Known identities still
+require actual provider prices and do not establish funded chain qualification.
 
 The native implementation verifies quote identity, fee-net source amount,
 slippage, bounded allowances, sequential simulation and durable managed

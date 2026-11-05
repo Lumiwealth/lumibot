@@ -1,9 +1,10 @@
 # Changelog
 
-## 4.6.48 - Unreleased
+## 4.6.48 - 2026-11-05
 
 ### Fixed
 - Load Kalshi prediction assets on their first normal backtest price, quote, history or fill request, preserving distinct outcomes and simulated-time bounds without requiring a separate preload list.
+- Preserve a single verified publication timestamp and label transaction amounts, holding values and estimates at their individual report cells.
 - Preserve verified published establishment evidence when private evaluation journals have expired, while retaining original provenance and requiring current-source regression inference and full repetitions for changed or unestablished cases.
 
 ## 4.6.47 - 2026-11-05

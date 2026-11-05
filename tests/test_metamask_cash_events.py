@@ -171,6 +171,61 @@ def test_ledger_pagination_keeps_same_millisecond_tail_and_scopes_funding_coins(
         venue.ledger(WALLET, "userNonFundingLedgerUpdates", STAMP, STAMP + 1000)
 
 
+@pytest.mark.parametrize("kind", ["internalTransfer", "subAccountTransfer"])
+def test_transfer_case_only_replays_keep_identity_and_one_cash_event(history, kind):
+    from eth_utils import to_checksum_address
+
+    broker, venue, rows = history
+    source, destination = "0x" + "ab" * 20, "0x" + "cd" * 20
+    broker.client.config["WALLET_ADDRESS"] = source
+    broker.client.verify.return_value = {"wallet": source, "network": "testnet"}
+    original = row(1, kind, usdc="12", fee="0", user=source, destination=destination)
+    original["hash"] = "0x" + "ab" * 32
+    alternate = {
+        **original,
+        "hash": "0x" + original["hash"][2:].upper(),
+        "delta": {
+            **original["delta"],
+            "user": to_checksum_address(source),
+            "destination": to_checksum_address(destination),
+        },
+    }
+    venue.info = Mock(return_value=[])
+
+    def read(payload):
+        return [] if payload["type"] == "userFunding" else rows["userNonFundingLedgerUpdates"]
+
+    venue.info.side_effect = read
+    rows["userNonFundingLedgerUpdates"] = [original]
+    first = broker.get_cash_event_sync(since=START)
+    rows["userNonFundingLedgerUpdates"] = [alternate]
+    second = broker.get_cash_event_sync(since=START)
+    assert first.state == second.state == "complete"
+    assert first.events[0].event_id == second.events[0].event_id
+    rows["userNonFundingLedgerUpdates"] = [original, alternate]
+    combined = broker.get_cash_event_sync(since=START)
+    assert combined.state == "complete" and len(combined.events) == 1
+    assert sum(event.amount for event in combined.events) == -12
+    for change in ({"usdc": "13"}, {"fee": "1"}):
+        rows["userNonFundingLedgerUpdates"] = [original, {**alternate, "delta": {**alternate["delta"], **change}}]
+        assert broker.get_cash_event_sync(since=START).state == "unavailable"
+    assert alternate["delta"]["user"] == to_checksum_address(source)
+
+
+def test_vault_address_casing_cannot_hide_conflicting_ledger_evidence(history):
+    from eth_utils import to_checksum_address
+
+    _, venue, _ = history
+    vault = "0x" + "de" * 20
+    original = row(1, "vaultDeposit", usdc="12", vault=vault)
+    alternate = {**original, "delta": {**original["delta"], "vault": to_checksum_address(vault)}}
+    venue.info = Mock(return_value=[original, alternate])
+    assert len(venue.ledger(WALLET, "userNonFundingLedgerUpdates", STAMP, STAMP + 1000)) == 1
+    venue.info.return_value = [original, {**alternate, "delta": {**alternate["delta"], "usdc": "13"}}]
+    with pytest.raises(MetaMaskError, match="CASH_HISTORY_INCOMPLETE"):
+        venue.ledger(WALLET, "userNonFundingLedgerUpdates", STAMP, STAMP + 1000)
+
+
 @pytest.mark.parametrize("mutation", [{"time": True}, {"hash": "bad"}, {"time": STAMP - 1}, {"delta": None}])
 def test_bad_ledger_identity_cannot_certify_a_window(history, mutation):
     broker, _, rows = history

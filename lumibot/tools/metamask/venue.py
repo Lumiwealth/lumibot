@@ -25,12 +25,23 @@ _CLIENT_ID = re.compile(r"0x[0-9a-fA-F]{32}\Z")
 _INTERVALS = {"1m": 60_000, "1h": 3_600_000, "1d": 86_400_000}
 
 
-def ledger_identity(row):
-    """A transaction can contain several coins or transfer legs at one time."""
-    delta = json_object(row.get("delta"), "ledger delta")
-    tx_hash, kind = row.get("hash"), delta.get("type")
+def _ledger_row(raw):
+    row = json_object(raw, "ledger row")
+    delta = dict(json_object(row.get("delta"), "ledger delta"))
+    tx_hash = row.get("hash")
     if not isinstance(tx_hash, str) or not re.fullmatch(r"0x[0-9a-fA-F]{64}", tx_hash):
         raise MetaMaskError("INVALID_RESPONSE", "Ledger transaction identity is invalid")
+    for field in ("user", "destination", "vault"):
+        if field in delta:
+            delta[field] = address(delta[field])
+    return {**row, "hash": tx_hash.lower(), "delta": delta}
+
+
+def ledger_identity(row):
+    """A transaction can contain several coins or transfer legs at one time."""
+    row = _ledger_row(row)
+    delta, tx_hash = row["delta"], row["hash"]
+    kind = delta.get("type")
     if not isinstance(kind, str) or not 1 <= len(kind) <= 80:
         raise MetaMaskError("INVALID_RESPONSE", "Ledger type is missing")
     identity = [tx_hash.lower(), row.get("time"), kind]
@@ -496,7 +507,7 @@ class HyperliquidVenue:
                 raise MetaMaskError("INVALID_RESPONSE", "Account ledger is missing")
             newest = cursor
             for raw in rows:
-                item = json_object(raw, "ledger row")
+                item = _ledger_row(raw)
                 stamp = item.get("time")
                 if type(stamp) is not int or not cursor <= stamp <= end:
                     raise MetaMaskError("INVALID_RESPONSE", "Ledger timestamp is outside the requested page")

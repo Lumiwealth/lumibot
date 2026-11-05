@@ -13,15 +13,21 @@ Node, Bun, npm, MetaMask CLI or localhost service is required.
 Install and connect
 -------------------
 
-The native adapter is included in the published 4.6.44 package. The execution
-ownership and submission-certainty hardening described here is an unreleased
-source candidate. Package availability does not establish production
-qualification. For candidate source testing, use the unreleased dev branch in
-a clean environment:
+The published package includes the native adapter: ``python -m pip install
+'lumibot[metamask]'``. The execution and reporting fixes described here belong to
+`PR 1262 <https://github.com/Lumiwealth/lumibot/pull/1262>`_, an unreleased source
+candidate. Installing published releases or ``dev`` does not install unmerged
+PR changes. To review this candidate in a clean Python environment:
 
 .. code-block:: bash
 
-   pip install 'lumibot[metamask] @ git+https://github.com/Lumiwealth/lumibot.git@dev'
+   git clone --branch fix/metamask-execution-recovery --single-branch https://github.com/Lumiwealth/lumibot.git lumibot-metamask
+   cd lumibot-metamask
+   git rev-parse HEAD
+   python -m pip install '.[metamask]'
+
+Match the printed commit to the reviewed PR head before testing. Package
+availability and passing offline checks do not establish production qualification.
 
 Authorize through the official `MetaMask Agent Wallet sign-in page
 <https://developer.metamask.io/agentic/login>`_. Use the original Google/email
@@ -126,8 +132,17 @@ accounts use pooled HyperCore spot USDC once, without adding perpetual PnL
 again. Portfolio margin is unsupported. HIP3 writes are held until native
 collateral-aware valuation and effective DEX fee inputs are qualified.
 
+``MetaMaskData`` provides actual perpetual marks and closed minute/hour/day
+candles from the selected network. Public perpetual data needs only an explicit
+``NETWORK``. The venue retains at most 5,000 bars per interval. Spot candles
+and historical account equity are not provided.
+
+Uppercase LumiBot asset symbols resolve to unique native venue names, including
+``kPEPE``. Journaled orders retain that name and case-only retries keep their
+original identity. Ambiguous names are refused.
+
 Cash activity and history coverage
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``broker.get_cash_event_sync(since=aware_datetime, limit=5000)`` reads funding
 and non-funding ledgers for the verified managed wallet. Its default is the last
@@ -155,15 +170,6 @@ complete receipt. The list-only ``get_cash_events()`` raises
 ``CASH_HISTORY_INCOMPLETE`` for incomplete results. Raw non-funding records
 remain readable through ``client.cash_history(start_ms, end_ms)``, whose bounds
 are inclusive. Reporting does not qualify funded execution.
-
-``MetaMaskData`` provides actual perpetual marks and closed minute/hour/day
-candles from the selected network. Public perpetual data needs only an explicit
-``NETWORK``. The venue retains at most 5,000 bars per interval. Spot candles
-and historical account equity are not provided.
-
-Uppercase LumiBot asset symbols resolve to unique native venue names, including
-``kPEPE``. Journaled orders retain that name and case-only retries keep their
-original identity. Ambiguous names are refused.
 
 Testnet and mainnet
 -------------------
@@ -293,6 +299,10 @@ old local funding UI is historical, not a Python runtime prerequisite.
 Trust boundary and qualification
 --------------------------------
 
+Funded testnet and installed-wheel results below were recorded before this
+council review. They have not been rerun for the identity, allowance, fee and
+cash-history changes. Fresh authenticated and funded qualification remains open.
+
 Keys stay with MetaMask. Local Python checks are cooperative process controls;
 strategy code can access its process credentials. Dedicated funding and
 provider-enforced Guard policy are the actual boundaries. MetaMask's
@@ -404,7 +414,7 @@ closing have passed on two dedicated wallets. A real Strategy/Trader ETH round
 trip delivered unique callbacks and reconciled ending cash exactly, including
 fees. The installed wheel passed native regression and connected-history tests
 on Python 3.10 and 3.12 without JavaScript runtimes in PATH; connected checks
-also denied child processes. The current wheel recovered an actual
+also denied child processes. That earlier wheel recovered an actual
 canceled-partial receipt with matching venue fills and fees and no replayed
 callbacks. Fresh live partial-flow attempts remain inconclusive. This is not
 production or mainnet-swap qualification. Earlier JavaScript receipts cannot

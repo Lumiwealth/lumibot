@@ -12,13 +12,23 @@ Audience: LumiBot users and maintainers
 
 `lumibot.brokers.MetaMask` runs in the Python strategy process. It calls MetaMask's managed-wallet API and Hyperliquid's HTTP API directly. Wallet keys remain with MetaMask. Node, Bun, npm, the MetaMask CLI and an embedded JavaScript engine are not required.
 
-The native adapter is included in the published 4.6.44 package. The execution ownership and submission-certainty hardening described here is an unreleased source candidate. Package availability does not establish production qualification. For candidate source testing, use the unreleased dev branch in a clean environment:
+The published package includes the native adapter: `python -m pip install
+'lumibot[metamask]'`. The execution and reporting fixes described here belong to
+[PR 1262](https://github.com/Lumiwealth/lumibot/pull/1262), an unreleased source
+candidate. Installing published releases or `dev` does not install unmerged PR
+changes. To review this candidate in a clean Python environment:
 
 ```bash
-pip install 'lumibot[metamask] @ git+https://github.com/Lumiwealth/lumibot.git@dev'
+git clone --branch fix/metamask-execution-recovery --single-branch https://github.com/Lumiwealth/lumibot.git lumibot-metamask
+cd lumibot-metamask
+git rev-parse HEAD
+python -m pip install '.[metamask]'
 ```
 
 Default-DEX Hyperliquid perpetuals use normal `Order`, `Position`, strategy methods and fill callbacks. Native same-chain swap code remains experimental and requires separate funded qualification. Existing JavaScript trading receipts do not qualify this replacement.
+
+Match the printed commit to the reviewed PR head before testing. Package
+availability and passing offline checks do not establish production qualification.
 
 ## Integration coverage
 
@@ -279,6 +289,10 @@ Known legacy venue orders reconcile their recorded venue IDs and retained fills.
 
 ## Qualification
 
+Funded testnet and installed-wheel results below were recorded before this
+council review. They have not been rerun for the identity, allowance, fee and
+cash-history changes. Fresh authenticated and funded qualification remains open.
+
 Offline tests cover provider context, OAuth rotation, journal ownership and reservations, official signing vectors, remote-signature recovery, order replay prevention, cumulative callbacks, cancellation, swap quotes and receipts. Connected Python reads verify actual wallet identity, Guard policy, testnet account, candles and ordinary strategy startup without replaying historical fills. A dependency check reports a compatible Python environment.
 
 Native testnet opening, reduce-only closing and cancellation have funded receipts. Fresh live partial-flow remains unqualified. Actual short-lived testnet grants have expired on both dedicated wallets: new intents returned `REVOKED` without signing or changing orders, execution effects or nonces. The ordinary connected expiry test still skips active grants; offline expiry regressions remain separate evidence. Managed swaps still require their own funded receipts. Broker startup never renews expired local grants; prior JavaScript test results are not carried forward. No production or mainnet trading qualification is claimed.
@@ -314,7 +328,7 @@ Install in a clean environment, or remove the retired `polygon-api-client` befor
 
 New signature requests use the same fixed provider-origin metadata as MetaMask's high-level wallet adapter, with LumiBot identified separately in the durable client provenance and readable intent. Recovery validates each request's original provider origin. There is no alternate-origin retry after a failure. Guard Mode and exact policy checks remain enabled.
 
-Native broker qualification has exercised actual testnet ALO placement/cancellation and market opening/reduce-only closing through Python on two dedicated wallets. A real Strategy/Trader ETH round trip delivered unique fill callbacks and reconciled ending cash exactly, including fees. The installed wheel passed native regression and connected-history tests on Python 3.10 and 3.12 with JavaScript runtimes absent from PATH and child processes denied during connected checks. The current wheel also recovered an actual canceled-partial receipt with matching venue fills and fees and no replayed callbacks. Fresh live partial-flow attempts remain inconclusive; no production or mainnet-swap qualification is claimed. Earlier JavaScript receipts remain historical evidence only.
+Native broker qualification has exercised actual testnet ALO placement/cancellation and market opening/reduce-only closing through Python on two dedicated wallets. A real Strategy/Trader ETH round trip delivered unique fill callbacks and reconciled ending cash exactly, including fees. The installed wheel passed native regression and connected-history tests on Python 3.10 and 3.12 with JavaScript runtimes absent from PATH and child processes denied during connected checks. That earlier wheel also recovered an actual canceled-partial receipt with matching venue fills and fees and no replayed callbacks. Fresh live partial-flow attempts remain inconclusive; no production or mainnet-swap qualification is claimed. Earlier JavaScript receipts remain historical evidence only.
 
 ## Local cancellation and release evidence
 

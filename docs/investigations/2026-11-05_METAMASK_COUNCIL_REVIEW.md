@@ -4,7 +4,7 @@ Incremental verification of the native broker and PR 1262.
 
 Last Updated: 2026-11-05
 
-Status: In progress; identity and execution approved, cash activity in verification
+Status: In progress; correcting cash review and preparing final integration review
 
 Audience: LumiBot maintainers and reviewers
 
@@ -143,6 +143,33 @@ https://mobbin.com/flows/07e1b5a9-a7a8-4b52-85ad-20ad8b1fd30e?tab=screens
 2. Installation guidance, final artifact/PR evidence, full affected gate and final
    whole-PR council approval.
 
+The source installation guide now selects the actual PR branch and prints its
+head, instead of pointing at `dev` while describing unmerged fixes. Published
+PyPI metadata currently reports 4.6.47 with the MetaMask extra, but that does not
+contain these unmerged changes. Both guides distinguish historical funded and
+installed-wheel receipts from this candidate's unqualified execution paths.
+
+## Exhaustive coverage inventory
+
+The initial audit traced all active native modules and connected callers; final
+council review covers the complete integration as well as the incremental diff.
+
+| Area | Files and behavior checked | Required evidence or limit |
+| --- | --- | --- |
+| Authentication and owner setup | `auth.py`, `owner.py`, `provider.py`: browser/headless identity, OAuth rotation, private sessions, Guard Mode, policy and managed signing | Offline transport/security tests; fresh authenticated access unqualified |
+| Authority and recovery | `models.py`, `journal.py`, `engine.py`: explicit binding, reservations, effect identities, ambiguous writes, restart, revocation and cancellation | Native model/journal/engine regression family |
+| Venue execution and data | `venue.py`, `metamask_client.py`, `metamask_data.py`: signing domains, canonical symbols, prices/candles, leverage, IOC/limit, fills, fees and account modes | Native venue/client/broker tests and public live reads |
+| Swap execution | `evm.py`, `fees.py`: quotes, approvals, frozen transactions, gas/rollup costs, simulations, finalized receipts, replay and overrun holds | Offline EVM/fee regressions; funded swaps remain experimental |
+| Broker lifecycle | `brokers/metamask.py`: ordinary orders/positions, synchronization, cumulative callbacks/costs, worker shutdown and shared client | Broker and registration tests; no extra cash debit |
+| Cash activity | `activity.py`, venue/client/broker, standard Strategy collector and cash entities | Exact-window receipts, pagination, signed activity, stable IDs, incomplete states and collector regressions |
+| Integration wiring | `credentials.py`, public exports, `setup.py`, MetaMask CI workflow | Eager/lazy selection, optional package dependencies, installed artifact and complete MetaMask family |
+| User flow and operations | `metamask_perpetual.py`, three `qualify_metamask_*` scripts, both current setup guides and legacy migration reference | Normal Trader round trip/restart offline; funded receipts retained only as historical evidence |
+
+Unsupported orders, HIP3 writes, portfolio margin, bridges, delegated/gasless
+routes and unqualified swap cases remain explicit refusals. Retired JavaScript
+runtime is outside active qualification. No feature is added merely to expand
+this inventory.
+
 Fresh authenticated testnet, controlled maker partial cancellation, funded mainnet
 and funded native-swap qualification remain separate gates. Five connected tests
 previously skipped because private test configuration was not supplied. Retained
@@ -182,10 +209,21 @@ Each reviewer inspected the connected authority, journal, fee, callback and cash
 paths. They reviewed reported test evidence without rerunning it; synthetic
 transport results do not prove authenticated or funded execution.
 
-| Delegate | Round 1, identity at a532366db | Round 2, identity at 5d7a14bdf | Round 3, execution at 351fb8a4d |
-| --- | --- | --- | --- |
-| GPT-6.1 Terra | 8.5/10, approve | 8.5/10, approve | 8.5/10, approve |
-| GPT-6.1 Sol | 9/10, approve | 9/10, approve | 9/10, approve |
-| GPT-6 Astra | 8/10, request changes | 9/10, approve | 9/10, approve |
+Round 4 at `1ad7463ac`: Terra approved 8.5/10; Sol requested changes 8/10,
+with one reproduced P2. Transfer identities hashed raw user/destination/vault
+addresses while classification normalized them. Case-only representations could
+report the same 12 USDC transfer twice and still mark coverage complete. The
+integrator independently reproduced -24 USDC, added three failing regressions,
+and normalized addresses and transaction hashes before both identity and
+duplicate comparison. Amount and fee conflicts remain rejected; input records
+remain unchanged. The affected activity/venue selection passed 62 tests.
+Astra's superseded round-4 run was canceled before issuing a verdict. No score
+is assigned. All three models receive a fresh corrected full-integration review.
+
+| Delegate | Round 1, identity at a532366db | Round 2, identity at 5d7a14bdf | Round 3, execution at 351fb8a4d | Round 4, cash at 1ad7463ac |
+| --- | --- | --- | --- | --- |
+| GPT-6.1 Terra | 8.5/10, approve | 8.5/10, approve | 8.5/10, approve | 8.5/10, approve |
+| GPT-6.1 Sol | 9/10, approve | 9/10, approve | 9/10, approve | 8/10, request changes |
+| GPT-6 Astra | 8/10, request changes | 9/10, approve | 9/10, approve | canceled, no score |
 
 Nothing has been pushed by this review task yet.

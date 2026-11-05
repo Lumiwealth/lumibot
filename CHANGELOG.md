@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.47 - 2026-11-03
+## 4.6.47 - 2026-11-05
 
 Deploy marker: ef37fd7223b91750067d88695d8be0b44affd85c
 

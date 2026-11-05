@@ -13,6 +13,7 @@ Deploy marker: 698b5b7645611a5d888e1ef869db877ef99afe4e
 - Preserve a single verified publication timestamp and label transaction amounts, holding values and estimates at their individual report cells.
 - Preserve verified published establishment evidence when private evaluation journals have expired, while retaining original provenance and requiring current-source regression inference and full repetitions for changed or unestablished cases.
 - Restore lazy credential aliases after their qualification test so later broker and strategy tests do not inherit a synthetic data source.
+- Create the default backtest output directory before exporting results, including first runs with custom report paths and file logging disabled.
 
 ## 4.6.47 - 2026-11-05
 

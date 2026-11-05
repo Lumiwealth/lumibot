@@ -4,7 +4,7 @@ Incremental verification of the native broker and PR 1262.
 
 Last Updated: 2026-11-05
 
-Status: In progress; recovery-reporting correction verified, fresh council pending
+Status: In progress; round-7 unanimously approved, lifecycle ordering recheck pending
 
 Audience: LumiBot maintainers and reviewers
 
@@ -278,6 +278,25 @@ Updated guide build passed with no MetaMask diagnostics and one unchanged
 toctree warning. Git comparison confirms no packaged `lumibot/` change from
 the source-matched artifact commit.
 
+## Round-7 approval and lifecycle ordering
+
+All three approved `dd523856c` without P1/P2 findings: Terra 8.5/10, Sol 9/10,
+Astra 9/10. Terra independently passed nine recovery checks. Sol passed 16 checks
+and a worker/reporting-failure probe; Astra passed nine checks and a separate
+held-worker probe. Both probes confirmed settlement before cleanup, later-wallet
+attempts, resource closure and unsuccessful verdict despite reporting failures.
+These counts are independent reviewer evidence, not additions to the 104-test
+integrator selection.
+
+Terra's lesser lifecycle observation was accepted: the initial wallet snapshot
+was written after broker construction but outside its `try/finally`. Move that
+strict write before constructing the broker. A new regression failed first by
+observing broker construction after the injected snapshot failure; afterward,
+the entire native qualification file passed 27 tests with lint/format and
+whitespace checks. No authority, cleanup, journal or packaged-runtime behavior
+changed. The final three-model recheck covers this small ordering correction
+and retains the approved whole-integration conclusions.
+
 ## Exhaustive coverage inventory
 
 The initial audit traced all active native modules and connected callers; final
@@ -357,10 +376,13 @@ solution, including shared harness guards, receives a fresh three-model review.
 Round 6 results and the recovery-reporting correction are detailed above. A new
 three-model pass reviews the full corrected outcome and affected failure paths.
 
-| Delegate | Round 1 identity | Round 2 identity | Round 3 execution | Round 4 cash | Round 5 integration | Round 6 corrections |
-| --- | --- | --- | --- | --- | --- | --- |
-| GPT-6.1 Terra | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve |
-| GPT-6.1 Sol | 9/10 approve | 9/10 approve | 9/10 approve | 8/10 request changes | 8.5/10 request changes | 9/10 approve |
-| GPT-6 Astra | 8/10 request changes | 9/10 approve | 9/10 approve | cancellation requested, no score | 8/10 request changes | 8.5/10 request changes |
+Round 7 approved unanimously; the small lifecycle ordering correction and final
+recheck are described above.
+
+| Delegate | R1 identity | R2 identity | R3 execution | R4 cash | R5 integration | R6 corrections | R7 recovery |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| GPT-6.1 Terra | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve |
+| GPT-6.1 Sol | 9/10 approve | 9/10 approve | 9/10 approve | 8/10 request changes | 8.5/10 request changes | 9/10 approve | 9/10 approve |
+| GPT-6 Astra | 8/10 request changes | 9/10 approve | 9/10 approve | cancellation requested, no score | 8/10 request changes | 8.5/10 request changes | 9/10 approve |
 
 Nothing has been pushed by this review task yet.

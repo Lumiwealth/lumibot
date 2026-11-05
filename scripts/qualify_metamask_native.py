@@ -49,11 +49,11 @@ def main():
     save()
 
     for index, config in enumerate(configs):
-        broker = MetaMask(config, connect_stream=False, start_orders_thread=False)
         created = []
         wallet = {"index": index, "operations": []}
         evidence["wallets"].append(wallet)
         save()
+        broker = MetaMask(config, connect_stream=False, start_orders_thread=False)
 
         def wait(item, states, broker=broker):
             deadline = time.monotonic() + 120

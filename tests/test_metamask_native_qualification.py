@@ -202,6 +202,26 @@ def test_legacy_migration_fence_cannot_be_reserved_as_evidence(tmp_path, monkeyp
     assert not target.exists()
 
 
+def test_initial_wallet_receipt_failure_precedes_broker_construction(tmp_path, monkeypatch):
+    config = tmp_path / "config.json"
+    config.write_text(json.dumps(native_configs(tmp_path)))
+    broker, original_save = Mock(), qualification.save_evidence
+
+    def save(path, data):
+        if data["wallets"]:
+            raise OSError("initial wallet receipt unavailable")
+        original_save(path, data)
+
+    monkeypatch.setattr(qualification, "MetaMask", broker)
+    monkeypatch.setattr(qualification, "save_evidence", save)
+    monkeypatch.setattr(
+        sys, "argv", ["qualify", "--config", str(config), "--evidence", str(tmp_path / "receipt.json"), "--execute"]
+    )
+    with pytest.raises(OSError, match="initial wallet receipt unavailable"):
+        qualification.main()
+    broker.assert_not_called()
+
+
 def test_native_receipt_failure_after_entry_still_closes_exact_owned_residual(tmp_path, monkeypatch):
     configs = native_configs(tmp_path)
     config = tmp_path / "config.json"

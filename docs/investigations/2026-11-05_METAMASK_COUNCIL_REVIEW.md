@@ -4,7 +4,7 @@ Incremental verification of the native broker and PR 1262.
 
 Last Updated: 2026-11-05
 
-Status: In progress; identity checkpoint awaiting council review
+Status: In progress; identity approved, execution/fee checkpoint in verification
 
 Audience: LumiBot maintainers and reviewers
 
@@ -65,13 +65,38 @@ Native price identity sources:
 - https://raw.githubusercontent.com/ethereum-lists/chains/master/_data/chains/eip155-56.json
 - https://raw.githubusercontent.com/ethereum-lists/chains/master/_data/chains/eip155-43114.json
 
+## Checkpoint 2: allowance prerequisites and standard order fees
+
+The frozen trade quote deadline no longer expires prerequisite bounded ERC20
+allowances. Each unsubmitted allowance remains subject to the unchanged reviewed
+grant, current provider policy, frozen transaction/gas limits and original total
+fee reservation. Trade execution retains both quote-expiry checks and refreshes
+after all allowances settle. Restart never releases a new unsubmitted stage.
+
+The actual perpetual fee ledger now populates cumulative USDC `Order.trade_cost`
+before standard fill events and on restored snapshots. Rebates remain negative.
+Repeated or fee-only observations do not replay fill callbacks. Unsupported
+currencies keep raw evidence and an unavailable standard cost; missing fee
+fields do not erase known cost. Invalid fee evidence is rejected before the
+adapter emits a new execution. Broker-reported cash is not debited again.
+
+New regressions reproduce a zero-reset plus exact-input approval across two
+20-minute finality waits, then a fresh trade quote, pending managed approval,
+restart and final output/fee reconciliation. Negative controls cover revocation,
+changed authority, higher total fees and restart before the next allowance.
+The existing restart example also tests an unsettled prior exit after initialize
+clears its pending ID, addressing the previous PR review nitpick without another
+submission. Five new execution/fee cases failed before the fixes; all ten initial
+checkpoint cases passed afterward. Final EVM, broker, example and native-fee
+selection passed 198 tests. Ruff, formatting and whitespace checks passed.
+The checks use real adapter/event paths with synthetic provider/RPC transports;
+they do not qualify funded managed-wallet execution. No funded activity occurred.
+
 ## Remaining checkpoints
 
-1. Council approval or correction of identity checkpoint.
-2. Swap prerequisite-approval timing and standard execution-fee projection,
-   including existing restart/callback behavior and outstanding review nitpick.
-3. Normalized funding/non-funding cash activity and truthful completeness.
-4. Installation guidance, final artifact/PR evidence, full affected gate and final
+1. Council approval or correction of execution/fee checkpoint.
+2. Normalized funding/non-funding cash activity and truthful completeness.
+3. Installation guidance, final artifact/PR evidence, full affected gate and final
    whole-PR council approval.
 
 Fresh authenticated testnet, controlled maker partial cancellation, funded mainnet
@@ -89,8 +114,8 @@ review before replacement, approving 9/10 with no P1/P2 findings. Sol independen
 checked public mainnet native prices and also flagged testnet provenance as a
 nonblocking limitation: the public provider omitted testnet prices. The integrator
 accepted Astra's registry-consistency correction without claiming that registry
-identity proves provider price availability. The checkpoint is not yet approved
-by the complete council.
+identity proves provider price availability. Round 1 did not receive unanimous
+approval.
 
 Astra returned 8/10, request changes, with one P2: the testnet entries incorrectly
 inherited mainnet coin types despite the cited chain registry declaring
@@ -104,10 +129,14 @@ Fresh council review of the corrected checkpoint follows with all three models.
 Cancellation of the superseded Sol run returned completed; its result and score
 are retained.
 
-| Delegate | Round 1, identity at a532366db |
-| --- | --- |
-| GPT-6.1 Terra | 8.5/10, approve |
-| GPT-6.1 Sol | 9/10, approve |
-| GPT-6 Astra | 8/10, request changes |
+Round 2 at `5d7a14bdf` approved the corrected identity checkpoint unanimously.
+All reviewers reconciled the registry correction with the distinct limitation
+that provider testnet pricing remains unproven. No new P1/P2 findings.
+
+| Delegate | Round 1, identity at a532366db | Round 2, identity at 5d7a14bdf |
+| --- | --- | --- |
+| GPT-6.1 Terra | 8.5/10, approve | 8.5/10, approve |
+| GPT-6.1 Sol | 9/10, approve | 9/10, approve |
+| GPT-6 Astra | 8/10, request changes | 9/10, approve |
 
 Nothing has been pushed by this review task yet.

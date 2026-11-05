@@ -5,6 +5,8 @@
 ### Fixed
 - Resolve MetaMask perpetual asset casing to unique native market identities across execution and market data, preserving journaled operation identity on retries.
 - Use chain-specific native-token price identities and reject duplicate or unapproved-chain asset registrations before wallet valuation.
+- Let bounded MetaMask allowance prerequisites settle under unchanged owner authority before refreshing the trade quote, retaining fee ceilings and restart replay protection.
+- Project actual MetaMask perpetual fees and maker rebates into cumulative standard order costs without replaying executions or guessing currency conversions.
 
 ## 4.6.47 - 2026-11-05
 

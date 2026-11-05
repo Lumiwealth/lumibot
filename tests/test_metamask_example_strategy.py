@@ -155,6 +155,19 @@ def test_restart_recovers_finished_round_trip_without_reentering(strategy):
     strategy.submit_order.assert_not_called()
 
 
+def test_restart_waits_for_existing_unsettled_exit_without_submitting_another(strategy):
+    entry = observed_order(strategy)
+    closing = observed_order(strategy, exit_number=1, filled="0", status="open")
+    strategy.initialize()
+    assert strategy.vars.pending_id is None
+    strategy.get_orders.return_value = [entry, closing]
+    set_position(strategy, "0.005")
+    strategy.on_trading_iteration()
+    strategy.on_trading_iteration()
+    strategy.submit_order.assert_not_called()
+    assert not strategy.vars.completed
+
+
 def test_completed_round_trip_continues_reconciling_late_entry_fills_without_reentry(strategy):
     entry = observed_order(strategy, filled="0.0002", status="canceled")
     closing = observed_order(strategy, exit_number=1, quantity="0.0002", filled="0.0002")

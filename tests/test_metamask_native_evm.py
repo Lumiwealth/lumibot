@@ -521,6 +521,126 @@ def test_quote_mismatch_never_reaches_managed_signing(wallet, mutation):
     wallet.provider.submit_transaction.assert_not_called()
 
 
+@pytest.mark.parametrize("failure", [None, "revoked", "authority", "fees", "restart"])
+def test_two_allowances_outlive_trade_quote_without_replay_or_broader_authority(wallet, monkeypatch, failure):
+    from lumibot.tools.metamask.fees import estimate_fees
+
+    source = {**DEST, "symbol": "INPUT"}
+    destination = {**DEST, "address": "0x" + "4" * 40}
+    request = {**intent(), "input": source, "output": destination, "inputAmount": "1"}
+    wallet.journal.bind({**wallet.journal.binding("agent"), "assets": [SOURCE, source, destination]})
+    now, confirmed = [time.time()], set()
+    hashes = ["0x" + digit * 64 for digit in "abc"]
+    monkeypatch.setattr("lumibot.tools.metamask.evm.time.time", lambda: now[0])
+
+    def quotes(route, params):
+        row = quote()[0]
+        row["quoteId"] = "fresh-trade" if hashes[1] in confirmed else "initial-quote"
+        row["quote"].update(srcAsset=source, destAsset=destination, srcTokenAmount="1000000", feeData={})
+        row["trade"]["value"] = "0x0"
+        row["approval"] = {
+            **row["trade"],
+            "to": source["address"],
+            "data": "0x095ea7b3" + TARGET[2:].rjust(64, "0") + format(1000000, "064x"),
+        }
+        return [row]
+
+    def read(chain, method, params):
+        if method == "eth_call":
+            return hex(1000000 if hashes[1] in confirmed else 0 if hashes[0] in confirmed else 1)
+        if method == "eth_getTransactionCount":
+            return hex(wallet.provider.submit_transaction.call_count)
+        return rpc(chain, method, params)
+
+    receipt = {"status": "0x1", "gasUsed": "0x5208", "effectiveGasPrice": "0x2"}
+    trade_receipt = {
+        **receipt,
+        "logs": [
+            {
+                "address": destination["address"],
+                "topics": [_TRANSFER, "0x" + TARGET[2:].rjust(64, "0"), "0x" + WALLET[2:].rjust(64, "0")],
+                "data": hex(999000),
+            }
+        ],
+    }
+    wallet._proxy = Mock(side_effect=quotes)
+    wallet._rpc = Mock(side_effect=read)
+    wallet.price = Mock(return_value=Decimal("1"))
+    wallet._balance = Mock(return_value=Decimal("10"))
+    wallet._receipt = Mock(
+        side_effect=lambda tx_hash, tx: (
+            (trade_receipt if tx["to"] == TARGET else receipt) if tx_hash in confirmed else None
+        )
+    )
+    wallet.provider.submit_transaction.side_effect = [
+        {"status": "BROADCASTED", "txHash": hashes[0]},
+        {"status": "BROADCASTED", "txHash": hashes[1]},
+        {"status": "AWAITING_MFA"},
+    ]
+    wallet.provider.transaction.side_effect = lambda _, tx: (
+        {"status": "CONFIRMED", "txHash": hashes[tx["nonce"]]}
+        if tx["to"] != TARGET or hashes[2] in confirmed
+        else {"status": "AWAITING_MFA"}
+    )
+    assert wallet.submit(request)["state"] == "submitted"
+    original = wallet.journal.effect("agent", "swap-one", "swap-plan")
+    assert len(original["approvals"]) == 2
+    reset = wallet.journal.effect("agent", "swap-one", "swap-0")
+    now[0] += 1200
+    confirmed.add(hashes[0])
+    if failure in {"revoked", "authority"}:
+        change = {"enabled": False} if failure == "revoked" else {"maxDailyUsd": "101"}
+        wallet.journal.bind({**wallet.journal.binding("agent"), **change})
+    elif failure == "restart":
+        wallet.epoch = "restarted-owner"
+    elif failure == "fees":
+        monkeypatch.setattr(
+            "lumibot.tools.metamask.evm.estimate_fees",
+            lambda *args: {
+                **estimate_fees(*args),
+                "totalEstimate": "1000000",
+            },
+        )
+    result = wallet.order("swap-one")
+    assert wallet.journal.effect("agent", "swap-one", "swap-plan") == original
+    assert wallet.journal.effect("agent", "swap-one", "swap-0")["requestId"] == reset["requestId"]
+    if failure is not None:
+        assert result["state"] == "rejected", result
+        if failure != "restart":
+            assert (
+                result["lastErrorCode"]
+                == {
+                    "revoked": "REVOKED",
+                    "authority": "POLICY_CHANGED",
+                    "fees": "REQUOTE_REQUIRED",
+                }[failure]
+            )
+        else:
+            assert "Interrupted swap" in result["message"]
+        assert wallet.provider.submit_transaction.call_count == 1
+        assert wallet.journal.effect("agent", "swap-one", "swap-1") is None
+        assert result["fees"][0]["atomicAmount"] == "42000"
+        return
+    assert result["state"] == "submitted", result
+    assert wallet.provider.submit_transaction.call_count == 2
+    grant = wallet.journal.effect("agent", "swap-one", "swap-1")
+    assert int(grant["transaction"]["data"][-64:], 16) == 1000000
+    confirmed.add(hashes[1])
+    now[0] += 1200
+    assert wallet.order("swap-one")["state"] == "awaiting_approval"
+    trade = wallet.journal.effect("agent", "swap-one", "swap-2")
+    assert trade["quoteId"] == "fresh-trade" and wallet._proxy.call_count == 2
+    assert wallet.journal.effect("agent", "swap-one", "swap-plan") == original
+    wallet.epoch = "another-owner"
+    assert wallet.order("swap-one")["state"] == "awaiting_approval"
+    assert wallet.journal.effect("agent", "swap-one", "swap-2")["requestId"] == trade["requestId"]
+    confirmed.add(hashes[2])
+    filled = wallet.order("swap-one")
+    assert filled["state"] == "filled" and Decimal(filled["outputAmount"]) == Decimal("0.999")
+    assert filled["fees"][0]["atomicAmount"] == "126000"
+    assert wallet.provider.submit_transaction.call_count == 3
+
+
 def test_unknown_managed_submission_polls_original_request_after_restart(wallet):
     wallet._proxy = Mock(return_value=quote())
     wallet._rpc = Mock(side_effect=rpc)

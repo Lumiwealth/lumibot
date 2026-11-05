@@ -114,6 +114,13 @@ and block new execution until reconciliation. Pending signatures are never
 replayed after restart. Cancellation has a separate lifecycle and cannot erase
 fills or reject the original live order merely because cancellation failed.
 
+Perpetual receipt fees populate cumulative ``Order.trade_cost`` in USDC,
+including maker rebates. Partial-fill trade-log rows contain the cumulative cost
+observed at that time, not separate fee deltas to sum. Restored orders keep costs
+without replaying fills. Fee-only refreshes update the order without a new fill
+callback. Unsupported currencies stay in raw receipts with an unavailable
+standard cost. Account cash already includes fees and is not debited again.
+
 Standard account cash uses actual withdrawable funds and margin. Unified
 accounts use pooled HyperCore spot USDC once, without adding perpetual PnL
 again. Portfolio margin is unsupported. HIP3 writes are held until native
@@ -198,6 +205,13 @@ the unsubmitted trade. The original exact input, minimum output, authority and
 total fee reservation remain binding. New allowances, weaker output or higher
 fees stop execution for owner review. Original approval records remain intact;
 an already submitted trade resumes by its original request ID after restart.
+
+Prerequisite allowances use the reviewed grant's expiry rather than the trade
+quote's short lifetime. Each new allowance still requires unchanged authority,
+current Guard policy, frozen transaction/gas limits and the original total fee
+reservation. Zero-reset and exact-input approvals can therefore settle before
+the trade is requoted. Restart never releases an unsubmitted remaining allowance;
+already submitted requests reconcile their original IDs.
 
 The configured RPC must support ``eth_getBlockByNumber("finalized", false)``.
 One later block does not establish finality. Pending finality retains submitted

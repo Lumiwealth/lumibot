@@ -120,6 +120,15 @@ Quantities are base units with multiplier 1. Supported orders are buy/sell marke
 
 The broker reserves pre-trade notional plus the current effective fee envelope. Duplicate operation IDs are idempotent; changed intent under an existing ID is rejected. Uncertain submissions block new execution and reconcile the original request/client-order ID. Cancellation uses a separate durable effect and cannot overwrite the original order's fills or terminal status. Canceling a prepared, unreleased order never advances it into a trade.
 
+Perpetual receipt fees populate standard `Order.trade_cost` in USDC, including
+maker rebates. This is the cumulative order cost, matching the existing broker
+convention; partial-fill event rows contain the cost observed at that time, not
+independent fee deltas to sum. Restored orders retain fees without replaying fills.
+Fee-only refreshes update the order without new execution callbacks. Unknown
+currencies remain in raw receipts with an unavailable standard cost rather than
+an invented conversion. Account cash already includes fees; reporting them does
+not deduct them again.
+
 Standard account cash uses actual withdrawable funds and margin. Unified account equity uses HyperCore's pooled spot USDC once, without adding perps PnL again. Portfolio-margin accounts are unsupported. HIP3 writes are explicitly held until collateral-aware valuation and DEX fee metadata are qualified; public market reads remain available. Do not assume non-USDC collateral values are USDC.
 
 `MetaMaskData` reads marks and closed minute/hour/day candles from the selected Hyperliquid network. Public perpetual data needs only `NETWORK`; it does not need a wallet credential. Candle history is limited to the venue's latest 5,000 bars. Spot candles and historical account equity are not provided.
@@ -199,6 +208,13 @@ and total fee reservation. A changed spender needing another allowance, weaker
 minimum output or higher total fees stops execution for owner review. Original
 approval and quote records remain immutable; restart reconciles an already
 submitted trade by its original request ID without signing again.
+
+Bounded prerequisite allowances use the reviewed grant's expiry, not the trade
+quote's short lifetime. Each new allowance still requires unchanged authority,
+current Guard policy, the frozen transaction/gas ceiling and available original
+fee reservation. This lets zero-reset and exact-input approvals settle in
+sequence before refreshing the trade quote. A restart never releases a remaining
+unsubmitted allowance; already submitted requests reconcile their original IDs.
 
 The configured RPC must support `eth_getBlockByNumber("finalized", false)`.
 One later block is not finality. Pending finality retains submitted state;

@@ -583,6 +583,18 @@ def test_missing_token_price_is_never_assumed_one_dollar(wallet):
         wallet.price(TokenAsset.parse(DEST))
 
 
+def test_testnet_price_request_and_response_use_registered_test_coin_identity(wallet):
+    token = {"symbol": "POL", "chainId": 80002, "address": "native", "decimals": 18}
+    wallet.journal.bind({**wallet.journal.binding("agent"), "chains": [80002], "assets": [token]})
+    # Synthetic response checks identity, not actual testnet token valuation.
+    wallet._proxy = Mock(return_value={"eip155:80002/slip44:1": {"usd": "1.25"}})
+    assert wallet.price(TokenAsset.parse(token)) == Decimal("1.25")
+    assert wallet._proxy.call_args.args[1]["assetIds"] == "eip155:80002/slip44:1"
+    wallet._proxy.return_value = {}
+    with pytest.raises(MetaMaskError, match="INVALID_RESPONSE"):
+        wallet.price(TokenAsset.parse(token))
+
+
 def test_account_and_quote_prices_ignore_strategy_decimal_context(wallet):
     native, token = TokenAsset.parse(SOURCE), TokenAsset.parse(DEST)
     wallet._proxy = Mock(return_value={native.caip: {"usd": "2000.25"}, token.caip: {"usd": "0.5"}})

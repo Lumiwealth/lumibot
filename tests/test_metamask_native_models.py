@@ -7,7 +7,23 @@ from lumibot.tools.metamask.provider import MetaMaskError
 from tests.test_metamask_native_journal import binding
 
 
-@pytest.mark.parametrize("chain,coin", [(1, 60), (10, 60), (137, 966), (56, 714), (43114, 9005)])
+@pytest.mark.parametrize(
+    "chain,coin",
+    [
+        (1, 60),
+        (10, 60),
+        (137, 966),
+        (56, 714),
+        (43114, 9005),
+        (97, 1),
+        (43113, 1),
+        (80002, 1),
+        (421614, 1),
+        (84532, 1),
+        (11155111, 1),
+        (11155420, 1),
+    ],
+)
 def test_native_price_identity_uses_chain_coin_type(chain, coin):
     asset = TokenAsset.parse({"symbol": "GAS", "chainId": chain, "address": "native", "decimals": 18})
     assert asset.caip == f"eip155:{chain}/slip44:{coin}"

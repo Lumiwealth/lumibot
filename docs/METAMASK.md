@@ -187,6 +187,8 @@ Polygon, zkSync Era, Base, Arbitrum, Avalanche and Linea, plus their explicitly
 listed testnet identities in `models.py`. Unknown native identities refuse
 valuation rather than assuming ETH. A known identity does not establish a
 provider price or funded chain qualification; unpriced test tokens still fail.
+Listed testnets use the registry's `slip44:1` test-coin identity, independently of
+their parent mainnet coin type.
 
 The Python path binds the provider quote ID, wallet, recipient, chains, token identities, fee-net input, slippage and exact transaction. ERC20 allowance grants are capped to exact input, with a separate zero reset when needed. Simulation runs after prerequisite allowances settle. Each managed request is persisted before MetaMask signs and broadcasts; the broker never rebroadcasts its signed transaction. It verifies mined transaction identity, nonce, gas ceiling, RPC-finalized canonical receipt and net ERC20 output transfers. Quote output is never reported as a received amount.
 

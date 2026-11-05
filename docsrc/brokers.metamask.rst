@@ -183,6 +183,8 @@ The native price registry covers Ethereum, Optimism, BNB Chain, Polygon,
 zkSync Era, Base, Arbitrum, Avalanche and Linea, plus explicitly listed testnet
 identities. Unknown native identities refuse valuation. Known identities still
 require actual provider prices and do not establish funded chain qualification.
+Listed testnets use registry identity ``slip44:1``, independently of the parent
+mainnet coin type; missing test-token prices still fail explicitly.
 
 The native implementation verifies quote identity, fee-net source amount,
 slippage, bounded allowances, sequential simulation and durable managed

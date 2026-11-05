@@ -81,5 +81,21 @@ historical funded claims must not be relabeled as fresh evidence.
 
 ## Council results
 
-No completed council round yet. Scores and findings will be recorded after each
-review checkpoint. Nothing has been pushed by this review task yet.
+Round 1, identity checkpoint at `a532366db`: GPT-6.1 Terra approved, 8.5/10,
+with no P1/P2 findings. Terra checked canonical resolution, retry identity,
+registry validation, tests and chain metadata. Its approval retains the stated
+native-provider pricing and funded-execution limits. Sol's original review is
+pending; the checkpoint is not yet approved by the complete council.
+
+Astra returned 8/10, request changes, with one P2: the testnet entries incorrectly
+inherited mainnet coin types despite the cited chain registry declaring
+`slip44:1`. The integrator verified all seven listed testnets against their
+registry documents, corrected the entries and added request/response-boundary
+coverage through `EvmWallet.price()`. Mainnet values remain unchanged. The new
+tests failed first on all seven identities and the Amoy price lookup before the
+correction. Empty provider price responses remain explicit errors.
+The corrected model/EVM selection passed 87 tests; lint and formatting passed.
+Fresh council review of the corrected checkpoint follows once the original Sol
+review has returned, so its findings can be reconciled in the same next round.
+
+Nothing has been pushed by this review task yet.

@@ -583,6 +583,38 @@ def test_custom_indicator_gets_rollback_for_free():
     assert ind.update(bars[2], closed=True) == {"mom": 2}
 
 
+@pytest.mark.parametrize("failure", ["step", "output"])
+def test_failed_closed_update_preserves_state_and_retry_matches_clean_history(failure):
+    class Accumulator(Indicator):
+        outputs = [OutputSpec("total", "Total")]
+
+        def init_state(self):
+            return {"total": 0.0, "closes": []}
+
+        def step(self, state, bar):
+            state["total"] += bar.close
+            state["closes"].append(bar.close)
+            fault, self.fault = getattr(self, "fault", None), None
+            if fault == "step":
+                raise RuntimeError("calculation failed after mutating state")
+            return {"total": "invalid output" if fault == "output" else state["total"]}
+
+    bars = tiny_bars([1, 2, 3, 4])
+    clean = Accumulator().compute(bars)["total"]
+    indicator = Accumulator()
+    indicator.feed(bars[:2])
+    before = indicator.snapshot()
+    indicator.fault = failure
+
+    with pytest.raises((RuntimeError, ValueError)):
+        indicator.update(bars[2], closed=True)
+
+    assert indicator.snapshot() == before
+    assert indicator.update(bars[2], closed=True) == {"total": clean[2]}
+    assert indicator.update(bars[3], closed=True) == {"total": clean[3]}
+    assert indicator.snapshot()["state"]["closes"] == [1, 2, 3, 4]
+
+
 # --------------------------------------------------------------------------
 # IndicatorRunner
 # --------------------------------------------------------------------------

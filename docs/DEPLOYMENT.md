@@ -583,6 +583,39 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
 
 ---
 
+## Local admission and exact-candidate release merges
+
+On the maintained release workstation, use the installed admission owner for
+an authorized version-release PR:
+
+```bash
+python3 ~/.config/botspot-main-admission/local_main_admission.py \
+  merge-release-pr Lumiwealth/lumibot <release-pr-number>
+```
+
+The helper checks the release branch, green GitHub checks and exact current head.
+A missing code-owner review may be bypassed only after Rob explicitly approves
+that exact candidate; the helper is not blanket permission for an admin merge.
+If the head changes, preserve the previous approval and obtain authority for the
+new candidate. Reverify the SDK actor/judge receipt on the actual dev merge before
+tagging. Record approval, head, merge, tag and publication run separately.
+
+A single-branch clone may fetch `dev` into FETCH_HEAD without refreshing
+`origin/dev`. Inspect its fetch refspec and explicitly fetch the intended refs
+before switching:
+
+```bash
+git fetch origin refs/heads/dev:refs/remotes/origin/dev
+git fetch origin refs/heads/version/X.Y.Z:refs/remotes/origin/version/X.Y.Z
+```
+
+Switch only with a clean, understood tree and verify HEAD, package version and
+`git status` after the command. Check each command's exit status before dependent
+operations. A failed switch is not evidence that the requested branch is active.
+Never discard uncommitted changes to repair a tracking-ref problem. After
+publication, switch immediately to the automatically created next version branch
+and run the existing post-release checkout verifier.
+
 ## Common pitfalls (learned the hard way)
 
 - **Forgetting to cut the next version branch after a release** blocks the entire team.

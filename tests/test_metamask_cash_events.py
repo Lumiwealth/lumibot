@@ -153,6 +153,16 @@ def test_cash_history_boundaries_ids_and_amounts_ignore_decimal_context(history)
     assert second.mode == "live" and second.events[0].event_id != first.events[0].event_id
 
 
+def test_fractional_start_filters_unsupported_rows_before_classification(history):
+    broker, _, rows = history
+    rows["userNonFundingLedgerUpdates"] = [row(0, "accountClassTransfer", usdc="1", toPerp=True)]
+    since = START + dt.timedelta(microseconds=500)
+    sync = broker.get_cash_event_sync(since=since)
+    assert sync.state == "complete" and sync.events == ()
+    rows["userNonFundingLedgerUpdates"].append(row(1, "accountClassTransfer", usdc="1", toPerp=True))
+    assert broker.get_cash_event_sync(since=since).state == "partial"
+
+
 def test_ledger_pagination_keeps_same_millisecond_tail_and_scopes_funding_coins(history):
     broker, venue, _ = history
     pages = [

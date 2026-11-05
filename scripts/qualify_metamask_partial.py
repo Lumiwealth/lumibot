@@ -33,6 +33,45 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
+def prepare_evidence_path(path, config_path, configs):
+    """Reserve a fresh receipt without touching wallet state or its sidecars."""
+    path = path.expanduser()
+    protected = {config_path.resolve()}
+    for config in configs:
+        for key in ("STATE_FILE", "SESSION_FILE", "LEGACY_SESSION_FILE"):
+            if not config.get(key):
+                continue
+            selected = Path(config[key]).expanduser().resolve()
+            protected.add(selected)
+            suffixes = (
+                ("-wal", "-shm", "-journal", ".owner.sqlite", ".owner.sqlite-journal")
+                if key == "STATE_FILE"
+                else (".lock",)
+            )
+            protected.update(Path(str(selected) + suffix).resolve() for suffix in suffixes)
+    if path.exists() or path.is_symlink() or path.resolve() in protected:
+        raise ValueError("Choose a new evidence path; preserve configuration, sessions, journals and older receipts")
+    path = path.resolve()
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    os.close(descriptor)
+    return path
+
+
+def save_evidence(path, data):
+    descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=".partial-")
+    try:
+        with os.fdopen(descriptor, "w") as stream:
+            json.dump(data, stream, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
 def validate_configs(configs):
     require(isinstance(configs, list) and len(configs) == 2, "Exactly two wallet configurations are required")
     require(all(c.get("NETWORK") == "testnet" for c in configs), "Mainnet qualification is forbidden")
@@ -71,17 +110,7 @@ class Evidence:
     def stage(self, name, **values):
         with self.lock:
             self.data["stages"].append({"stage": name, "time": int(time.time() * 1000), **values})
-            descriptor, temporary = tempfile.mkstemp(dir=self.path.parent, prefix=".partial-")
-            try:
-                with os.fdopen(descriptor, "w") as stream:
-                    json.dump(self.data, stream, indent=2)
-                    stream.write("\n")
-                    stream.flush()
-                    os.fsync(stream.fileno())
-                os.replace(temporary, self.path)
-            finally:
-                if os.path.exists(temporary):
-                    os.unlink(temporary)
+            save_evidence(self.path, self.data)
 
 
 def source_identity():
@@ -234,7 +263,7 @@ def independent_maker_observation(venue, wallet, operation, client_id):
     return status, live, fills, quantity, remaining
 
 
-def cleanup_budget_room(journal, agent, binding, now):
+def cleanup_budget_room(journal, agent, binding, now, *, required_usd=Decimal("50")):
     """Check the same rolling reservations as Journal.reserve before any signing."""
     with localcontext(Context(prec=160, rounding=ROUND_CEILING)):
         used = Decimal(0)
@@ -249,7 +278,10 @@ def cleanup_budget_room(journal, agent, binding, now):
                     Decimal(item["reservedUsd"]), Decimal(item.get("feeAdjustedReservationUsd", item["reservedUsd"]))
                 )
         room = Decimal(binding["maxDailyUsd"]) - used
-    require(room >= 50, "Daily budget must cover a $25 entry and $25 residual cleanup before signing")
+    require(
+        room >= required_usd,
+        f"Daily budget must cover ${required_usd} of order reservations and residual cleanup before signing",
+    )
     return room
 
 
@@ -564,15 +596,7 @@ def main():
     args = parser.parse_args()
     configs = json.loads(args.config.read_text())
     validate_configs(configs)
-    protected = {args.config.resolve()}
-    protected.update(
-        Path(config[key]).expanduser().resolve()
-        for config in configs
-        for key in ("STATE_FILE", "SESSION_FILE", "LEGACY_SESSION_FILE")
-        if config.get(key)
-    )
-    require(args.evidence.resolve() not in protected, "Evidence must not overwrite configuration, session or journal")
-    require(not args.evidence.exists(), "Choose a new evidence path to preserve earlier qualification receipts")
+    args.evidence = prepare_evidence_path(args.evidence, args.config, configs)
     evidence = Evidence(args.evidence, "native-partial-" + uuid4().hex[:12])
     run(configs, evidence, daily_caps=args.daily_caps)
 

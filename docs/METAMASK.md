@@ -293,6 +293,17 @@ Funded testnet and installed-wheel results below were recorded before this
 council review. They have not been rerun for the identity, allowance, fee and
 cash-history changes. Fresh authenticated and funded qualification remains open.
 
+All three repository qualification harnesses require a fresh evidence path.
+They reject existing receipts, symlinks and configuration/session/journal paths,
+including recovery sidecars and locks. Evidence is reserved exclusively and
+saved as private atomic snapshots. Run native qualification as
+`python -m scripts.qualify_metamask_native` from the repository root, after
+separate authorization for its funded testnet actions. It requires at least
+$75 of remaining rolling reservation room before signing, covering its resting
+order test, entry and close under the existing $25 per-order cap. It also uses
+the reviewed authority checks and six-minute minimum remaining grant lifetime.
+These checks neither raise limits nor clear prior spending history.
+
 Offline tests cover provider context, OAuth rotation, journal ownership and reservations, official signing vectors, remote-signature recovery, order replay prevention, cumulative callbacks, cancellation, swap quotes and receipts. Connected Python reads verify actual wallet identity, Guard policy, testnet account, candles and ordinary strategy startup without replaying historical fills. A dependency check reports a compatible Python environment.
 
 Native testnet opening, reduce-only closing and cancellation have funded receipts. Fresh live partial-flow remains unqualified. Actual short-lived testnet grants have expired on both dedicated wallets: new intents returned `REVOKED` without signing or changing orders, execution effects or nonces. The ordinary connected expiry test still skips active grants; offline expiry regressions remain separate evidence. Managed swaps still require their own funded receipts. Broker startup never renews expired local grants; prior JavaScript test results are not carried forward. No production or mainnet trading qualification is claimed.

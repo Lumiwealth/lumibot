@@ -10,6 +10,7 @@ on:
       - "lumibot/credentials.py"
       - "lumibot/example_strategies/metamask_perpetual.py"
       - "scripts/qualify_metamask_strategy.py"
+      - "scripts/qualify_metamask_native.py"
       - "scripts/qualify_metamask_partial.py"
       - "setup.py"
       - "tests/test_metamask*.py"
@@ -24,6 +25,7 @@ on:
       - "lumibot/credentials.py"
       - "lumibot/example_strategies/metamask_perpetual.py"
       - "scripts/qualify_metamask_strategy.py"
+      - "scripts/qualify_metamask_native.py"
       - "scripts/qualify_metamask_partial.py"
       - "setup.py"
       - "tests/test_metamask*.py"
@@ -54,6 +56,6 @@ jobs:
           cache: pip
       - run: python -m pip install '.[metamask]' pytest ruff
       - run: python -m pip check
-      - run: python -m ruff check lumibot/tools/metamask lumibot/tools/metamask_client.py lumibot/brokers/metamask.py lumibot/data_sources/metamask_data.py lumibot/example_strategies/metamask_perpetual.py scripts/qualify_metamask_strategy.py scripts/qualify_metamask_partial.py tests/test_metamask*.py
-      - run: python -m ruff format --check lumibot/tools/metamask lumibot/tools/metamask_client.py lumibot/brokers/metamask.py lumibot/data_sources/metamask_data.py lumibot/example_strategies/metamask_perpetual.py scripts/qualify_metamask_strategy.py scripts/qualify_metamask_partial.py tests/test_metamask*.py
+      - run: python -m ruff check lumibot/tools/metamask lumibot/tools/metamask_client.py lumibot/brokers/metamask.py lumibot/data_sources/metamask_data.py lumibot/example_strategies/metamask_perpetual.py scripts/qualify_metamask_strategy.py scripts/qualify_metamask_partial.py scripts/qualify_metamask_native.py tests/test_metamask*.py
+      - run: python -m ruff format --check lumibot/tools/metamask lumibot/tools/metamask_client.py lumibot/brokers/metamask.py lumibot/data_sources/metamask_data.py lumibot/example_strategies/metamask_perpetual.py scripts/qualify_metamask_strategy.py scripts/qualify_metamask_partial.py scripts/qualify_metamask_native.py tests/test_metamask*.py
       - run: python -m pytest tests/test_metamask*.py -q

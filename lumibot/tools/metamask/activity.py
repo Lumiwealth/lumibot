@@ -96,13 +96,14 @@ def cash_event_sync(client, mode, *, since=None, limit=5000):
             state, reason = "complete", None
             for ledger, entries in rows.items():
                 for row in entries:
+                    if not start <= _EPOCH + row["time"] * _MILLISECOND < end:
+                        continue
                     try:
                         event = _cash_event(row, wallet=wallet, network=network, ledger=ledger)
                     except (MetaMaskError, ValueError, OverflowError):
                         state, reason = "partial", "unresolved_ledger_transaction"
                         continue
-                    if start <= event.occurred_at < end:
-                        events.append(event)
+                    events.append(event)
             events.sort(key=lambda event: (event.occurred_at, event.event_id))
             if limit is not None and len(events) > limit:
                 events = events[-limit:]

@@ -4,7 +4,7 @@ Incremental verification of the native broker and PR 1262.
 
 Last Updated: 2026-11-05
 
-Status: In progress; corrections verified, full-integration council review pending
+Status: In progress; round-5 harness corrections verified, fresh council review pending
 
 Audience: LumiBot maintainers and reviewers
 
@@ -187,6 +187,48 @@ fixes have not been pushed. No unresolved GitHub review threads were present.
 The final review is of the complete integration and corrected cash checkpoint.
 No further suite expansion is required absent new code changes or findings.
 
+## Round-5 correction and verification
+
+Full integration review at `387d29149` returned Terra 8.5/10 approve, Sol
+8.5/10 request changes and Astra 8/10 request changes. All approved the corrected
+cash checkpoint. Sol and Astra independently reproduced one shared P2: native
+qualification could truncate its config, session, journal or prior receipt via
+`--evidence` before identity verification. The integrator confirmed all these
+collisions, plus the legacy-session collision, using disposable synthetic files.
+Astra reproduced a second P2: $269.50 of existing $300 rolling reservations left
+room for test order and entry but not closing. Terra's lesser issue was also
+confirmed: an unsupported row before a fractional-millisecond `since` could
+mark the requested empty window partial.
+
+Corrections:
+
+- Filter exact cash-window timestamps before classification; an unsupported row
+  inside the requested window still makes coverage partial.
+- Reuse one evidence preflight across all three qualification entrypoints. It
+  rejects existing files, dangling symlinks, config/session/journal aliases and
+  future recovery sidecars/locks, then reserves a fresh private file exclusively.
+  A concurrent creator cannot be overwritten. Native snapshots reuse the
+  existing flushed, fsynced atomic writer; receipt schema remains unchanged.
+- Reuse reviewed authority and rolling journal-budget checks before native
+  signing, requiring $75 for the resting test, entry and close under existing
+  $25 caps. Existing canceled reservations and fee-adjusted costs count; no
+  authority, expiry or spending history is reset. The same six-minute minimum
+  grant lifetime as the other harnesses is retained.
+- Add native qualification script to both CI path triggers and lint/format
+  coverage. Document the guard behavior and repository-module invocation.
+
+Fifteen new regressions failed before correction: exact-window classification,
+13 unsafe evidence destinations and the real-journal budget case. Final affected
+cash/native qualification/partial qualification/example selection passed **123
+tests**. This includes no-write controls across all three entrypoints, private
+readable snapshots, concurrent evidence creation, and the exact $75 threshold.
+Full workflow Ruff and format passed, now 35 files; whitespace clean. Native
+module `--help` ran without wallet access. Compatible 590-pass evidence above
+is retained for unchanged paths; no second broad suite was launched.
+
+Fresh artifact continuity and documentation checks are recorded below when
+complete. Funded/authenticated and remote CI gates remain open.
+
 ## Exhaustive coverage inventory
 
 The initial audit traced all active native modules and connected callers; final
@@ -259,10 +301,14 @@ Cancellation was requested for Astra's superseded round-4 run before a verdict
 was delivered. No score is assigned. All three models receive a fresh corrected
 full-integration review.
 
-| Delegate | Round 1, identity at a532366db | Round 2, identity at 5d7a14bdf | Round 3, execution at 351fb8a4d | Round 4, cash at 1ad7463ac |
-| --- | --- | --- | --- | --- |
-| GPT-6.1 Terra | 8.5/10, approve | 8.5/10, approve | 8.5/10, approve | 8.5/10, approve |
-| GPT-6.1 Sol | 9/10, approve | 9/10, approve | 9/10, approve | 8/10, request changes |
-| GPT-6 Astra | 8/10, request changes | 9/10, approve | 9/10, approve | cancellation requested, no score |
+Round 5 results and accepted corrections are detailed above. No additional
+P1/P2 was reported in the supported broker execution paths. The entire revised
+solution, including shared harness guards, receives a fresh three-model review.
+
+| Delegate | Round 1, identity at a532366db | Round 2, identity at 5d7a14bdf | Round 3, execution at 351fb8a4d | Round 4, cash at 1ad7463ac | Round 5, integration at 387d29149 |
+| --- | --- | --- | --- | --- | --- |
+| GPT-6.1 Terra | 8.5/10, approve | 8.5/10, approve | 8.5/10, approve | 8.5/10, approve | 8.5/10, approve |
+| GPT-6.1 Sol | 9/10, approve | 9/10, approve | 9/10, approve | 8/10, request changes | 8.5/10, request changes |
+| GPT-6 Astra | 8/10, request changes | 9/10, approve | 9/10, approve | cancellation requested, no score | 8/10, request changes |
 
 Nothing has been pushed by this review task yet.

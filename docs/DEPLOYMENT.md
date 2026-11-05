@@ -399,7 +399,10 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
      provider just to publish a release. Supported-provider API checks (for example Alpaca history) may
      be run separately with authorized test credentials.
    - Local quick check (matches release workflow selection):
-     - `python3 -m pytest -m "not apitest and not downloader" --tb=short -q --durations=30`
+     - `PYTHON_DOTENV_DISABLED=1 LUMIBOT_DISABLE_DOTENV=1 python3 -m pytest -m "not apitest and not downloader" --tb=short -q --durations=30`
+     - Disable both direct python-dotenv discovery and LumiBot's discovery for an isolated unit run. Some historical test modules call `load_dotenv()` during collection even when their provider tests are later deselected. Tests specifically exercising dotenv discovery opt in within their own fixtures.
+     - Match the offline CCXT documentation dependency to `docsrc/_data/ccxt_exchange_facts.json`'s `ccxt_version`, as the source CI installer does. A different allowed runtime version can expose different catalog metadata without establishing a broker execution regression.
+     - Before a broad native run, verify `import scipy.stats, scipy.sparse.linalg` succeeds in that environment. Record the actual native dependency versions; a platform loader error is not a passing metrics test, and must not be hidden by changing assertions or weakening the operating system's loader.
    - If the local quick check times out, do not guess. Record the timeout result, run targeted tests for the changed
      areas, push the version branch, and gate release on green GitHub CI for the same marker expression.
 

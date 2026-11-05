@@ -319,6 +319,26 @@ Optional. Most AI strategies do not need this: agents pass plain-language notes 
 
 With a pydantic model, ``result.parsed`` is an instance of that model. When the answer does not match, ``result.parsed`` is ``None``, ``result.parse_error`` explains why, and ``result.warnings`` contains a ``structured_output_invalid`` entry. No extra model call is made. Tools still work normally; the schema only shapes the final answer.
 
+For a gate whose whole answer is a label, set ``NACE_API_KEY`` to have `Drex <https://console.nace.ai/docs/drex>`_ answer instead. Drex is a decision model that returns a probability for each label, not generated text. It applies to agents with no tools whose ``output_schema`` properties are all string ``enum`` or ``boolean`` fields:
+
+.. code-block:: python
+
+    GATE = {
+        "type": "object",
+        "properties": {"verdict": {"type": "string", "enum": ["PASS", "VETO"]}},
+        "required": ["verdict"],
+    }
+
+    self.agents.create(
+        name="gate",
+        system_prompt="VETO if the 3-session return is below -5% or the buy would put more than 20% of the portfolio in it.",
+        tools=[],
+        include_builtin_tools=False,
+        output_schema=GATE,
+    )
+
+``result.parsed`` has the same shape and ``result.model`` reads ``nace/drex-max-finance``. The trace event keeps the label probabilities. If a Drex call fails, LumiBot logs a warning and the agent's own model answers. Other agents are unaffected.
+
 Running a Backtest
 ------------------
 

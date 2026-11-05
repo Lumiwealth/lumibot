@@ -1174,6 +1174,14 @@ ANTHROPIC_API_KEY
 - Values: Obtain from https://console.anthropic.com/.
 - Required when ``default_model`` looks like ``anthropic/claude-opus-4-7`` or any other ``anthropic/...`` id.
 
+NACE_API_KEY
+^^^^^^^^^^^^
+
+- Purpose: Optional. Lets Drex, Nace's decision model, answer decision-only agents: agents with no tools whose ``output_schema`` properties are all string ``enum`` or ``boolean`` fields.
+- Values: Obtain from https://console.nace.ai.
+- Default: unset (every agent uses its own model).
+- Notes: The agent's own model key is still required. That model answers every other agent, and it is the fallback when a Drex call fails. ``NACE_DEFAULT_DECISION_MODEL`` selects the Drex model (default ``drex-max-finance``). ``NACE_BASE_URL`` sets the API host (default ``https://console.nace.ai``).
+
 Other providers (Groq, Mistral, Cohere, Fireworks, Together, etc.) use the provider-prefixed id format and the corresponding provider env var; see the LiteLLM documentation for the full list.
 
 SEC fundamentals and agent memory

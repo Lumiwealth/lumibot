@@ -299,6 +299,10 @@ When reporting discovery or publication times, copy each returned timestamp
 exactly, including its date and UTC offset. If a conversion is necessary,
 compute it with a tool first and report the same instant. Never attach one
 timezone's offset to clock digits taken from another timezone.
+Prefer one verified timestamp representation per cited source. Omit unrequested
+alternate-zone renderings. Never say two representations are equivalent without
+a tool-verified conversion; a second invented representation contradicts the
+source even when the first timestamp and cutoff decision were correct.
 
 Retain the exact URL, source timestamp and hash together. These optional
 hash values must be copied in full from the selected row, without abbreviations,
@@ -345,7 +349,11 @@ before calculating again. If quantity estimates remain inconsistent, retain a
 supported holding with an explicitly labeled value proxy rather than silently
 clipping its quantity to zero.
 
-Keep quantities, value ranges and transaction amounts distinct. If a quantity
+Keep quantities, value ranges and transaction amounts distinct. In a mixed
+table, label the meaning beside each amount: an acquisition's transaction range
+is not a holding valuation. Use separate columns or a row-local qualifier;
+a later disclaimer cannot repair a misleading value heading or cell.
+If a quantity
 is unknown, make an evidence-based estimate when permitted and label it; retain
 an unresolved amount when no reasonable estimate is supported. Never invent
 holdings, option terms, exact amounts or source contents to complete a ranking.
@@ -375,3 +383,10 @@ holdings, option terms, exact amounts or source contents to complete a ranking.
 6. Cite the URLs and dates (or disclosed estimates) and numbers actually used.
    Explain retrieval failures from returned errors and actual arguments.
    Do not turn a corrected retry into an invented account of why it first failed.
+   For an undated source, finish the requested approximation: report its useful
+   finding, an estimated publication window supported by its contents/context,
+   and the evidence and uncertainty behind that estimate. An exact release time
+   remaining unverified does not cancel a supported approximate finding. Do not
+   replace this estimate with "unknown" or refuse solely because the source
+   omits a date. If no reasonable window can be inferred, explain the specific
+   missing evidence; never manufacture a precise date or use known future content.

@@ -28,6 +28,14 @@ retain the one-regression-run policy. New or changed cases still require all
 configured three or five current actor/judge passes; they cannot inherit another
 case's establishment or the earlier version of their own definition.
 
+An explicitly selected immutable published receipt can retain verified original
+establishment when private raw journals expire. Keep its original source, call
+identities, usage, timestamps and evidence digests. The current subscription
+journal accounts for current actors and calibration; historical calls remain
+in their verified establishment proof and must not be recreated as native
+journal entries. Duplicate calls across either proof are still rejected. A
+failed or incomplete original native attempt cannot fall back to an older pass.
+
 ## TL;DR (do this in order)
 
 1) **Run the release preflight first.** If branch, `setup.py`, `CHANGELOG.md`, tag, or `dev` state is inconsistent, stop. Do not tag. Do not deploy BotManager. Fix the branch first.
@@ -117,6 +125,11 @@ Python floor; do not install an incompatible wheel or silently drop Python
 ---
 
 ## CI shard arguments
+
+Unit-test jobs in both source CI and the tag-release workflow fetch full Git
+history. Published-qualification provenance checks read immutable historical
+release objects; a shallow checkout cannot verify that evidence. Keep this
+checkout requirement when changing job matrices or recovery flows.
 
 Pass collected test paths and node IDs as quoted Bash array elements. Parametrized IDs can contain spaces; unquoted command substitution splits those IDs and prevents the selected tests from running.
 
@@ -373,6 +386,7 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
      are setup failures. Record added versions and preserve compatible passes;
      never mutate the shared SDK environment while model workers are active.
    - Native inference may retain its actual original source/time through `ci/agent-evals/source-compatibility.json` only when `scripts/qualify_agent_evals.py verify` proves the complete source comparison. This applies to the maintained Pandas fixtures, unused external IBKR modules, and comment-only edits in unexecuted examples when the complete Python syntax tree (including prompts and docstrings) is identical. Actor/judge/fixture/shared-code changes still require normal native qualification. Never rewrite historical fingerprints or timestamps to a candidate.
+   - If private raw journals have expired, `--established-source <full published commit>` can retain that commit's already-published original establishment receipt. The verifier checks its original Git source, exact unchanged case definitions, SDK tuple, funding, calls, usage and timestamps; it does not reconstruct native rows. Every retained case still needs current-source regression inference. Cases absent from that original establishment, changed cases and current failures retain their full required repetitions. Keep active journals in the release workspace until the entire consuming release closes; finishing an intermediate worktree is not permission to discard accounting or transcripts still needed by later qualification.
    - Ensure required CI checks are green (unit + backtest + acceptance gates as applicable).
    - The standard gate is portable: no paid historical-data subscription or shared remote cache is required.
      `tests/backtest/test_alpaca_release_backtest.py` runs the real Alpaca adapter and backtest engine with
@@ -582,6 +596,39 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
        after tagging, it may have installed the old version from cache. Wait and re-deploy.
 
 ---
+
+## Local admission and exact-candidate release merges
+
+On the maintained release workstation, use the installed admission owner for
+an authorized version-release PR:
+
+```bash
+python3 ~/.config/botspot-main-admission/local_main_admission.py \
+  merge-release-pr Lumiwealth/lumibot <release-pr-number>
+```
+
+The helper checks the release branch, green GitHub checks and exact current head.
+A missing code-owner review may be bypassed only after Rob explicitly approves
+that exact candidate; the helper is not blanket permission for an admin merge.
+If the head changes, preserve the previous approval and obtain authority for the
+new candidate. Reverify the SDK actor/judge receipt on the actual dev merge before
+tagging. Record approval, head, merge, tag and publication run separately.
+
+A single-branch clone may fetch `dev` into FETCH_HEAD without refreshing
+`origin/dev`. Inspect its fetch refspec and explicitly fetch the intended refs
+before switching:
+
+```bash
+git fetch origin refs/heads/dev:refs/remotes/origin/dev
+git fetch origin refs/heads/version/X.Y.Z:refs/remotes/origin/version/X.Y.Z
+```
+
+Switch only with a clean, understood tree and verify HEAD, package version and
+`git status` after the command. Check each command's exit status before dependent
+operations. A failed switch is not evidence that the requested branch is active.
+Never discard uncommitted changes to repair a tracking-ref problem. After
+publication, switch immediately to the automatically created next version branch
+and run the existing post-release checkout verifier.
 
 ## Common pitfalls (learned the hard way)
 

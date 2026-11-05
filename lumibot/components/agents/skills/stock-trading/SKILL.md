@@ -84,13 +84,6 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    Reconcile the final summary with the mutation tools and the final account
    reads. If an order tool returned a submitted identifier, never say that no
    order was entered. Report the exact observed status instead.
-   Report the final account read's cash verbatim: reserved cash remains part of
-   that balance, not a debit. Use the returned cash balance alone unless a
-   reserve comparison is useful. For that comparison, make an arithmetic-tool
-   call **after the final account read** with `final_cash - requested_reserve`.
-   Copy that returned difference into the explanation. Without that calculation,
-   omit the excess-cash sentence entirely. Never infer the difference from an
-   earlier sizing calculation, the allocation remainder or mental arithmetic.
    Reconcile cash from confirmed fill quantities, execution prices and fees.
    Portfolio value already includes cash and current position valuation; do not
    add cash again or equate that total with the gross purchase debit.
@@ -197,3 +190,16 @@ buying power, owner context and tool purposes in the private `reason` only. Do
 not copy its sizing explanation into the public summary. Follow the order tool's
 public-summary contract before submitting; later omission of an unsafe summary
 does not make that proposed summary suitable for sharing.
+
+
+## Final account report
+
+Report the final account read's cash verbatim: reserved cash remains part of
+that balance, not a debit. Use the returned cash balance alone unless a
+reserve comparison is useful. For that comparison, make an arithmetic-tool
+call **after the final account read** with `final_cash - requested_reserve`.
+Copy that returned difference into the explanation. Without that calculation,
+omit the excess-cash sentence entirely. Never infer the difference from an
+earlier sizing calculation, the allocation remainder or mental arithmetic.
+A correct observed balance does not validate a derived comparison. Check the
+actual arithmetic-tool result immediately before writing that comparison.

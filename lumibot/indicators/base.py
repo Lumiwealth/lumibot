@@ -40,9 +40,9 @@ Contract
 * ``describe()`` returns a JSON-safe schema (inputs, outputs, levels) for UIs
   and AI agents.
 
-Cost: a closed update calls ``step`` once on the live state, which for every
-built-in is O(1) per bar (rolling state, no history recompute). A forming
-update also copies the committed state first; that copy is sized by the
+Cost: an update calls ``step`` once on a staged copy of the committed state.
+The calculation for every built-in is O(1) per bar (rolling state, no history
+recompute); the copy is sized by the
 indicator's windows (its ``length`` inputs), never by how much history has
 been processed.
 """
@@ -275,7 +275,7 @@ def iter_bars(bars) -> Iterable[Bar]:
 
 
 def _copy_state(state):
-    """Throwaway copy of committed state for a forming bar.
+    """Staged copy of committed state for a live or historical update.
 
     A pickle round trip copies plain data (dicts, lists, deques, numbers and
     the primitives) several times faster than ``copy.deepcopy``. State that
@@ -380,19 +380,23 @@ class Indicator:
 
     def update(self, bar, closed: bool = True) -> dict:
         """Process one bar. ``closed=False`` evaluates a forming bar without
-        advancing state (rollback-safe); ``closed=True`` commits it."""
+        advancing state; ``closed=True`` commits only after calculation and
+        output validation succeed. A failed update leaves committed state
+        unchanged, so the same bar can be retried."""
         bar = to_bar(bar)
         if bar.time is not None and self._last_time is not None and bar.time <= self._last_time:
             raise ValueError(
                 f"bar time {bar.time} must be after the last closed bar time {self._last_time}"
             )
-        state = self._state if closed else _copy_state(self._state)
+        state = _copy_state(self._state)
         values = self.step(state, bar) or {}
+        result = {spec.id: _clean(values.get(spec.id)) for spec in self.outputs}
         if closed:
+            self._state = state
             self._bars_seen += 1
             if bar.time is not None:
                 self._last_time = bar.time
-        return {spec.id: _clean(values.get(spec.id)) for spec in self.outputs}
+        return result
 
     def feed(self, bars) -> dict:
         """Commit many closed bars to this instance and return their outputs as series."""

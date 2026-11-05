@@ -14,6 +14,7 @@ Deploy marker: 698b5b7645611a5d888e1ef869db877ef99afe4e
 - Preserve verified published establishment evidence when private evaluation journals have expired, while retaining original provenance and requiring current-source regression inference and full repetitions for changed or unestablished cases.
 - Restore lazy credential aliases after their qualification test so later broker and strategy tests do not inherit a synthetic data source.
 - Create the default backtest output directory before exporting results, including first runs with custom report paths and file logging disabled.
+- Preserve provider-resolved futures contract multipliers when a backtest strategy recreates an asset and reuses its cached ProjectX history.
 
 ## 4.6.47 - 2026-11-05
 

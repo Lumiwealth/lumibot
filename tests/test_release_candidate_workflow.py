@@ -83,6 +83,21 @@ def test_source_ci_and_release_share_the_exact_eval_sdk_constraints():
     assert "cache" not in lint_python["with"]
 
 
+@pytest.mark.parametrize("workflow_name", ["release.yml", "cicd.yaml"])
+def test_unit_jobs_retain_immutable_release_history(workflow_name):
+    root = Path(__file__).resolve().parents[1]
+    workflow = yaml.load(
+        (root / ".github/workflows" / workflow_name).read_text(), Loader=yaml.BaseLoader,
+    )
+    checkout = next(
+        step for step in workflow["jobs"]["unit-tests"]["steps"]
+        if step.get("uses", "").startswith("actions/checkout@")
+    )
+    assert checkout.get("with", {}).get("fetch-depth") == "0", (
+        "Published qualification provenance tests need the original immutable Git objects"
+    )
+
+
 def test_release_and_source_qualification_await_completion_without_shell_deadlines():
     root = Path(__file__).resolve().parents[1]
     for name in ("release.yml", "cicd.yaml"):

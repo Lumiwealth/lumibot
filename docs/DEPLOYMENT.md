@@ -126,6 +126,11 @@ Python floor; do not install an incompatible wheel or silently drop Python
 
 ## CI shard arguments
 
+Unit-test jobs in both source CI and the tag-release workflow fetch full Git
+history. Published-qualification provenance checks read immutable historical
+release objects; a shallow checkout cannot verify that evidence. Keep this
+checkout requirement when changing job matrices or recovery flows.
+
 Pass collected test paths and node IDs as quoted Bash array elements. Parametrized IDs can contain spaces; unquoted command substitution splits those IDs and prevents the selected tests from running.
 
 ## Branch + Version Rules (STRICT)

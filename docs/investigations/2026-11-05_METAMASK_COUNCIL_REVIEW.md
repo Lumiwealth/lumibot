@@ -4,7 +4,7 @@ Incremental verification of the native broker and PR 1262.
 
 Last Updated: 2026-11-05
 
-Status: In progress; round-7 unanimously approved, lifecycle ordering recheck pending
+Status: Local code review complete; unanimous round-8 approval, publication and live qualification pending
 
 Audience: LumiBot maintainers and reviewers
 
@@ -137,11 +137,12 @@ state and typed sent/received activity support the chosen distinction between
 checked empty history and incomplete/unavailable reads; no UI was added.
 https://mobbin.com/flows/07e1b5a9-a7a8-4b52-85ad-20ad8b1fd30e?tab=screens
 
-## Remaining checkpoints
+## Remaining external gates
 
-1. Council approval or correction of normalized cash activity.
-2. Installation guidance, final artifact/PR evidence, full affected gate and final
-   whole-PR council approval.
+Local implementation, affected validation and final whole-PR council review are
+complete. Publication of the prepared commits and PR description requires the
+user's explicit push authorization. Current remote CI and maintainer review
+remain separate gates; old PR checks do not validate this candidate.
 
 The source installation guide now selects the actual PR branch and prints its
 head, instead of pointing at `dev` while describing unmerged fixes. Published
@@ -297,6 +298,26 @@ whitespace checks. No authority, cleanup, journal or packaged-runtime behavior
 changed. The final three-model recheck covers this small ordering correction
 and retains the approved whole-integration conclusions.
 
+## Final council verdict
+
+Round 8 at `6d80f7e8b72c22d9c3685b31c4b7757e7485a5c5` approved the final
+whole-PR code unanimously: Terra **8.5/10**, Sol **9/10**, Astra **9/10**.
+No P1/P2 or remaining lesser findings. Each retained the unanimous round-7
+whole-integration conclusions and independently inspected the final ordering
+change and affected caller. Terra passed the new failure regression; Sol passed
+two focused failure checks; Astra ran an independent before/after extracted-main
+probe confirming constructor calls fall from one to zero after initial receipt
+failure. These are code-review/offline checks, not funded production proof.
+
+All reproduced findings were corrected, with negative controls and focused
+verification at each checkpoint. Local code is ready for PR review within the
+documented managed-wallet/default-DEX scope. This verdict does not certify
+production trading, authenticated/funded paths, downstream deployment, clean
+dependency resolution or fresh Python 3.10/current remote CI. No trading,
+authority renewal, push, merge, release or deployment occurred during this task.
+The final evidence-record update changes this document only; reviewed executable
+source remains identical to the approved round-8 commit.
+
 ## Exhaustive coverage inventory
 
 The initial audit traced all active native modules and connected callers; final
@@ -376,13 +397,13 @@ solution, including shared harness guards, receives a fresh three-model review.
 Round 6 results and the recovery-reporting correction are detailed above. A new
 three-model pass reviews the full corrected outcome and affected failure paths.
 
-Round 7 approved unanimously; the small lifecycle ordering correction and final
-recheck are described above.
+Rounds 7 and 8 approved unanimously; the small lifecycle ordering correction and
+final checks are described above. No further code changes are pending.
 
-| Delegate | R1 identity | R2 identity | R3 execution | R4 cash | R5 integration | R6 corrections | R7 recovery |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| GPT-6.1 Terra | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve |
-| GPT-6.1 Sol | 9/10 approve | 9/10 approve | 9/10 approve | 8/10 request changes | 8.5/10 request changes | 9/10 approve | 9/10 approve |
-| GPT-6 Astra | 8/10 request changes | 9/10 approve | 9/10 approve | cancellation requested, no score | 8/10 request changes | 8.5/10 request changes | 9/10 approve |
+| Delegate | R1 identity | R2 identity | R3 execution | R4 cash | R5 integration | R6 corrections | R7 recovery | R8 final |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| GPT-6.1 Terra | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve | 8.5/10 approve |
+| GPT-6.1 Sol | 9/10 approve | 9/10 approve | 9/10 approve | 8/10 request changes | 8.5/10 request changes | 9/10 approve | 9/10 approve | 9/10 approve |
+| GPT-6 Astra | 8/10 request changes | 9/10 approve | 9/10 approve | cancellation requested, no score | 8/10 request changes | 8.5/10 request changes | 9/10 approve | 9/10 approve |
 
 Nothing has been pushed by this review task yet.

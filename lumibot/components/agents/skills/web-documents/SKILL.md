@@ -349,7 +349,11 @@ before calculating again. If quantity estimates remain inconsistent, retain a
 supported holding with an explicitly labeled value proxy rather than silently
 clipping its quantity to zero.
 
-Keep quantities, value ranges and transaction amounts distinct. If a quantity
+Keep quantities, value ranges and transaction amounts distinct. In a mixed
+table, label the meaning beside each amount: an acquisition's transaction range
+is not a holding valuation. Use separate columns or a row-local qualifier;
+a later disclaimer cannot repair a misleading value heading or cell.
+If a quantity
 is unknown, make an evidence-based estimate when permitted and label it; retain
 an unresolved amount when no reasonable estimate is supported. Never invent
 holdings, option terms, exact amounts or source contents to complete a ranking.

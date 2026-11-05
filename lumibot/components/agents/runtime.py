@@ -1864,7 +1864,8 @@ class GoogleADKRuntime:
             },
         }
 
-    def _build_user_text(self, request: RuntimeRequest) -> str:
+    @staticmethod
+    def _build_user_text(request: RuntimeRequest) -> str:
         sections: list[str] = []
         tool_names = {tool.name for tool in request.bound_tools}
         if request.runtime_context:

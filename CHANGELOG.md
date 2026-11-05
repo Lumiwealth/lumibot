@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.6.48 - Unreleased
+
+### Added
+- Optional Drex answers for decision-only agents. With `NACE_API_KEY` set, an agent with no tools whose `output_schema` holds only string enums and booleans gets its answer from Drex, a decision model that returns a probability per label. The agent's own model answers when the key is unset, and also when a Drex call fails, after a logged warning. `result.model`, the trace and the replay cache record which model answered.
+
 ## 4.6.47 - 2026-11-05
 
 Deploy marker: 97d41b56ff42bd0c200c3b2f1f98f395bf1c8dfc

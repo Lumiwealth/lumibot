@@ -261,15 +261,37 @@ def build_establishment(rows, call_rows, cases, *, source_ref, versions, now=Non
     # definitions can receive its once-per-regression shortcut.
     runtime_hash = establishment_runtime(source_ref, [], versions)
     unchanged = unchanged_establishment_cases(source_ref, cases)
-    _, calls = subscription_call_state(call_rows)
+    if rows and not call_rows:
+        raise ValueError("Native subscription call ledger is required for native rows")
+    calls = subscription_call_state(call_rows)[1] if call_rows else {}
     established = []
+    original_attempts_present = False
     for case in unchanged:
         fingerprint = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash=runtime_hash)
         latest = evals.latest_repetition_rows(rows, case["id"], fingerprint)
+        original_attempts_present |= bool(latest)
         if (len(latest) >= evals.case_required_passes(case)
                 and all(row.get("status") == "pass" for row in latest.values())):
             established.append(case)
     records = project_case_records(rows, calls, established, runtime_hash=runtime_hash, now=now)
+    if not records and not original_attempts_present:
+        # Published receipts already retain the original source, native call
+        # identities, usage, times and evidence digests. Reuse that verified
+        # establishment after private raw artifacts expire; never manufacture
+        # replacement actor rows or relabel their historical source.
+        from scripts import agent_eval_source_compatibility as source
+        path = "ci/agent-evals/qualification.json"
+        if source._git("ls-tree", "--name-only", source_ref, "--", path, root=evals.REPO_ROOT).strip():
+            published = json.loads(source._git("show", f"{source_ref}:{path}", root=evals.REPO_ROOT))
+            prior = published.get("establishment")
+            if prior:
+                if published.get("sdk_versions") != versions or published.get("funding") != "chatgpt-plan":
+                    raise ValueError("Published establishment SDK or funding mismatch")
+                compatible = {case["id"] for case in unchanged_establishment_cases(prior["source_commit"], cases)}
+                proof = {**prior, "cases": {key: value for key, value in prior["cases"].items()
+                                            if key in compatible}}
+                validate_establishment(proof, cases, versions=versions, now=now)
+                return proof
     proof = {"source_commit": source_ref, "runtime_fingerprint": runtime_hash, "cases": records}
     validate_establishment(proof, cases, versions=versions, now=now)
     return proof

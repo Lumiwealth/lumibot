@@ -2,6 +2,8 @@
 
 ## 4.6.48 - 2026-11-05
 
+Deploy marker: 698b5b7645611a5d888e1ef869db877ef99afe4e
+
 ### Fixed
 - Preserve decimal ProjectX protective-exit prices when rounding to contract ticks, and retain account positions and orders on the first ordinary strategy read.
 - Initialize optional secondary price fields for explicitly typed market orders, preserving the same order shape as inferred market orders.

@@ -9,6 +9,9 @@ Deploy marker: ef37fd7223b91750067d88695d8be0b44affd85c
 - Optional total-quantity amendments through the normal broker, strategy and order-agent modification APIs while preserving price-only callers.
 
 ### Fixed
+- Preserve exact fractional Schwab equity quantities through replacements and advanced-order children.
+- Retain deferred futures expiry identity across Asset serialization and saved-strategy recovery, including older saved dictionaries.
+- Reuse the selected MetaMask client for data, and preserve native quote and fill-reconciliation recovery checks.
 - Preserve the distinction between reported holding values, transaction amounts and estimates in financial research tables.
 - Keep the last simulated clock when the next market opening is outside the backtest window, avoiding closed-day terminal valuation requests and trading-start callbacks after the end.
 - Initialize the selected ProjectX account before the first REST-only order synchronization. Preserve an existing account selection and report connection failure before requesting orders.

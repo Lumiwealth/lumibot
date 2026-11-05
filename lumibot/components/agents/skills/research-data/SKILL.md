@@ -41,6 +41,11 @@ claiming it was published. A visible authorization error means it was not publis
    evidence, you MUST call `query_data` for at least one relevant macro dataset
    before finishing, as well as retrieving the SEC evidence. One category is not
    a substitute for the other.
+When explaining financial effects, state each metric and its direction
+explicitly. A shared trailing modifier can change the meaning of a list: say
+which values may fall, which costs may rise and which outcomes are uncertain,
+without turning a disclosed risk into an unsupported benefit.
+
 3. Build the final evidence packet from one compact row or entry per source
    request. Keep these fields together: dataset id and source/attribution;
    requested calendar start/end; returned effective `asOf`, release and retrieval

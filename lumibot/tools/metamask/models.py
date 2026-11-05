@@ -7,6 +7,26 @@ from decimal import Decimal, InvalidOperation
 
 from .provider import MetaMaskError, address, identifier, json_object
 
+# Native CAIP identities follow ethereum-lists/chains; unknown chains must not inherit ETH.
+_NATIVE_SLIP44 = {
+    1: 60,
+    10: 60,
+    56: 714,
+    97: 1,
+    137: 966,
+    324: 60,
+    8453: 60,
+    42161: 60,
+    421614: 1,
+    43114: 9005,
+    43113: 1,
+    59144: 60,
+    80002: 1,
+    84532: 1,
+    11155111: 1,
+    11155420: 1,
+}
+
 
 def decimal(value: object, *, positive: bool = False) -> Decimal:
     if isinstance(value, bool) or not isinstance(value, (str, int, float, Decimal)):
@@ -53,7 +73,13 @@ class TokenAsset:
 
     @property
     def caip(self) -> str:
-        token = "slip44:60" if self.address == "native" else "erc20:" + self.address
+        if self.address == "native":
+            coin = _NATIVE_SLIP44.get(self.chain_id)
+            if coin is None:
+                raise MetaMaskError("NATIVE_ASSET_UNSUPPORTED", "Native price identity is not defined for this chain")
+            token = f"slip44:{coin}"
+        else:
+            token = "erc20:" + self.address
         return f"eip155:{self.chain_id}/{token}"
 
     def record(self) -> dict[str, object]:
@@ -107,6 +133,13 @@ class Binding:
             raise MetaMaskError("INVALID_BINDING", "Binding must name its permitted markets")
         if not isinstance(chains, list) or not chains or not isinstance(assets, list):
             raise MetaMaskError("INVALID_BINDING", "Binding requires chain and token registries")
+        parsed_chains = tuple(positive_integer(chain, "chain") for chain in chains)
+        parsed_assets = tuple(TokenAsset.parse(asset) for asset in assets)
+        identities = [(asset.chain_id, asset.address) for asset in parsed_assets]
+        if len(set(identities)) != len(identities):
+            raise MetaMaskError("INVALID_BINDING", "Asset registry contains duplicate chain and contract identities")
+        if any(asset.chain_id not in parsed_chains for asset in parsed_assets):
+            raise MetaMaskError("INVALID_BINDING", "Asset registry contains an unapproved chain")
         leverage = positive_integer(value.get("maxLeverage"), "maximum leverage")
         slippage = positive_integer(value.get("maxSlippageBps"), "maximum slippage")
         if leverage > 50 or slippage > 500:
@@ -119,8 +152,8 @@ class Binding:
             expiry,
             digest,
             tuple(markets),
-            tuple(positive_integer(chain, "chain") for chain in chains),
-            tuple(TokenAsset.parse(asset) for asset in assets),
+            parsed_chains,
+            parsed_assets,
             decimal(value.get("maxOrderUsd"), positive=True),
             decimal(value.get("maxDailyUsd"), positive=True),
             leverage,

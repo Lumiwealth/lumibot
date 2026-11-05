@@ -207,6 +207,65 @@ def test_fill_deltas_and_prices_are_not_double_counted(broker):
     assert calls[1].args[1] == broker.FILLED_ORDER
 
 
+@pytest.mark.parametrize("restored", [False, True])
+def test_cumulative_fees_reach_orders_and_trade_events_without_replayed_fills(broker, restored):
+    item = order(time_in_force="ioc")
+    request = {
+        "kind": "perp",
+        "symbol": "BTC",
+        "quantity": "0.001",
+        "side": "buy",
+        "orderType": "market",
+        "leverage": 1,
+        "tif": "ioc",
+        "reduceOnly": False,
+    }
+    first = {
+        **observation(item, "partial_fill", "0.0004", "20000"),
+        "request": request,
+        "fees": [{"asset": "USDC", "amount": "0.004"}],
+    }
+    if restored:
+        item = broker._parse_broker_order(first, item.strategy)
+    else:
+        broker._observe(item, first)
+        assert broker._trade_event_log_df.iloc[-1]["trade_cost"] == pytest.approx(0.004)
+    assert item.trade_cost == pytest.approx(0.004)
+    final = {**first, "state": "filled", "filledQuantity": "0.001", "fees": [{"asset": "USDC", "amount": "0.009"}]}
+    broker._observe(item, final)
+    assert item.trade_cost == pytest.approx(0.009)
+    assert broker._trade_event_log_df.iloc[-1]["trade_cost"] == pytest.approx(0.009)
+    transactions, events = len(item.transactions), len(broker._trade_event_log_df)
+    broker._observe(item, final)
+    broker._observe(item, {**final, "fees": [{"asset": "USDC", "amount": "0.010"}]})
+    assert item.trade_cost == pytest.approx(0.010)
+    missing_fees = dict(final)
+    missing_fees.pop("fees")
+    broker._observe(item, missing_fees)
+    assert item.trade_cost == pytest.approx(0.010)
+    assert len(item.transactions) == transactions and len(broker._trade_event_log_df) == events
+
+
+@pytest.mark.parametrize("currency,expected", [("USDC", -0.001), ("OTHER", None)])
+def test_fee_projection_keeps_rebates_and_does_not_guess_exchange_rates(broker, currency, expected):
+    item = order()
+    broker._observe(
+        item, {**observation(item, "filled", "0.001", "20000"), "fees": [{"asset": currency, "amount": "-0.001"}]}
+    )
+    assert item.trade_cost == expected
+    assert item._raw["fees"] == [{"asset": currency, "amount": "-0.001"}]
+
+
+@pytest.mark.parametrize(
+    "fees", [None, {}, [{}], [{"asset": "USDC", "amount": "NaN"}], [{"asset": "USDC", "amount": "1e400"}]]
+)
+def test_invalid_fee_evidence_cannot_become_a_reported_execution(broker, fees):
+    item = order()
+    with pytest.raises(MetaMaskAPIError):
+        broker._observe(item, {**observation(item, "filled", "0.001", "20000"), "fees": fees})
+    assert item.transactions == [] and item.trade_cost is None
+
+
 @pytest.mark.parametrize("restore", [False, True])
 def test_fill_deltas_ignore_strategy_decimal_context(broker, restore):
     item = order()

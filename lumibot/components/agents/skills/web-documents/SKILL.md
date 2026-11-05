@@ -299,6 +299,10 @@ When reporting discovery or publication times, copy each returned timestamp
 exactly, including its date and UTC offset. If a conversion is necessary,
 compute it with a tool first and report the same instant. Never attach one
 timezone's offset to clock digits taken from another timezone.
+Prefer one verified timestamp representation per cited source. Omit unrequested
+alternate-zone renderings. Never say two representations are equivalent without
+a tool-verified conversion; a second invented representation contradicts the
+source even when the first timestamp and cutoff decision were correct.
 
 Retain the exact URL, source timestamp and hash together. These optional
 hash values must be copied in full from the selected row, without abbreviations,

@@ -4,7 +4,7 @@ Incremental verification of the native broker and PR 1262.
 
 Last Updated: 2026-11-05
 
-Status: In progress; correcting cash review and preparing final integration review
+Status: In progress; corrections verified, full-integration council review pending
 
 Audience: LumiBot maintainers and reviewers
 
@@ -149,6 +149,44 @@ PyPI metadata currently reports 4.6.47 with the MetaMask extra, but that does no
 contain these unmerged changes. Both guides distinguish historical funded and
 installed-wheel receipts from this candidate's unqualified execution paths.
 
+## Final candidate evidence
+
+Corrected source: `9ec0af245b74749461d081aa3aa56fbfa6f9e5f0`.
+Latest fetched `origin/dev` remains `3540c7f6e2dcfd2e30ef2a253b66bb0fc076df3b`
+and is already an ancestor. Working tree was clean after the correction commit.
+Remote PR still points at its earlier head; local merge resolution and new
+fixes have not been pushed. No unresolved GitHub review threads were present.
+
+- Final affected gate: `tests/test_metamask*.py`, standard cash-event tests,
+  dotenv isolation and package-manifest checks: **590 passed, 5 skipped**.
+  All five connected skips report that private native testnet configuration is
+  not supplied. Tests use Python 3.12; old remote Python 3.10 CI is not fresh
+  evidence for this candidate.
+- Complete MetaMask workflow Ruff check and format passed, 34 files formatted.
+  Dependency check found all 343 installed packages compatible. Whitespace clean.
+- Built wheel from an isolated archive of the corrected source, installed it
+  into a task-local target with existing compatible dependencies, and confirmed
+  that all **280 packaged Python files** exactly match the source archive.
+  Optional MetaMask metadata includes SDK 0.24.0 and the documented dependencies.
+  This was not a fresh dependency resolution or public PyPI artifact install.
+- Wheel SHA256:
+  `a97f708014a410c8bc040b538bfc8ab9da6ef1e7ad9e1c7412884c29390a2568`.
+- Isolated installed-wheel imports resolved to that target. With JavaScript
+  absent from PATH, real public testnet and mainnet requests each returned a
+  positive canonical mixed-case mark and three valid closed BTC minute candles.
+  These reads created no provider client or journal. Installed broker history
+  also distinguished missing identity setup (`unavailable`) from unsupported
+  onchain history (`unsupported`). No authenticated or funded proof is inferred.
+- Full Sphinx build exited successfully. Its new heading-underline diagnostic
+  was corrected, then incremental verification passed with no MetaMask warning
+  or error. One unchanged toctree warning remained in the incremental build;
+  full build logs also retain unrelated existing Tradier docstring diagnostics.
+  Rendered HTML contains candidate installation, cash-coverage guidance and the
+  historical-qualification notice. No claim of a globally warning-free build.
+
+The final review is of the complete integration and corrected cash checkpoint.
+No further suite expansion is required absent new code changes or findings.
+
 ## Exhaustive coverage inventory
 
 The initial audit traced all active native modules and connected callers; final
@@ -217,13 +255,14 @@ integrator independently reproduced -24 USDC, added three failing regressions,
 and normalized addresses and transaction hashes before both identity and
 duplicate comparison. Amount and fee conflicts remain rejected; input records
 remain unchanged. The affected activity/venue selection passed 62 tests.
-Astra's superseded round-4 run was canceled before issuing a verdict. No score
-is assigned. All three models receive a fresh corrected full-integration review.
+Cancellation was requested for Astra's superseded round-4 run before a verdict
+was delivered. No score is assigned. All three models receive a fresh corrected
+full-integration review.
 
 | Delegate | Round 1, identity at a532366db | Round 2, identity at 5d7a14bdf | Round 3, execution at 351fb8a4d | Round 4, cash at 1ad7463ac |
 | --- | --- | --- | --- | --- |
 | GPT-6.1 Terra | 8.5/10, approve | 8.5/10, approve | 8.5/10, approve | 8.5/10, approve |
 | GPT-6.1 Sol | 9/10, approve | 9/10, approve | 9/10, approve | 8/10, request changes |
-| GPT-6 Astra | 8/10, request changes | 9/10, approve | 9/10, approve | canceled, no score |
+| GPT-6 Astra | 8/10, request changes | 9/10, approve | 9/10, approve | cancellation requested, no score |
 
 Nothing has been pushed by this review task yet.

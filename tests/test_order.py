@@ -6,6 +6,16 @@ from lumibot.entities import Asset, Order
 
 
 class TestOrderBasics:
+    @pytest.mark.parametrize("order_type", [None, Order.OrderType.MARKET])
+    def test_plain_market_order_has_all_optional_price_fields(self, order_type):
+        order = Order(strategy="Example", asset=Asset("SPY"), quantity=1, side="sell", order_type=order_type)
+        for field in (
+            "limit_price", "stop_price", "stop_limit_price", "trail_price", "trail_percent",
+            "secondary_limit_price", "secondary_stop_price", "secondary_stop_limit_price",
+            "secondary_trail_price", "secondary_trail_percent",
+        ):
+            assert getattr(order, field) is None
+
     def test_rejected_status_aliases_error_for_broker_rejection_compatibility(self):
         assert Order.OrderStatus.REJECTED == Order.OrderStatus.ERROR
         assert Order.OrderStatus.REJECTED.value == "error"

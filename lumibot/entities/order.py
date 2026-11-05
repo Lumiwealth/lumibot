@@ -506,6 +506,11 @@ class Order:
         self.stop_limit_price = None
         self.trail_price = None
         self.trail_percent = None
+        self.secondary_limit_price = None
+        self.secondary_stop_price = None
+        self.secondary_stop_limit_price = None
+        self.secondary_trail_price = None
+        self.secondary_trail_percent = None
         self.price_triggered = False
         self.take_profit_price = None # Used for bracket, OTO, and OCO orders TODO: Remove this because it is confusing (use child orders instead)
         self.stop_loss_price = None # Used for bracket, OTO, and OCO orders TODO: Remove this because it is confusing (use child orders instead)

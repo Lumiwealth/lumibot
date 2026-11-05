@@ -3,6 +3,8 @@
 ## 4.6.48 - 2026-11-05
 
 ### Fixed
+- Preserve decimal ProjectX protective-exit prices when rounding to contract ticks, and retain account positions and orders on the first ordinary strategy read.
+- Initialize optional secondary price fields for explicitly typed market orders, preserving the same order shape as inferred market orders.
 - Complete supported historical approximations from undated research sources with a disclosed publication-window estimate instead of treating a missing exact date as unavailable evidence.
 - Commit indicator state only after calculation and output validation succeed, preserving retry correctness after an error.
 - Load Kalshi prediction assets on their first normal backtest price, quote, history or fill request, preserving distinct outcomes and simulated-time bounds without requiring a separate preload list.

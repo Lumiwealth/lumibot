@@ -2,7 +2,7 @@
 
 ## 4.6.47 - 2026-11-05
 
-Deploy marker: ef37fd7223b91750067d88695d8be0b44affd85c
+Deploy marker: 97d41b56ff42bd0c200c3b2f1f98f395bf1c8dfc
 
 ### Added
 - Kalshi native contract search, event metadata and settlement rules through the existing data-source interfaces, with distinct YES/NO assets and selected-environment routing.

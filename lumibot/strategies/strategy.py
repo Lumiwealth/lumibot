@@ -4688,8 +4688,22 @@ class Strategy(_Strategy):
         os.makedirs(os.path.dirname(settings_file), exist_ok=True)
         with open(settings_file, "w") as outfile:
             import jsonpickle
+            from jsonpickle.pickler import Pickler
+            from lumibot.brokers.broker import Broker as RuntimeBroker
+            from lumibot.data_sources.data_source import DataSource as RuntimeDataSource
 
-            json = jsonpickle.encode(settings)
+            class SettingsPickler(Pickler):
+                def _flatten_obj_instance(self, obj):
+                    # Report connections without traversing their authenticated
+                    # clients. Keep normal parameter types and graph references
+                    # through this export's own encoder, never global handlers.
+                    if isinstance(obj, RuntimeDataSource):
+                        return {"object_type": type(obj).__name__, "data_source": obj.SOURCE}
+                    if isinstance(obj, RuntimeBroker):
+                        return {"object_type": type(obj).__name__}
+                    return super()._flatten_obj_instance(obj)
+
+            json = jsonpickle.encode(settings, context=SettingsPickler())
             outfile.write(json)
 
     def _parse_timestep(self, timestep: str) -> tuple:

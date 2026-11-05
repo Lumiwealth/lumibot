@@ -3,6 +3,7 @@
 ## 4.6.48 - 2026-11-05
 
 ### Fixed
+- Complete supported historical approximations from undated research sources with a disclosed publication-window estimate instead of treating a missing exact date as unavailable evidence.
 - Commit indicator state only after calculation and output validation succeed, preserving retry correctness after an error.
 - Load Kalshi prediction assets on their first normal backtest price, quote, history or fill request, preserving distinct outcomes and simulated-time bounds without requiring a separate preload list.
 - Preserve a single verified publication timestamp and label transaction amounts, holding values and estimates at their individual report cells.

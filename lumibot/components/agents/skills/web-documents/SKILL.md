@@ -383,3 +383,10 @@ holdings, option terms, exact amounts or source contents to complete a ranking.
 6. Cite the URLs and dates (or disclosed estimates) and numbers actually used.
    Explain retrieval failures from returned errors and actual arguments.
    Do not turn a corrected retry into an invented account of why it first failed.
+   For an undated source, finish the requested approximation: report its useful
+   finding, an estimated publication window supported by its contents/context,
+   and the evidence and uncertainty behind that estimate. An exact release time
+   remaining unverified does not cancel a supported approximate finding. Do not
+   replace this estimate with "unknown" or refuse solely because the source
+   omits a date. If no reasonable window can be inferred, explain the specific
+   missing evidence; never manufacture a precise date or use known future content.

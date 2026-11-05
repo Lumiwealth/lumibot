@@ -164,6 +164,8 @@ class StrategyExecutor(Thread):
         self.queue = Queue()
         self.priority_queue = Queue()
         self._event_drain_lock = RLock()
+        self._smart_limit_lock = RLock()
+        self._smart_limit_pending_replacements = {}
         self._live_iteration_callbacks_ready = False
 
         self.strategy = strategy
@@ -270,7 +272,7 @@ class StrategyExecutor(Thread):
         return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
     def _scheduled_record_timing(self, **fields):
-        if not self._scheduled_exact_enabled():
+        if not _truthy(os.environ.get("LUMIBOT_SCHEDULED_EXECUTION")):
             return
         self._get_scheduled_timing().record(**fields)
 
@@ -325,6 +327,9 @@ class StrategyExecutor(Thread):
             elif str(order.status).lower() in {"cancelling", "pending_cancel", "pending_replace", "unprocessed"}:
                 pending["broker_transitions"] = pending.get("broker_transitions", 0) + 1
         queued_callbacks = self.queue.qsize() + self.priority_queue.qsize()
+        replacements = getattr(self, "_smart_limit_pending_replacements", {})
+        if replacements:
+            pending["smart_limit_replacements"] = len(replacements)
         if queued_callbacks:
             pending["order_callbacks"] = queued_callbacks
         return pending
@@ -911,9 +916,141 @@ class StrategyExecutor(Thread):
                 else:
                     self.process_event(event, payload, skip_first_iteration_events=False)
 
+    def _refresh_smart_limit_order(self, order):
+        """Reconcile a mutation's outcome using the broker's normalized reads.
+
+        Streams may be delayed or disconnected. A missing/error response is
+        never cancellation confirmation. Follow only broker-provided replacement
+        links so an old replaced record cannot authorize a duplicate purchase.
+        """
+        pull = getattr(self.broker, "_pull_order", None)
+        apply = getattr(self.broker, "_apply_direct_order_observation", None)
+        if not callable(pull) or not callable(apply):
+            return False
+        try:
+            identifier = order.identifier
+            seen = set()
+            while identifier is not None and str(identifier) not in seen:
+                seen.add(str(identifier))
+                observed = pull(identifier, order.strategy)
+                if observed is None or str(observed.identifier) != str(identifier):
+                    return False
+                if observed.status != Order.OrderStatus.REPLACED:
+                    break
+                identifier = getattr(observed, "replaced_by", None)
+            else:
+                return False
+            if str(order.identifier) != str(observed.identifier):
+                order.identifier = observed.identifier
+                for child in order.child_orders:
+                    child.parent_identifier = order.identifier
+            apply(order, observed)
+            return True
+        except Exception as exc:
+            self.strategy.logger.error(f"SMART_LIMIT status refresh failed for {order.identifier}: {exc}")
+            return False
+
+    @staticmethod
+    def _smart_limit_remaining(order):
+        processed = sum((Decimal(str(t.quantity)) for t in order.transactions), Decimal(0))
+        filled = max(processed, Decimal(str(getattr(order, "filled_quantity", 0) or 0)))
+        return max(Decimal(0), Decimal(str(order.quantity)) - filled)
+
+    @staticmethod
+    def _smart_limit_replacement_order(order, quantity):
+        """A new remainder has fresh lifecycle state; never reuse a filled object."""
+        fields = (
+            "strategy", "asset", "side", "quote", "exchange", "time_in_force", "good_till_date", "tag",
+            "stop_price", "stop_limit_price", "trail_price", "trail_percent", "secondary_limit_price",
+            "secondary_stop_price", "secondary_stop_limit_price", "secondary_trail_price", "secondary_trail_percent",
+            "position_side", "position_id", "reduce_only", "order_class",
+        )
+        values = {field: getattr(order, field, None) for field in fields}
+        replacement = Order(**values, quantity=quantity, order_type=Order.OrderType.LIMIT,
+                            limit_price=order.limit_price, custom_params=dict(order.custom_params or {}))
+        if "client_order_id" in replacement.custom_params:
+            replacement.custom_params["client_order_id"] = str(replacement.identifier)
+        return replacement
+
+    def _advance_smart_limit_replacement(self, intent, now):
+        order, state = intent["order"], intent["order"]._smart_limit_state
+        # A submission with an uncertain outcome consumes this attempt. Never
+        # create fresh identities until the broker resolves that attempt.
+        if intent.get("submission_attempted"):
+            return
+        interval = getattr(self.broker, "polling_interval", 5)
+        interval = max(1, float(interval)) if isinstance(interval, (int, float)) else 5
+        if now - intent.get("refresh_at", float("-inf")) < interval:
+            return
+        intent["refresh_at"] = now
+        confirmed = self._refresh_smart_limit_order(order)
+        if not order._closed_event.is_set():
+            if not intent.get("cancel_requested"):
+                try:
+                    self.broker.cancel_order(order)
+                    intent["cancel_requested"] = True
+                except Exception as exc:
+                    self.strategy.logger.error(f"SMART_LIMIT cancel failed for {order.identifier}: {exc}")
+                confirmed = self._refresh_smart_limit_order(order)
+            if not order._closed_event.is_set():
+                return
+        # A fill may win either replace or cancel. Error/expired/replaced is not
+        # an affirmative cancellation of the current live replacement chain.
+        if order.is_filled() or str(order.status).lower() not in {"canceled", "cancelled", "cancel"}:
+            self._smart_limit_pending_replacements.pop(id(order), None)
+            return
+        if not confirmed and not callable(getattr(self.broker, "_pull_order", None)):
+            # A real stream callback can itself confirm terminal cancellation.
+            # Its closed event is sufficient, unlike a copied status string.
+            confirmed = order._canceled_event.is_set()
+        if not confirmed:
+            return
+        deadline = state["step_seconds"] * (state["steps"] - 1) + state["final_hold_seconds"]
+        remaining = self._smart_limit_remaining(order)
+        if remaining <= 0 or now - state["created_at"] >= deadline:
+            self._smart_limit_pending_replacements.pop(id(order), None)
+            return
+        try:
+            if intent["multileg"]:
+                children = []
+                for child in order.child_orders:
+                    expected = Decimal(str(child.quantity)) * remaining / Decimal(str(order.quantity))
+                    if self._smart_limit_remaining(child) != expected:
+                        # Do not duplicate an asymmetrically executed leg while
+                        # the package/leg observations are still inconsistent.
+                        return
+                    children.append(self._smart_limit_replacement_order(child, expected))
+                intent["submission_attempted"] = True
+                submitted = self.broker.submit_orders(
+                    children, is_multileg=True, order_type=intent["order_type"], price=intent["price"],
+                )
+                replacement = submitted[0] if isinstance(submitted, list) and submitted else submitted
+            else:
+                replacement = self._smart_limit_replacement_order(order, remaining)
+                replacement.limit_price = intent["price"]
+                intent["submission_attempted"] = True
+                self.broker.submit_order(replacement)
+            if replacement is None:
+                return
+            replacement.smart_limit = order.smart_limit
+            replacement.order_type = Order.OrderType.SMART_LIMIT
+            replacement._smart_limit_state = dict(state)
+            replacement._smart_limit_state.pop("cancel_requested", None)
+            if intent["multileg"]:
+                replacement._smart_limit_state["multileg_order_type"] = intent["order_type"]
+                replacement.limit_price = 0.0 if intent["price"] is None else float(intent["price"])
+            self._smart_limit_pending_replacements.pop(id(order), None)
+        except Exception as exc:
+            self.strategy.logger.error(f"SMART_LIMIT replacement failed for {order.identifier}: {exc}")
+
     def _process_smart_limit_orders(self):
         if self.broker.IS_BACKTESTING_BROKER:
             return
+
+        with self._smart_limit_lock:
+            self._process_smart_limit_orders_locked()
+
+    def _process_smart_limit_orders_locked(self):
 
         # SMART_LIMIT should only operate on active orders. Scanning the full tracked-order
         # history (which can include large closed/filled histories) in a tight background loop
@@ -926,19 +1063,40 @@ class StrategyExecutor(Thread):
         else:
             orders = [o for o in self.broker.get_tracked_orders(self.strategy.name) if o.is_active()]
 
-        if not orders:
+        pending = self._smart_limit_pending_replacements
+        if not orders and not pending:
             return
 
         now = time.monotonic()
+        # Terminal callbacks remove orders from the active fast path, but a
+        # confirmed-cancel remainder still has one pending replacement intent.
+        for intent in list(pending.values()):
+            self._advance_smart_limit_replacement(intent, now)
         for order in orders:
             smart_limit = getattr(order, "smart_limit", None)
             if smart_limit is None or order.order_type != Order.OrderType.SMART_LIMIT:
                 continue
             if order.is_filled() or order.is_canceled():
                 continue
+            if id(order) in pending:
+                continue
+            state = getattr(order, "_smart_limit_state", None)
+            if state is not None and state.get("cancel_requested"):
+                last_refresh = state.get("cancel_refresh_at", float("-inf"))
+                interval = getattr(self.broker, "polling_interval", 5)
+                interval = max(1, float(interval)) if isinstance(interval, (int, float)) else 5
+                if now - last_refresh >= interval:
+                    state["cancel_refresh_at"] = now
+                    self._refresh_smart_limit_order(order)
+                continue
             if str(order.status).lower() in {"cancelling", "pending_cancel", "pending_replace"}:
                 # Keep the run alive for broker confirmation without repeatedly
                 # canceling/repricing an order whose mutation is already pending.
+                interval = getattr(self.broker, "polling_interval", 5)
+                interval = max(1, float(interval)) if isinstance(interval, (int, float)) else 5
+                if now - getattr(order, "_smart_limit_transition_refresh_at", float("-inf")) >= interval:
+                    order._smart_limit_transition_refresh_at = now
+                    self._refresh_smart_limit_order(order)
                 continue
 
             state = getattr(order, "_smart_limit_state", None)
@@ -969,6 +1127,9 @@ class StrategyExecutor(Thread):
             if step_index == state["steps"] - 1 and elapsed >= final_hold_start + state["final_hold_seconds"]:
                 try:
                     self.broker.cancel_order(order)
+                    state["cancel_requested"] = True
+                    state["cancel_refresh_at"] = now
+                    self._refresh_smart_limit_order(order)
                 except Exception as exc:
                     self.strategy.logger.error(f"SMART_LIMIT cancel failed for {order.identifier}: {exc}")
                 continue
@@ -1044,23 +1205,9 @@ class StrategyExecutor(Thread):
                         should_replace = True
 
                 if should_replace:
-                    try:
-                        self.broker.cancel_order(order)
-                        submitted = self.broker.submit_orders(
-                            order.child_orders,
-                            is_multileg=True,
-                            order_type=target_type,
-                            price=target_price,
-                        )
-                        new_parent = submitted[0] if isinstance(submitted, list) and submitted else submitted
-                        if new_parent is not None:
-                            new_parent.smart_limit = smart_limit
-                            new_parent.order_type = Order.OrderType.SMART_LIMIT
-                            new_parent._smart_limit_state = state
-                            state["multileg_order_type"] = target_type
-                            new_parent.limit_price = 0.0 if target_price is None else float(target_price)
-                    except Exception as exc:
-                        self.strategy.logger.error(f"SMART_LIMIT reprice failed for {order.identifier}: {exc}")
+                    intent = {"order": order, "price": target_price, "order_type": target_type, "multileg": True}
+                    pending[id(order)] = intent
+                    self._advance_smart_limit_replacement(intent, now)
 
                 continue
 
@@ -1087,21 +1234,17 @@ class StrategyExecutor(Thread):
             ladder = build_price_ladder(mid, final_price, smart_limit.get_step_count())
             target_price = round_to_tick(ladder[step_index], tick, side=side)
 
-            if order.limit_price is not None and abs(order.limit_price - target_price) < 1e-9:
+            if order.limit_price is not None and abs(float(order.limit_price) - target_price) < 1e-9:
                 continue
 
-            order.limit_price = target_price
             try:
                 self.broker.modify_order(order, limit_price=target_price)
+                if order.is_active():
+                    order.limit_price = target_price
             except Exception:
-                try:
-                    self.broker.cancel_order(order)
-                    original_type = order.order_type
-                    order.order_type = Order.OrderType.LIMIT
-                    self.broker.submit_order(order)
-                    order.order_type = original_type
-                except Exception as exc:
-                    self.strategy.logger.error(f"SMART_LIMIT reprice failed for {order.identifier}: {exc}")
+                intent = {"order": order, "price": target_price, "order_type": None, "multileg": False}
+                pending[id(order)] = intent
+                self._advance_smart_limit_replacement(intent, now)
 
     def stop(self):
         self.stop_event.set()
@@ -2174,6 +2317,8 @@ class StrategyExecutor(Thread):
 
         # Now go to the actual open without considering minutes_before_opening
         self.strategy.await_market_to_open(timedelta=0)
+        if not self.broker.should_continue():
+            return False
         self._before_starting_trading()
         self.lifecycle_last_date['before_starting_trading'] = self.strategy.get_datetime().date()
 
@@ -2213,7 +2358,7 @@ class StrategyExecutor(Thread):
             iteration_count += 1
 
             # Stop after we pass the backtesting end date
-            if self.broker.IS_BACKTESTING_BROKER and self.broker.datetime > self.broker.data_source.datetime_end:
+            if self.broker.IS_BACKTESTING_BROKER and self.broker.datetime >= self.broker.data_source.datetime_end:
                 break
 
             if not self._is_pandas_daily_data_source():
@@ -2347,7 +2492,7 @@ class StrategyExecutor(Thread):
             # should be a warm-cache, bounded run.
             try:
                 datetime_end = getattr(getattr(self.broker, "data_source", None), "datetime_end", None)
-                if datetime_end is not None and self.broker.datetime > datetime_end:
+                if datetime_end is not None and self.broker.datetime >= datetime_end:
                     # Still run the close lifecycle once so stats/tearsheets have a final mark-to-market
                     # snapshot, but avoid advancing time beyond the configured backtest window.
                     if self.broker.is_market_open():

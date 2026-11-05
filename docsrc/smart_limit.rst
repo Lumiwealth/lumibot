@@ -64,8 +64,28 @@ the package fills atomically at the net midpoint plus slippage. For multi-leg SM
 orders, build a parent Order with ``order_class=Order.OrderClass.MULTILEG`` and provide
 the child leg orders on ``child_orders``.
 
+Live repricing and cancellation
+--------------------------------
+
+SmartLimit first uses the broker's native price-modification operation. If a
+cancel-and-replace is needed, requesting cancellation does not authorize another
+purchase. LumiBot waits for a confirmed outcome and preserves any fills that
+arrive while the price change or cancellation is in flight.
+
+A completed fill prevents replacement. After a confirmed partial cancellation,
+only the unfilled remainder may become a new order, with a fresh identity and no
+copied fill history. A package also waits until its remaining leg quantities
+match the remaining package quantity. Broker-reported replacement links are
+followed before considering a new submission.
+
+If stream updates are delayed, pending SmartLimit mutations are refreshed through
+the broker's normal order reads. Missing observations and uncertain submission
+responses are not treated as successful cancellation or permission to submit
+again. Unresolved work remains visible and can fail the bounded scheduled drain;
+neither acceptance nor a price update guarantees a fill.
+
 Scheduled and run-once execution
--------------------------------
+---------------------------------
 
 ``Trader.run_all(run_once=True)`` runs one trading iteration, then continues
 advancing active SmartLimit orders until they fill or their configured final

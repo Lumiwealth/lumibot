@@ -22,7 +22,8 @@ def test_credential_lock_rejects_hardlinks_without_touching_victim(tmp_path, aft
     manager = None
     if after_creation:
         manager = TokenManager(Credentials("project", "access"), path=path)
-        Path(str(path) + ".lock").unlink()
+        # FileLock versions may remove the idle lock file when releasing it.
+        Path(str(path) + ".lock").unlink(missing_ok=True)
     victim = tmp_path / "victim"
     victim.write_text("must remain intact")
     victim.chmod(0o600)

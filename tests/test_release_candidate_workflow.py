@@ -71,10 +71,16 @@ def test_candidate_version_check_preserves_the_tag_boundary(tmp_path, event, ref
 def test_source_ci_and_release_share_the_exact_eval_sdk_constraints():
     root = Path(__file__).resolve().parents[1]
     workflow = yaml.load((root / ".github/workflows/cicd.yaml").read_text(), Loader=yaml.BaseLoader)
-    installs = [step["run"] for job in workflow["jobs"].values() for step in job.get("steps", [])
-                if "pip install -r requirements_dev.txt" in step.get("run", "")]
-    assert len(installs) == 3
-    assert all("pip install -r requirements_dev.txt -c requirements_agent_evals.txt" in step for step in installs)
+    # Ruff reads source without importing runtime; executor jobs still need the SDK tuple.
+    installs = {name: step["run"] for name, job in workflow["jobs"].items() for step in job.get("steps", [])
+                if "pip install -r requirements_dev.txt" in step.get("run", "")}
+    assert set(installs) == {"unit-tests", "backtest-tests"}
+    assert all("pip install -r requirements_dev.txt -c requirements_agent_evals.txt" in step for step in installs.values())
+    lint_steps = workflow["jobs"]["lint"]["steps"]
+    lint_install = next(step for step in lint_steps if step.get("name") == "Install lint dependencies")
+    assert lint_install["run"] == "python -m pip install ruff -c requirements_agent_evals.txt"
+    lint_python = next(step for step in lint_steps if step.get("uses", "").startswith("actions/setup-python@"))
+    assert "cache" not in lint_python["with"]
 
 
 def test_release_and_source_qualification_await_completion_without_shell_deadlines():
@@ -194,19 +200,49 @@ def test_portable_gate_keeps_offline_tradier_checks_and_excludes_live_api(tmp_pa
     assert "tests/test_tradier_data.py::TestTradierData::test_get_last_price_stock" in api_selected
 
 
+@pytest.mark.parametrize("workflow_name", ["release.yml", "cicd.yaml"])
+@pytest.mark.parametrize("job", ["unit-tests", "backtest-tests"])
+def test_shards_preserve_complete_test_names(tmp_path, workflow_name, job):
+    """Execute the actual workflow with space-bearing file and parameter names."""
+    root = Path(__file__).resolve().parents[1]
+    workflow = yaml.load(
+        (root / ".github/workflows" / workflow_name).read_text(), Loader=yaml.BaseLoader,
+    )
+    command = next(step["run"] for step in workflow["jobs"][job]["steps"]
+                   if step.get("name", "").startswith("Run ") and "--collect-only" in step.get("run", ""))
+    folder = tmp_path / "tests" / ("backtest" if job == "backtest-tests" else "unit") / "interval samples"
+    folder.mkdir(parents=True)
+    (folder / "test_interval.py").write_text(
+        'import pytest\n'
+        '@pytest.mark.parametrize("interval", ["1 minute", "1 hour"])\n'
+        'def test_interval(interval):\n'
+        '    assert interval in {"1 minute", "1 hour"}\n'
+    )
+    result = subprocess.run(
+        ["bash", "-c", command], cwd=tmp_path, capture_output=True, text=True,
+        env={**os.environ, "PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", ""),
+             "SHARD_INDEX": "0", "SHARD_TOTAL": "1", "PYTEST_ADDOPTS": ""},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "2 passed" in result.stdout
+
+
 def test_backtest_shard_preserves_parameterized_nodeids_with_spaces(tmp_path):
     import json
     nodeid = 'tests/backtest/test_synthetic.py::test_bars[1 minute]'
     (tmp_path / 'shard_nodeids.txt').write_text(nodeid + '\n')
     capture = tmp_path / 'argv.json'
-    executable = tmp_path / 'python'
-    executable.write_text('#!' + sys.executable + '\nimport json,sys\nfrom pathlib import Path\nPath(' + repr(str(capture)) + ').write_text(json.dumps(sys.argv[1:]))\n')
-    executable.chmod(0o700)
+    # Observe the actual subprocess argv from the merged Python-safe runner,
+    # instead of assuming the workflow must invoke pytest through shell words.
+    (tmp_path / 'pytest.py').write_text(
+        'import json,sys\nfrom pathlib import Path\nPath(' + repr(str(capture))
+        + ').write_text(json.dumps(sys.argv[1:]))\n')
     steps = _workflow()['jobs']['backtest-tests']['steps']
     script = next(step['run'] for step in steps if step.get('name') == 'Run backtest tests')
-    tail = script.rsplit('          PY', 1)[-1] if '          PY' in script else script.rsplit('\nPY\n', 1)[-1]
+    tail = script.rsplit('\nPY\n', 1)[-1]
     result = subprocess.run(['bash', '-c', tail], cwd=tmp_path,
-        env={**os.environ, 'PATH': str(tmp_path) + os.pathsep + os.environ.get('PATH', ''), 'PYTEST_MARKERS': 'not apitest'},
+        env={**os.environ, 'PATH': str(Path(sys.executable).parent) + os.pathsep + os.environ.get('PATH', ''),
+             'PYTHONPATH': str(tmp_path), 'PYTEST_MARKERS': 'not apitest'},
         capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert json.loads(capture.read_text())[-1:] == [nodeid]
@@ -242,6 +278,8 @@ def test_installed_package_proof_uses_a_clean_environment():
     assert '--force-reinstall' not in script
 
 
+
+
 def test_unit_jobs_preserve_the_inventory_with_process_isolation_and_no_job_deadline():
     root = Path(__file__).resolve().parents[1]
     # The documented contributor install must provide the worker runner used below.
@@ -252,32 +290,9 @@ def test_unit_jobs_preserve_the_inventory_with_process_isolation_and_no_job_dead
         assert 'timeout-minutes' not in unit
         commands = '\n'.join(step.get('run', '') for step in unit['steps'])
         assert 'pip install pytest-xdist==3.8.0' in commands
-        assert 'python -m pytest -n2 --dist loadfile -m "${PYTEST_MARKERS}"' in commands
+        # Both argv-safe runners preserve the same worker count and file isolation.
+        assert any(form in commands for form in (
+            '[sys.executable, "-m", "pytest", "-n2", "--dist", "loadfile", "-m"',
+            'python -m pytest -n2 --dist loadfile -m "${PYTEST_MARKERS}"',
+        ))
         assert "PYTEST_MARKERS='not apitest and not downloader'" in commands
-
-
-@pytest.mark.parametrize("workflow_name", ["release.yml", "cicd.yaml"])
-@pytest.mark.parametrize("job", ["unit-tests", "backtest-tests"])
-def test_shards_preserve_complete_test_names(tmp_path, workflow_name, job):
-    """Execute the actual workflow with space-bearing file and parameter names."""
-    root = Path(__file__).resolve().parents[1]
-    workflow = yaml.load(
-        (root / ".github/workflows" / workflow_name).read_text(), Loader=yaml.BaseLoader,
-    )
-    command = next(step["run"] for step in workflow["jobs"][job]["steps"]
-                   if step.get("name", "").startswith("Run ") and "--collect-only" in step.get("run", ""))
-    folder = tmp_path / "tests" / ("backtest" if job == "backtest-tests" else "unit") / "interval samples"
-    folder.mkdir(parents=True)
-    (folder / "test_interval.py").write_text(
-        'import pytest\n'
-        '@pytest.mark.parametrize("interval", ["1 minute", "1 hour"])\n'
-        'def test_interval(interval):\n'
-        '    assert interval in {"1 minute", "1 hour"}\n'
-    )
-    result = subprocess.run(
-        ["bash", "-c", command], cwd=tmp_path, capture_output=True, text=True,
-        env={**os.environ, "PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", ""),
-             "SHARD_INDEX": "0", "SHARD_TOTAL": "1", "PYTEST_ADDOPTS": ""},
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert "2 passed" in result.stdout

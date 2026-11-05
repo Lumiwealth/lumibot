@@ -415,7 +415,16 @@ class Ccxt(Broker):
         quote = strategy.quote_asset.symbol if strategy is not None else None
         rows = [row for row in self._balance_rows(self._fetch_balance()) if row["currency"] != quote]
         self._ensure_markets_loaded()
-        if self.api.has.get("fetchPositions") and any(m.get("contract") for m in self.api.markets.values()):
+        supports_positions = self.api.has.get("fetchPositions")
+        if supports_positions is None:
+            # Some CCXT adapters implement the unified method but omit its
+            # capability flag. An actual override supplies that capability;
+            # keep an explicit False and the base NotSupported method intact.
+            from ccxt import Exchange
+
+            implementation = getattr(type(self.api), "fetch_positions", None)
+            supports_positions = implementation is not None and implementation is not Exchange.fetch_positions
+        if supports_positions and any(m.get("contract") for m in self.api.markets.values()):
             seen = set()
             for position in self._fetch_derivative_positions():
                 key = (position["symbol"], self._position_side(position),
@@ -790,9 +799,15 @@ class Ccxt(Broker):
         if price is not None:
             price = self.api.price_to_precision(pair, price)
         params = {**(order.custom_params or {}), **self._position_request_params(order)}
+        if order.reduce_only:
+            params["reduceOnly"] = True
         if trigger is not None:
             params["triggerPrice"] = self.api.price_to_precision(pair, trigger)
-        order_type = {"stop": "market", "stop_limit": "limit"}.get(order.order_type, order.order_type)
+        # SMART_LIMIT is LumiBot's controller around a native limit order, not
+        # an exchange order type. Preserve stop/stop-limit and quantity modes.
+        order_type = {"stop": "market", "stop_limit": "limit", "smart_limit": "limit"}.get(
+            order.order_type, order.order_type,
+        )
         response = self.api.edit_order(order.identifier, pair, order_type, order.side,
                                        self.api.amount_to_precision(pair, order.quantity), price, params=params)
         if limit_price is not None:

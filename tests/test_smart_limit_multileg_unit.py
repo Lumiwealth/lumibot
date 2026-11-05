@@ -30,6 +30,13 @@ class _BrokerStub:
         self.get_tracked_orders = None
 
 
+def _confirmed_cancel(order):
+    # Unit repricing fixtures deliver a terminal broker callback. A no-op
+    # cancellation mock intentionally no longer permits a fresh submission.
+    order.status = Order.OrderStatus.CANCELED
+    order.set_canceled()
+
+
 class _MinimalStrategy(Strategy):
     """Strategy stub that avoids Strategy.__init__ (no broker side effects)."""
 
@@ -174,7 +181,7 @@ def test_smart_limit_multileg_reprice_uses_submit_orders_on_modify_failure(mocke
     # Track one active multi-leg SMART_LIMIT parent order.
     tracked_orders: list[Order] = []
     broker.get_tracked_orders = mocker.Mock(side_effect=lambda _name: tracked_orders)
-    broker.cancel_order = mocker.Mock()
+    broker.cancel_order = mocker.Mock(side_effect=_confirmed_cancel)
     broker.submit_orders = mocker.Mock(return_value=[Order("unit", asset=Asset("SPY"), quantity=1, side=Order.OrderSide.BUY)])
     broker.modify_order = mocker.Mock(side_effect=RuntimeError("modify not supported"))
     broker.submit_order = mocker.Mock()
@@ -262,7 +269,7 @@ def test_multileg_reprice_crosses_credit_to_even_uses_cancel_replace(mocker):
 
     tracked_orders: list[Order] = []
     broker.get_tracked_orders = mocker.Mock(side_effect=lambda _name: tracked_orders)
-    broker.cancel_order = mocker.Mock()
+    broker.cancel_order = mocker.Mock(side_effect=_confirmed_cancel)
     broker.submit_orders = mocker.Mock(return_value=[Order("unit", asset=Asset("SPY"), quantity=1, side=Order.OrderSide.BUY)])
     broker.modify_order = mocker.Mock()
     broker.submit_order = mocker.Mock()

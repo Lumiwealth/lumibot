@@ -342,6 +342,165 @@ def test_quote_binds_fee_net_input_and_uses_percentage_slippage(wallet):
     assert plan["trade"]["value"] == hex(10**15)
 
 
+@pytest.mark.parametrize("ceiling", [100000, 25000])
+def test_explicit_owner_gas_ceiling_controls_provider_estimate(wallet, ceiling):
+    wallet._proxy = Mock(return_value=quote())
+    wallet._rpc = Mock(side_effect=rpc)
+    wallet.gas_limits = {"1": ceiling}
+    from lumibot.tools.metamask.models import SwapIntent
+
+    binding, _ = wallet._binding()
+    if ceiling < 50000:
+        with pytest.raises(MetaMaskError, match="NO_VERIFIABLE_ROUTE"):
+            wallet._quote(binding, SwapIntent.parse(intent()))
+        return
+    plan = wallet._quote(binding, SwapIntent.parse(intent()))
+    assert int(plan["trade"]["gasLimit"], 16) == ceiling
+
+
+@pytest.mark.parametrize("changed", [None, "asset", "chain"])
+def test_quote_accepts_exact_destination_fee_identity(wallet, changed):
+    rows = quote()
+    rows[0]["quote"]["srcTokenAmount"] = str(10**15)
+    fee_asset = dict(DEST)
+    if changed == "asset":
+        fee_asset["address"] = "0x" + "4" * 40
+    if changed == "chain":
+        fee_asset["chainId"] = 2
+    rows[0]["quote"]["feeData"] = {"metabridge": {"asset": fee_asset, "amount": "10000"}}
+    wallet._proxy = Mock(return_value=rows)
+    wallet._rpc = Mock(side_effect=rpc)
+    from lumibot.tools.metamask.models import SwapIntent
+
+    binding, _ = wallet._binding()
+    if changed is not None:
+        with pytest.raises(MetaMaskError, match="NO_VERIFIABLE_ROUTE"):
+            wallet._quote(binding, SwapIntent.parse(intent()))
+        return
+    plan = wallet._quote(binding, SwapIntent.parse(intent()))
+    assert plan["trade"]["value"] == hex(10**15)
+    assert plan["minimumOutput"] == "995000"
+
+
+@pytest.mark.parametrize("minimum", [995000, 994999])
+def test_quote_slippage_rounds_down_only_to_the_output_atomic_unit(wallet, minimum):
+    rows = quote()
+    rows[0]["quote"].update(destTokenAmount="1000001", minDestTokenAmount=str(minimum))
+    wallet._proxy = Mock(return_value=rows)
+    wallet._rpc = Mock(side_effect=rpc)
+    from lumibot.tools.metamask.models import SwapIntent
+
+    binding, _ = wallet._binding()
+    if minimum < 995000:
+        with pytest.raises(MetaMaskError, match="NO_VERIFIABLE_ROUTE"):
+            wallet._quote(binding, SwapIntent.parse(intent()))
+        return
+    assert wallet._quote(binding, SwapIntent.parse(intent()))["minimumOutput"] == "995000"
+
+
+@pytest.mark.parametrize("changed", [None, "minimum", "allowance", "fees", "authority", "owner"])
+def test_finalized_allowance_refreshes_expired_trade_quote_without_reapproval(wallet, monkeypatch, changed):
+    source = {**DEST, "symbol": "INPUT"}
+    destination = {**DEST, "address": "0x" + "4" * 40}
+    request = {**intent(), "input": source, "output": destination, "inputAmount": "1"}
+    binding = wallet.journal.binding("agent")
+    wallet.journal.bind({**binding, "assets": [SOURCE, source, destination]})
+    now = [time.time()]
+    monkeypatch.setattr("lumibot.tools.metamask.evm.time.time", lambda: now[0])
+    allowance_finalized = [False]
+
+    def quotes(route, params):
+        row = quote()[0]
+        row["quoteId"] = "fresh-quote" if allowance_finalized[0] else "initial-quote"
+        row["quote"].update(srcAsset=source, destAsset=destination, srcTokenAmount="1000000", feeData={})
+        row["trade"]["value"] = "0x0"
+        row["approval"] = {
+            **row["trade"],
+            "to": source["address"],
+            "data": "0x095ea7b3" + TARGET[2:].rjust(64, "0") + format(1000000, "064x"),
+        }
+        if allowance_finalized[0] and changed == "minimum":
+            row["quote"].update(destTokenAmount="999000", minDestTokenAmount="994005")
+        if allowance_finalized[0] and changed == "fees":
+            row["trade"]["gasLimit"] = 200000
+        return [row]
+
+    def read(chain, method, params):
+        if method == "eth_call":
+            return hex(1000000 if allowance_finalized[0] and changed != "allowance" else 0)
+        return rpc(chain, method, params)
+
+    wallet._proxy = Mock(side_effect=quotes)
+    wallet._rpc = Mock(side_effect=read)
+    wallet.price = Mock(return_value=Decimal("1"))
+    wallet._balance = Mock(return_value=Decimal("10"))
+    approval_hash = "0x" + "a" * 64
+    receipt = {"status": "0x1", "gasUsed": "0x5208", "effectiveGasPrice": "0x2"}
+    trade_receipt = {
+        **receipt,
+        "logs": [
+            {
+                "address": destination["address"],
+                "topics": [_TRANSFER, "0x" + TARGET[2:].rjust(64, "0"), "0x" + WALLET[2:].rjust(64, "0")],
+                "data": hex(999000),
+            }
+        ],
+    }
+    wallet._receipt = Mock(
+        side_effect=lambda _, tx: (
+            (receipt if tx["to"] == source["address"] else trade_receipt) if allowance_finalized[0] else None
+        )
+    )
+    wallet.provider.submit_transaction.side_effect = [
+        {"status": "SUBMITTED", "txHash": approval_hash},
+        {"status": "AWAITING_MFA"},
+    ]
+    wallet.provider.transaction.side_effect = lambda _, tx: (
+        {"status": "CONFIRMED", "txHash": approval_hash}
+        if tx["to"] == source["address"]
+        else {"status": "AWAITING_MFA"}
+    )
+
+    assert wallet.submit(request)["state"] == "submitted"
+    approval = wallet.journal.effect("agent", "swap-one", "swap-0")
+    original_plan = wallet.journal.effect("agent", "swap-one", "swap-plan")
+    now[0] += 1200
+    allowance_finalized[0] = True
+    if changed == "authority":
+        wallet.journal.bind({**wallet.journal.binding("agent"), "maxDailyUsd": "101"})
+    if changed == "owner":
+        wallet.epoch = "new-owner"
+
+    result = wallet.order("swap-one")
+
+    assert wallet.journal.effect("agent", "swap-one", "swap-plan") == original_plan
+    assert wallet.journal.effect("agent", "swap-one", "swap-0")["requestId"] == approval["requestId"]
+    assert wallet.journal.effect("agent", "swap-one", "swap-0")["transaction"] == approval["transaction"]
+    if changed is not None:
+        assert result["state"] == "rejected", result
+        assert wallet.provider.submit_transaction.call_count == 1
+        assert wallet.journal.effect("agent", "swap-one", "swap-1") is None
+        return
+    assert result["state"] == "awaiting_approval", result
+    assert wallet._proxy.call_count == 2
+    assert wallet.provider.submit_transaction.call_count == 2
+    assert wallet.provider.submit_transaction.call_args.kwargs["quote_id"] == "fresh-quote"
+    trade = wallet.journal.effect("agent", "swap-one", "swap-1")
+    wallet.epoch = "restarted-owner"
+    assert wallet.order("swap-one")["state"] == "awaiting_approval"
+    assert wallet.journal.effect("agent", "swap-one", "swap-1")["requestId"] == trade["requestId"]
+    trade_hash = "0x" + "b" * 64
+    wallet.provider.transaction.side_effect = lambda _, tx: {
+        "status": "CONFIRMED",
+        "txHash": approval_hash if tx["to"] == source["address"] else trade_hash,
+    }
+    completed = wallet.order("swap-one")
+    assert completed["state"] == "filled" and Decimal(completed["outputAmount"]) == Decimal("0.999")
+    wallet.journal.save({**completed, "settlementFinality": None})
+    assert wallet.order("swap-one")["state"] == "filled"
+    assert wallet.provider.submit_transaction.call_count == 2 and wallet._proxy.call_count == 2
+
+
 @pytest.mark.parametrize("mutation", ["wallet", "amount", "asset", "slippage", "value"])
 def test_quote_mismatch_never_reaches_managed_signing(wallet, mutation):
     rows = quote()

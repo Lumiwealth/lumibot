@@ -1,5 +1,6 @@
 """Kalshi selected-contract prices through the existing DataSource interface."""
 
+from collections import deque
 from decimal import Decimal
 
 import pandas as pd
@@ -28,7 +29,10 @@ class KalshiData(DataSource):
             self._client = KalshiClient(config)
 
     def get_market_metadata(self, market=None, **kwargs):
+        if isinstance(market, dict):
+            return self._discovery_market(market)
         ticker = market.symbol if isinstance(market, Asset) else market
+        ticker = ticker or kwargs.get("market_id") or kwargs.get("ticker")
         if not isinstance(ticker, str) or not ticker:
             raise ValueError("Kalshi metadata requires a market ticker")
         try:
@@ -43,6 +47,147 @@ class KalshiData(DataSource):
         if not isinstance(row, dict) or row.get("ticker") != ticker:
             raise KalshiAPIError("Kalshi returned an invalid market response")
         return row
+
+    @staticmethod
+    def _discovery_market(row):
+        """Keep native metadata and serialize the existing outcome-specific Assets."""
+        if not isinstance(row, dict) or not isinstance(row.get("ticker"), str) or not row["ticker"]:
+            raise KalshiAPIError("Kalshi returned invalid market metadata")
+        result = dict(row)
+        result["outcomes"] = ["yes", "no"]
+        result["outcome_assets"] = [
+            Asset(row["ticker"], "prediction_contract", outcome=outcome).to_dict() for outcome in result["outcomes"]
+        ]
+        return result
+
+    def search_markets(self, query=None, limit=20, **kwargs):
+        """Discover native markets, using series metadata for topic searches.
+
+        Kalshi's market endpoint has no text-search parameter. A topic matches
+        the public series title/ticker/tags, then its market pages supply actual
+        executable tickers. Results stop at limit and are not a claim of
+        exhaustive venue coverage. Native market filters remain configurable.
+        """
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit < 0:
+            raise ValueError("Kalshi search limit must be a nonnegative integer")
+        if limit == 0:
+            return []
+        if query is not None and not isinstance(query, str):
+            raise ValueError("Kalshi search query must be a string")
+        terms = (query or "").casefold().split()
+        params = dict(kwargs)
+        category, tags = params.pop("category", None), params.pop("tags", None)
+        params.setdefault("status", "open")
+        params["limit"] = min(limit, 1000)
+        params = {key: value for key, value in params.items() if value is not None}
+        scoped = bool(params.get("series_ticker") or params.get("event_ticker") or params.get("tickers"))
+
+        def matches(row):
+            text = " ".join(str(row.get(key, "")) for key in ("ticker", "title", "subtitle", "tags")).casefold()
+            return all(term in text for term in terms)
+
+        if (terms or category or tags) and not scoped:
+            filters = {"include_volume": True}
+            if category:
+                filters["category"] = category
+            if tags:
+                filters["tags"] = ",".join(tags) if isinstance(tags, (list, tuple)) else tags
+            payload = self._client.request("GET", "/series", params=filters, authenticated=False)
+            series = payload.get("series")
+            if not isinstance(series, list) or any(
+                not isinstance(row, dict) or not isinstance(row.get("ticker"), str) or not row["ticker"]
+                for row in series
+            ):
+                raise KalshiAPIError("Kalshi response is missing the series list")
+            selected = [row for row in series if matches(row)]
+            # Provider volume ranks active series ahead of old empty templates.
+            selected.sort(key=lambda row: decimal_value(row.get("volume_fp") or 0, "series volume"), reverse=True)
+            scopes = [(dict(params, series_ticker=row["ticker"]), row) for row in selected]
+        else:
+            scopes = [(params, None)]
+        found, seen = [], set()
+        # Diversify a bounded topic result across matching native series. A
+        # high-volume daily template can have hundreds of empty new contracts;
+        # it must not hide a different matching series with executable quotes.
+        active = deque(
+            (iter(self._client.pages("/markets", "markets", params=filters, authenticated=False)), series)
+            for filters, series in scopes
+        )
+        while active:
+            rows, series = active.popleft()
+            try:
+                row = next(rows)
+            except StopIteration:
+                continue
+            active.append((rows, series))
+            market = self._discovery_market(row)
+            if scoped and terms and not matches(market):
+                continue
+            if market["ticker"] in seen:
+                continue
+            seen.add(market["ticker"])
+            if series is not None:
+                market.setdefault("series_ticker", series["ticker"])
+                for key in ("category", "tags", "settlement_sources", "contract_terms_url"):
+                    if key in series:
+                        market.setdefault(key, series[key])
+            found.append(market)
+            if len(found) >= limit:
+                return found
+        return found
+
+    def get_event(self, event_id=None, slug=None, **kwargs):
+        """Read an event by its native ticker, preserving its child market identities."""
+        ticker = event_id or slug or kwargs.pop("event_ticker", None) or kwargs.pop("id", None)
+        if ticker is None or not str(ticker).strip():
+            raise ValueError("Kalshi event_id requires a native event ticker")
+        params = dict(kwargs)
+        if not params.get("exclude_markets"):
+            params.setdefault("with_nested_markets", True)
+        payload = self._client.request(
+            "GET", f"/events/{KalshiClient.path_id(ticker)}", params=params, authenticated=False
+        )
+        event = payload.get("event")
+        if not isinstance(event, dict) or event.get("event_ticker") != str(ticker):
+            raise KalshiAPIError("Kalshi returned an invalid event response")
+        result = dict(event)
+        rows = result.get("markets", payload.get("markets", []))
+        if not isinstance(rows, list):
+            raise KalshiAPIError("Kalshi response is missing the event markets list")
+        result["markets"] = [self._discovery_market(row) for row in rows]
+        return result
+
+    def get_market_rules(self, market=None, **kwargs):
+        """Return payout criteria, source documents, price grid and separate dates."""
+        metadata = self.get_market_metadata(market, **kwargs)
+        event = self.get_event(metadata["event_ticker"], exclude_markets=True) if metadata.get("event_ticker") else {}
+        ticker = metadata.get("series_ticker") or event.get("series_ticker")
+        series = {}
+        if ticker:
+            payload = self._client.request("GET", f"/series/{KalshiClient.path_id(ticker)}", authenticated=False)
+            series = payload.get("series")
+            if not isinstance(series, dict) or series.get("ticker") != ticker:
+                raise KalshiAPIError("Kalshi returned an invalid series response")
+        primary, secondary = metadata.get("rules_primary"), metadata.get("rules_secondary")
+        return {
+            "question": metadata.get("title"),
+            "description": "\n\n".join(value for value in (primary, secondary) if value),
+            "rules_primary": primary,
+            "rules_secondary": secondary,
+            "resolution_source": series.get("settlement_sources", []),
+            "settlement_sources": series.get("settlement_sources", []),
+            "contract_terms_url": series.get("contract_terms_url"),
+            "contract_url": series.get("contract_url"),
+            "end_date": metadata.get("close_time"),
+            "expiration_time": metadata.get("expiration_time"),
+            "expected_expiration_time": metadata.get("expected_expiration_time"),
+            "early_close_condition": metadata.get("early_close_condition"),
+            "can_close_early": metadata.get("can_close_early"),
+            "price_ranges": metadata.get("price_ranges", []),
+            "outcomes": ["yes", "no"],
+            "outcome_assets": self._discovery_market(metadata)["outcome_assets"],
+            "raw": metadata,
+        }
 
     def get_chains(self, asset, quote=None):
         return {}
@@ -201,6 +346,7 @@ class KalshiData(DataSource):
                 frame = frame.tail(int(length))
         else:
             frame = pd.DataFrame(columns=columns, index=pd.DatetimeIndex([], name="datetime", tz="UTC"))
+        frame.attrs["bar_timestamp"] = "end"
         return Bars(frame, self.SOURCE, asset, quote=quote, raw=raw)
 
     @staticmethod

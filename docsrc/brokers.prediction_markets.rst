@@ -49,6 +49,60 @@ selling NO closes a NO holding. Kalshi nets opposite outcomes in its account,
 so buying NO against a YES holding first reduces the YES exposure.
 Polymarket's existing outcome token IDs continue working without ``outcome``.
 
+Use ``modify_order(order, limit_price=..., quantity=...)`` to amend an active
+Kalshi limit order. Quantity is the updated total including existing fills,
+not an additional buy. Price-only calls remain compatible with existing brokers.
+Cancellation and amendment can be pending while Kalshi's read API catches up:
+inspect the normal order status until the broker confirms the result.
+
+LumiBot keeps the selected outcome in a UUID client reference so cold reads of
+its orders can restore YES/NO prices. Caller-supplied client IDs remain in
+``custom_params`` and map deterministically to provider-compatible UUIDs.
+The current UUID format also carries a digest of the normalized strategy tag.
+A fresh adapter can recognize its own orders and deliver subsequent fill
+callbacks through the normal ownership checks. Other strategies' orders retain
+their foreign tags. Earlier intent-only references remain readable but do not
+establish strategy ownership after a cold restart. The digest is an account-local
+ownership hint, not an authentication or authorization mechanism.
+The wire client reference is separate from the standard strategy ownership tag.
+External opaque references
+use Kalshi's canonical YES book because they do not encode the original outcome.
+For canceled historical orders that were amended before this process observed
+them, Kalshi exposes the creation size rather than a canceled-quantity history.
+The native raw fields retain that distinction; an observed tracked order keeps
+its last known amended total.
+
+Kalshi splits collateral across exchange balances. An aggregate account balance
+does not prove a particular market's exchange balance is funded. Fund the
+appropriate balance through Kalshi's normal account controls before trading.
+LumiBot routes using native ``exchange_index`` metadata and does not transfer
+funds or expand API-key permissions automatically.
+
+Contract discovery also uses the existing data-source methods:
+
+.. code-block:: python
+
+   # Reuse the broker's configured data source, including its demo/live mode.
+   data = self.broker.data_source
+   markets = data.search_markets(query="Bitcoin", limit=5)
+   if markets:
+       selected = markets[0]
+       rules = data.get_market_rules(selected)
+       event = data.get_event(event_id=selected["event_ticker"])
+       yes = Asset.from_dict(selected["outcome_assets"][0])
+       quote = self.get_quote(yes)
+
+Topic searches match Kalshi's native series titles, tickers and tags, then
+read market pages for executable tickers. Results are bounded by ``limit``;
+matching series are visited in turn so a single large template does not hide
+other matching series. An empty result is not proof that no related contract exists. Native filters,
+including ``series_ticker``, ``event_ticker`` and ``status``, remain available.
+Both outcomes retain the same native market ticker and distinct Asset identities.
+Rules include primary and secondary settlement criteria, source documents,
+the price grid, and separate close and expiration dates when supplied by Kalshi.
+Public discovery and market data use the configured environment without sending
+private credentials. Account and order operations use that environment's keys.
+
 Set ``TRADING_BROKER=kalshi``, ``KALSHI_API_KEY_ID`` and either
 ``KALSHI_PRIVATE_KEY_PATH`` or ``KALSHI_PRIVATE_KEY``. Demo mode defaults to
 ``KALSHI_IS_DEMO=true``; demo and production keys belong to separate provider

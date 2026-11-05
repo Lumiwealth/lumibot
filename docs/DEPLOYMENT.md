@@ -22,11 +22,18 @@ the already-green candidate as environment proof, not as the first full test
 loop. LumiBot publication, Bot Manager Dev deployment, and Bot Manager
 production deployment each retain their own explicit authorization boundary.
 
+An original establishment source may cover the unchanged subset of a mixed
+case catalog. Only case definitions that exactly match that immutable Git source
+retain the one-regression-run policy. New or changed cases still require all
+configured three or five current actor/judge passes; they cannot inherit another
+case's establishment or the earlier version of their own definition.
+
 ## TL;DR (do this in order)
 
 1) **Run the release preflight first.** If branch, `setup.py`, `CHANGELOG.md`, tag, or `dev` state is inconsistent, stop. Do not tag. Do not deploy BotManager. Fix the branch first.
 2) **Make the release branch contain everything safe to ship.** Dirty files, untracked files, and local-only commits are not excuses to skip work. Review them, commit them, test them, push them, and include them in the `version/X.Y.Z` PR unless they are unsafe, secret-bearing, broken, generated junk, or explicitly out of scope.
 3) Get the `version/X.Y.Z` PR **green** after that full inclusion sweep. Verify the complete real-model receipt locally in the pinned SDK environment with `python scripts/qualify_agent_evals.py verify` before merging and again before tagging. The branch/version preflight alone does not qualify model evidence.
+   - Repeat that verifier after any release-branch update, including another broker's fixes. Green GitHub checks do not establish that an earlier model receipt covers the new source. Keep compatible original evidence only when the verifier accepts it; otherwise qualify the changed candidate and export its current receipt before merging. Record the actual tested and approved head rather than attributing an earlier head's proof or review exception to new code.
 4) Merge latest `dev` into `version/X.Y.Z` and re-check CI (prevents drift / missing commits from other engineers).
 5) Merge the PR into `dev` (no direct pushes to `dev`).
 6) Tag the **merge commit on `dev`** as `vX.Y.Z` (this triggers GitHub Actions to publish to PyPI + create a GitHub Release).

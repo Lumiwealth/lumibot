@@ -49,7 +49,11 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    claim concerns all bars, their count, or a date range, compute and inspect
    that exact predicate from the returned data before asserting it.
 5. Size from current portfolio value, available cash, current price, volatility or
-   stop distance, and the user's risk rules. For a notional cap, calculate
+   stop distance, and the user's risk rules. For a basket, keep one execution row
+   per symbol with its selected quote field and value, allocation cap, held/pending
+   quantity and calculated quantity. Copy the price for that same symbol into
+   its sizing call; never carry a neighboring symbol's ask or one basket-wide
+   price into a row whose usable price differs. For a notional cap, calculate
    the maximum notional and call `risk_calculate_stock_quantity`; use its returned
    whole-share quantity unchanged. Verify its notional is at or below both the cap
    and available cash before submission. Submit only when the returned quantity is
@@ -80,6 +84,13 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    Reconcile the final summary with the mutation tools and the final account
    reads. If an order tool returned a submitted identifier, never say that no
    order was entered. Report the exact observed status instead.
+   Report the final account read's cash verbatim: reserved cash remains part of
+   that balance, not a debit. Use the returned cash balance alone unless a
+   reserve comparison is useful. For that comparison, make an arithmetic-tool
+   call **after the final account read** with `final_cash - requested_reserve`.
+   Copy that returned difference into the explanation. Without that calculation,
+   omit the excess-cash sentence entirely. Never infer the difference from an
+   earlier sizing calculation, the allocation remainder or mental arithmetic.
    Reconcile cash from confirmed fill quantities, execution prices and fees.
    Portfolio value already includes cash and current position valuation; do not
    add cash again or equate that total with the gross purchase debit.
@@ -128,7 +139,12 @@ after each fill. An existing correct holding requires no new purchase; a pending
 order owns only its own remaining quantity. Verify funding sells before buys.
 
 Before finishing compare the full target set to actual positions and terminal
-orders. A few confirmed trades or an acknowledgement are not full completion.
+orders using each symbol's own selected current price, not merely the quantities
+already submitted. Recalculate an affordable remaining quantity with the sizing
+tool when that comparison finds unused allocation, subtracting confirmed held
+and still-pending quantity. A wrong earlier sizing input is not a blocker or
+whole-share rounding. Complete only that residual when authorized and affordable;
+do not resend the whole target. A few confirmed trades or an acknowledgement are not full completion.
 Continue supported independent trades when one constituent is unavailable.
 Explain each actual missing price, unaffordable quantity or broker failure;
 do not invent an exception or finish merely because the basket is long. Never

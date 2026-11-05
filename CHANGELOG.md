@@ -1,21 +1,57 @@
 # Changelog
 
-## Unreleased
+## 4.6.47 - 2026-11-05
+
+Deploy marker: 97d41b56ff42bd0c200c3b2f1f98f395bf1c8dfc
+
+### Added
+- Kalshi native contract search, event metadata and settlement rules through the existing data-source interfaces, with distinct YES/NO assets and selected-environment routing.
+- Optional total-quantity amendments through the normal broker, strategy and order-agent modification APIs while preserving price-only callers.
+
+### Fixed
+- Preserve exact fractional Schwab equity quantities through replacements and advanced-order children.
+- Retain deferred futures expiry identity across Asset serialization and saved-strategy recovery, including older saved dictionaries.
+- Reuse the selected MetaMask client for data, and preserve native quote and fill-reconciliation recovery checks.
+- Preserve the distinction between reported holding values, transaction amounts and estimates in financial research tables.
+- Keep the last simulated clock when the next market opening is outside the backtest window, avoiding closed-day terminal valuation requests and trading-start callbacks after the end.
+- Initialize the selected ProjectX account before the first REST-only order synchronization. Preserve an existing account selection and report connection failure before requesting orders.
+- Keep backtest clocks and final lifecycle marks within their configured end, and make stored indicator bars visible only after their completed history boundary.
+- Read derivative positions when a CCXT adapter implements its unified positions method but leaves the capability flag unspecified; preserve explicit unsupported declarations.
+- Preserve Kalshi selected-outcome identity across process boundaries with provider-compatible UUID references, while retaining strategy ownership tags for normal fill callbacks.
+- Keep acknowledged amendments from rolling back on older broker snapshots, expose pending modification/cancellation states, and read amended active size from fills plus remaining quantity rather than immutable creation size.
+- Declare Kalshi candle end timestamps for downstream chart normalization and provide a sanitized actionable error for an unfunded exchange balance.
+- Preserve exact option contracts when Alpaca labels individual package legs as multi-leg orders. Only the container with children is a package, so subsequent quote reads and SmartLimit closes retain each leg's expiry, strike, right and multiplier.
+- Bind Alpaca API qualification to one dedicated trading/data connection and exercise normal broker reconciliation, including bounded partial-close continuation only after confirmed cancellation and an exact remaining-quantity read.
+
+## 4.6.46 - 2026-11-03
+
+### Fixed
+- Wait through older initial ProjectX quote snapshots for genuine streaming updates within the existing quote timeout, including after reconnection. Preserve the original snapshot and its timestamp when the market is quiet.
+
+## 4.6.45 - 2026-11-03
+
+Deploy marker: 629c49a55c7166f5b119c9ef66f4f4f44919dd48
 
 ### Added
 - Add a runnable MetaMask perpetual round-trip example using normal Strategy APIs and continuous Trader scheduling, exact executed-quantity reduce-only closes, durable order identities and same-name restart recovery.
 
 ### Fixed
-- Share the MetaMask native client between explicitly selected broker and data source in both eager and lazy startup, preserving one session and journal owner. Data-only selection remains independent.
-- Accept live MetaMask reconciliation and qualification snapshots without optional client order IDs while retaining exact order-status identity, live remaining-size and fill validation, including explicit cancellation and restart.
+- Preserve native started-iteration and failure timing for immediate scheduled invocations without inventing an exact clock target; ordinary non-scheduled execution is unchanged.
+- Calibrate research grading against actual returned unit metadata without requiring invented response fields; retain real-answer and explicitly incorrect-unit controls. This changes qualification only, not research or trading behavior.
+- Bind AI stock-basket sizing to each symbol's own observed execution price, reconcile affordable residual allocations, and distinguish final cash from calculated cash above a reserve, without changing broker adapters or user allocation rules.
+- Reconcile Alpaca SDK terminal-status enums before repricing, including partial executions reported with cancellation, rather than attempting to replace an already completed order.
+- Make SmartLimit cancel-and-replace wait for broker-confirmed cancellation, preserve executions and replace only the unfilled remainder with a fresh order identity. Scheduled workers refresh pending mutation outcomes when stream confirmation is delayed; ambiguous replacement/submission outcomes remain visible instead of authorizing duplicate orders.
+- Accept broker-normalized Decimal limit prices during SmartLimit repricing and translate its internal wrapper to CCXT's native limit amendment while preserving spot units, derivative contract quantities, settlement and hedge-side parameters.
 - Validate MetaMask perpetual account support before reservation and again before releasing approved actions; retain cancellation access after account-mode changes. Require RPC-finalized canonical swap receipts and revalidate older completed swaps read-only without losing fills, fees or reservations or replaying transactions.
+- Prevent concurrent ProjectX submissions of the same order object from resetting an in-flight outcome; retain unknown certainty during preparation and confirm rejection only when preflight fails before handoff.
 - Restore missing cancellation provenance on older native records only when intact persisted checkpoints prove no order release, preserving execution history and reconciliation or fee holds.
 - Join MetaMask polling and order workers before closing the native client, including delayed stream startup and repeated close calls.
 - Reconcile terminal IOC partial executions as actual fills with canceled unfilled remainder, retaining raw venue status and requiring matching intent, persisted action and fill history instead of assuming a `filled` label means full execution.
 - Validate testnet partial-fill qualification against the identity-matched live order remainder, retain cleanup budget before signing, and accept explicitly reviewed daily-cap checks without changing wallet authority. Actual testnet expiry rejection has been verified without signatures or journal execution changes.
 - Document all four submission-certainty values for MetaMask and separate local-cancellation recovery guidance from unrelated FAQ answers.
 - Require positive native release provenance before local MetaMask cancellation; require a matching live observation before cancellation release, retain ambiguous legacy execution holds and distinguish confirmed unsubmitted orders from venue cancellations in generic tools.
-- Preserve MetaMask submission certainty in single and batch order tools, prevent blind retries after uncertain handoff, and keep cancellation lookups from advancing unrelated pending intents.
+- Retain locally sent ProjectX orders through uncertain acknowledgements, prevent duplicate handoffs for the same identity, and reconcile exact receipts into the original order. ProjectX and MetaMask order tools expose submission uncertainty without claiming acceptance or permitting a blind retry.
+- ProjectX synthetic brackets protect cumulative residual entry exposure with distinct exit generations, preserve partial-exit quantities and explicit cancellation intent, and hold uncertain restored history instead of inventing new orders.
 
 ## 4.6.44 - 2026-11-02
 

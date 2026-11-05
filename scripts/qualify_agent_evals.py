@@ -256,10 +256,14 @@ def establishment_runtime(source_ref, cases, versions):
 
 def build_establishment(rows, call_rows, cases, *, source_ref, versions, now=None):
     now = now or evals.utc_now()
-    runtime_hash = establishment_runtime(source_ref, cases, versions)
+    # A catalog can contain unchanged established cases beside changed/new ones.
+    # Verify the immutable original runtime first; only exact original case
+    # definitions can receive its once-per-regression shortcut.
+    runtime_hash = establishment_runtime(source_ref, [], versions)
+    unchanged = unchanged_establishment_cases(source_ref, cases)
     _, calls = subscription_call_state(call_rows)
     established = []
-    for case in cases:
+    for case in unchanged:
         fingerprint = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash=runtime_hash)
         latest = evals.latest_repetition_rows(rows, case["id"], fingerprint)
         if (len(latest) >= evals.case_required_passes(case)
@@ -271,15 +275,29 @@ def build_establishment(rows, call_rows, cases, *, source_ref, versions, now=Non
     return proof
 
 
+def unchanged_establishment_cases(source_ref, cases):
+    from scripts import agent_eval_source_compatibility as source
+
+    paths = {Path(case["_path"]).relative_to(evals.REPO_ROOT).as_posix(): case for case in cases}
+    tracked = set(source._git("ls-tree", "-r", "--name-only", "-z", source_ref,
+                              root=evals.REPO_ROOT).decode().split("\0"))
+    originals = source._blobs(source_ref, sorted(set(paths) & tracked), root=evals.REPO_ROOT)
+    return [case for path, case in paths.items() if path in originals
+            and json.loads(originals[path]) == {key: value for key, value in case.items() if not key.startswith("_")}]
+
+
 def validate_establishment(proof, cases, *, versions, now):
     if not isinstance(proof, dict) or set(proof) != {"source_commit", "runtime_fingerprint", "cases"}:
         raise ValueError("Invalid original establishment evidence")
-    runtime_hash = establishment_runtime(proof["source_commit"], cases, versions)
-    if proof["runtime_fingerprint"] != runtime_hash or not isinstance(proof["cases"], dict):
+    if not isinstance(proof["cases"], dict):
         raise ValueError("Original establishment source/SDK fingerprint mismatch")
     by_id = {case["id"]: case for case in cases}
     if set(proof["cases"]) - set(by_id):
         raise ValueError("Unknown established case")
+    runtime_hash = establishment_runtime(proof["source_commit"],
+        [by_id[case_id] for case_id in proof["cases"]], versions)
+    if proof["runtime_fingerprint"] != runtime_hash:
+        raise ValueError("Original establishment source/SDK fingerprint mismatch")
     for case_id, record in proof["cases"].items():
         validate_record(record, by_id[case_id], runtime_hash=runtime_hash, now=now)
 

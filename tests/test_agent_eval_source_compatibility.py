@@ -6,7 +6,6 @@ import pytest
 
 from scripts import agent_eval_source_compatibility as scope
 
-
 LIVE_METHODS = [
     ('lumibot/brokers/broker.py', 'Broker', 'sync_orders', 'self.IS_BACKTESTING_BROKER'),
     ('lumibot/strategies/strategy_executor.py', 'StrategyExecutor', 'sync_broker', 'self.broker.IS_BACKTESTING_BROKER'),
@@ -102,6 +101,7 @@ def test_scope_accepts_only_unused_provider_modules_and_package_version():
 
 def test_native_catalog_bindings_use_pandas_backtesting_not_live_provider_adapters():
     from unittest.mock import patch
+
     from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting
     from lumibot.entities import Asset
     from scripts import run_agent_evals as evals
@@ -253,3 +253,41 @@ def test_development_worker_scope_rejects_other_dependency_changes(extra):
     before = b"-r requirements.txt\npytest\n"
     with pytest.raises(ValueError, match='affects model qualification'):
         scope.check_change('requirements_dev.txt', before, before + extra)
+
+
+def test_unused_report_directory_creation_preserves_native_inference_only():
+    path = 'lumibot/strategies/_strategy.py'
+    source = (scope.ROOT / path).read_bytes()
+    addition = b'        os.makedirs(logdir, exist_ok=True)\n'
+    assert source.count(addition) == 1
+    before = source.replace(addition, b'', 1)
+    scope.check_change(path, before, source)
+    for changed in (
+        source.replace(addition, b'        os.makedirs(logdir, exist_ok=False)\n'),
+        source.replace(addition, b'        os.makedirs(other_directory, exist_ok=True)\n'),
+        source.replace(b'if not self._analyze_backtest:', b'if False:', 1),
+        source.replace(b'def _update_portfolio_value(self):', b'def _update_portfolio_value(self, changed=False):', 1),
+    ):
+        assert changed != source
+        with pytest.raises(ValueError, match='affects model qualification'):
+            scope.check_change(path, before, changed)
+
+
+def test_every_native_fixture_keeps_report_directory_creation_unreachable():
+    from unittest.mock import patch
+
+    from scripts import run_agent_evals as evals
+    from scripts.agent_eval_isolation import fixture_network_boundary
+    from scripts.agent_eval_production_fixture import ProductionFixture
+    cases = {case['fixture']: case for case in evals.load_cases()}
+    with fixture_network_boundary():
+        for name, case in cases.items():
+            fixture = ProductionFixture(evals.build_fixture(name))
+            try:
+                assert fixture.strategy._analyze_backtest is False, name
+                fixture.create_agent(case, None)._ensure_bound_tools()
+                with patch('lumibot.strategies._strategy.os.makedirs',
+                           side_effect=AssertionError('Native inference cannot create report directories')):
+                    assert fixture.strategy.backtest_analysis(logdir='unused-report-output') is None
+            finally:
+                fixture.close()

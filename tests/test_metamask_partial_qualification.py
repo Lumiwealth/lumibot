@@ -249,10 +249,28 @@ def public_book_clock(monkeypatch):
         clock.sleeps.append(seconds)
         clock.elapsed += seconds
 
-    monkeypatch.setattr(qualification.time, "monotonic", lambda: clock.elapsed)
-    monkeypatch.setattr(qualification.time, "time", lambda: 1_000 + clock.elapsed)
-    monkeypatch.setattr(qualification.time, "sleep", sleep)
+    # Replace this module's clock reference, not the shared Python time module.
+    monkeypatch.setattr(
+        qualification,
+        "time",
+        SimpleNamespace(
+            monotonic=lambda: clock.elapsed,
+            time=lambda: 1_000 + clock.elapsed,
+            sleep=sleep,
+        ),
+    )
     return clock
+
+
+def test_public_book_clock_does_not_capture_unrelated_thread_waits(public_book_clock):
+    # A different SDK worker may sleep while this offline clock is installed.
+    # Its wait must not advance this qualification or enter its poll history.
+    import time
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pool.submit(time.sleep, 0).result()
+    assert public_book_clock.sleeps == []
+    assert public_book_clock.elapsed == 0
 
 
 def public_venue(clock, spreads):

@@ -433,6 +433,27 @@ def test_contract_lookup_does_not_invent_a_contract(projectx_data_source):
     assert source._get_contract_id_from_asset(Asset('ES', asset_type=Asset.AssetType.CONT_FUTURE)) is None
 
 
+def test_cached_projectx_history_preserves_multiplier_for_recreated_asset(projectx_data_source):
+    from lumibot.backtesting import ProjectXBacktesting
+
+    provider_asset = Asset('MES', asset_type='cont_future', multiplier=5)
+    frame = pd.DataFrame({'open': [2100., 2101.], 'high': [2101., 2102.],
+                          'low': [2099., 2100.], 'close': [2100.5, 2101.5],
+                          'volume': [87, 536]},
+                         index=pd.date_range('2024-12-20T14:00Z', periods=2, freq='min'))
+    projectx_data_source.get_bars_from_datetime = MagicMock(return_value=Bars(frame, 'PROJECTX', provider_asset))
+    source = ProjectXBacktesting(pd.Timestamp('2024-12-20T14:00Z').to_pydatetime(),
+        pd.Timestamp('2024-12-20T14:02Z').to_pydatetime(), projectx_data=projectx_data_source,
+        assets=[provider_asset], show_progress_bar=False)
+    strategy_asset = Asset('MES', asset_type='cont_future')
+    assert strategy_asset is not provider_asset
+    assert strategy_asset.multiplier == 1
+
+    assert source.get_last_price(strategy_asset) == 2100.
+    assert strategy_asset.multiplier == 5
+    assert projectx_data_source.get_bars_from_datetime.call_count == 1
+
+
 def test_normal_projectx_backtest_executes_long_and_short_with_fees(projectx_data_source, monkeypatch):
     from lumibot.backtesting import ProjectXBacktesting
     from lumibot.strategies import Strategy

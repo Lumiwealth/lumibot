@@ -49,7 +49,12 @@ class ProjectXBacktesting(PandasData):
         start = pd.Timestamp(self.datetime_start) - lookback
         key = (asset, quote or Asset("USD", "forex"))
         loaded = self._loaded_ranges.get(key)
-        if (key in self.pandas_data and loaded is None) or (loaded is not None and loaded <= start):
+        cached = self.pandas_data.get(key)
+        if cached is not None and (loaded is None or loaded <= start):
+            if loaded is not None:
+                # Equivalent Asset objects share prices, but each still needs
+                # the provider-resolved contract size for fills and valuation.
+                asset.multiplier = cached.asset.multiplier
             return
         if self.projectx_data is None:
             self.projectx_data = ProjectXData(self._projectx_config)

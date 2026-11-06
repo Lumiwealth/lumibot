@@ -19,10 +19,24 @@ def published():
     ))
 
 
+def published_cases():
+    """Keep the historical proof fixture bound to its actual case definitions."""
+    receipt = published()
+    cases = []
+    for current in evals.load_cases(set(receipt["establishment"]["cases"])):
+        path = current["_path"].relative_to(evals.REPO_ROOT).as_posix()
+        historical = json.loads(subprocess.check_output(
+            ["git", "show", f"{SOURCE}:{path}"], cwd=evals.REPO_ROOT,
+        ))
+        historical["_path"] = current["_path"]
+        cases.append(historical)
+    return cases
+
+
 def test_published_establishment_keeps_original_calls_and_source_without_raw_rows():
     receipt = published()
     proof = qualification.build_establishment(
-        [], [], evals.load_cases(), source_ref=SOURCE, versions=receipt["sdk_versions"],
+        [], [], published_cases(), source_ref=SOURCE, versions=receipt["sdk_versions"],
     )
     assert proof == receipt["establishment"]
     assert proof["source_commit"] != SOURCE  # Preserve actual historical provenance.
@@ -33,14 +47,14 @@ def test_published_establishment_rejects_a_different_sdk_tuple():
     receipt = published()
     with pytest.raises(ValueError):
         qualification.build_establishment(
-            [], [], evals.load_cases(), source_ref=SOURCE,
+            [], [], published_cases(), source_ref=SOURCE,
             versions={**receipt["sdk_versions"], "google-adk": "unqualified"},
         )
 
 
 def test_changed_case_cannot_inherit_published_establishment():
     receipt = published()
-    cases = evals.load_cases()
+    cases = published_cases()
     selected = next(case for case in cases if case["id"] in receipt["establishment"]["cases"])
     selected["taskPrompt"] += "\nA materially different requested outcome."
     proof = qualification.build_establishment(

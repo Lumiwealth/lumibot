@@ -1456,7 +1456,7 @@ class Tradovate(Broker):
         if target_order is None:
             target_order = self.get_tracked_order(identifier, use_placeholders=True)
 
-        if target_order is not None and hasattr(self, "stream"):
+        if target_order is not None and getattr(self, "stream", None) is not None:
             self.stream.dispatch(self.CANCELED_ORDER, order=target_order)
 
     def _pull_all_orders(self, strategy_name, strategy_object) -> list[Order]:

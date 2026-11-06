@@ -231,7 +231,7 @@ class TestTradovateBroker:
             assert broker.account_spec is None
             assert broker.account_id is None
             assert broker.user_id is None
-            assert not hasattr(broker, "stream")
+            assert broker.stream is None
             mock_get_tokens.assert_not_called()
             mock_get_account_info.assert_not_called()
             mock_get_user_info.assert_not_called()
@@ -809,12 +809,16 @@ class TestTradovateLifecycle:
         events = broker._dispatched
         assert any(event == broker.FILLED_ORDER for event, _ in events)
 
-    def test_cancel_order_dispatches_cancel_event(self):
+    @pytest.mark.parametrize("with_stream", [True, False])
+    def test_cancel_order_dispatches_cancel_event(self, with_stream):
         from lumibot.entities import Asset, Order
 
         broker = self._make_broker()
         dispatched = []
-        broker.stream = SimpleNamespace(dispatch=lambda event, **payload: dispatched.append((event, payload)))
+        broker.stream = (
+            SimpleNamespace(dispatch=lambda event, **payload: dispatched.append((event, payload)))
+            if with_stream else None
+        )
 
         order = Order(
             strategy="Strategy",
@@ -829,10 +833,11 @@ class TestTradovateLifecycle:
         mock_response.status_code = 200
         mock_response.json.return_value = {}
 
-        with patch.object(broker, "_request", return_value=mock_response):
+        with patch.object(broker, "_request", return_value=mock_response) as request:
             broker.cancel_order(order)
 
-        assert any(event == broker.CANCELED_ORDER for event, _ in dispatched)
+        request.assert_called_once()
+        assert any(event == broker.CANCELED_ORDER for event, _ in dispatched) is with_stream
 
     def test_pull_all_orders_skips_first_iteration(self):
         broker = self._make_broker()

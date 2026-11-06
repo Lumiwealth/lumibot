@@ -253,7 +253,7 @@ def test_scheduled_legacy_broker_alias_resolves_cached_default_without_workers()
                 "print('broker=' + broker.name); "
                 "print('lower_is_upper=' + str(broker is credentials.BROKER)); "
                 "print('lower_is_getter=' + str(broker is credentials.get_default_broker())); "
-                "print('stream_exists=' + str(hasattr(broker, 'stream'))); "
+                "print('stream_none=' + str(broker.stream is None)); "
                 "print('threads=' + ','.join(sorted(thread.name for thread in threading.enumerate())))"
             ),
         ],
@@ -266,7 +266,7 @@ def test_scheduled_legacy_broker_alias_resolves_cached_default_without_workers()
     assert "broker=alpaca" in result.stdout
     assert "lower_is_upper=True" in result.stdout
     assert "lower_is_getter=True" in result.stdout
-    assert "stream_exists=False" in result.stdout
+    assert "stream_none=True" in result.stdout
     assert "alpaca_orders_thread" not in result.stdout
 
 

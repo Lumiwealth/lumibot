@@ -1,6 +1,7 @@
 import datetime
 import json
 import logging
+import time
 from queue import Queue
 from types import SimpleNamespace
 
@@ -169,8 +170,12 @@ def _completion_executor(monkeypatch, *, post_seconds=0):
     monkeypatch.setenv("LUMIBOT_SCHEDULED_TARGET_RUN_AT", base.isoformat())
     monkeypatch.setenv("LUMIBOT_SCHEDULED_POST_ITERATION_SECONDS", str(post_seconds))
     monkeypatch.setattr(executor, "_scheduled_now_utc", lambda: base + datetime.timedelta(seconds=clock["value"]))
-    monkeypatch.setattr(strategy_executor_module.time, "monotonic", lambda: clock["value"])
-    monkeypatch.setattr(strategy_executor_module.time, "sleep", lambda seconds: clock.__setitem__("value", clock["value"] + seconds))
+    # Replace only this module's clock. Patching the shared time module lets
+    # unrelated broker threads advance the test's fake clock while they sleep.
+    local_time = SimpleNamespace(**vars(time))
+    local_time.monotonic = lambda: clock["value"]
+    local_time.sleep = lambda seconds: clock.__setitem__("value", clock["value"] + seconds)
+    monkeypatch.setattr(strategy_executor_module, "time", local_time)
     return strategy, executor, clock
 
 
@@ -181,6 +186,17 @@ def _smart_order(strategy, *, hold=2, step=1):
         smart_limit=SmartLimitConfig(preset="fast", step_seconds=step, final_hold_seconds=hold),
         limit_price=100.0,
     )
+
+
+def test_completion_clock_is_scoped_to_the_executor(monkeypatch):
+    real_sleep, real_monotonic = time.sleep, time.monotonic
+    _, executor, clock = _completion_executor(monkeypatch)
+
+    assert time.sleep is real_sleep
+    assert time.monotonic is real_monotonic
+    strategy_executor_module.time.sleep(1)
+    assert clock["value"] == 1
+    assert executor._scheduled_now_utc().second == 1
 
 
 @pytest.mark.parametrize("post_seconds", [0, 1])

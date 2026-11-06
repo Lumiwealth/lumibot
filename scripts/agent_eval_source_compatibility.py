@@ -204,6 +204,10 @@ def check_change(path, before, after):
         new = _without_alpaca_benchmark_body(after)
         if old is not None and old == new:
             return
+        old = _without_unused_report_directory_creation(before)
+        new = _without_unused_report_directory_creation(after)
+        if old is not None and old == new:
+            return
     raise ValueError(f'Source change affects model qualification: {path}')
 
 
@@ -267,3 +271,36 @@ def compatible_runtime(receipt, receipt_bytes, anchor, *, root=ROOT):
     for path, before in original.items():
         check_change(path, before, (root / path).read_bytes())
     return receipt['runtime_fingerprint']
+
+
+def _without_unused_report_directory_creation(source):
+    """Ignore only mkdir after the reporting guard disabled by every fixture.
+
+    The fixture module remains fully fingerprinted. Its analyze_backtest=False
+    contract is exercised for every native case; changing it requires inference.
+    Keep the entire guard, signature, other report code and shared trading tree.
+    """
+    try:
+        tree = ast.parse(source, type_comments=True)
+        owner = next(n for n in tree.body
+                     if isinstance(n, ast.ClassDef) and n.name == '_Strategy')
+        method = next(n for n in owner.body
+                      if isinstance(n, ast.FunctionDef) and n.name == 'backtest_analysis')
+        def dump(node):
+            return ast.dump(node, include_attributes=False)
+        guard = ast.parse('if not self._analyze_backtest:\n    return').body[0]
+        defaults = ast.parse('if not logdir:\n    logdir = "logs"').body[0]
+        mkdir = ast.parse('os.makedirs(logdir, exist_ok=True)').body[0]
+        if not method.body or dump(method.body[0]) != dump(guard):
+            return None
+        matches = [index for index, node in enumerate(method.body) if dump(node) == dump(mkdir)]
+        if len(matches) > 1:
+            return None
+        if matches:
+            index = matches[0]
+            if index < 1 or dump(method.body[index - 1]) != dump(defaults):
+                return None
+            method.body.pop(index)
+        return dump(tree)
+    except (SyntaxError, StopIteration, IndexError, ValueError):
+        return None

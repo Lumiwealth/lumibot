@@ -125,6 +125,40 @@ def test_tearsheet_custom_metrics_end_to_end_backtest(pandas_data_fixture, tmp_p
     assert "Custom Average Drawdown Days" in html
 
 
+def test_backtest_analysis_creates_default_output_directory(pandas_data_fixture, tmp_path, monkeypatch):
+    """A first run must export its event ledger without a pre-existing logs folder."""
+    monkeypatch.chdir(tmp_path)
+    assert not (tmp_path / "logs").exists()
+
+    output = tmp_path / "custom_results"
+    tearsheet_file = output / "tearsheet.html"
+    metrics_file = output / "metrics.json"
+    stats_file = output / "stats.csv"
+    results, strategy = _PlainBacktestStrategy.run_backtest(
+        PandasDataBacktesting,
+        datetime(2019, 1, 2), datetime(2019, 1, 10),
+        pandas_data=pandas_data_fixture, benchmark_asset=None, risk_free_rate=0,
+        show_plot=False, show_tearsheet=False, save_tearsheet=True,
+        show_indicators=False, save_logfile=False, show_progress_bar=False, quiet_logs=True,
+        plot_file_html=str(output / "trades.html"),
+        trades_file=str(output / "trades.csv"), settings_file=str(output / "settings.json"),
+        indicators_file=str(output / "indicators.html"),
+        tearsheet_file=str(tearsheet_file), tearsheet_metrics_file=str(metrics_file),
+        stats_file=str(stats_file),
+    )
+
+    assert results is not None
+    assert any(order.is_filled() for order in strategy.broker.get_all_orders())
+    event_files = list((tmp_path / "logs").glob("*_trade_events.csv"))
+    assert len(event_files) == 1
+    events = pd.read_csv(event_files[0])
+    assert (events["status"] == "fill").any()
+    assert event_files[0].with_suffix(".parquet").exists()
+    assert tearsheet_file.exists()
+    assert metrics_file.exists()
+    assert stats_file.exists()
+
+
 def test_tearsheet_end_to_end_backtest_without_custom_metrics(pandas_data_fixture, tmp_path):
     _, _, tearsheet_file, metrics_file, _ = _run_backtest_case(
         _PlainBacktestStrategy,

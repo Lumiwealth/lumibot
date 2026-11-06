@@ -1,6 +1,21 @@
 # Changelog
 
-## 4.6.48 - Unreleased
+## 4.6.48 - 2026-11-05
+
+Deploy marker: 698b5b7645611a5d888e1ef869db877ef99afe4e
+
+### Fixed
+- Preserve decimal ProjectX protective-exit prices when rounding to contract ticks, and retain account positions and orders on the first ordinary strategy read.
+- Initialize optional secondary price fields for explicitly typed market orders, preserving the same order shape as inferred market orders.
+- Complete supported historical approximations from undated research sources with a disclosed publication-window estimate instead of treating a missing exact date as unavailable evidence.
+- Commit indicator state only after calculation and output validation succeed, preserving retry correctness after an error.
+- Load Kalshi prediction assets on their first normal backtest price, quote, history or fill request, preserving distinct outcomes and simulated-time bounds without requiring a separate preload list.
+- Preserve a single verified publication timestamp and label transaction amounts, holding values and estimates at their individual report cells.
+- Preserve verified published establishment evidence when private evaluation journals have expired, while retaining original provenance and requiring current-source regression inference and full repetitions for changed or unestablished cases.
+- Restore lazy credential aliases after their qualification test so later broker and strategy tests do not inherit a synthetic data source.
+- Create the default backtest output directory before exporting results, including first runs with custom report paths and file logging disabled.
+- Preserve provider-resolved futures contract multipliers when a backtest strategy recreates an asset and reuses its cached ProjectX history.
+- Record runtime broker and data-source parameters as connection metadata in backtest settings, without serializing their API keys, authenticated clients or tokens.
 
 ## 4.6.47 - 2026-11-05
 

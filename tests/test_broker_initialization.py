@@ -14,7 +14,7 @@ import pytest
 
 class _CalendarTestBroker:
     @staticmethod
-    def create():
+    def create(*, connect_stream=False, stream=None):
         from lumibot.brokers.broker import Broker
 
         class TestBroker(Broker):
@@ -25,7 +25,7 @@ class _CalendarTestBroker:
             def _submit_order(self, order): return order
             def _get_balances_at_broker(self, quote_asset, strategy): return (0, 0, 0)
             def get_historical_account_value(self): return {}
-            def _get_stream_object(self): return None
+            def _get_stream_object(self): return stream
             def _register_stream_events(self): pass
             def _run_stream(self): pass
             def _pull_positions(self, strategy): return []
@@ -34,7 +34,27 @@ class _CalendarTestBroker:
             def _pull_broker_order(self, identifier): return None
             def _pull_broker_all_orders(self): return []
 
-        return TestBroker(name="test", connect_stream=False, data_source=object())
+        return TestBroker(name="test", connect_stream=connect_stream, data_source=object())
+
+
+def test_disabled_stream_has_explicit_disconnected_state():
+    broker = _CalendarTestBroker.create()
+    assert broker.stream is None
+
+
+def test_connected_stream_keeps_provider_object():
+    stream = object()
+    with patch("lumibot.brokers.broker.Broker._launch_stream") as launch:
+        broker = _CalendarTestBroker.create(connect_stream=True, stream=stream)
+    assert broker.stream is stream
+    launch.assert_called_once_with()
+
+
+def test_provider_without_stream_does_not_launch_one():
+    with patch("lumibot.brokers.broker.Broker._launch_stream") as launch:
+        broker = _CalendarTestBroker.create(connect_stream=True)
+    assert broker.stream is None
+    launch.assert_not_called()
 
 
 class TestBrokerInitializationSimple:

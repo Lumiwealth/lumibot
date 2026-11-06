@@ -486,6 +486,7 @@ class Broker(ABC):
         self._error_orders = SafeList(safelist_lock)
         self._filled_positions = SafeList(safelist_lock)
         self._subscribers = SafeList(safelist_lock)
+        self.stream = None
         self._is_stream_subscribed = False
         self._tracked_orders_cache_key = None
         self._tracked_orders_cache_value = []

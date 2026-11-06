@@ -231,6 +231,7 @@ class TestTradovateBroker:
             assert broker.account_spec is None
             assert broker.account_id is None
             assert broker.user_id is None
+            # Disabled streaming is explicitly None while lazy REST setup stays deferred.
             assert broker.stream is None
             mock_get_tokens.assert_not_called()
             mock_get_account_info.assert_not_called()

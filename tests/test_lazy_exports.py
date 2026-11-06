@@ -266,6 +266,7 @@ def test_scheduled_legacy_broker_alias_resolves_cached_default_without_workers()
     assert "broker=alpaca" in result.stdout
     assert "lower_is_upper=True" in result.stdout
     assert "lower_is_getter=True" in result.stdout
+    # None records the disconnected state without starting a stream worker.
     assert "stream_none=True" in result.stdout
     assert "alpaca_orders_thread" not in result.stdout
 

@@ -1192,3 +1192,64 @@ def test_alpaca_history_defaults_to_completed_bars_in_both_modes(monkeypatch, tm
 
     assert AlpacaBacktesting(**window)._remove_incomplete_current_bar is True
     assert AlpacaBacktesting(**window, remove_incomplete_current_bar=False)._remove_incomplete_current_bar is False
+
+
+def test_backtesting_accepts_caller_owned_clients_without_account_secrets(monkeypatch, tmp_path):
+    import lumibot.backtesting.alpaca_backtesting as module
+
+    def unexpected_sdk_construction(*args, **kwargs):
+        raise AssertionError("Caller-owned clients must not construct a second SDK client")
+
+    monkeypatch.setattr(module, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    for name in ("StockHistoricalDataClient", "CryptoHistoricalDataClient", "OptionHistoricalDataClient"):
+        monkeypatch.setattr(module, name, unexpected_sdk_construction)
+    stock, crypto, options, contracts = object(), object(), object(), object()
+    source = AlpacaBacktesting(
+        datetime_start=_NY_TZ.localize(datetime(2026, 8, 3)),
+        datetime_end=_NY_TZ.localize(datetime(2026, 8, 14)),
+        config={"PAPER": True, "STOCK_CLIENT": stock, "CRYPTO_CLIENT": crypto,
+                "OPTION_CLIENT": options, "TRADING_CLIENT": contracts},
+    )
+    assert source._stock_client is stock
+    assert source._crypto_client is crypto
+    assert source._option_client is options
+    assert source._get_trading_client() is contracts
+    assert source._alpaca_data._get_stock_client() is stock
+    assert source._alpaca_data._get_crypto_client() is crypto
+    assert source._alpaca_data._get_option_client() is options
+
+
+def test_backtesting_explicit_client_precedence_and_partial_configuration(monkeypatch, tmp_path):
+    import lumibot.backtesting.alpaca_backtesting as module
+
+    monkeypatch.setattr(module, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    stock = object()
+    source = AlpacaBacktesting(
+        datetime_start=_NY_TZ.localize(datetime(2026, 8, 3)),
+        datetime_end=_NY_TZ.localize(datetime(2026, 8, 14)),
+        config={"PAPER": True, "STOCK_CLIENT": object()}, stock_client=stock,
+    )
+    assert source._stock_client is stock
+    assert source._alpaca_data._get_stock_client() is stock
+    with pytest.raises(ValueError, match="option.*client|client.*option"):
+        source._history_request(base_asset=Asset("AAPL", asset_type="option", expiration="2026-08-14", strike=100, right="CALL"),
+                                quote_asset=Asset("USD", asset_type="forex"), timestep="day",
+                                data_datetime_start=source.datetime_start, data_datetime_end=source.datetime_end,
+                                auto_adjust=True)
+
+
+def test_injected_contract_client_auth_error_does_not_switch_its_endpoint(monkeypatch, tmp_path):
+    class Contracts:
+        def get_option_contracts(self, request):
+            raise ValueError("401 unauthorized")
+
+    contracts = Contracts()
+    source = AlpacaBacktesting(
+        datetime_start=_NY_TZ.localize(datetime(2026, 8, 3)),
+        datetime_end=_NY_TZ.localize(datetime(2026, 8, 14)),
+        config={"PAPER": True, "STOCK_CLIENT": object(), "TRADING_CLIENT": contracts},
+    )
+    with pytest.raises(ValueError, match="401 unauthorized"):
+        source._list_option_contracts("AAPL", date(2026, 8, 3), date(2026, 8, 14))
+    assert source._get_trading_client() is contracts
+    assert not source.__dict__.get("_trading_endpoint_switched", False)

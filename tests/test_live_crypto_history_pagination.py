@@ -354,3 +354,126 @@ def test_bitunix_unknown_timestep_is_an_error_not_silent_minutes():
 
     with pytest.raises(ValueError, match="7 minutes"):
         source._parse_source_timestep("7 minutes")
+
+
+class _RecordingAlpacaCryptoClient:
+    """Answer crypto bar reads with a real SDK ``BarSet`` built from Alpaca's raw JSON shape.
+
+    The raw bar keys (t/o/h/l/c/v/n/vw) mirror Alpaca's ``/v1beta3/crypto/us/bars``
+    response. No credential is set, so reads bypass the shared bar cache and every
+    request reaches this client.
+    """
+
+    _api_key = None
+    _oauth_token = None
+
+    def __init__(self):
+        self.requests = []
+
+    @staticmethod
+    def _utc(value):
+        # The SDK request model stores UTC datetimes without tzinfo.
+        stamp = pd.Timestamp(value)
+        return stamp.tz_localize("UTC") if stamp.tzinfo is None else stamp.tz_convert("UTC")
+
+    def get_crypto_bars(self, request):
+        from alpaca.data.models import BarSet
+
+        self.requests.append(request)
+        timeframe = request.timeframe
+        unit = str(getattr(timeframe.unit, "value", timeframe.unit)).lower()
+        step = pd.Timedelta(hours=timeframe.amount) if unit == "hour" else pd.Timedelta(minutes=timeframe.amount)
+        end = self._utc(request.end)
+        start = self._utc(request.start).ceil(step)
+        if unit != "hour":
+            # Keep the pre-fix (minute download) run cheap; the request itself is the failure.
+            start = max(start, end.floor(step) - 10 * step)
+        times = pd.date_range(start, end, freq=step, inclusive="both")
+        bars = [
+            {
+                "t": stamp.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "o": 100.0,
+                "h": 101.0,
+                "l": 99.0,
+                "c": 100.5,
+                "v": 1.25,
+                "n": 10,
+                "vw": 100.2,
+            }
+            for stamp in times
+        ]
+        return BarSet(raw_data={request.symbol_or_symbols: bars})
+
+
+def _alpaca_live_strategy(source):
+    strategy = Strategy.__new__(Strategy)
+    strategy.logger = logging.getLogger(__name__)
+    strategy._logged_get_historical_prices_assets = set()
+    strategy.is_backtesting = False
+    strategy.broker = SimpleNamespace(
+        data_source=source,
+        option_source=None,
+        IS_BACKTESTING_BROKER=False,
+        quote_assets=set(),
+    )
+    strategy.quote_asset = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    return strategy
+
+
+def _alpaca_source(remove_incomplete_current_bar=False):
+    from lumibot.data_sources.alpaca_data import AlpacaData
+
+    source = AlpacaData(
+        {"API_KEY": "synthetic-key", "API_SECRET": "synthetic-secret"},
+        remove_incomplete_current_bar=remove_incomplete_current_bar,
+    )
+    client = _RecordingAlpacaCryptoClient()
+    source._get_crypto_client = lambda: client
+    return source, client
+
+
+@pytest.mark.parametrize("timestep", ["1h", "hour", "60min"])
+def test_live_strategy_large_hourly_request_downloads_hourly_bars_from_alpaca(timestep):
+    """A long hourly history must not be fetched as sixty times as many minute bars.
+
+    Regression: an hourly request on Alpaca was converted to a minute download
+    (length x 60) and aggregated locally, which exhausted a live bot's memory.
+    """
+    source, client = _alpaca_source()
+    strategy = _alpaca_live_strategy(source)
+    asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+
+    bars = strategy.get_historical_prices(asset, 2000, timestep=timestep)
+
+    assert client.requests, "Alpaca was never asked for bars"
+    for request in client.requests:
+        unit = str(getattr(request.timeframe.unit, "value", request.timeframe.unit)).lower()
+        assert (unit, request.timeframe.amount) == ("hour", 1)
+    assert len(bars) == 2000
+    steps = bars.df.index.to_series().diff().dropna().unique()
+    assert list(steps) == [pd.Timedelta(hours=1)]
+
+
+def test_alpaca_native_hourly_keeps_completed_bars_from_today():
+    """Dropping the incomplete bar must remove only the open hour, not all of today."""
+    source, _client = _alpaca_source(remove_incomplete_current_bar=True)
+    asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+
+    bars = source.get_historical_prices(asset, 5, timestep="hour")
+
+    open_hour = pd.Timestamp.now(tz=source.tzinfo).floor("h")
+    assert len(bars) == 5
+    assert bars.df.index[-1] == open_hour - pd.Timedelta(hours=1)
+
+
+def test_alpaca_declares_native_hourly_timesteps_only():
+    from lumibot.data_sources.alpaca_data import AlpacaData
+
+    source = AlpacaData({"API_KEY": "synthetic-key", "API_SECRET": "synthetic-secret"})
+
+    for timestep in ("1h", "hour", "1 hour", "60min", "2h", "4 hours"):
+        assert source.supports_native_timestep(timestep)
+    for timestep in ("minute", "15min", "day", "1 week", "", None):
+        assert not source.supports_native_timestep(timestep)
+    # Regular-session-only hourly bars are built from filtered minute bars, as before.
+    assert not source.supports_native_timestep("1h", include_after_hours=False)

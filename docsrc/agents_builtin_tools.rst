@@ -159,6 +159,10 @@ Market-price tools:
   provided universe.
 - ``market_load_history_table`` still loads one symbol per call; load finalists
   after the batch scan.
+- ``market_historical_prices`` and ``market_load_history_table`` fetch at most
+  5,000 bars per symbol per call. A larger ``length`` returns the most recent
+  5,000 bars with ``length_requested`` and a ``length_note`` saying so; use a
+  coarser timestep (for example ``day`` instead of ``hour``) for a longer period.
 - Broker price data often has no market indexes (Alpaca has no VIX). When a
   price tool has no data for an index such as VIX, VXN, OVX, GVZ, SPX or DJIA,
   its result includes a ``fred_hint`` naming the FRED series with the daily

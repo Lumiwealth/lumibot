@@ -2,6 +2,10 @@
 
 ## 4.6.49 - Unreleased
 
+### Fixed
+- Download hourly history from Alpaca as hourly bars instead of sixty times as many minute bars, so a long hourly request can no longer exhaust a live bot's memory. Live data sources can declare native intervals through `supports_native_timestep`, optionally receiving `include_after_hours`. Alpaca intraday windows are sized from the bar length, and dropping the incomplete current bar keeps the hourly and multi-minute bars from today that have already closed.
+- Cap the agent `market_historical_prices` and `market_load_history_table` tools at 5,000 bars per symbol per call. A larger request returns the most recent 5,000 bars and says so in the result instead of failing.
+
 ## 4.6.48 - 2026-11-05
 
 Deploy marker: 698b5b7645611a5d888e1ef869db877ef99afe4e

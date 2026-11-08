@@ -887,6 +887,9 @@ def test_package_price_rounds_in_decimal_space():
     # A debit must not pay more, and a credit must not accept less.
     assert Schwab._format_schwab_package_price(1.255, effect="debit") == "1.25"
     assert Schwab._format_schwab_package_price(1.254, effect="credit") == "1.26"
+    # Half-up keeps 0.00006, and debit rounding cuts it to zero.
+    assert Schwab._format_schwab_package_price(0.00006) == "0.0001"
+    assert Schwab._format_schwab_package_price(0.00006, effect="debit") == "0.00"
 
 
 def test_closing_vertical_high_strike_and_three_leg_package():
@@ -1118,6 +1121,20 @@ def test_stop_and_market_parents_are_not_sent_as_plain_net_limits():
     assert broker.client.place_calls == []
 
 
+def test_sub_tick_debit_is_not_sent_as_a_zero_price():
+    broker = _broker()
+
+    assert broker._submit_orders(
+        _put_credit_children(), is_multileg=True, order_type="debit", price=0.00006,
+    ) is None
+    assert broker.client.place_calls == []
+
+    broker._submit_orders(_put_credit_children(), is_multileg=True, order_type="credit", price=0.00005)
+
+    assert broker.client.place_calls[0][1]["orderType"] == "NET_CREDIT"
+    assert broker.client.place_calls[0][1]["price"] == "0.0001"
+
+
 def test_directional_package_prices_are_sent_without_weakening_the_limit():
     broker = _broker()
 
@@ -1252,3 +1269,92 @@ def test_working_package_reserves_its_close_leg(lifecycle):
 
     assert broker.modify_order(first, limit_price=0.35) is True
     assert transport.replace_calls[0][1]["price"] == "0.3500"
+
+
+def test_partial_package_fill_reserves_only_the_unfilled_remainder(lifecycle):
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    legs = [
+        _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE, quantity=2),
+        _option_leg(490, "PUT", Order.OrderSide.BUY_TO_OPEN, quantity=2),
+    ]
+    for leg in legs:
+        leg.strategy = "fixture"
+    parent = broker.submit_orders(legs, is_multileg=True, order_type="credit", price=1.25)[0]
+    execution = {"activityType": "EXECUTION", "executionLegs": [
+        {"legId": 1, "quantity": 1, "price": 2.10},
+        {"legId": 2, "quantity": 1, "price": 0.80},
+    ]}
+    transport.queue_order_reads(parent.identifier, {
+        "status": "PARTIALLY_FILLED",
+        "filledQuantity": 1,
+        "orderActivityCollection": [execution],
+    })
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+
+    def _closing(quantity, other_strike):
+        order = _parent(
+            [
+                _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE, quantity=quantity),
+                _option_leg(other_strike, "PUT", Order.OrderSide.BUY_TO_OPEN, quantity=quantity),
+            ],
+            side=Order.OrderSide.SELL,
+            limit_price=0.40,
+        )
+        order.strategy = "fixture"
+        for leg in order.child_orders:
+            leg.strategy = "fixture"
+        return order
+
+    assert broker.submit_order(_closing(2, 480)) is None
+    assert broker.submit_order(_closing(1, 470)) is not None
+    assert len(transport.attempted_orders) == 2
+
+
+def test_confirmed_fill_after_cancel_marks_the_legs_filled(lifecycle):
+    transport, broker, _queues = lifecycle
+    parent = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=1.25)[0]
+    _TRANSPORT.drain_stream_events(broker)
+    transport.queue_order_reads(parent.identifier, {"status": "CANCELED"})
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+    assert all(child.is_canceled() for child in parent.child_orders)
+
+    execution = {"activityType": "EXECUTION", "executionLegs": [
+        {"legId": 1, "quantity": 1, "price": 2.10},
+        {"legId": 2, "quantity": 1, "price": 0.80},
+    ]}
+    transport.queue_order_reads(parent.identifier, {
+        "status": "FILLED",
+        "filledQuantity": 1,
+        "orderActivityCollection": [execution],
+    })
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+
+    assert parent.is_filled()
+    assert all(child.is_filled() and child._closed_event.is_set() for child in parent.child_orders)
+    assert all(not child.transactions for child in parent.child_orders)
+
+
+def test_held_submit_error_closes_the_package_legs(lifecycle):
+    transport, broker, _queues = lifecycle
+    parent = broker._multileg_parent_from_orders(
+        _fixture_put_credit_legs(), order_type="credit", price=1.25,
+    )
+    broker._hold_trade_events = True
+    transport.queue_submission_response(400, "Invalid request data")
+
+    assert broker.submit_order(parent) is None
+    _TRANSPORT.drain_stream_events(broker)
+    assert broker._held_trades
+    assert any(child.is_active() for child in parent.child_orders)
+
+    broker._hold_trade_events = False
+    broker.process_held_trades()
+
+    assert parent.is_canceled()
+    assert all(child.status == broker.ERROR_ORDER and child._closed_event.is_set() for child in parent.child_orders)
+    assert not any(child.is_active() for child in parent.child_orders)

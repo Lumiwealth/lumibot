@@ -273,9 +273,11 @@ Wire contract:
   `credit`/`debit`/`even` keyword, else from the parent side and price sign.
   Zero is judged on the price as sent (four decimals under $1, chosen from the
   original amount, so 0.9951 stays four decimals). A credit or debit that
-  rounds to `0.00` is refused, and an unhinted price that rounds to `0.00` is
-  `NET_ZERO`, never `NET_CREDIT`/`NET_DEBIT` at `0.00`. A debit rounds down and
-  a credit rounds up, so the sent price is never more aggressive than requested.
+  rounds to `0.00` after the rounding that will be sent is refused: half-up
+  turns a `0.00006` debit into `0.0001`, and debit rounding then turns it into
+  `0.00`. An unhinted price that rounds to `0.00` with half-up is `NET_ZERO`,
+  never `NET_CREDIT`/`NET_DEBIT` at `0.00`. A debit rounds down and a credit
+  rounds up, so the sent price is never more aggressive than requested.
   The strike in the OCC symbol keeps thousandths (`100.125` stays `100.125`).
   A `MARKET` or `STOP_LIMIT` parent is rejected even when it carries a limit
   price; the stop trigger would otherwise be dropped.
@@ -312,16 +314,22 @@ Lifecycle:
   keeps that effect, so a replace after a restart follows the same credit,
   debit, and even rules as the original submit.
 - When the package fills, is canceled, or errors, its original child orders are
-  marked the same way and their close events are set. The parent fill does not
-  move cash (`Order.is_parent()`); leg positions come from the regular Schwab
-  position sync.
-- A working package's unfilled close legs count as reserved contracts. The
-  package being replaced does not reserve against itself. An explicit close
-  with no matching position is rejected before the request.
+  marked the same way and their close events are set. A submit rejection does
+  this when the error event is applied, including after a held event is
+  released. A package that was canceled and is later confirmed filled moves
+  those legs to filled; that update does not book a second cash change. The
+  parent fill does not move cash (`Order.is_parent()`); leg positions come from
+  the regular Schwab position sync.
+- A working package's unfilled close legs count as reserved contracts. A
+  partial fill counts only the remainder: filled packages times the leg's
+  ratio to the package quantity. The package being replaced does not reserve
+  against itself. An explicit close with no matching position is rejected
+  before the request.
 - `modify_order` replaces the package through the same builder, so SMART_LIMIT
   repricing changes only the net price. A failed order read, including HTTP 429,
   returns `False` and leaves the local price unchanged; the strategy does not
-  copy the requested price, and SMART_LIMIT retries that ladder step. A change
+  copy the requested price, and SMART_LIMIT retries that ladder step for both
+  a package and a single order. A change
   between credit, debit and even is a cancel and resubmit (strategy executor);
   modifying an `even` package to a non-zero price is refused because `NET_ZERO`
   is always `0.00`.

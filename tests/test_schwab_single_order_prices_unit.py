@@ -79,3 +79,20 @@ def test_single_limit_order_sends_string_price(order):
     assert submitted == [order]
     assert broker.client.place_calls[0]["price"] == "1.15"
     assert broker.client.place_calls[0]["tag"] == "unit-test"
+
+
+def test_submit_tag_strips_before_the_shared_normalization():
+    """A strategy name with surrounding spaces matches recovery after submit."""
+    broker = _broker()
+    order = Order(" fixture ", Asset("SPY"), 1, Order.OrderSide.BUY, limit_price=1.15)
+
+    submitted = broker._submit_order(order)
+
+    assert submitted is order
+    assert broker.client.place_calls[0]["tag"] == "fixture"
+    assert Schwab.strategy_tag_matches(broker.client.place_calls[0]["tag"], order.strategy)
+
+    blank = Order("fixture", Asset("SPY"), 1, Order.OrderSide.BUY, limit_price=1.15)
+    blank.tag = "   "
+    assert broker._submit_order(blank) is blank
+    assert broker.client.place_calls[1]["tag"] == "fixture"

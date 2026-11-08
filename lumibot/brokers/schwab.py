@@ -1585,7 +1585,11 @@ class Schwab(Broker):
         -----
         This method retrieves orders from the past 7 days by default to limit the
         volume of data returned while still capturing relevant recent orders.
+        A failed pull returns an empty list and leaves
+        ``_last_orders_refresh_degraded`` set, so callers can tell it from a
+        reliable empty history.
         """
+        self._last_orders_refresh_degraded = True
         # Add check for authorization error first
         if not self._broker_fully_ready:
             logger.warning(colored("[Schwab] Broker not fully ready. Cannot pull all orders.", "yellow"))
@@ -1620,9 +1624,13 @@ class Schwab(Broker):
                 logger.error(colored(f"Error fetching orders from Schwab: {response.status_code}", "red"))
                 return []
 
-            self._clear_schwab_rate_limit("order_history")
             schwab_orders = response.json()
+            if not isinstance(schwab_orders, list):
+                logger.error(colored("Schwab order history was not a list.", "red"))
+                return []
 
+            self._clear_schwab_rate_limit("order_history")
+            self._last_orders_refresh_degraded = False
             return schwab_orders
 
         except Exception as e:
@@ -2466,17 +2474,20 @@ class Schwab(Broker):
 
         A position sync has no execution id. This map lets a drop be credited
         to the package that filled, and lets a new submit leave that credit in
-        place. The next pull replaces it.
+        place. This replaces the map. Call it only for a reliable history pull.
         """
         seen = {}
         strategy_name = getattr(self, "_strategy_name", None)
         for payload in order_payloads or []:
-            if not isinstance(payload, dict):
-                continue
-            try:
-                observed = self._parse_broker_order(payload, strategy_name)
-            except Exception:
-                logger.error(_format_exc())
+            if isinstance(payload, Order):
+                observed = payload
+            elif isinstance(payload, dict):
+                try:
+                    observed = self._parse_broker_order(payload, strategy_name)
+                except Exception:
+                    logger.error(_format_exc())
+                    continue
+            else:
                 continue
             if observed is None or getattr(observed, "order_class", None) != Order.OrderClass.MULTILEG:
                 continue
@@ -3114,12 +3125,15 @@ class Schwab(Broker):
             return
         strategy_name = getattr(self, "_strategy_name", None)
         for payload in order_payloads:
-            if not isinstance(payload, dict):
-                continue
-            try:
-                observed = self._parse_broker_order(payload, strategy_name)
-            except Exception:
-                logger.error(_format_exc())
+            if isinstance(payload, Order):
+                observed = payload
+            elif isinstance(payload, dict):
+                try:
+                    observed = self._parse_broker_order(payload, strategy_name)
+                except Exception:
+                    logger.error(_format_exc())
+                    continue
+            else:
                 continue
             if observed is None or not self._schwab_recovered_working_order(observed):
                 continue
@@ -3561,20 +3575,30 @@ class Schwab(Broker):
             try:
                 # Pull first so a recovered working package takes its close
                 # baseline before this cycle's position sync can shrink the book.
+                # A failed pull leaves the last reliable fill map in place.
                 orders = broker._pull_broker_all_orders()
-                broker._remember_schwab_package_fills(orders)
+                parsed_orders = []
+                if not getattr(broker, "_last_orders_refresh_degraded", False):
+                    for order_data in orders:
+                        if not isinstance(order_data, dict):
+                            continue
+                        try:
+                            order = broker._parse_broker_order(order_data, broker._strategy_name)
+                        except Exception:
+                            logger.error(_format_exc())
+                            continue
+                        if order:
+                            parsed_orders.append(order)
+                    broker._remember_schwab_package_fills(parsed_orders)
                 current_time = datetime.now()
                 if not hasattr(broker, '_last_position_sync_time') or (current_time - broker._last_position_sync_time).total_seconds() > 30:
-                    broker._anchor_recovered_working_packages(orders)
+                    broker._anchor_recovered_working_packages(parsed_orders)
                     # Only sync positions every 30 seconds to avoid duplication.
                     # Use the local strategy name so the book is not labeled Unknown.
                     broker.sync_positions(broker._position_sync_strategy())
                     broker._last_position_sync_time = current_time
 
-                for order_data in orders:
-                    order = broker._parse_broker_order(order_data, broker._strategy_name)
-                    if not order:
-                        continue
+                for order in parsed_orders:
                     # Shared-account safety: skip foreign-tagged snapshots early.
                     if broker.order_is_foreign_to_local_strategy(order, broker._strategy_name):
                         continue
@@ -3843,11 +3867,10 @@ class Schwab(Broker):
             return None
 
         try:
-            # Create tag for the order (use strategy name if tag not provided)
-            tag = order.tag if order.tag else order.strategy
-
-            # Replace any characters that might cause issues
-            tag = re.sub(r'[^a-zA-Z0-9-]', '-', tag)
+            # Same normalization the recovery match uses. A blank tag uses the strategy.
+            tag = self.normalize_broker_strategy_tag(order.tag) or self.normalize_broker_strategy_tag(
+                order.strategy
+            )
 
             if order.order_class is Order.OrderClass.OTO:
                 order_builder = self._prepare_oto_order_builder(order)
@@ -5237,9 +5260,10 @@ class Schwab(Broker):
         # This will need to be implemented based on the actual structure of Schwab's order specs
         # For now, let's create a basic implementation
 
-        # Start with tag for the order
-        tag = order.tag if order.tag else order.strategy
-        tag = re.sub(r'[^a-zA-Z0-9-]', '-', tag)
+        # Same normalization as a new submit. A blank tag uses the strategy.
+        tag = self.normalize_broker_strategy_tag(order.tag) or self.normalize_broker_strategy_tag(
+            order.strategy
+        )
 
         # Use original values for prices if new ones are not provided
         final_limit_price = limit_price if limit_price is not None else order.limit_price

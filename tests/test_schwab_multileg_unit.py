@@ -1828,6 +1828,7 @@ def test_recovered_package_does_not_price_history_at_the_limit(lifecycle):
 
     tracked = broker.get_tracked_order("spread-recovered")
     assert [(item.price, item.quantity) for item in tracked.transactions] == [(None, 1)]
+    assert tracked.cash_pending(type("Strategy", (), {"get_last_price": lambda *_args: 9.99})()) == 9.99
 
     filled = _quantity_close_snapshot(
         status="FILLED", tag="fixture", quantity=2, filledQuantity=2, averagePrice=1.00, price=1.20,
@@ -1841,6 +1842,39 @@ def test_recovered_package_does_not_price_history_at_the_limit(lifecycle):
     assert len(fills) == 1
     assert fills[0]["quantity"] == 1
     assert fills[0]["price"] == 1.00
+
+
+def test_poll_parses_a_history_snapshot_once_and_keeps_a_failed_pull(lifecycle):
+    """One reliable history parse feeds attribution. A later failed pull does not erase it."""
+    transport, broker, _queues = lifecycle
+    broker._pull_positions = lambda _strategy: []
+    broker._last_positions_refresh_degraded = False
+    calls = {"n": 0}
+    original = broker._parse_broker_order
+
+    def _count_parse(payload, strategy_name, strategy_object=None):
+        calls["n"] += 1
+        return original(payload, strategy_name, strategy_object)
+
+    broker._parse_broker_order = _count_parse
+    transport.queue_history_response([
+        _working_close_snapshot(status="FILLED", tag="fixture", filledQuantity=1),
+    ])
+    broker.stream.dispatch(broker.POLL_EVENT, wait_until_complete=True)
+
+    assert calls["n"] == 1
+    assert broker._schwab_seen_package_fills == {"spread-recovered": 1.0}
+    assert broker.get_tracked_order("spread-recovered") is None
+
+    def _denied(*_args, **_kwargs):
+        return type("Response", (), {"status_code": 429, "headers": {}})()
+
+    transport.get_orders_for_account = _denied
+    del broker._last_position_sync_time
+    broker.stream.dispatch(broker.POLL_EVENT, wait_until_complete=True)
+
+    assert broker._schwab_seen_package_fills == {"spread-recovered": 1.0}
+    assert broker._last_orders_refresh_degraded is True
 
 
 def test_stream_startup_anchors_a_recovered_package_after_the_book_loads(lifecycle):

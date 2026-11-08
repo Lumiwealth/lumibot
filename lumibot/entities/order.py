@@ -1241,7 +1241,14 @@ class Order:
         elif len(self.transactions) == 0:
             cash_value = self.quantity * strategy.get_last_price(self.asset)
         else:
-            cash_value = quantity_unfilled * self.transactions[-1].price
+            # The latest fill can be unpriced. That is not a zero-cash remainder,
+            # and it is not the limit. Estimate it the same way as an empty ledger.
+            price = self.transactions[-1].price
+            if price is None:
+                price = strategy.get_last_price(self.asset)
+            if price is None:
+                return 0
+            cash_value = quantity_unfilled * price
         if self.side == SELL:
             return cash_value
         else:

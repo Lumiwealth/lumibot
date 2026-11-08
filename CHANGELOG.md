@@ -2,6 +2,9 @@
 
 ## 4.6.49 - Unreleased
 
+### Added
+- Indicator outputs can say how they look: `line_width`, `line_style` (solid, dashed, dotted), colors with opacity (`#RRGGBBAA`) and theme colors (`chart.fg`, `chart.bg`), a color per bar (`palette` with `color_by`, optionally `gradient`), `offset`, `display`, `precision`, `pane` and `track_price`. New kinds: `step`, `columns`, `circles`, `cross`, `shape` markers (12 shapes, 5 locations, 6 sizes, text), `fill` between outputs or levels, `background`, `bar_color` and `candle`. Levels take `dotted`, `color` and `line_width`. Per-bar values stay numbers; all styling travels in `describe()`. New page "Outputs and Styles" and four example indicators (`momentum_histogram`, `trailing_band`, `oscillator_zones`, `smoothed_candles`).
+
 ### Fixed
 - Download hourly history from Alpaca as hourly bars instead of sixty times as many minute bars, so a long hourly request can no longer exhaust a live bot's memory. Live data sources can declare native intervals through `supports_native_timestep`, optionally receiving `include_after_hours`. Alpaca intraday windows are sized from the bar length, and dropping the incomplete current bar keeps the hourly and multi-minute bars from today that have already closed.
 - Cap the agent `market_historical_prices` and `market_load_history_table` tools at 5,000 bars per symbol per call. A larger request returns the most recent 5,000 bars and says so in the result instead of failing.

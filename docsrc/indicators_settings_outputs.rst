@@ -49,9 +49,14 @@ Outputs
         OutputSpec("hist", "Histogram", "histogram", "#26A69A"),
     ]
 
-Kinds: ``line``, ``area``, ``histogram``, ``scatter``, ``markers``. ``step``
-returns one value (or ``None``) per output ``id``. ``NaN`` and infinity are
-turned into ``None``.
+``step`` returns one value (or ``None``) per output ``id``. ``NaN`` and
+infinity are turned into ``None``.
+
+Each output also says how it looks: its kind (``line``, ``step``, ``area``,
+``histogram``, ``columns``, ``circles``, ``cross``, ``shape`` markers,
+``fill``, ``background``, ``bar_color``, ``candle``...), width, line style,
+colors with opacity, a color per bar, which pane and what shows in the status
+line. Every option, with examples: :doc:`indicators_styles`.
 
 Guide lines (levels)
 --------------------
@@ -62,7 +67,9 @@ Guide lines (levels)
 
     levels = [Level(70, "Overbought"), Level(30, "Oversold")]
 
-When the lines depend on settings, override ``levels_for(inputs)``.
+A level's ``style`` is ``solid``, ``dashed`` (default) or ``dotted``; it may
+also set ``color`` and ``line_width``. When the lines depend on settings,
+override ``levels_for(inputs)``.
 
 Describe
 --------

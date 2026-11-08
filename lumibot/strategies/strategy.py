@@ -2302,6 +2302,12 @@ class Strategy(_Strategy):
         return "credit", float(abs(mid_signed))
 
     def _submit_multileg_smart_limit_orders(self, child_orders: List[Order], smart_limit: SmartLimitConfig, **kwargs):
+        """Submit a multi-leg SMART_LIMIT package at the walked net price.
+
+        Backtesting sends the legs through the broker as one package. A live
+        Schwab package keeps the inferred credit, debit, or even type: a missing
+        quote or a failed submit is not turned into a market or an unsigned limit.
+        """
         if self.broker.IS_BACKTESTING_BROKER:
             kwargs.setdefault("is_multileg", True)
             return self.broker.submit_orders(child_orders, **kwargs)

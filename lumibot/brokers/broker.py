@@ -3148,6 +3148,7 @@ class Broker(ABC):
         seen: set[int] = set()
 
         def add(candidate):
+            """Keep one active order for this strategy and contract."""
             if candidate is None or id(candidate) in seen or id(candidate) in excluded:
                 return
             if candidate.strategy != order.strategy or candidate.asset != order.asset:

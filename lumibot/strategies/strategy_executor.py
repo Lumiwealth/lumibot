@@ -1051,6 +1051,7 @@ class StrategyExecutor(Thread):
             self._process_smart_limit_orders_locked()
 
     def _process_smart_limit_orders_locked(self):
+        """Reprice active SMART_LIMIT orders while the executor lock is held."""
 
         # SMART_LIMIT should only operate on active orders. Scanning the full tracked-order
         # history (which can include large closed/filled histories) in a tight background loop

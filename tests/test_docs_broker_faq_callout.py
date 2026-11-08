@@ -23,6 +23,7 @@ UNDERLINE = re.compile(r"^([=\-~^\"*#+])\1{3,}\s*$")
 
 
 def _load_docs_config():
+    """Load docsrc/conf.py once docutils is present, then restore sys.modules."""
     pytest.importorskip("docutils")
     spec = importlib.util.spec_from_file_location("lumibot_docs_conf_faq", DOCSRC / "conf.py")
     module = importlib.util.module_from_spec(spec)

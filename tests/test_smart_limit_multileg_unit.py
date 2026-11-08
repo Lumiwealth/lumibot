@@ -185,6 +185,7 @@ def test_multileg_limit_weights_unequal_leg_ratios(mocker):
     sell.quantity = 2
 
     def _get_quote(asset, **_kwargs):
+        """Return the bid and ask scripted for this leg."""
         if asset == buy.asset:
             return _Quote(bid=1.00, ask=1.00)
         return _Quote(bid=0.80, ask=0.80)
@@ -257,6 +258,7 @@ def test_smart_limit_retries_the_same_step_when_modify_returns_false(mocker):
     tracked_orders.append(parent)
 
     def _get_quote(asset, **_kwargs):
+        """Return the bid and ask scripted for this leg."""
         if asset == leg_buy.asset:
             return _Quote(bid=0.50, ask=0.60)
         return _Quote(bid=0.20, ask=0.30)
@@ -348,6 +350,7 @@ def test_multileg_limit_maps_to_credit_schwab(mocker):
     short_leg = _leg("unit", _option("SPY", 505), Order.OrderSide.SELL_TO_OPEN)
 
     def _get_quote(asset, **_kwargs):
+        """Return the bid and ask scripted for this leg."""
         if asset == long_leg.asset:
             return _Quote(bid=0.50, ask=0.60)
         return _Quote(bid=1.00, ask=1.20)
@@ -706,6 +709,7 @@ def test_schwab_smart_limit_submit_error_does_not_retry_a_credit_as_a_debit(mock
     short_leg.smart_limit = cfg
 
     def _get_quote(asset, **_kwargs):
+        """Return the bid and ask scripted for this leg."""
         if asset == long_leg.asset:
             return _Quote(bid=0.50, ask=0.60)
         return _Quote(bid=1.00, ask=1.20)

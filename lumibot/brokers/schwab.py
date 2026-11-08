@@ -1815,6 +1815,11 @@ class Schwab(Broker):
             return None
 
     def _schwab_order_type_to_lumibot(self, raw_order_type):
+        """Map a Schwab order type to a lumibot type.
+
+        NET_DEBIT, NET_CREDIT, and NET_ZERO stay limits at the net price. The
+        raw type remains on the order. Exercise and unknown types stay unknown.
+        """
         order_type_map = {
             "LIMIT": Order.OrderType.LIMIT,
             "MARKET": Order.OrderType.MARKET,
@@ -2411,6 +2416,7 @@ class Schwab(Broker):
 
     @staticmethod
     def _schwab_leg_is_close(order) -> bool:
+        """True for an explicit sell-to-close or buy-to-close leg."""
         try:
             side = order.side if isinstance(order.side, Order.OrderSide) else Order.OrderSide(order.side)
         except (TypeError, ValueError):
@@ -2418,6 +2424,7 @@ class Schwab(Broker):
         return side in {Order.OrderSide.SELL_TO_CLOSE, Order.OrderSide.BUY_TO_CLOSE}
 
     def _package_close_key(self, order):
+        """Key for the contract a package close reserves, or None without an asset."""
         asset = getattr(order, "asset", None)
         if asset is None:
             return None
@@ -2426,6 +2433,11 @@ class Schwab(Broker):
                 str(getattr(asset, "right", None) or ""))
 
     def _refresh_unreconciled_package_close(self, key, position_abs) -> float:
+        """Reduce the reserved quantity when the position shrinks, and return the rest.
+
+        A larger position moves the anchor up and leaves the reserved quantity
+        in place. Every close of this contract shares one pool.
+        """
         state = getattr(self, "_unreconciled_package_closes", {}).get(key)
         if not state:
             return 0.0
@@ -2435,6 +2447,7 @@ class Schwab(Broker):
         return state["qty"]
 
     def _unreconciled_package_close_quantity(self, order) -> float:
+        """Filled close contracts this order still reserves until the book drops."""
         key = self._package_close_key(order)
         if key is None:
             return 0.0

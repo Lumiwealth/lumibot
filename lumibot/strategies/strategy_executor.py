@@ -1137,38 +1137,22 @@ class StrategyExecutor(Thread):
             if step_index == state["step_index"]:
                 continue
 
+            previous_step_index = state["step_index"]
             state["step_index"] = step_index
 
             if order.order_class == Order.OrderClass.MULTILEG and order.child_orders:
-                quote_data: list[tuple[Order, float | None, float | None]] = []
-                for leg in order.child_orders:
-                    try:
-                        quote = self.strategy.get_quote(leg.asset, quote=leg.quote, exchange=leg.exchange)
-                        leg_bid = getattr(quote, "bid", None)
-                        leg_ask = getattr(quote, "ask", None)
-                    except Exception:
-                        leg_bid = None
-                        leg_ask = None
-                    quote_data.append((leg, leg_bid, leg_ask))
-
-                if any(b is None or a is None or b < 0 or a <= 0 for _, b, a in quote_data):
+                computed = self.strategy._compute_multileg_net_best_fastest(order.child_orders)
+                if computed is None:
                     if not getattr(order, "_smart_limit_missing_quote_logged", False):
                         self.strategy.log_message(
                             f"[SMART_LIMIT] Missing bid/ask for {order.asset}; keeping last limit.",
                             color="yellow",
                         )
                         order._smart_limit_missing_quote_logged = True
+                    state["step_index"] = previous_step_index
                     continue
 
-                net_best = 0.0
-                net_fastest = 0.0
-                for leg, leg_bid, leg_ask in quote_data:
-                    if leg.is_buy_order():
-                        net_best += float(leg_bid)
-                        net_fastest += float(leg_ask)
-                    else:
-                        net_best -= float(leg_ask)
-                        net_fastest -= float(leg_bid)
+                net_best, net_fastest = computed
 
                 tick = infer_tick_size(net_best, net_fastest)
                 mid = compute_mid(net_best, net_fastest)
@@ -1198,10 +1182,16 @@ class StrategyExecutor(Thread):
                         if target_price is None:
                             should_replace = True
                         else:
-                            self.broker.modify_order(order, limit_price=float(target_price))
+                            modified = self.broker.modify_order(order, limit_price=float(target_price))
+                            # False means the broker sent nothing or could not confirm
+                            # the replace. Keep the last price and retry this step.
+                            if modified is False:
+                                state["step_index"] = previous_step_index
+                                continue
                             order.limit_price = float(target_price)
                             continue
                     except Exception:
+                        state["step_index"] = previous_step_index
                         should_replace = True
 
                 if should_replace:

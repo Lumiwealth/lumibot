@@ -404,6 +404,8 @@ def test_package_fill_reaches_strategy_once_at_net_price_and_package_quantity(li
     broker._process_schwab_order_snapshot(observed)
 
     assert parent.is_filled()
+    assert not parent.is_active()
+    assert all(child.is_filled() and child._closed_event.is_set() for child in parent.child_orders)
     assert [(t.price, t.quantity) for t in parent.transactions] == [(1.20, 1)]
     fills = [payload for name, payload in _priority_events(queues) if name == broker.FILLED_ORDER]
     assert len(fills) == 1
@@ -825,16 +827,24 @@ def test_partial_then_full_package_fill_delivers_package_deltas(lifecycle):
         {"status": "FILLED", "filledQuantity": 2, "orderActivityCollection": [first, second]},
     )
 
-    for _ in range(2):
-        observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
-        broker._process_schwab_order_snapshot(observed)
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+    assert not parent.is_filled()
+    assert parent.is_active()
+    assert parent.transactions[0].price == 1.30
+    assert not any(child.is_filled() for child in parent.child_orders)
+
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
 
     assert parent.is_filled()
+    assert not parent.is_active()
+    assert all(child.is_filled() for child in parent.child_orders)
     assert [t.quantity for t in parent.transactions] == [1, 1]
     assert parent.transactions[0].price == 1.30
-    # The shared Schwab reducer prices each delta at the snapshot's cumulative
-    # average (1.25 here), for single legs too, not at that fill's own 1.20.
-    # That is reducer policy, so it is deliberately not asserted here.
+    # The second fill is its own 1.20, not the cumulative 1.25 average.
+    assert parent.transactions[1].price == 1.20
+    assert parent.get_fill_price() == 1.25
     events = [(name, payload["quantity"]) for name, payload in _priority_events(queues)]
     assert events == [(broker.PARTIALLY_FILLED_ORDER, 1), (broker.FILLED_ORDER, 1)]
 
@@ -849,6 +859,8 @@ def test_package_cancel_and_http_rejection_reach_the_strategy(lifecycle):
     observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
     broker._process_schwab_order_snapshot(observed)
     assert parent.is_canceled()
+    assert not parent.is_active()
+    assert all(child.is_canceled() and child._closed_event.is_set() for child in parent.child_orders)
 
     transport.queue_submission_response(400, "Invalid request data")
     assert broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=1.25) is None
@@ -869,8 +881,12 @@ def test_package_price_rounds_in_decimal_space():
     assert Schwab._format_schwab_package_price(1.15) == "1.15"
     assert Schwab._format_schwab_package_price(1.259) == "1.26"
     assert Schwab._format_schwab_package_price(0.12349) == "0.1235"
+    assert Schwab._format_schwab_package_price(0.9951) == "0.9951"
     assert Schwab._format_schwab_package_price(0.99999) == "1.00"
     assert Schwab._format_schwab_package_price(0) == "0.00"
+    # A debit must not pay more, and a credit must not accept less.
+    assert Schwab._format_schwab_package_price(1.255, effect="debit") == "1.25"
+    assert Schwab._format_schwab_package_price(1.254, effect="credit") == "1.26"
 
 
 def test_closing_vertical_high_strike_and_three_leg_package():
@@ -960,6 +976,8 @@ def test_unknown_leg_side_uses_the_order_level_fill_price():
     assert parsed.order_class == Order.OrderClass.MULTILEG
     assert parsed.avg_fill_price == 0.55
     assert parsed.child_orders[1].side == Order.OrderSide.UNKNOWN
+    assert parsed.broker_parse_degraded is True
+    assert parsed.child_orders[1].broker_parse_degraded is True
 
 
 def test_parsed_even_and_hand_built_zero_price_cannot_be_repriced():
@@ -1058,3 +1076,179 @@ def test_broken_package_warning_is_logged_once_per_order(mocker):
     package_debug = [c for c in logger.debug.call_args_list if "Skipping Schwab option package" in str(c)]
     assert len(package_warnings) == 1
     assert len(package_debug) == 2
+
+
+def test_fractional_strike_keeps_occ_thousandths():
+    broker = _broker()
+    legs = [
+        _option_leg(100.125, "CALL", Order.OrderSide.BUY_TO_OPEN),
+        _option_leg(101, "CALL", Order.OrderSide.SELL_TO_OPEN),
+    ]
+
+    spec = _spec(broker, _parent(legs, limit_price=0.40))
+
+    assert spec["orderLegCollection"][0]["instrument"]["symbol"] == "SPY   260619C00100125"
+
+
+def test_stop_and_market_parents_are_not_sent_as_plain_net_limits():
+    broker = _broker()
+    stop_limit = _parent(
+        _put_credit_children(),
+        side=Order.OrderSide.SELL,
+        limit_price=1.25,
+        order_type=Order.OrderType.STOP_LIMIT,
+        stop_price=1.00,
+    )
+    market = _parent(
+        _put_credit_children(),
+        side=Order.OrderSide.BUY,
+        limit_price=1.25,
+        order_type=Order.OrderType.MARKET,
+    )
+    smart = _parent(
+        _put_credit_children(),
+        side=Order.OrderSide.SELL,
+        limit_price=1.25,
+        order_type=Order.OrderType.SMART_LIMIT,
+    )
+
+    assert broker._submit_order(stop_limit) is None
+    assert broker._submit_order(market) is None
+    assert _spec(broker, smart)["orderType"] == "NET_CREDIT"
+    assert broker.client.place_calls == []
+
+
+def test_directional_package_prices_are_sent_without_weakening_the_limit():
+    broker = _broker()
+
+    broker._submit_orders(_put_credit_children(), is_multileg=True, order_type="debit", price=1.255)
+    broker._submit_orders(_put_credit_children(), is_multileg=True, order_type="credit", price=1.254)
+
+    assert broker.client.place_calls[0][1]["price"] == "1.25"
+    assert broker.client.place_calls[1][1]["price"] == "1.26"
+
+
+def test_submitted_credit_cannot_become_net_zero(lifecycle):
+    transport, broker, _queues = lifecycle
+    parent = _parent(_fixture_put_credit_legs(), side=Order.OrderSide.SELL, limit_price=1.25)
+    parent.strategy = "fixture"
+    for leg in parent.child_orders:
+        leg.strategy = "fixture"
+
+    assert broker.submit_order(parent) is parent
+    assert parent._multileg_effect == "credit"
+
+    assert broker.modify_order(parent, limit_price=0) is False
+    assert transport.replace_calls == []
+    assert parent.limit_price == 1.25
+
+
+def test_submitted_sub_tick_even_package_cannot_be_repriced(lifecycle):
+    transport, broker, _queues = lifecycle
+    parent = _parent(_fixture_put_credit_legs(), side=Order.OrderSide.SELL, limit_price=0.00004)
+    parent.strategy = "fixture"
+    for leg in parent.child_orders:
+        leg.strategy = "fixture"
+
+    assert broker.submit_order(parent) is parent
+    assert parent._multileg_effect == "even"
+
+    assert broker.modify_order(parent, limit_price=0.10) is False
+    assert transport.replace_calls == []
+    assert parent.limit_price == 0.00004
+
+
+def test_zero_net_fill_is_not_replaced_by_the_limit(lifecycle):
+    _transport, broker, queues = lifecycle
+    parent = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="debit", price=0.40)[0]
+    _TRANSPORT.drain_stream_events(broker)
+    parent.limit_price = 0.40
+
+    transport_queue = {
+        "status": "FILLED",
+        "filledQuantity": 1,
+        "averagePrice": 0,
+        "price": 0.40,
+        "orderActivityCollection": [],
+    }
+    _transport.queue_order_reads(parent.identifier, transport_queue)
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+
+    assert parent.transactions[0].price == 0
+    fills = [payload for name, payload in _priority_events(queues) if name == broker.FILLED_ORDER]
+    assert fills[0]["price"] == 0
+
+
+def test_modify_leaves_the_price_when_the_order_cannot_be_read(lifecycle):
+    transport, broker, _queues = lifecycle
+    parent = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=1.25)[0]
+    broker._pull_broker_order = lambda _identifier: None
+
+    assert broker.modify_order(parent, limit_price=1.05) is False
+    assert transport.replace_calls == []
+    assert parent.limit_price == 1.25
+
+
+def test_unconfirmed_replace_does_not_adopt_the_new_price(lifecycle):
+    transport, broker, _queues = lifecycle
+    parent = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=1.25)[0]
+    original_id = parent.identifier
+
+    def replace_order(account_hash, identifier, order_spec):
+        transport._check_account(account_hash)
+        transport.replace_calls.append((identifier, order_spec))
+        return type("Response", (), {"status_code": 201, "headers": {}, "text": ""})()
+
+    transport.replace_order = replace_order
+
+    assert broker.modify_order(parent, limit_price=1.05) is False
+    assert parent.limit_price == 1.25
+    assert parent.identifier == original_id
+
+
+def test_explicit_close_without_a_position_is_rejected(lifecycle):
+    transport, broker, _queues = lifecycle
+    closing = _parent(
+        [
+            _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE),
+            _option_leg(490, "PUT", Order.OrderSide.BUY_TO_OPEN),
+        ],
+        side=Order.OrderSide.BUY,
+        limit_price=0.40,
+    )
+    closing.strategy = "fixture"
+    for leg in closing.child_orders:
+        leg.strategy = "fixture"
+
+    assert broker.submit_order(closing) is None
+    assert transport.attempted_orders == []
+
+
+def test_working_package_reserves_its_close_leg(lifecycle):
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 1))
+
+    def _closing(other_strike):
+        order = _parent(
+            [
+                _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE),
+                _option_leg(other_strike, "PUT", Order.OrderSide.BUY_TO_OPEN),
+            ],
+            side=Order.OrderSide.SELL,
+            limit_price=0.40,
+        )
+        order.strategy = "fixture"
+        for leg in order.child_orders:
+            leg.strategy = "fixture"
+        return order
+
+    first = _closing(490)
+    assert broker.submit_order(first) is first
+
+    assert broker.submit_order(_closing(480)) is None
+    assert len(transport.attempted_orders) == 1
+
+    assert broker.modify_order(first, limit_price=0.35) is True
+    assert transport.replace_calls[0][1]["price"] == "0.3500"

@@ -3111,7 +3111,14 @@ class Broker(ABC):
                 float(active_order.quantity) - self._reserved_quantity_already_filled(active_order),
             )
 
-        remaining_closable = max(0.0, abs(position_quantity) - reserved_quantity)
+        # Package fills do not change the position book. Until a sync drops
+        # those contracts, they are still inside position_quantity and must
+        # stay unavailable. Active orders above already reserve only what is
+        # still working.
+        remaining_closable = max(
+            0.0,
+            abs(position_quantity) - reserved_quantity - self._unreconciled_package_close_quantity(order),
+        )
         requested_quantity = float(order.quantity)
         if requested_quantity > remaining_closable + 1e-9:
             raise ValueError(
@@ -3165,7 +3172,8 @@ class Broker(ABC):
         A package fill is stored on the parent. The original leg keeps an empty
         ledger, so its own transactions would reserve the whole leg after a
         partial fill. The parent's filled packages, times this leg's ratio,
-        are the contracts no longer reserved.
+        are the contracts that have filled. Callers that still show those
+        contracts in the position book keep them reserved separately.
         """
         filled = 0.0
         try:
@@ -3196,6 +3204,14 @@ class Broker(ABC):
         if parent_quantity <= 0 or child_quantity < 0:
             return filled
         return max(filled, parent_filled * (child_quantity / parent_quantity))
+
+    def _unreconciled_package_close_quantity(self, order: Order) -> float:
+        """Close fills the position book does not yet show.
+
+        Brokers that apply package fills to the position book return 0. Schwab
+        keeps the filled contracts here until position sync drops them.
+        """
+        return 0.0
 
     def _conform_order(self, order):
         """Conform an order to broker constraints. Derived brokers should implement this method."""

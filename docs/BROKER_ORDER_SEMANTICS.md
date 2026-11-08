@@ -317,14 +317,16 @@ Lifecycle:
   marked the same way and their close events are set. A submit rejection does
   this when the error event is applied, including after a held event is
   released. A package that was canceled and is later confirmed filled moves
-  those legs to filled; that update does not book a second cash change. The
-  parent fill does not move cash (`Order.is_parent()`); leg positions come from
-  the regular Schwab position sync.
-- A working package's unfilled close legs count as reserved contracts. A
-  partial fill counts only the remainder: filled packages times the leg's
-  ratio to the package quantity. The package being replaced does not reserve
-  against itself. An explicit close with no matching position is rejected
-  before the request.
+  those legs to filled; that update does not book a second cash change. A
+  local error that a later partial fill supersedes reopens the parent and its
+  legs, so the outstanding contracts stay reserved. The parent fill does not
+  move cash (`Order.is_parent()`); leg positions come from the regular Schwab
+  position sync.
+- A working package's unfilled close legs count as reserved contracts. Filled
+  close contracts stay reserved as well until position sync removes them from
+  the book; the sync drops that hold and leaves only the unfilled remainder.
+  The package being replaced does not reserve against itself. An explicit close
+  with no matching position is rejected before the request.
 - `modify_order` replaces the package through the same builder, so SMART_LIMIT
   repricing changes only the net price. A failed order read, including HTTP 429,
   returns `False` and leaves the local price unchanged; the strategy does not

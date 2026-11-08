@@ -1271,17 +1271,22 @@ def test_working_package_reserves_its_close_leg(lifecycle):
     assert transport.replace_calls[0][1]["price"] == "0.3500"
 
 
-def test_partial_package_fill_reserves_only_the_unfilled_remainder(lifecycle):
-    transport, broker, _queues = lifecycle
-    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
-    broker._filled_positions.append(Position("fixture", held, 2))
-    legs = [
-        _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE, quantity=2),
-        _option_leg(490, "PUT", Order.OrderSide.BUY_TO_OPEN, quantity=2),
-    ]
-    for leg in legs:
+def _close_package(quantity, other_strike):
+    order = _parent(
+        [
+            _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE, quantity=quantity),
+            _option_leg(other_strike, "PUT", Order.OrderSide.BUY_TO_OPEN, quantity=quantity),
+        ],
+        side=Order.OrderSide.SELL,
+        limit_price=0.40,
+    )
+    order.strategy = "fixture"
+    for leg in order.child_orders:
         leg.strategy = "fixture"
-    parent = broker.submit_orders(legs, is_multileg=True, order_type="credit", price=1.25)[0]
+    return order
+
+
+def _fill_one_package(transport, broker, parent):
     execution = {"activityType": "EXECUTION", "executionLegs": [
         {"legId": 1, "quantity": 1, "price": 2.10},
         {"legId": 2, "quantity": 1, "price": 0.80},
@@ -1294,23 +1299,83 @@ def test_partial_package_fill_reserves_only_the_unfilled_remainder(lifecycle):
     observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
     broker._process_schwab_order_snapshot(observed)
 
-    def _closing(quantity, other_strike):
-        order = _parent(
-            [
-                _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE, quantity=quantity),
-                _option_leg(other_strike, "PUT", Order.OrderSide.BUY_TO_OPEN, quantity=quantity),
-            ],
-            side=Order.OrderSide.SELL,
-            limit_price=0.40,
-        )
-        order.strategy = "fixture"
-        for leg in order.child_orders:
-            leg.strategy = "fixture"
-        return order
 
-    assert broker.submit_order(_closing(2, 480)) is None
-    assert broker.submit_order(_closing(1, 470)) is not None
+def test_partial_fill_keeps_filled_contracts_until_the_position_drops(lifecycle):
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    position = Position("fixture", held, 3)
+    broker._filled_positions.append(position)
+    legs = [
+        _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE, quantity=2),
+        _option_leg(490, "PUT", Order.OrderSide.BUY_TO_OPEN, quantity=2),
+    ]
+    for leg in legs:
+        leg.strategy = "fixture"
+    parent = broker.submit_orders(legs, is_multileg=True, order_type="credit", price=1.25)[0]
+    _fill_one_package(transport, broker, parent)
+
+    # The book still shows the filled contract, and one contract remains working.
+    assert broker.submit_order(_close_package(2, 480)) is None
+    # Sync removes the filled contract and leaves the working one reserved.
+    position.quantity = 2
+    assert broker.submit_order(_close_package(2, 470)) is None
+    assert broker.submit_order(_close_package(1, 460)) is not None
     assert len(transport.attempted_orders) == 2
+
+
+def test_full_package_fill_stays_reserved_until_position_sync(lifecycle):
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    position = Position("fixture", held, 1)
+    broker._filled_positions.append(position)
+    legs = [
+        _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE),
+        _option_leg(490, "PUT", Order.OrderSide.BUY_TO_OPEN),
+    ]
+    for leg in legs:
+        leg.strategy = "fixture"
+    parent = broker.submit_orders(legs, is_multileg=True, order_type="credit", price=1.25)[0]
+    execution = {"activityType": "EXECUTION", "executionLegs": [
+        {"legId": 1, "quantity": 1, "price": 2.10},
+        {"legId": 2, "quantity": 1, "price": 0.80},
+    ]}
+    transport.queue_order_reads(parent.identifier, {
+        "status": "FILLED",
+        "filledQuantity": 1,
+        "orderActivityCollection": [execution],
+    })
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+    assert parent.is_filled()
+
+    assert broker.submit_order(_close_package(1, 480)) is None
+    position.quantity = 0
+    assert broker._unreconciled_package_close_quantity(parent.child_orders[0]) == 0
+    position.quantity = 1
+    assert broker.submit_order(_close_package(1, 470)) is not None
+
+
+def test_partial_fill_reopens_legs_closed_by_a_local_error(lifecycle):
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    legs = [
+        _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE, quantity=2),
+        _option_leg(490, "PUT", Order.OrderSide.BUY_TO_OPEN, quantity=2),
+    ]
+    for leg in legs:
+        leg.strategy = "fixture"
+    parent = broker.submit_orders(legs, is_multileg=True, order_type="credit", price=1.25)[0]
+    _TRANSPORT.drain_stream_events(broker)
+    broker._process_error_order(parent, RuntimeError("replace failed"))
+    assert all(not child.is_active() for child in parent.child_orders)
+
+    _fill_one_package(transport, broker, parent)
+
+    assert parent.is_active()
+    assert not parent._closed_event.is_set()
+    assert all(child.is_active() and not child._closed_event.is_set() for child in parent.child_orders)
+    assert broker.submit_order(_close_package(1, 480)) is None
 
 
 def test_confirmed_fill_after_cancel_marks_the_legs_filled(lifecycle):

@@ -2347,6 +2347,105 @@ class Schwab(Broker):
             self._complete_schwab_package_children(order)
         return order
 
+    def _reopen_schwab_package_children(self, parent: Order) -> None:
+        """Return legs to active after a local error loses to a later fill.
+
+        The fill reopens the parent only. Legs left closed by that error no
+        longer reserve their outstanding contracts.
+        """
+        if getattr(parent, "order_class", None) != Order.OrderClass.MULTILEG:
+            return
+        for child in list(getattr(parent, "child_orders", None) or []):
+            if child.is_filled():
+                continue
+            if child.is_canceled():
+                child.status = Order.OrderStatus.SUBMITTED
+            if child._closed_event.is_set():
+                child._closed_event.clear()
+
+    def _process_partially_filled_order(self, order, price, quantity):
+        self._note_package_close_fill(order, quantity)
+        return super()._process_partially_filled_order(order, price, quantity)
+
+    def _process_filled_order(self, order, price, quantity):
+        self._note_package_close_fill(order, quantity)
+        return super()._process_filled_order(order, price, quantity)
+
+    def _note_package_close_fill(self, order, package_fill_qty):
+        """Remember close contracts a package fill did not remove from the book."""
+        if getattr(order, "order_class", None) != Order.OrderClass.MULTILEG:
+            return
+        try:
+            package_fill_qty = float(package_fill_qty)
+            parent_quantity = float(order.quantity)
+        except (TypeError, ValueError):
+            return
+        if package_fill_qty <= 0 or parent_quantity <= 0:
+            return
+        if not hasattr(self, "_unreconciled_package_closes"):
+            self._unreconciled_package_closes = {}
+        for child in list(getattr(order, "child_orders", None) or []):
+            if not self._schwab_leg_is_close(child):
+                continue
+            try:
+                leg_qty = package_fill_qty * (float(child.quantity) / parent_quantity)
+            except (TypeError, ValueError):
+                continue
+            if leg_qty <= 0:
+                continue
+            key = self._package_close_key(child)
+            if key is None:
+                continue
+            position = self._position_for_order(child)
+            try:
+                position_abs = abs(float(position.quantity)) if position is not None else 0.0
+            except (TypeError, ValueError):
+                position_abs = 0.0
+            with self._lock:
+                self._refresh_unreconciled_package_close(key, position_abs)
+                state = self._unreconciled_package_closes.get(key)
+                if state is None:
+                    self._unreconciled_package_closes[key] = {"qty": leg_qty, "position_abs": position_abs}
+                else:
+                    state["qty"] += leg_qty
+
+    @staticmethod
+    def _schwab_leg_is_close(order) -> bool:
+        try:
+            side = order.side if isinstance(order.side, Order.OrderSide) else Order.OrderSide(order.side)
+        except (TypeError, ValueError):
+            return False
+        return side in {Order.OrderSide.SELL_TO_CLOSE, Order.OrderSide.BUY_TO_CLOSE}
+
+    def _package_close_key(self, order):
+        asset = getattr(order, "asset", None)
+        if asset is None:
+            return None
+        return (getattr(order, "strategy", None), asset.symbol, asset.asset_type,
+                getattr(asset, "expiration", None), getattr(asset, "strike", None),
+                str(getattr(asset, "right", None) or ""))
+
+    def _refresh_unreconciled_package_close(self, key, position_abs) -> float:
+        state = getattr(self, "_unreconciled_package_closes", {}).get(key)
+        if not state:
+            return 0.0
+        if position_abs < state["position_abs"]:
+            state["qty"] = max(0.0, state["qty"] - (state["position_abs"] - position_abs))
+        state["position_abs"] = position_abs
+        return state["qty"]
+
+    def _unreconciled_package_close_quantity(self, order) -> float:
+        key = self._package_close_key(order)
+        if key is None:
+            return 0.0
+        position = self._position_for_order(order)
+        try:
+            position_abs = abs(float(position.quantity)) if position is not None else 0.0
+        except (TypeError, ValueError):
+            position_abs = 0.0
+        with self._lock:
+            return self._refresh_unreconciled_package_close(key, position_abs)
+
     def _schwab_reported_fill_price(self, stored_order, observed_order, cumulative_filled, fill_delta):
         """Price for one new fill delta.
 
@@ -2547,6 +2646,7 @@ class Schwab(Broker):
                             # outcome was known. Fresh partial fill proves it is
                             # still open; do not leave wait-for-close signaled.
                             stored_order._closed_event.clear()
+                            self._reopen_schwab_package_children(stored_order)
                     self._process_trade_event(
                         stored_order,
                         event,

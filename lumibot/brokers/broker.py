@@ -3106,11 +3106,10 @@ class Broker(ABC):
             if not active_is_close:
                 continue
 
-            filled_quantity = sum(
-                float(transaction.quantity)
-                for transaction in getattr(active_order, "transactions", [])
+            reserved_quantity += max(
+                0.0,
+                float(active_order.quantity) - self._reserved_quantity_already_filled(active_order),
             )
-            reserved_quantity += max(0.0, float(active_order.quantity) - filled_quantity)
 
         remaining_closable = max(0.0, abs(position_quantity) - reserved_quantity)
         requested_quantity = float(order.quantity)
@@ -3159,6 +3158,44 @@ class Broker(ABC):
         for candidate in additional_active_orders or []:
             add(candidate)
         return active_orders
+
+    def _reserved_quantity_already_filled(self, order: Order) -> float:
+        """Contracts of this close that have already filled.
+
+        A package fill is stored on the parent. The original leg keeps an empty
+        ledger, so its own transactions would reserve the whole leg after a
+        partial fill. The parent's filled packages, times this leg's ratio,
+        are the contracts no longer reserved.
+        """
+        filled = 0.0
+        try:
+            filled = sum(
+                float(item.quantity)
+                for item in getattr(order, "transactions", [])
+                if getattr(item, "quantity", None) is not None
+            )
+        except (TypeError, ValueError):
+            filled = 0.0
+
+        parent_id = getattr(order, "parent_identifier", None)
+        if not parent_id:
+            return filled
+        parent = self.get_tracked_order(parent_id)
+        if parent is None or getattr(parent, "order_class", None) != Order.OrderClass.MULTILEG:
+            return filled
+        try:
+            parent_quantity = float(parent.quantity)
+            child_quantity = float(order.quantity)
+            parent_filled = sum(
+                float(item.quantity)
+                for item in getattr(parent, "transactions", [])
+                if getattr(item, "quantity", None) is not None
+            )
+        except (TypeError, ValueError):
+            return filled
+        if parent_quantity <= 0 or child_quantity < 0:
+            return filled
+        return max(filled, parent_filled * (child_quantity / parent_quantity))
 
     def _conform_order(self, order):
         """Conform an order to broker constraints. Derived brokers should implement this method."""

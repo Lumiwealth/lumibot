@@ -2238,6 +2238,9 @@ class Strategy(_Strategy):
         - For sell legs: best=-ask, fastest=-bid (negative contribution)
         """
 
+        if not child_orders:
+            return None
+
         quote_data: list[tuple[Order, float | None, float | None]] = []
         for leg in child_orders:
             try:
@@ -2260,7 +2263,7 @@ class Strategy(_Strategy):
                 quantity = abs(float(leg.quantity))
             except (TypeError, ValueError):
                 return None
-            if quantity <= 0 or quantity != int(quantity):
+            if not math.isfinite(quantity) or quantity <= 0 or quantity != int(quantity):
                 return None
             quantities.append(int(quantity))
         package_quantity = quantities[0]

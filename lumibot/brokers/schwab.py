@@ -2310,12 +2310,20 @@ class Schwab(Broker):
         else:
             return
         for child in list(getattr(parent, "child_orders", None) or []):
-            if child.is_filled() or child.is_canceled():
+            if child.is_filled():
                 if not child._closed_event.is_set():
-                    if child.is_filled():
-                        child.set_filled()
-                    else:
-                        child.set_canceled()
+                    child.set_filled()
+                continue
+            # A cancel can win the race and then lose it. A later confirmed fill
+            # has to move those legs to filled. set_filled only releases the
+            # wait; it does not book another cash or position change.
+            if parent.is_filled() and child.is_canceled():
+                child.status = Order.OrderStatus.FILLED
+                child.set_filled()
+                continue
+            if child.is_canceled():
+                if not child._closed_event.is_set():
+                    child.set_canceled()
                 continue
             child.status = terminal_status
             if parent.is_filled():
@@ -2325,6 +2333,19 @@ class Schwab(Broker):
                 child.set_error(getattr(parent, "_error", None) or LumibotBrokerAPIError(message))
             else:
                 child.set_canceled()
+
+    def _process_error_order(self, order, error):
+        """Close package legs when the parent error is applied.
+
+        Submit rejections arrive as stream events, and a sync can hold that
+        event until ``process_held_trades`` releases it. Both paths come
+        through here. The snapshot reducer also completes legs, and a second
+        call leaves an already terminal leg unchanged.
+        """
+        order = super()._process_error_order(order, error)
+        if order is not None:
+            self._complete_schwab_package_children(order)
+        return order
 
     def _schwab_reported_fill_price(self, stored_order, observed_order, cumulative_filled, fill_delta):
         """Price for one new fill delta.
@@ -3392,6 +3413,15 @@ class Schwab(Broker):
                 return None
             net_type, net_price = net_order
             price_effect = self._schwab_effect_name(net_type)
+            # Half-up can keep a sub-tick debit (0.00006 -> "0.0001") that debit
+            # rounding then sends as NET_DEBIT "0.00". Refuse that sent price.
+            formatted_price = self._format_schwab_package_price(net_price, effect=price_effect)
+            if price_effect in {"credit", "debit"} and formatted_price == "0.00":
+                logger.error(colored(
+                    f"Schwab multi-leg {price_effect} price rounds to 0.00. No leg was submitted.",
+                    "red",
+                ))
+                return None
 
             strategy_type = (
                 ComplexOrderStrategyType.VERTICAL
@@ -3404,7 +3434,7 @@ class Schwab(Broker):
                 .set_complex_order_strategy_type(strategy_type)
                 .set_quantity(package_quantity)
                 .set_order_strategy_type(OrderStrategyType.SINGLE)
-                .set_price(self._format_schwab_package_price(net_price, effect=price_effect))
+                .set_price(formatted_price)
             )
             for _, instruction, option_symbol, quantity in leg_parts:
                 builder = builder.add_option_leg(instruction, option_symbol, quantity)

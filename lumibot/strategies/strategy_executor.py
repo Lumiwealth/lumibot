@@ -1228,7 +1228,13 @@ class StrategyExecutor(Thread):
                 continue
 
             try:
-                self.broker.modify_order(order, limit_price=target_price)
+                modified = self.broker.modify_order(order, limit_price=target_price)
+                # False means the broker sent nothing or could not confirm the
+                # replace. Keep the last price and retry this step. None is a
+                # broker that does not report the outcome.
+                if modified is False:
+                    state["step_index"] = previous_step_index
+                    continue
                 if order.is_active():
                     order.limit_price = target_price
             except Exception:

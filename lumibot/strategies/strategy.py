@@ -2064,7 +2064,9 @@ class Strategy(_Strategy):
         if isinstance(order, list):
             # Submit multiple orders
             # Validate orders
-            default_multileg = True
+            # One option is a single order. Two or more options are one package
+            # unless the caller says otherwise. A stock in the list is never a package.
+            default_multileg = len(order) >= 2
 
             for o in order:
                 if o is None:
@@ -2250,15 +2252,34 @@ class Strategy(_Strategy):
         if any(bid is None or ask is None or bid < 0 or ask <= 0 for _, bid, ask in quote_data):
             return None
 
+        from math import gcd
+
+        quantities = []
+        for leg, _bid, _ask in quote_data:
+            try:
+                quantity = abs(float(leg.quantity))
+            except (TypeError, ValueError):
+                return None
+            if quantity <= 0 or quantity != int(quantity):
+                return None
+            quantities.append(int(quantity))
+        package_quantity = quantities[0]
+        for quantity in quantities[1:]:
+            package_quantity = gcd(package_quantity, quantity)
+        if package_quantity <= 0:
+            return None
+
         net_best = 0.0
         net_fastest = 0.0
-        for leg, bid, ask in quote_data:
+        for (leg, bid, ask), quantity in zip(quote_data, quantities):
+            # One package pays or receives the quote once per contract in the ratio.
+            ratio = quantity / package_quantity
             if leg.is_buy_order():
-                net_best += float(bid)
-                net_fastest += float(ask)
+                net_best += float(bid) * ratio
+                net_fastest += float(ask) * ratio
             else:
-                net_best -= float(ask)
-                net_fastest -= float(bid)
+                net_best -= float(ask) * ratio
+                net_fastest -= float(bid) * ratio
 
         return net_best, net_fastest
 
@@ -2686,6 +2707,10 @@ class Strategy(_Strategy):
         reference = self._journal_order_action(order, operation="modify", reason=reason, evidence=evidence,
                                                changes=changes)
         result = self._perform_journaled_order_action(reference, lambda: self.broker.modify_order(order, **changes))
+        # A broker refusal (False) leaves the live order alone. Copying the
+        # requested price locally would make the next equal step look done.
+        if result is False:
+            return result
         if limit_price is not None:
             order.limit_price = limit_price
         if stop_price is not None:

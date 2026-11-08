@@ -271,12 +271,20 @@ Wire contract:
   (`NET_ZERO` is `0.00`). Market packages, other order types, and durations
   other than `day`/`gtc` are rejected. The type comes from the
   `credit`/`debit`/`even` keyword, else from the parent side and price sign.
-  Zero is judged on the price as sent (four decimals under $1): a credit or
-  debit that rounds to `0.00` is refused, and an unhinted price that rounds to
-  `0.00` is `NET_ZERO`, never `NET_CREDIT`/`NET_DEBIT` at `0.00`.
+  Zero is judged on the price as sent (four decimals under $1, chosen from the
+  original amount, so 0.9951 stays four decimals). A credit or debit that
+  rounds to `0.00` is refused, and an unhinted price that rounds to `0.00` is
+  `NET_ZERO`, never `NET_CREDIT`/`NET_DEBIT` at `0.00`. A debit rounds down and
+  a credit rounds up, so the sent price is never more aggressive than requested.
+  The strike in the OCC symbol keeps thousandths (`100.125` stays `100.125`).
+  A `MARKET` or `STOP_LIMIT` parent is rejected even when it carries a limit
+  price; the stop trigger would otherwise be dropped.
 - `Strategy.submit_order(legs, order_type='limit', price=...)` infers
-  credit/debit/even from leg quotes for Schwab, as it does for Tradier and
-  Alpaca. Without that a positive Schwab limit would always be a debit.
+  credit/debit/even from leg quotes weighted by each leg's ratio to the package
+  quantity, for Schwab, Tradier, and Alpaca. Without that a positive Schwab
+  limit would always be a debit. A list of one option is a single order. A
+  successful submit stores the net effect, so a later replace cannot turn a
+  credit into `NET_ZERO` or an even package into a debit.
 - `complexOrderStrategyType` is `VERTICAL` only for one buy and one sell with
   the same expiry and right, different strikes and equal quantities; anything
   else is `CUSTOM`.
@@ -296,15 +304,27 @@ Lifecycle:
   reported positive. Schwab's `price` is the limit, not the fill. Only when an
   execution has no `legId`, a leg has no execution, or legs filled out of ratio
   does the parser use `filledQuantity` and `averagePrice` (then `price`).
-  A leg whose side is neither buy nor sell uses that same fallback. A parsed
-  `NET_CREDIT`, `NET_DEBIT`, or `NET_ZERO` keeps that effect, so a replace after
-  a restart follows the same credit, debit, and even rules as the original submit.
-- The parent fill does not move cash (`Order.is_parent()`); leg positions come
-  from the regular Schwab position sync.
+  Each new package fill uses the incremental price of that fill, derived from
+  the cumulative value, so two fills at 1.30 and 1.20 average to 1.25. Zero is
+  a real net price and is not replaced by the limit. A leg whose side is neither
+  buy nor sell uses that same fallback, and the package parent is marked
+  degraded when a leg is. A parsed `NET_CREDIT`, `NET_DEBIT`, or `NET_ZERO`
+  keeps that effect, so a replace after a restart follows the same credit,
+  debit, and even rules as the original submit.
+- When the package fills, is canceled, or errors, its original child orders are
+  marked the same way and their close events are set. The parent fill does not
+  move cash (`Order.is_parent()`); leg positions come from the regular Schwab
+  position sync.
+- A working package's unfilled close legs count as reserved contracts. The
+  package being replaced does not reserve against itself. An explicit close
+  with no matching position is rejected before the request.
 - `modify_order` replaces the package through the same builder, so SMART_LIMIT
-  repricing changes only the net price. A change between credit, debit and even
-  is a cancel and resubmit (strategy executor); modifying an `even` package to a
-  non-zero price is refused because `NET_ZERO` is always `0.00`.
+  repricing changes only the net price. A failed order read, including HTTP 429,
+  returns `False` and leaves the local price unchanged; the strategy does not
+  copy the requested price, and SMART_LIMIT retries that ladder step. A change
+  between credit, debit and even is a cancel and resubmit (strategy executor);
+  modifying an `even` package to a non-zero price is refused because `NET_ZERO`
+  is always `0.00`.
 - Durations are checked in the package builder, which every path uses
   (`submit_orders`, a hand-built parent, modify): `day`/`gtc` in any case are
   sent; anything else is refused instead of being sent with no duration.

@@ -3029,6 +3029,7 @@ class Broker(ABC):
         self,
         order: Order,
         additional_active_orders: list[Order] | None = None,
+        exclude_reservations: list[Order] | None = None,
     ) -> Order:
         """Resolve a single-leg option order to an explicit open/close side.
 
@@ -3085,13 +3086,11 @@ class Broker(ABC):
             return order
 
         reserved_quantity = 0.0
-        active_orders = self.get_active_tracked_orders(order.strategy, order.asset)
-        if additional_active_orders:
-            active_orders.extend(
-                candidate
-                for candidate in additional_active_orders
-                if candidate.strategy == order.strategy and candidate.asset == order.asset
-            )
+        active_orders = self._active_orders_reserving_asset(
+            order,
+            additional_active_orders=additional_active_orders,
+            exclude_reservations=exclude_reservations,
+        )
         for active_order in active_orders:
             try:
                 active_side = Order.OrderSide(active_order.side)
@@ -3121,6 +3120,45 @@ class Broker(ABC):
                 f"{remaining_closable:g} after active close orders"
             )
         return order
+
+    def _active_orders_reserving_asset(
+        self,
+        order: Order,
+        additional_active_orders: list[Order] | None = None,
+        exclude_reservations: list[Order] | None = None,
+    ) -> list[Order]:
+        """Active closes of this contract, including legs of a working package.
+
+        A package parent is not the option, so an asset lookup misses its legs.
+        ``exclude_reservations`` drops the package being replaced; earlier legs
+        of that same package still count when they are passed in
+        ``additional_active_orders``.
+        """
+        excluded = {id(item) for item in (exclude_reservations or [])}
+        if additional_active_orders:
+            excluded.difference_update(id(item) for item in additional_active_orders)
+
+        active_orders: list[Order] = []
+        seen: set[int] = set()
+
+        def add(candidate):
+            if candidate is None or id(candidate) in seen or id(candidate) in excluded:
+                return
+            if candidate.strategy != order.strategy or candidate.asset != order.asset:
+                return
+            if not candidate.is_active():
+                return
+            seen.add(id(candidate))
+            active_orders.append(candidate)
+
+        for candidate in self.get_active_tracked_orders(order.strategy, order.asset):
+            add(candidate)
+        for package in self.get_active_tracked_orders(order.strategy):
+            for child in getattr(package, "child_orders", None) or []:
+                add(child)
+        for candidate in additional_active_orders or []:
+            add(candidate)
+        return active_orders
 
     def _conform_order(self, order):
         """Conform an order to broker constraints. Derived brokers should implement this method."""

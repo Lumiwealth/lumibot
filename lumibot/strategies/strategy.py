@@ -2161,7 +2161,9 @@ class Strategy(_Strategy):
         if isinstance(order, list):
             # Submit multiple orders
             # Validate orders
-            default_multileg = True
+            # One option is a single order. Two or more options are one package
+            # unless the caller says otherwise. A stock in the list is never a package.
+            default_multileg = len(order) >= 2
 
             for o in order:
                 if o is None:
@@ -2786,6 +2788,10 @@ class Strategy(_Strategy):
         reference = self._journal_order_action(order, operation="modify", reason=reason, evidence=evidence,
                                                changes=changes)
         result = self._perform_journaled_order_action(reference, lambda: self.broker.modify_order(order, **changes))
+        # A broker refusal (False) leaves the live order alone. Copying the
+        # requested price locally would make the next equal step look done.
+        if result is False:
+            return result
         if limit_price is not None:
             order.limit_price = limit_price
         if stop_price is not None:

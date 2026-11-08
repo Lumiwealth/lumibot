@@ -2542,16 +2542,18 @@ class Schwab(Broker):
         """Reduce the reserved quantity when the position shrinks, and return the rest.
 
         A drop larger than the reservation becomes credit for a package that can
-        still fill this contract, capped at that package's un-noted close size.
-        Only that package's fill spends the credit. Anything beyond every
-        outstanding close is discarded, so an unrelated reduction cannot fund a
-        later package. A package whose latest pulled snapshot shows an execution
-        that is not yet noted is credited first. A drop that snapshot does not
-        explain still goes to the oldest anchored package, so a delayed fill
-        keeps its own credit when no pulled execution says otherwise. A
-        package's own pre-submission drop is claimed before this walk, and is
-        not assigned again here. A larger position moves the anchor up and
-        leaves the reservation.
+        still fill this contract. A package whose latest pulled snapshot shows
+        an execution that is not yet noted is credited first, and only up to
+        that un-noted close size, so one execution cannot absorb another's drop.
+        Any remainder is then offered to those executed packages and then to
+        older resting packages, still capped by each remaining limit. With no
+        pulled execution the oldest anchored package is still first, so a
+        delayed fill keeps its own credit. Only that package's fill spends the
+        credit. Anything beyond every outstanding close is discarded, so an
+        unrelated reduction cannot fund a later package. A package's own
+        pre-submission drop is claimed before this walk, and is not assigned
+        again here. A larger position moves the anchor up and leaves the
+        reservation.
         """
         state = getattr(self, "_unreconciled_package_closes", {}).get(key)
         if not state:
@@ -2571,13 +2573,21 @@ class Schwab(Broker):
                         executed.append(order_id)
                     else:
                         resting.append(order_id)
-                for order_id in executed + resting:
-                    room = float(limits[order_id]) - float(credits.get(order_id, 0.0))
-                    if room <= 0:
-                        continue
-                    take = room if room < excess else excess
-                    credits[order_id] = float(credits.get(order_id, 0.0)) + take
-                    excess -= take
+                for prioritize_execution in (True, False):
+                    order_ids = executed if prioritize_execution else executed + resting
+                    for order_id in order_ids:
+                        if excess <= 0:
+                            break
+                        credit = float(credits.get(order_id, 0.0))
+                        room = float(limits[order_id]) - credit
+                        if prioritize_execution:
+                            unnoted = self._schwab_unnoted_close_contracts(order_id, key)
+                            room = min(room, unnoted - credit)
+                        if room <= 0:
+                            continue
+                        take = room if room < excess else excess
+                        credits[order_id] = credit + take
+                        excess -= take
                     if excess <= 0:
                         break
                 state["absorbed"] = sum(float(value) for value in credits.values())
@@ -3039,7 +3049,9 @@ class Schwab(Broker):
         fill's price compounds it (1.30 then 1.25 becomes an average of 1.275).
         The delta price is the change in cumulative value. Zero is a real net
         price and must not fall through to the limit. Single-leg orders keep
-        the cumulative average on each delta.
+        the cumulative average on each delta. An unpriced historical quantity
+        is included at the new average so the delta is not inflated by treating
+        that quantity as zero.
         """
         average = getattr(observed_order, "_schwab_average_fill_price", None)
         if average is None:
@@ -3053,11 +3065,16 @@ class Schwab(Broker):
         if average is None or not fill_delta:
             return getattr(observed_order, "limit_price", None)
         try:
-            prior_value = sum(
-                float(item.quantity) * float(item.price)
-                for item in stored_order.transactions
-                if item.price is not None
-            )
+            prior_value = 0.0
+            unpriced = 0.0
+            for item in stored_order.transactions:
+                quantity = float(item.quantity)
+                if item.price is None:
+                    unpriced += quantity
+                else:
+                    prior_value += quantity * float(item.price)
+            if unpriced:
+                prior_value += unpriced * float(average)
             return (float(cumulative_filled) * float(average) - prior_value) / float(fill_delta)
         except (TypeError, ValueError, ZeroDivisionError):
             return average
@@ -3170,18 +3187,28 @@ class Schwab(Broker):
                     cumulative_filled = 0.0
                 if cumulative_filled > 0:
                     # Already executed. Callbacks after adoption report only the increase.
+                    # A limit is not an execution price. Leave that quantity unpriced.
                     prior_filled = float(self._schwab_observed_fill_quantities.get(identifier, 0.0) or 0.0)
                     if cumulative_filled > prior_filled:
                         self._schwab_observed_fill_quantities[identifier] = cumulative_filled
+                    price = None
+                    raw = getattr(observed_order, "raw_broker_payload", None)
+                    if isinstance(raw, dict):
+                        average = raw.get("averagePrice")
+                        if average not in (None, ""):
+                            try:
+                                price = float(average)
+                            except (TypeError, ValueError):
+                                price = None
+                        elif self._schwab_execution_rows(raw):
+                            try:
+                                price = float(observed_order._schwab_average_fill_price)
+                            except (TypeError, ValueError):
+                                price = None
+                    observed_order.add_transaction(price, cumulative_filled)
+                    if price is None:
+                        observed_order.avg_fill_price = None
                     if getattr(observed_order, "order_class", None) == Order.OrderClass.MULTILEG:
-                        price = getattr(observed_order, "_schwab_average_fill_price", None)
-                        if price is None:
-                            price = getattr(observed_order, "limit_price", None)
-                        try:
-                            price = float(price) if price is not None else 0.0
-                        except (TypeError, ValueError):
-                            price = 0.0
-                        observed_order.add_transaction(price, cumulative_filled)
                         self._note_package_close_fill(observed_order, cumulative_filled)
             return
 
@@ -3848,7 +3875,8 @@ class Schwab(Broker):
             )
             if not order_spec:
                 return None
-            if order.order_class is Order.OrderClass.MULTILEG and tag:
+            # Single-leg orders need the same tag. Advanced payloads stay unchanged.
+            if tag and not order.is_advanced_order():
                 order_spec["tag"] = tag
 
             # Log the final order request - reduce verbosity

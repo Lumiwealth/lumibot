@@ -78,3 +78,4 @@ def test_single_limit_order_sends_string_price(order):
 
     assert submitted == [order]
     assert broker.client.place_calls[0]["price"] == "1.15"
+    assert broker.client.place_calls[0]["tag"] == "unit-test"

@@ -1701,6 +1701,43 @@ def test_tagged_working_single_order_keeps_the_broker_tag(lifecycle):
     assert owned.tag == "fixture"
 
 
+def test_recovered_single_leg_close_records_the_historical_fill_without_a_callback(lifecycle):
+    """A recovered single-leg close keeps the filled contracts out of the reservation."""
+    _transport, broker, queues = lifecycle
+    held = _option_leg(500, "CALL", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    working = _working_single_snapshot(tag="fixture", quantity=2, filledQuantity=1, averagePrice=1.10)
+    working["orderLegCollection"][0]["instruction"] = "SELL_TO_CLOSE"
+    working["orderLegCollection"][0]["quantity"] = 2
+
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(working, "fixture"))
+
+    tracked = broker.get_tracked_order("single-recovered")
+    assert tracked is not None
+    assert [(item.price, item.quantity) for item in tracked.transactions] == [(1.10, 1)]
+    assert not [
+        payload for name, payload in _priority_events(queues)
+        if name in {broker.FILLED_ORDER, broker.PARTIALLY_FILLED_ORDER}
+    ]
+    another = Order("fixture", held, 1, Order.OrderSide.SELL_TO_CLOSE, limit_price=1.10)
+    assert broker.submit_order(another) is not None
+
+    filled = _working_single_snapshot(
+        status="FILLED", tag="fixture", quantity=2, filledQuantity=2, averagePrice=1.10,
+    )
+    filled["orderLegCollection"][0]["instruction"] = "SELL_TO_CLOSE"
+    filled["orderLegCollection"][0]["quantity"] = 2
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(filled, "fixture"))
+
+    fills = [
+        payload for name, payload in _priority_events(queues)
+        if name in {broker.FILLED_ORDER, broker.PARTIALLY_FILLED_ORDER}
+    ]
+    assert len(fills) == 1
+    assert fills[0]["quantity"] == 1
+    assert tracked.is_filled()
+
+
 def test_recovered_working_package_is_anchored_before_the_poll_sync(lifecycle):
     """A sync in the recovery poll cannot make the reduced book the close baseline."""
     transport, broker, _queues = lifecycle
@@ -1769,6 +1806,41 @@ def test_recovered_package_callbacks_only_the_new_fill(lifecycle):
     assert len(fills) == 1
     assert fills[0]["quantity"] == 1
     assert tracked.is_filled()
+
+
+def _quantity_close_snapshot(**fields):
+    """A working close package whose legs use the same quantity as the parent."""
+    quantity = fields.get("quantity", 1)
+    snapshot = _working_close_snapshot(**fields)
+    for leg in snapshot["orderLegCollection"]:
+        leg["quantity"] = quantity
+    return snapshot
+
+
+def test_recovered_package_does_not_price_history_at_the_limit(lifecycle):
+    """A missing execution price is not stored as the limit, so the next delta stays honest."""
+    _transport, broker, queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    working = _quantity_close_snapshot(tag="fixture", quantity=2, filledQuantity=1, price=1.20)
+
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(working, "fixture"))
+
+    tracked = broker.get_tracked_order("spread-recovered")
+    assert [(item.price, item.quantity) for item in tracked.transactions] == [(None, 1)]
+
+    filled = _quantity_close_snapshot(
+        status="FILLED", tag="fixture", quantity=2, filledQuantity=2, averagePrice=1.00, price=1.20,
+    )
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(filled, "fixture"))
+
+    fills = [
+        payload for name, payload in _priority_events(queues)
+        if name in {broker.FILLED_ORDER, broker.PARTIALLY_FILLED_ORDER}
+    ]
+    assert len(fills) == 1
+    assert fills[0]["quantity"] == 1
+    assert fills[0]["price"] == 1.00
 
 
 def test_stream_startup_anchors_a_recovered_package_after_the_book_loads(lifecycle):
@@ -2303,6 +2375,36 @@ def test_position_drop_follows_the_package_execution(lifecycle):
     _fill_closed_package(transport, broker, newer)
     assert broker._unreconciled_package_close_quantity(newer.child_orders[0]) == 0
     assert broker.submit_order(_close_package(1, 480)) is not None
+
+
+def test_two_executions_share_one_position_drop(lifecycle):
+    """Each executed package is credited only up to the contracts it filled."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 4))
+    larger = broker.submit_orders(
+        _close_package(2, 495).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    smaller = broker.submit_orders(
+        _close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    broker._remember_schwab_package_fills([
+        _broker_snapshot(transport, larger.identifier, status="FILLED", filledQuantity=1, averagePrice=0.40),
+        _broker_snapshot(transport, smaller.identifier, status="FILLED", filledQuantity=1, averagePrice=0.40),
+    ])
+
+    _sync_held_quantity(broker, held, 2)
+
+    key = broker._package_close_key(larger.child_orders[0])
+    state = broker._unreconciled_package_closes[key]
+    assert state["limits"][str(larger.identifier)] == 2.0
+    assert state["credits"][str(larger.identifier)] == 1.0
+    assert state["credits"][str(smaller.identifier)] == 1.0
+
+    _fill_closed_package(transport, broker, smaller)
+    assert state["credits"].get(str(smaller.identifier), 0.0) == 0.0
+    assert state["qty"] == 0.0
+    assert state["credits"][str(larger.identifier)] == 1.0
 
 
 def test_delayed_fill_keeps_credit_ahead_of_a_newer_working_package(lifecycle):

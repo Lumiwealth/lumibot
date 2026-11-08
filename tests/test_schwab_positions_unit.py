@@ -235,6 +235,9 @@ def _broker_for_lifecycle(stored_order):
 
     def process_trade_event(order, event, **payload):
         broker._lifecycle_events.append((event, payload))
+        if event in (broker.PARTIALLY_FILLED_ORDER, broker.FILLED_ORDER):
+            # The real handler records each fill; the next delta is priced from it.
+            order.add_transaction(payload.get("price"), payload.get("filled_quantity"))
         if event == broker.PARTIALLY_FILLED_ORDER:
             order.status = Order.OrderStatus.PARTIALLY_FILLED
         elif event == broker.FILLED_ORDER:
@@ -1508,11 +1511,14 @@ def test_schwab_snapshot_reducer_emits_incremental_partial_and_final_fill_once()
     for observation in observations:
         broker._process_schwab_order_snapshot(observation)
 
+    # Schwab's average is cumulative (10.0, 10.5, 11.0), so each new unit
+    # filled at 10.0, 11.0 and 12.0. The cumulative average is not the new fill.
     assert broker._lifecycle_events == [
         (broker.PARTIALLY_FILLED_ORDER, {"price": 10.0, "filled_quantity": 1.0, "multiplier": 1}),
-        (broker.PARTIALLY_FILLED_ORDER, {"price": 10.5, "filled_quantity": 1.0, "multiplier": 1}),
-        (broker.FILLED_ORDER, {"price": 11.0, "filled_quantity": 1.0, "multiplier": 1}),
+        (broker.PARTIALLY_FILLED_ORDER, {"price": 11.0, "filled_quantity": 1.0, "multiplier": 1}),
+        (broker.FILLED_ORDER, {"price": 12.0, "filled_quantity": 1.0, "multiplier": 1}),
     ]
+    assert stored.get_fill_price() == 11.0
 
 
 def test_schwab_snapshot_reducer_serializes_duplicate_stream_and_rest_observations():

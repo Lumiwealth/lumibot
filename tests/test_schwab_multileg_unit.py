@@ -1828,7 +1828,11 @@ def test_recovered_package_does_not_price_history_at_the_limit(lifecycle):
 
     tracked = broker.get_tracked_order("spread-recovered")
     assert [(item.price, item.quantity) for item in tracked.transactions] == [(None, 1)]
-    assert tracked.cash_pending(type("Strategy", (), {"get_last_price": lambda *_args: 9.99})()) == 9.99
+    # The unfilled package is estimated from its legs, not the underlying's price:
+    # sell the 500 put at 3.00 and buy the 490 put at 1.20 is a 1.80 credit, x100.
+    leg_prices = {500: 3.00, 490: 1.20}
+    strategy = type("Strategy", (), {"get_last_price": lambda _self, asset: leg_prices.get(asset.strike, 9.99)})()
+    assert tracked.cash_pending(strategy) == pytest.approx(180.0)
 
     filled = _quantity_close_snapshot(
         status="FILLED", tag="fixture", quantity=2, filledQuantity=2, averagePrice=1.00, price=1.20,
@@ -2780,3 +2784,138 @@ def test_held_submit_error_closes_the_package_legs(lifecycle):
     assert parent.is_canceled()
     assert all(child.status == broker.ERROR_ORDER and child._closed_event.is_set() for child in parent.child_orders)
     assert not any(child.is_active() for child in parent.child_orders)
+
+
+def _recovered_single_close(**fields):
+    """A tagged single-leg close for two contracts, as Schwab reports it."""
+    snapshot = _working_single_snapshot(tag="fixture", quantity=2, **fields)
+    snapshot["orderLegCollection"][0]["instruction"] = "SELL_TO_CLOSE"
+    snapshot["orderLegCollection"][0]["quantity"] = 2
+    return snapshot
+
+
+def test_recovered_single_leg_later_fill_is_priced_by_its_increment(lifecycle):
+    """Schwab's average is cumulative: 1 at 1.10 then 2 averaging 1.20 is a new fill at 1.30."""
+    _transport, broker, queues = lifecycle
+    held = _option_leg(500, "CALL", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(
+        _recovered_single_close(filledQuantity=1, averagePrice=1.10), "fixture",
+    ))
+    tracked = broker.get_tracked_order("single-recovered")
+    _priority_events(queues)
+
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(
+        _recovered_single_close(status="FILLED", filledQuantity=2, averagePrice=1.20), "fixture",
+    ))
+
+    fills = [
+        payload for name, payload in _priority_events(queues)
+        if name in {broker.FILLED_ORDER, broker.PARTIALLY_FILLED_ORDER}
+    ]
+    assert [(fill["price"], fill["quantity"]) for fill in fills] == [(pytest.approx(1.30), 1)]
+    # The cached average follows the broker, not the value seen at adoption.
+    assert tracked.get_fill_price() == pytest.approx(1.20)
+
+
+def test_recovered_package_with_incomplete_executions_is_not_priced_at_the_limit(lifecycle):
+    """One leg's execution cannot price the package, and the limit fallback is not a fill."""
+    _transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    working = _quantity_close_snapshot(tag="fixture", quantity=2, filledQuantity=1, price=1.20)
+    working["orderActivityCollection"] = [
+        {"activityType": "EXECUTION", "executionLegs": [{"legId": 1, "quantity": 1, "price": 2.10}]},
+    ]
+
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(working, "fixture"))
+
+    tracked = broker.get_tracked_order("spread-recovered")
+    assert [(item.price, item.quantity) for item in tracked.transactions] == [(None, 1)]
+    assert tracked.get_fill_price() is None
+
+
+def test_unreadable_package_snapshot_keeps_its_earlier_fill(lifecycle, monkeypatch):
+    """A snapshot that cannot be read is not evidence that the package fill went away."""
+    transport, broker, _queues = lifecycle
+    parent = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=1.25)[0]
+    filled = _broker_snapshot(transport, parent.identifier, status="FILLED", filledQuantity=1, averagePrice=1.25)
+    broker._remember_schwab_package_fills([filled])
+    assert broker._schwab_seen_package_fills == {str(parent.identifier): 1.0}
+
+    broker._remember_schwab_package_fills([], unparsed_ids=[parent.identifier, "never-filled"])
+    assert broker._schwab_seen_package_fills == {str(parent.identifier): 1.0}
+
+    monkeypatch.setattr(broker, "_parse_broker_order", lambda *_args: None)
+    broker._remember_schwab_package_fills([filled])
+    assert broker._schwab_seen_package_fills == {str(parent.identifier): 1.0}
+
+    # Gone from the pull altogether (aged out of history), it is dropped.
+    broker._remember_schwab_package_fills([])
+    assert broker._schwab_seen_package_fills == {}
+
+
+def test_unknown_row_is_not_claimed_when_another_strategy_holds_the_asset(lifecycle):
+    """An unlabeled account row may be another strategy's holding when that strategy has a row."""
+    _transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    close = Order("fixture", held, 1, Order.OrderSide.SELL_TO_CLOSE, limit_price=1.00)
+    broker._filled_positions.append(Position("Unknown", held, 2))
+    assert broker._position_for_order(close) is not None
+
+    broker._filled_positions.append(Position("other-strategy", held, 2))
+
+    assert broker._position_for_order(close) is None
+
+
+def test_recovered_stop_limit_keeps_its_limit_and_tag_through_a_replace(lifecycle):
+    """A recovered stock stop-limit can be repriced; the replacement keeps the limit and the tag."""
+    _transport, broker, _queues = lifecycle
+    snapshot = {
+        "orderId": "stop-limit-recovered",
+        "orderType": "STOP_LIMIT",
+        "orderStrategyType": "SINGLE",
+        "status": "WORKING",
+        "quantity": 10,
+        "filledQuantity": 0,
+        "price": 95.0,
+        "stopPrice": 96.0,
+        "duration": "DAY",
+        "enteredTime": "2026-06-01T14:30:00+0000",
+        "tag": "fixture",
+        "orderLegCollection": [{
+            "legId": 1,
+            "instruction": "SELL",
+            "quantity": 10,
+            "orderLegType": "EQUITY",
+            "instrument": {"assetType": "EQUITY", "symbol": "SPY"},
+        }],
+    }
+    order = broker._parse_broker_order(snapshot, "fixture")
+    assert order.stop_limit_price == 95.0
+
+    stop_only = broker._prepare_replacement_order_spec(order, snapshot, None, 97.0)
+    assert (stop_only["price"], stop_only["stopPrice"], stop_only["tag"]) == ("95.00", "97.0", "fixture")
+
+    new_limit = broker._prepare_replacement_order_spec(order, snapshot, 94.0, None)
+    assert new_limit["price"] == "94.00"
+    assert order.stop_limit_price == 95.0  # building a spec does not commit the change
+
+    broker._set_schwab_limit_price(order, 94.0)
+    assert (order.limit_price, order.stop_limit_price) == (94.0, 94.0)
+
+
+def test_sync_importer_values_an_unpriced_recovered_fill_at_the_average(lifecycle):
+    """An unpriced fill no longer breaks the shared importer with Decimal("None")."""
+    _transport, broker, _queues = lifecycle
+    tracked = Order("fixture", Asset("SPY"), 2, Order.OrderSide.BUY, limit_price=10, identifier="synced-1")
+    tracked.add_transaction(None, 1)
+    broker._process_new_order(tracked)
+    incoming = Order("fixture", Asset("SPY"), 2, Order.OrderSide.BUY, limit_price=10, identifier="synced-1")
+    incoming.status = Order.OrderStatus.FILLED
+    incoming.filled_quantity = 2
+    incoming.avg_fill_price = 10.5
+
+    broker._process_broker_synced_order(incoming)
+
+    assert [(item.price, float(item.quantity)) for item in tracked.transactions] == [(None, 1.0), (10.5, 1.0)]

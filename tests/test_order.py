@@ -416,3 +416,65 @@ class TestOrderAdvanced:
 
     def test_is_equivalent_status(self):
         assert Order.is_equivalent_status("pending_new", Order.OrderStatus.NEW)
+
+
+class TestCashPending:
+    """cash_pending estimates the cash an order's unfilled quantity will move."""
+
+    @staticmethod
+    def _strategy(price):
+        prices = price if isinstance(price, dict) else None
+        return type("Strategy", (), {
+            "get_last_price": lambda _self, asset: prices.get(asset.strike) if prices else price,
+        })()
+
+    @staticmethod
+    def _option(strike, right="PUT"):
+        return Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration=date(2026, 6, 19), strike=strike, right=right)
+
+    def test_float_fill_and_decimal_price_do_not_raise(self):
+        from decimal import Decimal
+
+        order = Order("Example", Asset("SPY"), 2, Order.OrderSide.BUY, limit_price=5)
+        order.add_transaction(None, 1.0)
+
+        assert order.cash_pending(self._strategy(Decimal("9.99"))) == pytest.approx(-9.99)
+
+    @pytest.mark.parametrize("side", [Order.OrderSide.SELL, Order.OrderSide.SELL_SHORT])
+    def test_every_sell_side_is_a_credit(self, side):
+        order = Order("Example", Asset("SPY"), 2, side, limit_price=5)
+
+        assert order.cash_pending(self._strategy(10.0)) == pytest.approx(20.0)
+
+    def test_option_premium_uses_the_contract_multiplier(self):
+        order = Order("Example", self._option(500), 1, Order.OrderSide.BUY_TO_OPEN, limit_price=2)
+
+        assert order.cash_pending(self._strategy(2.0)) == pytest.approx(-200.0)
+
+    def test_unpriced_package_is_estimated_from_its_legs_not_the_underlying(self):
+        legs = [
+            Order("Example", self._option(500), 2, Order.OrderSide.SELL_TO_OPEN),
+            Order("Example", self._option(490), 2, Order.OrderSide.BUY_TO_OPEN),
+        ]
+        package = Order(
+            "Example", Asset("SPY", asset_type=Asset.AssetType.MULTILEG), 2, Order.OrderSide.SELL,
+            limit_price=1.25, order_class=Order.OrderClass.MULTILEG, child_orders=legs,
+        )
+        package.add_transaction(None, 1)
+
+        # One package left: sell 500 at 3.00, buy 490 at 1.20 -> 1.80 credit x100.
+        assert package.cash_pending(self._strategy({500: 3.00, 490: 1.20})) == pytest.approx(180.0)
+        assert package.cash_pending(self._strategy({500: 3.00})) == 0
+
+    def test_priced_package_fill_uses_the_leg_multiplier(self):
+        legs = [
+            Order("Example", self._option(500), 1, Order.OrderSide.SELL_TO_OPEN),
+            Order("Example", self._option(490), 1, Order.OrderSide.BUY_TO_OPEN),
+        ]
+        package = Order(
+            "Example", Asset("SPY", asset_type=Asset.AssetType.MULTILEG), 2, Order.OrderSide.SELL,
+            limit_price=1.25, order_class=Order.OrderClass.MULTILEG, child_orders=legs,
+        )
+        package.add_transaction(1.30, 1)
+
+        assert package.cash_pending(self._strategy(None)) == pytest.approx(130.0)

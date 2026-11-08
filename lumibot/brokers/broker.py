@@ -1172,6 +1172,20 @@ class Broker(ABC):
         # A package price is a signed net debit/credit, not a leg execution.
         return price.is_finite() and (price > 0 or order.order_class == Order.OrderClass.MULTILEG)
 
+    @staticmethod
+    def _recorded_fill_value(order, average_price):
+        """Value of the fills already recorded on ``order``.
+
+        A recovered order can hold an unpriced fill (the broker did not report
+        its price). It is valued at the broker's cumulative average so the next
+        fill's price is neither inflated nor a Decimal("None") conversion error.
+        """
+        value = Decimal(0)
+        for transaction in order.transactions:
+            price = average_price if transaction.price is None else Decimal(str(transaction.price))
+            value += Decimal(str(transaction.quantity)) * price
+        return value
+
     def _reconcile_cumulative_execution(self, order, cumulative_quantity, average_price, *, terminal=False, raw=None):
         """Process only unrecorded quantity from a confirmed cumulative fill.
 
@@ -1187,10 +1201,7 @@ class Broker(ABC):
                     (Decimal(str(transaction.quantity)) for transaction in order.transactions), Decimal(0)
                 )
                 prior_quantity = max(prior_quantity, getattr(order, "_broker_synced_filled_quantity", Decimal(0)))
-                prior_value = sum(
-                    (Decimal(str(transaction.quantity)) * Decimal(str(transaction.price))
-                     for transaction in order.transactions), Decimal(0)
-                )
+                prior_value = self._recorded_fill_value(order, price)
                 remaining_quantity = total_quantity - prior_quantity
                 if not terminal and total_quantity.is_finite() and 0 <= total_quantity <= prior_quantity:
                     order.filled_quantity = prior_quantity
@@ -1271,11 +1282,10 @@ class Broker(ABC):
             # Reconcile executions before a terminal transition. A partially
             # filled canceled/replaced/expired/rejected order keeps its fills.
             if cumulative is not None and cumulative > processed and order.avg_fill_price is not None:
-                prior_value = sum(
-                    (Decimal(str(t.quantity)) * Decimal(str(t.price)) for t in order.transactions), Decimal(0)
-                )
+                average = Decimal(str(order.avg_fill_price))
+                prior_value = self._recorded_fill_value(order, average)
                 delta = cumulative - processed
-                price = (cumulative * Decimal(str(order.avg_fill_price)) - prior_value) / delta
+                price = (cumulative * average - prior_value) / delta
                 if not self._valid_fill_price(order, price):
                     raise ValueError("Broker cumulative fill price is invalid")
                 self._process_new_order(order)

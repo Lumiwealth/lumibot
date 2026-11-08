@@ -1235,24 +1235,35 @@ class Order:
 
     def cash_pending(self, strategy):
         # Returns the impact to cash of any unfilled shares.
-        quantity_unfilled = self.quantity - sum([transaction.quantity for transaction in self.transactions])
+        # Quantities and prices can mix Decimal and float, so the estimate is a float.
+        quantity_unfilled = float(self.quantity) - sum(float(transaction.quantity) for transaction in self.transactions)
         if quantity_unfilled == 0:
             return 0
-        elif len(self.transactions) == 0:
-            cash_value = self.quantity * strategy.get_last_price(self.asset)
-        else:
-            # The latest fill can be unpriced. That is not a zero-cash remainder,
-            # and it is not the limit. Estimate it the same way as an empty ledger.
-            price = self.transactions[-1].price
-            if price is None:
-                price = strategy.get_last_price(self.asset)
-            if price is None:
-                return 0
-            cash_value = quantity_unfilled * price
-        if self.side == SELL:
-            return cash_value
-        else:
-            return -cash_value
+        package_legs = self.child_orders if self.order_class == self.OrderClass.MULTILEG else []
+        # The latest fill can be unpriced. That is not a zero-cash remainder,
+        # and it is not the limit. Estimate it the same way as an empty ledger.
+        price = self.transactions[-1].price if self.transactions else None
+        if price is None and package_legs:
+            # A package asset prices as its underlying. Estimate from the legs:
+            # each leg's share of one package, sells adding cash and buys spending it.
+            package_cash = 0.0
+            for leg in package_legs:
+                leg_price = strategy.get_last_price(leg.asset)
+                if leg_price is None:
+                    return 0
+                leg_cash = float(leg_price) * float(leg.quantity) / float(self.quantity)
+                leg_cash *= float(getattr(leg.asset, "multiplier", 1) or 1)
+                package_cash += leg_cash if leg.is_sell_order() else -leg_cash
+            return quantity_unfilled * package_cash
+        if price is None:
+            price = strategy.get_last_price(self.asset)
+        if price is None:
+            return 0
+        # Option premiums are per share. A package price is per share of its legs.
+        multiplier_asset = package_legs[0].asset if package_legs else self.asset
+        multiplier = float(getattr(multiplier_asset, "multiplier", 1) or 1)
+        cash_value = quantity_unfilled * float(price) * multiplier
+        return cash_value if self.is_sell_order() else -cash_value
 
     def get_fill_price(self):
         """

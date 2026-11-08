@@ -2,7 +2,7 @@
 
 > Notes on live broker behavior that affect backtesting semantics (extended hours, order types, and “market closed / no data” handling).
 
-**Last Updated:** 2026-11-07
+**Last Updated:** 2026-11-08
 **Status:** Active
 **Audience:** Developers, AI Agents
 
@@ -307,12 +307,30 @@ Lifecycle:
   execution has no `legId`, a leg has no execution, or legs filled out of ratio
   does the parser use `filledQuantity` and `averagePrice` (then `price`).
   Each new package fill uses the incremental price of that fill, derived from
-  the cumulative value, so two fills at 1.30 and 1.20 average to 1.25. Zero is
-  a real net price and is not replaced by the limit. A leg whose side is neither
+  the cumulative value, so two fills at 1.30 and 1.20 average to 1.25. A single
+  order uses the same rule: one unit at 1.10 and then an average of 1.20 over
+  two is a new fill at 1.30, not 1.20. After each fill the order's cached
+  `avg_fill_price` is the broker's cumulative average, so `get_fill_price()`
+  does not keep an older value. Zero is a real net price and is not replaced by
+  the limit. A leg whose side is neither
   buy nor sell uses that same fallback, and the package parent is marked
   degraded when a leg is. A parsed `NET_CREDIT`, `NET_DEBIT`, or `NET_ZERO`
   keeps that effect, so a replace after a restart follows the same credit,
   debit, and even rules as the original submit.
+- A working order whose Schwab `tag` matches this strategy is recovered after a
+  restart; untagged and foreign orders never are. Fills it already had are
+  recorded without a callback, at Schwab's `averagePrice` or execution price.
+  When neither exists the parser's limit fallback is not a fill, so that
+  quantity is left unpriced; the next fill values it at the new average, and
+  the shared sync importer does the same instead of failing on the missing
+  price. A recovered stop-limit keeps its limit in `stop_limit_price`, where the
+  stock builder reads it. Every replacement (package, stock or option) carries
+  the same tag, so a repriced order is still recognized after the next
+  restart. A history pull that cannot read a package keeps that package's last
+  known fill, because an unreadable snapshot is not evidence the fill is gone.
+- An unlabeled (`Unknown`) position row counts as this strategy's only when no
+  other strategy has a named row for the asset. Otherwise it may be that
+  strategy's holding, and it cannot classify a sell as a close or authorize one.
 - When the package fills, is canceled, or errors, its original child orders are
   marked the same way and their close events are set. A submit rejection does
   this when the error event is applied, including after a held event is

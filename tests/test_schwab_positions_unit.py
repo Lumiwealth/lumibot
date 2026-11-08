@@ -653,6 +653,7 @@ def test_schwab_option_replacement_uses_option_builder_and_updates_identifier():
     broker.schwab_authorization_error = False
     broker.client = client
     broker.hash_value = "account-hash"
+    broker._lock = RLock()
     order = _option_order()
 
     broker._modify_order(order, limit_price=4.75)

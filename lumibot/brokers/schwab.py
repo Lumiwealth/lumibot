@@ -2230,6 +2230,11 @@ class Schwab(Broker):
         effect = {"NET_CREDIT": "credit", "NET_DEBIT": "debit", "NET_ZERO": "even"}.get(raw_order_type)
         if effect is not None:
             parent._multileg_effect = effect
+        # Ownership for recovery is the broker tag. Snapshots without one stay
+        # untagged, so a shared account cannot be adopted through the strategy name.
+        raw_tag = schwab_order.get("tag")
+        if isinstance(raw_tag, str) and raw_tag.strip():
+            parent.tag = raw_tag.strip()
         return parent
 
     @staticmethod
@@ -2401,21 +2406,24 @@ class Schwab(Broker):
             key = self._package_close_key(child)
             if key is None:
                 continue
-            position = self._position_for_order(child)
-            try:
-                position_abs = abs(float(position.quantity)) if position is not None else 0.0
-            except (TypeError, ValueError):
-                position_abs = 0.0
+            position_abs = self._package_close_position_abs(child)
             with self._lock:
                 # A drop since the anchor may already be this fill, including a
-                # drop an earlier position sync already applied. Reserve only
-                # the part the book has not removed, and keep the rest.
+                # drop an earlier position sync already applied. Spend only this
+                # package's credit. Another package's drop cannot pay for it.
                 self._refresh_unreconciled_package_close(key, position_abs)
                 state = self._unreconciled_package_closes.get(key)
-                absorbed = 0.0 if state is None else float(state.get("absorbed", 0.0))
-                credit = min(leg_qty, absorbed)
-                if state is not None:
-                    state["absorbed"] = absorbed - credit
+                order_id = str(getattr(order, "identifier", None) or "")
+                credit = 0.0
+                if state is not None and order_id:
+                    credits = state.setdefault("credits", {})
+                    credit = min(leg_qty, float(credits.get(order_id, 0.0)))
+                    if credit:
+                        credits[order_id] = float(credits[order_id]) - credit
+                    limits = state.setdefault("limits", {})
+                    if order_id in limits:
+                        limits[order_id] = max(0.0, float(limits[order_id]) - leg_qty)
+                    state["absorbed"] = sum(float(value) for value in credits.values())
                 reserve = leg_qty - credit
                 if reserve <= 0:
                     continue
@@ -2424,6 +2432,8 @@ class Schwab(Broker):
                         "qty": reserve,
                         "position_abs": position_abs,
                         "absorbed": 0.0,
+                        "credits": {},
+                        "limits": {},
                     }
                 else:
                     state["qty"] += reserve
@@ -2449,10 +2459,15 @@ class Schwab(Broker):
     def _refresh_unreconciled_package_close(self, key, position_abs) -> float:
         """Reduce the reserved quantity when the position shrinks, and return the rest.
 
-        A drop larger than the reservation is kept for the next fill note, so a
-        sync that already removed those contracts is not reserved again. A
-        larger position moves the anchor up and leaves the reservation in place.
-        Every close of this contract shares one pool.
+        A drop larger than the reservation becomes credit for a package that can
+        still fill this contract, capped at that package's un-noted close size.
+        Only that package's fill spends the credit. Anything beyond every
+        outstanding close is discarded, so an unrelated reduction cannot fund a
+        later package. The book is one quantity, so the oldest anchored package
+        is credited first. A package's own pre-submission drop is claimed for
+        that package before this walk, and is not assigned again here. A
+        canceled package keeps its own credit for a delayed fill. A larger
+        position moves the anchor up and leaves the reservation.
         """
         state = getattr(self, "_unreconciled_package_closes", {}).get(key)
         if not state:
@@ -2462,8 +2477,19 @@ class Schwab(Broker):
             applied = min(float(state["qty"]), drop)
             state["qty"] = float(state["qty"]) - applied
             excess = drop - applied
-            if excess:
-                state["absorbed"] = float(state.get("absorbed", 0.0)) + excess
+            if excess > 0:
+                credits = state.setdefault("credits", {})
+                # Oldest limit first. A later package cannot spend this credit.
+                for order_id, limit in list(state.setdefault("limits", {}).items()):
+                    room = float(limit) - float(credits.get(order_id, 0.0))
+                    if room <= 0:
+                        continue
+                    take = room if room < excess else excess
+                    credits[order_id] = float(credits.get(order_id, 0.0)) + take
+                    excess -= take
+                    if excess <= 0:
+                        break
+                state["absorbed"] = sum(float(value) for value in credits.values())
         state["position_abs"] = position_abs
         return state["qty"]
 
@@ -2472,16 +2498,147 @@ class Schwab(Broker):
         key = self._package_close_key(order)
         if key is None:
             return 0.0
-        position = self._position_for_order(order)
-        try:
-            position_abs = abs(float(position.quantity)) if position is not None else 0.0
-        except (TypeError, ValueError):
-            position_abs = 0.0
+        position_abs = self._package_close_position_abs(order)
         with self._lock:
-            return self._refresh_unreconciled_package_close(key, position_abs)
+            self._refresh_unreconciled_package_close(key, position_abs)
+            self._prune_obsolete_package_close_anchor(key)
+            state = getattr(self, "_unreconciled_package_closes", {}).get(key)
+            return float(state["qty"]) if state is not None else 0.0
 
-    def _anchor_package_close_positions(self, order) -> None:
-        """Remember the book size before a close package's fills are noted."""
+    def _package_close_book_position(self, order):
+        """Return the close leg's position, including a row labeled Unknown.
+
+        A position sync with no strategy labels the book "Unknown". The package
+        is keyed by this strategy's name. An unlabeled row is that same contract
+        when the named row is absent. A named row wins when both exist.
+        """
+        position = self._position_for_order(order)
+        if position is not None:
+            return position
+        local_name = getattr(self, "_strategy_name", None) or ""
+        if not local_name or getattr(order, "strategy", None) != local_name:
+            return None
+        asset = getattr(order, "asset", None)
+        if asset is None:
+            return None
+        filled = getattr(self, "_filled_positions", None)
+        if filled is None:
+            return None
+        for candidate in filled.get_list():
+            if getattr(candidate, "asset", None) != asset:
+                continue
+            if getattr(candidate, "strategy", None) in (None, "", "Unknown"):
+                return candidate
+        return None
+
+    def _package_close_position_abs(self, order) -> float:
+        """Absolute book size for one order, or zero when it has no position."""
+        position = self._package_close_book_position(order)
+        try:
+            return abs(float(position.quantity)) if position is not None else 0.0
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _package_close_baselines(self, order):
+        """Book size and close credit for each close leg before the order is sent.
+
+        The credit copy is the amount already stored before this request. An
+        in-flight sync can add to it. The accept path gives this package only
+        the contracts the book lost after this snapshot.
+        """
+        baselines = {}
+        for child in list(getattr(order, "child_orders", None) or []):
+            if not self._schwab_leg_is_close(child):
+                continue
+            key = self._package_close_key(child)
+            if key is None:
+                continue
+            book = self._package_close_position_abs(child)
+            states = getattr(self, "_unreconciled_package_closes", None) or {}
+            with self._lock:
+                state = states.get(key)
+                if state is None:
+                    baselines[key] = {"position_abs": book, "qty": 0.0, "credits": {}}
+                else:
+                    baselines[key] = {
+                        "position_abs": book,
+                        "qty": float(state.get("qty", 0.0)),
+                        "credits": {
+                            str(order_id): float(amount)
+                            for order_id, amount in state.get("credits", {}).items()
+                        },
+                    }
+        return baselines
+
+    def _claim_package_close_baseline(
+        self, state, order_id, baseline_abs, live_abs, baseline_qty, baseline_credits,
+    ) -> None:
+        """Give this package the contracts the book lost since its own baseline.
+
+        An older close may already own the anchor. A sync during submission can
+        release that reservation or credit the older close before this order's
+        limit exists. Contracts that released an existing reservation stay
+        released. Credit another package gained since the baseline, and any
+        remainder of this drop that was discarded, moves here up to the un-noted
+        size. The anchor gap shrinks by the same amount so the following refresh
+        does not hand that drop to an older package.
+        """
+        if not order_id:
+            return
+        own_drop = max(0.0, float(baseline_abs) - float(live_abs))
+        if own_drop <= 0:
+            return
+        credits = state.setdefault("credits", {})
+        limits = state.setdefault("limits", {})
+        qty_released = max(0.0, float(baseline_qty) - float(state.get("qty", 0.0)))
+        # The released reservation already accounted for this much of the drop.
+        # Leave it released, including when the old anchor was removed and this
+        # state was seeded again at the pre-submission size.
+        gap = max(0.0, float(state["position_abs"]) - float(live_abs))
+        released_gap = min(qty_released, gap, own_drop)
+        if released_gap > 0:
+            state["position_abs"] = float(state["position_abs"]) - released_gap
+        available = own_drop - qty_released
+        room = float(limits.get(order_id, 0.0)) - float(credits.get(order_id, 0.0))
+        if room <= 0 or available <= 0:
+            return
+        claim = min(room, available)
+        gained = []
+        for other_id, amount in credits.items():
+            if other_id == order_id:
+                continue
+            extra = float(amount) - float(baseline_credits.get(other_id, 0.0))
+            if extra > 0:
+                gained.append((other_id, extra))
+        # Newest anchored package first, the reverse of the refresh walk.
+        order_index = {other_id: index for index, other_id in enumerate(limits)}
+        gained.sort(key=lambda item: order_index.get(item[0], -1), reverse=True)
+        for other_id, extra in gained:
+            if claim <= 0:
+                break
+            take = min(extra, claim)
+            credits[other_id] = float(credits[other_id]) - take
+            credits[order_id] = float(credits.get(order_id, 0.0)) + take
+            claim -= take
+        unapplied = max(0.0, float(state["position_abs"]) - float(live_abs))
+        take_unapplied = min(claim, unapplied)
+        if take_unapplied > 0:
+            state["position_abs"] = float(state["position_abs"]) - take_unapplied
+            credits[order_id] = float(credits.get(order_id, 0.0)) + take_unapplied
+            claim -= take_unapplied
+        if claim > 0:
+            credits[order_id] = float(credits.get(order_id, 0.0)) + claim
+        state["absorbed"] = sum(float(value) for value in credits.values())
+
+    def _anchor_package_close_positions(self, order, baselines=None) -> None:
+        """Remember each close leg's book size from before the order can fill.
+
+        A sync during submission can already show the reduced position. The
+        pre-submission size stays this package's baseline even when an older
+        close already has the anchor, and that reduction is kept for this
+        fill. A recovered working package passes no baseline and uses the book
+        at recovery, before a later sync or fill.
+        """
         if getattr(order, "order_class", None) != Order.OrderClass.MULTILEG:
             return
         if not hasattr(self, "_unreconciled_package_closes"):
@@ -2492,31 +2649,230 @@ class Schwab(Broker):
             key = self._package_close_key(child)
             if key is None:
                 continue
-            position = self._position_for_order(child)
-            try:
-                position_abs = abs(float(position.quantity)) if position is not None else 0.0
-            except (TypeError, ValueError):
-                position_abs = 0.0
+            live_abs = self._package_close_position_abs(child)
+            recorded = baselines.get(key) if baselines is not None else None
+            if recorded is None:
+                baseline_abs = live_abs
+                baseline_qty = 0.0
+                baseline_credits = {}
+            else:
+                baseline_abs = float(recorded["position_abs"])
+                baseline_qty = float(recorded["qty"])
+                baseline_credits = recorded["credits"]
             with self._lock:
-                if key not in self._unreconciled_package_closes:
-                    self._unreconciled_package_closes[key] = {
+                state = self._unreconciled_package_closes.get(key)
+                if state is None:
+                    state = {
                         "qty": 0.0,
-                        "position_abs": position_abs,
+                        "position_abs": baseline_abs,
                         "absorbed": 0.0,
+                        "credits": {},
+                        "limits": {},
                     }
+                    self._unreconciled_package_closes[key] = state
                 else:
-                    self._refresh_unreconciled_package_close(key, position_abs)
+                    state.setdefault("credits", {})
+                    state.setdefault("limits", {})
+                order_id = str(getattr(order, "identifier", None) or "")
+                if order_id:
+                    try:
+                        leg_limit = abs(float(child.quantity))
+                    except (TypeError, ValueError):
+                        leg_limit = 0.0
+                    if leg_limit > 0:
+                        # A repeat anchor before a fill note must not shrink the
+                        # room. The note itself reduces it by the contracts noted.
+                        state["limits"][order_id] = max(
+                            float(state["limits"].get(order_id, 0.0)),
+                            leg_limit,
+                        )
+                    # Submit and recovery both anchor before the order is tracked.
+                    # The following sync has to keep this id until adoption.
+                    if self.get_tracked_order(order_id) is None:
+                        awaiting = getattr(self, "_package_close_awaiting_adoption", None)
+                        if awaiting is None:
+                            awaiting = set()
+                            self._package_close_awaiting_adoption = awaiting
+                        awaiting.add(order_id)
+                if recorded is not None:
+                    self._claim_package_close_baseline(
+                        state, order_id, baseline_abs, live_abs, baseline_qty, baseline_credits,
+                    )
+                self._refresh_unreconciled_package_close(key, live_abs)
+
+    def _rekey_package_close_order(self, order, old_identifier, new_identifier) -> None:
+        """Move one package's close credit onto the broker id from a replace.
+
+        A same-effect replace is still that package, but Schwab assigns a new
+        order id. The drop credit and the remaining close room were stored under
+        the old id. Leaving them there makes the fill reserve contracts the book
+        already removed, and a later drop would credit an id nothing spends.
+        The new id keeps the old id's place in line. A limit already recorded
+        for the new id must not raise room a fill note already removed.
+        """
+        old_id = str(old_identifier or "")
+        new_id = str(new_identifier or "")
+        if not old_id or not new_id or old_id == new_id:
+            return
+        states = getattr(self, "_unreconciled_package_closes", None)
+        if not states:
+            return
+        with self._lock:
+            for key in self._package_close_keys(order):
+                state = states.get(key)
+                if not state:
+                    continue
+                credits = state.setdefault("credits", {})
+                limits = state.setdefault("limits", {})
+                state["credits"] = self._rekey_close_map(
+                    credits, old_id, new_id, lambda old_value, new_value: (
+                        old_value if new_value is None else old_value + new_value
+                    ),
+                )
+                state["limits"] = self._rekey_close_map(
+                    limits, old_id, new_id, lambda old_value, _new_value: old_value,
+                )
+                state["absorbed"] = sum(float(value) for value in state["credits"].values())
+
+    @staticmethod
+    def _rekey_close_map(mapping, old_id, new_id, combine):
+        """Rebuild one map so the new id sits where the old id sat.
+
+        Popping and reinserting would move this package behind newer closes.
+        ``combine`` adds a credit that already sat on the new id, or keeps the
+        old remaining limit so a recovery anchor cannot restore filled room.
+        """
+        if old_id not in mapping:
+            return mapping
+        old_value = float(mapping[old_id])
+        new_value = float(mapping[new_id]) if new_id in mapping else None
+        merged = combine(old_value, new_value)
+        rebuilt = {}
+        for key, value in mapping.items():
+            if key == new_id:
+                continue
+            if key == old_id:
+                rebuilt[new_id] = merged
+            else:
+                rebuilt[key] = value
+        return rebuilt
+
+    def _package_close_keys(self, order):
+        """Close-leg keys for one package, or an empty list for any other order."""
+        if getattr(order, "order_class", None) != Order.OrderClass.MULTILEG:
+            return []
+        keys = []
+        for child in list(getattr(order, "child_orders", None) or []):
+            if not self._schwab_leg_is_close(child):
+                continue
+            key = self._package_close_key(child)
+            if key is not None:
+                keys.append(key)
+        return keys
+
+    def _package_close_order_status(self):
+        """Map each tracked multi-leg id to open or filled.
+
+        Canceled, rejected, expired, and working closes stay open. A later
+        fill can still be noted, so the anchor has to stay while the order is
+        tracked. Filled means the fill note has already run.
+        """
+        status = {}
+        buckets = (
+            self._unprocessed_orders,
+            self._new_orders,
+            self._partially_filled_orders,
+            self._placeholder_orders,
+            self._canceled_orders,
+            self._error_orders,
+            self._filled_orders,
+        )
+        for bucket in buckets:
+            for order in bucket.get_list():
+                if getattr(order, "order_class", None) != Order.OrderClass.MULTILEG:
+                    continue
+                order_id = str(getattr(order, "identifier", None) or "")
+                if not order_id:
+                    continue
+                status[order_id] = "filled" if order.is_filled() else "open"
+        return status
+
+    def _drop_obsolete_package_close_ids(self, state, status, awaiting):
+        """Remove close-credit ids that a later fill can no longer spend.
+
+        A tracked open order stays, including a canceled order with no credit
+        yet, so a book drop can still pay its delayed fill. An id anchored
+        before adoption stays too. A filled id has already noted its fill, so
+        leftover credit cannot be spent. An id that has left tracking, and is
+        not waiting for adoption, is removed with its credit: the order is gone
+        and a delayed fill will not be noted.
+        """
+        credits = state.setdefault("credits", {})
+        limits = state.setdefault("limits", {})
+        for order_id in set(limits) | set(credits):
+            kind = status.get(order_id)
+            if kind == "open" or (kind is None and order_id in awaiting):
+                if kind == "open":
+                    awaiting.discard(order_id)
+                continue
+            limits.pop(order_id, None)
+            credits.pop(order_id, None)
+        state["absorbed"] = sum(float(value) for value in credits.values())
+
+    def _package_close_state_is_needed(self, state, status, awaiting) -> bool:
+        """True when a later book drop should still be kept for some order."""
+        for order_id, limit in state.get("limits", {}).items():
+            if float(limit) <= 0:
+                continue
+            kind = status.get(order_id)
+            if kind == "open" or (kind is None and order_id in awaiting):
+                return True
+        return False
+
+    def _prune_obsolete_package_close_anchor(self, key, status=None, awaiting=None):
+        """Drop one anchor once no tracked or pending close still needs it.
+
+        Reservation quantity stays until the book drops. Credit stays only for
+        an order that can still be noted. The key is deleted when both are
+        zero and no remaining limit can accept a later drop.
+        """
+        states = getattr(self, "_unreconciled_package_closes", None)
+        if not states or key not in states:
+            return
+        if status is None:
+            status = self._package_close_order_status()
+        if awaiting is None:
+            awaiting = getattr(self, "_package_close_awaiting_adoption", None)
+            if awaiting is None:
+                awaiting = set()
+                self._package_close_awaiting_adoption = awaiting
+        state = states[key]
+        self._drop_obsolete_package_close_ids(state, status, awaiting)
+        if float(state["qty"]) > 0 or float(state.get("absorbed", 0.0)) > 0:
+            return
+        if self._package_close_state_is_needed(state, status, awaiting):
+            return
+        del states[key]
 
     def _reconcile_package_close_holds(self) -> None:
-        """Drop package-close holds when sync reduces or removes the position.
+        """Apply the current book to every package-close anchor.
 
-        A later reopen of the same contract must not inherit the old hold.
-        A position that did not shrink keeps its reservation.
+        A shrink reduces the reservation and keeps the extra drop an outstanding
+        package can still fill. Growth moves the anchor up and leaves the
+        reservation in place, so a later drop is measured from the larger book.
+        Removing the position clears the reservation, and a later reopen does
+        not inherit it. An anchor leaves the scan once nothing is reserved, no
+        spendable credit remains, and no tracked or not-yet-adopted close can
+        still take a drop. A canceled close stays while its order is tracked.
+        After that order leaves tracking, later syncs do not scan it.
         """
         states = getattr(self, "_unreconciled_package_closes", None)
         if not states:
             return
         current = {}
+        local_name = getattr(self, "_strategy_name", None) or ""
+        named_assets = set()
+        unlabeled = []
         for position in self._filled_positions.get_list():
             asset = getattr(position, "asset", None)
             if asset is None:
@@ -2532,12 +2888,27 @@ class Schwab(Broker):
                 position_abs = abs(float(position.quantity))
             except (TypeError, ValueError):
                 position_abs = 0.0
-            current[(getattr(position, "strategy", None),) + asset_id] = position_abs
+            strategy = getattr(position, "strategy", None)
+            current[(strategy,) + asset_id] = position_abs
+            # A sync before the strategy name existed labels the row Unknown.
+            # That row is this strategy's book when no named row is present.
+            if local_name and strategy == local_name:
+                named_assets.add(asset_id)
+            elif local_name and strategy in (None, "", "Unknown"):
+                unlabeled.append((asset_id, position_abs))
+        for asset_id, position_abs in unlabeled:
+            if asset_id in named_assets:
+                continue
+            current.setdefault((local_name,) + asset_id, position_abs)
         with self._lock:
-            for key, state in list(states.items()):
-                position_abs = current.get(key, 0.0)
-                if position_abs < state["position_abs"]:
-                    self._refresh_unreconciled_package_close(key, position_abs)
+            status = self._package_close_order_status()
+            awaiting = getattr(self, "_package_close_awaiting_adoption", None)
+            if awaiting is None:
+                awaiting = set()
+                self._package_close_awaiting_adoption = awaiting
+            for key in list(states):
+                self._refresh_unreconciled_package_close(key, current.get(key, 0.0))
+                self._prune_obsolete_package_close_anchor(key, status, awaiting)
 
     def _schwab_reported_fill_price(self, stored_order, observed_order, cumulative_filled, fill_delta):
         """Price for one new fill delta.
@@ -2568,6 +2939,52 @@ class Schwab(Broker):
             return (float(cumulative_filled) * float(average) - prior_value) / float(fill_delta)
         except (TypeError, ValueError, ZeroDivisionError):
             return average
+
+    def _schwab_recovered_working_order(self, observed_order) -> bool:
+        """True when an untracked working order's tag belongs to this strategy.
+
+        Untagged snapshots are ignored so shared-account activity cannot become
+        this strategy's tracked order. Filled or partially filled snapshots stay
+        unadopted.
+        """
+        identifier = getattr(observed_order, "identifier", None)
+        if not identifier or self.get_tracked_order(identifier) is not None:
+            return False
+        local_name = getattr(self, "_strategy_name", None)
+        if self.order_is_foreign_to_local_strategy(observed_order, local_name):
+            return False
+        tag = getattr(observed_order, "tag", None)
+        status = getattr(observed_order, "status", None)
+        return bool(
+            local_name
+            and tag
+            and self.strategy_tag_matches(tag, local_name)
+            and (
+                Order.is_equivalent_status(status, self.NEW_ORDER)
+                or Order.is_equivalent_status(status, Order.OrderStatus.CANCELLING)
+            )
+        )
+
+    def _anchor_recovered_working_packages(self, order_payloads) -> None:
+        """Anchor untracked working packages from the book before it can shrink.
+
+        The recovery gate is the same one that adopts the order. An existing
+        baseline is only refreshed, so a second pass does not move it back up.
+        """
+        if not order_payloads:
+            return
+        strategy_name = getattr(self, "_strategy_name", None)
+        for payload in order_payloads:
+            if not isinstance(payload, dict):
+                continue
+            try:
+                observed = self._parse_broker_order(payload, strategy_name)
+            except Exception:
+                logger.error(_format_exc())
+                continue
+            if observed is None or not self._schwab_recovered_working_order(observed):
+                continue
+            self._anchor_package_close_positions(observed)
 
     def _process_schwab_order_snapshot(self, observed_order: Order) -> None:
         """Serialize every REST/stream observation through one reducer."""
@@ -2611,25 +3028,16 @@ class Schwab(Broker):
         # Never adopt untracked account orders into this strategy. Locally
         # submitted orders are tracked at submit time; seeding foreign NEW
         # orders previously let a shared-account MOS fill reach an STM
-        # on_filled_order hedge path.
+        # on_filled_order hedge path. Only a broker tag proves ownership.
         if stored_order is None:
-            if self.order_is_foreign_to_local_strategy(observed_order, getattr(self, "_strategy_name", None)):
-                return
-            local_name = getattr(self, "_strategy_name", None)
-            tag = getattr(observed_order, "tag", None)
-            # Only re-bind untracked active orders when the broker tag proves
-            # ownership. Untagged snapshots are ignored so shared-account
-            # activity cannot become this strategy's tracked order.
-            if (
-                local_name
-                and tag
-                and self.strategy_tag_matches(tag, local_name)
-                and (
-                    Order.is_equivalent_status(observed_status, self.NEW_ORDER)
-                    or Order.is_equivalent_status(observed_status, Order.OrderStatus.CANCELLING)
-                )
-            ):
+            if self._schwab_recovered_working_order(observed_order):
+                # The book at adoption is the baseline. A fill after this must
+                # not be measured from a position sync that already shrank it.
+                self._anchor_package_close_positions(observed_order)
                 self._process_new_order(observed_order)
+                awaiting = getattr(self, "_package_close_awaiting_adoption", None)
+                if awaiting is not None:
+                    awaiting.discard(str(observed_order.identifier or ""))
                 if Order.is_equivalent_status(observed_status, Order.OrderStatus.CANCELLING):
                     observed_order.status = Order.OrderStatus.CANCELLING
             return
@@ -2981,15 +3389,17 @@ class Schwab(Broker):
         def on_trade_event_poll():
             # Implement polling similar to tradier.py without referencing _orders
             try:
-                # Track the last time we synced positions to avoid doing it too frequently
+                # Pull first so a recovered working package takes its close
+                # baseline before this cycle's position sync can shrink the book.
+                orders = broker._pull_broker_all_orders()
                 current_time = datetime.now()
                 if not hasattr(broker, '_last_position_sync_time') or (current_time - broker._last_position_sync_time).total_seconds() > 30:
-                    # Only sync positions every 30 seconds to avoid duplication
-                    broker.sync_positions(None)
+                    broker._anchor_recovered_working_packages(orders)
+                    # Only sync positions every 30 seconds to avoid duplication.
+                    # Use the local strategy name so the book is not labeled Unknown.
+                    broker.sync_positions(broker._position_sync_strategy())
                     broker._last_position_sync_time = current_time
 
-                # Always check for new orders
-                orders = broker._pull_broker_all_orders()
                 for order_data in orders:
                     order = broker._parse_broker_order(order_data, broker._strategy_name)
                     if not order:
@@ -3064,6 +3474,18 @@ class Schwab(Broker):
             logger.error(f"Error running Schwab stream: {e}")
             logger.error(_format_exc())
 
+    def _position_sync_strategy(self):
+        """Strategy name for a stream or poll position sync, or None if unset.
+
+        Those paths have no Strategy instance. Passing None makes the pulled
+        book "Unknown", so a package anchored under `_strategy_name` never sees
+        the contracts. Use the local name once the strategy has registered it.
+        """
+        name = str(getattr(self, "_strategy_name", None) or "").strip()
+        if not name:
+            return None
+        return type("_SchwabPositionSync", (), {"name": name})()
+
     def _stream_established(self):
         """
         Called when the stream is established.
@@ -3075,8 +3497,14 @@ class Schwab(Broker):
             self._unprocessed_orders.remove(item)
         self._initialized = True
 
-        # First time initialization - sync positions
-        self.sync_positions(None)
+        # Load the book first, then anchor recovered packages at that size.
+        # Later polls anchor before their own sync. The local strategy name
+        # keeps the loaded rows on the same key as the recovered package.
+        self.sync_positions(self._position_sync_strategy())
+        try:
+            self._anchor_recovered_working_packages(self._pull_broker_all_orders())
+        except Exception:
+            logger.error(_format_exc())
 
     def _safe_stream_dispatch(self, event, **kwargs):
         stream = getattr(self, "stream", None)
@@ -3280,6 +3708,14 @@ class Schwab(Broker):
                 price_text = order.limit_price or 'market'
             logger.info(colored(f"Sending order to Schwab: {order.asset.symbol, order.quantity} @ {price_text}", "cyan"))
 
+            # The book can change while this request is in flight. Keep the
+            # pre-submission size, and install it only after Schwab accepts.
+            close_baselines = (
+                self._package_close_baselines(order)
+                if order.order_class is Order.OrderClass.MULTILEG
+                else None
+            )
+
             # Submit the order to Schwab
             response = self.client.place_order(self.hash_value, order_spec)
 
@@ -3344,14 +3780,18 @@ class Schwab(Broker):
                 sent_effect = self._schwab_effect_name(order_spec.get("orderType"))
                 if sent_effect is not None:
                     order._multileg_effect = sent_effect
-                self._anchor_package_close_positions(order)
+                self._anchor_package_close_positions(order, close_baselines)
 
             # Store the raw response data
             order_data = {"id": order_id, "status": "SUBMITTED"}
             order.update_raw(order_data)
 
-            # Add to unprocessed orders and dispatch to stream
+            # Add to unprocessed orders and dispatch to stream. The pre-adoption
+            # hold can drop once this order is tracked.
             self._unprocessed_orders.append(order)
+            awaiting = getattr(self, "_package_close_awaiting_adoption", None)
+            if awaiting is not None:
+                awaiting.discard(str(order.identifier or ""))
             self._safe_stream_dispatch(self.NEW_ORDER, order=order)
 
             return order
@@ -4548,11 +4988,18 @@ class Schwab(Broker):
                     order.stop_price = stop_price
                 return True
 
-            # Update the order with the new identifier
-
+            # Update the order with the new identifier. The fill path reads the
+            # identifier under this lock and spends that id's credit. Publishing
+            # the new id and moving the credit in one section keeps a concurrent
+            # fill from reserving contracts the book already removed. The lock
+            # is not held across the replace request above.
+            previous_identifier = order.identifier
             order.previous_identifiers = getattr(order, "previous_identifiers", None) or []
-            order.previous_identifiers.append(order.identifier)
-            order.identifier = new_order_id
+            order.previous_identifiers.append(previous_identifier)
+            with self._lock:
+                order.identifier = new_order_id
+                if order.order_class == Order.OrderClass.MULTILEG:
+                    self._rekey_package_close_order(order, previous_identifier, new_order_id)
             # Update price information
             if limit_price is not None:
                 order.limit_price = limit_price

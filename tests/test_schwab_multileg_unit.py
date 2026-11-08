@@ -1438,6 +1438,768 @@ def test_sync_before_the_fill_is_noted_does_not_reserve_it_again(lifecycle):
     assert broker.submit_order(_close_package(1, 480)) is not None
 
 
+def test_sync_during_submit_keeps_the_pre_submission_baseline(lifecycle):
+    """A sync during place_order cannot make the reduced book the close baseline."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    position = Position("fixture", held, 2)
+    broker._filled_positions.append(position)
+    original_place = transport.place_order
+
+    def place_order(account_hash, order_spec):
+        position.quantity = 1
+        broker._last_positions_refresh_degraded = False
+        broker._pull_positions = lambda _strategy: [position]
+        broker.sync_positions(type("Strategy", (), {"name": "fixture"})())
+        return original_place(account_hash, order_spec)
+
+    transport.place_order = place_order
+    parent = broker.submit_orders(
+        _close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    state = broker._unreconciled_package_closes[broker._package_close_key(parent.child_orders[0])]
+    assert state["qty"] == 0.0
+    assert state["position_abs"] + state["absorbed"] == 2.0
+
+    execution = {"activityType": "EXECUTION", "executionLegs": [
+        {"legId": 1, "quantity": 1, "price": 1.20},
+        {"legId": 2, "quantity": 1, "price": 0.80},
+    ]}
+    transport.queue_order_reads(parent.identifier, {
+        "status": "FILLED",
+        "filledQuantity": 1,
+        "orderActivityCollection": [execution],
+    })
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+
+    assert broker._unreconciled_package_close_quantity(parent.child_orders[0]) == 0
+    assert broker.submit_order(_close_package(1, 480)) is not None
+
+
+def test_submit_baseline_is_kept_when_an_older_close_is_outstanding(lifecycle):
+    """A sync during submit credits this package, not the older close."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    position = Position("fixture", held, 2)
+    broker._filled_positions.append(position)
+    older = broker.submit_orders(
+        _close_package(1, 495).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    original_place = transport.place_order
+
+    def place_order(account_hash, order_spec):
+        position.quantity = 1
+        broker._last_positions_refresh_degraded = False
+        broker._pull_positions = lambda _strategy: [Position("fixture", held, 1)]
+        broker.sync_positions(type("Strategy", (), {"name": "fixture"})())
+        return original_place(account_hash, order_spec)
+
+    transport.place_order = place_order
+    newer = broker.submit_orders(
+        _close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    key = broker._package_close_key(newer.child_orders[0])
+    state = broker._unreconciled_package_closes[key]
+    assert state["credits"].get(str(older.identifier), 0.0) == 0.0
+    assert state["credits"][str(newer.identifier)] == 1.0
+    assert state["qty"] == 0.0
+
+    _fill_closed_package(transport, broker, newer)
+    assert state["qty"] == 0.0
+    assert state["credits"].get(str(newer.identifier), 0.0) == 0.0
+
+    transport.queue_order_reads(older.identifier, {"status": "CANCELED"})
+    observed = broker._parse_broker_order(broker._pull_broker_order(older.identifier), older.strategy)
+    broker._process_schwab_order_snapshot(observed)
+    assert older.is_canceled()
+    assert state["qty"] == 0.0
+    assert broker.submit_order(_close_package(1, 480)) is not None
+
+
+def test_submit_baseline_does_not_take_an_older_packages_existing_credit(lifecycle):
+    """A drop this package caused is credited here without taking credit the older close already held."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 3))
+    older = broker.submit_orders(
+        _close_package(1, 495).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    _sync_held_quantity(broker, held, 2)
+    key = broker._package_close_key(older.child_orders[0])
+    state = broker._unreconciled_package_closes[key]
+    assert state["credits"][str(older.identifier)] == 1.0
+    original_place = transport.place_order
+
+    def place_order(account_hash, order_spec):
+        broker._last_positions_refresh_degraded = False
+        broker._pull_positions = lambda _strategy: [Position("fixture", held, 1)]
+        broker.sync_positions(type("Strategy", (), {"name": "fixture"})())
+        return original_place(account_hash, order_spec)
+
+    transport.place_order = place_order
+    newer = broker.submit_orders(
+        _close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+
+    assert state["credits"][str(older.identifier)] == 1.0
+    assert state["credits"][str(newer.identifier)] == 1.0
+    assert state["qty"] == 0.0
+
+
+def test_submit_baseline_does_not_undo_a_released_reservation(lifecycle):
+    """A sync that already released a filled close does not also credit the package being sent."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    older = broker.submit_orders(
+        _close_package(1, 495).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    _fill_closed_package(transport, broker, older)
+    key = broker._package_close_key(older.child_orders[0])
+    assert broker._unreconciled_package_closes[key]["qty"] == 1.0
+    original_place = transport.place_order
+
+    def place_order(account_hash, order_spec):
+        broker._last_positions_refresh_degraded = False
+        broker._pull_positions = lambda _strategy: [Position("fixture", held, 1)]
+        broker.sync_positions(type("Strategy", (), {"name": "fixture"})())
+        return original_place(account_hash, order_spec)
+
+    transport.place_order = place_order
+    newer = broker.submit_orders(
+        _close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    # The filled close had nothing left reserved, so sync drops its anchor and
+    # acceptance creates a new one. Read that object.
+    state = broker._unreconciled_package_closes[key]
+    assert state["qty"] == 0.0
+    assert state["credits"].get(str(newer.identifier), 0.0) == 0.0
+    _fill_closed_package(transport, broker, newer)
+    state = broker._unreconciled_package_closes[key]
+    assert state["qty"] == 1.0
+    assert broker.submit_order(_close_package(1, 480)) is None
+    assert broker.submit_order(_close_package(1, 480)) is None
+
+
+def _working_close_snapshot(**fields):
+    """A working close package. Pass tag to mark it as this strategy's order."""
+    snapshot = {
+        "orderId": "spread-recovered",
+        "orderType": "NET_CREDIT",
+        "complexOrderStrategyType": "VERTICAL",
+        "orderStrategyType": "SINGLE",
+        "status": "WORKING",
+        "quantity": 1,
+        "filledQuantity": 0,
+        "price": 0.40,
+        "duration": "DAY",
+        "enteredTime": "2026-06-01T14:30:00+0000",
+        "orderLegCollection": [
+            {
+                "legId": 1,
+                "instruction": "SELL_TO_CLOSE",
+                "quantity": 1,
+                "orderLegType": "OPTION",
+                "instrument": {
+                    "assetType": "OPTION",
+                    "symbol": "SPY   260619P00500000",
+                    "putCall": "PUT",
+                    "underlyingSymbol": "SPY",
+                },
+            },
+            {
+                "legId": 2,
+                "instruction": "BUY_TO_OPEN",
+                "quantity": 1,
+                "orderLegType": "OPTION",
+                "instrument": {
+                    "assetType": "OPTION",
+                    "symbol": "SPY   260619P00490000",
+                    "putCall": "PUT",
+                    "underlyingSymbol": "SPY",
+                },
+            },
+        ],
+    }
+    snapshot.update(fields)
+    return snapshot
+
+
+def test_untagged_or_filled_snapshots_are_not_recovered(lifecycle):
+    """Recovery stays limited to a tagged working order."""
+    transport, broker, _queues = lifecycle
+    broker._pull_positions = lambda _strategy: []
+    broker._last_positions_refresh_degraded = False
+    transport.queue_history_response([_working_close_snapshot()])
+    broker.stream.dispatch(broker.POLL_EVENT, wait_until_complete=True)
+
+    assert broker.get_tracked_order("spread-recovered") is None
+    assert not getattr(broker, "_unreconciled_package_closes", None)
+
+    transport.queue_history_response([_working_close_snapshot(status="FILLED", tag="fixture", filledQuantity=1)])
+    broker.stream.dispatch(broker.POLL_EVENT, wait_until_complete=True)
+
+    assert broker.get_tracked_order("spread-recovered") is None
+    assert not getattr(broker, "_unreconciled_package_closes", None)
+
+
+def test_recovered_working_package_is_anchored_before_the_poll_sync(lifecycle):
+    """A sync in the recovery poll cannot make the reduced book the close baseline."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    position = Position("fixture", held, 2)
+    broker._filled_positions.append(position)
+    transport.queue_history_response([_working_close_snapshot(tag="fixture")])
+    broker._pull_positions = lambda _strategy: [Position("fixture", held, 1)]
+    broker._last_positions_refresh_degraded = False
+
+    broker.stream.dispatch(broker.POLL_EVENT, wait_until_complete=True)
+
+    tracked = broker.get_tracked_order("spread-recovered")
+    state = broker._unreconciled_package_closes[broker._package_close_key(tracked.child_orders[0])]
+    assert state["qty"] == 0.0
+    assert state["position_abs"] + state["absorbed"] == 2.0
+
+    filled = _working_close_snapshot(
+        status="FILLED",
+        tag="fixture",
+        filledQuantity=1,
+        orderActivityCollection=[{
+            "activityType": "EXECUTION",
+            "executionLegs": [
+                {"legId": 1, "quantity": 1, "price": 1.20},
+                {"legId": 2, "quantity": 1, "price": 0.80},
+            ],
+        }],
+    )
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(filled, "fixture"))
+
+    assert broker._unreconciled_package_close_quantity(tracked.child_orders[0]) == 0
+    assert broker.submit_order(_close_package(1, 480)) is not None
+
+
+def test_stream_startup_anchors_a_recovered_package_after_the_book_loads(lifecycle):
+    """Startup loads positions before anchoring, so an empty book is not the baseline."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    transport.queue_history_response([_working_close_snapshot(tag="fixture")])
+    broker._pull_positions = lambda _strategy: [Position("fixture", held, 2)]
+    broker._last_positions_refresh_degraded = False
+
+    broker._stream_established()
+
+    assert broker.get_tracked_order("spread-recovered") is None
+    state = next(iter(broker._unreconciled_package_closes.values()))
+    assert state["qty"] == 0.0
+    assert state["position_abs"] == 2.0
+    assert state["absorbed"] == 0.0
+
+
+def test_stream_startup_syncs_the_book_under_the_strategy_name(lifecycle):
+    """Startup sync labels the book with the strategy, so the recovered close sees it."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    seen = {}
+
+    def pull(strategy):
+        name = strategy.name if strategy is not None else "Unknown"
+        seen["name"] = name
+        return [Position(name, held, 2)]
+
+    transport.queue_history_response([_working_close_snapshot(tag="fixture")])
+    broker._pull_positions = pull
+    broker._last_positions_refresh_degraded = False
+    broker._stream_established()
+
+    assert seen["name"] == "fixture"
+    state = next(iter(broker._unreconciled_package_closes.values()))
+    assert state["position_abs"] == 2.0
+    assert state["qty"] == 0.0
+
+    broker._process_schwab_order_snapshot(
+        broker._parse_broker_order(_working_close_snapshot(tag="fixture"), "fixture")
+    )
+    tracked = broker.get_tracked_order("spread-recovered")
+    filled = _working_close_snapshot(
+        status="FILLED",
+        tag="fixture",
+        filledQuantity=1,
+        orderActivityCollection=[{
+            "activityType": "EXECUTION",
+            "executionLegs": [
+                {"legId": 1, "quantity": 1, "price": 1.20},
+                {"legId": 2, "quantity": 1, "price": 0.80},
+            ],
+        }],
+    )
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(filled, "fixture"))
+    assert state["qty"] == 1.0
+
+    broker._pull_positions = lambda strategy: [Position(
+        strategy.name if strategy is not None else "Unknown", held, 1,
+    )]
+    broker._last_positions_refresh_degraded = False
+    broker.sync_positions(broker._position_sync_strategy())
+    assert state["qty"] == 0.0
+    assert state["position_abs"] == 1.0
+    assert broker.submit_order(_close_package(1, 480)) is not None
+    assert tracked is not None
+
+
+def test_unlabeled_book_counts_for_the_strategy_close(lifecycle):
+    """A position labeled Unknown is this strategy's book for the recovered close."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    position = Position("Unknown", held, 2)
+    broker._filled_positions.append(position)
+    broker._process_schwab_order_snapshot(
+        broker._parse_broker_order(_working_close_snapshot(tag="fixture"), "fixture")
+    )
+    tracked = broker.get_tracked_order("spread-recovered")
+    state = broker._unreconciled_package_closes[broker._package_close_key(tracked.child_orders[0])]
+    assert state["position_abs"] == 2.0
+
+    position.quantity = 1
+    broker._reconcile_package_close_holds()
+    assert state["position_abs"] == 1.0
+    assert state["qty"] == 0.0
+    assert state["absorbed"] == 1.0
+
+    filled = _working_close_snapshot(
+        status="FILLED",
+        tag="fixture",
+        filledQuantity=1,
+        orderActivityCollection=[{
+            "activityType": "EXECUTION",
+            "executionLegs": [
+                {"legId": 1, "quantity": 1, "price": 1.20},
+                {"legId": 2, "quantity": 1, "price": 0.80},
+            ],
+        }],
+    )
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(filled, "fixture"))
+    assert state["qty"] == 0.0
+    assert broker._unreconciled_package_close_quantity(tracked.child_orders[0]) == 0
+
+    broker._pull_positions = lambda _strategy: [Position("fixture", held, 1)]
+    broker._last_positions_refresh_degraded = False
+    broker.sync_positions(broker._position_sync_strategy())
+    assert state["qty"] == 0.0
+    assert broker.submit_order(_close_package(1, 480)) is not None
+
+
+def test_sync_growth_moves_the_anchor_and_keeps_the_reservation(lifecycle):
+    """A larger book moves the close anchor without releasing the filled contracts."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    position = Position("fixture", held, 2)
+    broker._filled_positions.append(position)
+    parent = broker.submit_orders(
+        _close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    execution = {"activityType": "EXECUTION", "executionLegs": [
+        {"legId": 1, "quantity": 1, "price": 1.20},
+        {"legId": 2, "quantity": 1, "price": 0.80},
+    ]}
+    transport.queue_order_reads(parent.identifier, {
+        "status": "FILLED",
+        "filledQuantity": 1,
+        "orderActivityCollection": [execution],
+    })
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+    state = broker._unreconciled_package_closes[broker._package_close_key(parent.child_orders[0])]
+    assert state["qty"] == 1.0
+    assert state["position_abs"] == 2.0
+
+    broker._last_positions_refresh_degraded = False
+    broker._pull_positions = lambda _strategy: [Position("fixture", held, 3)]
+    broker.sync_positions(type("Strategy", (), {"name": "fixture"})())
+    assert state["qty"] == 1.0
+    assert state["position_abs"] == 3.0
+    assert state["absorbed"] == 0.0
+    assert broker.submit_order(_close_package(3, 480)) is None
+
+    broker._pull_positions = lambda _strategy: [Position("fixture", held, 2)]
+    broker.sync_positions(type("Strategy", (), {"name": "fixture"})())
+    assert broker._unreconciled_package_close_quantity(parent.child_orders[0]) == 0
+    assert broker.submit_orders(
+        _close_package(2, 470).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    ) is not None
+
+
+def test_reconciled_fill_drops_the_close_anchor(lifecycle):
+    """Once a filled close is reconciled, later syncs do not keep scanning it."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    position = Position("fixture", held, 1)
+    broker._filled_positions.append(position)
+    parent = broker.submit_orders(
+        _close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    execution = {"activityType": "EXECUTION", "executionLegs": [
+        {"legId": 1, "quantity": 1, "price": 1.20},
+        {"legId": 2, "quantity": 1, "price": 0.80},
+    ]}
+    transport.queue_order_reads(parent.identifier, {
+        "status": "FILLED",
+        "filledQuantity": 1,
+        "orderActivityCollection": [execution],
+    })
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+    key = broker._package_close_key(parent.child_orders[0])
+    assert key in broker._unreconciled_package_closes
+
+    broker._last_positions_refresh_degraded = False
+    broker._pull_positions = lambda _strategy: []
+    broker.sync_positions(type("Strategy", (), {"name": "fixture"})())
+    assert key not in broker._unreconciled_package_closes
+
+    broker._pull_positions = lambda _strategy: [Position("fixture", held, 1)]
+    broker.sync_positions(type("Strategy", (), {"name": "fixture"})())
+    broker._pull_positions = lambda _strategy: []
+    broker.sync_positions(type("Strategy", (), {"name": "fixture"})())
+    assert not broker._unreconciled_package_closes
+
+    broker._pull_positions = lambda _strategy: [Position("fixture", held, 1)]
+    broker.sync_positions(type("Strategy", (), {"name": "fixture"})())
+    assert broker.submit_order(_close_package(1, 470)) is not None
+
+
+def test_canceled_close_keeps_its_anchor_for_a_delayed_fill(lifecycle):
+    """A canceled close keeps a zero credit so a later book drop can still apply to the fill."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    position = Position("fixture", held, 2)
+    broker._filled_positions.append(position)
+    parent = broker.submit_orders(
+        _close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    transport.queue_order_reads(parent.identifier, {"status": "CANCELED"})
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+    key = broker._package_close_key(parent.child_orders[0])
+    assert parent.is_canceled()
+    assert broker._unreconciled_package_closes[key]["absorbed"] == 0.0
+
+    broker._last_positions_refresh_degraded = False
+    broker._pull_positions = lambda _strategy: [Position("fixture", held, 2)]
+    broker.sync_positions(type("Strategy", (), {"name": "fixture"})())
+    assert key in broker._unreconciled_package_closes
+    assert broker._unreconciled_package_closes[key]["position_abs"] == 2.0
+
+    broker._pull_positions = lambda _strategy: [Position("fixture", held, 1)]
+    broker.sync_positions(type("Strategy", (), {"name": "fixture"})())
+    assert broker._unreconciled_package_closes[key]["qty"] == 0.0
+    assert broker._unreconciled_package_closes[key]["absorbed"] == 1.0
+
+    execution = {"activityType": "EXECUTION", "executionLegs": [
+        {"legId": 1, "quantity": 1, "price": 1.20},
+        {"legId": 2, "quantity": 1, "price": 0.80},
+    ]}
+    transport.queue_order_reads(parent.identifier, {
+        "status": "FILLED",
+        "filledQuantity": 1,
+        "orderActivityCollection": [execution],
+    })
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+    assert broker._unreconciled_package_close_quantity(parent.child_orders[0]) == 0
+
+    broker.sync_positions(type("Strategy", (), {"name": "fixture"})())
+    assert key not in broker._unreconciled_package_closes
+
+
+def _forget_tracked_order(broker, identifier):
+    """Drop one order from every tracker, as retention cleanup does."""
+    for bucket in (
+        broker._unprocessed_orders,
+        broker._new_orders,
+        broker._partially_filled_orders,
+        broker._filled_orders,
+        broker._error_orders,
+        broker._canceled_orders,
+        broker._placeholder_orders,
+    ):
+        bucket.remove(identifier, key="identifier")
+
+
+def test_canceled_close_without_credit_leaves_the_scan_with_its_order(lifecycle):
+    """A zero-credit cancel anchor is removed once the order leaves tracking."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    parent = broker.submit_orders(
+        _close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    transport.queue_order_reads(parent.identifier, {"status": "CANCELED"})
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+    key = broker._package_close_key(parent.child_orders[0])
+    assert key in broker._unreconciled_package_closes
+    assert broker._unreconciled_package_closes[key]["absorbed"] == 0.0
+
+    _forget_tracked_order(broker, parent.identifier)
+    broker._reconcile_package_close_holds()
+    assert key not in broker._unreconciled_package_closes
+
+    _sync_held_quantity(broker, held, 1)
+    assert not broker._unreconciled_package_closes
+    assert broker.submit_order(_close_package(1, 480)) is not None
+
+
+def test_close_anchor_leaves_the_scan_when_its_order_is_gone(lifecycle):
+    """Retention removes the order, and the next sync stops scanning its anchor.
+
+    The anchor stays through cancel while the order is tracked, including when
+    it already holds drop credit. Once the order itself is gone, a delayed fill
+    can no longer be noted, so the credit and the empty slot both leave.
+    """
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    parent = broker.submit_orders(
+        _close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    transport.queue_order_reads(parent.identifier, {"status": "CANCELED"})
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+    key = broker._package_close_key(parent.child_orders[0])
+    assert parent.is_canceled()
+    assert key in broker._unreconciled_package_closes
+
+    _sync_held_quantity(broker, held, 1)
+    assert broker._unreconciled_package_closes[key]["credits"][str(parent.identifier)] == 1.0
+
+    _forget_tracked_order(broker, parent.identifier)
+    broker._reconcile_package_close_holds()
+    assert key not in broker._unreconciled_package_closes
+
+    _sync_held_quantity(broker, held, 1)
+    assert not broker._unreconciled_package_closes
+    assert broker.submit_order(_close_package(1, 480)) is not None
+
+
+def _sync_held_quantity(broker, held, quantity):
+    """Replace the booked quantity and run one position sync."""
+    broker._last_positions_refresh_degraded = False
+    broker._pull_positions = lambda _strategy: [Position("fixture", held, quantity)]
+    broker.sync_positions(type("Strategy", (), {"name": "fixture"})())
+
+
+def _fill_closed_package(transport, broker, parent):
+    """Deliver one filled close package without moving the position book."""
+    execution = {"activityType": "EXECUTION", "executionLegs": [
+        {"legId": 1, "quantity": 1, "price": 1.20},
+        {"legId": 2, "quantity": 1, "price": 0.80},
+    ]}
+    transport.queue_order_reads(parent.identifier, {
+        "status": "FILLED",
+        "filledQuantity": 1,
+        "orderActivityCollection": [execution],
+    })
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+
+
+def test_unrelated_position_drop_cannot_fund_a_later_package(lifecycle):
+    """A drop larger than the outstanding close does not pay for a later fill."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 5))
+    first = broker.submit_orders(
+        _close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    _sync_held_quantity(broker, held, 1)
+    key = broker._package_close_key(first.child_orders[0])
+    state = broker._unreconciled_package_closes[key]
+    assert state["qty"] == 0.0
+    assert state["absorbed"] == 1.0
+    assert state["credits"][str(first.identifier)] == 1.0
+
+    _fill_closed_package(transport, broker, first)
+    assert broker._unreconciled_package_close_quantity(first.child_orders[0]) == 0
+
+    second = broker.submit_orders(
+        _close_package(1, 480).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    _fill_closed_package(transport, broker, second)
+    assert broker._unreconciled_package_close_quantity(second.child_orders[0]) == 1.0
+    assert state["credits"].get(str(second.identifier), 0.0) == 0.0
+    assert broker.submit_order(_close_package(1, 470)) is None
+
+
+def test_canceled_package_credit_cannot_fund_a_different_package(lifecycle):
+    """A canceled package keeps its drop credit, and a later package cannot spend it."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    first = broker.submit_orders(
+        _close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    transport.queue_order_reads(first.identifier, {"status": "CANCELED"})
+    observed = broker._parse_broker_order(broker._pull_broker_order(first.identifier), first.strategy)
+    broker._process_schwab_order_snapshot(observed)
+    assert first.is_canceled()
+
+    _sync_held_quantity(broker, held, 1)
+    key = broker._package_close_key(first.child_orders[0])
+    state = broker._unreconciled_package_closes[key]
+    assert state["absorbed"] == 1.0
+    assert state["credits"][str(first.identifier)] == 1.0
+
+    second = broker.submit_orders(
+        _close_package(1, 480).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    _fill_closed_package(transport, broker, second)
+    assert state["credits"][str(first.identifier)] == 1.0
+    assert state["qty"] == 1.0
+    assert broker._unreconciled_package_close_quantity(second.child_orders[0]) == 1.0
+    assert broker.submit_order(_close_package(1, 470)) is None
+
+    _fill_closed_package(transport, broker, first)
+    assert state["credits"].get(str(first.identifier), 0.0) == 0.0
+    assert state["qty"] == 1.0
+    assert broker.submit_order(_close_package(1, 460)) is None
+
+
+def test_replaced_close_keeps_its_drop_credit_on_the_new_order_id(lifecycle):
+    """A same-effect replace moves the close credit so the fill can spend it."""
+    import copy
+
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    parent = broker.submit_orders(
+        _close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    old_id = str(parent.identifier)
+    _sync_held_quantity(broker, held, 1)
+    key = broker._package_close_key(parent.child_orders[0])
+    state = broker._unreconciled_package_closes[key]
+    assert state["credits"][old_id] == 1.0
+    assert state["limits"][old_id] == 1.0
+
+    assert broker.modify_order(parent, limit_price=0.35) is True
+    new_id = str(parent.identifier)
+    assert new_id != old_id
+    assert old_id not in state["credits"]
+    assert old_id not in state["limits"]
+    assert state["credits"][new_id] == 1.0
+    assert state["limits"][new_id] == 1.0
+    assert state["absorbed"] == 1.0
+
+    snapshot = copy.deepcopy(transport._base[old_id])
+    snapshot["orderId"] = new_id
+    transport._base[new_id] = snapshot
+    transport._latest[new_id] = copy.deepcopy(snapshot)
+    _fill_closed_package(transport, broker, parent)
+
+    assert state["qty"] == 0.0
+    assert state["credits"].get(new_id, 0.0) == 0.0
+    assert broker._unreconciled_package_close_quantity(parent.child_orders[0]) == 0
+    assert broker.submit_order(_close_package(1, 480)) is not None
+
+
+def test_replace_keeps_the_close_ahead_of_a_newer_package(lifecycle):
+    """A same-effect replace keeps this package ahead of a newer close."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 3))
+    older = broker.submit_orders(
+        _close_package(1, 495).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    newer = broker.submit_orders(
+        _close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    key = broker._package_close_key(older.child_orders[0])
+    state = broker._unreconciled_package_closes[key]
+    old_id = str(older.identifier)
+    assert list(state["limits"]) == [old_id, str(newer.identifier)]
+
+    assert broker.modify_order(older, limit_price=0.35) is True
+    replaced_id = str(older.identifier)
+    assert list(state["limits"]) == [replaced_id, str(newer.identifier)]
+    assert old_id not in state["limits"]
+
+    _sync_held_quantity(broker, held, 2)
+    assert state["credits"].get(replaced_id, 0.0) == 1.0
+    assert state["credits"].get(str(newer.identifier), 0.0) == 0.0
+
+
+def test_replace_does_not_restore_room_a_fill_already_removed(lifecycle):
+    """A recovery anchor of the new id cannot raise the limit a fill note reduced."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 4))
+    legs = [
+        _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE, quantity=2),
+        _option_leg(490, "PUT", Order.OrderSide.BUY_TO_OPEN, quantity=2),
+    ]
+    for leg in legs:
+        leg.strategy = "fixture"
+    parent = broker.submit_orders(legs, is_multileg=True, order_type="credit", price=1.25)[0]
+    _fill_one_package(transport, broker, parent)
+    key = broker._package_close_key(parent.child_orders[0])
+    state = broker._unreconciled_package_closes[key]
+    old_id = str(parent.identifier)
+    assert state["limits"][old_id] == 1.0
+
+    replacement_id = f"{old_id}-r"
+    state["limits"][replacement_id] = 2.0
+    assert broker.modify_order(parent, limit_price=0.35) is True
+    assert str(parent.identifier) == replacement_id
+    assert old_id not in state["limits"]
+    assert state["limits"][replacement_id] == 1.0
+    assert list(state["limits"]) == [replacement_id]
+
+
+def test_replace_publishes_the_new_id_with_its_close_credit(lifecycle):
+    """A fill cannot observe the replacement id before that id holds the credit."""
+    import threading
+
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    parent = broker.submit_orders(
+        _close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+    _sync_held_quantity(broker, held, 1)
+    key = broker._package_close_key(parent.child_orders[0])
+    state = broker._unreconciled_package_closes[key]
+    assert state["credits"][str(parent.identifier)] == 1.0
+
+    saw = threading.Event()
+    observed = {}
+    original = broker._rekey_package_close_order
+
+    def note_fill():
+        acquired = broker._lock.acquire(blocking=False)
+        observed["unlocked"] = acquired
+        if acquired:
+            broker._lock.release()
+        saw.set()
+        broker._note_package_close_fill(parent, parent.quantity)
+
+    def wrapped(order, old_identifier, new_identifier):
+        filler = threading.Thread(target=note_fill)
+        filler.start()
+        assert saw.wait(2)
+        observed["filler"] = filler
+        return original(order, old_identifier, new_identifier)
+
+    broker._rekey_package_close_order = wrapped
+    assert broker.modify_order(parent, limit_price=0.35) is True
+    observed["filler"].join(timeout=2)
+
+    assert observed["unlocked"] is False
+    assert not observed["filler"].is_alive()
+    assert state["qty"] == 0.0
+    assert state["credits"].get(str(parent.identifier), 0.0) == 0.0
+
+
 def test_position_sync_clears_a_hold_before_the_contract_reopens(lifecycle):
     """Removing the position during sync clears the hold, so a reopened contract can close."""
     transport, broker, _queues = lifecycle

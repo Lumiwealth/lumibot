@@ -1022,7 +1022,11 @@ class StrategyExecutor(Thread):
                     children.append(self._smart_limit_replacement_order(child, expected))
                 intent["submission_attempted"] = True
                 submitted = self.broker.submit_orders(
-                    children, is_multileg=True, order_type=intent["order_type"], price=intent["price"],
+                    children,
+                    is_multileg=True,
+                    order_type=intent["order_type"],
+                    price=intent["price"],
+                    duration=getattr(order, "time_in_force", None) or "day",
                 )
                 replacement = submitted[0] if isinstance(submitted, list) and submitted else submitted
             else:

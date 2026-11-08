@@ -2407,12 +2407,26 @@ class Schwab(Broker):
             except (TypeError, ValueError):
                 position_abs = 0.0
             with self._lock:
+                # A drop since the anchor may already be this fill, including a
+                # drop an earlier position sync already applied. Reserve only
+                # the part the book has not removed, and keep the rest.
                 self._refresh_unreconciled_package_close(key, position_abs)
                 state = self._unreconciled_package_closes.get(key)
+                absorbed = 0.0 if state is None else float(state.get("absorbed", 0.0))
+                credit = min(leg_qty, absorbed)
+                if state is not None:
+                    state["absorbed"] = absorbed - credit
+                reserve = leg_qty - credit
+                if reserve <= 0:
+                    continue
                 if state is None:
-                    self._unreconciled_package_closes[key] = {"qty": leg_qty, "position_abs": position_abs}
+                    self._unreconciled_package_closes[key] = {
+                        "qty": reserve,
+                        "position_abs": position_abs,
+                        "absorbed": 0.0,
+                    }
                 else:
-                    state["qty"] += leg_qty
+                    state["qty"] += reserve
 
     @staticmethod
     def _schwab_leg_is_close(order) -> bool:
@@ -2435,14 +2449,21 @@ class Schwab(Broker):
     def _refresh_unreconciled_package_close(self, key, position_abs) -> float:
         """Reduce the reserved quantity when the position shrinks, and return the rest.
 
-        A larger position moves the anchor up and leaves the reserved quantity
-        in place. Every close of this contract shares one pool.
+        A drop larger than the reservation is kept for the next fill note, so a
+        sync that already removed those contracts is not reserved again. A
+        larger position moves the anchor up and leaves the reservation in place.
+        Every close of this contract shares one pool.
         """
         state = getattr(self, "_unreconciled_package_closes", {}).get(key)
         if not state:
             return 0.0
         if position_abs < state["position_abs"]:
-            state["qty"] = max(0.0, state["qty"] - (state["position_abs"] - position_abs))
+            drop = state["position_abs"] - position_abs
+            applied = min(float(state["qty"]), drop)
+            state["qty"] = float(state["qty"]) - applied
+            excess = drop - applied
+            if excess:
+                state["absorbed"] = float(state.get("absorbed", 0.0)) + excess
         state["position_abs"] = position_abs
         return state["qty"]
 
@@ -2458,6 +2479,65 @@ class Schwab(Broker):
             position_abs = 0.0
         with self._lock:
             return self._refresh_unreconciled_package_close(key, position_abs)
+
+    def _anchor_package_close_positions(self, order) -> None:
+        """Remember the book size before a close package's fills are noted."""
+        if getattr(order, "order_class", None) != Order.OrderClass.MULTILEG:
+            return
+        if not hasattr(self, "_unreconciled_package_closes"):
+            self._unreconciled_package_closes = {}
+        for child in list(getattr(order, "child_orders", None) or []):
+            if not self._schwab_leg_is_close(child):
+                continue
+            key = self._package_close_key(child)
+            if key is None:
+                continue
+            position = self._position_for_order(child)
+            try:
+                position_abs = abs(float(position.quantity)) if position is not None else 0.0
+            except (TypeError, ValueError):
+                position_abs = 0.0
+            with self._lock:
+                if key not in self._unreconciled_package_closes:
+                    self._unreconciled_package_closes[key] = {
+                        "qty": 0.0,
+                        "position_abs": position_abs,
+                        "absorbed": 0.0,
+                    }
+                else:
+                    self._refresh_unreconciled_package_close(key, position_abs)
+
+    def _reconcile_package_close_holds(self) -> None:
+        """Drop package-close holds when sync reduces or removes the position.
+
+        A later reopen of the same contract must not inherit the old hold.
+        A position that did not shrink keeps its reservation.
+        """
+        states = getattr(self, "_unreconciled_package_closes", None)
+        if not states:
+            return
+        current = {}
+        for position in self._filled_positions.get_list():
+            asset = getattr(position, "asset", None)
+            if asset is None:
+                continue
+            asset_id = (
+                asset.symbol,
+                asset.asset_type,
+                getattr(asset, "expiration", None),
+                getattr(asset, "strike", None),
+                str(getattr(asset, "right", None) or ""),
+            )
+            try:
+                position_abs = abs(float(position.quantity))
+            except (TypeError, ValueError):
+                position_abs = 0.0
+            current[(getattr(position, "strategy", None),) + asset_id] = position_abs
+        with self._lock:
+            for key, state in list(states.items()):
+                position_abs = current.get(key, 0.0)
+                if position_abs < state["position_abs"]:
+                    self._refresh_unreconciled_package_close(key, position_abs)
 
     def _schwab_reported_fill_price(self, stored_order, observed_order, cumulative_filled, fill_delta):
         """Price for one new fill delta.
@@ -3264,6 +3344,7 @@ class Schwab(Broker):
                 sent_effect = self._schwab_effect_name(order_spec.get("orderType"))
                 if sent_effect is not None:
                     order._multileg_effect = sent_effect
+                self._anchor_package_close_positions(order)
 
             # Store the raw response data
             order_data = {"id": order_id, "status": "SUBMITTED"}
@@ -4825,5 +4906,7 @@ class Schwab(Broker):
             else:
                 # Add new position
                 self._filled_positions.append(position)
+
+        self._reconcile_package_close_holds()
 
         logger.debug(f"Synchronized {len(new_positions)} positions for strategy {strategy_name if strategy_name else 'None'}")

@@ -1382,6 +1382,92 @@ def test_full_package_fill_stays_reserved_until_position_sync(lifecycle):
     assert broker.submit_order(_close_package(1, 470)) is not None
 
 
+def test_fill_already_reflected_in_the_book_is_not_reserved_again(lifecycle):
+    """A fill noted after the position already dropped does not reserve those contracts twice."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    position = Position("fixture", held, 2)
+    broker._filled_positions.append(position)
+    parent = broker.submit_orders(_close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40)[0]
+    position.quantity = 1
+
+    execution = {"activityType": "EXECUTION", "executionLegs": [
+        {"legId": 1, "quantity": 1, "price": 1.20},
+        {"legId": 2, "quantity": 1, "price": 0.80},
+    ]}
+    transport.queue_order_reads(parent.identifier, {
+        "status": "FILLED",
+        "filledQuantity": 1,
+        "orderActivityCollection": [execution],
+    })
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+
+    assert broker._unreconciled_package_close_quantity(parent.child_orders[0]) == 0
+    assert broker.submit_order(_close_package(1, 480)) is not None
+
+
+def test_sync_before_the_fill_is_noted_does_not_reserve_it_again(lifecycle):
+    """A sync that already removed the filled contract is not reserved a second time."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    position = Position("fixture", held, 2)
+    broker._filled_positions.append(position)
+    parent = broker.submit_orders(
+        _close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40,
+    )[0]
+
+    reduced = Position("fixture", held, 1)
+    broker._last_positions_refresh_degraded = False
+    broker._pull_positions = lambda _strategy: [reduced]
+    broker.sync_positions(type("Strategy", (), {"name": "fixture"})())
+
+    execution = {"activityType": "EXECUTION", "executionLegs": [
+        {"legId": 1, "quantity": 1, "price": 1.20},
+        {"legId": 2, "quantity": 1, "price": 0.80},
+    ]}
+    transport.queue_order_reads(parent.identifier, {
+        "status": "FILLED",
+        "filledQuantity": 1,
+        "orderActivityCollection": [execution],
+    })
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+
+    assert broker._unreconciled_package_close_quantity(parent.child_orders[0]) == 0
+    assert broker.submit_order(_close_package(1, 480)) is not None
+
+
+def test_position_sync_clears_a_hold_before_the_contract_reopens(lifecycle):
+    """Removing the position during sync clears the hold, so a reopened contract can close."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    position = Position("fixture", held, 1)
+    broker._filled_positions.append(position)
+    parent = broker.submit_orders(_close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40)[0]
+    execution = {"activityType": "EXECUTION", "executionLegs": [
+        {"legId": 1, "quantity": 1, "price": 1.20},
+        {"legId": 2, "quantity": 1, "price": 0.80},
+    ]}
+    transport.queue_order_reads(parent.identifier, {
+        "status": "FILLED",
+        "filledQuantity": 1,
+        "orderActivityCollection": [execution],
+    })
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+    assert broker.submit_order(_close_package(1, 480)) is None
+
+    broker._last_positions_refresh_degraded = False
+    broker._pull_positions = lambda _strategy: []
+    broker.sync_positions(type("Strategy", (), {"name": "fixture"})())
+    reopened = Position("fixture", held, 1)
+    broker._pull_positions = lambda _strategy: [reopened]
+    broker.sync_positions(type("Strategy", (), {"name": "fixture"})())
+
+    assert broker.submit_order(_close_package(1, 470)) is not None
+
+
 def test_partial_fill_reopens_legs_closed_by_a_local_error(lifecycle):
     """A later partial fill reopens legs that a local error had closed."""
     transport, broker, _queues = lifecycle

@@ -275,6 +275,43 @@ def test_smart_limit_retries_the_same_step_when_modify_returns_false(mocker):
     assert parent._smart_limit_state["step_index"] == 0
 
 
+def test_multileg_smart_limit_replacement_keeps_parent_gtc(mocker):
+    """A canceled GTC package is resubmitted as GTC, not the day default."""
+    broker = _BrokerStub(name="Schwab")
+    replacement = Order("unit", Asset("SPY"), 1, Order.OrderSide.BUY)
+    broker.submit_orders = mocker.Mock(return_value=[replacement])
+    strategy = _MinimalStrategy(broker)
+    strategy.logger = SimpleNamespace(error=lambda *_a, **_k: None)
+    executor = StrategyExecutor(strategy=strategy)
+
+    leg_buy = _leg("unit", _option("SPY", 500), Order.OrderSide.BUY_TO_OPEN)
+    leg_sell = _leg("unit", _option("SPY", 505), Order.OrderSide.SELL_TO_OPEN)
+    parent = Order(
+        "unit",
+        asset=Asset("SPY"),
+        quantity=1,
+        side=Order.OrderSide.BUY,
+        time_in_force="gtc",
+        order_class=Order.OrderClass.MULTILEG,
+        child_orders=[leg_buy, leg_sell],
+    )
+    parent._smart_limit_state = {
+        "created_at": 0.0,
+        "step_seconds": 1,
+        "steps": 3,
+        "final_hold_seconds": 999,
+    }
+    _confirmed_cancel(parent)
+
+    executor._advance_smart_limit_replacement(
+        {"order": parent, "price": 0.40, "order_type": "credit", "multileg": True},
+        10,
+    )
+
+    assert broker.submit_orders.call_args.kwargs["duration"] == "gtc"
+    assert replacement.order_type == Order.OrderType.SMART_LIMIT
+
+
 def test_single_smart_limit_retries_the_same_step_when_modify_returns_false(mocker):
     broker = _BrokerStub(name="Schwab")
     broker.IS_BACKTESTING_BROKER = False

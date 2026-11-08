@@ -2919,3 +2919,119 @@ def test_sync_importer_values_an_unpriced_recovered_fill_at_the_average(lifecycl
     broker._process_broker_synced_order(incoming)
 
     assert [(item.price, float(item.quantity)) for item in tracked.transactions] == [(None, 1.0), (10.5, 1.0)]
+
+
+def test_a_limit_fallback_prices_the_new_fill_directly(lifecycle):
+    """With no executions or averagePrice the limit is not a cumulative average: 9 then a 10 limit is 10, not 11."""
+    _transport, broker, queues = lifecycle
+    held = _option_leg(500, "CALL", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(
+        _recovered_single_close(filledQuantity=1, averagePrice=9.0), "fixture",
+    ))
+    _priority_events(queues)
+
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(
+        _recovered_single_close(status="FILLED", filledQuantity=2, price=10.0), "fixture",
+    ))
+
+    fills = [
+        payload for name, payload in _priority_events(queues)
+        if name in {broker.FILLED_ORDER, broker.PARTIALLY_FILLED_ORDER}
+    ]
+    assert [(fill["price"], fill["quantity"]) for fill in fills] == [(10.0, 1)]
+
+
+def _sync_account_holding(broker, held, quantity):
+    """Run a named position sync where Schwab reports one holding for the account."""
+    broker._last_positions_refresh_degraded = False
+    broker._pull_positions = lambda strategy: [Position(strategy.name, held, quantity)]
+    broker.sync_positions(broker._position_sync_strategy())
+
+
+def test_named_sync_does_not_claim_an_unknown_row_another_strategy_may_own(lifecycle):
+    """The sync keeps an Unknown row unclaimed while another strategy holds the asset."""
+    _transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    unknown = Position("Unknown", held, 2)
+    broker._filled_positions.append(unknown)
+    broker._filled_positions.append(Position("other-strategy", held, 2))
+
+    _sync_account_holding(broker, held, 3)
+
+    assert unknown.strategy == "Unknown"
+    assert float(unknown.quantity) == 3
+    assert not [row for row in broker._filled_positions.get_list() if row.strategy == "fixture"]
+    close = Order("fixture", held, 1, Order.OrderSide.SELL_TO_CLOSE, limit_price=1.00)
+    assert broker._position_for_order(close) is None
+
+
+def test_named_sync_still_claims_an_unknown_row_nobody_else_holds(lifecycle):
+    """Negative control: with no other owner the Unknown row becomes this strategy's."""
+    _transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    unknown = Position("Unknown", held, 2)
+    broker._filled_positions.append(unknown)
+
+    _sync_account_holding(broker, held, 3)
+
+    assert unknown.strategy == "fixture"
+    assert float(unknown.quantity) == 3
+
+
+def test_working_orders_are_recovered_before_initialize(lifecycle):
+    """set_strategy_name runs right before initialize(), so recovery cannot wait for the first poll."""
+    transport, broker, _queues = lifecycle
+    broker._pull_positions = lambda _strategy: []
+    broker._last_positions_refresh_degraded = False
+    broker._broker_fully_ready = True
+    broker._strategy_name = ""
+    transport.queue_history_response([
+        _recovered_single_close(filledQuantity=1, averagePrice=1.10),
+        _working_single_snapshot(orderId="partial-recovered", tag="fixture", quantity=2,
+                                 status="PARTIALLY_FILLED", filledQuantity=1, averagePrice=2.00),
+        _working_single_snapshot(orderId="foreign-working", tag="other"),
+    ])
+
+    broker.set_strategy_name("fixture")
+
+    recovered = broker.get_tracked_order("single-recovered")
+    assert recovered is not None
+    assert [(item.price, item.quantity) for item in recovered.transactions] == [(1.10, 1)]
+    assert broker.get_tracked_order("partial-recovered") is not None
+    assert broker.get_tracked_order("foreign-working") is None
+
+
+def test_a_stale_pull_does_not_lower_a_remembered_package_fill(lifecycle):
+    """Fills only grow, so a successful pull reporting zero keeps the remembered fill."""
+    transport, broker, _queues = lifecycle
+    parent = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=1.25)[0]
+    broker._remember_schwab_package_fills([
+        _broker_snapshot(transport, parent.identifier, status="FILLED", filledQuantity=1, averagePrice=1.25),
+    ])
+
+    broker._remember_schwab_package_fills([
+        _broker_snapshot(transport, parent.identifier, status="WORKING", filledQuantity=0),
+    ])
+
+    assert broker._schwab_seen_package_fills == {str(parent.identifier): 1.0}
+
+
+def test_a_tracked_order_with_a_user_tag_is_not_skipped_by_the_poll(lifecycle):
+    """A tag like "entry-42" is a user label; the order is still this strategy's by its id."""
+    transport, broker, _queues = lifecycle
+    broker._pull_positions = lambda _strategy: []
+    broker._last_positions_refresh_degraded = False
+    order = Order("fixture", _option_leg(500, "CALL", Order.OrderSide.BUY_TO_OPEN).asset, 1,
+                  Order.OrderSide.BUY_TO_OPEN, limit_price=2.00)
+    order.tag = "entry-42"
+    submitted = broker.submit_order(order)
+    _TRANSPORT.drain_stream_events(broker)
+    filled = _broker_snapshot(transport, submitted.identifier, status="FILLED", filledQuantity=1, averagePrice=1.95)
+    assert filled.get("tag") == "entry-42"
+    transport.queue_history_response([filled])
+
+    broker.stream.dispatch(broker.POLL_EVENT, wait_until_complete=True)
+
+    assert submitted.is_filled()
+    assert [(item.price, float(item.quantity)) for item in submitted.transactions] == [(1.95, 1.0)]

@@ -2516,6 +2516,8 @@ class Schwab(Broker):
                 cumulative = float(getattr(observed, "_schwab_cumulative_filled_quantity", 0) or 0)
             except (TypeError, ValueError):
                 continue
+            # Fills only grow. A stale pull reporting less keeps the larger value.
+            cumulative = max(cumulative, float(previous.get(order_id, 0.0) or 0.0))
             if cumulative > 0:
                 seen[order_id] = cumulative
         for order_id in unparsed:
@@ -3099,6 +3101,11 @@ class Schwab(Broker):
             average = None
         if average is None or not fill_delta:
             return getattr(observed_order, "limit_price", None)
+        if getattr(observed_order, "_schwab_average_from_limit", False):
+            # The parser fell back to the limit. It is not a cumulative average,
+            # so subtracting earlier fills from it would invent a price (9 then
+            # a 10 limit is not a new fill at 11). The limit prices this fill.
+            return average
         try:
             prior_value = 0.0
             unpriced = 0.0
@@ -3123,8 +3130,9 @@ class Schwab(Broker):
         """True when an untracked working order's tag belongs to this strategy.
 
         Untagged snapshots are ignored so shared-account activity cannot become
-        this strategy's tracked order. Filled or partially filled snapshots stay
-        unadopted.
+        this strategy's tracked order. A working order that already has fills
+        (WORKING with a filled quantity, or PARTIALLY_FILLED) is recovered with
+        that history; a filled order has nothing left to track.
         """
         identifier = getattr(observed_order, "identifier", None)
         if not identifier or self.get_tracked_order(identifier) is not None:
@@ -3141,6 +3149,7 @@ class Schwab(Broker):
             and (
                 Order.is_equivalent_status(status, self.NEW_ORDER)
                 or Order.is_equivalent_status(status, Order.OrderStatus.CANCELLING)
+                or Order.is_equivalent_status(status, self.PARTIALLY_FILLED_ORDER)
             )
         )
 
@@ -3642,7 +3651,12 @@ class Schwab(Broker):
 
                 for order in parsed_orders:
                     # Shared-account safety: skip foreign-tagged snapshots early.
-                    if broker.order_is_foreign_to_local_strategy(order, broker._strategy_name):
+                    # An order this broker already tracks is ours by its id; its tag
+                    # can be a user label such as "entry-42" rather than the strategy.
+                    if (
+                        broker.get_tracked_order(order.identifier) is None
+                        and broker.order_is_foreign_to_local_strategy(order, broker._strategy_name)
+                    ):
                         continue
                     broker._process_schwab_order_snapshot(order)
             except Exception:
@@ -3727,6 +3741,39 @@ class Schwab(Broker):
         if not name.strip():
             return None
         return type("_SchwabPositionSync", (), {"name": name})()
+
+    def set_strategy_name(self, strategy_name):
+        """Register the strategy, then recover its working orders.
+
+        The executor calls this right before ``initialize()``. A working close
+        from before a restart is otherwise tracked only at the first poll, so a
+        close submitted in ``initialize()`` could pass validation and both would
+        be sent against the same contracts.
+        """
+        super().set_strategy_name(strategy_name)
+        self._recover_schwab_working_orders()
+
+    def _recover_schwab_working_orders(self) -> None:
+        """Track this strategy's tagged working orders from one history pull."""
+        if not getattr(self, "_broker_fully_ready", False) or getattr(self, "schwab_authorization_error", False):
+            return
+        strategy_name = getattr(self, "_strategy_name", None)
+        if not strategy_name:
+            return
+        try:
+            # Load the book first: adoption anchors package closes at its size.
+            self.sync_positions(self._position_sync_strategy())
+            payloads = self._pull_broker_all_orders()
+            if getattr(self, "_last_orders_refresh_degraded", False):
+                return
+            for payload in payloads or []:
+                if not isinstance(payload, dict):
+                    continue
+                observed = self._parse_broker_order(payload, strategy_name)
+                if observed is not None and self._schwab_recovered_working_order(observed):
+                    self._process_schwab_order_snapshot(observed)
+        except Exception:
+            logger.error(_format_exc())
 
     def _stream_established(self):
         """
@@ -5581,6 +5628,16 @@ class Schwab(Broker):
                 matches.append(position)
         return matches
 
+    def _schwab_position_has_foreign_owner(self, key, strategy_name) -> bool:
+        """True when a strategy other than ``strategy_name`` has a named row for this asset."""
+        for position in list(self._filled_positions.get_list()):
+            label = getattr(position, "strategy", None)
+            if label in (None, "", "Unknown", strategy_name):
+                continue
+            if self._schwab_position_key(position) == key:
+                return True
+        return False
+
     def _schwab_remove_filled_position(self, position) -> None:
         """Drop one tracked row when it is still in the book."""
         filled = getattr(self, "_filled_positions", None)
@@ -5649,6 +5706,10 @@ class Schwab(Broker):
                 self._sync_position_fields_from_broker(tracked_position, position)
                 for twin in unlabeled:
                     self._schwab_remove_filled_position(twin)
+            elif unlabeled and self._schwab_position_has_foreign_owner(key, strategy_name):
+                # The unlabeled row may be that other strategy's holding. Keep it
+                # current but unclaimed, so a local close cannot be validated against it.
+                self._sync_position_fields_from_broker(unlabeled[0], position)
             elif unlabeled:
                 kept = unlabeled[0]
                 self._sync_position_fields_from_broker(kept, position)

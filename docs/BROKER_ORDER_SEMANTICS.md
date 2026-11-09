@@ -320,17 +320,27 @@ Lifecycle:
 - A working order whose Schwab `tag` matches this strategy is recovered after a
   restart; untagged and foreign orders never are. Recovery runs in
   `set_strategy_name`, which the executor calls right before `initialize()`, so
-  a close submitted there sees the working close instead of duplicating it. A
+  a close submitted there sees the working close instead of duplicating it.
+  That pull reads 59 days of history (the poll reads 7) because a working GTC
+  close can be older than a week; Schwab rejects a start more than 60 days back,
+  so a working order older than that cannot be recovered from history. A
   working order with fills (WORKING with a filled quantity, or
-  PARTIALLY_FILLED) is recovered with that history. An order already tracked
-  by id is never skipped as foreign by the poll, because its tag can be a user
-  label rather than the strategy name. Fills it already had are
+  PARTIALLY_FILLED) is recovered with that history, as partially filled and
+  without a callback; a later WORKING snapshot does not move it back to new.
+  The first-iteration `sync_orders` import uses the same tag gate, because the
+  order pull parses every account order under this strategy's name. An order
+  this broker submitted is never treated as foreign, by the poll or by the fill
+  callbacks, because its tag can be a user label such as `entry-42`. Fills it already had are
   recorded without a callback, at Schwab's `averagePrice` or execution price.
   When neither exists the parser's limit fallback is not a fill, so that
   quantity is left unpriced; the next fill values it at the new average, and
   the shared sync importer does the same instead of failing on the missing
   price. A later fill whose only price is that limit fallback is recorded at
-  the limit, never derived from it as if it were a cumulative average. A
+  the limit, never derived from it as if it were a cumulative average. That
+  limit-priced fill is an estimate: when Schwab later reports a cumulative
+  average, the next fill is priced as if the estimate had filled at that
+  average. A snapshot at the same quantity that finally carries an average
+  fills in the order's average without adding a fill. A
   recovered stop-limit keeps its limit in `stop_limit_price`, where the
   stock builder reads it. Every replacement (package, stock or option) carries
   the same tag, so a repriced order is still recognized after the next

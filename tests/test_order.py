@@ -446,6 +446,34 @@ class TestCashPending:
 
         assert order.cash_pending(self._strategy(10.0)) == pytest.approx(20.0)
 
+        # After a priced partial fill, the remainder keeps the sign at the fill price.
+        order.add_transaction(9.0, 1)
+        assert order.cash_pending(self._strategy(10.0)) == pytest.approx(9.0)
+
+    @pytest.mark.parametrize(
+        ("side", "sign"),
+        [
+            (Order.OrderSide.SELL_TO_OPEN, 1),
+            (Order.OrderSide.SELL_TO_CLOSE, 1),
+            (Order.OrderSide.BUY_TO_OPEN, -1),
+            (Order.OrderSide.BUY_TO_CLOSE, -1),
+        ],
+    )
+    def test_option_sides_keep_their_cash_sign(self, side, sign):
+        order = Order("Example", self._option(500), 2, side, limit_price=2)
+
+        assert order.cash_pending(self._strategy(2.0)) == pytest.approx(sign * 400.0)
+
+        order.add_transaction(1.50, 1)
+        assert order.cash_pending(self._strategy(2.0)) == pytest.approx(sign * 150.0)
+
+    def test_a_confirmed_fill_without_a_price_is_not_estimated_again(self):
+        """An imported order can carry the broker's filled quantity with no priced transaction."""
+        order = Order("Example", self._option(500), 2, Order.OrderSide.BUY_TO_OPEN, limit_price=2)
+        order.filled_quantity = 1
+
+        assert order.cash_pending(self._strategy(2.0)) == pytest.approx(-200.0)
+
     def test_option_premium_uses_the_contract_multiplier(self):
         order = Order("Example", self._option(500), 1, Order.OrderSide.BUY_TO_OPEN, limit_price=2)
 

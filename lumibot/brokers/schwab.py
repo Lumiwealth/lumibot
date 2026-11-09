@@ -1571,9 +1571,16 @@ class Schwab(Broker):
         return None
 
     # Order methods
-    def _pull_broker_all_orders(self) -> list:
+    def _pull_broker_all_orders(self, days: int = 7) -> list:
         """
         Get the broker's open orders.
+
+        Parameters
+        ----------
+        days : int
+            How far back to read. The poll uses 7. Startup recovery uses 59,
+            a day inside Schwab's 60-day limit, so an older working GTC order is
+            still found.
 
         Returns
         -------
@@ -1585,6 +1592,7 @@ class Schwab(Broker):
         -----
         This method retrieves orders from the past 7 days by default to limit the
         volume of data returned while still capturing relevant recent orders.
+        Schwab rejects a start more than 60 days back, so the start is capped at 59.
         A failed pull returns an empty list and leaves
         ``_last_orders_refresh_degraded`` set, so callers can tell it from a
         reliable empty history.
@@ -1607,10 +1615,9 @@ class Schwab(Broker):
             return []
 
         try:
-            # Get orders from last 7 days
             from pytz import timezone
 
-            seek_start = datetime.now(timezone('UTC')) - timedelta(days=7)
+            seek_start = datetime.now(timezone('UTC')) - timedelta(days=min(max(int(days), 1), 59))
 
             response = self.client.get_orders_for_account(
                 self.hash_value,
@@ -3081,6 +3088,40 @@ class Schwab(Broker):
                 self._refresh_unreconciled_package_close(key, current.get(key, 0.0))
                 self._prune_obsolete_package_close_anchor(key, status, awaiting)
 
+    def _price_unpriced_schwab_history(self, stored_order, observed_order) -> None:
+        """Give a recovered unpriced fill the broker's average once Schwab reports it.
+
+        Only at the same cumulative quantity: no fill is added and the quantity
+        does not change. A larger quantity is a new fill and goes through the
+        fill path, which values the unpriced history at that average.
+        """
+        transactions = getattr(stored_order, "transactions", None) or []
+        if not any(item.price is None for item in transactions):
+            return
+        average = self._schwab_execution_average(stored_order, observed_order)
+        if average is None:
+            return
+        try:
+            cumulative = float(getattr(observed_order, "_schwab_cumulative_filled_quantity", 0) or 0)
+            recorded = sum(float(item.quantity) for item in transactions)
+        except (TypeError, ValueError):
+            return
+        if cumulative > 0 and abs(cumulative - recorded) < 1e-9:
+            stored_order.avg_fill_price = average
+
+    @staticmethod
+    def _schwab_execution_average(stored_order, observed_order):
+        """Schwab's cumulative execution average, or None when it is unknown or only the limit."""
+        if getattr(observed_order, "_schwab_average_from_limit", False):
+            return None
+        average = getattr(observed_order, "_schwab_average_fill_price", None)
+        if average is None:
+            average = getattr(observed_order, "avg_fill_price", None)
+        if getattr(stored_order, "order_class", None) != Order.OrderClass.MULTILEG and not average:
+            # A single-order price of zero is not an execution. A package can net to zero.
+            return None
+        return average
+
     def _schwab_reported_fill_price(self, stored_order, observed_order, cumulative_filled, fill_delta):
         """Price for one new fill delta.
 
@@ -3093,19 +3134,12 @@ class Schwab(Broker):
         inflated by treating that quantity as zero.
         """
         package = getattr(stored_order, "order_class", None) == Order.OrderClass.MULTILEG
-        average = getattr(observed_order, "_schwab_average_fill_price", None)
-        if average is None:
-            average = getattr(observed_order, "avg_fill_price", None)
-        if not package and not average:
-            # A single-order price of zero is not an execution.
-            average = None
+        average = self._schwab_execution_average(stored_order, observed_order)
         if average is None or not fill_delta:
+            # No execution average (or only the parser's limit fallback). It is not
+            # cumulative, so subtracting earlier fills from it would invent a price
+            # (9 then a 10 limit is not a new fill at 11). The limit prices this fill.
             return getattr(observed_order, "limit_price", None)
-        if getattr(observed_order, "_schwab_average_from_limit", False):
-            # The parser fell back to the limit. It is not a cumulative average,
-            # so subtracting earlier fills from it would invent a price (9 then
-            # a 10 limit is not a new fill at 11). The limit prices this fill.
-            return average
         try:
             prior_value = 0.0
             unpriced = 0.0
@@ -3117,6 +3151,12 @@ class Schwab(Broker):
                     prior_value += quantity * float(item.price)
             if unpriced:
                 prior_value += unpriced * float(average)
+            # Fills priced at the limit were estimates; value them at the average too.
+            estimated = float(getattr(stored_order, "_schwab_estimated_fill_quantity", 0.0) or 0.0)
+            if estimated:
+                prior_value += estimated * float(average) - float(
+                    getattr(stored_order, "_schwab_estimated_fill_value", 0.0) or 0.0
+                )
             price = (float(cumulative_filled) * float(average) - prior_value) / float(fill_delta)
         except (TypeError, ValueError, ZeroDivisionError):
             return average
@@ -3125,6 +3165,30 @@ class Schwab(Broker):
             # push the difference to zero or below; the broker average is honest.
             return average
         return price
+
+    def order_is_foreign_to_local_strategy(self, order, local_strategy_name: str | None = None) -> bool:
+        """An order this broker submitted is never foreign, whatever its tag says.
+
+        ``Order.tag`` can be a user label such as "entry-42". The base check reads
+        it as another strategy's tag and would drop this strategy's own fills.
+        """
+        if getattr(order, "_schwab_submitted_locally", False):
+            return False
+        return super().order_is_foreign_to_local_strategy(order, local_strategy_name)
+
+    def _process_broker_synced_order(self, order):
+        """Import a broker order from ``sync_orders`` under the recovery ownership gate.
+
+        The order pull parses every account order under this strategy's name, so
+        the base importer would track untagged and foreign working orders as
+        this strategy's. A working order is recovered only when its tag is this
+        strategy's, through the same reducer as a poll.
+        """
+        if self.get_tracked_order(order.identifier) is None and order.is_active():
+            if self._schwab_recovered_working_order(order):
+                self._process_schwab_order_snapshot(order)
+            return None
+        return super()._process_broker_synced_order(order)
 
     def _schwab_recovered_working_order(self, observed_order) -> bool:
         """True when an untracked working order's tag belongs to this strategy.
@@ -3265,6 +3329,16 @@ class Schwab(Broker):
                         observed_order.avg_fill_price = None
                     if getattr(observed_order, "order_class", None) == Order.OrderClass.MULTILEG:
                         self._note_package_close_fill(observed_order, cumulative_filled)
+                    if not Order.is_equivalent_status(observed_status, Order.OrderStatus.CANCELLING):
+                        # It already has fills, so it is partially filled, not new. The
+                        # history is not replayed as a callback.
+                        with self._lock:
+                            self._new_orders.remove(identifier, key="identifier")
+                            self._unprocessed_orders.remove(identifier, key="identifier")
+                            observed_order.status = Order.OrderStatus.PARTIALLY_FILLED
+                            observed_order.set_partially_filled()
+                            if observed_order not in self._partially_filled_orders:
+                                self._partially_filled_orders.append(observed_order)
             return
 
         if stored_order.is_filled():
@@ -3299,10 +3373,16 @@ class Schwab(Broker):
                 raw_order_status=getattr(observed_order, "raw_order_status", None),
             )
 
+        self._price_unpriced_schwab_history(stored_order, observed_order)
+
         if Order.is_equivalent_status(observed_status, self.NEW_ORDER):
             # Never regress a local/broker cancel-pending order back to NEW when
-            # an older snapshot arrives out of order.
-            if not Order.is_equivalent_status(stored_order.status, Order.OrderStatus.CANCELLING):
+            # an older snapshot arrives out of order. Schwab reports a partially
+            # filled order as WORKING, so recorded fills keep it partially filled.
+            if not Order.is_equivalent_status(stored_order.status, Order.OrderStatus.CANCELLING) and not (
+                stored_order.transactions
+                and Order.is_equivalent_status(stored_order.status, self.PARTIALLY_FILLED_ORDER)
+            ):
                 stored_order.status = Order.OrderStatus.NEW
             return
 
@@ -3383,10 +3463,17 @@ class Schwab(Broker):
                     # get_fill_price() prefers this cached value, so a recovered order
                     # would keep its adoption average. A limit fallback is not an
                     # average; None lets the price come from the ledger instead.
-                    stored_order.avg_fill_price = (
-                        None if getattr(observed_order, "_schwab_average_from_limit", False)
-                        else getattr(observed_order, "_schwab_average_fill_price", None)
-                    )
+                    stored_order.avg_fill_price = self._schwab_execution_average(stored_order, observed_order)
+                    if stored_order.avg_fill_price is None:
+                        # Priced at the limit, not an execution. Remember it so a later
+                        # cumulative average replaces this estimate instead of keeping it.
+                        stored_order._schwab_estimated_fill_quantity = (
+                            float(getattr(stored_order, "_schwab_estimated_fill_quantity", 0.0) or 0.0) + fill_delta
+                        )
+                        stored_order._schwab_estimated_fill_value = (
+                            float(getattr(stored_order, "_schwab_estimated_fill_value", 0.0) or 0.0)
+                            + fill_delta * float(price)
+                        )
                     self._log_schwab_lifecycle_event(
                         "order.lifecycle.callback",
                         stored_order,
@@ -3763,7 +3850,8 @@ class Schwab(Broker):
         try:
             # Load the book first: adoption anchors package closes at its size.
             self.sync_positions(self._position_sync_strategy())
-            payloads = self._pull_broker_all_orders()
+            # A GTC close can be older than the poll's 7 days; read as far as Schwab allows.
+            payloads = self._pull_broker_all_orders(days=59)
             if getattr(self, "_last_orders_refresh_degraded", False):
                 return
             for payload in payloads or []:
@@ -4065,6 +4153,7 @@ class Schwab(Broker):
             # Update the order with the identifier
             order.identifier = order_id
             order.status = Order.OrderStatus.SUBMITTED
+            order._schwab_submitted_locally = True
             if order.order_class is Order.OrderClass.MULTILEG:
                 # Keep the net type that was actually sent. A later replace must
                 # not infer a new credit, debit, or even from the changed price.

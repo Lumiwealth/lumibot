@@ -1236,7 +1236,19 @@ class Order:
     def cash_pending(self, strategy):
         # Returns the impact to cash of any unfilled shares.
         # Quantities and prices can mix Decimal and float, so the estimate is a float.
-        quantity_unfilled = float(self.quantity) - sum(float(transaction.quantity) for transaction in self.transactions)
+        filled = sum(float(transaction.quantity) for transaction in self.transactions)
+        # A broker can confirm a fill it does not price; the importer then records no
+        # transaction. That quantity is filled and must not be estimated again.
+        confirmed_quantities = (
+            getattr(self, "filled_quantity", None),
+            getattr(self, "_broker_synced_filled_quantity", None),
+        )
+        for confirmed in confirmed_quantities:
+            try:
+                filled = max(filled, float(confirmed or 0))
+            except (TypeError, ValueError):
+                pass
+        quantity_unfilled = float(self.quantity) - filled
         if quantity_unfilled == 0:
             return 0
         package_legs = self.child_orders if self.order_class == self.OrderClass.MULTILEG else []

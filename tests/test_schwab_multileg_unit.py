@@ -2992,8 +2992,22 @@ def test_working_orders_are_recovered_before_initialize(lifecycle):
                                  status="PARTIALLY_FILLED", filledQuantity=1, averagePrice=2.00),
         _working_single_snapshot(orderId="foreign-working", tag="other"),
     ])
+    starts = []
+    pull = broker.client.get_orders_for_account
+
+    def recording_pull(account_hash, **kwargs):
+        starts.append(kwargs.get("from_entered_datetime"))
+        return pull(account_hash, **kwargs)
+
+    broker.client.get_orders_for_account = recording_pull
 
     broker.set_strategy_name("fixture")
+
+    # A GTC close can be older than the poll's 7 days; recovery reads 59 days,
+    # a day inside Schwab's 60-day limit so the request is never out of range.
+    from datetime import datetime, timezone
+    assert len(starts) == 1
+    assert 58.9 < (datetime.now(timezone.utc) - starts[0]).total_seconds() / 86400 < 59.1
 
     recovered = broker.get_tracked_order("single-recovered")
     assert recovered is not None
@@ -3035,3 +3049,91 @@ def test_a_tracked_order_with_a_user_tag_is_not_skipped_by_the_poll(lifecycle):
 
     assert submitted.is_filled()
     assert [(item.price, float(item.quantity)) for item in submitted.transactions] == [(1.95, 1.0)]
+    # The strategy's own fill reaches on_filled_order despite the custom tag.
+    fills = [payload for name, payload in _priority_events(_queues) if name == broker.FILLED_ORDER]
+    assert [fill["order"].identifier for fill in fills] == [submitted.identifier]
+
+
+def test_a_recovered_order_with_fills_is_partially_filled_without_a_callback(lifecycle):
+    """Recovery restores the partial status and bucket; a later WORKING snapshot keeps them."""
+    _transport, broker, queues = lifecycle
+    held = _option_leg(500, "CALL", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    snapshot = _recovered_single_close(filledQuantity=1, averagePrice=1.10)
+
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(snapshot, "fixture"))
+
+    tracked = broker.get_tracked_order("single-recovered")
+    assert tracked.status == Order.OrderStatus.PARTIALLY_FILLED
+    assert tracked in broker._partially_filled_orders
+    assert tracked not in broker._new_orders
+    assert not [name for name, _payload in _priority_events(queues) if name in {
+        broker.FILLED_ORDER, broker.PARTIALLY_FILLED_ORDER,
+    }]
+
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(snapshot, "fixture"))
+    assert tracked.status == Order.OrderStatus.PARTIALLY_FILLED
+
+
+def test_first_iteration_sync_imports_only_this_strategys_working_orders(lifecycle):
+    """sync_orders parses every account order under this strategy's name; only the tag proves ownership."""
+    transport, broker, _queues = lifecycle
+    broker._pull_positions = lambda _strategy: []
+    broker._last_positions_refresh_degraded = False
+    broker._first_iteration = True
+    transport.queue_history_response([
+        _working_single_snapshot(orderId="sync-untagged"),
+        _working_single_snapshot(orderId="sync-foreign", tag="other"),
+        _working_single_snapshot(orderId="sync-owned", tag="fixture"),
+    ])
+
+    broker.sync_orders(broker._position_sync_strategy())
+
+    assert broker.get_tracked_order("sync-untagged") is None
+    assert broker.get_tracked_order("sync-foreign") is None
+    assert broker.get_tracked_order("sync-owned") is not None
+
+
+def test_a_later_average_prices_an_unpriced_recovered_fill(lifecycle):
+    """Same quantity, now with averagePrice: the average is filled in and no fill is added."""
+    _transport, broker, queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(
+        _quantity_close_snapshot(tag="fixture", quantity=2, filledQuantity=1, price=1.20), "fixture",
+    ))
+    tracked = broker.get_tracked_order("spread-recovered")
+    assert tracked.get_fill_price() is None
+
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(
+        _quantity_close_snapshot(tag="fixture", quantity=2, filledQuantity=1, price=1.20, averagePrice=1.05),
+        "fixture",
+    ))
+
+    assert tracked.get_fill_price() == pytest.approx(1.05)
+    assert [(item.price, item.quantity) for item in tracked.transactions] == [(None, 1)]
+    assert not [name for name, _payload in _priority_events(queues) if name in {
+        broker.FILLED_ORDER, broker.PARTIALLY_FILLED_ORDER,
+    }]
+
+
+def test_a_fill_priced_at_the_limit_is_replaced_by_the_later_average(lifecycle):
+    """An estimated fill is not an execution: 1 at the 10 limit, then 2 averaging 9.50, prices the second at 9.50."""
+    _transport, broker, queues = lifecycle
+    held = _option_leg(500, "CALL", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(_recovered_single_close(), "fixture"))
+    tracked = broker.get_tracked_order("single-recovered")
+
+    for snapshot in (
+        _recovered_single_close(status="PARTIALLY_FILLED", filledQuantity=1, price=10.0),
+        _recovered_single_close(status="FILLED", filledQuantity=2, averagePrice=9.50),
+    ):
+        broker._process_schwab_order_snapshot(broker._parse_broker_order(snapshot, "fixture"))
+
+    fills = [
+        (payload["price"], payload["quantity"]) for name, payload in _priority_events(queues)
+        if name in {broker.FILLED_ORDER, broker.PARTIALLY_FILLED_ORDER}
+    ]
+    assert fills == [(10.0, 1), (pytest.approx(9.50), 1)]
+    assert tracked.get_fill_price() == pytest.approx(9.50)

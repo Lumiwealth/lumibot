@@ -7,7 +7,6 @@ import os
 import re
 import threading
 import time
-from decimal import Decimal
 from pathlib import Path
 from threading import Thread
 
@@ -1400,11 +1399,8 @@ class Schwab(Broker):
         )
 
     def _set_positions_refresh_degraded(self, degraded: bool) -> None:
-        """Remember whether the pull on this thread returned a complete book.
-
-        A replaced ``_pull_positions`` still sets the shared flag, which is the
-        fallback. ``sync_positions`` reads this thread's copy, so another pull
-        cannot mark a finished book degraded.
+        """Remember whether the pull on this thread returned a complete book. A replaced ``_pull_positions``
+        still sets the shared flag, which is the fallback.
         """
         degraded = bool(degraded)
         self._last_positions_refresh_degraded = degraded
@@ -1593,31 +1589,8 @@ class Schwab(Broker):
 
     # Order methods
     def _pull_broker_all_orders(self, days: int = 7) -> list:
-        """
-        Get the broker's open orders.
-
-        Parameters
-        ----------
-        days : int
-            How far back to read. The poll uses 7. Startup recovery uses 59,
-            a day inside Schwab's 60-day limit, so an older working GTC order is
-            still found.
-
-        Returns
-        -------
-        list
-            A list of order responses from the broker query. These will be passed to 
-            _parse_broker_order() to be converted to Order objects.
-            
-        Notes
-        -----
-        This method retrieves orders from the past 7 days by default to limit the
-        volume of data returned while still capturing relevant recent orders.
-        Schwab rejects a start more than 60 days back, so the start is capped at 59.
-        A full page is split into smaller windows (``_pull_schwab_order_window``).
-        A failed pull returns an empty list and leaves
-        ``_last_orders_refresh_degraded`` set, so callers can tell it from a
-        reliable empty history.
+        """Return orders from the last ``days`` days, capped at 59. A full page is split. A failed pull returns
+        an empty list and stays degraded.
         """
         self._set_orders_refresh_degraded(True)
         # Add check for authorization error first
@@ -1655,12 +1628,7 @@ class Schwab(Broker):
             return []
 
     def _set_orders_refresh_degraded(self, degraded: bool) -> None:
-        """Remember whether the order pull on this thread was reliable.
-
-        The poll and ``sync_orders`` can pull at the same time. Each reads its
-        own pull's result through ``_orders_refresh_degraded``, so another
-        thread's success cannot make a failed empty pull look like history.
-        """
+        """Remember whether this thread's order pull failed, so another thread's success cannot hide it."""
         degraded = bool(degraded)
         self._last_orders_refresh_degraded = degraded
         # dict.setdefault is atomic, so two threads share one thread-local holder.
@@ -1674,14 +1642,7 @@ class Schwab(Broker):
         return bool(getattr(self, "_last_orders_refresh_degraded", False))
 
     def _pull_schwab_order_window(self, start, end, days, depth: int = 0):
-        """Read the order history entered between ``start`` and ``end``.
-
-        Schwab returns at most one page (3000 orders by default). A full page may
-        have cut off the oldest orders, which can include a working GTC close, so
-        a full window is split in half and both halves are read, up to
-        ``SCHWAB_ORDER_HISTORY_SPLITS`` times. Orders are deduplicated by id.
-        Returns None when any read fails.
-        """
+        """Read one history window. A full page is split and deduplicated; a failed read returns None."""
         response = self.client.get_orders_for_account(
             self.hash_value,
             from_entered_datetime=start,
@@ -2238,11 +2199,8 @@ class Schwab(Broker):
             return []
 
     def _parse_multileg_option_snapshot(self, schwab_order: dict, simple_orders: list[Order], strategy_name: str):
-        """Return a MULTILEG parent when a snapshot is one option package.
-
-        Single-leg orders and mixed asset legs keep the existing one-order parse.
-        Child identifiers stay distinct from the package id because Order equality
-        uses the identifier.
+        """Return a MULTILEG parent when a snapshot is one option package. Single-leg orders and mixed asset
+        legs keep the existing one-order parse.
         """
         if not isinstance(schwab_order, dict) or not simple_orders or len(simple_orders) < 2:
             return None
@@ -2374,13 +2332,9 @@ class Schwab(Broker):
         return True
 
     def _schwab_multileg_execution_fill(self, schwab_order: dict, schwab_legs: list, legs: list[Order]):
-        """Return (packages filled, net average price) from the leg executions.
-
-        The net price is each leg's execution VWAP times its leg ratio, buys
-        positive and sells negative, reported as a positive package price.
-        Returns None, so the order-level fields are used, when an execution has
-        no legId (it could not be attributed to one leg), a leg has no
-        execution, or the legs filled out of ratio.
+        """Return (packages filled, net average price) from the leg executions. The net price is each leg's
+        execution VWAP times its leg ratio, buys positive and sells negative, reported as a positive package
+        price.
         """
         try:
             package_quantity = float(schwab_order.get("quantity"))
@@ -2424,11 +2378,8 @@ class Schwab(Broker):
         return packages_filled, round(abs(net_price), 6)
 
     def _complete_schwab_package_children(self, parent: Order) -> None:
-        """Close the original legs when the package itself is terminal.
-
-        The legs are not broker orders of their own. Leaving them active keeps
-        the parent active, because a filled parent defers to its children, and
-        leaves ``wait_to_be_closed`` blocked on the leg.
+        """Close the original legs when the package itself is terminal. The legs are not broker orders of their
+        own.
         """
         if getattr(parent, "order_class", None) != Order.OrderClass.MULTILEG:
             return
@@ -2464,12 +2415,8 @@ class Schwab(Broker):
                 child.set_canceled()
 
     def _process_error_order(self, order, error):
-        """Close package legs when the parent error is applied.
-
-        Submit rejections arrive as stream events, and a sync can hold that
-        event until ``process_held_trades`` releases it. Both paths come
-        through here. The snapshot reducer also completes legs, and a second
-        call leaves an already terminal leg unchanged.
+        """Close package legs when the parent error is applied. Submit rejections arrive as stream events, and
+        a sync can hold that event until ``process_held_trades`` releases it.
         """
         order = super()._process_error_order(order, error)
         if order is not None:
@@ -2477,11 +2424,7 @@ class Schwab(Broker):
         return order
 
     def _reopen_schwab_package_children(self, parent: Order) -> None:
-        """Return legs to active after a local error loses to a later fill.
-
-        The fill reopens the parent only. Legs left closed by that error no
-        longer reserve their outstanding contracts.
-        """
+        """Return legs to active after a local error loses to a later fill. The fill reopens the parent only."""
         if getattr(parent, "order_class", None) != Order.OrderClass.MULTILEG:
             return
         for child in list(getattr(parent, "child_orders", None) or []):
@@ -2576,15 +2519,7 @@ class Schwab(Broker):
                 str(getattr(asset, "right", None) or ""))
 
     def _remember_schwab_package_fills(self, order_payloads, unparsed_ids=()) -> None:
-        """Record package fills from the latest order pull.
-
-        A position sync has no execution id. This map lets a drop be credited
-        to the package that filled, and lets a new submit leave that credit in
-        place. This replaces the map. Call it only for a reliable history pull.
-        ``unparsed_ids`` are pulled orders that could not be read; each keeps
-        the fill it already had, since an unreadable snapshot is not evidence
-        that the fill went away.
-        """
+        """Replace the package-fill map from a reliable history pull. An unreadable order keeps its fill."""
         previous = getattr(self, "_schwab_seen_package_fills", None) or {}
         unparsed = {str(order_id) for order_id in unparsed_ids or () if order_id not in (None, "")}
         seen = {}
@@ -2669,21 +2604,8 @@ class Schwab(Broker):
         return contracts
 
     def _refresh_unreconciled_package_close(self, key, position_abs) -> float:
-        """Reduce the reserved quantity when the position shrinks, and return the rest.
-
-        A drop larger than the reservation becomes credit for a package that can
-        still fill this contract. A package whose latest pulled snapshot shows
-        an execution that is not yet noted is credited first, and only up to
-        that un-noted close size, so one execution cannot absorb another's drop.
-        Any remainder is then offered to those executed packages and then to
-        older resting packages, still capped by each remaining limit. With no
-        pulled execution the oldest anchored package is still first, so a
-        delayed fill keeps its own credit. Only that package's fill spends the
-        credit. Anything beyond every outstanding close is discarded, so an
-        unrelated reduction cannot fund a later package. A package's own
-        pre-submission drop is claimed before this walk, and is not assigned
-        again here. A larger position moves the anchor up and leaves the
-        reservation.
+        """Reduce the reserved quantity when the position shrinks, and return the rest. A drop larger than the
+        reservation becomes credit for a package that can still fill this contract.
         """
         state = getattr(self, "_unreconciled_package_closes", {}).get(key)
         if not state:
@@ -2726,12 +2648,9 @@ class Schwab(Broker):
 
     @staticmethod
     def _recorded_fill_value(order, average_price):
-        """Value of the fills already recorded on ``order``.
+        """Value recorded fills at their own price, and an unpriced fill at the cumulative average."""
+        from decimal import Decimal
 
-        A recovered Schwab order can hold an unpriced fill (Schwab did not
-        report its price). It is valued at Schwab's cumulative average so the
-        next fill's price is neither inflated nor a Decimal("None") error.
-        """
         value = Decimal(0)
         for transaction in order.transactions:
             price = average_price if transaction.price is None else Decimal(str(transaction.price))
@@ -2739,12 +2658,8 @@ class Schwab(Broker):
         return value
 
     def _active_orders_reserving_asset(self, order, additional_active_orders=None, exclude_reservations=None):
-        """Active closes of this contract, including legs of a working package.
-
-        A package parent is not the option, so an asset lookup misses its legs.
-        ``exclude_reservations`` drops the package being replaced; earlier legs
-        of that same package still count when they are passed in
-        ``additional_active_orders``.
+        """Active closes of this contract, including legs of a working package. A package parent is not the
+        option, so an asset lookup misses its legs.
         """
         excluded = {id(item) for item in (exclude_reservations or [])}
         if additional_active_orders:
@@ -2774,14 +2689,8 @@ class Schwab(Broker):
         return active_orders
 
     def _reserved_quantity_already_filled(self, order) -> float:
-        """Contracts of this close that have already filled.
-
-        A package fill is stored on the parent. The original leg keeps an empty
-        ledger, so its own transactions would reserve the whole leg after a
-        partial fill. The parent's filled packages, times this leg's ratio,
-        are the contracts that have filled. The filled contracts the position
-        book still shows stay reserved through
-        ``_unreconciled_package_close_quantity``.
+        """Filled contracts from this close's own fills, or the parent's filled packages times this leg's
+        ratio.
         """
         filled = 0.0
         try:
@@ -2826,13 +2735,7 @@ class Schwab(Broker):
             return float(state["qty"]) if state is not None else 0.0
 
     def _position_for_order(self, order):
-        """Return this order's position, including an unlabeled row for this strategy.
-
-        A named row wins. None, an empty strategy, and "Unknown" count only when
-        the order belongs to the registered strategy and no named row exists.
-        Intent resolution and explicit close validation use this lookup, so the
-        reservation check still sees that quantity.
-        """
+        """Return this order's position, including an unlabeled row for this strategy. A named row wins."""
         position = super()._position_for_order(order)
         if position is not None:
             return position
@@ -2858,11 +2761,8 @@ class Schwab(Broker):
         return unlabeled
 
     def _package_close_book_position(self, order):
-        """Return the close leg's position, including a row labeled Unknown.
-
-        A position sync with no strategy labels the book "Unknown". The package
-        is keyed by this strategy's name. An unlabeled row is that same contract
-        when the named row is absent. A named row wins when both exist.
+        """Return the close leg's position, including a row labeled Unknown. A position sync with no strategy
+        labels the book "Unknown".
         """
         return self._position_for_order(order)
 
@@ -2875,11 +2775,8 @@ class Schwab(Broker):
             return 0.0
 
     def _package_close_baselines(self, order):
-        """Book size and close credit for each close leg before the order is sent.
-
-        The credit copy is the amount already stored before this request. An
-        in-flight sync can add to it. The accept path gives this package only
-        the contracts the book lost after this snapshot.
+        """Book size and close credit for each close leg before the order is sent. The credit copy is the
+        amount already stored before this request.
         """
         baselines = {}
         for child in list(getattr(order, "child_orders", None) or []):
@@ -2908,17 +2805,8 @@ class Schwab(Broker):
     def _claim_package_close_baseline(
         self, state, order_id, baseline_abs, live_abs, baseline_qty, baseline_credits, key=None,
     ) -> None:
-        """Give this package the contracts the book lost since its own baseline.
-
-        An older close may already own the anchor. A sync during submission can
-        release that reservation or credit the older close before this order's
-        limit exists. Contracts that released an existing reservation stay
-        released. Credit another package gained since the baseline, and any
-        remainder of this drop that was discarded, moves here up to the un-noted
-        size. Credit a pulled snapshot still attributes to another package's
-        execution stays there, so this submit does not reserve contracts that
-        fill already removed. The anchor gap shrinks by the same amount so the
-        following refresh does not hand that drop to an older package.
+        """Give this package the contracts the book lost since its own baseline. An older close may already own
+        the anchor.
         """
         if not order_id:
             return
@@ -2976,14 +2864,8 @@ class Schwab(Broker):
         state["absorbed"] = sum(float(value) for value in credits.values())
 
     def _anchor_package_close_positions(self, order, baselines=None) -> None:
-        """Remember each close leg's book size from before the order can fill.
-
-        A sync during submission can already show the reduced position. The
-        pre-submission size stays this package's baseline even when an older
-        close already has the anchor, and that reduction is kept for this
-        fill. A recovered working package passes no baseline and uses the book
-        at recovery, before a later sync or fill. Close legs of one contract
-        share a cap equal to their combined quantity.
+        """Anchor each close leg. A passed baseline is the book before submit; with none, the anchor is the
+        current book.
         """
         if getattr(order, "order_class", None) != Order.OrderClass.MULTILEG:
             return
@@ -3057,14 +2939,8 @@ class Schwab(Broker):
                 self._refresh_unreconciled_package_close(key, live_abs)
 
     def _rekey_package_close_order(self, order, old_identifier, new_identifier) -> None:
-        """Move one package's close credit onto the broker id from a replace.
-
-        A same-effect replace is still that package, but Schwab assigns a new
-        order id. The drop credit and the remaining close room were stored under
-        the old id. Leaving them there makes the fill reserve contracts the book
-        already removed, and a later drop would credit an id nothing spends.
-        The new id keeps the old id's place in line. A limit already recorded
-        for the new id must not raise room a fill note already removed.
+        """Move one package's close credit onto the broker id from a replace. A same-effect replace is still
+        that package, but Schwab assigns a new order id.
         """
         old_id = str(old_identifier or "")
         new_id = str(new_identifier or "")
@@ -3092,11 +2968,8 @@ class Schwab(Broker):
 
     @staticmethod
     def _rekey_close_map(mapping, old_id, new_id, combine):
-        """Rebuild one map so the new id sits where the old id sat.
-
-        Popping and reinserting would move this package behind newer closes.
-        ``combine`` adds a credit that already sat on the new id, or keeps the
-        old remaining limit so a recovery anchor cannot restore filled room.
+        """Rebuild one map so the new id sits where the old id sat. Popping and reinserting would move this
+        package behind newer closes.
         """
         if old_id not in mapping:
             return mapping
@@ -3127,11 +3000,8 @@ class Schwab(Broker):
         return keys
 
     def _package_close_order_status(self):
-        """Map each tracked multi-leg id to open or filled.
-
-        Canceled, rejected, expired, and working closes stay open. A later
-        fill can still be noted, so the anchor has to stay while the order is
-        tracked. Filled means the fill note has already run.
+        """Map each tracked multi-leg id to open or filled. Canceled, rejected, expired, and working closes
+        stay open.
         """
         status = {}
         buckets = (
@@ -3154,14 +3024,8 @@ class Schwab(Broker):
         return status
 
     def _drop_obsolete_package_close_ids(self, state, status, awaiting):
-        """Remove close-credit ids that a later fill can no longer spend.
-
-        A tracked open order stays, including a canceled order with no credit
-        yet, so a book drop can still pay its delayed fill. An id anchored
-        before adoption stays too. A filled id has already noted its fill, so
-        leftover credit cannot be spent. An id that has left tracking, and is
-        not waiting for adoption, is removed with its credit: the order is gone
-        and a delayed fill will not be noted.
+        """Remove close-credit ids that a later fill can no longer spend. A tracked open order stays, including
+        a canceled order with no credit yet, so a book drop can still pay its delayed fill.
         """
         credits = state.setdefault("credits", {})
         limits = state.setdefault("limits", {})
@@ -3186,11 +3050,8 @@ class Schwab(Broker):
         return False
 
     def _prune_obsolete_package_close_anchor(self, key, status=None, awaiting=None):
-        """Drop one anchor once no tracked or pending close still needs it.
-
-        Reservation quantity stays until the book drops. Credit stays only for
-        an order that can still be noted. The key is deleted when both are
-        zero and no remaining limit can accept a later drop.
+        """Drop one anchor once no tracked or pending close still needs it. Reservation quantity stays until
+        the book drops.
         """
         states = getattr(self, "_unreconciled_package_closes", None)
         if not states or key not in states:
@@ -3211,16 +3072,8 @@ class Schwab(Broker):
         del states[key]
 
     def _reconcile_package_close_holds(self) -> None:
-        """Apply the current book to every package-close anchor.
-
-        A shrink reduces the reservation and keeps the extra drop an outstanding
-        package can still fill. Growth moves the anchor up and leaves the
-        reservation in place, so a later drop is measured from the larger book.
-        Removing the position clears the reservation, and a later reopen does
-        not inherit it. An anchor leaves the scan once nothing is reserved, no
-        spendable credit remains, and no tracked or not-yet-adopted close can
-        still take a drop. A canceled close stays while its order is tracked.
-        After that order leaves tracking, later syncs do not scan it.
+        """Apply the current book to every package-close anchor. A shrink reduces the reservation and keeps the
+        extra drop an outstanding package can still fill.
         """
         states = getattr(self, "_unreconciled_package_closes", None)
         if not states:
@@ -3267,13 +3120,7 @@ class Schwab(Broker):
                 self._prune_obsolete_package_close_anchor(key, status, awaiting)
 
     def _price_unpriced_schwab_history(self, stored_order, observed_order) -> None:
-        """Give unpriced or limit-estimated fills the broker's average once Schwab reports it.
-
-        Only at the same cumulative quantity: no fill is added and the quantity
-        does not change. Estimates are repriced so the ledger matches Schwab's
-        value, and a fill already confirmed at its own price stays. A larger
-        quantity is a new fill and goes through the fill path.
-        """
+        """Give unpriced or limit-estimated fills the broker's average once Schwab reports it."""
         transactions = getattr(stored_order, "transactions", None) or []
         estimated = getattr(stored_order, "_schwab_estimated_fill_indexes", None)
         if not estimated and not any(item.price is None for item in transactions):
@@ -3299,14 +3146,8 @@ class Schwab(Broker):
 
     @staticmethod
     def _reconcile_schwab_same_quantity_estimates(order, cumulative, average) -> None:
-        """Price limit estimates so this quantity's ledger equals Schwab's value.
-
-        Rows already confirmed at their own price stay. Unpriced rows that were
-        not estimates stay unpriced but are valued at the average, as everywhere
-        else; otherwise the estimates would absorb their value (1 unpriced and 1
-        estimate averaging 9.00 would price the estimate at 18.00). The rest is
-        spread across the estimates; when every unit was an estimate, that price
-        is the average.
+        """Price limit estimates so this quantity's ledger equals Schwab's value. Rows already confirmed at
+        their own price stay.
         """
         indexes = getattr(order, "_schwab_estimated_fill_indexes", None)
         if not indexes:
@@ -3340,12 +3181,9 @@ class Schwab(Broker):
 
     @staticmethod
     def _reconcile_schwab_estimates(order, average) -> None:
-        """Rewrite fills that were priced at the limit to Schwab's confirmed average.
-
-        Schwab gives one cumulative average, not each fill's price, so the
-        estimates take that average and the ledger total matches Schwab's
-        (10, 9.50, 9.80 would otherwise total 29.30 instead of 28.80). Strategy
-        cash needs no correction here: it is re-read from the account balance.
+        """Rewrite fills that were priced at the limit to Schwab's confirmed average. Schwab gives one
+        cumulative average, not each fill's price, so the estimates take that average and the ledger total
+        matches Schwab's (10, 9.50, 9.80 would otherwise total 29.30 instead of 28.80).
         """
         indexes = getattr(order, "_schwab_estimated_fill_indexes", None)
         if not indexes:
@@ -3378,16 +3216,7 @@ class Schwab(Broker):
         return average
 
     def _schwab_reported_fill_price(self, stored_order, observed_order, cumulative_filled, fill_delta):
-        """Price for one new fill delta.
-
-        Schwab's average is cumulative, for a package and a single order alike.
-        Recording that average as the new fill's price compounds it (1.10 then
-        an average of 1.20 records the second unit at 1.20, not 1.30). The
-        delta price is the change in cumulative value. Zero is a real package
-        net price and must not fall through to the limit. An unpriced
-        historical quantity is included at the new average so the delta is not
-        inflated by treating that quantity as zero.
-        """
+        """Price of one new fill: the change in cumulative value, or the limit when Schwab has no average."""
         package = getattr(stored_order, "order_class", None) == Order.OrderClass.MULTILEG
         average = self._schwab_execution_average(stored_order, observed_order)
         if average is None or not fill_delta:
@@ -3424,10 +3253,8 @@ class Schwab(Broker):
         return price
 
     def order_is_foreign_to_local_strategy(self, order, local_strategy_name: str | None = None) -> bool:
-        """An order this broker submitted is never foreign, whatever its tag says.
-
-        ``Order.tag`` can be a user label such as "entry-42". The base check reads
-        it as another strategy's tag and would drop this strategy's own fills.
+        """An order this broker submitted is never foreign, whatever its tag says. ``Order.tag`` can be a user
+        label such as "entry-42".
         """
         local_name = local_strategy_name or getattr(self, "_strategy_name", None) or ""
         if getattr(order, "_schwab_submitted_locally", False) and (
@@ -3438,12 +3265,7 @@ class Schwab(Broker):
         return super().order_is_foreign_to_local_strategy(order, local_strategy_name)
 
     def order_belongs_to_local_strategy(self, order, local_strategy_name: str | None = None) -> bool:
-        """An order this strategy submitted here belongs to it, whatever its local tag says.
-
-        The positive check mirrors ``order_is_foreign_to_local_strategy``: a user
-        label in ``Order.tag`` must not make this strategy's own order look foreign.
-        Another strategy's order still needs the base check.
-        """
+        """An order this strategy submitted here belongs to it, whatever its local tag says."""
         local_name = local_strategy_name or getattr(self, "_strategy_name", None) or ""
         if (
             local_name
@@ -3454,14 +3276,8 @@ class Schwab(Broker):
         return super().order_belongs_to_local_strategy(order, local_strategy_name)
 
     def _process_broker_synced_order(self, order):
-        """Import a broker order from ``sync_orders`` under the recovery ownership gate.
-
-        The order pull parses every account order under this strategy's name, so
-        the base importer would track untagged and foreign orders as this
-        strategy's. A working order is recovered only when its tag is this
-        strategy's, through the same reducer as a poll. Filled or canceled
-        history needs the same tag before it enters this strategy's orders, and
-        a package leg is never imported apart from its parent.
+        """Import a synced order. Working orders use the snapshot path. Owned terminal history is seeded and
+        committed under the transition lock.
         """
         if self.get_tracked_order(order.identifier) is None:
             if order.is_active():
@@ -3484,12 +3300,7 @@ class Schwab(Broker):
         return super()._process_broker_synced_order(order)
 
     def _seed_schwab_terminal_history(self, order) -> None:
-        """Mark an imported order's terminal outcome as already observed.
-
-        It ended before startup. Without this, the next poll would deliver
-        on_canceled_order (or the error callback) for that old order. The keys
-        match the ones the reducer records.
-        """
+        """Mark an imported order's terminal outcome as already observed. It ended before startup."""
         status = getattr(order, "status", None)
         if not hasattr(self, "_schwab_terminal_observations"):
             self._schwab_terminal_observations = set()
@@ -3501,13 +3312,7 @@ class Schwab(Broker):
             self._schwab_terminal_observations.add((order.identifier, str(status)))
 
     def _seed_schwab_history_fill(self, order) -> None:
-        """Give the base importer Schwab's cumulative quantity and execution average.
-
-        The parser's average can be the limit, which is not an execution: that
-        fill stays unpriced. The transaction is not added here. A full fill
-        already on the ledger makes the importer treat a canceled order as
-        filled and return without tracking it.
-        """
+        """Remember the cumulative quantity and average. Do not add a transaction or move the high-water mark."""
         try:
             cumulative = float(getattr(order, "_schwab_cumulative_filled_quantity", 0) or 0)
         except (TypeError, ValueError):
@@ -3523,10 +3328,8 @@ class Schwab(Broker):
             self._remember_schwab_known_fill(order, cumulative, average)
 
     def _commit_schwab_history_import(self, order) -> None:
-        """Record the imported fill once the order is actually tracked.
-
-        The high-water mark and terminal key wait until then. Stored earlier,
-        they stop a later poll from adopting an order the importer dropped.
+        """After the order is tracked, store the fill high-water mark and an unpriced transaction when the
+        average is missing.
         """
         tracked = self.get_tracked_order(getattr(order, "identifier", None))
         if tracked is None:
@@ -3550,12 +3353,8 @@ class Schwab(Broker):
         self._complete_schwab_package_children(tracked)
 
     def _schwab_recovered_working_order(self, observed_order) -> bool:
-        """True when an untracked working order's tag belongs to this strategy.
-
-        Untagged snapshots are ignored so shared-account activity cannot become
-        this strategy's tracked order. A working order that already has fills
-        (WORKING with a filled quantity, or PARTIALLY_FILLED) is recovered with
-        that history; a filled order has nothing left to track.
+        """True when an untracked working order's tag belongs to this strategy. Untagged snapshots are ignored
+        so shared-account activity cannot become this strategy's tracked order.
         """
         identifier = getattr(observed_order, "identifier", None)
         if not identifier or self.get_tracked_order(identifier) is not None:
@@ -3582,10 +3381,8 @@ class Schwab(Broker):
         return bool(local_name and tag and self.strategy_tag_matches(tag, local_name))
 
     def _anchor_recovered_working_packages(self, order_payloads) -> None:
-        """Anchor untracked working packages from the book before it can shrink.
-
-        The recovery gate is the same one that adopts the order. An existing
-        baseline is only refreshed, so a second pass does not move it back up.
+        """Anchor untracked working packages from the book before it can shrink. The recovery gate is the same
+        one that adopts the order.
         """
         if not order_payloads:
             return
@@ -4193,13 +3990,8 @@ class Schwab(Broker):
             logger.error(_format_exc())
 
     def _position_sync_strategy(self):
-        """Strategy name for a stream or poll position sync, or None if unset.
-
-        Those paths have no Strategy instance. Passing None makes the pulled
-        book "Unknown", so a package anchored under `_strategy_name` never sees
-        the contracts. Use the local name once the strategy has registered it.
-        Surrounding whitespace is part of that name. Orders keep the same
-        string, and an exact lookup has to match it.
+        """Strategy name for a stream or poll position sync, or None if unset. Those paths have no Strategy
+        instance.
         """
         raw_name = getattr(self, "_strategy_name", None)
         if raw_name is None:
@@ -4210,22 +4002,15 @@ class Schwab(Broker):
         return type("_SchwabPositionSync", (), {"name": name})()
 
     def set_strategy_name(self, strategy_name):
-        """Register the strategy, then recover its working orders.
-
-        The executor calls this right before ``initialize()``. A working close
-        from before a restart is otherwise tracked only at the first poll, so a
-        close submitted in ``initialize()`` could pass validation and both would
-        be sent against the same contracts.
+        """Register the strategy, then recover its working orders. The executor calls this right before
+        ``initialize()``.
         """
         super().set_strategy_name(strategy_name)
         self._recover_schwab_working_orders()
 
     def _set_initial_positions(self, strategy):
-        """Load the strategy's starting book by reconciling it, not appending.
-
-        Recovery can load the book first (``set_strategy_name`` before the
-        strategy is built). Appending the same holdings again would leave two
-        rows per contract, and ``get_position`` refuses duplicates.
+        """Load the strategy's starting book by reconciling it, not appending. Recovery can load the book first
+        (``set_strategy_name`` before the strategy is built).
         """
         self.sync_positions(strategy)
 
@@ -4392,11 +4177,7 @@ class Schwab(Broker):
 
     @staticmethod
     def _multileg_package_quantity(quantities):
-        """Return the package quantity (GCD of the legs), or None when any leg cannot be sent.
-
-        Legs keep their own contract counts; a 2-and-4 contract ratio spread is
-        one package of quantity 2.
-        """
+        """Return the package quantity (GCD of the legs), or None when any leg cannot be sent."""
         if not quantities or any(not quantity for quantity in quantities):
             return None
         from math import gcd
@@ -5012,11 +4793,8 @@ class Schwab(Broker):
 
     @staticmethod
     def _schwab_occ_symbol(underlying, expiration, option_type, strike):
-        """OCC symbol with the strike kept to the thousandth of a dollar.
-
-        None when the strike is not a whole number of thousandths: 100.1254
-        would otherwise become the 100.125 contract. Float noise far below a
-        thousandth (100.12500000001) still maps to its contract.
+        """OCC symbol with the strike kept to the thousandth of a dollar. None when the strike is not a whole
+        number of thousandths: 100.1254 would otherwise become the 100.125 contract.
         """
         from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
@@ -5052,18 +4830,8 @@ class Schwab(Broker):
 
     @staticmethod
     def _format_schwab_package_price(price, effect=None):
-        """Format a package price as a Schwab price string.
-
-        Prices under one dollar keep four decimals. One dollar and above keep two.
-        The cutoff is the original amount, so 0.9951 stays four decimals instead
-        of becoming "1.00" because its cent rounding crossed a dollar. Rounding
-        is done in decimal space so 1.15 stays "1.15". Truncating the binary
-        float would send "1.14". A value that rounds up to one dollar is sent
-        as "1.00", not "1.0000".
-
-        A debit rounds down and a credit rounds up, so the sent price is never
-        more aggressive than requested. Callers that only need the displayed
-        tick, including the zero check, omit the effect and use half-up.
+        """Format a package price. A debit rounds down and a credit rounds up. The four-decimal cutoff is the
+        original amount, and a price that reaches one dollar is sent with two decimals.
         """
         from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP, ROUND_UP
 
@@ -5089,11 +4857,8 @@ class Schwab(Broker):
 
     @staticmethod
     def _format_schwab_single_price(price):
-        """Format a single-order limit price as a Schwab price string.
-
-        schwab-py deprecated float prices. Its float path truncates toward zero
-        (four decimals under one dollar, two above), so this keeps that rule
-        but works in decimal space: the float path sends 1.15 as "1.14".
+        """Format a single-order limit in decimal space, truncating toward zero, so the exact value 1.15 stays
+        "1.15".
         """
         if price is None:
             return None
@@ -6130,10 +5895,8 @@ class Schwab(Broker):
 
     @staticmethod
     def _schwab_position_is_unlabeled(position, strategy_name) -> bool:
-        """True when a named sync should fold this row into the registered strategy.
-
-        None, an empty label, and "Unknown" are the book written before the
-        strategy name existed. The registered name itself is never folded away.
+        """True when a named sync should fold this row into the registered strategy. None, an empty label, and
+        "Unknown" are the book written before the strategy name existed.
         """
         label = getattr(position, "strategy", None)
         if label == strategy_name:

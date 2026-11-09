@@ -1316,11 +1316,19 @@ def _close_package(quantity, other_strike):
     return order
 
 
+def _package_execution(first_price, second_price=0.80, quantity=1):
+    """One two-leg package execution."""
+    return {
+        "activityType": "EXECUTION",
+        "executionLegs": [
+            {"legId": 1, "quantity": quantity, "price": first_price},
+            {"legId": 2, "quantity": quantity, "price": second_price},
+        ],
+    }
+
+
 def _fill_one_package(transport, broker, parent):
-    execution = {"activityType": "EXECUTION", "executionLegs": [
-        {"legId": 1, "quantity": 1, "price": 2.10},
-        {"legId": 2, "quantity": 1, "price": 0.80},
-    ]}
+    execution = _package_execution(2.10)
     transport.queue_order_reads(parent.identifier, {
         "status": "PARTIALLY_FILLED",
         "filledQuantity": 1,
@@ -1367,10 +1375,7 @@ def test_full_package_fill_stays_reserved_until_position_sync(lifecycle):
     for leg in legs:
         leg.strategy = "fixture"
     parent = broker.submit_orders(legs, is_multileg=True, order_type="credit", price=1.25)[0]
-    execution = {"activityType": "EXECUTION", "executionLegs": [
-        {"legId": 1, "quantity": 1, "price": 2.10},
-        {"legId": 2, "quantity": 1, "price": 0.80},
-    ]}
+    execution = _package_execution(2.10)
     transport.queue_order_reads(parent.identifier, {
         "status": "FILLED",
         "filledQuantity": 1,
@@ -1396,10 +1401,7 @@ def test_fill_already_reflected_in_the_book_is_not_reserved_again(lifecycle):
     parent = broker.submit_orders(_close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40)[0]
     position.quantity = 1
 
-    execution = {"activityType": "EXECUTION", "executionLegs": [
-        {"legId": 1, "quantity": 1, "price": 1.20},
-        {"legId": 2, "quantity": 1, "price": 0.80},
-    ]}
+    execution = _package_execution(1.20)
     transport.queue_order_reads(parent.identifier, {
         "status": "FILLED",
         "filledQuantity": 1,
@@ -1427,10 +1429,7 @@ def test_sync_before_the_fill_is_noted_does_not_reserve_it_again(lifecycle):
     broker._pull_positions = lambda _strategy: [reduced]
     broker.sync_positions(type("Strategy", (), {"name": "fixture"})())
 
-    execution = {"activityType": "EXECUTION", "executionLegs": [
-        {"legId": 1, "quantity": 1, "price": 1.20},
-        {"legId": 2, "quantity": 1, "price": 0.80},
-    ]}
+    execution = _package_execution(1.20)
     transport.queue_order_reads(parent.identifier, {
         "status": "FILLED",
         "filledQuantity": 1,
@@ -1466,10 +1465,7 @@ def test_sync_during_submit_keeps_the_pre_submission_baseline(lifecycle):
     assert state["qty"] == 0.0
     assert state["position_abs"] + state["absorbed"] == 2.0
 
-    execution = {"activityType": "EXECUTION", "executionLegs": [
-        {"legId": 1, "quantity": 1, "price": 1.20},
-        {"legId": 2, "quantity": 1, "price": 0.80},
-    ]}
+    execution = _package_execution(1.20)
     transport.queue_order_reads(parent.identifier, {
         "status": "FILLED",
         "filledQuantity": 1,
@@ -1761,13 +1757,7 @@ def test_recovered_working_package_is_anchored_before_the_poll_sync(lifecycle):
         status="FILLED",
         tag="fixture",
         filledQuantity=1,
-        orderActivityCollection=[{
-            "activityType": "EXECUTION",
-            "executionLegs": [
-                {"legId": 1, "quantity": 1, "price": 1.20},
-                {"legId": 2, "quantity": 1, "price": 0.80},
-            ],
-        }],
+        orderActivityCollection=[_package_execution(1.20)],
     )
     broker._process_schwab_order_snapshot(broker._parse_broker_order(filled, "fixture"))
 
@@ -1929,13 +1919,7 @@ def test_stream_startup_syncs_the_book_under_the_strategy_name(lifecycle):
         status="FILLED",
         tag="fixture",
         filledQuantity=1,
-        orderActivityCollection=[{
-            "activityType": "EXECUTION",
-            "executionLegs": [
-                {"legId": 1, "quantity": 1, "price": 1.20},
-                {"legId": 2, "quantity": 1, "price": 0.80},
-            ],
-        }],
+        orderActivityCollection=[_package_execution(1.20)],
     )
     broker._process_schwab_order_snapshot(broker._parse_broker_order(filled, "fixture"))
     assert state["qty"] == 1.0
@@ -1974,13 +1958,7 @@ def test_unlabeled_book_counts_for_the_strategy_close(lifecycle):
         status="FILLED",
         tag="fixture",
         filledQuantity=1,
-        orderActivityCollection=[{
-            "activityType": "EXECUTION",
-            "executionLegs": [
-                {"legId": 1, "quantity": 1, "price": 1.20},
-                {"legId": 2, "quantity": 1, "price": 0.80},
-            ],
-        }],
+        orderActivityCollection=[_package_execution(1.20)],
     )
     broker._process_schwab_order_snapshot(broker._parse_broker_order(filled, "fixture"))
     assert state["qty"] == 0.0
@@ -2110,10 +2088,7 @@ def test_sync_growth_moves_the_anchor_and_keeps_the_reservation(lifecycle):
     parent = broker.submit_orders(
         _close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40,
     )[0]
-    execution = {"activityType": "EXECUTION", "executionLegs": [
-        {"legId": 1, "quantity": 1, "price": 1.20},
-        {"legId": 2, "quantity": 1, "price": 0.80},
-    ]}
+    execution = _package_execution(1.20)
     transport.queue_order_reads(parent.identifier, {
         "status": "FILLED",
         "filledQuantity": 1,
@@ -2150,10 +2125,7 @@ def test_reconciled_fill_drops_the_close_anchor(lifecycle):
     parent = broker.submit_orders(
         _close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40,
     )[0]
-    execution = {"activityType": "EXECUTION", "executionLegs": [
-        {"legId": 1, "quantity": 1, "price": 1.20},
-        {"legId": 2, "quantity": 1, "price": 0.80},
-    ]}
+    execution = _package_execution(1.20)
     transport.queue_order_reads(parent.identifier, {
         "status": "FILLED",
         "filledQuantity": 1,
@@ -2207,10 +2179,7 @@ def test_canceled_close_keeps_its_anchor_for_a_delayed_fill(lifecycle):
     assert broker._unreconciled_package_closes[key]["qty"] == 0.0
     assert broker._unreconciled_package_closes[key]["absorbed"] == 1.0
 
-    execution = {"activityType": "EXECUTION", "executionLegs": [
-        {"legId": 1, "quantity": 1, "price": 1.20},
-        {"legId": 2, "quantity": 1, "price": 0.80},
-    ]}
+    execution = _package_execution(1.20)
     transport.queue_order_reads(parent.identifier, {
         "status": "FILLED",
         "filledQuantity": 1,
@@ -2312,10 +2281,7 @@ def _broker_snapshot(transport, identifier, **fields):
 
 def _fill_closed_package(transport, broker, parent):
     """Deliver one filled close package without moving the position book."""
-    execution = {"activityType": "EXECUTION", "executionLegs": [
-        {"legId": 1, "quantity": 1, "price": 1.20},
-        {"legId": 2, "quantity": 1, "price": 0.80},
-    ]}
+    execution = _package_execution(1.20)
     transport.queue_order_reads(parent.identifier, {
         "status": "FILLED",
         "filledQuantity": 1,
@@ -2692,10 +2658,7 @@ def test_position_sync_clears_a_hold_before_the_contract_reopens(lifecycle):
     position = Position("fixture", held, 1)
     broker._filled_positions.append(position)
     parent = broker.submit_orders(_close_package(1, 490).child_orders, is_multileg=True, order_type="credit", price=0.40)[0]
-    execution = {"activityType": "EXECUTION", "executionLegs": [
-        {"legId": 1, "quantity": 1, "price": 1.20},
-        {"legId": 2, "quantity": 1, "price": 0.80},
-    ]}
+    execution = _package_execution(1.20)
     transport.queue_order_reads(parent.identifier, {
         "status": "FILLED",
         "filledQuantity": 1,
@@ -2749,10 +2712,7 @@ def test_confirmed_fill_after_cancel_marks_the_legs_filled(lifecycle):
     broker._process_schwab_order_snapshot(observed)
     assert all(child.is_canceled() for child in parent.child_orders)
 
-    execution = {"activityType": "EXECUTION", "executionLegs": [
-        {"legId": 1, "quantity": 1, "price": 2.10},
-        {"legId": 2, "quantity": 1, "price": 0.80},
-    ]}
+    execution = _package_execution(2.10)
     transport.queue_order_reads(parent.identifier, {
         "status": "FILLED",
         "filledQuantity": 1,

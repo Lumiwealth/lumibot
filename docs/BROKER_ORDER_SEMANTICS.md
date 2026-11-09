@@ -299,7 +299,7 @@ Wire contract:
   each leg is weighted by its ratio to the package quantity (GCD); other
   brokers keep the unweighted sum of one quote per leg
   (`Strategy._compute_multileg_net_best_fastest`). Without that a positive
-  Schwab limit would always be a debit. A list of one option is a single order. A
+  Schwab limit would always be a debit. A
   successful submit stores the net effect, so a later replace cannot turn a
   credit into `NET_ZERO` or an even package into a debit.
 - `complexOrderStrategyType` is `VERTICAL` only for one buy and one sell with

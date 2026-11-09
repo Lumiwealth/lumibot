@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import math
 import os
 import re
 import threading
@@ -300,6 +301,8 @@ class Schwab(Broker):
     """
 
     NAME = "Schwab"
+    # Schwab's default maxResults for the order-history endpoint.
+    SCHWAB_ORDER_HISTORY_PAGE = 3000
     CASH_FUNDING_TRANSACTION_TYPES = {
         "ACH_RECEIPT", "ACH_DISBURSEMENT", "CASH_RECEIPT",
         "CASH_DISBURSEMENT", "WIRE_IN", "WIRE_OUT", "ELECTRONIC_FUND",
@@ -1393,17 +1396,32 @@ class Schwab(Broker):
             broker_parse_degraded=(mapped_asset_type == Asset.AssetType.UNKNOWN and not is_known_unsupported),
         )
 
+    def _set_positions_refresh_degraded(self, degraded: bool) -> None:
+        """Remember whether the pull on this thread returned a complete book.
+
+        A replaced ``_pull_positions`` still sets the shared flag, which is the
+        fallback. ``sync_positions`` reads this thread's copy, so another pull
+        cannot mark a finished book degraded.
+        """
+        degraded = bool(degraded)
+        self._last_positions_refresh_degraded = degraded
+        status = getattr(self, "_schwab_position_pull_local", None)
+        if status is None:
+            return
+        status.degraded = degraded
+        status.ready = True
+
     # Position methods
     def _pull_positions(self, strategy: 'Strategy') -> List[Position]:
-        self._last_positions_refresh_degraded = False
+        self._set_positions_refresh_degraded(False)
         # Add check for authorization error first
         if not self._broker_fully_ready:
             logger.warning(colored("[Schwab] Broker not fully ready. Cannot pull positions.", "yellow"))
-            self._last_positions_refresh_degraded = True
+            self._set_positions_refresh_degraded(True)
             return []
         if self.schwab_authorization_error:
             logger.warning(colored("Schwab authorization failed previously. Cannot pull positions.", "yellow"))
-            self._last_positions_refresh_degraded = True
+            self._set_positions_refresh_degraded(True)
             return []
 
         Position = _position_class()
@@ -1412,7 +1430,7 @@ class Schwab(Broker):
             # Add check for valid client and hash_value
             if not self.client or not self.hash_value:
                 logger.error(colored("Schwab client or account hash not initialized. Cannot pull positions.", "red"))
-                self._last_positions_refresh_degraded = True
+                self._set_positions_refresh_degraded(True)
                 return [] # Return empty list
 
             # Get account details with positions
@@ -1420,7 +1438,7 @@ class Schwab(Broker):
 
             if response.status_code != 200:
                 logger.error(colored(f"Error fetching positions from Schwab: {response.status_code}", "red"))
-                self._last_positions_refresh_degraded = True
+                self._set_positions_refresh_degraded(True)
                 return []
 
             account_data = response.json()
@@ -1445,7 +1463,7 @@ class Schwab(Broker):
                     context=f"position symbol {symbol or '<missing>'}",
                 )
                 if asset is None:
-                    self._last_positions_refresh_degraded = True
+                    self._set_positions_refresh_degraded(True)
                     logger.warning(colored(
                         f"Skipping Schwab position with no usable symbol/instrument identifier: {schwab_position}",
                         "yellow",
@@ -1461,7 +1479,7 @@ class Schwab(Broker):
                         - self._coerce_float(short_quantity, field_name="shortQuantity", context=f"position {symbol}")
                     )
                 except ValueError as exc:
-                    self._last_positions_refresh_degraded = True
+                    self._set_positions_refresh_degraded(True)
                     logger.warning(colored(
                         f"Skipping Schwab position with invalid quantity for asset type: {asset_type}, "
                         f"symbol: {symbol}: {exc}",
@@ -1521,7 +1539,7 @@ class Schwab(Broker):
         except Exception as e:
             logger.error(colored(f"Error pulling positions from Schwab: {str(e)}", "red"))
             logger.error(_format_exc())
-            self._last_positions_refresh_degraded = True
+            self._set_positions_refresh_degraded(True)
             return []
 
     def _pull_position(self, strategy: 'Strategy', asset: Asset) -> Optional[Position]:
@@ -1636,6 +1654,22 @@ class Schwab(Broker):
                 logger.error(colored("Schwab order history was not a list.", "red"))
                 return []
 
+            if len(schwab_orders) >= self.SCHWAB_ORDER_HISTORY_PAGE:
+                # Schwab's default page is 3000 orders. A full page may have cut off
+                # the oldest ones, which can include a working GTC order. The poll
+                # repeats every 30 seconds, so this is a warning once per window.
+                message = (
+                    f"Schwab returned {len(schwab_orders)} orders for the last {days} days, its page "
+                    "limit; older orders may be missing from this history."
+                )
+                warned = getattr(self, "_schwab_history_page_warned", None)
+                if warned is None:
+                    warned = self._schwab_history_page_warned = set()
+                if days in warned:
+                    logger.debug(message)
+                else:
+                    warned.add(days)
+                    logger.warning(colored(message, "yellow"))
             self._clear_schwab_rate_limit("order_history")
             self._last_orders_refresh_degraded = False
             return schwab_orders
@@ -3092,11 +3126,12 @@ class Schwab(Broker):
         """Give unpriced or limit-estimated fills the broker's average once Schwab reports it.
 
         Only at the same cumulative quantity: no fill is added and the quantity
-        does not change. A larger quantity is a new fill and goes through the
-        fill path, which values that history at the new average.
+        does not change. Estimates are repriced so the ledger matches Schwab's
+        value, and a fill already confirmed at its own price stays. A larger
+        quantity is a new fill and goes through the fill path.
         """
         transactions = getattr(stored_order, "transactions", None) or []
-        estimated = float(getattr(stored_order, "_schwab_estimated_fill_quantity", 0.0) or 0.0)
+        estimated = getattr(stored_order, "_schwab_estimated_fill_indexes", None)
         if not estimated and not any(item.price is None for item in transactions):
             return
         average = self._schwab_execution_average(stored_order, observed_order)
@@ -3107,9 +3142,75 @@ class Schwab(Broker):
             recorded = sum(float(item.quantity) for item in transactions)
         except (TypeError, ValueError):
             return
+        if cumulative <= 0 and Order.is_equivalent_status(
+            getattr(observed_order, "status", None), self.FILLED_ORDER
+        ):
+            # A later FILLED snapshot can omit filledQuantity. The fill path
+            # substitutes the order quantity; this correction has to as well.
+            cumulative = float(stored_order.quantity or getattr(observed_order, "quantity", 0) or 0)
         if cumulative > 0 and abs(cumulative - recorded) < 1e-9:
+            self._reconcile_schwab_same_quantity_estimates(stored_order, cumulative, average)
             stored_order.avg_fill_price = average
             self._remember_schwab_known_fill(stored_order, cumulative, average)
+
+    @staticmethod
+    def _reconcile_schwab_same_quantity_estimates(order, cumulative, average) -> None:
+        """Price limit estimates so this quantity's ledger equals Schwab's value.
+
+        Rows already confirmed at their own price stay. Unpriced rows that were
+        not estimates stay unpriced but are valued at the average, as everywhere
+        else; otherwise the estimates would absorb their value (1 unpriced and 1
+        estimate averaging 9.00 would price the estimate at 18.00). The rest is
+        spread across the estimates; when every unit was an estimate, that price
+        is the average.
+        """
+        indexes = getattr(order, "_schwab_estimated_fill_indexes", None)
+        if not indexes:
+            return
+        transactions = getattr(order, "transactions", None) or []
+        try:
+            target = float(cumulative) * float(average)
+            valid = [index for index in indexes if 0 <= index < len(transactions)]
+            estimated_qty = sum(float(transactions[index].quantity) for index in valid)
+            if estimated_qty <= 0:
+                return
+            estimated = set(valid)
+            confirmed = 0.0
+            for index, item in enumerate(transactions):
+                if index in estimated:
+                    continue
+                price = float(average) if item.price is None else float(item.price)
+                confirmed += float(item.quantity) * price
+            residual = (target - confirmed) / estimated_qty
+        except (TypeError, ValueError, ZeroDivisionError):
+            return
+        package = getattr(order, "order_class", None) == Order.OrderClass.MULTILEG
+        if not math.isfinite(residual) or (not package and residual <= 0):
+            # A single-order fill is positive; history that does not reconcile
+            # cleanly falls back to Schwab's average rather than an invented price.
+            residual = float(average)
+        for index in valid:
+            item = transactions[index]
+            transactions[index] = Order.Transaction(quantity=item.quantity, price=float(residual))
+        order._schwab_estimated_fill_indexes = []
+
+    @staticmethod
+    def _reconcile_schwab_estimates(order, average) -> None:
+        """Rewrite fills that were priced at the limit to Schwab's confirmed average.
+
+        Schwab gives one cumulative average, not each fill's price, so the
+        estimates take that average and the ledger total matches Schwab's
+        (10, 9.50, 9.80 would otherwise total 29.30 instead of 28.80). Strategy
+        cash needs no correction here: it is re-read from the account balance.
+        """
+        indexes = getattr(order, "_schwab_estimated_fill_indexes", None)
+        if not indexes:
+            return
+        for index in indexes:
+            if 0 <= index < len(order.transactions):
+                item = order.transactions[index]
+                order.transactions[index] = Order.Transaction(quantity=item.quantity, price=float(average))
+        order._schwab_estimated_fill_indexes = []
 
     @staticmethod
     def _remember_schwab_known_fill(order, cumulative, average) -> None:
@@ -3169,12 +3270,6 @@ class Schwab(Broker):
                     prior_value += quantity * float(item.price)
             if unpriced:
                 prior_value += unpriced * float(average)
-            # Fills priced at the limit were estimates; value them at the average too.
-            estimated = float(getattr(stored_order, "_schwab_estimated_fill_quantity", 0.0) or 0.0)
-            if estimated:
-                prior_value += estimated * float(average) - float(
-                    getattr(stored_order, "_schwab_estimated_fill_value", 0.0) or 0.0
-                )
             price = (float(cumulative_filled) * float(average) - prior_value) / float(fill_delta)
         except (TypeError, ValueError, ZeroDivisionError):
             return average
@@ -3215,7 +3310,81 @@ class Schwab(Broker):
                 return None
             if not self._schwab_order_owned_by_tag(order):
                 return None
+            # The poll takes this lock before it reads a tracked order. Hold it
+            # across the import so that read cannot see the order without its
+            # fill mark and terminal key. The poll acquires this lock before the
+            # tracker lock, so take it first here too.
+            if not hasattr(self, "_schwab_order_transition_lock"):
+                self._schwab_order_transition_lock = threading.RLock()
+            with self._schwab_order_transition_lock:
+                self._seed_schwab_history_fill(order)
+                imported = super()._process_broker_synced_order(order)
+                self._commit_schwab_history_import(order)
+            return imported
         return super()._process_broker_synced_order(order)
+
+    def _seed_schwab_terminal_history(self, order) -> None:
+        """Mark an imported order's terminal outcome as already observed.
+
+        It ended before startup. Without this, the next poll would deliver
+        on_canceled_order (or the error callback) for that old order. The keys
+        match the ones the reducer records.
+        """
+        status = getattr(order, "status", None)
+        if not hasattr(self, "_schwab_terminal_observations"):
+            self._schwab_terminal_observations = set()
+        if Order.is_equivalent_status(status, self.CANCELED_ORDER):
+            self._schwab_terminal_observations.add((order.identifier, self.CANCELED_ORDER))
+        elif Order.is_equivalent_status(status, self.ERROR_ORDER) or Order.is_equivalent_status(
+            status, Order.OrderStatus.EXPIRED
+        ):
+            self._schwab_terminal_observations.add((order.identifier, str(status)))
+
+    def _seed_schwab_history_fill(self, order) -> None:
+        """Give the base importer Schwab's cumulative quantity and execution average.
+
+        The parser's average can be the limit, which is not an execution: that
+        fill stays unpriced. The transaction is not added here. A full fill
+        already on the ledger makes the importer treat a canceled order as
+        filled and return without tracking it.
+        """
+        try:
+            cumulative = float(getattr(order, "_schwab_cumulative_filled_quantity", 0) or 0)
+        except (TypeError, ValueError):
+            cumulative = 0.0
+        if cumulative <= 0 and Order.is_equivalent_status(order.status, self.FILLED_ORDER):
+            cumulative = float(order.quantity or 0)
+        if cumulative <= 0:
+            return
+        average = self._schwab_execution_average(order, order)
+        order.filled_quantity = cumulative
+        order.avg_fill_price = average
+        if average is not None:
+            self._remember_schwab_known_fill(order, cumulative, average)
+
+    def _commit_schwab_history_import(self, order) -> None:
+        """Record the imported fill once the order is actually tracked.
+
+        The high-water mark and terminal key wait until then. Stored earlier,
+        they stop a later poll from adopting an order the importer dropped.
+        """
+        tracked = self.get_tracked_order(getattr(order, "identifier", None))
+        if tracked is None:
+            return
+        try:
+            cumulative = float(getattr(tracked, "filled_quantity", 0) or 0)
+        except (TypeError, ValueError):
+            cumulative = 0.0
+        if cumulative > 0:
+            if not hasattr(self, "_schwab_observed_fill_quantities"):
+                self._schwab_observed_fill_quantities = {}
+            self._schwab_observed_fill_quantities[tracked.identifier] = max(
+                cumulative,
+                float(self._schwab_observed_fill_quantities.get(tracked.identifier, 0.0) or 0.0),
+            )
+            if not tracked.transactions and self._schwab_execution_average(tracked, tracked) is None:
+                tracked.add_transaction(None, cumulative)
+        self._seed_schwab_terminal_history(tracked)
 
     def _schwab_recovered_working_order(self, observed_order) -> bool:
         """True when an untracked working order's tag belongs to this strategy.
@@ -3375,6 +3544,9 @@ class Schwab(Broker):
                                 self._partially_filled_orders.append(observed_order)
             return
 
+        # A filled order can still be priced: its fill may have been recorded at
+        # the limit, or unpriced, before Schwab reported the average.
+        self._price_unpriced_schwab_history(stored_order, observed_order)
         if stored_order.is_filled():
             self._complete_schwab_package_children(stored_order)
             return
@@ -3406,8 +3578,6 @@ class Schwab(Broker):
                 stored_order, raw_payload,
                 raw_order_status=getattr(observed_order, "raw_order_status", None),
             )
-
-        self._price_unpriced_schwab_history(stored_order, observed_order)
 
         if Order.is_equivalent_status(observed_status, self.NEW_ORDER):
             # Never regress a local/broker cancel-pending order back to NEW when
@@ -3443,12 +3613,15 @@ class Schwab(Broker):
                 recorded_filled,
             )
             if cumulative_filled <= prior_filled and not terminal_after_fill:
-                if (was_terminal and Order.is_equivalent_status(observed_status, self.FILLED_ORDER)
+                if (Order.is_equivalent_status(observed_status, self.FILLED_ORDER)
                         and recorded_filled == float(stored_order.quantity)):
-                    # The fill was already delivered before a local ERROR
-                    # moved this object to the error bucket. Restore confirmed
-                    # terminal state without a zero-quantity/fabricated fill.
+                    # Every unit is already recorded: delivered before a local
+                    # ERROR moved this object to the error bucket, or recovered
+                    # as history from a WORKING snapshot that was already full.
+                    # Make it filled without a zero-quantity or invented fill.
                     with self._lock:
+                        self._new_orders.remove(identifier, key="identifier")
+                        self._unprocessed_orders.remove(identifier, key="identifier")
                         self._error_orders.remove(identifier, key="identifier")
                         self._canceled_orders.remove(identifier, key="identifier")
                         self._partially_filled_orders.remove(identifier, key="identifier")
@@ -3459,6 +3632,9 @@ class Schwab(Broker):
                 self._complete_schwab_package_children(stored_order)
                 return
             fill_delta = cumulative_filled - prior_filled
+            confirmed = self._schwab_execution_average(stored_order, observed_order)
+            if confirmed is not None and fill_delta > 0:
+                self._reconcile_schwab_estimates(stored_order, confirmed)
             price = self._schwab_reported_fill_price(
                 stored_order, observed_order, cumulative_filled, fill_delta,
             )
@@ -3471,9 +3647,15 @@ class Schwab(Broker):
 
             if fill_delta > 0:
                 self._schwab_observed_fill_quantities[identifier] = cumulative_filled
+                # A partial-fill snapshot that reaches the full quantity is the fill
+                # that completes the order. Sending it as partial would leave the
+                # later FILLED snapshot with nothing new, so on_filled_order never ran.
+                completes_order = Order.is_equivalent_status(
+                    observed_status, self.PARTIALLY_FILLED_ORDER
+                ) and cumulative_filled >= float(stored_order.quantity or 0) > 0
                 event = (
                     self.FILLED_ORDER
-                    if Order.is_equivalent_status(observed_status, self.FILLED_ORDER)
+                    if Order.is_equivalent_status(observed_status, self.FILLED_ORDER) or completes_order
                     else self.PARTIALLY_FILLED_ORDER
                 )
                 # One atomic native bucket move; no I/O or Strategy execution.
@@ -3493,15 +3675,13 @@ class Schwab(Broker):
                     # Set before the callback so the strategy sees the new average.
                     stored_order.avg_fill_price = self._schwab_execution_average(stored_order, observed_order)
                     if stored_order.avg_fill_price is None:
-                        # Priced at the limit, not an execution. Remember it so a later
-                        # cumulative average replaces this estimate instead of keeping it.
-                        stored_order._schwab_estimated_fill_quantity = (
-                            float(getattr(stored_order, "_schwab_estimated_fill_quantity", 0.0) or 0.0) + fill_delta
-                        )
-                        stored_order._schwab_estimated_fill_value = (
-                            float(getattr(stored_order, "_schwab_estimated_fill_value", 0.0) or 0.0)
-                            + fill_delta * float(price)
-                        )
+                        # Priced at the limit, not an execution. Remember which ledger
+                        # entry it is (the trade event appends it next) so a later
+                        # confirmed average rewrites it instead of keeping the estimate.
+                        stored_order._schwab_estimated_fill_indexes = [
+                            *getattr(stored_order, "_schwab_estimated_fill_indexes", []),
+                            len(stored_order.transactions),
+                        ]
                     else:
                         self._remember_schwab_known_fill(stored_order, cumulative_filled, stored_order.avg_fill_price)
                     self._process_trade_event(
@@ -4081,10 +4261,11 @@ class Schwab(Broker):
             return None
 
         try:
-            # Same normalization the recovery match uses. A blank tag uses the strategy.
-            tag = self.normalize_broker_strategy_tag(order.tag) or self.normalize_broker_strategy_tag(
-                order.strategy
-            )
+            # Schwab's tag is how recovery finds this strategy's orders after a
+            # restart, so it is always the strategy name, normalized the way the
+            # recovery match is. A custom Order.tag (such as "entry-42") stays on
+            # the local order; sending it instead would hide the order from recovery.
+            tag = self._schwab_ownership_tag(order)
 
             if order.order_class is Order.OrderClass.OTO:
                 order_builder = self._prepare_oto_order_builder(order)
@@ -5433,6 +5614,10 @@ class Schwab(Broker):
             logger.error(_format_exc())
             return False
 
+    def _schwab_ownership_tag(self, order) -> str:
+        """Schwab tag for an order: the strategy name, or the order's own tag without one."""
+        return self.normalize_broker_strategy_tag(order.strategy) or self.normalize_broker_strategy_tag(order.tag)
+
     @staticmethod
     def _set_schwab_limit_price(order, limit_price):
         """Set an order's limit. A stop-limit's limit is read from stop_limit_price."""
@@ -5484,10 +5669,8 @@ class Schwab(Broker):
         # This will need to be implemented based on the actual structure of Schwab's order specs
         # For now, let's create a basic implementation
 
-        # Same normalization as a new submit. A blank tag uses the strategy.
-        tag = self.normalize_broker_strategy_tag(order.tag) or self.normalize_broker_strategy_tag(
-            order.strategy
-        )
+        # The same ownership tag as the original submit.
+        tag = self._schwab_ownership_tag(order)
 
         # Use original values for prices if new ones are not provided
         final_limit_price = limit_price if limit_price is not None else order.limit_price
@@ -5787,8 +5970,44 @@ class Schwab(Broker):
              logger.warning(colored("[Schwab] Broker not fully initialized or in error state, skipping position sync.", "yellow"))
              return
 
-        # Get current tracked positions for this strategy
         strategy_name = strategy.name if strategy else None
+        # Two syncs can overlap (startup recovery and the stream thread). Each
+        # takes a ticket before its pull, and a response is applied only when no
+        # later-started sync for this strategy was applied first, so an older
+        # quantity cannot overwrite a newer one.
+        with self._lock:
+            tickets = getattr(self, "_schwab_position_sync_tickets", None)
+            if tickets is None:
+                tickets = self._schwab_position_sync_tickets = {}
+            ticket = tickets.get(strategy_name, 0) + 1
+            tickets[strategy_name] = ticket
+            status = getattr(self, "_schwab_position_pull_local", None)
+            if status is None:
+                status = self._schwab_position_pull_local = threading.local()
+            status.ready = False
+
+        # Pull fresh positions from the broker. Read the degraded bit this pull
+        # stored. The shared flag can change when another sync is in flight.
+        new_positions = self._pull_positions(strategy)
+        status = getattr(self, "_schwab_position_pull_local", None)
+        if status is not None and getattr(status, "ready", False):
+            degraded = bool(getattr(status, "degraded", False))
+        else:
+            degraded = getattr(self, "_last_positions_refresh_degraded", False)
+
+        with self._lock:
+            applied = getattr(self, "_schwab_position_sync_applied", None)
+            if applied is None:
+                applied = self._schwab_position_sync_applied = {}
+            if ticket < applied.get(strategy_name, 0):
+                logger.debug("[Schwab] Discarding a position snapshot older than the last one applied.")
+                return
+            applied[strategy_name] = ticket
+            self._apply_schwab_positions(strategy_name, new_positions, degraded)
+
+    def _apply_schwab_positions(self, strategy_name, new_positions, degraded) -> None:
+        """Apply one pulled position snapshot to the tracked book (caller holds the lock)."""
+        # Get current tracked positions for this strategy
         tracked = self.get_tracked_positions(strategy_name)
         tracked_dict = {}
 
@@ -5796,13 +6015,10 @@ class Schwab(Broker):
         for position in tracked:
             tracked_dict[self._schwab_position_key(position)] = position
 
-        # Pull fresh positions from the broker
-        new_positions = self._pull_positions(strategy)
         new_dict = {}
         for position in new_positions:
             new_dict[self._schwab_position_key(position)] = position
 
-        degraded = getattr(self, "_last_positions_refresh_degraded", False)
         if degraded:
             logger.warning(colored(
                 "Schwab position refresh was degraded; updating parsed positions but not removing "

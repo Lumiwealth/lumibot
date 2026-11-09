@@ -524,6 +524,7 @@ Supported Assets & Order Types
     - ✖
 
 - Multi-leg option packages use the same ``OrderClass.MULTILEG`` and ``child_orders`` path as the other brokers. Schwab accepts 2 to 4 option legs on one underlying, priced as a net credit, debit, or zero, with ``day`` or ``gtc`` duration. Market packages, stock legs, and legs on different underlyings are rejected. A filled package reports its net fill price from Schwab's leg executions, which can be better than the limit. A package that cannot be sent as one order is rejected and no leg is submitted. Each leg keeps its own contract count; a hand-built parent's ``quantity`` must equal the greatest common divisor of the leg quantities (1 for an ordinary 1-lot spread). Live-test the account and order shape before relying on it in production.
+- LumiBot sends the strategy name as the Schwab order tag, so it can find the strategy's working orders again after a restart. A custom ``Order.tag`` stays on the order inside your strategy and is not sent to Schwab.
 - Limit prices on single stock and option orders are sent with 2 decimals at $1 and above and 4 decimals below $1, cut toward zero (a buy limit of 1.159 is sent as 1.15).
 - Schwab OTO, OCO, and bracket orders use Schwab's trigger and one-cancels-other support and should be live-tested with the target account and order shape before relying on them in production.
 - **Futures trading is not supported; only streaming quotes are available.**

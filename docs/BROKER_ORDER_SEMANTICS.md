@@ -324,6 +324,11 @@ Lifecycle:
   That pull reads 59 days of history (the poll reads 7) because a working GTC
   close can be older than a week; Schwab rejects a start more than 60 days back,
   so a working order older than that cannot be recovered from history. A
+  response at Schwab's default page (3000 orders) is logged, because the
+  oldest orders may be cut off; it is a warning once per history window and
+  debug afterwards, because the poll repeats every 30 seconds. Overlapping position syncs (startup recovery
+  and the stream thread) apply in the order they started; an older snapshot
+  that finishes last is discarded. A
   working order with fills (WORKING with a filled quantity, or
   PARTIALLY_FILLED) is recovered with that history, as partially filled and
   without a callback; a later WORKING snapshot does not move it back to new.
@@ -333,8 +338,17 @@ Lifecycle:
   (`<id>-leg-<n>`) copies its parent's tag but is never imported or recovered
   on its own; it is tracked through the parent. An order
   this broker submitted is never treated as foreign, by the poll or by the fill
-  callbacks, because its tag can be a user label such as `entry-42`; that holds
-  only for the strategy that submitted it. Fills it already had are
+  callbacks, for the strategy that submitted it. Schwab's `tag` is always the
+  strategy name (normalized as recovery matches it), on submit and on every
+  replacement; a custom `Order.tag` such as `entry-42` stays on the local
+  order, because sending it would hide the order from recovery after a restart.
+  Imported filled or canceled history keeps its fills without a callback and
+  without being replayed by a later poll, unpriced when Schwab's only price is
+  the limit; its cancel or error outcome is not delivered again either. A FILLED snapshot at a quantity already recorded in full (for
+  example a recovered WORKING order that was already complete) closes the
+  order and its package legs without another fill. A PARTIALLY_FILLED snapshot
+  that brings the cumulative quantity to the full order is delivered as the
+  filled callback, so `on_filled_order` runs even though Schwab's status lagged. Fills it already had are
   recorded without a callback, at Schwab's `averagePrice` or execution price.
   When neither exists the parser's limit fallback is not a fill, so that
   quantity is left unpriced; the next fill values it at the new average, and
@@ -344,7 +358,11 @@ Lifecycle:
   limit-priced fill is an estimate: when Schwab later reports a cumulative
   average, the next fill is priced as if the estimate had filled at that
   average. A snapshot at the same quantity that finally carries an average
-  fills in the order's average without adding a fill. Each confirmed
+  fills in the order's average without adding a fill, also after the order is
+  filled. When Schwab confirms an average, limit estimates are rewritten so the
+  ledger totals that value. A same-quantity correction leaves a price that was
+  already confirmed in place. Strategy cash needs no correction because it is
+  re-read from the account. Each confirmed
   cumulative value (quantity times Schwab's average) is kept, and later fills
   are priced from it, so 1 at a 10 limit, 2 averaging 9.50, then 3 averaging
   9.60 records the third unit at 9.80. The order's average is updated before

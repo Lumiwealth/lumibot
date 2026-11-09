@@ -3741,3 +3741,87 @@ def test_a_partial_snapshot_that_completes_the_order_is_the_filled_callback(life
         _recovered_single_close(status="FILLED", filledQuantity=2, averagePrice=1.20), "fixture",
     ))
     assert _fill_events(broker, queues) == []
+
+
+def test_a_throttled_replace_waits_out_retry_after_before_sending_again(lifecycle):
+    """A 429 on replace sends nothing more, not even a read, until Retry-After ends."""
+    transport, broker, _queues = lifecycle
+    parent = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=1.25)[0]
+    clock = [1000.0]
+    broker._schwab_now = lambda: clock[0]
+    scripted_replace = transport.replace_order
+
+    def throttled(account_hash, identifier, order_spec):
+        transport.replace_calls.append((identifier, order_spec))
+        return type("Response", (), {"status_code": 429, "headers": {"Retry-After": "30"}, "text": ""})()
+
+    transport.replace_order = throttled
+    reads = []
+    pull = broker._pull_broker_order
+    broker._pull_broker_order = lambda identifier: reads.append(identifier) or pull(identifier)
+
+    assert broker.modify_order(parent, limit_price=1.05) is False
+    assert len(transport.replace_calls) == 1 and len(reads) == 1
+
+    transport.replace_order = scripted_replace
+    clock[0] += 10
+    assert broker.modify_order(parent, limit_price=1.05) is False
+    assert len(transport.replace_calls) == 1 and len(reads) == 1
+    assert parent.limit_price == 1.25
+
+    clock[0] += 21
+    assert broker.modify_order(parent, limit_price=1.05) is not False
+    assert len(transport.replace_calls) == 2
+    assert parent.limit_price == 1.05
+
+
+def test_a_strike_that_is_not_a_thousandth_has_no_occ_symbol():
+    """100.1254 is not the 100.125 contract; float noise below a thousandth still is."""
+    expiration = date(2026, 6, 19)
+
+    assert Schwab._schwab_occ_symbol("SPY", expiration, "P", 100.1254) is None
+    assert Schwab._schwab_occ_symbol("SPY", expiration, "P", 100.12500000001) == "SPY   260619P00100125"
+
+
+def test_a_package_leg_with_an_unlisted_strike_is_refused():
+    broker = _broker()
+    children = [
+        _option_leg(500.0004, "PUT", Order.OrderSide.SELL_TO_OPEN),
+        _option_leg(490, "PUT", Order.OrderSide.BUY_TO_OPEN),
+    ]
+
+    assert broker._submit_orders(children, is_multileg=True, order_type="credit", price=1.25) is None
+    assert broker.client.place_calls == []
+
+
+def _close_reservation_broker(broker_class, position_quantity):
+    """A bare broker holding one long option, with a working package that closes it."""
+    from types import SimpleNamespace
+
+    broker = broker_class.__new__(broker_class)
+    broker.name = broker_class.__name__
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE)
+    package_leg = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE, quantity=position_quantity)
+    package_leg.status = Order.OrderStatus.SUBMITTED
+    package = SimpleNamespace(child_orders=[package_leg])
+    broker._position_for_order = lambda _order: SimpleNamespace(quantity=position_quantity)
+    broker.get_active_tracked_orders = lambda strategy=None, asset=None: [] if asset is not None else [package]
+    broker.get_tracked_order = lambda _identifier: None
+    broker._unreconciled_package_close_quantity = lambda _order: 0.0
+    return broker, held
+
+
+def test_a_working_package_close_reserves_its_contracts_on_schwab():
+    broker, close = _close_reservation_broker(Schwab, position_quantity=2)
+
+    with pytest.raises(ValueError):
+        broker.resolve_option_order_intent(close)
+
+
+def test_other_brokers_keep_their_close_reservation_lookup():
+    """Package-leg reservation is Schwab's; the base lookup is unchanged on other brokers."""
+    from lumibot.brokers.tradier import Tradier
+
+    broker, close = _close_reservation_broker(Tradier, position_quantity=2)
+
+    assert broker.resolve_option_order_intent(close) is close

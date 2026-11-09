@@ -1272,53 +1272,88 @@ class Order:
         if quantity_unfilled <= 0:
             return 0
         multiplier = float(getattr(self.child_orders[0].asset, "multiplier", 1) or 1)
-        # The direction is the effect the package was sent with: a BUY parent with a
-        # negative limit goes out as a credit, and its positive fill price is proceeds.
-        effect = getattr(self, "_multileg_effect", None)
-        if effect is None and self.limit_price is not None:
-            # A restored order can lack the private effect. Rebuild it the way the
-            # package was sent: zero is even, and a limit whose sign agrees with
-            # the side (SELL positive, BUY negative) is a credit.
-            try:
-                limit = float(self.limit_price)
-            except (TypeError, ValueError):
-                limit = None
-            if limit == 0:
-                effect = "even"
-            elif limit is not None:
-                effect = "credit" if (limit > 0) == self.is_sell_order() else "debit"
+        stored_effect = self._stored_package_effect()
+        effect = stored_effect if stored_effect is not None else self._effect_rebuilt_from_limit()
         if effect == "even":
             # A NET_ZERO package executes at no net cash, whatever the leg marks say.
             return 0
 
-        def signed(cash_value):
-            if effect in ("credit", "debit"):
-                return abs(cash_value) if effect == "credit" else -abs(cash_value)
-            return cash_value if self.is_sell_order() else -cash_value
-
         # The latest fill can be unpriced. That is not a zero-cash remainder.
         price = self.transactions[-1].price if self.transactions else None
         if price is not None:
-            return signed(quantity_unfilled * float(price) * multiplier)
+            return self._signed_package_cash(quantity_unfilled * float(price) * multiplier, effect)
 
         # Estimate from the legs: each leg's share of one package, sells adding
-        # cash and buys spending it.
+        # cash and buys spending it. Marks that contradict a known credit or
+        # debit are not used; the package limit is, or the estimate is unavailable.
+        mark = self._package_mark_cash(strategy)
+        if mark is not None and self._package_marks_match_effect(mark, stored_effect):
+            if stored_effect in ("credit", "debit"):
+                return self._signed_package_cash(quantity_unfilled * mark, stored_effect)
+            return quantity_unfilled * mark
+
+        if self.limit_price is None:
+            return None
+        return self._signed_package_cash(quantity_unfilled * float(self.limit_price) * multiplier, effect)
+
+    def _stored_package_effect(self):
+        """The credit, debit, or even effect this package was sent with, if known."""
+        effect = getattr(self, "_multileg_effect", None)
+        if isinstance(effect, str):
+            effect = effect.strip().lower()
+        if effect in ("credit", "debit", "even"):
+            return effect
+        return None
+
+    def _effect_rebuilt_from_limit(self):
+        """Effect implied by the limit when the submitted effect was never stored.
+
+        Zero is even. A limit whose sign agrees with the side (SELL positive,
+        BUY negative) is a credit. This is only a fallback: a Schwab credit can
+        be a SELL parent with a negative limit, which this rule would call a debit.
+        """
+        if self.limit_price is None:
+            return None
+        try:
+            limit = float(self.limit_price)
+        except (TypeError, ValueError):
+            return None
+        if limit == 0:
+            return "even"
+        return "credit" if (limit > 0) == self.is_sell_order() else "debit"
+
+    def _signed_package_cash(self, cash_value, effect):
+        """Cash in the direction of a known effect.
+
+        With no effect, a sell adds cash and a buy spends it, matching the
+        single-order estimate.
+        """
+        if effect == "credit":
+            return abs(cash_value)
+        if effect == "debit":
+            return -abs(cash_value)
+        return cash_value if self.is_sell_order() else -cash_value
+
+    def _package_mark_cash(self, strategy):
+        """Signed cash of one package from leg marks, or None when a quote is missing."""
         package_cash = 0.0
         for leg in self.child_orders:
             leg_price = strategy.get_last_price(leg.asset)
             if leg_price is None:
-                break
+                return None
             leg_cash = float(leg_price) * float(leg.quantity) / float(self.quantity)
             leg_cash *= float(getattr(leg.asset, "multiplier", 1) or 1)
             package_cash += leg_cash if leg.is_sell_order() else -leg_cash
-        else:
-            return quantity_unfilled * package_cash
+        return package_cash
 
-        # A missing leg quote is not zero cash. Fall back to the package limit,
-        # and report the estimate as unavailable when there is none.
-        if self.limit_price is None:
-            return None
-        return signed(quantity_unfilled * float(self.limit_price) * multiplier)
+    @staticmethod
+    def _package_marks_match_effect(mark, effect):
+        """False when known credit/debit marks point the other way, including a zero net."""
+        if effect == "credit":
+            return mark > 0
+        if effect == "debit":
+            return mark < 0
+        return True
 
     def get_fill_price(self):
         """
@@ -1641,6 +1676,12 @@ class Order:
         order_dict['avg_fill_price'] = (
             float(self._avg_fill_price) if self._avg_fill_price is not None else None
         )
+        # The limit sign is not the effect that was sent. A credit package can
+        # carry a negative limit and a SELL parent; dropping the effect would
+        # price the remainder as a debit after a restore.
+        effect = getattr(self, "_multileg_effect", None)
+        if effect is not None:
+            order_dict["multileg_effect"] = effect
 
         return order_dict
 
@@ -1697,6 +1738,9 @@ class Order:
                 elif isinstance(value, list) and key == 'child_orders':
                     child_orders = [cls.from_dict(item) for item in value]  # Recursively create Order objects
                     setattr(obj, key, child_orders)
+
+                elif key == "multileg_effect":
+                    setattr(obj, "_multileg_effect", value)
 
                 # Set simple values directly
                 else:

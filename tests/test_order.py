@@ -537,3 +537,38 @@ class TestCashPending:
 
         # One package left: -1 x 1.00 + 2 x 0.80 = 0.60 credit, x100.
         assert package.cash_pending(self._strategy({500: 1.00, 510: 0.80})) == pytest.approx(60.0)
+
+    def test_restored_sell_credit_keeps_the_effect_it_was_sent_with(self):
+        """A SELL package with a negative limit stays a credit after serialization."""
+        legs = [
+            Order("Example", self._option(500), 1, Order.OrderSide.SELL_TO_OPEN),
+            Order("Example", self._option(490), 1, Order.OrderSide.BUY_TO_OPEN),
+        ]
+        package = Order(
+            "Example", Asset("SPY", asset_type=Asset.AssetType.MULTILEG), 2, Order.OrderSide.SELL,
+            limit_price=-1.25, order_class=Order.OrderClass.MULTILEG, child_orders=legs,
+        )
+        package._multileg_effect = "credit"
+        restored = Order.from_dict(package.to_dict())
+        restored.add_transaction(1.30, 1)
+
+        assert restored._multileg_effect == "credit"
+        assert restored.cash_pending(self._strategy(None)) == pytest.approx(130.0)
+
+    def test_marks_that_contradict_a_stored_credit_use_the_limit(self):
+        """A known credit does not spend cash just because the leg marks are a debit."""
+        legs = [
+            Order("Example", self._option(500), 1, Order.OrderSide.BUY_TO_OPEN),
+            Order("Example", self._option(490), 1, Order.OrderSide.SELL_TO_OPEN),
+        ]
+        package = Order(
+            "Example", Asset("SPY", asset_type=Asset.AssetType.MULTILEG), 1, Order.OrderSide.SELL,
+            limit_price=1.25, order_class=Order.OrderClass.MULTILEG, child_orders=legs,
+        )
+        package._multileg_effect = "credit"
+
+        # Marks are a 1.80 debit. The stored effect says the limit's 1.25 credit.
+        assert package.cash_pending(self._strategy({500: 3.00, 490: 1.20})) == pytest.approx(125.0)
+
+        package.limit_price = None
+        assert package.cash_pending(self._strategy({500: 3.00, 490: 1.20})) is None

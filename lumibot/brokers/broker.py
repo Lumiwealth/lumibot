@@ -1176,15 +1176,14 @@ class Broker(ABC):
     def _recorded_fill_value(order, average_price):
         """Value of the fills already recorded on ``order``.
 
-        A recovered order can hold an unpriced fill (the broker did not report
-        its price). It is valued at the broker's cumulative average so the next
-        fill's price is neither inflated nor a Decimal("None") conversion error.
+        Every recorded fill carries its own price here. A broker that can
+        recover unpriced fills overrides this; ``average_price`` is the
+        broker's cumulative average for that override.
         """
-        value = Decimal(0)
-        for transaction in order.transactions:
-            price = average_price if transaction.price is None else Decimal(str(transaction.price))
-            value += Decimal(str(transaction.quantity)) * price
-        return value
+        return sum(
+            (Decimal(str(transaction.quantity)) * Decimal(str(transaction.price))
+             for transaction in order.transactions), Decimal(0)
+        )
 
     def _reconcile_cumulative_execution(self, order, cumulative_quantity, average_price, *, terminal=False, raw=None):
         """Process only unrecorded quantity from a confirmed cumulative fill.
@@ -3121,10 +3120,8 @@ class Broker(ABC):
                 float(active_order.quantity) - self._reserved_quantity_already_filled(active_order),
             )
 
-        # Package fills do not change the position book. Until a sync drops
-        # those contracts, they are still inside position_quantity and must
-        # stay unavailable. Active orders above already reserve only what is
-        # still working.
+        # A broker whose package fills do not change the position book reports
+        # those contracts here until a sync drops them. The base returns 0.
         remaining_closable = max(
             0.0,
             abs(position_quantity) - reserved_quantity - self._unreconciled_package_close_quantity(order),
@@ -3143,78 +3140,26 @@ class Broker(ABC):
         additional_active_orders: list[Order] | None = None,
         exclude_reservations: list[Order] | None = None,
     ) -> list[Order]:
-        """Active closes of this contract, including legs of a working package.
+        """Active orders on this strategy and contract that may reserve a close.
 
-        A package parent is not the option, so an asset lookup misses its legs.
-        ``exclude_reservations`` drops the package being replaced; earlier legs
-        of that same package still count when they are passed in
-        ``additional_active_orders``.
+        ``exclude_reservations`` is for brokers whose package replacement must
+        not reserve against itself; the base lookup does not use it.
         """
-        excluded = {id(item) for item in (exclude_reservations or [])}
+        active_orders = self.get_active_tracked_orders(order.strategy, order.asset)
         if additional_active_orders:
-            excluded.difference_update(id(item) for item in additional_active_orders)
-
-        active_orders: list[Order] = []
-        seen: set[int] = set()
-
-        def add(candidate):
-            """Keep one active order for this strategy and contract."""
-            if candidate is None or id(candidate) in seen or id(candidate) in excluded:
-                return
-            if candidate.strategy != order.strategy or candidate.asset != order.asset:
-                return
-            if not candidate.is_active():
-                return
-            seen.add(id(candidate))
-            active_orders.append(candidate)
-
-        for candidate in self.get_active_tracked_orders(order.strategy, order.asset):
-            add(candidate)
-        for package in self.get_active_tracked_orders(order.strategy):
-            for child in getattr(package, "child_orders", None) or []:
-                add(child)
-        for candidate in additional_active_orders or []:
-            add(candidate)
+            active_orders.extend(
+                candidate
+                for candidate in additional_active_orders
+                if candidate.strategy == order.strategy and candidate.asset == order.asset
+            )
         return active_orders
 
     def _reserved_quantity_already_filled(self, order: Order) -> float:
-        """Contracts of this close that have already filled.
-
-        A package fill is stored on the parent. The original leg keeps an empty
-        ledger, so its own transactions would reserve the whole leg after a
-        partial fill. The parent's filled packages, times this leg's ratio,
-        are the contracts that have filled. Callers that still show those
-        contracts in the position book keep them reserved separately.
-        """
-        filled = 0.0
-        try:
-            filled = sum(
-                float(item.quantity)
-                for item in getattr(order, "transactions", [])
-                if getattr(item, "quantity", None) is not None
-            )
-        except (TypeError, ValueError):
-            filled = 0.0
-
-        parent_id = getattr(order, "parent_identifier", None)
-        if not parent_id:
-            return filled
-        parent = self.get_tracked_order(parent_id)
-        if parent is None or getattr(parent, "order_class", None) != Order.OrderClass.MULTILEG:
-            return filled
-        try:
-            parent_quantity = float(parent.quantity)
-            child_quantity = float(order.quantity)
-            parent_filled = sum(
-                float(item.quantity)
-                for item in getattr(parent, "transactions", [])
-                if getattr(item, "quantity", None) is not None
-            )
-        except (TypeError, ValueError):
-            return filled
-        if parent_quantity <= 0 or child_quantity < 0:
-            return filled
-        return max(filled, parent_filled * (child_quantity / parent_quantity))
+        """Contracts of this close that have already filled, from its own fills."""
+        return sum(
+            float(transaction.quantity)
+            for transaction in getattr(order, "transactions", [])
+        )
 
     def _unreconciled_package_close_quantity(self, order: Order) -> float:
         """Close fills the position book does not yet show.

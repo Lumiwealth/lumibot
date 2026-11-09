@@ -117,3 +117,28 @@ def test_single_option_refuses_a_fractional_contract_quantity():
     broker._submit_orders([order], is_multileg=False)
 
     assert broker.client.place_calls == []
+
+
+class _RecordingStream:
+    def __init__(self):
+        self.events = []
+
+    def dispatch(self, event, **kwargs):
+        self.events.append((event, kwargs))
+
+
+@pytest.mark.parametrize(
+    ("quantity", "strike"),
+    [(1.5, 500), (1, 100.1254)],
+    ids=["fractional-contracts", "strike-not-a-thousandth"],
+)
+def test_a_refused_single_option_closes_as_an_error(quantity, strike):
+    """A refused order is reported as an error, so a caller waiting on it is released."""
+    broker = _broker()
+    broker.stream = _RecordingStream()
+    order = Order("unit-test", _option(strike=strike), quantity, Order.OrderSide.BUY_TO_OPEN, limit_price=1.15)
+
+    assert broker._submit_orders([order], is_multileg=False) == [None]
+
+    assert broker.client.place_calls == []
+    assert [(event, kwargs["order"]) for event, kwargs in broker.stream.events] == [(broker.ERROR_ORDER, order)]

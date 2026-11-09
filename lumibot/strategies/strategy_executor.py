@@ -956,6 +956,27 @@ class StrategyExecutor(Thread):
         filled = max(processed, Decimal(str(getattr(order, "filled_quantity", 0) or 0)))
         return max(Decimal(0), Decimal(str(order.quantity)) - filled)
 
+    def _smart_limit_leg_matches_parent(self, parent, child, parent_remaining):
+        """True when this leg's remainder is the unfilled share of the package.
+
+        Schwab records the package fill on the parent. A leg with an empty
+        ledger is behind that fill, not an asymmetric execution, so the
+        replacement still goes out. A leg that has its own fills must match.
+        Other brokers keep the strict comparison.
+        """
+        expected = Decimal(str(child.quantity)) * parent_remaining / Decimal(str(parent.quantity))
+        if self._smart_limit_remaining(child) == expected:
+            return True
+        if not self._broker_is_schwab() or child.transactions:
+            return False
+        try:
+            child_filled = Decimal(str(getattr(child, "filled_quantity", 0) or 0))
+            parent_filled = Decimal(str(parent.quantity)) - parent_remaining
+            implied = parent_filled * Decimal(str(child.quantity)) / Decimal(str(parent.quantity))
+        except (TypeError, ValueError, ArithmeticError):
+            return False
+        return child_filled <= implied
+
     @staticmethod
     def _smart_limit_replacement_order(order, quantity):
         """A new remainder has fresh lifecycle state; never reuse a filled object."""
@@ -1015,14 +1036,14 @@ class StrategyExecutor(Thread):
                 children = []
                 for child in order.child_orders:
                     expected = Decimal(str(child.quantity)) * remaining / Decimal(str(order.quantity))
-                    if self._smart_limit_remaining(child) != expected:
+                    if not self._smart_limit_leg_matches_parent(order, child, remaining):
                         # Do not duplicate an asymmetrically executed leg while
                         # the package/leg observations are still inconsistent.
                         return
                     children.append(self._smart_limit_replacement_order(child, expected))
                 intent["submission_attempted"] = True
                 submit_kwargs = {}
-                if self._smart_limit_broker_is_schwab():
+                if self._broker_is_schwab():
                     # Schwab sends the package with the duration it is given, so a
                     # GTC package's replacement must not fall back to DAY.
                     submit_kwargs["duration"] = getattr(order, "time_in_force", None) or "day"
@@ -1059,15 +1080,15 @@ class StrategyExecutor(Thread):
         with self._smart_limit_lock:
             self._process_smart_limit_orders_locked()
 
-    def _smart_limit_broker_is_schwab(self) -> bool:
-        """True for Schwab, whose refused replace is retried at the same step."""
+    def _broker_is_schwab(self) -> bool:
+        """True for Schwab, whose refused replace and package fills are handled here."""
         return str(getattr(self.broker, "name", "")).lower() == "schwab"
 
     def _process_smart_limit_orders_locked(self):
         """Reprice active SMART_LIMIT orders while the executor lock is held."""
         # Schwab returns False when it sent no replace or could not confirm it.
         # Only then is the step kept for a retry; other brokers keep their behavior.
-        retry_refused_step = self._smart_limit_broker_is_schwab()
+        retry_refused_step = self._broker_is_schwab()
 
         # SMART_LIMIT should only operate on active orders. Scanning the full tracked-order
         # history (which can include large closed/filled histories) in a tight background loop
@@ -1810,9 +1831,16 @@ class StrategyExecutor(Thread):
         else:
             emoji = "🔴📉 "
 
+        # A Schwab package fill has no single position; label it by the order.
+        # Other brokers keep their existing behavior.
+        if position is None and self._broker_is_schwab():
+            traded_asset = order.asset
+        else:
+            traded_asset = position.asset
+
         # Create a message to send to Discord
         message = f"""
-                {emoji} {side} {quantity:,.2f} {position.asset} @ ${price:,.2f} ({percent_of_portfolio:,.0%} of the account)
+                {emoji} {side} {quantity:,.2f} {traded_asset} @ ${price:,.2f} ({percent_of_portfolio:,.0%} of the account)
                 Trade Total = ${order_value:,.2f}
                 Account Value = ${portfolio_value:,.0f}
                 """

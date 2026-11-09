@@ -7,6 +7,7 @@ import os
 import re
 import threading
 import time
+from decimal import Decimal
 from pathlib import Path
 from threading import Thread
 
@@ -1414,7 +1415,7 @@ class Schwab(Broker):
         status.ready = True
 
     # Position methods
-    def _pull_positions(self, strategy: 'Strategy') -> List[Position]:
+    def _pull_positions(self, strategy: 'Strategy') -> list:
         self._set_positions_refresh_degraded(False)
         # Add check for authorization error first
         if not self._broker_fully_ready:
@@ -2044,7 +2045,7 @@ class Schwab(Broker):
         ))
         return Order.OrderSide.UNKNOWN
 
-    def _parse_simple_order(self, schwab_order: dict, strategy_name: str) -> List[Order]:
+    def _parse_simple_order(self, schwab_order: dict, strategy_name: str) -> list:
         """
         Parse a simple Schwab order (non-OCO) into Lumibot Order objects.
         
@@ -2722,6 +2723,95 @@ class Schwab(Broker):
                 state["absorbed"] = sum(float(value) for value in credits.values())
         state["position_abs"] = position_abs
         return state["qty"]
+
+    @staticmethod
+    def _recorded_fill_value(order, average_price):
+        """Value of the fills already recorded on ``order``.
+
+        A recovered Schwab order can hold an unpriced fill (Schwab did not
+        report its price). It is valued at Schwab's cumulative average so the
+        next fill's price is neither inflated nor a Decimal("None") error.
+        """
+        value = Decimal(0)
+        for transaction in order.transactions:
+            price = average_price if transaction.price is None else Decimal(str(transaction.price))
+            value += Decimal(str(transaction.quantity)) * price
+        return value
+
+    def _active_orders_reserving_asset(self, order, additional_active_orders=None, exclude_reservations=None):
+        """Active closes of this contract, including legs of a working package.
+
+        A package parent is not the option, so an asset lookup misses its legs.
+        ``exclude_reservations`` drops the package being replaced; earlier legs
+        of that same package still count when they are passed in
+        ``additional_active_orders``.
+        """
+        excluded = {id(item) for item in (exclude_reservations or [])}
+        if additional_active_orders:
+            excluded.difference_update(id(item) for item in additional_active_orders)
+
+        active_orders = []
+        seen = set()
+
+        def add(candidate):
+            """Keep one active order for this strategy and contract."""
+            if candidate is None or id(candidate) in seen or id(candidate) in excluded:
+                return
+            if candidate.strategy != order.strategy or candidate.asset != order.asset:
+                return
+            if not candidate.is_active():
+                return
+            seen.add(id(candidate))
+            active_orders.append(candidate)
+
+        for candidate in self.get_active_tracked_orders(order.strategy, order.asset):
+            add(candidate)
+        for package in self.get_active_tracked_orders(order.strategy):
+            for child in getattr(package, "child_orders", None) or []:
+                add(child)
+        for candidate in additional_active_orders or []:
+            add(candidate)
+        return active_orders
+
+    def _reserved_quantity_already_filled(self, order) -> float:
+        """Contracts of this close that have already filled.
+
+        A package fill is stored on the parent. The original leg keeps an empty
+        ledger, so its own transactions would reserve the whole leg after a
+        partial fill. The parent's filled packages, times this leg's ratio,
+        are the contracts that have filled. The filled contracts the position
+        book still shows stay reserved through
+        ``_unreconciled_package_close_quantity``.
+        """
+        filled = 0.0
+        try:
+            filled = sum(
+                float(item.quantity)
+                for item in getattr(order, "transactions", [])
+                if getattr(item, "quantity", None) is not None
+            )
+        except (TypeError, ValueError):
+            filled = 0.0
+
+        parent_id = getattr(order, "parent_identifier", None)
+        if not parent_id:
+            return filled
+        parent = self.get_tracked_order(parent_id)
+        if parent is None or getattr(parent, "order_class", None) != Order.OrderClass.MULTILEG:
+            return filled
+        try:
+            parent_quantity = float(parent.quantity)
+            child_quantity = float(order.quantity)
+            parent_filled = sum(
+                float(item.quantity)
+                for item in getattr(parent, "transactions", [])
+                if getattr(item, "quantity", None) is not None
+            )
+        except (TypeError, ValueError):
+            return filled
+        if parent_quantity <= 0 or child_quantity < 0:
+            return filled
+        return max(filled, parent_filled * (child_quantity / parent_quantity))
 
     def _unreconciled_package_close_quantity(self, order) -> float:
         """Filled close contracts this order still reserves until the book drops."""
@@ -4364,7 +4454,12 @@ class Schwab(Broker):
                 order_builder = self._prepare_schwab_single_order_builder(order)
 
             if not order_builder:
-                logger.error(colored(f"Failed to create order builder for {order}", "red"))
+                # The builder already logged why (a fractional contract count, a
+                # strike that is not an OCC contract, a refused package leg). Close
+                # the order as an error so a caller waiting on it is released.
+                error_msg = f"Failed to create order builder for {order}"
+                logger.error(colored(error_msg, "red"))
+                self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
                 return None
 
             order_spec = self._build_order_spec_from_builder(
@@ -4917,10 +5012,21 @@ class Schwab(Broker):
 
     @staticmethod
     def _schwab_occ_symbol(underlying, expiration, option_type, strike):
-        """OCC symbol with the strike kept to the thousandth of a dollar."""
-        from decimal import Decimal, ROUND_HALF_UP
+        """OCC symbol with the strike kept to the thousandth of a dollar.
 
-        millis = (Decimal(str(strike)) * Decimal(1000)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        None when the strike is not a whole number of thousandths: 100.1254
+        would otherwise become the 100.125 contract. Float noise far below a
+        thousandth (100.12500000001) still maps to its contract.
+        """
+        from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+
+        try:
+            scaled = Decimal(str(strike)) * Decimal(1000)
+            millis = scaled.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        except (InvalidOperation, ValueError, TypeError):
+            return None
+        if abs(scaled - millis) > Decimal("0.000001"):
+            return None
         if millis <= 0 or millis > 99_999_999:
             return None
         return "{:<6}{}{}{:08d}".format(
@@ -5626,6 +5732,15 @@ class Schwab(Broker):
             logger.error(colored("Order identifier is not set, unable to modify order. Did you remember to submit it?", "red"))
             return False
 
+        # A throttled replace sets a cooldown from Retry-After. Until it ends,
+        # nothing is read or sent; the caller keeps its price and retries later.
+        if not self._schwab_request_allowed("order_replace"):
+            logger.warning(colored(
+                f"Schwab replace for {order.identifier} is waiting out a rate limit; nothing was sent.",
+                "yellow",
+            ))
+            return False
+
         try:
             # Get the original order first to use as base for modification
             original_order_data = self._pull_broker_order(order.identifier) # Already checks hash_value
@@ -5646,6 +5761,10 @@ class Schwab(Broker):
             # Replace the order
             response = self.client.replace_order(self.hash_value, order.identifier, new_order_spec)
             status_code = getattr(response, "status_code", None)
+            if status_code is not None and int(status_code) == 429:
+                self._record_schwab_rate_limit(response, "order_replace")
+            elif status_code is not None and int(status_code) < 400:
+                self._clear_schwab_rate_limit("order_replace")
             if status_code is not None and int(status_code) >= 400:
                 logger.error(colored(
                     f"Schwab rejected the replacement for {order.identifier}: HTTP {status_code}",

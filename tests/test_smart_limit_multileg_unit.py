@@ -175,6 +175,18 @@ def test_explicit_one_leg_package_is_preserved(mocker):
     assert broker.submit_orders.call_args.kwargs["is_multileg"] is True
 
 
+def test_one_option_list_keeps_the_package_default_on_other_brokers(mocker):
+    """Only Schwab needs two legs for a package; other brokers keep their old default."""
+    broker = _BrokerStub(name="tradier")
+    broker.submit_orders = mocker.Mock(return_value="ok")
+    strategy = _MinimalStrategy(broker)
+    leg = _leg("unit", _option("SPY", 500), Order.OrderSide.BUY_TO_OPEN)
+
+    strategy.submit_order([leg])
+
+    assert broker.submit_orders.call_args.kwargs["is_multileg"] is True
+
+
 def test_multileg_limit_weights_unequal_leg_ratios(mocker):
     # Buy 1 at 1.00 and sell 2 at 0.80 is a 0.60 credit. An unweighted sum is a debit.
     broker = _BrokerStub(name="Schwab")
@@ -215,6 +227,27 @@ def test_strategy_modify_keeps_the_price_when_the_broker_refuses(mocker):
     strategy.modify_order(order, limit_price=0.10)
 
     assert order.limit_price == 0.0
+
+
+def test_strategy_modify_on_other_brokers_keeps_the_existing_behavior(mocker):
+    """The refusal guard is Schwab's; another broker's False result is handled as before."""
+    broker = _BrokerStub(name="projectx")
+    broker.modify_order = mocker.Mock(return_value=False)
+    strategy = _MinimalStrategy(broker)
+    order = Order(
+        "unit",
+        asset=Asset("SPY"),
+        quantity=1,
+        side=Order.OrderSide.BUY,
+        limit_price=0.0,
+        order_type=Order.OrderType.LIMIT,
+        identifier="single",
+        status=Order.OrderStatus.OPEN,
+    )
+
+    strategy.modify_order(order, limit_price=0.10)
+
+    assert order.limit_price == 0.10
 
 
 def test_smart_limit_retries_the_same_step_when_modify_returns_false(mocker):

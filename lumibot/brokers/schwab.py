@@ -303,6 +303,8 @@ class Schwab(Broker):
     NAME = "Schwab"
     # Schwab's default maxResults for the order-history endpoint.
     SCHWAB_ORDER_HISTORY_PAGE = 3000
+    # How many times a full history page is split into smaller windows (up to 2**n reads).
+    SCHWAB_ORDER_HISTORY_SPLITS = 4
     CASH_FUNDING_TRANSACTION_TYPES = {
         "ACH_RECEIPT", "ACH_DISBURSEMENT", "CASH_RECEIPT",
         "CASH_DISBURSEMENT", "WIRE_IN", "WIRE_OUT", "ELECTRONIC_FUND",
@@ -1611,11 +1613,12 @@ class Schwab(Broker):
         This method retrieves orders from the past 7 days by default to limit the
         volume of data returned while still capturing relevant recent orders.
         Schwab rejects a start more than 60 days back, so the start is capped at 59.
+        A full page is split into smaller windows (``_pull_schwab_order_window``).
         A failed pull returns an empty list and leaves
         ``_last_orders_refresh_degraded`` set, so callers can tell it from a
         reliable empty history.
         """
-        self._last_orders_refresh_degraded = True
+        self._set_orders_refresh_degraded(True)
         # Add check for authorization error first
         if not self._broker_fully_ready:
             logger.warning(colored("[Schwab] Broker not fully ready. Cannot pull all orders.", "yellow"))
@@ -1635,49 +1638,100 @@ class Schwab(Broker):
         try:
             from pytz import timezone
 
-            seek_start = datetime.now(timezone('UTC')) - timedelta(days=min(max(int(days), 1), 59))
-
-            response = self.client.get_orders_for_account(
-                self.hash_value,
-                from_entered_datetime=seek_start
-            )
-
-            if response.status_code == 429:
-                self._record_schwab_rate_limit(response, "order_history")
-                return []
-            if response.status_code != 200:
-                logger.error(colored(f"Error fetching orders from Schwab: {response.status_code}", "red"))
+            seek_end = datetime.now(timezone('UTC'))
+            seek_start = seek_end - timedelta(days=min(max(int(days), 1), 59))
+            schwab_orders = self._pull_schwab_order_window(seek_start, seek_end, days)
+            if schwab_orders is None:
                 return []
 
-            schwab_orders = response.json()
-            if not isinstance(schwab_orders, list):
-                logger.error(colored("Schwab order history was not a list.", "red"))
-                return []
-
-            if len(schwab_orders) >= self.SCHWAB_ORDER_HISTORY_PAGE:
-                # Schwab's default page is 3000 orders. A full page may have cut off
-                # the oldest ones, which can include a working GTC order. The poll
-                # repeats every 30 seconds, so this is a warning once per window.
-                message = (
-                    f"Schwab returned {len(schwab_orders)} orders for the last {days} days, its page "
-                    "limit; older orders may be missing from this history."
-                )
-                warned = getattr(self, "_schwab_history_page_warned", None)
-                if warned is None:
-                    warned = self._schwab_history_page_warned = set()
-                if days in warned:
-                    logger.debug(message)
-                else:
-                    warned.add(days)
-                    logger.warning(colored(message, "yellow"))
             self._clear_schwab_rate_limit("order_history")
-            self._last_orders_refresh_degraded = False
+            self._set_orders_refresh_degraded(False)
             return schwab_orders
 
         except Exception as e:
             logger.error(colored(f"Error pulling orders from Schwab: {str(e)}", "red"))
             logger.error(_format_exc())
             return []
+
+    def _set_orders_refresh_degraded(self, degraded: bool) -> None:
+        """Remember whether the order pull on this thread was reliable.
+
+        The poll and ``sync_orders`` can pull at the same time. Each reads its
+        own pull's result through ``_orders_refresh_degraded``, so another
+        thread's success cannot make a failed empty pull look like history.
+        """
+        degraded = bool(degraded)
+        self._last_orders_refresh_degraded = degraded
+        # dict.setdefault is atomic, so two threads share one thread-local holder.
+        self.__dict__.setdefault("_schwab_order_pull_local", threading.local()).degraded = degraded
+
+    def _orders_refresh_degraded(self) -> bool:
+        """True when this thread's last order pull failed."""
+        local = getattr(self, "_schwab_order_pull_local", None)
+        if local is not None and hasattr(local, "degraded"):
+            return bool(local.degraded)
+        return bool(getattr(self, "_last_orders_refresh_degraded", False))
+
+    def _pull_schwab_order_window(self, start, end, days, depth: int = 0):
+        """Read the order history entered between ``start`` and ``end``.
+
+        Schwab returns at most one page (3000 orders by default). A full page may
+        have cut off the oldest orders, which can include a working GTC close, so
+        a full window is split in half and both halves are read, up to
+        ``SCHWAB_ORDER_HISTORY_SPLITS`` times. Orders are deduplicated by id.
+        Returns None when any read fails.
+        """
+        response = self.client.get_orders_for_account(
+            self.hash_value,
+            from_entered_datetime=start,
+            to_entered_datetime=end,
+        )
+        if response.status_code == 429:
+            self._record_schwab_rate_limit(response, "order_history")
+            return None
+        if response.status_code != 200:
+            logger.error(colored(f"Error fetching orders from Schwab: {response.status_code}", "red"))
+            return None
+        schwab_orders = response.json()
+        if not isinstance(schwab_orders, list):
+            logger.error(colored("Schwab order history was not a list.", "red"))
+            return None
+        if len(schwab_orders) < self.SCHWAB_ORDER_HISTORY_PAGE:
+            return schwab_orders
+
+        if depth < self.SCHWAB_ORDER_HISTORY_SPLITS and end - start > timedelta(minutes=1):
+            middle = start + (end - start) / 2
+            older = self._pull_schwab_order_window(start, middle, days, depth + 1)
+            if older is None:
+                return None
+            newer = self._pull_schwab_order_window(middle, end, days, depth + 1)
+            if newer is None:
+                return None
+            combined, seen = [], set()
+            for payload in newer + older:
+                key = payload.get("orderId") if isinstance(payload, dict) else None
+                if key is not None:
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                combined.append(payload)
+            return combined
+
+        # Still a full page after every split. The poll repeats every 30
+        # seconds, so this is a warning once per window.
+        message = (
+            f"Schwab returned {len(schwab_orders)} orders for part of the last {days} days, its page "
+            "limit; older orders may be missing from this history."
+        )
+        warned = getattr(self, "_schwab_history_page_warned", None)
+        if warned is None:
+            warned = self._schwab_history_page_warned = set()
+        if days in warned:
+            logger.debug(message)
+        else:
+            warned.add(days)
+            logger.warning(colored(message, "yellow"))
+        return schwab_orders
 
     def _pull_broker_order(self, identifier: str) -> dict:
         """
@@ -3293,6 +3347,22 @@ class Schwab(Broker):
             return False
         return super().order_is_foreign_to_local_strategy(order, local_strategy_name)
 
+    def order_belongs_to_local_strategy(self, order, local_strategy_name: str | None = None) -> bool:
+        """An order this strategy submitted here belongs to it, whatever its local tag says.
+
+        The positive check mirrors ``order_is_foreign_to_local_strategy``: a user
+        label in ``Order.tag`` must not make this strategy's own order look foreign.
+        Another strategy's order still needs the base check.
+        """
+        local_name = local_strategy_name or getattr(self, "_strategy_name", None) or ""
+        if (
+            local_name
+            and getattr(order, "_schwab_submitted_locally", False)
+            and self.strategy_tag_matches(getattr(order, "strategy", None), local_name)
+        ):
+            return True
+        return super().order_belongs_to_local_strategy(order, local_strategy_name)
+
     def _process_broker_synced_order(self, order):
         """Import a broker order from ``sync_orders`` under the recovery ownership gate.
 
@@ -3385,6 +3455,9 @@ class Schwab(Broker):
             if not tracked.transactions and self._schwab_execution_average(tracked, tracked) is None:
                 tracked.add_transaction(None, cumulative)
         self._seed_schwab_terminal_history(tracked)
+        # A filled or canceled package's legs are not broker orders. Close them
+        # here, or a wait on a leg blocks with no later observation to end it.
+        self._complete_schwab_package_children(tracked)
 
     def _schwab_recovered_working_order(self, observed_order) -> bool:
         """True when an untracked working order's tag belongs to this strategy.
@@ -3931,7 +4004,7 @@ class Schwab(Broker):
                 orders = broker._pull_broker_all_orders()
                 parsed_orders = []
                 unparsed_ids = []
-                if not getattr(broker, "_last_orders_refresh_degraded", False):
+                if not broker._orders_refresh_degraded():
                     for order_data in orders:
                         if not isinstance(order_data, dict):
                             continue
@@ -4057,6 +4130,15 @@ class Schwab(Broker):
         super().set_strategy_name(strategy_name)
         self._recover_schwab_working_orders()
 
+    def _set_initial_positions(self, strategy):
+        """Load the strategy's starting book by reconciling it, not appending.
+
+        Recovery can load the book first (``set_strategy_name`` before the
+        strategy is built). Appending the same holdings again would leave two
+        rows per contract, and ``get_position`` refuses duplicates.
+        """
+        self.sync_positions(strategy)
+
     def _recover_schwab_working_orders(self) -> None:
         """Track this strategy's tagged working orders from one history pull."""
         if not getattr(self, "_broker_fully_ready", False) or getattr(self, "schwab_authorization_error", False):
@@ -4069,7 +4151,7 @@ class Schwab(Broker):
             self.sync_positions(self._position_sync_strategy())
             # A GTC close can be older than the poll's 7 days; read as far as Schwab allows.
             payloads = self._pull_broker_all_orders(days=59)
-            if getattr(self, "_last_orders_refresh_degraded", False):
+            if self._orders_refresh_degraded():
                 return
             for payload in payloads or []:
                 if not isinstance(payload, dict):
@@ -5972,15 +6054,12 @@ class Schwab(Broker):
 
         strategy_name = strategy.name if strategy else None
         # Two syncs can overlap (startup recovery and the stream thread). Each
-        # takes a ticket before its pull, and a response is applied only when no
-        # later-started sync for this strategy was applied first, so an older
-        # quantity cannot overwrite a newer one.
+        # takes a ticket before its pull from one account-wide sequence, and a
+        # response is applied only when no later-started sync covering the same
+        # rows was applied first, so an older quantity cannot overwrite a newer one.
         with self._lock:
-            tickets = getattr(self, "_schwab_position_sync_tickets", None)
-            if tickets is None:
-                tickets = self._schwab_position_sync_tickets = {}
-            ticket = tickets.get(strategy_name, 0) + 1
-            tickets[strategy_name] = ticket
+            ticket = getattr(self, "_schwab_position_sync_ticket", 0) + 1
+            self._schwab_position_sync_ticket = ticket
             status = getattr(self, "_schwab_position_pull_local", None)
             if status is None:
                 status = self._schwab_position_pull_local = threading.local()
@@ -5999,10 +6078,19 @@ class Schwab(Broker):
             applied = getattr(self, "_schwab_position_sync_applied", None)
             if applied is None:
                 applied = self._schwab_position_sync_applied = {}
-            if ticket < applied.get(strategy_name, 0):
+            # An account-wide sync covers every strategy's rows, and a named sync
+            # covers rows an account-wide sync also writes.
+            if strategy_name is None:
+                newest = max(applied.values(), default=0)
+            else:
+                newest = max(applied.get(strategy_name, 0), applied.get(None, 0))
+            if ticket < newest:
                 logger.debug("[Schwab] Discarding a position snapshot older than the last one applied.")
                 return
-            applied[strategy_name] = ticket
+            # A pull that failed before returning any position is not a newer
+            # snapshot. It must not make an older successful pull look stale.
+            if new_positions or not degraded:
+                applied[strategy_name] = ticket
             self._apply_schwab_positions(strategy_name, new_positions, degraded)
 
     def _apply_schwab_positions(self, strategy_name, new_positions, degraded) -> None:

@@ -3318,6 +3318,9 @@ def test_a_locally_submitted_order_belongs_only_to_its_own_strategy(lifecycle):
 
     assert not broker.order_is_foreign_to_local_strategy(order, "strategy-a")
     assert broker.order_is_foreign_to_local_strategy(order, "strategy-b")
+    # The positive check agrees: strategy A owns it, strategy B does not.
+    assert broker.order_belongs_to_local_strategy(order, "strategy-a")
+    assert not broker.order_belongs_to_local_strategy(order, "strategy-b")
 
 
 def test_schwab_tag_is_the_strategy_even_with_a_custom_order_tag(lifecycle):
@@ -3395,8 +3398,8 @@ def test_imported_canceled_history_keeps_a_full_unpriced_fill(lifecycle):
     assert [(item.price, float(item.quantity)) for item in imported.transactions] == [(None, 1.0)]
     _priority_events(queues)
     broker._process_schwab_order_snapshot(broker._parse_broker_order(canceled, "fixture"))
-    assert _fill_events(broker, queues) == []
-    assert [name for name, _payload in _priority_events(queues)] == []
+    # One drain sees both a replayed fill and a replayed cancellation.
+    assert _priority_events(queues) == []
 
 
 def test_a_filled_order_is_corrected_when_the_average_arrives(lifecycle):
@@ -3508,11 +3511,87 @@ def test_an_older_position_snapshot_does_not_overwrite_a_newer_one(lifecycle):
     assert [float(row.quantity) for row in rows] == [1.0]
 
 
+def test_a_failed_newer_pull_does_not_discard_an_older_good_snapshot(lifecycle):
+    """A newer sync that fails before returning positions is not a newer book."""
+    _transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 3))
+
+    def failed_pull(_strategy):
+        broker._set_positions_refresh_degraded(True)
+        return []
+
+    def older_pull(strategy):
+        # A newer sync starts and fails while this older pull is in flight.
+        broker._pull_positions = failed_pull
+        broker.sync_positions(broker._position_sync_strategy())
+        broker._set_positions_refresh_degraded(False)
+        return [Position(strategy.name, held, 1)]
+
+    broker._pull_positions = older_pull
+    broker.sync_positions(broker._position_sync_strategy())
+
+    rows = [row for row in broker._filled_positions.get_list() if row.asset == held]
+    assert [float(row.quantity) for row in rows] == [1.0]
+
+
+def test_an_older_account_wide_snapshot_does_not_overwrite_a_named_one(lifecycle):
+    """Account-wide and named syncs write the same rows, so they share one order."""
+    _transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 3))
+    broker._last_positions_refresh_degraded = False
+
+    def older_account_wide_pull(_strategy):
+        # A named sync starts and finishes while this account-wide pull is in flight.
+        broker._pull_positions = lambda named: [Position(named.name, held, 1)]
+        broker.sync_positions(broker._position_sync_strategy())
+        return [Position("fixture", held, 3)]
+
+    broker._pull_positions = older_account_wide_pull
+    broker.sync_positions(None)
+
+    rows = [row for row in broker._filled_positions.get_list() if row.asset == held]
+    assert [float(row.quantity) for row in rows] == [1.0]
+
+
+def test_initial_positions_after_recovery_do_not_duplicate_the_book(lifecycle):
+    """Recovery can load the book before the strategy's constructor loads it again."""
+    _transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._last_positions_refresh_degraded = False
+    broker._pull_positions = lambda strategy: [Position(strategy.name, held, 2)]
+
+    broker.sync_positions(broker._position_sync_strategy())
+    broker._set_initial_positions(broker._position_sync_strategy())
+
+    rows = [row for row in broker._filled_positions.get_list() if row.asset == held]
+    assert [float(row.quantity) for row in rows] == [2.0]
+
+
+def test_imported_terminal_package_history_closes_its_legs(lifecycle):
+    """A wait on a leg of a filled package from before startup returns."""
+    transport, broker, _queues = lifecycle
+    filled = _quantity_close_snapshot(
+        status="FILLED", tag="fixture", quantity=2, filledQuantity=2, averagePrice=1.00, price=1.20,
+    )
+    transport.queue_history_response([filled])
+
+    broker.sync_orders(broker._position_sync_strategy())
+
+    imported = broker.get_tracked_order("spread-recovered")
+    assert imported is not None
+    assert imported.child_orders
+    assert all(leg._closed_event.is_set() for leg in imported.child_orders)
+    assert imported.is_filled()
+
+
 def test_a_full_order_history_page_is_reported(lifecycle, mocker):
-    """A response at Schwab's page limit may have dropped the oldest orders, so it is logged."""
+    """A page that is still full after every split may have dropped orders, so it is logged."""
     transport, broker, _queues = lifecycle
     log = mocker.patch("lumibot.brokers.schwab.logger")
     broker.SCHWAB_ORDER_HISTORY_PAGE = 2
+    broker.SCHWAB_ORDER_HISTORY_SPLITS = 0
     transport.queue_history_response([
         _working_single_snapshot(orderId="page-1"),
         _working_single_snapshot(orderId="page-2"),
@@ -3561,11 +3640,59 @@ def test_imported_canceled_history_does_not_replay_its_cancel(lifecycle):
     assert [name for name, _payload in _priority_events(queues)] == []
 
 
+def test_a_full_order_history_page_is_split_into_complete_windows(lifecycle, mocker):
+    """A full page may have cut off a working GTC close, so both halves are read."""
+    transport, broker, _queues = lifecycle
+    log = mocker.patch("lumibot.brokers.schwab.logger")
+    broker.SCHWAB_ORDER_HISTORY_PAGE = 4
+    broker.SCHWAB_ORDER_HISTORY_SPLITS = 1
+
+    def page(*ids):
+        return [_working_single_snapshot(orderId=identifier) for identifier in ids]
+
+    transport.queue_history_response(page("e", "d", "c", "b"))  # full: "a" was cut off
+    transport.queue_history_response(page("c", "b", "a"))  # older half
+    transport.queue_history_response(page("e", "d", "c"))  # newer half; "c" is on the boundary
+
+    pulled = broker._pull_broker_all_orders(days=59)
+
+    assert [payload["orderId"] for payload in pulled] == ["e", "d", "c", "b", "a"]
+    assert broker._last_orders_refresh_degraded is False
+    assert not any("page limit" in str(call.args[0]) for call in log.warning.call_args_list)
+
+
+def test_a_failed_order_pull_stays_failed_when_another_pull_succeeds(lifecycle):
+    """A poll's failed empty pull is not read as history because another thread's pull worked."""
+    import threading
+
+    _transport, broker, _queues = lifecycle
+    calls = []
+
+    def window(_start, _end, _days, depth=0):
+        calls.append(threading.current_thread().name)
+        if len(calls) == 1:
+            # Another thread's pull succeeds while this one is in flight, then this one fails.
+            other = threading.Thread(target=broker._pull_broker_all_orders, name="other-sync")
+            other.start()
+            other.join()
+            return None
+        return []
+
+    broker._pull_schwab_order_window = window
+
+    assert broker._pull_broker_all_orders() == []
+
+    assert calls[1] == "other-sync"
+    assert broker._last_orders_refresh_degraded is False
+    assert broker._orders_refresh_degraded() is True
+
+
 def test_a_full_order_history_page_warns_once(lifecycle, mocker):
     """The poll repeats every 30 seconds; the page warning is logged once per window."""
     transport, broker, _queues = lifecycle
     log = mocker.patch("lumibot.brokers.schwab.logger")
     broker.SCHWAB_ORDER_HISTORY_PAGE = 1
+    broker.SCHWAB_ORDER_HISTORY_SPLITS = 0
     for _ in range(3):
         transport.queue_history_response([_working_single_snapshot(orderId="page-1")])
         broker._pull_broker_all_orders()

@@ -2064,9 +2064,11 @@ class Strategy(_Strategy):
         if isinstance(order, list):
             # Submit multiple orders
             # Validate orders
-            # One option is a single order. Two or more options are one package
-            # unless the caller says otherwise. A stock in the list is never a package.
-            default_multileg = len(order) >= 2
+            # A Schwab package needs two to four legs, so one option in a list is a
+            # single order there unless the caller says otherwise. Other brokers keep
+            # their existing default. A stock in the list is never a package.
+            is_schwab = str(getattr(self.broker, "name", "")).lower() == "schwab"
+            default_multileg = len(order) >= 2 if is_schwab else True
 
             for o in order:
                 if o is None:
@@ -2716,9 +2718,10 @@ class Strategy(_Strategy):
         reference = self._journal_order_action(order, operation="modify", reason=reason, evidence=evidence,
                                                changes=changes)
         result = self._perform_journaled_order_action(reference, lambda: self.broker.modify_order(order, **changes))
-        # A broker refusal (False) leaves the live order alone. Copying the
+        # A Schwab refusal (False) leaves the live order alone. Copying the
         # requested price locally would make the next equal step look done.
-        if result is False:
+        # Other brokers keep their existing behavior.
+        if result is False and str(getattr(self.broker, "name", "")).lower() == "schwab":
             return result
         if limit_price is not None:
             order.limit_price = limit_price

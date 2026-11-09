@@ -1284,23 +1284,27 @@ def test_schwab_complete_position_sync_removes_missing_tracked_positions():
 
 def test_a_successful_pull_ignores_another_syncs_degraded_flag():
     """The book from this pull is applied even when another sync sets the shared flag."""
-    broker = _broker_with_positions([])
+    broker = _broker_with_positions([_position("EQUITY", "SPY", quantity=3)])
     broker._lock = RLock()
     broker._filled_positions = SafeList(broker._lock)
     broker._tracked_positions_cache = {}
     broker.quote_assets = []
     stale_asset = Asset("OLD", asset_type=Asset.AssetType.STOCK)
     broker._filled_positions.append(Position("unit-test", stale_asset, 5))
-    kept = Position("unit-test", Asset("SPY", asset_type=Asset.AssetType.STOCK), 3)
+    client = broker.client
 
-    def pull(_strategy):
-        broker._last_positions_refresh_degraded = True
-        status = broker._schwab_position_pull_local
-        status.degraded = False
-        status.ready = True
-        return [kept]
+    class _OverlappingClient:
+        """Another thread's pull fails while this thread's pull is in flight."""
 
-    broker._pull_positions = pull
+        Account = client.Account
+
+        def get_account(self, hash_value, fields):
+            other = Thread(target=broker._set_positions_refresh_degraded, args=(True,))
+            other.start()
+            other.join()
+            return client.get_account(hash_value, fields)
+
+    broker.client = _OverlappingClient()
     broker.sync_positions(SimpleNamespace(name="unit-test"))
 
     symbols = {position.asset.symbol for position in broker._filled_positions.get_list()}

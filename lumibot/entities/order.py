@@ -1235,52 +1235,75 @@ class Order:
 
     def cash_pending(self, strategy):
         # Returns the impact to cash of any unfilled shares.
+        if self.order_class == self.OrderClass.MULTILEG and self.child_orders:
+            return self._package_cash_pending(strategy)
+        quantity_unfilled = self.quantity - sum([transaction.quantity for transaction in self.transactions])
+        if quantity_unfilled == 0:
+            return 0
+        elif len(self.transactions) == 0:
+            cash_value = self.quantity * strategy.get_last_price(self.asset)
+        else:
+            cash_value = quantity_unfilled * self.transactions[-1].price
+        if self.side == SELL:
+            return cash_value
+        else:
+            return -cash_value
+
+    def _package_cash_pending(self, strategy):
+        """Estimate the cash a multi-leg package's unfilled quantity will move.
+
+        A package asset prices as its underlying, a broker can confirm a fill it
+        does not price, and a BUY parent can be sent as a credit, so the single-order
+        estimate does not apply. Returns None when no leg quote or limit is known.
+        """
         # Quantities and prices can mix Decimal and float, so the estimate is a float.
         filled = sum(float(transaction.quantity) for transaction in self.transactions)
-        # A broker can confirm a fill it does not price; the importer then records no
-        # transaction. That quantity is filled and must not be estimated again.
-        confirmed_quantities = (
+        # A confirmed but unpriced fill records no transaction. That quantity is
+        # filled and must not be estimated again.
+        for confirmed in (
             getattr(self, "filled_quantity", None),
             getattr(self, "_broker_synced_filled_quantity", None),
-        )
-        for confirmed in confirmed_quantities:
+        ):
             try:
                 filled = max(filled, float(confirmed or 0))
             except (TypeError, ValueError):
                 pass
         quantity_unfilled = float(self.quantity) - filled
-        if quantity_unfilled == 0:
+        if quantity_unfilled <= 0:
             return 0
-        package_legs = self.child_orders if self.order_class == self.OrderClass.MULTILEG else []
-        # The latest fill can be unpriced. That is not a zero-cash remainder,
-        # and it is not the limit. Estimate it the same way as an empty ledger.
-        price = self.transactions[-1].price if self.transactions else None
-        if price is None and package_legs:
-            # A package asset prices as its underlying. Estimate from the legs:
-            # each leg's share of one package, sells adding cash and buys spending it.
-            package_cash = 0.0
-            for leg in package_legs:
-                leg_price = strategy.get_last_price(leg.asset)
-                if leg_price is None:
-                    return 0
-                leg_cash = float(leg_price) * float(leg.quantity) / float(self.quantity)
-                leg_cash *= float(getattr(leg.asset, "multiplier", 1) or 1)
-                package_cash += leg_cash if leg.is_sell_order() else -leg_cash
-            return quantity_unfilled * package_cash
-        if price is None:
-            price = strategy.get_last_price(self.asset)
-        if price is None:
-            return 0
-        # Option premiums are per share. A package price is per share of its legs.
-        multiplier_asset = package_legs[0].asset if package_legs else self.asset
-        multiplier = float(getattr(multiplier_asset, "multiplier", 1) or 1)
-        cash_value = quantity_unfilled * float(price) * multiplier
-        # A package's direction is the effect it was sent with: a BUY parent with a
+        multiplier = float(getattr(self.child_orders[0].asset, "multiplier", 1) or 1)
+        # The direction is the effect the package was sent with: a BUY parent with a
         # negative limit goes out as a credit, and its positive fill price is proceeds.
-        effect = getattr(self, "_multileg_effect", None) if package_legs else None
-        if effect in ("credit", "debit"):
-            return cash_value if effect == "credit" else -cash_value
-        return cash_value if self.is_sell_order() else -cash_value
+        effect = getattr(self, "_multileg_effect", None)
+
+        def signed(cash_value):
+            if effect in ("credit", "debit"):
+                return abs(cash_value) if effect == "credit" else -abs(cash_value)
+            return cash_value if self.is_sell_order() else -cash_value
+
+        # The latest fill can be unpriced. That is not a zero-cash remainder.
+        price = self.transactions[-1].price if self.transactions else None
+        if price is not None:
+            return signed(quantity_unfilled * float(price) * multiplier)
+
+        # Estimate from the legs: each leg's share of one package, sells adding
+        # cash and buys spending it.
+        package_cash = 0.0
+        for leg in self.child_orders:
+            leg_price = strategy.get_last_price(leg.asset)
+            if leg_price is None:
+                break
+            leg_cash = float(leg_price) * float(leg.quantity) / float(self.quantity)
+            leg_cash *= float(getattr(leg.asset, "multiplier", 1) or 1)
+            package_cash += leg_cash if leg.is_sell_order() else -leg_cash
+        else:
+            return quantity_unfilled * package_cash
+
+        # A missing leg quote is not zero cash. Fall back to the package limit,
+        # and report the estimate as unavailable when there is none.
+        if self.limit_price is None:
+            return None
+        return signed(quantity_unfilled * float(self.limit_price) * multiplier)
 
     def get_fill_price(self):
         """

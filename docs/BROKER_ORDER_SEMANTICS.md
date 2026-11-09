@@ -267,6 +267,9 @@ order (`lumibot/brokers/schwab.py`, `_prepare_multileg_option_order_builder`).
 Wire contract:
 - 2 to 4 option legs, all on one underlying. Stock legs, more legs, or mixed
   underlyings are rejected before any HTTP request; no leg is sent alone.
+- `submit_order([option])` with one option and no `is_multileg` is a single
+  order on Schwab (`Strategy.submit_order`); other brokers keep their default.
+  A Schwab `modify_order` that returns `False` leaves the local limit unchanged.
 - `orderType` is `NET_CREDIT`, `NET_DEBIT` or `NET_ZERO`, with a positive price
   (`NET_ZERO` is `0.00`). Market packages, other order types, and durations
   other than `day`/`gtc` are rejected. The type comes from the
@@ -324,11 +327,17 @@ Lifecycle:
   That pull reads 59 days of history (the poll reads 7) because a working GTC
   close can be older than a week; Schwab rejects a start more than 60 days back,
   so a working order older than that cannot be recovered from history. A
-  response at Schwab's default page (3000 orders) is logged, because the
-  oldest orders may be cut off; it is a warning once per history window and
-  debug afterwards, because the poll repeats every 30 seconds. Overlapping position syncs (startup recovery
-  and the stream thread) apply in the order they started; an older snapshot
-  that finishes last is discarded. A
+  response at Schwab's default page (3000 orders) may have cut off the oldest
+  orders, so that window is split in half and both halves are read (up to
+  `SCHWAB_ORDER_HISTORY_SPLITS` times), deduplicated by order id. A page still
+  full after every split is logged: a warning once per history window and
+  debug afterwards, because the poll repeats every 30 seconds. An imported
+  filled or canceled package also closes its legs. Overlapping position syncs
+  (startup recovery, the constructor's initial load and the stream thread)
+  reconcile into one book and apply in the order they started, in one sequence
+  for account-wide and named syncs; an older snapshot that finishes last is
+  discarded, and a pull that failed before returning any position does not
+  count as newer. A
   working order with fills (WORKING with a filled quantity, or
   PARTIALLY_FILLED) is recovered with that history, as partially filled and
   without a callback; a later WORKING snapshot does not move it back to new.

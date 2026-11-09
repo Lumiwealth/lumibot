@@ -5154,8 +5154,20 @@ class Schwab(Broker):
         if order.side in (Order.OrderSide.BUY, Order.OrderSide.SELL):
             self.resolve_option_order_intent(order)
         try:
-            # Get order parameters
-            quantity = int(order.quantity)
+            # Get order parameters. Options trade in whole contracts; int() would
+            # silently send 1 for a requested 1.5.
+            requested_quantity = float(order.quantity)
+            if (
+                not math.isfinite(requested_quantity)
+                or requested_quantity <= 0
+                or requested_quantity != int(requested_quantity)
+            ):
+                logger.error(colored(
+                    f"Schwab option orders need a whole number of contracts; got {order.quantity}.",
+                    "red",
+                ))
+                return None
+            quantity = int(requested_quantity)
             limit_price = self._format_schwab_single_price(order.limit_price)
 
             # Construct the option symbol in Schwab format
@@ -5165,16 +5177,16 @@ class Schwab(Broker):
             strike_price = order.asset.strike
             option_type = 'C' if order.asset.right == 'CALL' else 'P'
 
-            # Format strike price as string with proper decimal format
-            strike_price_str = f"{strike_price:.2f}"
-
-            # Create option symbol using Schwab's OptionSymbol builder
-            option_symbol = OptionSymbol(
-                underlying_symbol,
-                expiration_date,
-                option_type,
-                strike_price_str
-            ).build()
+            # Write the OCC thousandths directly, as the package builder does.
+            # Formatting the strike to two decimals sent 100.125 as 100.12, a
+            # different or nonexistent contract. OptionSymbol stays a parameter so
+            # a missing schwab-py still fails before this point.
+            option_symbol = self._schwab_occ_symbol(
+                underlying_symbol, expiration_date, option_type, float(strike_price)
+            )
+            if option_symbol is None:
+                logger.error(colored(f"Schwab cannot build an option symbol for strike {strike_price}.", "red"))
+                return None
 
             logger.info(colored(f"Created option symbol: {option_symbol}", "cyan"))
 
@@ -6115,13 +6127,18 @@ class Schwab(Broker):
             ))
         else:
             # Remove positions that no longer exist only after a complete broker parse.
+            # The quote asset (cash) is stored by the balance refresh, not by this
+            # response, so it is never pruned here; the base sync keeps it too.
+            quote_assets = getattr(self, "quote_assets", None) or ()
             for key, position in tracked_dict.items():
-                if key not in new_dict:
+                if key not in new_dict and position.asset not in quote_assets:
                     self._schwab_remove_filled_position(position)
             # A named sync also drops an unlabeled row whose holding is gone.
             # Other strategies stay. An account-wide sync does not relabel anyone.
             if strategy_name:
                 for position in list(self._filled_positions.get_list()):
+                    if position.asset in quote_assets:
+                        continue
                     if not self._schwab_position_is_unlabeled(position, strategy_name):
                         continue
                     if self._schwab_position_key(position) not in new_dict:

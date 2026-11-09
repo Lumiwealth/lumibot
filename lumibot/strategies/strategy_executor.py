@@ -1021,12 +1021,17 @@ class StrategyExecutor(Thread):
                         return
                     children.append(self._smart_limit_replacement_order(child, expected))
                 intent["submission_attempted"] = True
+                submit_kwargs = {}
+                if self._smart_limit_broker_is_schwab():
+                    # Schwab sends the package with the duration it is given, so a
+                    # GTC package's replacement must not fall back to DAY.
+                    submit_kwargs["duration"] = getattr(order, "time_in_force", None) or "day"
                 submitted = self.broker.submit_orders(
                     children,
                     is_multileg=True,
                     order_type=intent["order_type"],
                     price=intent["price"],
-                    duration=getattr(order, "time_in_force", None) or "day",
+                    **submit_kwargs,
                 )
                 replacement = submitted[0] if isinstance(submitted, list) and submitted else submitted
             else:
@@ -1054,8 +1059,15 @@ class StrategyExecutor(Thread):
         with self._smart_limit_lock:
             self._process_smart_limit_orders_locked()
 
+    def _smart_limit_broker_is_schwab(self) -> bool:
+        """True for Schwab, whose refused replace is retried at the same step."""
+        return str(getattr(self.broker, "name", "")).lower() == "schwab"
+
     def _process_smart_limit_orders_locked(self):
         """Reprice active SMART_LIMIT orders while the executor lock is held."""
+        # Schwab returns False when it sent no replace or could not confirm it.
+        # Only then is the step kept for a retry; other brokers keep their behavior.
+        retry_refused_step = self._smart_limit_broker_is_schwab()
 
         # SMART_LIMIT should only operate on active orders. Scanning the full tracked-order
         # history (which can include large closed/filled histories) in a tight background loop
@@ -1154,7 +1166,8 @@ class StrategyExecutor(Thread):
                             color="yellow",
                         )
                         order._smart_limit_missing_quote_logged = True
-                    state["step_index"] = previous_step_index
+                    if retry_refused_step:
+                        state["step_index"] = previous_step_index
                     continue
 
                 net_best, net_fastest = computed
@@ -1190,13 +1203,14 @@ class StrategyExecutor(Thread):
                             modified = self.broker.modify_order(order, limit_price=float(target_price))
                             # False means the broker sent nothing or could not confirm
                             # the replace. Keep the last price and retry this step.
-                            if modified is False:
+                            if modified is False and retry_refused_step:
                                 state["step_index"] = previous_step_index
                                 continue
                             order.limit_price = float(target_price)
                             continue
                     except Exception:
-                        state["step_index"] = previous_step_index
+                        if retry_refused_step:
+                            state["step_index"] = previous_step_index
                         should_replace = True
 
                 if should_replace:
@@ -1237,7 +1251,7 @@ class StrategyExecutor(Thread):
                 # False means the broker sent nothing or could not confirm the
                 # replace. Keep the last price and retry this step. None is a
                 # broker that does not report the outcome.
-                if modified is False:
+                if modified is False and retry_refused_step:
                     state["step_index"] = previous_step_index
                     continue
                 if order.is_active():

@@ -1275,6 +1275,21 @@ class Order:
         # The direction is the effect the package was sent with: a BUY parent with a
         # negative limit goes out as a credit, and its positive fill price is proceeds.
         effect = getattr(self, "_multileg_effect", None)
+        if effect is None and self.limit_price is not None:
+            # A restored order can lack the private effect. Rebuild it the way the
+            # package was sent: zero is even, and a limit whose sign agrees with
+            # the side (SELL positive, BUY negative) is a credit.
+            try:
+                limit = float(self.limit_price)
+            except (TypeError, ValueError):
+                limit = None
+            if limit == 0:
+                effect = "even"
+            elif limit is not None:
+                effect = "credit" if (limit > 0) == self.is_sell_order() else "debit"
+        if effect == "even":
+            # A NET_ZERO package executes at no net cash, whatever the leg marks say.
+            return 0
 
         def signed(cash_value):
             if effect in ("credit", "debit"):

@@ -105,7 +105,9 @@ def test_put_credit_spread_builds_vertical_net_credit_and_submits_once():
     assert all(leg["instrument"]["assetType"] == "OPTION" for leg in spec["orderLegCollection"])
     assert [leg["quantity"] for leg in spec["orderLegCollection"]] == [1, 1]
 
-    order.tag = "unit test"
+    # A custom tag that does not normalize to the strategy name: Schwab still
+    # gets the strategy, so recovery after a restart can find the package.
+    order.tag = "entry-42"
     submitted = broker._submit_order(order)
 
     assert submitted is order
@@ -3584,6 +3586,21 @@ def test_imported_terminal_package_history_closes_its_legs(lifecycle):
     assert imported.child_orders
     assert all(leg._closed_event.is_set() for leg in imported.child_orders)
     assert imported.is_filled()
+
+
+def test_initial_positions_keep_the_cash_position_from_the_balance_refresh(lifecycle):
+    """Schwab's position response omits cash; the starting sync must not prune it."""
+    _transport, broker, _queues = lifecycle
+    usd = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    broker.quote_assets = {usd}
+    broker._filled_positions.append(Position("fixture", usd, 1000))
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._last_positions_refresh_degraded = False
+    broker._pull_positions = lambda strategy: [Position(strategy.name, held, 2)]
+
+    broker._set_initial_positions(broker._position_sync_strategy())
+
+    assert [float(row.quantity) for row in broker._filled_positions.get_list() if row.asset == usd] == [1000.0]
 
 
 def test_a_full_order_history_page_is_reported(lifecycle, mocker):

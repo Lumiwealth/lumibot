@@ -96,3 +96,24 @@ def test_submit_tag_strips_before_the_shared_normalization():
     blank.tag = "   "
     assert broker._submit_order(blank) is blank
     assert broker.client.place_calls[1]["tag"] == "fixture"
+
+
+def test_single_option_keeps_the_strike_to_the_thousandth():
+    """A 100.125 strike is that contract, not 100.12."""
+    broker = _broker()
+    order = Order("unit-test", _option(strike=100.125, right="CALL"), 1, Order.OrderSide.BUY_TO_OPEN, limit_price=1.15)
+
+    broker._submit_orders([order], is_multileg=False)
+
+    symbol = broker.client.place_calls[0]["orderLegCollection"][0]["instrument"]["symbol"]
+    assert symbol == "SPY   260619C00100125"
+
+
+def test_single_option_refuses_a_fractional_contract_quantity():
+    """1.5 contracts is not sent as 1."""
+    broker = _broker()
+    order = Order("unit-test", _option(), 1.5, Order.OrderSide.BUY_TO_OPEN, limit_price=1.15)
+
+    broker._submit_orders([order], is_multileg=False)
+
+    assert broker.client.place_calls == []

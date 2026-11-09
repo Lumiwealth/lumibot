@@ -493,6 +493,36 @@ class TestCashPending:
 
         assert package.cash_pending(self._strategy(None)) == pytest.approx(130.0)
 
+    def test_restored_package_without_its_effect_rebuilds_it_from_the_limit(self):
+        """A serialized BUY credit package has no private effect; its negative limit says credit."""
+        legs = [
+            Order("Example", self._option(500), 1, Order.OrderSide.SELL_TO_OPEN),
+            Order("Example", self._option(490), 1, Order.OrderSide.BUY_TO_OPEN),
+        ]
+        package = Order(
+            "Example", Asset("SPY", asset_type=Asset.AssetType.MULTILEG), 2, Order.OrderSide.BUY,
+            limit_price=-1.25, order_class=Order.OrderClass.MULTILEG, child_orders=legs,
+        )
+        restored = Order.from_dict(package.to_dict())
+        assert getattr(restored, "_multileg_effect", None) is None
+        restored.add_transaction(1.30, 1)
+
+        assert restored.cash_pending(self._strategy(None)) == pytest.approx(130.0)
+
+    def test_even_package_has_no_pending_cash_whatever_the_leg_marks(self):
+        """A NET_ZERO package cannot execute at a debit, so leg marks that imply one are ignored."""
+        legs = [
+            Order("Example", self._option(500), 1, Order.OrderSide.SELL_TO_OPEN),
+            Order("Example", self._option(490), 1, Order.OrderSide.BUY_TO_OPEN),
+        ]
+        package = Order(
+            "Example", Asset("SPY", asset_type=Asset.AssetType.MULTILEG), 1, Order.OrderSide.BUY,
+            limit_price=0.0, order_class=Order.OrderClass.MULTILEG, child_orders=legs,
+        )
+        package._multileg_effect = "even"
+
+        assert package.cash_pending(self._strategy({500: 1.00, 490: 1.50})) == 0
+
     def test_ratio_package_weights_each_leg_by_its_quantity(self):
         """Buy 2 of the 500 call and sell 4 of the 510: one package is 1 bought and 2 sold."""
         legs = [

@@ -3137,3 +3137,126 @@ def test_a_fill_priced_at_the_limit_is_replaced_by_the_later_average(lifecycle):
     ]
     assert fills == [(10.0, 1), (pytest.approx(9.50), 1)]
     assert tracked.get_fill_price() == pytest.approx(9.50)
+
+
+def _recovered_single_close_of(quantity, **fields):
+    """A tagged single-leg close for ``quantity`` contracts."""
+    snapshot = _working_single_snapshot(tag="fixture", quantity=quantity, **fields)
+    snapshot["orderLegCollection"][0]["instruction"] = "SELL_TO_CLOSE"
+    snapshot["orderLegCollection"][0]["quantity"] = quantity
+    return snapshot
+
+
+def _fill_events(broker, queues):
+    return [
+        (payload["price"], payload["quantity"]) for name, payload in _priority_events(queues)
+        if name in {broker.FILLED_ORDER, broker.PARTIALLY_FILLED_ORDER}
+    ]
+
+
+def test_the_callback_sees_the_new_average(lifecycle):
+    """The order's average is updated before the strategy hears about the fill."""
+    _transport, broker, _queues = lifecycle
+    held = _option_leg(500, "CALL", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(
+        _recovered_single_close(filledQuantity=1, averagePrice=1.10), "fixture",
+    ))
+    seen = []
+    publish = broker._process_trade_event
+
+    def recording(order, event, **kwargs):
+        seen.append(order.avg_fill_price)
+        return publish(order, event, **kwargs)
+
+    broker._process_trade_event = recording
+
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(
+        _recovered_single_close(status="FILLED", filledQuantity=2, averagePrice=1.20), "fixture",
+    ))
+
+    assert seen == [pytest.approx(1.20)]
+
+
+def test_a_same_quantity_average_replaces_a_limit_estimate(lifecycle):
+    """A fill priced at the limit gets Schwab's average later without another fill."""
+    _transport, broker, queues = lifecycle
+    held = _option_leg(500, "CALL", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(_recovered_single_close(), "fixture"))
+    tracked = broker.get_tracked_order("single-recovered")
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(
+        _recovered_single_close(status="PARTIALLY_FILLED", filledQuantity=1, price=10.0), "fixture",
+    ))
+    assert _fill_events(broker, queues) == [(10.0, 1)]
+
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(
+        _recovered_single_close(status="PARTIALLY_FILLED", filledQuantity=1, averagePrice=9.0), "fixture",
+    ))
+
+    assert tracked.get_fill_price() == pytest.approx(9.0)
+    assert [(item.price, float(item.quantity)) for item in tracked.transactions] == [(10.0, 1.0)]
+    assert _fill_events(broker, queues) == []
+
+
+def test_a_confirmed_cumulative_value_prices_later_fills(lifecycle):
+    """1 at a 10 limit, 2 averaging 9.50 (19 confirmed), then 3 averaging 9.60: the third unit is 9.80."""
+    _transport, broker, queues = lifecycle
+    held = _option_leg(500, "CALL", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 3))
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(_recovered_single_close_of(3), "fixture"))
+
+    for snapshot in (
+        _recovered_single_close_of(3, status="PARTIALLY_FILLED", filledQuantity=1, price=10.0),
+        _recovered_single_close_of(3, status="PARTIALLY_FILLED", filledQuantity=2, averagePrice=9.50),
+        _recovered_single_close_of(3, status="FILLED", filledQuantity=3, averagePrice=9.60),
+    ):
+        broker._process_schwab_order_snapshot(broker._parse_broker_order(snapshot, "fixture"))
+
+    assert _fill_events(broker, queues) == [(10.0, 1), (pytest.approx(9.50), 1), (pytest.approx(9.80), 1)]
+
+
+def test_first_iteration_sync_tracks_a_package_but_not_its_legs(lifecycle):
+    """Legs copy the parent's tag; recovering one alone would track a synthetic leg id."""
+    transport, broker, _queues = lifecycle
+    broker._pull_positions = lambda _strategy: []
+    broker._last_positions_refresh_degraded = False
+    broker._first_iteration = True
+    transport.queue_history_response([_working_close_snapshot(tag="fixture")])
+
+    broker.sync_orders(broker._position_sync_strategy())
+
+    assert broker.get_tracked_order("spread-recovered") is not None
+    assert broker.get_tracked_order("spread-recovered-leg-1") is None
+    assert broker.get_tracked_order("spread-recovered-leg-2") is None
+
+
+def test_first_iteration_sync_imports_only_this_strategys_history(lifecycle):
+    """Filled history needs this strategy's tag too; untagged and foreign history stays out."""
+    transport, broker, _queues = lifecycle
+    broker._pull_positions = lambda _strategy: []
+    broker._last_positions_refresh_degraded = False
+    broker._first_iteration = True
+    filled = {"status": "FILLED", "filledQuantity": 1, "averagePrice": 2.00}
+    transport.queue_history_response([
+        _working_single_snapshot(orderId="history-untagged", **filled),
+        _working_single_snapshot(orderId="history-foreign", tag="other", **filled),
+        _working_single_snapshot(orderId="history-owned", tag="fixture", **filled),
+    ])
+
+    broker.sync_orders(broker._position_sync_strategy())
+
+    assert broker.get_tracked_order("history-untagged") is None
+    assert broker.get_tracked_order("history-foreign") is None
+    assert broker.get_tracked_order("history-owned") is not None
+
+
+def test_a_locally_submitted_order_belongs_only_to_its_own_strategy(lifecycle):
+    """The custom-tag shortcut does not make strategy A's order strategy B's."""
+    _transport, broker, _queues = lifecycle
+    order = Order("strategy-a", Asset("SPY"), 1, Order.OrderSide.BUY, limit_price=1.00)
+    order.tag = "entry-42"
+    order._schwab_submitted_locally = True
+
+    assert not broker.order_is_foreign_to_local_strategy(order, "strategy-a")
+    assert broker.order_is_foreign_to_local_strategy(order, "strategy-b")

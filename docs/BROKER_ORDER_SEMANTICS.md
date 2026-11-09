@@ -327,10 +327,14 @@ Lifecycle:
   working order with fills (WORKING with a filled quantity, or
   PARTIALLY_FILLED) is recovered with that history, as partially filled and
   without a callback; a later WORKING snapshot does not move it back to new.
-  The first-iteration `sync_orders` import uses the same tag gate, because the
-  order pull parses every account order under this strategy's name. An order
+  The first-iteration `sync_orders` import uses the same tag gate, for working
+  orders and for filled or canceled history, because the order pull parses
+  every account order under this strategy's name. A package leg
+  (`<id>-leg-<n>`) copies its parent's tag but is never imported or recovered
+  on its own; it is tracked through the parent. An order
   this broker submitted is never treated as foreign, by the poll or by the fill
-  callbacks, because its tag can be a user label such as `entry-42`. Fills it already had are
+  callbacks, because its tag can be a user label such as `entry-42`; that holds
+  only for the strategy that submitted it. Fills it already had are
   recorded without a callback, at Schwab's `averagePrice` or execution price.
   When neither exists the parser's limit fallback is not a fill, so that
   quantity is left unpriced; the next fill values it at the new average, and
@@ -340,7 +344,11 @@ Lifecycle:
   limit-priced fill is an estimate: when Schwab later reports a cumulative
   average, the next fill is priced as if the estimate had filled at that
   average. A snapshot at the same quantity that finally carries an average
-  fills in the order's average without adding a fill. A
+  fills in the order's average without adding a fill. Each confirmed
+  cumulative value (quantity times Schwab's average) is kept, and later fills
+  are priced from it, so 1 at a 10 limit, 2 averaging 9.50, then 3 averaging
+  9.60 records the third unit at 9.80. The order's average is updated before
+  the fill callback runs. A
   recovered stop-limit keeps its limit in `stop_limit_price`, where the
   stock builder reads it. Every replacement (package, stock or option) carries
   the same tag, so a repriced order is still recognized after the next

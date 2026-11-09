@@ -1275,6 +1275,11 @@ class Order:
         multiplier_asset = package_legs[0].asset if package_legs else self.asset
         multiplier = float(getattr(multiplier_asset, "multiplier", 1) or 1)
         cash_value = quantity_unfilled * float(price) * multiplier
+        # A package's direction is the effect it was sent with: a BUY parent with a
+        # negative limit goes out as a credit, and its positive fill price is proceeds.
+        effect = getattr(self, "_multileg_effect", None) if package_legs else None
+        if effect in ("credit", "debit"):
+            return cash_value if effect == "credit" else -cash_value
         return cash_value if self.is_sell_order() else -cash_value
 
     def get_fill_price(self):

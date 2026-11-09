@@ -506,3 +506,33 @@ class TestCashPending:
         package.add_transaction(1.30, 1)
 
         assert package.cash_pending(self._strategy(None)) == pytest.approx(130.0)
+
+    def test_priced_package_uses_the_effect_it_was_sent_with(self):
+        """A BUY parent with a negative limit is sent as a credit; its remainder is proceeds."""
+        legs = [
+            Order("Example", self._option(500), 1, Order.OrderSide.SELL_TO_OPEN),
+            Order("Example", self._option(490), 1, Order.OrderSide.BUY_TO_OPEN),
+        ]
+        package = Order(
+            "Example", Asset("SPY", asset_type=Asset.AssetType.MULTILEG), 2, Order.OrderSide.BUY,
+            limit_price=-1.25, order_class=Order.OrderClass.MULTILEG, child_orders=legs,
+        )
+        package._multileg_effect = "credit"
+        package.add_transaction(1.30, 1)
+
+        assert package.cash_pending(self._strategy(None)) == pytest.approx(130.0)
+
+    def test_ratio_package_weights_each_leg_by_its_quantity(self):
+        """Buy 2 of the 500 call and sell 4 of the 510: one package is 1 bought and 2 sold."""
+        legs = [
+            Order("Example", self._option(500, "CALL"), 2, Order.OrderSide.BUY_TO_OPEN),
+            Order("Example", self._option(510, "CALL"), 4, Order.OrderSide.SELL_TO_OPEN),
+        ]
+        package = Order(
+            "Example", Asset("SPY", asset_type=Asset.AssetType.MULTILEG), 2, Order.OrderSide.SELL,
+            order_class=Order.OrderClass.MULTILEG, child_orders=legs,
+        )
+        package.add_transaction(None, 1)
+
+        # One package left: -1 x 1.00 + 2 x 0.80 = 0.60 credit, x100.
+        assert package.cash_pending(self._strategy({500: 1.00, 510: 0.80})) == pytest.approx(60.0)

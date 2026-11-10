@@ -4488,17 +4488,26 @@ class Schwab(Broker):
             logger.error(_format_exc())
             return False
 
+    # A replace with no Location is looked up a few times: Schwab may not show
+    # the old order as REPLACED on the first read right after the request.
+    SCHWAB_REPLACE_LOOKUP_ATTEMPTS = 3
+    SCHWAB_REPLACE_LOOKUP_DELAY_SECONDS = 0.5
+
     def _schwab_replacing_order_id(self, identifier):
         """Id of the order that replaced this one, when Schwab names exactly one."""
-        data = self._pull_broker_order(identifier)
-        if not isinstance(data, dict) or str(data.get("status") or "").upper() != "REPLACED":
-            return None
-        replacing_ids = {
-            str(item.get("orderId"))
-            for item in data.get("replacingOrderCollection") or []
-            if isinstance(item, dict) and item.get("orderId") is not None
-        }
-        return replacing_ids.pop() if len(replacing_ids) == 1 else None
+        for attempt in range(self.SCHWAB_REPLACE_LOOKUP_ATTEMPTS):
+            if attempt:
+                time.sleep(self.SCHWAB_REPLACE_LOOKUP_DELAY_SECONDS)
+            data = self._pull_broker_order(identifier)
+            if not isinstance(data, dict) or str(data.get("status") or "").upper() != "REPLACED":
+                continue
+            replacing_ids = {
+                str(item.get("orderId"))
+                for item in data.get("replacingOrderCollection") or []
+                if isinstance(item, dict) and item.get("orderId") is not None
+            }
+            return replacing_ids.pop() if len(replacing_ids) == 1 else None
+        return None
 
     def _schwab_replacement_confirmed(self, order, limit_price, stop_price) -> bool:
         """True when a follow-up read shows the requested prices on this order."""

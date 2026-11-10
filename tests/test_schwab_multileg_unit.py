@@ -1529,3 +1529,62 @@ def test_a_replace_without_a_location_is_confirmed_against_the_price_sent(lifecy
     assert broker.modify_order(parent, limit_price=0.90005) is True
     assert transport.replace_calls[-1][1]["price"] == "0.9001"
     assert parent.limit_price == 0.90005
+
+
+def test_filled_snapshot_with_fewer_executions_than_filled_quantity_uses_the_order_fields():
+    """Executions that show one package must not close a snapshot that reports two filled."""
+    broker = _broker()
+    snapshot = _filled_credit_snapshot(
+        [[{"legId": 1, "quantity": 1, "price": 2.10}, {"legId": 2, "quantity": 1, "price": 0.80}]],
+        averagePrice=1.28,
+    )
+
+    parent = broker._parse_broker_order(snapshot, "unit-test")
+
+    assert parent._schwab_cumulative_filled_quantity == 2
+    assert parent._schwab_average_fill_price == 1.28
+
+
+def test_partial_fill_reopens_legs_closed_by_a_local_error(lifecycle):
+    """A later partial fill reopens legs a local error had closed, so they reserve again."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    legs = [
+        _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE, quantity=2),
+        _option_leg(490, "PUT", Order.OrderSide.BUY_TO_OPEN, quantity=2),
+    ]
+    for leg in legs:
+        leg.strategy = "fixture"
+    parent = broker.submit_orders(legs, is_multileg=True, order_type="credit", price=1.25)[0]
+    _TRANSPORT.drain_stream_events(broker)
+    broker._process_error_order(parent, RuntimeError("replace failed"))
+    assert all(not child.is_active() for child in parent.child_orders)
+
+    transport.queue_order_reads(parent.identifier, {
+        "status": "PARTIALLY_FILLED",
+        "filledQuantity": 1,
+        "orderActivityCollection": [{"activityType": "EXECUTION", "executionLegs": [
+            {"legId": 1, "quantity": 1, "price": 2.10},
+            {"legId": 2, "quantity": 1, "price": 0.80},
+        ]}],
+    })
+    broker._process_schwab_order_snapshot(
+        broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    )
+
+    assert parent.is_active()
+    assert all(child.is_active() and not child._closed_event.is_set() for child in parent.child_orders)
+    closing = _parent(
+        [
+            _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE, quantity=2),
+            _option_leg(480, "PUT", Order.OrderSide.BUY_TO_OPEN, quantity=2),
+        ],
+        side=Order.OrderSide.SELL,
+        limit_price=0.40,
+    )
+    closing.strategy = "fixture"
+    for leg in closing.child_orders:
+        leg.strategy = "fixture"
+    # One contract is still committed to the reopened package.
+    assert broker.submit_order(closing) is None

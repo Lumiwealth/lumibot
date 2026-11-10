@@ -224,6 +224,14 @@ class MetaMaskClient:
         identity = self.verify()
         return self.venue.funding(identity["wallet"], start_time, end_time, symbol)
 
+    def cash_history(self, start_time, end_time):
+        """Read both ledgers for the verified managed wallet; never submit actions."""
+        identity = self.verify()
+        return {
+            kind: self.venue.ledger(identity["wallet"], kind, start_time, end_time)
+            for kind in ("userFunding", "userNonFundingLedgerUpdates")
+        }
+
     def close(self):
         with self._lock:
             for component in (self._evm, self._venue, self._provider, self._tokens, self._journal):

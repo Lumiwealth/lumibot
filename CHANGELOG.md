@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Resolve MetaMask perpetual asset casing to unique native market identities across execution and market data, preserving journaled operation identity on retries.
+- Use chain-specific native-token price identities and reject duplicate or unapproved-chain asset registrations before wallet valuation.
+- Let bounded MetaMask allowance prerequisites settle under unchanged owner authority before refreshing the trade quote, retaining fee ceilings and restart replay protection.
+- Project actual MetaMask perpetual fees and maker rebates into cumulative standard order costs without replaying executions or guessing currency conversions.
+- Read MetaMask funding and capital ledgers through standard cash-history receipts, with scoped event identities and explicit incomplete, unavailable and unsupported states.
+- Protect MetaMask qualification evidence from overwriting wallet recovery files, and check remaining journal budget for the resting-order test, entry and closing leg before signing.
+- Keep qualification receipt I/O failures from bypassing owned residual cleanup or worker/resource settlement, while retaining failed verdicts and mandatory journal/financial guards.
+
 ## 4.6.48 - 2026-11-05
 
 Deploy marker: 698b5b7645611a5d888e1ef869db877ef99afe4e

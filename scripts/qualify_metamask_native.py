@@ -2,6 +2,7 @@
 
 Requires two dedicated, already-authorized and flat testnet wallets. Never
 renews authority, funds wallets, changes policy, or retries an uncertain trade.
+Run as python -m scripts.qualify_metamask_native from the repository root.
 """
 
 import argparse
@@ -13,6 +14,12 @@ from uuid import uuid4
 
 from lumibot.brokers import MetaMask
 from lumibot.entities import Asset, Order
+from scripts.qualify_metamask_partial import (
+    cleanup_budget_room,
+    prepare_evidence_path,
+    save_evidence,
+    validate_authority,
+)
 
 
 def main():
@@ -26,20 +33,27 @@ def main():
         raise ValueError("Qualification requires exactly two testnet configurations; mainnet is forbidden")
     if len({c["WALLET_ADDRESS"].lower() for c in configs}) != 2:
         raise ValueError("Qualification requires two distinct dedicated wallets")
+    args.evidence = prepare_evidence_path(args.evidence, args.config, configs)
     prefix = "native-qualification-" + uuid4().hex[:12]
     evidence = {"run": prefix, "network": "testnet", "wallets": []}
-    args.evidence.parent.mkdir(parents=True, exist_ok=True)
+    recovering, receipt_errors = False, []
 
     def save():
-        args.evidence.write_text(json.dumps(evidence, indent=2) + "\n")
-        args.evidence.chmod(0o600)
+        try:
+            save_evidence(args.evidence, evidence)
+        except Exception as error:
+            if not recovering:
+                raise
+            receipt_errors.append(str(error))
+
+    save()
 
     for index, config in enumerate(configs):
-        broker = MetaMask(config, connect_stream=False, start_orders_thread=False)
         created = []
         wallet = {"index": index, "operations": []}
         evidence["wallets"].append(wallet)
         save()
+        broker = MetaMask(config, connect_stream=False, start_orders_thread=False)
 
         def wait(item, states, broker=broker):
             deadline = time.monotonic() + 120
@@ -86,16 +100,11 @@ def main():
         try:
             identity = broker.client.verify()
             binding = broker.client.journal.binding(config["AGENT_ID"])
-            if (
-                binding["maxOrderUsd"] != "25"
-                or binding["maxLeverage"] != 1
-                or binding["maxSlippageBps"] != 50
-                or binding["markets"] != ["BTC", "ETH"]
-                or binding["maxDailyUsd"] != ("300" if index == 0 else "150")
-                or binding["enabled"] is not True
-                or binding["expiresAt"] <= int(time.time() * 1000)
-            ):
-                raise ValueError("Wallet authority differs from the approved qualification limits")
+            now = int(time.time() * 1000)
+            validate_authority(binding, index, now)
+            wallet["remaining_budget_usd"] = str(
+                cleanup_budget_room(broker.client.journal, config["AGENT_ID"], binding, now, required_usd=Decimal("75"))
+            )
             account = broker.client.account("perp")
             if account["positions"] or broker.client.venue.info({"type": "openOrders", "user": identity["wallet"]}):
                 raise ValueError("Qualification requires flat wallets without pre-existing open orders")
@@ -135,7 +144,10 @@ def main():
             wallet["complete"] = True
             save()
         except BaseException as error:
+            recovering = True
             wallet["error"] = str(error)
+            wallet["complete"] = False
+            wallet["receipt_errors"] = receipt_errors
             save()
             # Cancel only this run's tracked orders. Uncertain fills need review;
             # never infer that an HTTP failure means the wallet stayed flat.

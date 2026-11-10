@@ -1784,6 +1784,11 @@ class StrategyExecutor(Thread):
         # If option, multiply % of portfolio by multiplier
         if order.asset.asset_type == Asset.AssetType.OPTION:
             order_value = order_value * multiplier
+        elif position is None and self._broker_is_schwab() and getattr(order, "child_orders", None):
+            # A Schwab package's net price is per share of its option legs; the
+            # parent asset has no contract multiplier, so use the legs'.
+            leg_asset = getattr(order.child_orders[0], "asset", None)
+            order_value = order_value * float(getattr(leg_asset, "multiplier", 1) or 1)
 
         # Calculate the percent of the portfolio that this position represents
         percent_of_portfolio = (order_value / portfolio_value) if portfolio_value else 0.0

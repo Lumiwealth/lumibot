@@ -976,9 +976,15 @@ def test_schwab_package_fill_without_a_position_still_sends_its_notification():
         order_type=Order.OrderType.LIMIT,
         limit_price=1.25,
         order_class=Order.OrderClass.MULTILEG,
+        child_orders=[
+            _leg("unit", _option("SPY", 505), Order.OrderSide.SELL_TO_OPEN),
+            _leg("unit", _option("SPY", 500), Order.OrderSide.BUY_TO_OPEN),
+        ],
     )
 
-    executor._on_filled_order(None, package, price=1.20, quantity=1, multiplier=100)
+    executor._on_filled_order(None, package, price=1.20, quantity=1, multiplier=1)
 
     assert strategy.fills == [(None, package)]
     assert len(strategy.messages) == 1 and "SPY" in strategy.messages[0]
+    # The package parent carries no contract multiplier; the total uses the legs' 100.
+    assert "Trade Total = $120.00" in strategy.messages[0]

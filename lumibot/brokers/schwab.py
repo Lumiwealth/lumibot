@@ -3291,8 +3291,13 @@ class Schwab(Broker):
 
         return first_triggers_second(parent_builder, oco_builder)
 
-    def _prepare_multileg_option_order_builder(self, order):
-        """Build an OrderBuilder for a multi-leg options package (vertical, box, etc.)."""
+    def _prepare_multileg_option_order_builder(self, order, check_book=True):
+        """Build an OrderBuilder for a multi-leg options package (vertical, box, etc.).
+
+        ``check_book`` is False for a replace: the legs and quantities are the ones
+        already accepted, and after a partial close fill the synced book no longer
+        holds the full leg, so re-checking it would refuse every reprice.
+        """
         children = list(getattr(order, "child_orders", None) or [])
         if not 2 <= len(children) <= 4:
             logger.error(colored(
@@ -3322,7 +3327,8 @@ class Schwab(Broker):
             # Generic sides need a position book. Explicit closes do too, so two
             # closes of one contract are refused. A bare broker used by price-only
             # tests has no book; those legs are already explicit opens or closes.
-            if child.side in (Order.OrderSide.BUY, Order.OrderSide.SELL) or hasattr(self, "_filled_positions"):
+            generic_side = child.side in (Order.OrderSide.BUY, Order.OrderSide.SELL)
+            if generic_side or (check_book and hasattr(self, "_filled_positions")):
                 try:
                     # Earlier legs of this package count as active orders, as in Broker.submit_orders.
                     # This package's own legs do not reserve contracts against the replacement.
@@ -3337,7 +3343,11 @@ class Schwab(Broker):
                         "red",
                     ))
                     return None
-                if hasattr(self, "_filled_positions") and not self._schwab_explicit_close_matches_position(child):
+                if (
+                    check_book
+                    and hasattr(self, "_filled_positions")
+                    and not self._schwab_explicit_close_matches_position(child)
+                ):
                     logger.error(colored(
                         "Schwab multi-leg close leg does not match a held position. No leg was submitted.",
                         "red",
@@ -4256,7 +4266,7 @@ class Schwab(Broker):
         try:
             if replacement is not None:
                 order.limit_price = replacement
-            order_builder = self._prepare_multileg_option_order_builder(order)
+            order_builder = self._prepare_multileg_option_order_builder(order, check_book=False)
             return self._build_order_spec_from_builder(
                 order_builder,
                 order.time_in_force,
@@ -4425,7 +4435,10 @@ class Schwab(Broker):
             if not new_order_id:
                 # The replace may have landed without a Location header. Adopt
                 # the new price only when a fresh read shows it on this order.
-                if not self._schwab_replacement_confirmed(order, limit_price, stop_price):
+                # Schwab shows the price as sent (rounded to its tick), not as requested.
+                sent_limit = new_order_spec.get("price", limit_price) if limit_price is not None else None
+                sent_stop = new_order_spec.get("stopPrice", stop_price) if stop_price is not None else None
+                if not self._schwab_replacement_confirmed(order, sent_limit, sent_stop):
                     logger.error(colored(
                         "Schwab replace did not confirm a new order id. "
                         "The local package price was left unchanged.",

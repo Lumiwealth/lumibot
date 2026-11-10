@@ -1588,3 +1588,27 @@ def test_partial_fill_reopens_legs_closed_by_a_local_error(lifecycle):
         leg.strategy = "fixture"
     # One contract is still committed to the reopened package.
     assert broker.submit_order(closing) is None
+
+
+def test_a_replace_without_a_location_follows_the_replacing_order(lifecycle):
+    """With no Location, the id Schwab lists on the replaced order becomes the tracked id."""
+    transport, broker, _queues = lifecycle
+    parent = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=1.25)[0]
+    original_id = parent.identifier
+
+    def replace_order(account_hash, identifier, order_spec):
+        transport._check_account(account_hash)
+        transport.replace_calls.append((identifier, order_spec))
+        return type("Response", (), {"status_code": 201, "headers": {}, "text": ""})()
+
+    transport.replace_order = replace_order
+    transport.queue_order_reads(
+        original_id,
+        {"status": "WORKING"},
+        {"status": "REPLACED", "replacingOrderCollection": [{"orderId": "replacement-1"}]},
+    )
+
+    assert broker.modify_order(parent, limit_price=1.05) is True
+    assert parent.identifier == "replacement-1"
+    assert original_id in parent.previous_identifiers
+    assert parent.limit_price == 1.05

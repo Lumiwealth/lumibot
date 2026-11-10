@@ -154,6 +154,7 @@ def test_multileg_limit_even_alpaca_uses_zero_price(mocker):
 
 
 def test_one_option_list_stays_a_single_order(mocker):
+    """One option list stays a single order."""
     broker = _BrokerStub(name="Schwab")
     broker.submit_orders = mocker.Mock(return_value="ok")
     strategy = _MinimalStrategy(broker)
@@ -165,6 +166,7 @@ def test_one_option_list_stays_a_single_order(mocker):
 
 
 def test_explicit_one_leg_package_is_preserved(mocker):
+    """Explicit one leg package is preserved."""
     broker = _BrokerStub(name="Schwab")
     broker.submit_orders = mocker.Mock(return_value="ok")
     strategy = _MinimalStrategy(broker)
@@ -177,6 +179,7 @@ def test_explicit_one_leg_package_is_preserved(mocker):
 
 def test_multileg_limit_weights_unequal_leg_ratios(mocker):
     # Buy 1 at 1.00 and sell 2 at 0.80 is a 0.60 credit. An unweighted sum is a debit.
+    """Multileg limit weights unequal leg ratios."""
     broker = _BrokerStub(name="Schwab")
     broker.submit_orders = mocker.Mock(return_value="ok")
     strategy = _MinimalStrategy(broker)
@@ -185,6 +188,7 @@ def test_multileg_limit_weights_unequal_leg_ratios(mocker):
     sell.quantity = 2
 
     def _get_quote(asset, **_kwargs):
+        """Return the bid and ask scripted for this leg."""
         if asset == buy.asset:
             return _Quote(bid=1.00, ask=1.00)
         return _Quote(bid=0.80, ask=0.80)
@@ -197,6 +201,7 @@ def test_multileg_limit_weights_unequal_leg_ratios(mocker):
 
 
 def test_strategy_modify_keeps_the_price_when_the_broker_refuses(mocker):
+    """Strategy modify keeps the price when the broker refuses."""
     broker = _BrokerStub(name="Schwab")
     broker.modify_order = mocker.Mock(return_value=False)
     strategy = _MinimalStrategy(broker)
@@ -258,6 +263,7 @@ def test_schwab_package_reprice_keeps_its_price_when_modify_returns_false(mocker
     tracked_orders.append(parent)
 
     def _get_quote(asset, **_kwargs):
+        """Return the bid and ask scripted for this leg."""
         if asset == leg_buy.asset:
             return _Quote(bid=0.50, ask=0.60)
         return _Quote(bid=0.20, ask=0.30)
@@ -316,6 +322,7 @@ def test_package_reprice_on_other_brokers_records_the_price_as_before(mocker):
     tracked_orders.append(parent)
 
     def _get_quote(asset, **_kwargs):
+        """Return the bid and ask scripted for this leg."""
         if asset == leg_buy.asset:
             return _Quote(bid=0.50, ask=0.60)
         return _Quote(bid=0.20, ask=0.30)
@@ -332,6 +339,7 @@ def test_package_reprice_on_other_brokers_records_the_price_as_before(mocker):
 
 
 def test_invalid_package_quantities_do_not_escape_quote_inference(mocker):
+    """Invalid package quantities do not escape quote inference."""
     broker = _BrokerStub(name="Schwab")
     broker.submit_orders = mocker.Mock(return_value="ok")
     strategy = _MinimalStrategy(broker)
@@ -355,6 +363,7 @@ def test_invalid_package_quantities_do_not_escape_quote_inference(mocker):
 def test_multileg_limit_maps_to_credit_schwab(mocker):
     # Schwab sends a positive unhinted limit as NET_DEBIT, so a credit spread
     # passed as order_type='limit' must be mapped to credit before it is sent.
+    """Multileg limit maps to credit Schwab."""
     broker = _BrokerStub(name="Schwab")
     broker.submit_orders = mocker.Mock(return_value="ok")
     strategy = _MinimalStrategy(broker)
@@ -363,6 +372,7 @@ def test_multileg_limit_maps_to_credit_schwab(mocker):
     short_leg = _leg("unit", _option("SPY", 505), Order.OrderSide.SELL_TO_OPEN)
 
     def _get_quote(asset, **_kwargs):
+        """Return the bid and ask scripted for this leg."""
         if asset == long_leg.asset:
             return _Quote(bid=0.50, ask=0.60)
         return _Quote(bid=1.00, ask=1.20)
@@ -377,6 +387,7 @@ def test_multileg_limit_maps_to_credit_schwab(mocker):
 
 
 def test_multileg_limit_even_schwab_uses_zero_price(mocker):
+    """Multileg limit even Schwab uses zero price."""
     broker = _BrokerStub(name="Schwab")
     broker.submit_orders = mocker.Mock(return_value="ok")
     strategy = _MinimalStrategy(broker)
@@ -687,6 +698,7 @@ def test_multileg_submit_missing_quotes_downgrades_to_market(mocker):
 
 
 def test_schwab_smart_limit_missing_quotes_does_not_submit_a_market_package(mocker):
+    """Schwab smart limit missing quotes does not submit a market package."""
     broker = _BrokerStub(name="Schwab")
     broker.IS_BACKTESTING_BROKER = False
     broker.submit_orders = mocker.Mock(return_value="ok")
@@ -707,6 +719,7 @@ def test_schwab_smart_limit_missing_quotes_does_not_submit_a_market_package(mock
 
 
 def test_schwab_smart_limit_submit_error_does_not_retry_a_credit_as_a_debit(mocker):
+    """Schwab smart limit submit error does not retry a credit as a debit."""
     broker = _BrokerStub(name="Schwab")
     broker.IS_BACKTESTING_BROKER = False
     broker.submit_orders = mocker.Mock(side_effect=RuntimeError("rejected"))
@@ -721,6 +734,7 @@ def test_schwab_smart_limit_submit_error_does_not_retry_a_credit_as_a_debit(mock
     short_leg.smart_limit = cfg
 
     def _get_quote(asset, **_kwargs):
+        """Return the bid and ask scripted for this leg."""
         if asset == long_leg.asset:
             return _Quote(bid=0.50, ask=0.60)
         return _Quote(bid=1.00, ask=1.20)
@@ -863,6 +877,7 @@ def test_schwab_limit_package_without_quotes_is_not_submitted(mocker):
 
 
 def test_schwab_negative_limit_without_quotes_is_a_credit(mocker):
+    """Schwab negative limit without quotes is a credit."""
     broker = _BrokerStub(name="Schwab")
     broker.submit_orders = mocker.Mock(return_value="ok")
     strategy = _MinimalStrategy(broker)
@@ -879,6 +894,7 @@ def test_schwab_negative_limit_without_quotes_is_a_credit(mocker):
 
 
 def test_schwab_zero_limit_without_quotes_is_even(mocker):
+    """Schwab zero limit without quotes is even."""
     broker = _BrokerStub(name="Schwab")
     broker.submit_orders = mocker.Mock(return_value="ok")
     strategy = _MinimalStrategy(broker)
@@ -895,6 +911,7 @@ def test_schwab_zero_limit_without_quotes_is_even(mocker):
 
 
 def test_tradier_positive_limit_without_quotes_stays_a_debit(mocker):
+    """Tradier positive limit without quotes stays a debit."""
     broker = _BrokerStub(name="tradier")
     broker.submit_orders = mocker.Mock(return_value="ok")
     strategy = _MinimalStrategy(broker)
@@ -965,6 +982,7 @@ class _FillNotificationStrategy:
 
 
 def test_schwab_package_fill_without_a_position_still_sends_its_notification():
+    """Schwab package fill without a position still sends its notification."""
     broker = _BrokerStub(name="Schwab")
     strategy = _FillNotificationStrategy(broker)
     executor = StrategyExecutor(strategy)

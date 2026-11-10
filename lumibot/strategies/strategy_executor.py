@@ -973,6 +973,11 @@ class StrategyExecutor(Thread):
         return replacement
 
     def _advance_smart_limit_replacement(self, intent, now):
+        """Cancel a SMART_LIMIT order that cannot be repriced in place, then submit its replacement.
+
+        The replacement goes out only after the cancel is confirmed, so the
+        remainder is never working twice.
+        """
         order, state = intent["order"], intent["order"]._smart_limit_state
         # A submission with an uncertain outcome consumes this attempt. Never
         # create fresh identities until the broker resolves that attempt.
@@ -1064,6 +1069,7 @@ class StrategyExecutor(Thread):
         return str(getattr(self.broker, "name", "")).lower() == "schwab"
 
     def _process_smart_limit_orders_locked(self):
+        """Reprice active SMART_LIMIT orders while the executor lock is held."""
 
         # SMART_LIMIT should only operate on active orders. Scanning the full tracked-order
         # history (which can include large closed/filled histories) in a tight background loop
@@ -1741,6 +1747,7 @@ class StrategyExecutor(Thread):
 
     @event_method
     def _on_filled_order(self, position, order, price, quantity, multiplier):
+        """Run the strategy's fill callback for its own orders, then send the fill notification."""
         # Shared-account safety: never invoke strategy fill/hedge handlers for
         # orders owned by a different strategy (tag/strategy mismatch).
         local_name = getattr(self.strategy, "name", None) or getattr(self.strategy, "_name", None)

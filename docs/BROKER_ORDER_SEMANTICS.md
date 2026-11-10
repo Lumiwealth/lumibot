@@ -251,13 +251,6 @@ Live trading implications:
 - Do not generalize "seamless spans all sessions" into "seamless works with all
   order types." The session span and order type eligibility are separate broker
   constraints.
-- Single-order limit prices (stock limit, stock stop-limit, option limit) are
-  passed to schwab-py as strings by `_format_schwab_single_price`. schwab-py's
-  float path is deprecated, and it truncates in binary: 1.15 was sent as
-  "1.14". The string keeps schwab-py's rule (4 decimals under $1, 2 at or
-  above, toward zero) using `Decimal`. `tests/test_schwab_single_order_prices_unit.py`
-  turns the deprecation warning into an error. Stop prices were already sent
-  as `str(stop_price)` and are not reformatted.
 
 ### Schwab (multi-leg options)
 

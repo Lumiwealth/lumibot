@@ -1815,6 +1815,11 @@ class Schwab(Broker):
             return None
 
     def _schwab_order_type_to_lumibot(self, raw_order_type):
+        """Map a Schwab order type to a LumiBot type.
+
+        NET_DEBIT, NET_CREDIT and NET_ZERO are limits at the net price; the raw
+        type stays on the order.
+        """
         order_type_map = {
             "LIMIT": Order.OrderType.LIMIT,
             "MARKET": Order.OrderType.MARKET,
@@ -3761,23 +3766,6 @@ class Schwab(Broker):
             return f"{rounded:.2f}"
         return f"{rounded:.4f}"
 
-    @staticmethod
-    def _format_schwab_single_price(price):
-        """Format a single-order limit price as a Schwab price string.
-
-        schwab-py deprecated float prices. Its float path truncates toward zero
-        (four decimals under one dollar, two above), so this keeps that rule
-        but works in decimal space: the float path sends 1.15 as "1.14".
-        """
-        if price is None:
-            return None
-        from decimal import Decimal, ROUND_DOWN
-
-        amount = Decimal(str(price))
-        if amount != 0 and abs(amount) < 1:
-            return f"{amount.quantize(Decimal('0.0001'), rounding=ROUND_DOWN):.4f}"
-        return f"{amount.quantize(Decimal('0.01'), rounding=ROUND_DOWN):.2f}"
-
     def _schwab_multileg_is_even_package(self, order) -> bool:
         """True when this package is NET_ZERO and cannot take a new non-zero price."""
         effect = getattr(order, "_multileg_effect", None)
@@ -3835,7 +3823,6 @@ class Schwab(Broker):
         limit_price = order.limit_price
         if order.order_type == Order.OrderType.STOP_LIMIT:
             limit_price = order.stop_limit_price
-        limit_price = self._format_schwab_single_price(limit_price)
 
         # Create the appropriate order builder based on order side and type
         order_builder = None
@@ -3936,7 +3923,7 @@ class Schwab(Broker):
         try:
             # Get order parameters
             quantity = int(order.quantity)
-            limit_price = self._format_schwab_single_price(order.limit_price)
+            limit_price = order.limit_price
 
             # Construct the option symbol in Schwab format
             # Get option data from the order's asset

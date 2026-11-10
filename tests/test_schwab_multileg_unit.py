@@ -1637,3 +1637,29 @@ def test_a_replace_without_a_location_waits_for_schwab_to_mark_it_replaced(lifec
 
     assert broker.modify_order(parent, limit_price=1.05) is True
     assert parent.identifier == "replacement-2"
+
+
+def test_a_replaced_old_order_is_never_confirmed_as_the_tracked_order(lifecycle):
+    """The old id only counts as confirmed while that same order is still live."""
+    transport, broker, _queues = lifecycle
+    parent = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=1.25)[0]
+    original_id = parent.identifier
+
+    def replace_order(account_hash, identifier, order_spec):
+        transport._check_account(account_hash)
+        transport.replace_calls.append((identifier, order_spec))
+        return type("Response", (), {"status_code": 201, "headers": {}, "text": ""})()
+
+    transport.replace_order = replace_order
+    transport.queue_order_reads(
+        original_id,
+        {"status": "WORKING"},
+        {"status": "WORKING"},
+        {"status": "WORKING"},
+        {"status": "WORKING"},
+        {"status": "REPLACED", "price": 1.05},
+    )
+
+    assert broker.modify_order(parent, limit_price=1.05) is False
+    assert parent.identifier == original_id
+    assert parent.limit_price == 1.25

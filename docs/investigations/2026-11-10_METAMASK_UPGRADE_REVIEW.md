@@ -35,7 +35,7 @@ The official [funding contract](https://hyperliquid.gitbook.io/hyperliquid-docs/
 
 ## Council round 9
 
-Reviewed correction `1e73f427f02abe1c769372b243617ea11a8e0b2a`, affected callers and baseline continuity. All three members approved with no P1/P2 or lesser findings. Each independently verified a clean pinned checkout and correct imports. This final ledger update changes no runtime, tests or configuration.
+Reviewed correction `1e73f427f02abe1c769372b243617ea11a8e0b2a`, affected callers and baseline continuity. All three members approved with no P1/P2 or lesser findings. Each independently verified a clean pinned checkout and correct imports. Final publication updates record these verdicts and point companion source-install guides at long-lived `dev`, with PR merge-state and installed-revision checks. They change no runtime, tests or configuration.
 
 | Delegate | Verdict | Fresh independent checks |
 | --- | --- | --- |

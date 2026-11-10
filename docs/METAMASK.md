@@ -2,9 +2,9 @@
 
 MetaMask managed-wallet execution through ordinary LumiBot strategies, without a JavaScript runtime or localhost service.
 
-Last Updated: 2026-11-05
+Last Updated: 2026-11-10
 
-Status: Native adapter available; execution hardening candidate under review
+Status: Native adapter available; funded qualification limits remain below
 
 Audience: LumiBot users and maintainers
 
@@ -13,13 +13,13 @@ Audience: LumiBot users and maintainers
 `lumibot.brokers.MetaMask` runs in the Python strategy process. It calls MetaMask's managed-wallet API and Hyperliquid's HTTP API directly. Wallet keys remain with MetaMask. Node, Bun, npm, the MetaMask CLI and an embedded JavaScript engine are not required.
 
 The published package includes the native adapter: `python -m pip install
-'lumibot[metamask]'`. The execution and reporting fixes described here belong to
-[PR 1262](https://github.com/Lumiwealth/lumibot/pull/1262), an unreleased source
-candidate. Installing published releases or `dev` does not install unmerged PR
-changes. To review this candidate in a clean Python environment:
+'lumibot[metamask]'`. Published releases may lag the latest execution and reporting fixes.
+These changes are tracked in [PR 1262](https://github.com/Lumiwealth/lumibot/pull/1262);
+check its merge state before relying on them. To install the latest unreleased
+source from `dev` in a clean Python environment:
 
 ```bash
-git clone --branch fix/metamask-execution-recovery --single-branch https://github.com/Lumiwealth/lumibot.git lumibot-metamask
+git clone --branch dev --single-branch https://github.com/Lumiwealth/lumibot.git lumibot-metamask
 cd lumibot-metamask
 git rev-parse HEAD
 python -m pip install '.[metamask]'
@@ -27,7 +27,7 @@ python -m pip install '.[metamask]'
 
 Default-DEX Hyperliquid perpetuals use normal `Order`, `Position`, strategy methods and fill callbacks. Native same-chain swap code remains experimental and requires separate funded qualification. Existing JavaScript trading receipts do not qualify this replacement.
 
-Match the printed commit to the reviewed PR head before testing. Package
+Check the printed source commit against the intended revision before testing. Package
 availability and passing offline checks do not establish production qualification.
 
 ## Integration coverage

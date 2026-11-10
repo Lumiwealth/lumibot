@@ -14,19 +14,19 @@ Install and connect
 -------------------
 
 The published package includes the native adapter: ``python -m pip install
-'lumibot[metamask]'``. The execution and reporting fixes described here belong to
-`PR 1262 <https://github.com/Lumiwealth/lumibot/pull/1262>`_, an unreleased source
-candidate. Installing published releases or ``dev`` does not install unmerged
-PR changes. To review this candidate in a clean Python environment:
+'lumibot[metamask]'``. Published releases may lag the latest execution and reporting fixes.
+These changes are tracked in `PR 1262 <https://github.com/Lumiwealth/lumibot/pull/1262>`_;
+check its merge state before relying on them. To install the latest unreleased
+source from ``dev`` in a clean Python environment:
 
 .. code-block:: bash
 
-   git clone --branch fix/metamask-execution-recovery --single-branch https://github.com/Lumiwealth/lumibot.git lumibot-metamask
+   git clone --branch dev --single-branch https://github.com/Lumiwealth/lumibot.git lumibot-metamask
    cd lumibot-metamask
    git rev-parse HEAD
    python -m pip install '.[metamask]'
 
-Match the printed commit to the reviewed PR head before testing. Package
+Check the printed source commit against the intended revision before testing. Package
 availability and passing offline checks do not establish production qualification.
 
 Authorize through the official `MetaMask Agent Wallet sign-in page

@@ -309,8 +309,9 @@ Lifecycle:
   directly would count every contract on every side. The net fill price is
   each leg's execution VWAP times its leg ratio (buys positive, sells negative),
   reported positive. Schwab's `price` is the limit, not the fill. Only when an
-  execution has no `legId`, a leg has no execution, or legs filled out of ratio
-  does the parser use `filledQuantity` and `averagePrice` (then `price`).
+  execution has no `legId`, a leg has no execution, legs filled out of ratio,
+  or the executions add up to a different count than `filledQuantity` does the
+  parser use `filledQuantity` and `averagePrice` (then `price`).
   Each new package fill uses the incremental price of that fill, derived from
   the cumulative value, so two fills at 1.30 and 1.20 average to 1.25. Zero is
   a real net price and is not replaced by the limit. A leg whose side is neither
@@ -322,8 +323,10 @@ Lifecycle:
   marked the same way and their close events are set. A submit rejection does
   this when the error event is applied, including after a held event is
   released. A package that was canceled and is later confirmed filled moves
-  those legs to filled; that update does not book a second cash change. The
-  parent fill does not move cash (`Order.is_parent()`); leg positions come from
+  those legs to filled; that update does not book a second cash change. A
+  local error that a later partial fill supersedes reopens the parent and its
+  unfilled legs, so they reserve their contracts again. The parent fill does
+  not move cash (`Order.is_parent()`); leg positions come from
   the regular Schwab position sync. A package fill reaches `on_filled_order`
   with `position=None`; on Schwab the executor's fill notification labels it
   by the order's asset.

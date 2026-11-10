@@ -2193,6 +2193,15 @@ class Schwab(Broker):
         # Package fills are one net quantity. Summing execution legs would count
         # every contract on every side, so executions are converted to packages.
         execution_fill = self._schwab_multileg_execution_fill(schwab_order, schwab_legs, simple_orders)
+        reported_filled = schwab_order.get("filledQuantity")
+        if execution_fill is not None and reported_filled is not None:
+            # Executions that disagree with Schwab's filled count are incomplete.
+            # Trusting them could close a two-lot fill after recording one lot.
+            try:
+                if abs(float(reported_filled) - execution_fill[0]) > 1e-9:
+                    execution_fill = None
+            except (TypeError, ValueError):
+                pass
         if execution_fill is not None:
             cumulative, average_price = execution_fill
         else:
@@ -2338,6 +2347,22 @@ class Schwab(Broker):
                 child.set_error(getattr(parent, "_error", None) or LumibotBrokerAPIError(message))
             else:
                 child.set_canceled()
+
+    def _reopen_schwab_package_children(self, parent: Order) -> None:
+        """Return legs to active after a local error loses to a later fill.
+
+        The fill reopens the parent only. Legs left closed by that error would
+        no longer reserve their outstanding contracts.
+        """
+        if getattr(parent, "order_class", None) != Order.OrderClass.MULTILEG:
+            return
+        for child in list(getattr(parent, "child_orders", None) or []):
+            if child.is_filled():
+                continue
+            if child.is_canceled():
+                child.status = Order.OrderStatus.SUBMITTED
+            if child._closed_event.is_set():
+                child._closed_event.clear()
 
     def _process_error_order(self, order, error):
         """Close package legs when the parent error is applied.
@@ -2552,6 +2577,7 @@ class Schwab(Broker):
                             # outcome was known. Fresh partial fill proves it is
                             # still open; do not leave wait-for-close signaled.
                             stored_order._closed_event.clear()
+                            self._reopen_schwab_package_children(stored_order)
                     self._process_trade_event(
                         stored_order,
                         event,

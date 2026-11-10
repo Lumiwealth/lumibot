@@ -3603,10 +3603,21 @@ class Schwab(Broker):
 
     @staticmethod
     def _schwab_occ_symbol(underlying, expiration, option_type, strike):
-        """OCC symbol with the strike kept to the thousandth of a dollar."""
-        from decimal import Decimal, ROUND_HALF_UP
+        """OCC symbol with the strike kept to the thousandth of a dollar.
 
-        millis = (Decimal(str(strike)) * Decimal(1000)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        None when the strike is not a whole number of thousandths: 100.1254
+        would otherwise become the 100.125 contract. Float noise far below a
+        thousandth (100.12500000001) still maps to its contract.
+        """
+        from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+
+        try:
+            scaled = Decimal(str(strike)) * Decimal(1000)
+            millis = scaled.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        except (InvalidOperation, ValueError, TypeError):
+            return None
+        if abs(scaled - millis) > Decimal("0.000001"):
+            return None
         if millis <= 0 or millis > 99_999_999:
             return None
         return "{:<6}{}{}{:08d}".format(
@@ -3615,6 +3626,79 @@ class Schwab(Broker):
             option_type,
             int(millis),
         )
+
+    def _active_orders_reserving_asset(self, order, additional_active_orders=None, exclude_reservations=None):
+        """Active closes of this contract, including legs of a working package.
+
+        A package parent is not the option, so an asset lookup misses its legs.
+        ``exclude_reservations`` drops the package being replaced; earlier legs
+        of that same package still count when they are passed in
+        ``additional_active_orders``.
+        """
+        excluded = {id(item) for item in (exclude_reservations or [])}
+        if additional_active_orders:
+            excluded.difference_update(id(item) for item in additional_active_orders)
+
+        active_orders = []
+        seen = set()
+
+        def add(candidate):
+            """Keep one active order for this strategy and contract."""
+            if candidate is None or id(candidate) in seen or id(candidate) in excluded:
+                return
+            if candidate.strategy != order.strategy or candidate.asset != order.asset:
+                return
+            if not candidate.is_active():
+                return
+            seen.add(id(candidate))
+            active_orders.append(candidate)
+
+        for candidate in self.get_active_tracked_orders(order.strategy, order.asset):
+            add(candidate)
+        for package in self.get_active_tracked_orders(order.strategy):
+            for child in getattr(package, "child_orders", None) or []:
+                add(child)
+        for candidate in additional_active_orders or []:
+            add(candidate)
+        return active_orders
+
+    def _reserved_quantity_already_filled(self, order) -> float:
+        """Contracts of this close that have already filled.
+
+        A package fill is stored on the parent. The original leg keeps an empty
+        ledger, so its own transactions would reserve the whole leg after a
+        partial fill. The parent's filled packages, times this leg's ratio,
+        are the contracts no longer reserved.
+        """
+        filled = 0.0
+        try:
+            filled = sum(
+                float(item.quantity)
+                for item in getattr(order, "transactions", [])
+                if getattr(item, "quantity", None) is not None
+            )
+        except (TypeError, ValueError):
+            filled = 0.0
+
+        parent_id = getattr(order, "parent_identifier", None)
+        if not parent_id:
+            return filled
+        parent = self.get_tracked_order(parent_id)
+        if parent is None or getattr(parent, "order_class", None) != Order.OrderClass.MULTILEG:
+            return filled
+        try:
+            parent_quantity = float(parent.quantity)
+            child_quantity = float(order.quantity)
+            parent_filled = sum(
+                float(item.quantity)
+                for item in getattr(parent, "transactions", [])
+                if getattr(item, "quantity", None) is not None
+            )
+        except (TypeError, ValueError):
+            return filled
+        if parent_quantity <= 0 or child_quantity < 0:
+            return filled
+        return max(filled, parent_filled * (child_quantity / parent_quantity))
 
     def _schwab_explicit_close_matches_position(self, order) -> bool:
         """False when an explicit close has no matching long or short position."""

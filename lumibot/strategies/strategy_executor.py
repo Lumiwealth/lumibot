@@ -1021,8 +1021,17 @@ class StrategyExecutor(Thread):
                         return
                     children.append(self._smart_limit_replacement_order(child, expected))
                 intent["submission_attempted"] = True
+                submit_kwargs = {}
+                if self._broker_is_schwab():
+                    # Schwab sends the package with the duration it is given, so a
+                    # GTC package's replacement must not fall back to DAY.
+                    submit_kwargs["duration"] = getattr(order, "time_in_force", None) or "day"
                 submitted = self.broker.submit_orders(
-                    children, is_multileg=True, order_type=intent["order_type"], price=intent["price"],
+                    children,
+                    is_multileg=True,
+                    order_type=intent["order_type"],
+                    price=intent["price"],
+                    **submit_kwargs,
                 )
                 replacement = submitted[0] if isinstance(submitted, list) and submitted else submitted
             else:
@@ -1049,6 +1058,10 @@ class StrategyExecutor(Thread):
 
         with self._smart_limit_lock:
             self._process_smart_limit_orders_locked()
+
+    def _broker_is_schwab(self) -> bool:
+        """True for Schwab, whose package reprices and package fills are handled here."""
+        return str(getattr(self.broker, "name", "")).lower() == "schwab"
 
     def _process_smart_limit_orders_locked(self):
 
@@ -1137,10 +1150,11 @@ class StrategyExecutor(Thread):
             if step_index == state["step_index"]:
                 continue
 
-            previous_step_index = state["step_index"]
             state["step_index"] = step_index
 
             if order.order_class == Order.OrderClass.MULTILEG and order.child_orders:
+                # Schwab weights each leg by its ratio; other brokers get the plain
+                # per-leg sum this loop used before.
                 computed = self.strategy._compute_multileg_net_best_fastest(order.child_orders)
                 if computed is None:
                     if not getattr(order, "_smart_limit_missing_quote_logged", False):
@@ -1149,7 +1163,6 @@ class StrategyExecutor(Thread):
                             color="yellow",
                         )
                         order._smart_limit_missing_quote_logged = True
-                    state["step_index"] = previous_step_index
                     continue
 
                 net_best, net_fastest = computed
@@ -1183,15 +1196,14 @@ class StrategyExecutor(Thread):
                             should_replace = True
                         else:
                             modified = self.broker.modify_order(order, limit_price=float(target_price))
-                            # False means the broker sent nothing or could not confirm
-                            # the replace. Keep the last price and retry this step.
-                            if modified is False:
-                                state["step_index"] = previous_step_index
+                            # Schwab returns False when it sent no replace or could not
+                            # confirm it. The live package keeps its price, so the local
+                            # limit does too; the next step prices it again.
+                            if modified is False and self._broker_is_schwab():
                                 continue
                             order.limit_price = float(target_price)
                             continue
                     except Exception:
-                        state["step_index"] = previous_step_index
                         should_replace = True
 
                 if should_replace:
@@ -1228,13 +1240,7 @@ class StrategyExecutor(Thread):
                 continue
 
             try:
-                modified = self.broker.modify_order(order, limit_price=target_price)
-                # False means the broker sent nothing or could not confirm the
-                # replace. Keep the last price and retry this step. None is a
-                # broker that does not report the outcome.
-                if modified is False:
-                    state["step_index"] = previous_step_index
-                    continue
+                self.broker.modify_order(order, limit_price=target_price)
                 if order.is_active():
                     order.limit_price = target_price
             except Exception:
@@ -1791,9 +1797,16 @@ class StrategyExecutor(Thread):
         else:
             emoji = "🔴📉 "
 
+        # A Schwab package fill has no single position; label it by the order.
+        # Other brokers keep their existing behavior.
+        if position is None and self._broker_is_schwab():
+            traded_asset = order.asset
+        else:
+            traded_asset = position.asset
+
         # Create a message to send to Discord
         message = f"""
-                {emoji} {side} {quantity:,.2f} {position.asset} @ ${price:,.2f} ({percent_of_portfolio:,.0%} of the account)
+                {emoji} {side} {quantity:,.2f} {traded_asset} @ ${price:,.2f} ({percent_of_portfolio:,.0%} of the account)
                 Trade Total = ${order_value:,.2f}
                 Account Value = ${portfolio_value:,.0f}
                 """

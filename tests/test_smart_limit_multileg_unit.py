@@ -216,7 +216,8 @@ def test_strategy_modify_keeps_the_price_when_the_broker_refuses(mocker):
     assert order.limit_price == 0.0
 
 
-def test_smart_limit_retries_the_same_step_when_modify_returns_false(mocker):
+def test_schwab_package_reprice_keeps_its_price_when_modify_returns_false(mocker):
+    """A refused Schwab package replace leaves the local limit, and the step is not retried in a loop."""
     broker = _BrokerStub(name="Schwab")
     broker.IS_BACKTESTING_BROKER = False
     tracked_orders: list[Order] = []
@@ -267,54 +268,67 @@ def test_smart_limit_retries_the_same_step_when_modify_returns_false(mocker):
     executor._process_smart_limit_orders()
     executor._process_smart_limit_orders()
 
-    assert broker.modify_order.call_count == 2
+    assert broker.modify_order.call_count == 1
     assert not broker.cancel_order.called
     assert parent.limit_price == 0.30
-    assert parent._smart_limit_state["step_index"] == 0
+    assert parent._smart_limit_state["step_index"] == 1
 
 
-def test_single_smart_limit_retries_the_same_step_when_modify_returns_false(mocker):
-    broker = _BrokerStub(name="Schwab")
+def test_package_reprice_on_other_brokers_records_the_price_as_before(mocker):
+    """Only Schwab keeps the local limit on a refused replace; other brokers behave as before."""
+    broker = _BrokerStub(name="tradier")
     broker.IS_BACKTESTING_BROKER = False
     tracked_orders: list[Order] = []
     broker.get_tracked_orders = mocker.Mock(side_effect=lambda _name: tracked_orders)
     broker.cancel_order = mocker.Mock()
+    broker.submit_orders = mocker.Mock()
     broker.modify_order = mocker.Mock(return_value=False)
+    broker.submit_order = mocker.Mock()
 
     strategy = _MinimalStrategy(broker)
     strategy.logger = SimpleNamespace(error=lambda *_a, **_k: None)
     executor = StrategyExecutor(strategy=strategy)
     strategy._executor = executor
 
-    order = Order(
+    leg_buy = _leg("unit", _option("SPY", 500), Order.OrderSide.BUY_TO_OPEN)
+    leg_sell = _leg("unit", _option("SPY", 505), Order.OrderSide.SELL_TO_OPEN)
+    parent = Order(
         "unit",
         asset=Asset("SPY"),
         quantity=1,
         side=Order.OrderSide.BUY,
         order_type=Order.OrderType.SMART_LIMIT,
+        order_class=Order.OrderClass.MULTILEG,
+        child_orders=[leg_buy, leg_sell],
         status=Order.OrderStatus.OPEN,
         smart_limit=SmartLimitConfig(preset=SmartLimitPreset.FAST, step_seconds=1, final_hold_seconds=999),
-        identifier="single-id",
-        limit_price=0.50,
+        identifier="parent-id",
     )
-    order._smart_limit_state = {
+    parent.limit_price = 0.30
+    parent._smart_limit_state = {
         "created_at": 0.0,
         "step_index": 0,
-        "steps": order.smart_limit.get_step_count(),
-        "step_seconds": order.smart_limit.get_step_seconds(),
-        "final_hold_seconds": order.smart_limit.get_final_hold_seconds(),
+        "steps": parent.smart_limit.get_step_count(),
+        "step_seconds": parent.smart_limit.get_step_seconds(),
+        "final_hold_seconds": parent.smart_limit.get_final_hold_seconds(),
+        "multileg_order_type": "debit",
     }
-    tracked_orders.append(order)
-    mocker.patch.object(strategy, "get_quote", return_value=_Quote(bid=1.00, ask=1.20))
+    tracked_orders.append(parent)
+
+    def _get_quote(asset, **_kwargs):
+        if asset == leg_buy.asset:
+            return _Quote(bid=0.50, ask=0.60)
+        return _Quote(bid=0.20, ask=0.30)
+
+    mocker.patch.object(strategy, "get_quote", side_effect=_get_quote)
     mocker.patch("lumibot.strategies.strategy_executor.time.monotonic", return_value=1.0)
 
     executor._process_smart_limit_orders()
     executor._process_smart_limit_orders()
 
-    assert broker.modify_order.call_count == 2
-    assert not broker.cancel_order.called
-    assert order.limit_price == 0.50
-    assert order._smart_limit_state["step_index"] == 0
+    assert broker.modify_order.call_count == 1
+    assert parent.limit_price != 0.30
+    assert parent.limit_price == broker.modify_order.call_args.kwargs["limit_price"]
 
 
 def test_invalid_package_quantities_do_not_escape_quote_inference(mocker):
@@ -331,10 +345,11 @@ def test_invalid_package_quantities_do_not_escape_quote_inference(mocker):
     buy.quantity = float("nan")
     assert strategy._compute_multileg_net_best_fastest([buy, sell]) is None
 
-    strategy.submit_order([buy, sell], is_multileg=True, order_type=Order.OrderType.LIMIT, price=0.10)
-
-    assert broker.submit_orders.call_args.kwargs["order_type"] == "debit"
-    assert broker.submit_orders.call_args.kwargs["price"] == 0.10
+    # No usable quote net and a positive price: Schwab cannot tell credit from debit.
+    assert strategy.submit_order(
+        [buy, sell], is_multileg=True, order_type=Order.OrderType.LIMIT, price=0.10
+    ) is None
+    assert not broker.submit_orders.called
 
 
 def test_multileg_limit_maps_to_credit_schwab(mocker):
@@ -716,3 +731,254 @@ def test_schwab_smart_limit_submit_error_does_not_retry_a_credit_as_a_debit(mock
     assert broker.submit_orders.call_count == 1
     _, kwargs = broker.submit_orders.call_args
     assert kwargs["order_type"] == "credit"
+
+
+def test_one_option_list_keeps_the_package_default_on_other_brokers(mocker):
+    """Only Schwab needs two legs for a package; other brokers keep their old default."""
+    broker = _BrokerStub(name="tradier")
+    broker.submit_orders = mocker.Mock(return_value="ok")
+    strategy = _MinimalStrategy(broker)
+    leg = _leg("unit", _option("SPY", 500), Order.OrderSide.BUY_TO_OPEN)
+
+    strategy.submit_order([leg])
+
+    assert broker.submit_orders.call_args.kwargs["is_multileg"] is True
+
+
+def test_strategy_modify_on_other_brokers_keeps_the_existing_behavior(mocker):
+    """The refusal guard is Schwab's; another broker's False result is handled as before."""
+    broker = _BrokerStub(name="projectx")
+    broker.modify_order = mocker.Mock(return_value=False)
+    strategy = _MinimalStrategy(broker)
+    order = Order(
+        "unit",
+        asset=Asset("SPY"),
+        quantity=1,
+        side=Order.OrderSide.BUY,
+        limit_price=0.0,
+        order_type=Order.OrderType.LIMIT,
+        identifier="single",
+        status=Order.OrderStatus.OPEN,
+    )
+
+    strategy.modify_order(order, limit_price=0.10)
+
+    assert order.limit_price == 0.10
+
+
+def test_multileg_smart_limit_replacement_keeps_parent_gtc(mocker):
+    """A canceled GTC package is resubmitted as GTC, not the day default."""
+    broker = _BrokerStub(name="Schwab")
+    replacement = Order("unit", Asset("SPY"), 1, Order.OrderSide.BUY)
+    broker.submit_orders = mocker.Mock(return_value=[replacement])
+    strategy = _MinimalStrategy(broker)
+    strategy.logger = SimpleNamespace(error=lambda *_a, **_k: None)
+    executor = StrategyExecutor(strategy=strategy)
+
+    leg_buy = _leg("unit", _option("SPY", 500), Order.OrderSide.BUY_TO_OPEN)
+    leg_sell = _leg("unit", _option("SPY", 505), Order.OrderSide.SELL_TO_OPEN)
+    parent = Order(
+        "unit",
+        asset=Asset("SPY"),
+        quantity=1,
+        side=Order.OrderSide.BUY,
+        time_in_force="gtc",
+        order_class=Order.OrderClass.MULTILEG,
+        child_orders=[leg_buy, leg_sell],
+    )
+    parent._smart_limit_state = {
+        "created_at": 0.0,
+        "step_seconds": 1,
+        "steps": 3,
+        "final_hold_seconds": 999,
+    }
+    _confirmed_cancel(parent)
+
+    executor._advance_smart_limit_replacement(
+        {"order": parent, "price": 0.40, "order_type": "credit", "multileg": True},
+        10,
+    )
+
+    assert broker.submit_orders.call_args.kwargs["duration"] == "gtc"
+    assert replacement.order_type == Order.OrderType.SMART_LIMIT
+
+
+def test_multileg_smart_limit_replacement_duration_is_unchanged_on_other_brokers(mocker):
+    """Only Schwab receives the parent duration; other brokers get the call they got before."""
+    broker = _BrokerStub(name="tradier")
+    replacement = Order("unit", Asset("SPY"), 1, Order.OrderSide.BUY)
+    broker.submit_orders = mocker.Mock(return_value=[replacement])
+    strategy = _MinimalStrategy(broker)
+    strategy.logger = SimpleNamespace(error=lambda *_a, **_k: None)
+    executor = StrategyExecutor(strategy=strategy)
+
+    leg_buy = _leg("unit", _option("SPY", 500), Order.OrderSide.BUY_TO_OPEN)
+    leg_sell = _leg("unit", _option("SPY", 505), Order.OrderSide.SELL_TO_OPEN)
+    parent = Order(
+        "unit",
+        asset=Asset("SPY"),
+        quantity=1,
+        side=Order.OrderSide.BUY,
+        time_in_force="gtc",
+        order_class=Order.OrderClass.MULTILEG,
+        child_orders=[leg_buy, leg_sell],
+    )
+    parent._smart_limit_state = {
+        "created_at": 0.0,
+        "step_seconds": 1,
+        "steps": 3,
+        "final_hold_seconds": 999,
+    }
+    _confirmed_cancel(parent)
+
+    executor._advance_smart_limit_replacement(
+        {"order": parent, "price": 0.40, "order_type": "credit", "multileg": True},
+        10,
+    )
+
+    assert "duration" not in broker.submit_orders.call_args.kwargs
+    assert replacement.order_type == Order.OrderType.SMART_LIMIT
+
+
+def test_schwab_limit_package_without_quotes_is_not_submitted(mocker):
+    """A positive price is not a debit hint when Schwab cannot see the quotes."""
+    broker = _BrokerStub(name="Schwab")
+    broker.submit_orders = mocker.Mock(return_value="ok")
+    strategy = _MinimalStrategy(broker)
+    long_leg = _leg("unit", _option("SPY", 500), Order.OrderSide.BUY_TO_OPEN)
+    short_leg = _leg("unit", _option("SPY", 505), Order.OrderSide.SELL_TO_OPEN)
+    mocker.patch.object(strategy, "get_quote", return_value=_Quote(bid=None, ask=None))
+
+    assert strategy.submit_order(
+        [long_leg, short_leg], is_multileg=True, order_type=Order.OrderType.LIMIT, price=0.30
+    ) is None
+    assert not broker.submit_orders.called
+
+    strategy.submit_order(
+        [long_leg, short_leg], is_multileg=True, order_type="credit", price=0.30
+    )
+
+    assert broker.submit_orders.call_args.kwargs["order_type"] == "credit"
+    assert broker.submit_orders.call_args.kwargs["price"] == 0.30
+
+
+def test_schwab_negative_limit_without_quotes_is_a_credit(mocker):
+    broker = _BrokerStub(name="Schwab")
+    broker.submit_orders = mocker.Mock(return_value="ok")
+    strategy = _MinimalStrategy(broker)
+    long_leg = _leg("unit", _option("SPY", 500), Order.OrderSide.BUY_TO_OPEN)
+    short_leg = _leg("unit", _option("SPY", 505), Order.OrderSide.SELL_TO_OPEN)
+    mocker.patch.object(strategy, "get_quote", return_value=_Quote(bid=None, ask=None))
+
+    strategy.submit_order(
+        [long_leg, short_leg], is_multileg=True, order_type=Order.OrderType.LIMIT, price=-0.30
+    )
+
+    assert broker.submit_orders.call_args.kwargs["order_type"] == "credit"
+    assert broker.submit_orders.call_args.kwargs["price"] == 0.30
+
+
+def test_schwab_zero_limit_without_quotes_is_even(mocker):
+    broker = _BrokerStub(name="Schwab")
+    broker.submit_orders = mocker.Mock(return_value="ok")
+    strategy = _MinimalStrategy(broker)
+    long_leg = _leg("unit", _option("SPY", 500), Order.OrderSide.BUY_TO_OPEN)
+    short_leg = _leg("unit", _option("SPY", 505), Order.OrderSide.SELL_TO_OPEN)
+    mocker.patch.object(strategy, "get_quote", return_value=_Quote(bid=None, ask=None))
+
+    strategy.submit_order(
+        [long_leg, short_leg], is_multileg=True, order_type=Order.OrderType.LIMIT, price=0
+    )
+
+    assert broker.submit_orders.call_args.kwargs["order_type"] == "even"
+    assert broker.submit_orders.call_args.kwargs["price"] == 0.0
+
+
+def test_tradier_positive_limit_without_quotes_stays_a_debit(mocker):
+    broker = _BrokerStub(name="tradier")
+    broker.submit_orders = mocker.Mock(return_value="ok")
+    strategy = _MinimalStrategy(broker)
+    long_leg = _leg("unit", _option("SPY", 500), Order.OrderSide.BUY_TO_OPEN)
+    short_leg = _leg("unit", _option("SPY", 505), Order.OrderSide.SELL_TO_OPEN)
+    mocker.patch.object(strategy, "get_quote", return_value=_Quote(bid=None, ask=None))
+
+    strategy.submit_order(
+        [long_leg, short_leg], is_multileg=True, order_type=Order.OrderType.LIMIT, price=0.30
+    )
+
+    assert broker.submit_orders.call_args.kwargs["order_type"] == "debit"
+    assert broker.submit_orders.call_args.kwargs["price"] == 0.30
+
+
+def test_multileg_limit_on_other_brokers_keeps_the_unweighted_net_quote(mocker):
+    """Quantity weighting is Schwab's; Tradier still sums one quote per leg."""
+    # Buy 1 at 1.00 and sell 2 at 0.80: the unweighted sum is a 0.20 debit.
+    broker = _BrokerStub(name="tradier")
+    broker.submit_orders = mocker.Mock(return_value="ok")
+    strategy = _MinimalStrategy(broker)
+    buy = _leg("unit", _option("SPY", 500), Order.OrderSide.BUY_TO_OPEN)
+    sell = _leg("unit", _option("SPY", 505), Order.OrderSide.SELL_TO_OPEN)
+    sell.quantity = 2
+
+    def _get_quote(asset, **_kwargs):
+        """Return the bid and ask scripted for this leg."""
+        if asset == buy.asset:
+            return _Quote(bid=1.00, ask=1.00)
+        return _Quote(bid=0.80, ask=0.80)
+
+    mocker.patch.object(strategy, "get_quote", side_effect=_get_quote)
+
+    assert strategy._compute_multileg_net_best_fastest([buy, sell]) == pytest.approx((0.20, 0.20))
+    strategy.submit_order([buy, sell], is_multileg=True, order_type=Order.OrderType.LIMIT, price=0.10)
+    assert broker.submit_orders.call_args.kwargs["order_type"] == "debit"
+
+
+def test_one_option_list_with_a_package_price_is_refused_on_schwab(mocker):
+    """A list-level price would be dropped from a single Schwab order, so nothing is sent."""
+    broker = _BrokerStub(name="Schwab")
+    broker.submit_orders = mocker.Mock(return_value="ok")
+    strategy = _MinimalStrategy(broker)
+    leg = _leg("unit", _option("SPY", 500), Order.OrderSide.BUY_TO_OPEN)
+
+    assert strategy.submit_order([leg], order_type=Order.OrderType.LIMIT, price=1.25) is None
+    broker.submit_orders.assert_not_called()
+
+
+class _FillNotificationStrategy:
+    """Strategy double for the executor's live fill notification."""
+
+    def __init__(self, broker):
+        self.broker = broker
+        self.hide_trades = False
+        self.portfolio_value = 10_000.0
+        self.messages = []
+        self.fills = []
+
+    def on_trading_iteration(self):
+        return None
+
+    def on_filled_order(self, position, order, price, quantity, multiplier):
+        self.fills.append((position, order))
+
+    def send_discord_message(self, message, silent=False):
+        self.messages.append(message)
+
+
+def test_schwab_package_fill_without_a_position_still_sends_its_notification():
+    broker = _BrokerStub(name="Schwab")
+    strategy = _FillNotificationStrategy(broker)
+    executor = StrategyExecutor(strategy)
+    package = Order(
+        "unit",
+        asset=Asset("SPY"),
+        quantity=1,
+        side=Order.OrderSide.SELL,
+        order_type=Order.OrderType.LIMIT,
+        limit_price=1.25,
+        order_class=Order.OrderClass.MULTILEG,
+    )
+
+    executor._on_filled_order(None, package, price=1.20, quantity=1, multiplier=100)
+
+    assert strategy.fills == [(None, package)]
+    assert len(strategy.messages) == 1 and "SPY" in strategy.messages[0]

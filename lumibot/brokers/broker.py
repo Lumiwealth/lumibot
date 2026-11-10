@@ -3106,10 +3106,8 @@ class Broker(ABC):
             if not active_is_close:
                 continue
 
-            reserved_quantity += max(
-                0.0,
-                float(active_order.quantity) - self._reserved_quantity_already_filled(active_order),
-            )
+            filled_quantity = self._reserved_quantity_already_filled(active_order)
+            reserved_quantity += max(0.0, float(active_order.quantity) - filled_quantity)
 
         remaining_closable = max(0.0, abs(position_quantity) - reserved_quantity)
         requested_quantity = float(order.quantity)
@@ -3126,76 +3124,26 @@ class Broker(ABC):
         additional_active_orders: list[Order] | None = None,
         exclude_reservations: list[Order] | None = None,
     ) -> list[Order]:
-        """Active closes of this contract, including legs of a working package.
+        """Active orders on this strategy and contract that may reserve a close.
 
-        A package parent is not the option, so an asset lookup misses its legs.
-        ``exclude_reservations`` drops the package being replaced; earlier legs
-        of that same package still count when they are passed in
-        ``additional_active_orders``.
+        A broker whose package legs reserve contracts overrides this.
+        ``exclude_reservations`` is for that override; the base lookup ignores it.
         """
-        excluded = {id(item) for item in (exclude_reservations or [])}
+        active_orders = self.get_active_tracked_orders(order.strategy, order.asset)
         if additional_active_orders:
-            excluded.difference_update(id(item) for item in additional_active_orders)
-
-        active_orders: list[Order] = []
-        seen: set[int] = set()
-
-        def add(candidate):
-            if candidate is None or id(candidate) in seen or id(candidate) in excluded:
-                return
-            if candidate.strategy != order.strategy or candidate.asset != order.asset:
-                return
-            if not candidate.is_active():
-                return
-            seen.add(id(candidate))
-            active_orders.append(candidate)
-
-        for candidate in self.get_active_tracked_orders(order.strategy, order.asset):
-            add(candidate)
-        for package in self.get_active_tracked_orders(order.strategy):
-            for child in getattr(package, "child_orders", None) or []:
-                add(child)
-        for candidate in additional_active_orders or []:
-            add(candidate)
+            active_orders.extend(
+                candidate
+                for candidate in additional_active_orders
+                if candidate.strategy == order.strategy and candidate.asset == order.asset
+            )
         return active_orders
 
     def _reserved_quantity_already_filled(self, order: Order) -> float:
-        """Contracts of this close that have already filled.
-
-        A package fill is stored on the parent. The original leg keeps an empty
-        ledger, so its own transactions would reserve the whole leg after a
-        partial fill. The parent's filled packages, times this leg's ratio,
-        are the contracts no longer reserved.
-        """
-        filled = 0.0
-        try:
-            filled = sum(
-                float(item.quantity)
-                for item in getattr(order, "transactions", [])
-                if getattr(item, "quantity", None) is not None
-            )
-        except (TypeError, ValueError):
-            filled = 0.0
-
-        parent_id = getattr(order, "parent_identifier", None)
-        if not parent_id:
-            return filled
-        parent = self.get_tracked_order(parent_id)
-        if parent is None or getattr(parent, "order_class", None) != Order.OrderClass.MULTILEG:
-            return filled
-        try:
-            parent_quantity = float(parent.quantity)
-            child_quantity = float(order.quantity)
-            parent_filled = sum(
-                float(item.quantity)
-                for item in getattr(parent, "transactions", [])
-                if getattr(item, "quantity", None) is not None
-            )
-        except (TypeError, ValueError):
-            return filled
-        if parent_quantity <= 0 or child_quantity < 0:
-            return filled
-        return max(filled, parent_filled * (child_quantity / parent_quantity))
+        """Contracts of this close that have already filled, from its own fills."""
+        return sum(
+            float(transaction.quantity)
+            for transaction in getattr(order, "transactions", [])
+        )
 
     def _conform_order(self, order):
         """Conform an order to broker constraints. Derived brokers should implement this method."""

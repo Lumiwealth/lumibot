@@ -2,7 +2,7 @@
 
 > Notes on live broker behavior that affect backtesting semantics (extended hours, order types, and “market closed / no data” handling).
 
-**Last Updated:** 2026-11-07
+**Last Updated:** 2026-11-09
 **Status:** Active
 **Audience:** Developers, AI Agents
 
@@ -279,14 +279,26 @@ Wire contract:
   never `NET_CREDIT`/`NET_DEBIT` at `0.00`. A debit rounds down and a credit
   rounds up, so the sent price is never more aggressive than requested.
   The strike in the OCC symbol keeps thousandths (`100.125` stays `100.125`).
+  A strike that is not a whole number of thousandths (`100.1254`) is refused
+  rather than rounded to a neighbouring contract.
   A `MARKET` or `STOP_LIMIT` parent is rejected even when it carries a limit
   price; the stop trigger would otherwise be dropped.
 - `Strategy.submit_order(legs, order_type='limit', price=...)` infers
-  credit/debit/even from leg quotes weighted by each leg's ratio to the package
-  quantity, for Schwab, Tradier, and Alpaca. Without that a positive Schwab
-  limit would always be a debit. A list of one option is a single order. A
-  successful submit stores the net effect, so a later replace cannot turn a
-  credit into `NET_ZERO` or an even package into a debit.
+  credit/debit/even from leg quotes for Schwab, Tradier, and Alpaca. On Schwab
+  each leg is weighted by its ratio to the package quantity (GCD); other
+  brokers keep the unweighted sum of one quote per leg
+  (`Strategy._compute_multileg_net_best_fastest`). Without that a positive
+  Schwab limit would always be a debit. When those quotes are missing and the
+  caller did not pass `credit`, `debit`, `even`, or a zero or negative price,
+  Schwab does not submit; Tradier and Alpaca still read a positive price as a
+  debit. A SMART_LIMIT package with missing quotes, or whose submit fails, is
+  not sent to Schwab as a market or unsigned limit. A successful submit stores
+  the net effect, so a later replace cannot turn a credit into `NET_ZERO` or an
+  even package into a debit.
+- On Schwab, `submit_order([option])` with one option and no `is_multileg` is
+  a single order, because a package needs two legs; other brokers keep their
+  default. A one-option list given a list-level `order_type` or `price` (a
+  package price) is refused on Schwab, because the single order would drop it.
 - `complexOrderStrategyType` is `VERTICAL` only for one buy and one sell with
   the same expiry and right, different strikes and equal quantities; anything
   else is `CUSTOM`.
@@ -319,17 +331,27 @@ Lifecycle:
   released. A package that was canceled and is later confirmed filled moves
   those legs to filled; that update does not book a second cash change. The
   parent fill does not move cash (`Order.is_parent()`); leg positions come from
-  the regular Schwab position sync.
+  the regular Schwab position sync. A package fill reaches `on_filled_order`
+  with `position=None`; on Schwab the executor's fill notification labels it
+  by the order's asset.
 - A working package's unfilled close legs count as reserved contracts. A
   partial fill counts only the remainder: filled packages times the leg's
   ratio to the package quantity. The package being replaced does not reserve
   against itself. An explicit close with no matching position is rejected
-  before the request.
+  before the request. These rules are Schwab's overrides of
+  `_active_orders_reserving_asset` and `_reserved_quantity_already_filled`;
+  the base `Broker` versions keep the existing lookup for every other broker.
+  A filled close is no longer reserved; until the next position sync removes
+  it from the book, Schwab itself refuses a second close of those contracts.
 - `modify_order` replaces the package through the same builder, so SMART_LIMIT
   repricing changes only the net price. A failed order read, including HTTP 429,
-  returns `False` and leaves the local price unchanged; the strategy does not
-  copy the requested price, and SMART_LIMIT retries that ladder step for both
-  a package and a single order. A change
+  returns `False` and leaves the local price unchanged; on Schwab neither
+  `Strategy.modify_order` nor the SMART_LIMIT executor copies the requested
+  price, and the ladder prices the package again at its next step. A Schwab
+  package replacement keeps the parent's `time_in_force`, so a GTC package
+  does not fall back to DAY. Both are Schwab-only
+  (`StrategyExecutor._broker_is_schwab`); other brokers and single-order
+  SMART_LIMIT keep their existing behavior. A change
   between credit, debit and even is a cancel and resubmit (strategy executor);
   modifying an `even` package to a non-zero price is refused because `NET_ZERO`
   is always `0.00`.

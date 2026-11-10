@@ -344,20 +344,20 @@ Lifecycle:
   position book: its legs were validated on submit, and after a partial close
   fill the synced book no longer holds the full leg. A replace that returns no
   new order id follows the order Schwab lists in the replaced order's
-  `replacingOrderCollection` when it names exactly one (read up to three times,
-  half a second apart, since Schwab may not mark it `REPLACED` at once); otherwise it counts
-  only when a fresh read shows that same order still live at the price as sent
-  (rounded to Schwab's tick), so later modifies and cancels keep the right id. A failed order read, including HTTP 429,
-  returns `False` and leaves the local price unchanged; on Schwab neither
+  `replacingOrderCollection` when it names exactly one (read up to three
+  times, half a second apart, since Schwab may not mark it `REPLACED` at
+  once); otherwise it counts only when a fresh read shows that same order
+  still live at the price as sent (rounded to Schwab's tick), so later
+  modifies and cancels keep the right id. A failed order read, including HTTP
+  429, returns `False` and leaves the local price unchanged; on Schwab neither
   `Strategy.modify_order` nor the SMART_LIMIT executor copies the requested
   price, and the ladder prices the package again at its next step. A Schwab
   package replacement keeps the parent's `time_in_force`, so a GTC package
   does not fall back to DAY. Both are Schwab-only
   (`StrategyExecutor._broker_is_schwab`); other brokers and single-order
-  SMART_LIMIT keep their existing behavior. A change
-  between credit, debit and even is a cancel and resubmit (strategy executor);
-  modifying an `even` package to a non-zero price is refused because `NET_ZERO`
-  is always `0.00`.
+  SMART_LIMIT keep their existing behavior. A change between credit, debit and
+  even is a cancel and resubmit (strategy executor); modifying an `even`
+  package to a non-zero price is refused because `NET_ZERO` is always `0.00`.
 - Durations are checked in the package builder, which every path uses
   (`submit_orders`, a hand-built parent, modify): `day`/`gtc` in any case are
   sent; anything else is refused instead of being sent with no duration.

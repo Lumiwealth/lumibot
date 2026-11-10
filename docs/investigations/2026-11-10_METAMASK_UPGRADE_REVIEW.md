@@ -35,7 +35,15 @@ The official [funding contract](https://hyperliquid.gitbook.io/hyperliquid-docs/
 
 ## Council round 9
 
-Pending Terra, Sol and Astra review of the pinned correction and affected callers, with retained rounds 1–8 for unchanged integration. No local review is substituted for required remote CI or maintainer approval.
+Reviewed correction `1e73f427f02abe1c769372b243617ea11a8e0b2a`, affected callers and baseline continuity. All three members approved with no P1/P2 or lesser findings. Each independently verified a clean pinned checkout and correct imports. This final ledger update changes no runtime, tests or configuration.
+
+| Delegate | Verdict | Fresh independent checks |
+| --- | --- | --- |
+| GPT-6.1 Terra | APPROVE, 9/10 | 10 focused offline tests; correction whitespace and source continuity. |
+| GPT-6.1 Sol | APPROVE, 9/10 | 31 focused tests; actual Schwab/Strategy synthetic-transport probe delivered 168 events in four batches with stable receipt, one read and unchanged cash. Explicit Sol-loop approval. |
+| GPT-6 Astra | APPROVE, 9/10 | 14 focused tests; independent Schwab/Strategy synthetic-transport probe; explicit cap refusal and identity preservation. |
+
+Counts overlap and are not additive. Retain rounds 1–8 for unchanged integration. No local review substitutes for required remote CI or maintainer approval. Publication and merge receipts belong in the live PR description.
 
 ## Qualification limits
 

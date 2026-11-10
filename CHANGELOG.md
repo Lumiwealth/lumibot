@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Fixed
+- Preserve reconciliation and exact cancellation of accepted MetaMask perpetual orders when upgrading a legacy token registry, while retaining strict validation for new trades and token valuation.
+- Deliver complete receipt-backed cash-history windows through existing report batches instead of truncating seven days of hourly funding to 100 events; retain limits for list-only brokers.
 - Resolve MetaMask perpetual asset casing to unique native market identities across execution and market data, preserving journaled operation identity on retries.
 - Use chain-specific native-token price identities and reject duplicate or unapproved-chain asset registrations before wallet valuation.
 - Let bounded MetaMask allowance prerequisites settle under unchanged owner authority before refreshing the trade quote, retaining fee ceilings and restart replay protection.

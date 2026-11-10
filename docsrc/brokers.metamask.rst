@@ -165,11 +165,24 @@ coverage. Limits also make results ``partial``. Provider/identity failures and
 unexhausted pagination return ``unavailable``. Onchain spot history is
 ``unsupported``. A successful empty read certifies only its checked window.
 
-Normal Strategy cloud collection marks initial history loaded only after a
-complete receipt. The list-only ``get_cash_events()`` raises
+Normal Strategy cloud collection reads the full requested window without an
+event-count cap, then delivers existing 50-event receipt batches. The receiver
+must persist every batch before accepting coverage. A seven-day window with
+168 hourly funding events uses four batches. Initial history is marked loaded
+only after a complete read. Provider pagination bounds and unresolved
+classifications still prevent certified coverage. The list-only ``get_cash_events()`` raises
 ``CASH_HISTORY_INCOMPLETE`` for incomplete results. Raw non-funding records
 remain readable through ``client.cash_history(start_ms, end_ms)``, whose bounds
 are inclusive. Reporting does not qualify funded execution.
+
+Upgrading legacy wallet registries
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Duplicate chain/contract aliases and assets on unapproved token chains remain
+invalid for new orders, owner authorization and token valuation. Existing
+perpetual orders can still be reconciled and canceled exactly. Cancellation
+retains wallet, project, network, provider-policy and matching-live-order checks.
+Recovery neither rewrites the binding nor releases an entry order.
 
 Testnet and mainnet
 -------------------

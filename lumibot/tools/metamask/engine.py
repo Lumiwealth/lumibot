@@ -24,7 +24,7 @@ class ExecutionEngine:
 
     def _authority(self, expected=None, *, cancellation=False) -> tuple[Binding, dict[str, object]]:
         record = self.journal.binding(self.agent_id)
-        binding = Binding.parse(record)
+        binding = Binding.parse(record, validate_registry=not cancellation)
         if record.get("projectId") is not None and record["projectId"] != self.provider.credentials().project_id:
             raise MetaMaskError("PROJECT_MISMATCH", "Journal belongs to a different provider project")
         if binding.network != self.venue.network:
@@ -499,7 +499,7 @@ class ExecutionEngine:
             )
 
     def _read_order(self, operation, plan, *, observation=None):
-        binding = Binding.parse(self.journal.binding(self.agent_id))
+        binding = Binding.parse(self.journal.binding(self.agent_id), validate_registry=False)
         if observation is not None and observation["wallet"] != binding.wallet:
             observation = None
         reference = operation.get("providerOrderId")
@@ -656,7 +656,7 @@ class ExecutionEngine:
         return self.journal.replace_if_unchanged(operation, after)
 
     def _reconcile_legacy(self, operation, *, observation=None):
-        binding = Binding.parse(self.journal.binding(self.agent_id))
+        binding = Binding.parse(self.journal.binding(self.agent_id), validate_registry=False)
         if operation.get("signatureOnly") and isinstance(operation.get("approvalId"), str):
             job = self.provider.signature(
                 str(operation["approvalId"]), binding.wallet, binding.network, origin="metamask"
@@ -676,8 +676,8 @@ class ExecutionEngine:
         try:
             if not isinstance(plan, dict) or plan.get("origin") != "lumibot":
                 return False
-            binding = Binding.parse(json_object(plan["binding"]))
-            current = Binding.parse(self.journal.binding(self.agent_id))
+            binding = Binding.parse(json_object(plan["binding"]), validate_registry=False)
+            current = Binding.parse(self.journal.binding(self.agent_id), validate_registry=False)
             intent = PerpIntent.parse(json_object(operation["request"]))
             action = json_object(plan["action"])
             orders = action.get("orders")
@@ -900,7 +900,7 @@ class ExecutionEngine:
             return [self.order(str(row["id"])) for row in operations]
         closed = {identifier: row for identifier, row in existing.items() if row["state"] in _TERMINAL}
         try:
-            wallet = Binding.parse(self.journal.binding(self.agent_id)).wallet
+            wallet = Binding.parse(self.journal.binding(self.agent_id), validate_registry=False).wallet
             live = self.venue.frontend_open_orders(wallet) if len(existing) > len(closed) else None
             start = max(0, min(int(row["createdAt"]) for row in existing.values()) - 5000)
             recent = self.venue.fills(wallet, start, int(time.time() * 1000))

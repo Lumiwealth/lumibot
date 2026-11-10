@@ -1,6 +1,7 @@
 """Cash history through the actual MetaMask client, venue and Strategy collector."""
 
 import datetime as dt
+import json
 from decimal import localcontext
 from unittest.mock import Mock
 
@@ -11,7 +12,7 @@ from lumibot.brokers import MetaMask
 from lumibot.strategies._strategy import _Strategy
 from lumibot.tools.metamask.provider import MetaMaskError
 from lumibot.tools.metamask.venue import URLS, HyperliquidVenue
-from tests.test_cash_events import _cloud_update_dummy
+from tests.test_cash_events import _cloud_update_dummy, _Response
 
 WALLET = "0x" + "1" * 40
 OTHER = "0x" + "2" * 40
@@ -69,6 +70,37 @@ def test_signed_cash_activity_reaches_strategy_without_mutating_cash(history):
     broker.get_cash_event_sync = Mock(return_value=sync)
     assert _Strategy._collect_cash_events_for_cloud(dummy) == list(sync.events)
     assert dummy._cash_event_initial_history_loaded is True
+    assert dummy.get_cash() == 80 and dummy._portfolio_value == 100
+
+
+def test_default_seven_day_reporting_delivers_all_hourly_funding_batches(history, monkeypatch):
+    broker, venue, rows = history
+    now = dt.datetime.now(dt.timezone.utc)
+    rows["userFunding"] = [
+        {
+            **row(i, "funding", coin="BTC", usdc="-0.01"),
+            "time": int((now - dt.timedelta(hours=i + 0.5)).timestamp() * 1000),
+        }
+        for i in range(168)
+    ]
+    dummy = _cloud_update_dummy(broker.get_cash_events)
+    dummy.broker = broker
+    dummy._cash_event_initial_history_loaded = True
+    broker.sync_positions = Mock()  # Position refresh is outside the ledger transport under test.
+    payloads = []
+    monkeypatch.setattr(requests, "post", lambda _url, **kw: payloads.append(json.loads(kw["data"])) or _Response())
+    for _ in range(4):
+        assert _Strategy.send_update_to_cloud(dummy) is True
+    receipts = [payload["funding_sync"] for payload in payloads]
+    events = [event for payload in payloads for event in payload["cash_events"]]
+    assert [len(payload["cash_events"]) for payload in payloads] == [50, 50, 50, 18]
+    assert all(receipt["state"] == "complete" for receipt in receipts)
+    assert [receipt["batch"]["index"] for receipt in receipts] == [0, 1, 2, 3]
+    assert all(receipt["batch"]["total_event_count"] == 168 for receipt in receipts)
+    assert len({receipt["sync_id"] for receipt in receipts}) == 1
+    assert len({event["event_id"] for event in events}) == 168
+    assert all(receipt["covered_intervals"] for receipt in receipts)
+    assert venue.session.request.call_count == 2  # One complete read per ledger, no per-batch refetch.
     assert dummy.get_cash() == 80 and dummy._portfolio_value == 100
 
 

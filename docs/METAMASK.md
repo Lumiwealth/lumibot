@@ -168,8 +168,13 @@ Provider/identity failures or unexhausted pagination return `unavailable`;
 onchain spot history is `unsupported`. A successful empty read is `complete`
 only for its checked window. Limits also make the result `partial`.
 
-Normal Strategy cloud collection uses these receipts and marks initial history
-loaded only after a complete read. The list-only `get_cash_events()` refuses
+Normal Strategy cloud collection reads the full requested window without an
+event-count cap, then delivers it through the existing 50-event receipt batches.
+The receiver must persist every batch before accepting coverage. A seven-day
+window with 168 hourly funding events therefore uses four batches. Initial
+history is marked loaded only after a complete read. Provider pagination bounds
+and unresolved classifications still prevent certified coverage.
+The list-only `get_cash_events()` refuses
 incomplete results with `CASH_HISTORY_INCOMPLETE`. Raw non-funding records remain
 readable through `client.cash_history(start_ms, end_ms)`; bounds there are
 inclusive. This reporting contract does not qualify funded provider execution.
@@ -232,6 +237,11 @@ Register exact chain IDs, contracts and decimals in the binding's `assets`. Nati
 
 Each chain/contract may appear only once in the asset registry, including aliases
 and conflicting decimal declarations. Assets must belong to approved chains.
+Legacy registries with duplicate aliases or unapproved token chains remain
+usable for perpetual order reconciliation and exact cancellation. New orders,
+owner authorization and token valuation still reject those registries. Wallet,
+project, network, provider policy and matching-live-order checks remain required
+for cancellation; recovery does not rewrite the binding or release an entry.
 Native pricing uses chain-specific CAIP identities: ETH uses `slip44:60`, POL
 `slip44:966`, BNB `slip44:714` and Avalanche C-Chain AVAX `slip44:9005`.
 The native price registry currently covers Ethereum, Optimism, BNB Chain,

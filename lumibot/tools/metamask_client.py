@@ -111,7 +111,7 @@ class MetaMaskClient:
         agent = identifier(self.config.get("AGENT_ID"), "AGENT_ID")
         wallet = address(self.config.get("WALLET_ADDRESS"))
         row = self.journal.binding(agent)
-        binding = Binding.parse(row)
+        binding = Binding.parse(row, validate_registry=False)
         if binding.wallet != wallet or binding.network != self.network:
             raise MetaMaskAPIError("IDENTITY_MISMATCH", "Journal wallet or network differs from configuration")
         if row.get("projectId") is not None and row["projectId"] != self.provider.credentials().project_id:

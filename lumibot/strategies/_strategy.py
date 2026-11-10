@@ -3949,7 +3949,8 @@ class _Strategy:
             if callable(get_sync):
                 from lumibot.entities import CashEventSync
 
-                result = get_sync(since=fetch_since, limit=fetch_limit)
+                # Receipt batches bound delivery; truncating the read would leave the window partial forever.
+                result = get_sync(since=fetch_since, limit=None)
                 if not isinstance(result, CashEventSync):
                     raise ValueError("Broker returned invalid cash history evidence")
                 # A receipt describes a whole read, including previously seen

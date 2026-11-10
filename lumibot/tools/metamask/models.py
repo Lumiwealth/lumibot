@@ -118,7 +118,7 @@ class Binding:
     max_slippage_bps: int
 
     @classmethod
-    def parse(cls, value: dict[str, object]) -> Binding:
+    def parse(cls, value: dict[str, object], *, validate_registry: bool = True) -> Binding:
         agent = identifier(value.get("id"), "AGENT_ID")
         wallet = address(value.get("wallet"))
         network, enabled = value.get("network"), value.get("enabled")
@@ -136,9 +136,10 @@ class Binding:
         parsed_chains = tuple(positive_integer(chain, "chain") for chain in chains)
         parsed_assets = tuple(TokenAsset.parse(asset) for asset in assets)
         identities = [(asset.chain_id, asset.address) for asset in parsed_assets]
-        if len(set(identities)) != len(identities):
+        # Legacy registries must not prevent observing or canceling accepted perpetual orders.
+        if validate_registry and len(set(identities)) != len(identities):
             raise MetaMaskError("INVALID_BINDING", "Asset registry contains duplicate chain and contract identities")
-        if any(asset.chain_id not in parsed_chains for asset in parsed_assets):
+        if validate_registry and any(asset.chain_id not in parsed_chains for asset in parsed_assets):
             raise MetaMaskError("INVALID_BINDING", "Asset registry contains an unapproved chain")
         leverage = positive_integer(value.get("maxLeverage"), "maximum leverage")
         slippage = positive_integer(value.get("maxSlippageBps"), "maximum slippage")

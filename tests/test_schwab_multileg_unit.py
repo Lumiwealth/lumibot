@@ -1663,3 +1663,28 @@ def test_a_replaced_old_order_is_never_confirmed_as_the_tracked_order(lifecycle)
     assert broker.modify_order(parent, limit_price=1.05) is False
     assert parent.identifier == original_id
     assert parent.limit_price == 1.25
+
+
+def test_a_pending_replace_old_order_is_not_confirmed(lifecycle):
+    """PENDING_REPLACE is unresolved, so the old id is not confirmed as the working order."""
+    transport, broker, _queues = lifecycle
+    parent = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=1.25)[0]
+    original_id = parent.identifier
+
+    def replace_order(account_hash, identifier, order_spec):
+        transport._check_account(account_hash)
+        transport.replace_calls.append((identifier, order_spec))
+        return type("Response", (), {"status_code": 201, "headers": {}, "text": ""})()
+
+    transport.replace_order = replace_order
+    transport.queue_order_reads(
+        original_id,
+        {"status": "WORKING"},
+        {"status": "WORKING"},
+        {"status": "WORKING"},
+        {"status": "WORKING"},
+        {"status": "PENDING_REPLACE", "price": 1.05},
+    )
+
+    assert broker.modify_order(parent, limit_price=1.05) is False
+    assert parent.identifier == original_id

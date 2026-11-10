@@ -4512,14 +4512,15 @@ class Schwab(Broker):
     def _schwab_replacement_confirmed(self, order, limit_price, stop_price) -> bool:
         """True when a follow-up read shows the requested prices on this order.
 
-        Only a live order counts. A replaced, canceled, rejected, or expired old
-        id means the working order has another id, so keeping this one would
-        point later modifies and cancels at the wrong order.
+        Only a working order counts. Any other status (pending replace,
+        replaced, canceled, rejected, expired) leaves it unresolved whether this
+        id is still the working order, and keeping it could point later
+        modifies and cancels at the wrong order.
         """
         refreshed = self._pull_broker_order(order.identifier)
         if not isinstance(refreshed, dict):
             return False
-        if str(refreshed.get("status") or "").upper() in {"REPLACED", "CANCELED", "REJECTED", "EXPIRED"}:
+        if str(refreshed.get("status") or "").upper() not in self.ACTIVE_SCHWAB_ORDER_STATUSES:
             return False
         if limit_price is not None:
             try:

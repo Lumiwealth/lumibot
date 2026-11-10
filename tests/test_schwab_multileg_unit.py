@@ -81,6 +81,7 @@ def _spec(broker, order):
 
 
 def test_put_credit_spread_builds_vertical_net_credit_and_submits_once():
+    """Put credit spread builds vertical net credit and submits once."""
     broker = _broker()
     order = _put_credit_parent()
 
@@ -117,6 +118,7 @@ def test_put_credit_spread_builds_vertical_net_credit_and_submits_once():
 
 
 def test_submit_orders_credit_keyword_uses_one_package():
+    """Submit orders credit keyword uses one package."""
     broker = _broker()
     children = _put_credit_children()
 
@@ -134,6 +136,7 @@ def test_submit_orders_credit_keyword_uses_one_package():
 
 
 def test_four_leg_box_builds_custom_net_debit():
+    """Four-leg box builds custom net debit."""
     broker = _broker()
     order = Order(
         "unit-test",
@@ -167,6 +170,7 @@ def test_four_leg_box_builds_custom_net_debit():
 
 
 def test_invalid_multileg_shapes_are_rejected_without_placing_legs():
+    """Invalid multileg shapes are rejected without placing legs."""
     broker = _broker()
     five_legs = Order(
         "unit-test",
@@ -234,6 +238,7 @@ def test_invalid_multileg_shapes_are_rejected_without_placing_legs():
 
 
 def test_non_multileg_submit_orders_still_submits_each_order():
+    """Non-multileg submit orders still submits each order."""
     broker = _broker()
     orders = [
         Order("unit-test", Asset("SPY"), 10, Order.OrderSide.BUY, limit_price=500),
@@ -251,6 +256,7 @@ def test_non_multileg_submit_orders_still_submits_each_order():
 
 
 def test_filled_vertical_snapshot_parses_as_multileg_parent():
+    """Filled vertical snapshot parses as multileg parent."""
     broker = _broker()
     snapshot = {
         "orderId": "spread-1",
@@ -324,6 +330,7 @@ def test_filled_vertical_snapshot_parses_as_multileg_parent():
 
 
 def test_ratio_legs_send_gcd_package_quantity_with_absolute_leg_quantities():
+    """Ratio legs send GCD package quantity with absolute leg quantities."""
     broker = _broker()
     children = [
         _option_leg(500, "CALL", Order.OrderSide.BUY_TO_OPEN, quantity=2),
@@ -376,6 +383,7 @@ def lifecycle(monkeypatch):
 
 
 def _priority_events(queues):
+    """Drain the priority queue and return the events waiting there."""
     events = []
     while True:
         try:
@@ -385,6 +393,7 @@ def _priority_events(queues):
 
 
 def _fixture_put_credit_legs():
+    """Put-credit legs tagged with the lifecycle fixture strategy."""
     legs = _put_credit_children()
     for leg in legs:
         leg.strategy = "fixture"
@@ -392,6 +401,7 @@ def _fixture_put_credit_legs():
 
 
 def test_package_fill_reaches_strategy_once_at_net_price_and_package_quantity(lifecycle):
+    """Package fill reaches strategy once at net price and package quantity."""
     transport, broker, queues = lifecycle
     parent = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=1.25)[0]
     _TRANSPORT.drain_stream_events(broker)
@@ -416,6 +426,7 @@ def test_package_fill_reaches_strategy_once_at_net_price_and_package_quantity(li
 
 
 def test_modify_multileg_replaces_the_package_at_the_new_net_price(lifecycle):
+    """Modify multileg replaces the package at the new net price."""
     transport, broker, _queues = lifecycle
     parent = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=1.25)[0]
     original_id = parent.identifier
@@ -439,6 +450,7 @@ def test_modify_multileg_replaces_the_package_at_the_new_net_price(lifecycle):
 
 
 def test_modify_broker_parsed_multileg_keeps_credit_type(lifecycle):
+    """Modify broker parsed multileg keeps credit type."""
     transport, broker, _queues = lifecycle
     submitted = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=1.25)[0]
     # A strategy restart only has the broker snapshot, not the submit-time effect.
@@ -455,6 +467,7 @@ def test_modify_broker_parsed_multileg_keeps_credit_type(lifecycle):
 
 
 def _filled_credit_snapshot(executions, **fields):
+    """A filled two-lot NET_CREDIT vertical snapshot with the given executions."""
     snapshot = {
         "orderId": "spread-2",
         "orderType": "NET_CREDIT",
@@ -493,6 +506,7 @@ def _filled_credit_snapshot(executions, **fields):
 def test_package_fill_price_comes_from_leg_executions_not_the_limit():
     # Schwab order snapshots carry the limit in "price" and usually no averagePrice.
     # The package filled better than its 1.25 limit: two fills at 1.30 and 1.20 net.
+    """Package fill price comes from leg executions not the limit."""
     broker = _broker()
     snapshot = _filled_credit_snapshot([
         [{"legId": 1, "quantity": 1, "price": 2.10}, {"legId": 2, "quantity": 1, "price": 0.80}],
@@ -515,6 +529,7 @@ def test_package_fill_price_comes_from_leg_executions_not_the_limit():
 
 
 def test_ratio_package_fill_price_weights_each_leg_by_its_ratio():
+    """Ratio package fill price weights each leg by its ratio."""
     broker = _broker()
     snapshot = _filled_credit_snapshot(
         [[{"legId": 1, "quantity": 2, "price": 1.00}, {"legId": 2, "quantity": 4, "price": 0.30}]],
@@ -535,6 +550,7 @@ def test_ratio_package_fill_price_weights_each_leg_by_its_ratio():
 
 def test_executions_without_leg_ids_fall_back_to_order_level_fill():
     # Unattributed rows would otherwise count toward every leg and net to zero.
+    """Executions without leg ids fall back to order level fill."""
     broker = _broker()
     snapshot = _filled_credit_snapshot(
         [[{"quantity": 2, "price": 2.05}, {"quantity": 2, "price": 0.80}]],
@@ -548,6 +564,7 @@ def test_executions_without_leg_ids_fall_back_to_order_level_fill():
 
 
 def test_unsendable_package_type_or_duration_is_rejected_before_any_request():
+    """Unsendable package type or duration is rejected before any request."""
     broker = _broker()
 
     for kwargs in (
@@ -581,6 +598,7 @@ def _parent(children, side=Order.OrderSide.BUY, limit_price=0.50, quantity=1, **
 
 
 def test_even_keyword_sends_net_zero_at_zero_price():
+    """Even keyword sends net zero at zero price."""
     broker = _broker()
 
     submitted = broker._submit_orders(_put_credit_children(), is_multileg=True, order_type="even", price=None)
@@ -604,6 +622,7 @@ def test_even_keyword_sends_net_zero_at_zero_price():
 )
 def test_broker_level_price_sign_and_keyword_choose_the_net_type(price, order_type, expected_type, expected_price, expected_side):
     # A direct broker call has no quotes: negative is a credit, positive a debit.
+    """Broker level price sign and keyword choose the net type."""
     broker = _broker()
 
     submitted = broker._submit_orders(_put_credit_children(), is_multileg=True, order_type=order_type, price=price)
@@ -615,6 +634,7 @@ def test_broker_level_price_sign_and_keyword_choose_the_net_type(price, order_ty
 
 
 def test_time_in_force_alias_and_uppercase_parent_duration_reach_schwab():
+    """Time in force alias and uppercase parent duration reach Schwab."""
     broker = _broker()
 
     broker._submit_orders(_put_credit_children(), is_multileg=True, order_type="credit", price=1.25, time_in_force="gtc")
@@ -649,6 +669,7 @@ def test_time_in_force_alias_and_uppercase_parent_duration_reach_schwab():
     ids=["calendar", "risk-reversal", "straddle", "both-bought"],
 )
 def test_two_leg_packages_that_are_not_verticals_are_custom(legs):
+    """Two leg packages that are not verticals are custom."""
     broker = _broker()
 
     spec = _spec(broker, _parent(legs, limit_price=1.00))
@@ -674,6 +695,7 @@ def test_two_leg_packages_that_are_not_verticals_are_custom(legs):
     ids=["sell-short-side", "fractional-leg", "parent-quantity-mismatch", "missing-price", "pre-duration"],
 )
 def test_invalid_package_details_are_rejected_without_a_request(order):
+    """Invalid package details are rejected without a request."""
     broker = _broker()
 
     assert broker._submit_order(order) is None
@@ -681,6 +703,7 @@ def test_invalid_package_details_are_rejected_without_a_request(order):
 
 
 def test_leg_without_right_or_credit_effect_without_price_is_rejected():
+    """Leg without right or credit effect without price is rejected."""
     broker = _broker()
     no_right = _option_leg(500, "CALL", Order.OrderSide.BUY_TO_OPEN)
     no_right.asset.right = None
@@ -699,6 +722,7 @@ def test_leg_without_right_or_credit_effect_without_price_is_rejected():
 
 def test_spread_snapshot_with_plain_limit_type_parses_as_package_with_first_leg_side():
     # Spreads entered outside LumiBot can carry a plain LIMIT type.
+    """Spread snapshot with plain limit type parses as package with first leg side."""
     broker = _broker()
     snapshot = _filled_credit_snapshot([], orderType="LIMIT", status="WORKING", filledQuantity=0)
 
@@ -719,6 +743,7 @@ def _single_leg_snapshot():
 
 
 def test_single_leg_and_mixed_asset_snapshots_keep_the_one_order_parse():
+    """Single leg and mixed asset snapshots keep the one order parse."""
     broker = _broker()
 
     single = broker._parse_broker_order(_single_leg_snapshot(), strategy_name="unit-test")
@@ -739,6 +764,7 @@ def test_single_leg_and_mixed_asset_snapshots_keep_the_one_order_parse():
 
 
 def test_net_zero_snapshot_without_price_parses_as_even_buy_at_zero():
+    """Net zero snapshot without price parses as even buy at zero."""
     broker = _broker()
     snapshot = _filled_credit_snapshot([], orderType="NET_ZERO", status="WORKING", filledQuantity=0)
     del snapshot["price"]
@@ -755,6 +781,7 @@ def test_net_zero_snapshot_without_price_parses_as_even_buy_at_zero():
 
 
 def test_out_of_ratio_executions_and_missing_executions_use_order_level_fields():
+    """Out of ratio executions and missing executions use order level fields."""
     broker = _broker()
     out_of_ratio = _filled_credit_snapshot(
         [[{"legId": 1, "quantity": 2, "price": 2.05}, {"legId": 2, "quantity": 1, "price": 0.80}]],
@@ -774,6 +801,7 @@ def test_out_of_ratio_executions_and_missing_executions_use_order_level_fields()
 # --- Leg intent and the full lifecycle on the native reducer.
 
 def test_generic_leg_sides_resolve_against_the_package_and_never_over_close(lifecycle):
+    """Generic leg sides resolve against the package and never over close."""
     transport, broker, _queues = lifecycle
     long_put = _option_leg(500, "PUT", Order.OrderSide.SELL).asset
     broker._filled_positions.append(Position("fixture", long_put, 1))
@@ -807,6 +835,7 @@ def test_generic_leg_sides_resolve_against_the_package_and_never_over_close(life
 
 
 def test_partial_then_full_package_fill_delivers_package_deltas(lifecycle):
+    """Partial then full package fill delivers package deltas."""
     transport, broker, queues = lifecycle
     legs = [
         _option_leg(500, "PUT", Order.OrderSide.SELL_TO_OPEN, quantity=2),
@@ -850,6 +879,7 @@ def test_partial_then_full_package_fill_delivers_package_deltas(lifecycle):
 
 
 def test_package_cancel_and_http_rejection_reach_the_strategy(lifecycle):
+    """Package cancel and HTTP rejection reach the strategy."""
     transport, broker, queues = lifecycle
     parent = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=1.25)[0]
     _TRANSPORT.drain_stream_events(broker)
@@ -878,6 +908,7 @@ def test_package_cancel_and_http_rejection_reach_the_strategy(lifecycle):
 
 def test_package_price_rounds_in_decimal_space():
     # 1.15 * 100 is 114.999... in binary. Truncating that float would send 1.14.
+    """Package price rounds in decimal space."""
     assert Schwab._format_schwab_package_price(1.15) == "1.15"
     assert Schwab._format_schwab_package_price(1.259) == "1.26"
     assert Schwab._format_schwab_package_price(0.12349) == "0.1235"
@@ -893,6 +924,7 @@ def test_package_price_rounds_in_decimal_space():
 
 
 def test_closing_vertical_high_strike_and_three_leg_package():
+    """Closing vertical high strike and three-leg package."""
     broker = _broker()
     closing = _parent(
         [
@@ -938,6 +970,7 @@ def test_closing_vertical_high_strike_and_three_leg_package():
 
 
 def test_unusable_package_inputs_are_rejected_without_a_request():
+    """Unusable package inputs are rejected without a request."""
     broker = _broker()
     long_root = _option_leg(500, "CALL", Order.OrderSide.BUY_TO_OPEN, symbol="TOOLONG")
     negative_strike = _option_leg(-5, "CALL", Order.OrderSide.BUY_TO_OPEN)
@@ -959,6 +992,7 @@ def test_unusable_package_inputs_are_rejected_without_a_request():
 
 
 def test_broken_option_package_snapshot_is_not_returned_as_one_leg():
+    """Broken option package snapshot is not returned as one leg."""
     broker = _broker()
     snapshot = _filled_credit_snapshot([[{"legId": 1, "quantity": 2, "price": 2.05}]])
     snapshot["orderLegCollection"][1]["instrument"] = {"assetType": "OPTION"}
@@ -967,6 +1001,7 @@ def test_broken_option_package_snapshot_is_not_returned_as_one_leg():
 
 
 def test_unknown_leg_side_uses_the_order_level_fill_price():
+    """Unknown leg side uses the order level fill price."""
     broker = _broker()
     snapshot = _filled_credit_snapshot(
         [[{"legId": 1, "quantity": 2, "price": 2.05}, {"legId": 2, "quantity": 2, "price": 0.80}]],
@@ -984,6 +1019,7 @@ def test_unknown_leg_side_uses_the_order_level_fill_price():
 
 
 def test_parsed_even_and_hand_built_zero_price_cannot_be_repriced():
+    """Parsed even and hand built zero price cannot be repriced."""
     broker = _broker()
     even = _filled_credit_snapshot([], orderType="NET_ZERO", status="WORKING", filledQuantity=0, price="0.00")
     parsed = broker._parse_broker_order(even, strategy_name="unit-test")
@@ -1006,6 +1042,7 @@ def test_parsed_even_and_hand_built_zero_price_cannot_be_repriced():
 
 
 def test_explicit_close_legs_cannot_over_close_the_same_contract(lifecycle):
+    """Explicit close legs cannot over close the same contract."""
     transport, broker, _queues = lifecycle
     held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
     broker._filled_positions.append(Position("fixture", held, 1))
@@ -1027,6 +1064,7 @@ def test_explicit_close_legs_cannot_over_close_the_same_contract(lifecycle):
 
 
 def test_modify_even_package_to_a_price_is_refused(lifecycle):
+    """Modify even package to a price is refused."""
     transport, broker, _queues = lifecycle
     parent = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="even")[0]
 
@@ -1037,6 +1075,7 @@ def test_modify_even_package_to_a_price_is_refused(lifecycle):
 
 
 def test_sub_tick_prices_are_judged_as_schwab_receives_them():
+    """Sub-tick prices are judged as Schwab receives them."""
     broker = _broker()
 
     # 0.00004 is sent as "0.00": a credit or debit at zero is refused...
@@ -1056,6 +1095,7 @@ def test_sub_tick_prices_are_judged_as_schwab_receives_them():
 
 
 def test_non_finite_parent_or_replacement_price_is_refused():
+    """Non finite parent or replacement price is refused."""
     broker = _broker()
 
     assert broker._submit_order(_parent(_put_credit_children(), side=Order.OrderSide.SELL, limit_price=float("nan"))) is None
@@ -1067,6 +1107,7 @@ def test_non_finite_parent_or_replacement_price_is_refused():
 
 def test_broken_package_warning_is_logged_once_per_order(mocker):
     # The broad poll re-reads the same history every 30 seconds.
+    """Broken package warning is logged once per order."""
     broker = _broker()
     logger = mocker.patch("lumibot.brokers.schwab.logger")
     snapshot = _filled_credit_snapshot([[{"legId": 1, "quantity": 2, "price": 2.05}]])
@@ -1082,6 +1123,7 @@ def test_broken_package_warning_is_logged_once_per_order(mocker):
 
 
 def test_fractional_strike_keeps_occ_thousandths():
+    """Fractional strike keeps OCC thousandths."""
     broker = _broker()
     legs = [
         _option_leg(100.125, "CALL", Order.OrderSide.BUY_TO_OPEN),
@@ -1094,6 +1136,7 @@ def test_fractional_strike_keeps_occ_thousandths():
 
 
 def test_stop_and_market_parents_are_not_sent_as_plain_net_limits():
+    """Stop and market parents are not sent as plain net limits."""
     broker = _broker()
     stop_limit = _parent(
         _put_credit_children(),
@@ -1122,6 +1165,7 @@ def test_stop_and_market_parents_are_not_sent_as_plain_net_limits():
 
 
 def test_sub_tick_debit_is_not_sent_as_a_zero_price():
+    """Sub-tick debit is not sent as a zero price."""
     broker = _broker()
 
     assert broker._submit_orders(
@@ -1136,6 +1180,7 @@ def test_sub_tick_debit_is_not_sent_as_a_zero_price():
 
 
 def test_directional_package_prices_are_sent_without_weakening_the_limit():
+    """Directional package prices are sent without weakening the limit."""
     broker = _broker()
 
     broker._submit_orders(_put_credit_children(), is_multileg=True, order_type="debit", price=1.255)
@@ -1146,6 +1191,7 @@ def test_directional_package_prices_are_sent_without_weakening_the_limit():
 
 
 def test_submitted_credit_cannot_become_net_zero(lifecycle):
+    """Submitted credit cannot become net zero."""
     transport, broker, _queues = lifecycle
     parent = _parent(_fixture_put_credit_legs(), side=Order.OrderSide.SELL, limit_price=1.25)
     parent.strategy = "fixture"
@@ -1161,6 +1207,7 @@ def test_submitted_credit_cannot_become_net_zero(lifecycle):
 
 
 def test_submitted_sub_tick_even_package_cannot_be_repriced(lifecycle):
+    """Submitted sub-tick even package cannot be repriced."""
     transport, broker, _queues = lifecycle
     parent = _parent(_fixture_put_credit_legs(), side=Order.OrderSide.SELL, limit_price=0.00004)
     parent.strategy = "fixture"
@@ -1176,6 +1223,7 @@ def test_submitted_sub_tick_even_package_cannot_be_repriced(lifecycle):
 
 
 def test_zero_net_fill_is_not_replaced_by_the_limit(lifecycle):
+    """Zero net fill is not replaced by the limit."""
     _transport, broker, queues = lifecycle
     parent = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="debit", price=0.40)[0]
     _TRANSPORT.drain_stream_events(broker)
@@ -1198,6 +1246,7 @@ def test_zero_net_fill_is_not_replaced_by_the_limit(lifecycle):
 
 
 def test_modify_leaves_the_price_when_the_order_cannot_be_read(lifecycle):
+    """Modify leaves the price when the order cannot be read."""
     transport, broker, _queues = lifecycle
     parent = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=1.25)[0]
     broker._pull_broker_order = lambda _identifier: None
@@ -1208,6 +1257,7 @@ def test_modify_leaves_the_price_when_the_order_cannot_be_read(lifecycle):
 
 
 def test_unconfirmed_replace_does_not_adopt_the_new_price(lifecycle):
+    """Unconfirmed replace does not adopt the new price."""
     transport, broker, _queues = lifecycle
     parent = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=1.25)[0]
     original_id = parent.identifier
@@ -1225,6 +1275,7 @@ def test_unconfirmed_replace_does_not_adopt_the_new_price(lifecycle):
 
 
 def test_explicit_close_without_a_position_is_rejected(lifecycle):
+    """Explicit close without a position is rejected."""
     transport, broker, _queues = lifecycle
     closing = _parent(
         [
@@ -1243,11 +1294,13 @@ def test_explicit_close_without_a_position_is_rejected(lifecycle):
 
 
 def test_working_package_reserves_its_close_leg(lifecycle):
+    """Working package reserves its close leg."""
     transport, broker, _queues = lifecycle
     held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
     broker._filled_positions.append(Position("fixture", held, 1))
 
     def _closing(other_strike):
+        """A closing package for the held contract."""
         order = _parent(
             [
                 _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE),
@@ -1272,6 +1325,7 @@ def test_working_package_reserves_its_close_leg(lifecycle):
 
 
 def test_partial_package_fill_reserves_only_the_unfilled_remainder(lifecycle):
+    """Partial package fill reserves only the unfilled remainder."""
     transport, broker, _queues = lifecycle
     held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
     broker._filled_positions.append(Position("fixture", held, 2))
@@ -1295,6 +1349,7 @@ def test_partial_package_fill_reserves_only_the_unfilled_remainder(lifecycle):
     broker._process_schwab_order_snapshot(observed)
 
     def _closing(quantity, other_strike):
+        """A closing package for the held contract."""
         order = _parent(
             [
                 _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE, quantity=quantity),
@@ -1314,6 +1369,7 @@ def test_partial_package_fill_reserves_only_the_unfilled_remainder(lifecycle):
 
 
 def test_confirmed_fill_after_cancel_marks_the_legs_filled(lifecycle):
+    """Confirmed fill after cancel marks the legs filled."""
     transport, broker, _queues = lifecycle
     parent = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=1.25)[0]
     _TRANSPORT.drain_stream_events(broker)
@@ -1340,6 +1396,7 @@ def test_confirmed_fill_after_cancel_marks_the_legs_filled(lifecycle):
 
 
 def test_held_submit_error_closes_the_package_legs(lifecycle):
+    """Held submit error closes the package legs."""
     transport, broker, _queues = lifecycle
     parent = broker._multileg_parent_from_orders(
         _fixture_put_credit_legs(), order_type="credit", price=1.25,
@@ -1369,6 +1426,7 @@ def test_a_strike_that_is_not_a_thousandth_has_no_occ_symbol():
 
 
 def test_a_package_leg_with_an_unlisted_strike_is_refused():
+    """A package leg with an unlisted strike is refused."""
     broker = _broker()
     children = [
         _option_leg(500.0004, "PUT", Order.OrderSide.SELL_TO_OPEN),
@@ -1397,6 +1455,7 @@ def _close_reservation_broker(broker_class, position_quantity):
 
 
 def test_a_working_package_close_reserves_its_contracts_on_schwab():
+    """A working package close reserves its contracts on Schwab."""
     broker, close = _close_reservation_broker(Schwab, position_quantity=2)
 
     with pytest.raises(ValueError):
@@ -1458,6 +1517,7 @@ def test_a_replace_without_a_location_is_confirmed_against_the_price_sent(lifecy
     reads = {"count": 0}
 
     def pull(identifier):
+        """Read the order; after the replace, show the price that was sent."""
         reads["count"] += 1
         data = original_read(identifier)
         if reads["count"] > 1 and isinstance(data, dict):

@@ -32,6 +32,7 @@ UNDERLINE = re.compile(r"^([=\-~^\"*#+])\1{3,}\s*$")
 
 
 def _load_docs_config():
+    """Load docsrc/conf.py, then restore sys.modules."""
     pytest.importorskip("docutils")
     spec = importlib.util.spec_from_file_location("lumibot_docs_conf_faq", DOCSRC / "conf.py")
     module = importlib.util.module_from_spec(spec)
@@ -127,6 +128,7 @@ def test_new_broker_text_has_no_em_or_en_dashes():
 
 
 def test_faq_extractor_reads_both_question_styles():
+    """FAQ extractor reads both question styles."""
     if publish_doctree is None:
         pytest.skip("docutils is not installed")
     conf = _load_docs_config()

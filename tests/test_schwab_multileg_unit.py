@@ -1410,3 +1410,62 @@ def test_other_brokers_keep_their_close_reservation_lookup():
     broker, close = _close_reservation_broker(Tradier, position_quantity=2)
 
     assert broker.resolve_option_order_intent(close) is close
+
+
+def test_a_partly_filled_close_package_can_still_be_repriced_after_sync(lifecycle):
+    """A replace keeps the legs as submitted; the synced book must not refuse it."""
+    transport, broker, _queues = lifecycle
+    held = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE).asset
+    broker._filled_positions.append(Position("fixture", held, 2))
+    legs = [
+        _option_leg(500, "PUT", Order.OrderSide.SELL_TO_CLOSE, quantity=2),
+        _option_leg(490, "PUT", Order.OrderSide.BUY_TO_OPEN, quantity=2),
+    ]
+    for leg in legs:
+        leg.strategy = "fixture"
+    parent = broker.submit_orders(legs, is_multileg=True, order_type="credit", price=1.25)[0]
+    execution = {"activityType": "EXECUTION", "executionLegs": [
+        {"legId": 1, "quantity": 1, "price": 2.10},
+        {"legId": 2, "quantity": 1, "price": 0.80},
+    ]}
+    transport.queue_order_reads(parent.identifier, {
+        "status": "PARTIALLY_FILLED",
+        "filledQuantity": 1,
+        "orderActivityCollection": [execution],
+    })
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+    # Position sync now shows the one contract the package already sold.
+    broker._filled_positions.remove(broker.get_tracked_position("fixture", held))
+    broker._filled_positions.append(Position("fixture", held, 1))
+
+    assert broker.modify_order(parent, limit_price=1.15) is True
+    assert transport.replace_calls[-1][1]["price"] == "1.15"
+
+
+def test_a_replace_without_a_location_is_confirmed_against_the_price_sent(lifecycle):
+    """Schwab shows the formatted net price; a sub-tick request still confirms."""
+    transport, broker, _queues = lifecycle
+    parent = broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=0.95)[0]
+
+    def replace_order(account_hash, identifier, order_spec):
+        transport._check_account(account_hash)
+        transport.replace_calls.append((identifier, order_spec))
+        return type("Response", (), {"status_code": 201, "headers": {}, "text": ""})()
+
+    transport.replace_order = replace_order
+    original_read = broker._pull_broker_order
+    reads = {"count": 0}
+
+    def pull(identifier):
+        reads["count"] += 1
+        data = original_read(identifier)
+        if reads["count"] > 1 and isinstance(data, dict):
+            data = {**data, "price": float(transport.replace_calls[-1][1]["price"])}
+        return data
+
+    broker._pull_broker_order = pull
+
+    assert broker.modify_order(parent, limit_price=0.90005) is True
+    assert transport.replace_calls[-1][1]["price"] == "0.9001"
+    assert parent.limit_price == 0.90005

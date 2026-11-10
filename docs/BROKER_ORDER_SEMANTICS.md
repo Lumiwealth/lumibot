@@ -343,8 +343,9 @@ Lifecycle:
   repricing changes only the net price. A replace does not re-check the
   position book: its legs were validated on submit, and after a partial close
   fill the synced book no longer holds the full leg. A replace that returns no
-  new order id counts only when a fresh read shows the price as sent (rounded
-  to Schwab's tick). A failed order read, including HTTP 429,
+  new order id follows the order Schwab lists in the replaced order's
+  `replacingOrderCollection` when it names exactly one; otherwise it counts
+  only when a fresh read shows the price as sent (rounded to Schwab's tick). A failed order read, including HTTP 429,
   returns `False` and leaves the local price unchanged; on Schwab neither
   `Strategy.modify_order` nor the SMART_LIMIT executor copies the requested
   price, and the ladder prices the package again at its next step. A Schwab

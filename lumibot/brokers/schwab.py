@@ -4446,6 +4446,11 @@ class Schwab(Broker):
                 logger.error(colored(f"Error extracting new order ID: {e}", "red"))
 
             if not new_order_id:
+                # A replace that landed without a Location header leaves the old
+                # order REPLACED; Schwab lists the order that replaced it.
+                new_order_id = self._schwab_replacing_order_id(order.identifier)
+
+            if not new_order_id:
                 # The replace may have landed without a Location header. Adopt
                 # the new price only when a fresh read shows it on this order.
                 # Schwab shows the price as sent (rounded to its tick), not as requested.
@@ -4482,6 +4487,18 @@ class Schwab(Broker):
             logger.error(colored(f"Error modifying order {order.identifier}: {str(e)}", "red"))
             logger.error(_format_exc())
             return False
+
+    def _schwab_replacing_order_id(self, identifier):
+        """Id of the order that replaced this one, when Schwab names exactly one."""
+        data = self._pull_broker_order(identifier)
+        if not isinstance(data, dict) or str(data.get("status") or "").upper() != "REPLACED":
+            return None
+        replacing_ids = {
+            str(item.get("orderId"))
+            for item in data.get("replacingOrderCollection") or []
+            if isinstance(item, dict) and item.get("orderId") is not None
+        }
+        return replacing_ids.pop() if len(replacing_ids) == 1 else None
 
     def _schwab_replacement_confirmed(self, order, limit_price, stop_price) -> bool:
         """True when a follow-up read shows the requested prices on this order."""

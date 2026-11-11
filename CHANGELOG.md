@@ -10,6 +10,7 @@
 - Cap the agent `market_historical_prices` and `market_load_history_table` tools at 5,000 bars per symbol per call. A larger request returns the most recent 5,000 bars and says so in the result instead of failing.
 - Faster minute-level option backtests on Alpaca data: an option's last price is read straight from the stored trade bars instead of building a Bars object on every call, and option expiry text is parsed once instead of on every chain lookup. Prices and trades are unchanged.
 - Faster option greeks and delta strike selection in every backtest: the risk free rate lookup no longer re-converts its date index on each call (about 9 ms saved per greeks call), and Black-Scholes implied volatility prices each bisection step without building an object and stops once the step no longer moves. Results are identical (12,000 cases checked against the original solver). A greeks call went from about 12 ms to 1.3 ms and a delta strike search from about 105 ms to 11 ms.
+- A finished backtest no longer stays alive retrying failed shared bar cache uploads. After 10 failures in a row the remote store is given up for that run (local files are still written, results are unaffected), and the warning now includes the error message instead of only its type.
 
 ## 4.6.48 - 2026-11-05
 

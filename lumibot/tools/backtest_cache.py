@@ -86,6 +86,22 @@ class _StubbedS3ErrorCodes:
     NOT_FOUND = {"404", "400", "NoSuchKey", "NotFound"}
 
 
+def _telemetry_cache(event: str, payload: dict | None, *, nbytes: float = 0, seconds: float = 0.0) -> None:
+    """Mirror a cache event into the run telemetry, attributed to the payload's provider."""
+    try:
+        from lumibot.tools import backtest_telemetry
+
+        provider = payload.get("provider") if isinstance(payload, dict) else None
+        asset_class = None
+        if isinstance(payload, dict):
+            asset_class = payload.get("asset_type") or payload.get("asset_class")
+        backtest_telemetry.record_cache(event, layer="backtest_cache", source=str(provider) if provider else None,
+                                        asset_class=str(asset_class) if asset_class else None,
+                                        nbytes=int(nbytes or 0), seconds=float(seconds or 0.0))
+    except Exception:
+        pass
+
+
 class BacktestCacheManager:
     def __init__(
         self,
@@ -168,6 +184,7 @@ class BacktestCacheManager:
                 if marker_value == remote_key:
                     with self._stats_lock:
                         self._stats["local_reuse"] += 1.0
+                    _telemetry_cache("hit", payload)
                     with self._downloaded_remote_keys_lock:
                         self._downloaded_remote_keys.add(remote_key)
                     return False
@@ -188,6 +205,7 @@ class BacktestCacheManager:
             if local_path.exists() and already_downloaded and not force_download:
                 with self._stats_lock:
                     self._stats["inprocess_reuse"] += 1.0
+                _telemetry_cache("hit", payload)
                 return False
 
             if local_path.exists():
@@ -265,6 +283,7 @@ class BacktestCacheManager:
                 self._stats["downloads"] += 1.0
                 self._stats["download_s"] += float(elapsed)
                 self._stats["download_bytes"] += float(downloaded_bytes)
+            _telemetry_cache("hit", payload, nbytes=downloaded_bytes, seconds=elapsed)
             return True
         except Exception as exc:  # pragma: no cover - narrow in helper
             if tmp_path.exists():
@@ -289,6 +308,7 @@ class BacktestCacheManager:
                     pass
                 with self._stats_lock:
                     self._stats["misses"] += 1.0
+                _telemetry_cache("miss", payload)
                 return False
             raise
 
@@ -355,6 +375,7 @@ class BacktestCacheManager:
             self._stats["uploads"] += 1.0
             self._stats["upload_s"] += float(elapsed)
             self._stats["upload_bytes"] += float(uploaded_bytes)
+        _telemetry_cache("upload", payload, nbytes=uploaded_bytes, seconds=elapsed)
         return True
 
     def _conditional_upload_ibkr_parquet(

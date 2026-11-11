@@ -7,6 +7,7 @@ from queue import Empty, Queue
 from threading import Event, Lock, RLock, Thread
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
+from lumibot.tools import backtest_telemetry as _telemetry
 
 logger = LazyLogger(__name__)
 
@@ -1544,7 +1545,11 @@ class StrategyExecutor(Thread):
                 self.strategy.load_variables_from_db()
             if self.broker.IS_BACKTESTING_BROKER:
                 self._record_backtest_milestone("first_callback_entered_at")
-                on_trading_iteration()
+                iteration_started = _telemetry.iteration_started()
+                try:
+                    on_trading_iteration()
+                finally:
+                    _telemetry.iteration_finished(iteration_started, getattr(self.broker, "datetime", None))
             else:
                 # Live: drain fill/hedge events while the user scan runs so a
                 # 100s+ on_trading_iteration cannot gate order management.

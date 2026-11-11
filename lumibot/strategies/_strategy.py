@@ -3270,6 +3270,9 @@ class _Strategy:
         >>>     benchmark_asset=benchmark_asset,
         >>> )
         """
+        from lumibot.tools import backtest_telemetry
+
+        backtest_telemetry.reset()
         backtesting_credentials = _credentials()
         default_backtesting_start = getattr(backtesting_credentials, "BACKTESTING_START", BACKTESTING_START)
         default_backtesting_end = getattr(backtesting_credentials, "BACKTESTING_END", BACKTESTING_END)
@@ -3703,6 +3706,19 @@ class _Strategy:
                     write_market_input_evidence(capture_source, logdir, prefix=prefix, finalize=True)
                 except Exception as exc:
                     self.logger.warning("Backtest market-input artifact could not be written: %s", exc)
+
+            try:
+                # Wait for background cache uploads here (the process would wait at exit
+                # anyway) so the telemetry file can report that time as its own phase.
+                from lumibot.tools import shared_bar_cache
+
+                if shared_bar_cache.pending_shared_bar_writes():
+                    with backtest_telemetry.phase("uploads"):
+                        shared_bar_cache.flush_shared_bar_writes(120)
+                telemetry_dir = getattr(self._trader, "logdir", None) or logdir
+                backtest_telemetry.write(os.path.join(str(telemetry_dir), f"{base_filename}_telemetry.json"))
+            except Exception as exc:
+                self.logger.warning("Backtest telemetry file could not be written: %s", exc)
 
             end = datetime.datetime.now()
             backtesting_length = backtesting_end - backtesting_start

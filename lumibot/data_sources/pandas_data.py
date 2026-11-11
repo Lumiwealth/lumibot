@@ -42,6 +42,11 @@ class PandasData(DataSourceBacktesting):
         self.option_quote_fallback_allowed = allow_option_quote_fallback
         self.name = "pandas"
         self.pandas_data = self._set_pandas_data_keys(pandas_data)
+        # Supplied Data objects already specify their bar frequency. A daily
+        # strategy must not relabel their minute index as daily observations.
+        # Routed providers can still declare their own cadence policy.
+        if not hasattr(self, "_timestep_explicit"):
+            self._timestep_explicit = bool(self.pandas_data)
         self.auto_adjust = auto_adjust
         self._data_store = self.pandas_data
         self._date_index = None

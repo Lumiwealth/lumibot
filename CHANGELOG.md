@@ -10,8 +10,11 @@
   | Before | 0.0133 | 0.1026 | 0.1180 |
   | After | 0.0049 | 0.0118 | 0.0252 |
 
-  The new pick was never farther from the target than the old one. Example: a 0.30 call request on 2026-10-19 at 09:30 returned the 772 strike (delta 0.370); it now returns 775 (delta 0.275). A one-month SPY iron condor (2026-09-01 to 2026-09-29, 0.16 delta shorts) kept its 124 fills, with 87 of them at a different strike.
+  The new pick was never farther from the target than the old one. With the Black-Scholes speedup below, a delta pick takes about the same time as before (one-week minute run: 9.6 ms per pick before, 8.9 ms now). Example: a 0.30 call request on 2026-10-19 at 09:30 returned the 772 strike (delta 0.370); it now returns 775 (delta 0.275). A one-month SPY iron condor (2026-09-01 to 2026-09-29, 0.16 delta shorts) kept its 124 fills, with 87 of them at a different strike.
 - Greeks are computed for the current minute's inputs instead of reusing a value from the same day. `DataSource.calculate_greeks` cached per day on prices rounded to cents, so a later minute (or a price within half a cent) got greeks computed for other inputs. On one week of recorded SPY option prices, 67 of 6,948 greeks values change, each to the value for its own inputs.
+
+### Fixed
+- Faster greeks in every backtest and live strategy: Black-Scholes now calls scipy's normal functions directly for single numbers (`ndtr` for the CDF, the same `exp` expression scipy uses for the PDF) instead of `scipy.stats.norm.cdf`/`.pdf`, which spent most of their time checking arguments. Results are bit-identical (22,000 inputs including infinities and NaN, and every greek of 1,600 random options). A greeks call went from 1.17 ms to 0.76 ms; a delta pick, which now prices every candidate strike, from 24 ms to 8.9 ms.
 
 ## 4.6.50 - 2026-11-11
 

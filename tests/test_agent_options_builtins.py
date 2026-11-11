@@ -1177,3 +1177,21 @@ def test_missing_market_index_points_the_agent_to_fred():
     assert "VIXCLS" in tools["market_last_price"](symbol="^VIX", asset_type="index")["fred_hint"]
     assert "VIXCLS" in tools["market_last_prices"](symbols=["VIX"], asset_type="index")["fred_hint"]
     assert "fred_hint" not in tools["market_last_price"](symbol="MSFT")
+
+
+@pytest.mark.parametrize("held,side", [(-2, "buy_to_close"), (2, "sell_to_close")])
+def test_single_option_close_uses_the_single_order_tool(held, side):
+    """One option identity needs no fabricated second leg to close."""
+    from lumibot.entities import Asset, Position
+    strategy = _OptionsStrategy()
+    asset = Asset("SPY", asset_type="option", expiration=date(2026, 9, 18), strike=645, right="call")
+    strategy.get_positions = lambda **kwargs: [Position("neutral", asset, held)]
+    tools = _opening_option_tools(strategy)
+    _checked_account(tools)
+    result = tools["orders_submit_order"](reason=ORDER_ACTION_REASON, symbol="SPY",
+        quantity=abs(held), side=side, asset_type="option", expiration="2026-09-18",
+        strike=645, right="call", order_type="limit", limit_price=1.5, time_in_force="day")
+    assert "tool_error" not in result
+    assert len(strategy.submissions) == 1
+    assert strategy.submissions[0][0].side == side
+    assert float(strategy.submissions[0][0].quantity) == abs(held)

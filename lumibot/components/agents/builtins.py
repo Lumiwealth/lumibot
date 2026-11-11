@@ -2294,7 +2294,7 @@ def _bind_options_check_spread_profit(strategy: Any, manager: Any) -> BoundTool:
         *,
         legs_json: str,
         initial_cost: float,
-        contract_multiplier: int = 100,
+        contract_multiplier: int | None = None,
     ) -> dict[str, Any]:
         try:
             initial_cost_value = float(initial_cost)
@@ -2302,7 +2302,7 @@ def _bind_options_check_spread_profit(strategy: Any, manager: Any) -> BoundTool:
             raise ValueError("initial_cost must be a finite number.") from exc
         if not math.isfinite(initial_cost_value) or initial_cost_value == 0:
             raise ValueError("initial_cost must be a nonzero finite number.")
-        multiplier = _require_positive_int("contract_multiplier", contract_multiplier)
+        multiplier = None if contract_multiplier is None else _require_positive_int("contract_multiplier", contract_multiplier)
         orders = _parse_option_legs(strategy, legs_json)
         profit_pct = _options_helper_for_strategy(strategy).check_spread_profit(
             initial_cost_value,
@@ -2318,7 +2318,7 @@ def _bind_options_check_spread_profit(strategy: Any, manager: Any) -> BoundTool:
             "datetime": strategy.get_datetime().isoformat(),
             "notes": (
                 "initial_cost is the cash paid (positive debit) or cash received as a negative credit when the "
-                "spread was opened, matching OptionsHelper.check_spread_profit. profit_pct is relative to that cost."
+                "spread was opened, matching OptionsHelper.check_spread_profit. profit_pct divides marked P&L by the absolute opening cost. Marks are not executable liquidation quotes."
             ),
         }
 
@@ -2326,10 +2326,10 @@ def _bind_options_check_spread_profit(strategy: Any, manager: Any) -> BoundTool:
         name="options_check_spread_profit",
         description=(
             "Estimate current multi-leg spread P&L percentage from exact option legs and the opening cash cost. "
-            "Arguments: legs_json, initial_cost, optional contract_multiplier (default 100). "
+            "Arguments: legs_json, initial_cost, optional contract_multiplier override (otherwise each asset multiplier). "
             "legs_json must be a JSON array of exact contracts with symbol, expiration, strike, right, quantity, and side. "
             "For opening-cost accounting, use a positive initial_cost for a net debit paid and a negative initial_cost "
-            "for a net credit received. Returns profit_pct relative to initial_cost, or available=false when a leg price is missing. "
+            "for a net credit received. Returns profit_pct relative to abs(initial_cost), or available=false when a leg price is missing. "
             "This is generic multi-leg math; it does not assume an iron condor or any named structure. "
             "Example: options_check_spread_profit(legs_json='[...]', initial_cost=-200)."
         ),
@@ -5646,6 +5646,86 @@ class _OrderTools:
         )
 
 
+def _attention_owner() -> str:
+    owner = current_agent_tool_context().get("agent_name")
+    if not owner:
+        raise ValueError("Attention tools require the calling agent's identity")
+    return str(owner)
+
+
+def _bind_attention_watch(strategy: Any, manager: Any) -> BoundTool:
+    def watch(watch_id: str, operation_id: str, metric: str, comparison: str,
+              value_json: str, reason: str, asset_json: str | None = None,
+              order_ids: list[str] | None = None, legs_json: str | None = None,
+              review_scope: str = "management", entry_cash: float | None = None) -> dict[str, Any]:
+        # ISO timestamps are ordinary string inputs to model tools. Preserve
+        # JSON-encoded scalar compatibility without requiring nested quoting.
+        value = value_json if metric == "time" and not value_json.lstrip().startswith('"') else json.loads(value_json)
+        definition = manager.attention.watch(owner=_attention_owner(), watch_id=watch_id,
+            operation_id=operation_id, metric=metric, comparison=comparison,
+            value=value, reason=reason,
+            asset=json.loads(asset_json) if asset_json else None, order_ids=order_ids,
+            legs=json.loads(legs_json) if legs_json else None, review_scope=review_scope, entry_cash=entry_cash)
+        return {**definition, "registration_observation": manager.attention.preview(definition)}
+
+    return BoundTool(name="attention_watch", function=watch, source="builtin", metadata={"kind": "attention", "replay_on_cache": True},
+        description="Save or update a read-only attention condition for your next decision. This does not place an order. "
+        "Your strategy must call agents.attention.poll() in its lifecycle and run the appropriate team on a pending packet. "
+        "With dispatch_team, review_scope=setup refreshes research for an eligible entry opportunity; research requests "
+        "fresh research for a subsequent decision; management reuses still-relevant dated research. "
+        "Choose the scope explicitly for the intended review. Watch names do not select the team. "
+        "Use stable watch_id per condition and operation_id per position/setup. metric: price, position_quantity, basket_value, basket_pnl, time, order_status. "
+        "Numeric comparison: gte/lte/eq/ne and value_json a number. Time: gte/lte and value_json a plain ISO timestamp with timezone; a JSON-encoded timestamp string is also accepted. "
+        "For a currency profit/loss boundary prefer basket_pnl: supply signed legs_json and entry_cash, the actual net cash received (positive) or paid (negative), in the same currency as the marks. Include fees in that basis when your policy requires them. It observes entry_cash plus signed marked legs; a loss allowance L uses comparison=lte and value_json=-L. This is marked P&L, not a guaranteed executable liquidation price. Reconcile partial fills and update the selected cash/remaining-leg basis after an exposure change. "
+        "For basket_value supply legs_json: an array of {asset: exact asset object, quantity: signed number, multiplier: number}. "
+        "It observes the signed sum of quantity times multiplier times last-price mark; this is attention, not an executable bid/ask. "
+        "This is holdings value in currency, not profit/loss or an unsigned closing cost. A negative-valued short basket "
+        "becomes MORE negative as its repurchase cost rises: use the appropriate negative boundary and lte for that risk. "
+        "For allowed loss L, solve entry_cash + basket_value = -L: the lte threshold is -L - entry_cash. "
+        "A debit D has entry_cash=-D, giving threshold D-L (positive for a partial-debit loss); a credit C gives -C-L. "
+        "For full-premium debit loss L=D, use zero, not -D; -D would represent a 2D loss before fees. "
+        "Do not substitute P&L or a negative remaining debit for holdings value. Check unchanged and worsening observations "
+        "against your proposed threshold before registering it. "
+        "Order status: comparison=in, value_json a JSON status array and exact order_ids. Normal LumiBot/broker status aliases "
+        "such as filled/fill and partially_filled/partial_fill are matched consistently. asset_json is an exact asset object "
+        "with symbol, optional asset_type, expiration, strike, right, quote_symbol. Use distinct thresholds for meaningful worsening. "
+        "An unchanged condition fires once until it clears or you change its definition. Related conditions form one packet. "
+        "The registration_observation reports whether this condition is already true, without firing or acknowledging it. Inspect that feedback: nonzero quantity while intentionally holding a contract is not an unexpected post-close residual. Unavailable feedback does not invalidate registration. "
+        "Choose attention times economically; quiet minute polling costs no inference. Retain risk coverage while an order works. "
+        "Save exact associated order_ids so the next trader reconciles working/partial/failed orders before any new submission. "
+        "After confirmed closure, inspect and remove obsolete operation watches before re-entry; a new operation_id does not "
+        "remove older watches. A zero-quantity residual warning is obsolete once an authorized new position reuses that contract.")
+
+
+def _bind_attention_list(strategy: Any, manager: Any) -> BoundTool:
+    def list_watches() -> dict[str, Any]:
+        return manager.attention.snapshot(owner=_attention_owner())
+    return BoundTool(name="attention_list", function=list_watches, source="builtin", metadata={"kind": "attention"},
+                     description="Inspect your persisted attention conditions and pending events before changing a review plan.")
+
+
+def _bind_attention_remove(strategy: Any, manager: Any) -> BoundTool:
+    def remove(watch_id: str) -> dict[str, Any]:
+        changed = manager.attention.remove(owner=_attention_owner(), watch_id=watch_id)
+        # Keep the legacy echoed identity; report the actual mutation separately.
+        return {"removed": watch_id, "changed": changed,
+                "status": "removed" if changed else "already_absent"}
+    return BoundTool(name="attention_remove", function=remove, source="builtin", metadata={"kind": "attention", "replay_on_cache": True},
+        description="Remove your obsolete attention condition after confirming the position/operation is finished. "
+                    "A submitted exit is not confirmed closure. Check positions and exact pending orders first.")
+
+
+class _AttentionTools:
+    def watch(self) -> ToolDefinition:
+        return ToolDefinition(name="attention_watch", description="Save a persistent read-only attention condition.", binder=_bind_attention_watch)
+
+    def list(self) -> ToolDefinition:
+        return ToolDefinition(name="attention_list", description="Inspect persisted attention conditions.", binder=_bind_attention_list)
+
+    def remove(self) -> ToolDefinition:
+        return ToolDefinition(name="attention_remove", description="Remove an obsolete attention condition.", binder=_bind_attention_remove)
+
+
 class _BuiltinTools:
     account = _AccountTools()
     market = _MarketTools()
@@ -5662,10 +5742,14 @@ class _BuiltinTools:
     notifications = _NotificationTools()
     memory = _MemoryTools()
     orders = _OrderTools()
+    attention = _AttentionTools()
 
     def all(self) -> list[ToolDefinition]:
         """Return all built-in tools. Used as the default when tools=None in agent creation."""
         return [
+            self.attention.watch(),
+            self.attention.list(),
+            self.attention.remove(),
             self.account.positions(),
             self.account.portfolio(),
             self.market.quote(),

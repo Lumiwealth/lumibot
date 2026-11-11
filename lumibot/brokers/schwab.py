@@ -2124,11 +2124,20 @@ class Schwab(Broker):
         if children:
             tracked_parent.child_orders = children
 
-    def _process_schwab_order_snapshot(self, observed_order: Order) -> None:
+    def _process_schwab_order_snapshot(self, observed_order: Order, source="rest_order_read") -> None:
         """Serialize every REST/stream observation through one reducer."""
         if not hasattr(self, "_schwab_order_transition_lock"):
             self._schwab_order_transition_lock = threading.RLock()
+        try:
+            self.on_order_observation(order=observed_order,
+                                      payload=getattr(observed_order, "raw_broker_payload", None), source=source)
+        except Exception:
+            try:
+                logger.warning("[OrderObservation] consumer_failed")
+            except Exception:
+                pass
         with self._schwab_order_transition_lock:
+            observed_order._observation_source = source
             children = getattr(observed_order, "child_orders", []) or []
             parent = self.get_tracked_order(observed_order.identifier, use_placeholders=True) if children else None
             if parent is not None:
@@ -2142,7 +2151,7 @@ class Schwab(Broker):
         # Setting terminal status first makes the reducer skip the callback and
         # loses both rejection reasons and fills. All observations use one owner.
         previous_status = order_lumi.status
-        self._process_schwab_order_snapshot(matched_order)
+        self._process_schwab_order_snapshot(matched_order, source="rest_direct_order")
         changed = not order_lumi.equivalent_status(previous_status)
         for attr in ("quantity", "limit_price", "stop_price"):
             value = getattr(matched_order, attr, None)
@@ -2199,8 +2208,10 @@ class Schwab(Broker):
         ):
             return
 
+        stored_order._observation_source = getattr(observed_order, "_observation_source", "rest_order_read")
         raw_payload = getattr(observed_order, "raw_broker_payload", None)
         if isinstance(raw_payload, dict):
+            stored_order._broker_reported_filled_quantity = raw_payload.get("filledQuantity")
             if raw_payload.get("duration"):
                 stored_order.time_in_force = observed_order.time_in_force
             self._attach_raw_broker_data(
@@ -2294,6 +2305,10 @@ class Schwab(Broker):
                         "order.lifecycle.callback",
                         stored_order,
                         callback=event,
+                        event_quantity=fill_delta,
+                        cumulative_quantity=cumulative_filled,
+                        broker_filled_quantity=getattr(stored_order, "_broker_reported_filled_quantity", None),
+                        source=getattr(stored_order, "_observation_source", "rest_order_read"),
                         broker_status=observed_status,
                         local_status=stored_order.status,
                     )
@@ -2461,7 +2476,7 @@ class Schwab(Broker):
                 continue
             observed_order = self._parse_broker_order(raw_order, stored_order.strategy)
             if observed_order is not None:
-                self._process_schwab_order_snapshot(observed_order)
+                self._process_schwab_order_snapshot(observed_order, source="rest_direct_order")
 
     def _run_schwab_activity_reconciler(self) -> None:
         stop_event = self._schwab_activity_stop
@@ -2482,10 +2497,12 @@ class Schwab(Broker):
         import asyncio
 
         backoff_seconds = 1.0
+        self._record_order_feed(False)
         while not self._schwab_activity_stop.is_set():
             stream_client = self.stream_client
             try:
                 await self._configure_schwab_account_activity_stream(stream_client)
+                self._record_order_feed(True)
                 logger.info("[SchwabLifecycle] account_activity_stream_connected")
                 connected_at = time.monotonic()
                 while not self._schwab_activity_stop.is_set():
@@ -2495,6 +2512,7 @@ class Schwab(Broker):
                     if time.monotonic() - connected_at >= 60.0:
                         backoff_seconds = 1.0
             except Exception as exc:
+                self._record_order_feed(False)
                 if self._schwab_activity_stop.is_set():
                     return
                 logger.warning(
@@ -2541,7 +2559,7 @@ class Schwab(Broker):
                     # Shared-account safety: skip foreign-tagged snapshots early.
                     if broker.order_is_foreign_to_local_strategy(order, broker._strategy_name):
                         continue
-                    broker._process_schwab_order_snapshot(order)
+                    broker._process_schwab_order_snapshot(order, source="rest_history_poll")
             except Exception:
                 logger.error(_format_exc())
 
@@ -3616,7 +3634,9 @@ class Schwab(Broker):
             raise LumibotBrokerAPIError(error_msg) from exc
 
         status_code = getattr(response, "status_code", None)
-        elapsed_ms = int((time.perf_counter() - cancel_started) * 1000)
+        cancel_seconds = time.perf_counter() - cancel_started
+        self._get_order_health().cancel_response(cancel_seconds)
+        elapsed_ms = int(cancel_seconds * 1000)
         if status_code is None:
             error_msg = f"Error canceling Schwab order {order.identifier}: unexpected response {type(response).__name__}"
             logger.error(

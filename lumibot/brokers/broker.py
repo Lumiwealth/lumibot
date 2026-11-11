@@ -574,6 +574,64 @@ class Broker(ABC):
 
         self._start_runtime_telemetry()
 
+    def _get_order_health(self):
+        if not hasattr(self, "_order_health"):
+            from lumibot.tools.runtime_telemetry import OrderRuntimeHealth
+            with getattr(self, "_lock", threading.RLock()):
+                if not hasattr(self, "_order_health"):
+                    self._order_health = OrderRuntimeHealth()
+        return self._order_health
+
+    def _record_order_feed(self, connected):
+        try:
+            self._get_order_health().feed(connected)
+            if not connected and self.get_active_tracked_orders():
+                self._order_contradiction("order_feed_disconnected_with_open_orders")
+        except Exception:
+            pass
+
+    def _order_contradiction(self, reason):
+        try:
+            self._get_order_health().contradiction(reason)
+            self.logger.warning("[OrderContradiction] reason=%s", reason)
+        except Exception:
+            pass
+
+    def _record_foreign_callback(self):
+        if not self.IS_BACKTESTING_BROKER:
+            try:
+                self._get_order_health().count("foreign_callback_attempts")
+                self._order_contradiction("unowned_order_callback")
+            except Exception:
+                pass
+
+    def _record_fill_proof(self, order, quantity):
+        if self.IS_BACKTESTING_BROKER:
+            return
+        try:
+            cumulative = sum(float(t.quantity) for t in order.transactions)
+            reported = getattr(order, "_broker_reported_filled_quantity", None)
+            source = getattr(order, "_observation_source", "broker_callback")
+            self._get_order_health().count("fill_callbacks")
+            self.logger.info(
+                "[OrderFillProof] event_quantity=%s cumulative_quantity=%s broker_filled_quantity=%s source=%s",
+                quantity, cumulative, reported, source,
+            )
+            if cumulative > float(order.quantity):
+                self._order_contradiction("filled_above_order_quantity")
+            if (Order.is_equivalent_status(getattr(order, "raw_order_status", ""), self.CANCELED_ORDER)
+                    and reported is not None and float(reported) == 0 and float(quantity) > 0):
+                self._order_contradiction("canceled_zero_broker_filled_with_execution")
+        except Exception:
+            pass
+
+    def on_order_observation(self, *, order, payload, source):
+        """Optional application observation hook. Override to retain broker evidence.
+
+        Called outside strategy decisions. Consumers own storage and must handle
+        private broker data appropriately. Consumer failures never stop orders.
+        """
+
     def _telemetry_snapshot(self) -> dict:
         """Lightweight, best-effort broker snapshot for runtime telemetry."""
         snap: dict[str, object] = {}
@@ -609,6 +667,8 @@ class Broker(ABC):
             except Exception:
                 continue
 
+        if not self.IS_BACKTESTING_BROKER and hasattr(self, "_order_health"):
+            snap["order_health"] = self._order_health.snapshot()
         return snap
 
     def _start_runtime_telemetry(self) -> None:
@@ -850,6 +910,13 @@ class Broker(ABC):
 
     def cleanup_streams(self):
         """Clean up stream threads properly to prevent segmentation faults"""
+        if hasattr(self, "_order_health") and not getattr(self, "_order_health_summary_logged", False):
+            try:
+                self._order_health.feed(False) if self._order_health.feed_started is not None else None
+                self.logger.info("[OrderRunHealth] %s", _json_dumps(self._order_health.snapshot(), sort_keys=True))
+                self._order_health_summary_logged = True
+            except Exception:
+                pass
         # Set stop event to signal all threads to stop
         if hasattr(self, '_stop_event'):
             self._stop_event.set()
@@ -3516,6 +3583,7 @@ class Broker(ABC):
         payload = dict(order=order)
         subscriber = self._resolve_subscriber(order.strategy)
         if subscriber and not self.IS_BACKTESTING_BROKER and self.order_is_foreign_to_local_strategy(order, subscriber.name):
+            self._record_foreign_callback()
             return
         if subscriber:
             # PERF: Many strategies do not override `Strategy.on_new_order()` (base impl is `pass`).
@@ -3540,6 +3608,7 @@ class Broker(ABC):
         payload = dict(order=order)
         subscriber = self._resolve_subscriber(order.strategy)
         if subscriber and not self.IS_BACKTESTING_BROKER and self.order_is_foreign_to_local_strategy(order, subscriber.name):
+            self._record_foreign_callback()
             return
         if subscriber:
             # PERF: Many strategies do not override `Strategy.on_canceled_order()` (base impl is `pass`).
@@ -3574,6 +3643,7 @@ class Broker(ABC):
             and not self.IS_BACKTESTING_BROKER
             and self.order_is_foreign_to_local_strategy(order, getattr(subscriber, "name", None))
         ):
+            self._record_foreign_callback()
             if self.logger.isEnabledFor(20):
                 self.logger.info(
                     colored(
@@ -3585,6 +3655,7 @@ class Broker(ABC):
                 )
             return
         if subscriber:
+            self._record_fill_proof(order, quantity)
             subscriber.add_event(subscriber.PARTIALLY_FILLED_ORDER, payload)
         else:
             self.logger.error(colored(f"Subscriber {order.strategy} not found", color="red"))
@@ -3611,6 +3682,7 @@ class Broker(ABC):
             and not self.IS_BACKTESTING_BROKER
             and self.order_is_foreign_to_local_strategy(order, getattr(subscriber, "name", None))
         ):
+            self._record_foreign_callback()
             if self.logger.isEnabledFor(20):
                 self.logger.info(
                     colored(
@@ -3622,6 +3694,7 @@ class Broker(ABC):
                 )
             return
         if subscriber:
+            self._record_fill_proof(order, quantity)
             subscriber.add_event(subscriber.FILLED_ORDER, payload)
         else:
             self.logger.error(colored(f"Subscriber {order.strategy} not found", color="red"))

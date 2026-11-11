@@ -244,3 +244,23 @@ def test_executor_rechecks_ownership_before_invoking_strategy(callback):
         getattr(executor, callback)(*args)
     assert len(calls) == 1
     assert own in calls[0]
+
+
+def test_final_health_line_matches_native_callback_counts(caplog):
+    transport = _TRANSPORT.SchwabLifecycleTransport()
+    broker, recipient = _TRANSPORT.data_only_schwab_broker(transport, name="same-name")
+    own = submitted(broker)
+    unknown = Order("same-name", Asset("SYN"), 1, "buy", identifier="manual")
+    broker._on_filled_order(None, unknown, 10, 1, 1)
+    transport.queue_order_reads(own.identifier, {"status": "FILLED", "filledQuantity": 1, "averagePrice": 10})
+    broker._reconcile_active_schwab_orders()
+    assert recipient.priority_queue.get_nowait()[0] == broker.FILLED_ORDER
+    with caplog.at_level("INFO"):
+        broker.cleanup_streams()
+        broker.cleanup_streams()
+    rows = [r.message for r in caplog.records if "[OrderRunHealth]" in r.message]
+    assert len(rows) == 1
+    summary = json.loads(rows[0].split("[OrderRunHealth] ", 1)[1])
+    assert summary["fill_callbacks"] == 1
+    assert summary["foreign_callback_attempts"] == 1
+    assert summary["contradictions"]["unowned_order_callback"] == 1

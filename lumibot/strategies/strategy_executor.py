@@ -1566,6 +1566,11 @@ class StrategyExecutor(Thread):
 
             end_dt = datetime.now()
             runtime = (end_dt - start_dt).total_seconds()
+            if not self.broker.IS_BACKTESTING_BROKER:
+                try:
+                    self.broker._get_order_health().iteration(runtime)
+                except Exception:
+                    pass
 
             # Variable Backup
             self._in_trading_iteration = False
@@ -1738,9 +1743,12 @@ class StrategyExecutor(Thread):
         self.strategy.on_canceled_order(order)
 
     def _owns_order_event(self, order):
-        return self.broker.IS_BACKTESTING_BROKER or self.broker.order_belongs_to_local_strategy(
+        owned = self.broker.IS_BACKTESTING_BROKER or self.broker.order_belongs_to_local_strategy(
             order, getattr(self.strategy, "name", None) or getattr(self.strategy, "_name", None)
         )
+        if not owned:
+            self.broker._record_foreign_callback()
+        return owned
 
     @event_method
     def _on_partially_filled_order(self, position, order, price, quantity, multiplier):

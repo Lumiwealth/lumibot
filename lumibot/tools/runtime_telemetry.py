@@ -6,11 +6,83 @@ import os
 import sys
 import threading
 import time
+from collections import Counter, deque
 from dataclasses import dataclass
+from statistics import median
 from typing import Any, Callable, Optional
 
-
 TELEMETRY_PREFIX = "LUMIBOT_TELEMETRY"
+
+
+class OrderRuntimeHealth:
+    """Bounded, observational live-order counters; never a trading control."""
+
+    def __init__(self, clock=time.monotonic):
+        self.clock = clock
+        self.lock = threading.RLock()
+        self.counts = Counter()
+        self.contradictions = Counter()
+        self.iterations = deque(maxlen=1024)
+        self.iteration_max = 0.0
+        self.feed_started = None
+        self.feed_changed = None
+        self.feed_connected = False
+        self.connected_seconds = 0.0
+        self.cancel_http_max = None
+
+    def feed(self, connected):
+        with self.lock:
+            now = self.clock()
+            if self.feed_started is None:
+                self.feed_started = now
+            if self.feed_changed is not None and self.feed_connected:
+                self.connected_seconds += max(0, now - self.feed_changed)
+            self.feed_changed = now
+            self.feed_connected = connected
+
+    def iteration(self, seconds):
+        with self.lock:
+            self.iterations.append(seconds)
+            self.iteration_max = max(self.iteration_max, seconds)
+            self.counts["iterations"] += 1
+
+    def count(self, name):
+        with self.lock:
+            self.counts[name] += 1
+
+    def contradiction(self, reason):
+        with self.lock:
+            self.contradictions[reason] += 1
+
+    def cancel_response(self, seconds):
+        with self.lock:
+            self.counts["cancel_requests"] += 1
+            self.cancel_http_max = max(self.cancel_http_max or 0, seconds)
+
+    def snapshot(self):
+        with self.lock:
+            now = self.clock()
+            observed = max(0, now - self.feed_started) if self.feed_started is not None else None
+            connected = self.connected_seconds
+            if self.feed_connected and self.feed_changed is not None:
+                connected += max(0, now - self.feed_changed)
+            return {
+                "schema": "lumibot.order_health/1",
+                "fill_callbacks": self.counts["fill_callbacks"],
+                "foreign_callback_attempts": self.counts["foreign_callback_attempts"],
+                "contradictions": dict(self.contradictions),
+                "feed_observed_seconds": observed,
+                "feed_connected_percent": 100 * connected / observed if observed else None,
+                "iteration_count": self.counts["iterations"],
+                "iteration_sample_count": len(self.iterations),
+                "iteration_window_median_seconds": median(self.iterations) if self.iterations else None,
+                "iteration_max_seconds": self.iteration_max if self.iterations else None,
+                "cancel_requests": self.counts["cancel_requests"],
+                "cancel_http_max_seconds": self.cancel_http_max,
+                "cancel_deadline_delay_seconds": None,
+                "full_basket_scan_seconds": None,
+                "hedges": None,
+            }
 
 
 def _truthy_env(value: str | None) -> bool:

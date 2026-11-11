@@ -2,6 +2,10 @@
 
 ## 4.6.53 - Unreleased
 
+### Added
+- Live fill diagnostics include event quantity, cumulative quantity, the broker's reported filled count and the actual observation source. Contradictory counts, unowned callback attempts and feed loss with open orders produce warnings without suppressing trading. Existing runtime telemetry includes a bounded live-order health summary and emits a final summary on cleanup; unmeasured full-basket, hedge and cancellation-deadline fields remain explicitly unknown.
+- A generic `Broker.on_order_observation` application hook exposes broker evidence without adding storage, credentials or infrastructure to the public library. Schwab invokes it on real REST observations; consumer failures do not stop order processing.
+
 ### Fixed
 - Schwab account-wide order reads no longer import another instance's or a manual order into local strategy state merely because its display name or tag matches. Submitted orders, explicitly checkpointed recovery and children of verified parent orders retain ownership. Normal variable backups preserve those order identities and already delivered fills, without replaying historical fill callbacks. Broad account inspection remains available.
 - Live order callbacks require a locally tracked identity. Schwab order reads preserve returned DAY/GTC/open/close duration metadata instead of replacing it with a default; explicit order durations and other brokers' account-history recovery remain supported.

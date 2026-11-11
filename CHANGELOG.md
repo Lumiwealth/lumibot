@@ -27,6 +27,7 @@
 - `AlpacaData.get_quotes(assets)`: latest quotes for many assets, up to 100 option contracts per request, used by `Strategy.get_quotes` and by `OptionsHelper` delta picks in live trading. Each quote is the same `Quote` that `get_quote` builds; a contract with no quote maps to `None`. Request failures raise.
 
 ### Fixed
+- Faster `get_historical_prices` in every backtest: the market input evidence recorder (which keeps every bar a strategy reads) now reads plain numeric columns as lists instead of building a pandas Series per column per call. Recorded rows and observations are identical (checked for numeric, object, bool, float32, nullable, duplicate-column and empty frames, and overlapping windows); nullable and other extension columns keep the old path. One week of SPY minute bars: 20 minute bars 0.59 to 0.43 ms per call, 5 daily bars 0.40 to 0.28 ms.
 - Faster greeks in every backtest and live strategy: Black-Scholes now calls scipy's normal functions directly for single numbers (`ndtr` for the CDF, the same `exp` expression scipy uses for the PDF) instead of `scipy.stats.norm.cdf`/`.pdf`, which spent most of their time checking arguments. Results are bit-identical (22,000 inputs including infinities and NaN, and every greek of 1,600 random options). A greeks call went from 1.17 ms to 0.76 ms; a delta pick, which now prices every candidate strike, from 24 ms to 8.9 ms.
 
 ## 4.6.50 - 2026-11-11

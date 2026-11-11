@@ -2,6 +2,9 @@
 
 ## 4.6.52 - Unreleased
 
+### Fixed
+- AI model-request timeouts now reach the managed model's HTTP transport. Disabling the request timeout no longer leaves an independent 120-second socket timeout; finite configured timeouts are preserved. Existing injected transports retain their three-argument interface.
+
 ## 4.6.51 - 2026-11-11
 
 Deploy marker: cc6310f2cb08c2293652390df3c59a9e48019f9f

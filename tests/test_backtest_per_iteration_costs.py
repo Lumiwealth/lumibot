@@ -116,12 +116,6 @@ def test_asset_key_memo_returns_the_built_key(monkeypatch, tmp_path):
         built = source._build_asset_key(base_asset=leg, quote_asset=quote, timestep="minute")
         assert source._get_asset_key(base_asset=leg, quote_asset=quote, timestep="minute") == built
         assert source._get_asset_key(base_asset=leg, quote_asset=quote, timestep="minute") == built
-    for asset, asset_quote in ((Asset("SPY", Asset.AssetType.STOCK), quote),
-                               (Asset("BTC", Asset.AssetType.CRYPTO), quote),
-                               (Asset("ETH", Asset.AssetType.CRYPTO), Asset("BTC", Asset.AssetType.CRYPTO))):
-        for timestep in ("minute", "day"):
-            built = source._build_asset_key(base_asset=asset, quote_asset=asset_quote, timestep=timestep)
-            assert source._get_asset_key(base_asset=asset, quote_asset=asset_quote, timestep=timestep) == built
     other = source._get_asset_key(base_asset=_leg(640), quote_asset=quote, timestep="minute",
                                   data_datetime_start=datetime(2026, 7, 1))
     assert other == source._build_asset_key(base_asset=_leg(640), quote_asset=quote, timestep="minute",

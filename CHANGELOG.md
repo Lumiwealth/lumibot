@@ -2,6 +2,10 @@
 
 ## 4.6.53 - Unreleased
 
+### Fixed
+- Schwab account-wide order reads no longer import another instance's or a manual order into local strategy state merely because its display name or tag matches. Submitted orders, explicitly checkpointed recovery and children of verified parent orders retain ownership. Normal variable backups preserve those order identities and already delivered fills, without replaying historical fill callbacks. Broad account inspection remains available.
+- Live order callbacks require a locally tracked identity. Schwab order reads preserve returned DAY/GTC/open/close duration metadata instead of replacing it with a default; explicit order durations and other brokers' account-history recovery remain supported.
+
 ## 4.6.52 - 2026-11-11
 
 Deploy marker: e2675359fb53fb56c6bcc4e23aac79334e97ac2f

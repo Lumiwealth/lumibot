@@ -1511,6 +1511,10 @@ class Broker(ABC):
             changed = True
         return changed
 
+    def _orders_for_strategy_sync(self, orders, strategy):
+        """Adapter boundary for verified strategy history versus account visibility."""
+        return orders
+
     def sync_orders(self, strategy):
         """Sync broker orders into Lumibot without promoting stale terminal history.
 
@@ -1522,7 +1526,7 @@ class Broker(ABC):
             return
 
         strategy_name = self._strategy_name_from_input(strategy)
-        orders_broker = self._pull_all_orders(strategy_name, strategy)
+        orders_broker = self._orders_for_strategy_sync(self._pull_all_orders(strategy_name, strategy), strategy)
         orders_broker = list(self._iter_order_tree(orders_broker))
 
         changed = False
@@ -2865,6 +2869,49 @@ class Broker(ABC):
         self._cache_result(self._tracked_orders_filter_cache, cache_key, result)
         return list(result)
 
+    def export_order_state(self, strategy=None):
+        """Checkpoint locally tracked identities, not broad account history.
+
+        Keep this with the same strategy instance's private restart state.
+        Passing another instance's checkpoint is an explicit reassignment;
+        matching a strategy display name is never automatic recovery authority.
+        """
+        def serialize(order):
+            row = order.to_dict()
+            row.pop("raw_broker_payload", None)
+            row["child_orders"] = [serialize(child) for child in order.child_orders]
+            fills = list(order.transactions)
+            quantity = sum((Decimal(str(t.quantity)) for t in fills), Decimal(0))
+            row["filled_quantity"] = str(quantity)
+            if quantity:
+                row["avg_fill_price"] = float(sum(
+                    (Decimal(str(t.quantity)) * Decimal(str(t.price)) for t in fills), Decimal(0)
+                ) / quantity)
+            return row
+
+        orders = [serialize(order) for order in self.get_tracked_orders(strategy)
+                  if not order.is_filled() or order.child_orders]
+        return {"broker": self.name, "account": getattr(self, "account_number", None), "orders": orders}
+
+    def restore_order_state(self, state, strategy=None):
+        """Restore this instance's saved orders before observing the account.
+
+        This is a deliberate recovery operation. Never feed it an account order
+        list. Historical executions seed the ledger without another callback or
+        cash debit; later broker observations deliver only new executions.
+        """
+        if not isinstance(state, dict) or state.get("broker") != self.name:
+            raise ValueError("Order checkpoint belongs to a different broker")
+        if state.get("account") != getattr(self, "account_number", None):
+            raise ValueError("Order checkpoint belongs to a different account")
+        strategy_name = self._strategy_name_from_input(strategy)
+        orders = list(self._iter_order_tree([Order.from_dict(row) for row in state.get("orders", [])]))
+        if any(strategy_name and order.strategy != strategy_name for order in orders):
+            raise ValueError("Order checkpoint belongs to a different strategy")
+        for order in orders:
+            if self.get_tracked_order(order.identifier, use_placeholders=True) is None:
+                self._process_broker_synced_order(order)
+
     def get_active_tracked_orders(self, strategy=None, asset=None) -> list[Order]:
         """Return only active (open) tracked orders for a strategy/asset.
 
@@ -3421,11 +3468,10 @@ class Broker(ABC):
         return bool(symbol) and symbol in allowed
 
     def order_belongs_to_local_strategy(self, order, local_strategy_name: str | None = None) -> bool:
-        """Return True only when this order is owned by the local strategy.
+        """Require a tracked identity and compatible strategy attribution.
 
-        Shared broker accounts can expose other strategies' activity. Broker tags are
-        ground truth and must win over a wrongly attributed ``order.strategy`` so a
-        sole local subscriber never hedges off foreign fills (Titus STM/MOS bug).
+        Adapters must establish ownership before tracking broad account history.
+        Schwab does so at its account-sync boundary; display names alone cannot.
         """
         local_name = local_strategy_name or getattr(self, "_strategy_name", None) or ""
         if not local_name and hasattr(self, "_subscribers") and len(self._subscribers) == 1:
@@ -3436,24 +3482,14 @@ class Broker(ABC):
             # No local identity — cannot safely claim ownership.
             return False
 
+        tracked = self.get_tracked_order(getattr(order, "identifier", None), use_placeholders=True)
         tag = getattr(order, "tag", None)
-        if tag:
-            # Explicit tag always wins: foreign tags must never be claimed locally.
-            return self.strategy_tag_matches(tag, local_name)
-
-        order_strategy = getattr(order, "strategy", None) or ""
-        if order_strategy:
-            return self.strategy_tag_matches(order_strategy, local_name)
-
-        # Untagged with empty strategy: do not claim.
-        return False
+        if tag and not self.strategy_tag_matches(tag, local_name):
+            return False
+        return tracked is not None and tracked.strategy == local_name
 
     def order_is_foreign_to_local_strategy(self, order, local_strategy_name: str | None = None) -> bool:
-        """True only when tag/strategy evidence shows the order belongs to someone else.
-
-        Absence of tag/strategy is not treated as foreign so untagged sole-subscriber
-        fills keep working; explicit foreign tags still block hedge delivery.
-        """
+        """Unknown account identities are not owned, even with a matching tag/name."""
         local_name = local_strategy_name or getattr(self, "_strategy_name", None) or ""
         if not local_name and hasattr(self, "_subscribers") and len(self._subscribers) == 1:
             only = self._subscribers[0]
@@ -3461,15 +3497,7 @@ class Broker(ABC):
         if not local_name:
             return False
 
-        tag = getattr(order, "tag", None)
-        if tag:
-            return not self.strategy_tag_matches(tag, local_name)
-
-        order_strategy = getattr(order, "strategy", None) or ""
-        if order_strategy:
-            return not self.strategy_tag_matches(order_strategy, local_name)
-
-        return False
+        return not self.order_belongs_to_local_strategy(order, local_name)
 
     def _resolve_subscriber(self, strategy_name):
         """Get subscriber by name, falling back to the sole registered subscriber when strategy_name is falsy."""
@@ -3487,6 +3515,8 @@ class Broker(ABC):
 
         payload = dict(order=order)
         subscriber = self._resolve_subscriber(order.strategy)
+        if subscriber and not self.IS_BACKTESTING_BROKER and self.order_is_foreign_to_local_strategy(order, subscriber.name):
+            return
         if subscriber:
             # PERF: Many strategies do not override `Strategy.on_new_order()` (base impl is `pass`).
             # Avoid enqueueing/processing a no-op event in high-churn backtests.
@@ -3509,6 +3539,8 @@ class Broker(ABC):
 
         payload = dict(order=order)
         subscriber = self._resolve_subscriber(order.strategy)
+        if subscriber and not self.IS_BACKTESTING_BROKER and self.order_is_foreign_to_local_strategy(order, subscriber.name):
+            return
         if subscriber:
             # PERF: Many strategies do not override `Strategy.on_canceled_order()` (base impl is `pass`).
             # Avoid enqueueing/processing a no-op event in high-churn backtests.

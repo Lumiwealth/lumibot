@@ -1727,21 +1727,24 @@ class StrategyExecutor(Thread):
 
     @event_method
     def _on_new_order(self, order):
+        if not self._owns_order_event(order):
+            return
         self.strategy.on_new_order(order)
 
     @event_method
     def _on_canceled_order(self, order):
+        if not self._owns_order_event(order):
+            return
         self.strategy.on_canceled_order(order)
+
+    def _owns_order_event(self, order):
+        return self.broker.IS_BACKTESTING_BROKER or self.broker.order_belongs_to_local_strategy(
+            order, getattr(self.strategy, "name", None) or getattr(self.strategy, "_name", None)
+        )
 
     @event_method
     def _on_partially_filled_order(self, position, order, price, quantity, multiplier):
-        local_name = getattr(self.strategy, "name", None) or getattr(self.strategy, "_name", None)
-        order_strategy = getattr(order, "strategy", None)
-        order_tag = getattr(order, "tag", None)
-        belongs = True
-        if not self.broker.IS_BACKTESTING_BROKER and local_name and (order_tag or order_strategy):
-            belongs = not self.broker.order_is_foreign_to_local_strategy(order, local_name)
-        if not belongs:
+        if not self._owns_order_event(order):
             return
         self.strategy.on_partially_filled_order(position, order, price, quantity, multiplier)
 
@@ -1752,10 +1755,7 @@ class StrategyExecutor(Thread):
         local_name = getattr(self.strategy, "name", None) or getattr(self.strategy, "_name", None)
         order_strategy = getattr(order, "strategy", None)
         order_tag = getattr(order, "tag", None)
-        belongs = True
-        if not self.broker.IS_BACKTESTING_BROKER and local_name and (order_tag or order_strategy):
-            belongs = not self.broker.order_is_foreign_to_local_strategy(order, local_name)
-        if not belongs:
+        if not self._owns_order_event(order):
             if self.strategy.logger.isEnabledFor(20):
                 self.strategy.logger.info(
                     f"Skipping on_filled_order for foreign order "

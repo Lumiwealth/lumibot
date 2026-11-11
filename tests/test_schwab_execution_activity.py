@@ -86,6 +86,15 @@ def test_nonexecution_activity_cannot_contribute_fill_quantity():
     assert Schwab._schwab_execution_summary(payload([row], filled=0))[0] == 0
 
 
+@pytest.mark.parametrize("duration,expected", [("DAY", "day"), ("GOOD_TILL_CANCEL", "gtc")])
+def test_parsed_order_keeps_the_duration_reported_by_schwab(duration, expected):
+    broker = Schwab.__new__(Schwab)
+    raw = payload([], quantity=1, status="NEW")
+    raw["duration"] = duration
+    order = broker._parse_broker_order(raw, "fixture")
+    assert order.time_in_force == expected
+
+
 @pytest.mark.parametrize("path", ["direct", "stream_wakeup"])
 @pytest.mark.parametrize("actual_filled", [0, 40, 100])
 def test_canceled_activity_uses_native_reconciliation_and_callback_queue(path, actual_filled):
@@ -155,3 +164,15 @@ def test_one_contract_executed_before_cancellation_delivers_a_full_fill():
     assert recipient.priority_queue.empty()
     assert order.is_filled()
 
+
+
+def test_direct_refresh_keeps_reported_duration_on_local_order():
+    broker, _ = _TRANSPORT.data_only_schwab_broker(_TRANSPORT.SchwabLifecycleTransport())
+    order = Order("synthetic-scanner", Asset("SYN"), 1, "buy", identifier="duration-order", time_in_force="gtc")
+    broker._unprocessed_orders.append(order)
+    observed = Order.from_dict(order.to_dict())
+    observed.time_in_force = "day"
+    observed.raw_broker_payload = {"duration": "DAY"}
+    observed.status = Order.OrderStatus.NEW
+    broker._apply_direct_order_observation(order, observed)
+    assert order.time_in_force == "day"

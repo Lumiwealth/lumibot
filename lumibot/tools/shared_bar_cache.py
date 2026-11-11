@@ -384,8 +384,22 @@ def _encode_partition(part: _Partition) -> bytes:
             "strict": bool(part.strict),
         }
     }
+    # Same bytes as ``rows.to_parquet(buffer)``, but the column conversion runs on this thread
+    # (nthreads=1). pandas' to_parquet lets pyarrow convert columns on a concurrent.futures
+    # pool; once Python starts shutting down (the main thread returned while this non-daemon
+    # uploader still has jobs) that pool raises "cannot schedule new futures after interpreter
+    # shutdown", and every remaining upload of a finished backtest failed (production,
+    # 2026-11-11).
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    table = pa.Table.from_pandas(rows, nthreads=1)
+    if rows.attrs:
+        table = table.replace_schema_metadata(
+            {**(table.schema.metadata or {}), "PANDAS_ATTRS": json.dumps(rows.attrs)}
+        )
     buffer = io.BytesIO()
-    rows.to_parquet(buffer)
+    pq.write_table(table, buffer, compression="snappy")
     return buffer.getvalue()
 
 

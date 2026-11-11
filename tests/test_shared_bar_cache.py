@@ -441,3 +441,35 @@ def test_uploader_keeps_using_the_remote_store_when_failures_are_isolated():
         uploader.submit(f"key-{index}", job(index))
     assert uploader.flush(30)
     assert sorted(remote) == list(range(60))
+
+
+def test_partition_encoding_works_after_interpreter_shutdown_starts(monkeypatch):
+    """Uploads that run after the main thread returns must still encode their partition.
+
+    pandas' to_parquet converts columns on a concurrent.futures thread pool. Once Python
+    starts shutting down (the main thread returned, the non-daemon uploader keeps going),
+    that pool refuses work with "RuntimeError: cannot schedule new futures after interpreter
+    shutdown", so every queued upload failed in production from the end of the simulation
+    on (2026-11-11). Encoding must not need a new thread.
+    """
+    import concurrent.futures.thread as cf_thread
+
+    import pandas as pd
+
+    # Enough rows that pyarrow converts columns in parallel (rows > 100 x columns).
+    index = pd.date_range("2026-08-03T13:30:00Z", periods=1000, freq="min", name="timestamp")
+    rows = pd.DataFrame(
+        {"open": 1.0, "high": 1.5, "low": 0.5, "close": 1.2, "volume": 10.0}, index=index,
+    )
+    series = sbc.BarSeries.make("alpaca", "SPY", "1minute", scope="scope")
+    start = pd.Timestamp("2026-08-03T00:00:00Z")
+    stop = pd.Timestamp("2026-08-04T00:00:00Z")
+    part = sbc._Partition(series, start, stop, None, rows, [(start, stop)], 1, True)
+    expected = sbc._encode_partition(part)
+
+    monkeypatch.setattr(cf_thread, "_shutdown", True)
+    encoded = sbc._encode_partition(part)
+
+    assert encoded == expected
+    decoded = sbc._decode_partition(sbc._Partition(series, start, stop, None), encoded)
+    assert decoded.rows.equals(sbc._normalize(rows))

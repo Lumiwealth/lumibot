@@ -1,0 +1,41 @@
+{
+  "kind": "native-code-regression-proof",
+  "date": "2026-11-11",
+  "fix_commit": "629730708",
+  "tested_base": "0965de15b561d373b293cdc701ab94de60a08930",
+  "scope": "Generic loaded-bar cadence and bounded multi-asset history scheduling",
+  "red": {
+    "new_failures": 3,
+    "unchanged_hourly_control_passed": true,
+    "daily_iterations_over_two_sessions": 780,
+    "oversized_batch_work_units": 1,
+    "per_call_worker_limit_was_ignored": true
+  },
+  "green": {
+    "passed": 19,
+    "failed": 0,
+    "seconds": 5.38,
+    "daily_iterations_over_two_sessions": 2,
+    "hourly_iterations_over_two_sessions": 14,
+    "half_hour_iterations_over_two_sessions": 26,
+    "eight_asset_batch_work_units": 4,
+    "source_pool_workers": 4,
+    "single_worker_call_max_pending_work_units": 1
+  },
+  "tests": [
+    {"path": "tests/test_data_source_batch_scheduling.py", "reason": "Oversized batches, per-call limits and quote/history argument preservation"},
+    {"path": "tests/backtest/test_loaded_data_strategy_cadence.py", "reason": "Actual two-session daily, hourly and half-hour native executions, plus explicit provider policy"},
+    {"path": "tests/test_data_source_sleep_time_defaults.py", "reason": "Live pacing, backtest pacing, duplicate assets and independent partial errors"},
+    {"path": "tests/test_backtesting_pandas_daily_routing.py", "reason": "Retain the distinction between supplied daily bars and routed providers"},
+    {"path": "tests/backtest/test_daily_cadence_market_execution.py", "reason": "Current execution prices, completed historical bars, missing data and quote identity"}
+  ],
+  "retained_after_merge": {
+    "source": "eac5d71101e5f937ace49cd504c387cb11bb6547",
+    "reason": "The incoming broker ownership and live callback diagnostics do not change either repaired data-source method or backtest initialization/sleep paths. Native BacktestingBroker bypasses the changed live-only callback health paths. Reuse all 19 original passes with their actual tested base; no model proof is claimed."
+  },
+  "real_model_attempts": 0,
+  "cloud_jobs": 0,
+  "paid_ai_api_usd": 0,
+  "prompts_changed": false,
+  "limits": "Synthetic in-memory prices; no hosted execution, provider speed comparison, live broker fills or customer journey pass. EMA initialization history is unchanged. No six-hour limit change. No customer code or private infrastructure included."
+}

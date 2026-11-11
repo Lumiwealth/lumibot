@@ -2,6 +2,10 @@
 
 ## 4.6.53 - Unreleased
 
+### Backtesting and history
+- Preserve the frequency of user-supplied bars when a daily strategy initializes. Minute observations remain minute observations, so a daily strategy runs once per session instead of once per loaded minute. Explicit provider cadence policies remain unchanged.
+- Split oversized multi-asset history chunks across the data source's existing worker pool. Honor each call's lower worker limit with bounded submission, preserving per-asset results, quote identity and request pacing.
+
 ### Added
 - Live fill diagnostics include event quantity, cumulative quantity, the broker's reported filled count and the actual observation source. Contradictory counts, unowned callback attempts and feed loss with open orders produce warnings without suppressing trading. Existing runtime telemetry includes a bounded live-order health summary and emits a final summary on cleanup; unmeasured full-basket, hedge and cancellation-deadline fields remain explicitly unknown.
 - A generic `Broker.on_order_observation` application hook exposes broker evidence without adding storage, credentials or infrastructure to the public library. Schwab invokes it on real REST observations; consumer failures do not stop order processing.

@@ -1,5 +1,6 @@
 """History scheduling uses the provider pool without discarding call limits."""
-from concurrent.futures import ThreadPoolExecutor, wait as real_wait
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import wait as real_wait
 
 from lumibot.entities import Asset
 from tests.test_data_source_sleep_time_defaults import _DummyDataSource

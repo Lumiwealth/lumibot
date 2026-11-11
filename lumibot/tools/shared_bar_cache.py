@@ -470,60 +470,87 @@ UPLOAD_FAILURES_BEFORE_GIVING_UP = 10
 
 
 class _Uploader:
-    """One background thread that writes partition files locally and publishes them to S3.
+    """Background workers that write partition files locally and send them to S3.
 
     A job takes one argument, ``remote_allowed``. It always does its local write and touches
     the remote store only when ``remote_allowed`` is true.
+
+    Jobs for one path always go to the same worker, so they run one at a time in the order
+    they were submitted; different paths upload in parallel. A finished backtest waits for
+    its queued uploads before it exits, and one worker made that wait minutes long.
+    ``LUMIBOT_SHARED_BARS_UPLOAD_WORKERS`` sets the number of workers (default 8).
     """
 
     def __init__(self):
-        self._queue: queue.Queue[tuple[str, Callable[[bool], None]]] = queue.Queue()
+        try:
+            workers = int(os.environ.get("LUMIBOT_SHARED_BARS_UPLOAD_WORKERS", "8"))
+        except ValueError:
+            workers = 8
+        self._workers = max(1, workers)
+        self._queues = [queue.Queue() for _ in range(self._workers)]
+        self._threads = [None] * self._workers
         self._pending: dict[str, int] = {}
         self._lock = threading.Lock()
         self._idle = threading.Condition(self._lock)
-        self._thread: threading.Thread | None = None
         self.errors: list[str] = []
         self._failures_in_a_row = 0
         self._remote_given_up = False
 
+    def _slot(self, key: str) -> int:
+        return int(hashlib.sha256(key.encode()).hexdigest()[:8], 16) % self._workers
+
     def submit(self, key: str, job: Callable[[bool], None]) -> None:
+        slot = self._slot(key)
         with self._lock:
             self._pending[key] = self._pending.get(key, 0) + 1
-            if self._thread is None or not self._thread.is_alive():
+            thread = self._threads[slot]
+            if thread is None or not thread.is_alive():
                 # Not a daemon: a process must not exit with unsaved uploads.
-                self._thread = threading.Thread(target=self._run, name="lumibot-shared-bars-upload", daemon=False)
-                self._thread.start()
-        self._queue.put((key, job))
+                thread = threading.Thread(
+                    target=self._run, args=(slot,), name=f"lumibot-shared-bars-upload-{slot}", daemon=False
+                )
+                self._threads[slot] = thread
+                thread.start()
+            # Queue under the lock so an idle worker cannot exit between the liveness
+            # check above and this put.
+            self._queues[slot].put((key, job))
 
-    def _run(self):
+    def _run(self, slot: int):
+        jobs = self._queues[slot]
         while True:
             try:
-                key, job = self._queue.get(timeout=5)
+                key, job = jobs.get(timeout=5)
             except queue.Empty:
                 with self._lock:
-                    if not self._pending:
-                        self._thread = None
+                    if jobs.empty():
+                        self._threads[slot] = None
                         return
                 continue
             try:
                 job(not self._remote_given_up)
-                self._failures_in_a_row = 0
+                with self._lock:
+                    self._failures_in_a_row = 0
             except Exception as exc:  # never lose the caller's bars to a cache upload problem
-                self.errors.append(type(exc).__name__)
-                self._failures_in_a_row += 1
-                if not self._remote_given_up:
+                with self._lock:
+                    self.errors.append(type(exc).__name__)
+                    self._failures_in_a_row += 1
+                    failures = self._failures_in_a_row
+                    report = not self._remote_given_up
+                    give_up = report and failures >= UPLOAD_FAILURES_BEFORE_GIVING_UP
+                    if give_up:
+                        self._remote_given_up = True
+                if report:
                     # The first failure carries its traceback, so the failing call is visible in
                     # one log line instead of only an exception type.
                     logger.warning(
                         "Shared bar cache upload failed: %s: %s", type(exc).__name__, exc,
-                        exc_info=self._failures_in_a_row == 1,
+                        exc_info=failures == 1,
                     )
-                    if self._failures_in_a_row >= UPLOAD_FAILURES_BEFORE_GIVING_UP:
-                        self._remote_given_up = True
+                    if give_up:
                         logger.warning(
                             "Shared bar cache: %d uploads failed in a row; giving up on the remote store "
                             "for this run. Local files are still written and results are not affected.",
-                            self._failures_in_a_row,
+                            failures,
                         )
             finally:
                 with self._lock:

@@ -411,6 +411,12 @@ LUMIBOT_SHARED_BARS_SETTLE_MINUTES
 - Purpose: How long after a bar ends it counts as final and may be stored.
 - Default: ``15``.
 
+LUMIBOT_SHARED_BARS_UPLOAD_WORKERS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: How many background workers upload cached bars to S3. Uploads for one file always run in order on one worker. A finished backtest waits for its uploads, so more workers mean a shorter wait.
+- Default: ``8``.
+
 LUMIBOT_CACHE_S3_BUCKET / LUMIBOT_CACHE_S3_PREFIX / LUMIBOT_CACHE_S3_REGION
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

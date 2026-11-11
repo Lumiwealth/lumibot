@@ -3,7 +3,7 @@
 ## 4.6.51 - Unreleased
 
 ### Changed
-- **Trades and results change for strategies that pick strikes by delta, in backtests and in live trading.** `OptionsHelper.find_strike_for_delta` now returns the listed strike whose delta is closest to the requested delta. Before, the search tried a few strikes near an estimate and stopped once one was within 0.02 of the target, so it could return a strike up to about 0.12 delta away while a closer strike was listed. Now every candidate strike with a real price (from $20 below to $30 above the underlying) is checked. Ties go to the smaller absolute delta (further out of the money), then to the lower strike. Strikes with no price are skipped; no price or delta is ever estimated. Live trading and backtests use the same rule, so the same prices give the same strike. The pick is remembered for the current bar only, not for the rest of the day. Measured on one week of recorded SPY option prices, 780 picks (call 0.16, 0.30, 0.5; put -0.16, -0.30; every 15 minutes), 415 picks changed:
+- **Trades and results change for strategies that pick strikes by delta, in backtests and in live trading.** `OptionsHelper.find_strike_for_delta` now returns the listed strike whose delta is closest to the requested delta. Before, the search tried a few strikes near an estimate and stopped once one was within 0.02 of the target, so it could return a strike up to about 0.12 delta away while a closer strike was listed. Candidates are the listed strikes from $20 below to $30 above the underlying that have a real price. The search starts at the strike nearest a Black-Scholes estimate and walks outward on each side until three priced strikes in a row are past the target and farther from it than the best so far; since delta falls as the strike rises, no strike beyond can be closer. On the week below this gave the same strike as checking every listed strike in all 780 picks. Ties go to the smaller absolute delta (further out of the money), then to the lower strike. Strikes with no price are skipped; no price or delta is ever estimated. Live trading and backtests use the same rule, so the same prices give the same strike. The pick is remembered for the current bar only, not for the rest of the day. Measured on one week of recorded SPY option prices, 780 picks (call 0.16, 0.30, 0.5; put -0.16, -0.30; every 15 minutes), 415 picks changed:
 
   | Distance from target delta | median | 90th percentile | worst |
   |---|---|---|---|
@@ -11,7 +11,20 @@
   | After | 0.0049 | 0.0118 | 0.0252 |
 
   The new pick was never farther from the target than the old one. With the Black-Scholes speedup below, a delta pick takes about the same time as before (one-week minute run: 9.6 ms per pick before, 8.9 ms now). Example: a 0.30 call request on 2026-10-19 at 09:30 returned the 772 strike (delta 0.370); it now returns 775 (delta 0.275). A one-month SPY iron condor (2026-09-01 to 2026-09-29, 0.16 delta shorts) kept its 124 fills, with 87 of them at a different strike.
+
+  Live calls per pick, measured read-only against Alpaca paper market data (SPY, same-day expiry, before the open on 2026-11-11, two runs each; times vary with the API):
+
+  | | put -0.16 | call 0.30 |
+  |---|---|---|
+  | Before (probe search) | 19 quote requests, 1.0-7.2 s, strike 741 | 7 requests, 0.26 s, strike 752 |
+  | After, data source with bulk quotes (Alpaca, Schwab) | 1 request, 0.36-0.42 s, strike 742 | 1 request, 0.04 s, strike 752 |
+  | After, data source without bulk quotes | 15 requests, 7.0 s, strike 742 | 10 requests, 3.4 s, strike 752 |
+
+  Strike 742 is the closest listed strike to -0.16 on those quotes; checking all 51 listed strikes one at a time would cost 100 requests.
 - Greeks are computed for the current minute's inputs instead of reusing a value from the same day. `DataSource.calculate_greeks` cached per day on prices rounded to cents, so a later minute (or a price within half a cent) got greeks computed for other inputs. On one week of recorded SPY option prices, 67 of 6,948 greeks values change, each to the value for its own inputs.
+
+### Added
+- `AlpacaData.get_quotes(assets)`: latest quotes for many assets, up to 100 option contracts per request, used by `Strategy.get_quotes` and by `OptionsHelper` delta picks in live trading. Each quote is the same `Quote` that `get_quote` builds; a contract with no quote maps to `None`. Request failures raise.
 
 ### Fixed
 - Faster greeks in every backtest and live strategy: Black-Scholes now calls scipy's normal functions directly for single numbers (`ndtr` for the CDF, the same `exp` expression scipy uses for the PDF) instead of `scipy.stats.norm.cdf`/`.pdf`, which spent most of their time checking arguments. Results are bit-identical (22,000 inputs including infinities and NaN, and every greek of 1,600 random options). A greeks call went from 1.17 ms to 0.76 ms; a delta pick, which now prices every candidate strike, from 24 ms to 8.9 ms.

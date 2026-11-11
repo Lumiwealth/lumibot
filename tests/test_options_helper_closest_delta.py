@@ -136,3 +136,75 @@ def test_a_later_minute_is_searched_again():
     second = helper.find_strike_for_delta(Asset("SPY"), UNDERLYING, 0.30, EXPIRY, "call")
     assert second != first
     assert math.isfinite(second)
+
+
+class _QuoteSource:
+    """A live quote source: one call per contract, or many contracts in one get_quotes call."""
+
+    def __init__(self, batched=True):
+        self.single = 0
+        self.bulk = []
+        if not batched:
+            self.get_quotes = None
+
+    def _quote(self, asset):
+        from lumibot.entities import Quote
+
+        price = _price(float(asset.strike), str(asset.right).upper())
+        if price is None:
+            return Quote(asset=asset)
+        return Quote(asset=asset, bid=round(price - 0.01, 2), ask=round(price + 0.01, 2))
+
+    def get_quote(self, asset, quote=None, exchange=None):
+        self.single += 1
+        return self._quote(asset)
+
+    def get_quotes(self, assets, quote=None, exchange=None):
+        self.bulk.append(len(assets))
+        return {a: self._quote(a) for a in assets}
+
+
+class _LiveQuoteStrategy(_Strategy):
+    """Reads quotes through the standard Strategy.get_quote, like a real live strategy."""
+
+    get_quote = Strategy.get_quote
+    is_backtesting = False
+
+    def __init__(self, batched=True):
+        super().__init__(_LiveBroker)
+        self.source = _QuoteSource(batched)
+        self.broker.option_source = self.source
+
+    def _sanitize_user_asset(self, asset):
+        return asset
+
+
+def _brute_force(strategy, target, right):
+    helper = OptionsHelper(strategy)
+    best = None
+    for strike in STRIKES:
+        if not (UNDERLYING - 20 <= strike <= UNDERLYING + 30):
+            continue
+        helper._per_bar_option_mark_cache = {}
+        delta = helper.get_delta_for_strike(Asset("SPY"), UNDERLYING, strike, EXPIRY, right)
+        if delta is not None:
+            key = (abs(delta - target), abs(delta), strike)
+            best = min(best, (key, strike)) if best else (key, strike)
+    return best[1]
+
+
+@pytest.mark.parametrize("target,right", CASES)
+def test_live_pick_loads_all_quotes_in_one_request(target, right):
+    strategy = _LiveQuoteStrategy(batched=True)
+    picked = _pick(strategy, target, right)
+    assert strategy.source.bulk == [51]
+    assert strategy.source.single == 0
+    assert picked == _brute_force(_LiveQuoteStrategy(batched=False), target, right)
+
+
+@pytest.mark.parametrize("target,right", CASES)
+def test_live_pick_without_bulk_quotes_prices_few_strikes(target, right):
+    strategy = _LiveQuoteStrategy(batched=False)
+    picked = _pick(strategy, target, right)
+    assert picked == _brute_force(_LiveQuoteStrategy(batched=False), target, right)
+    assert strategy.source.single <= 15  # 51 listed strikes in the window

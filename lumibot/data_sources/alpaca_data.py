@@ -1349,50 +1349,12 @@ class AlpacaData(DataSource):
         elif asset.asset_type == Asset.AssetType.OPTION:
             # Note: Alpaca only supports "market" and "limit" as valid order types for multi-leg orders.
             # If you pass "credit" or "debit" as the type, Alpaca will return an "invalid order type" error.
-            strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
-            date = asset.expiration.strftime("%y%m%d")
-            symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
-            
-            
+            symbol = self._latest_quote_option_symbol(asset)
             client = self._get_option_client()
             from alpaca.data.requests import OptionLatestQuoteRequest
             req = OptionLatestQuoteRequest(symbol_or_symbols=symbol)
             trade = client.get_option_latest_quote(req)
-            t = trade[symbol]
-            # Option trades may not have bid/ask, so use price for both
-            # not sure what above comment was trying to say.
-
-            """
-            structure of t:
-            {     
-                'ask_exchange': 'B',
-                'ask_price': 2.86,
-                'ask_size': 10.0,
-                'bid_exchange': 'C',
-                'bid_price': 2.6,
-                'bid_size': 9.0,
-                'conditions': ' ',
-                'symbol': 'PEP251031P00137000',
-                'tape': None,
-                'timestamp': datetime.datetime(2025, 9, 18, 17, 18, 27, 139174, tzinfo=TzInfo(UTC))
-            } """
-
-            return Quote(
-                asset=asset,
-                price= round((t.bid_price + t.ask_price) / 2, 2) if t.bid_price and t.ask_price else None,  #using mid?
-                bid=getattr(t, "bid_price", None),
-                ask=getattr(t, "ask_price", None),
-                bid_size=getattr(t, "bid_size", None),
-                ask_size=getattr(t, "ask_size", None),
-                volume=None, #not in data from alpaca
-                timestamp=getattr(t, "timestamp", None),
-                raw_data={
-                    "exchange": getattr(t, "ask_exchange", None), #using ask_exchange, ignoring bid_exchange
-                    "conditions": getattr(t, "conditions", None),
-                    "symbol": symbol,
-                    "original_response": t
-                }
-            )
+            return self._option_latest_quote(asset, symbol, trade[symbol])
         else:
             # Stocks
             symbol = asset.symbol
@@ -1418,6 +1380,66 @@ class AlpacaData(DataSource):
                     "original_response": q
                 }
             )
+
+    @staticmethod
+    def _latest_quote_option_symbol(asset: Asset) -> str:
+        strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+        date = asset.expiration.strftime("%y%m%d")
+        return f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
+
+    @staticmethod
+    def _option_latest_quote(asset: Asset, symbol: str, t):
+        """The Quote ``get_quote`` returns for one Alpaca latest option quote ``t``."""
+        from lumibot.entities import Quote
+
+        return Quote(
+            asset=asset,
+            price= round((t.bid_price + t.ask_price) / 2, 2) if t.bid_price and t.ask_price else None,  #using mid?
+            bid=getattr(t, "bid_price", None),
+            ask=getattr(t, "ask_price", None),
+            bid_size=getattr(t, "bid_size", None),
+            ask_size=getattr(t, "ask_size", None),
+            volume=None, #not in data from alpaca
+            timestamp=getattr(t, "timestamp", None),
+            raw_data={
+                "exchange": getattr(t, "ask_exchange", None), #using ask_exchange, ignoring bid_exchange
+                "conditions": getattr(t, "conditions", None),
+                "symbol": symbol,
+                "original_response": t
+            }
+        )
+
+    # Alpaca's latest-quote endpoints accept up to 100 symbols per request.
+    LATEST_QUOTE_SYMBOLS_PER_REQUEST = 100
+
+    def get_quotes(self, assets, quote=None, exchange=None):
+        """Latest quotes for many assets; options go out up to 100 contracts per request.
+
+        Returns every requested Asset mapped to the Quote ``get_quote`` would build for it, or
+        None when Alpaca returned no quote for that contract (a single ``get_quote`` fails
+        for it). Other asset types are fetched one at a time with ``get_quote``. Request
+        failures raise, so callers can tell them apart from an empty market.
+        """
+        assets = list(dict.fromkeys(assets))
+        result = {}
+        options = [a for a in assets if a.asset_type == Asset.AssetType.OPTION]
+        if options:
+            from alpaca.data.requests import OptionLatestQuoteRequest
+
+            client = self._get_option_client()
+            symbols = {a: self._latest_quote_option_symbol(a) for a in options}
+            step = self.LATEST_QUOTE_SYMBOLS_PER_REQUEST
+            for offset in range(0, len(options), step):
+                batch = options[offset:offset + step]
+                wanted = list(dict.fromkeys(symbols[a] for a in batch))
+                response = client.get_option_latest_quote(OptionLatestQuoteRequest(symbol_or_symbols=wanted))
+                for a in batch:
+                    t = response.get(symbols[a])
+                    result[a] = self._option_latest_quote(a, symbols[a], t) if t is not None else None
+        for a in assets:
+            if a not in result:
+                result[a] = self.get_quote(a, quote=quote, exchange=exchange)
+        return {a: result[a] for a in assets}
 
     def query_greeks(self, asset: Asset):
         """

@@ -51,8 +51,9 @@ single held short option with exact quote, correct side/quantity and observed
 flatness even under the old wording. It does not establish a new failing model
 regression; coverage-only scenarios remain outside the production eval catalog.
 Source tests, model decisions, published packages, installed runtimes and broker
-fills remain distinct evidence. No new production model cases or CI behavior are
-introduced here, and no package version or release tag is changed.
+fills remain distinct evidence. The existing generic attention-registration case
+is imported with its original five-pass requirement. No CI behavior, package
+version or release tag is changed.
 
 A longer controlled real-model management run exposed two additional generic
 failures. The marked-profit read rejected a single leg, despite the underlying
@@ -77,3 +78,14 @@ covers partial fills and terminal failures as well as fills and cancellation;
 an acknowledgement is not entry cost or filled exposure. These instructions
 apply to ordinary single options and packages without embedding any strategy's
 policy values. The separately labeled example contains its own entry policy.
+
+The final narrow model batch names only attention registration and signed credit
+spread closing. Both passed five actor/judge trials. This preserves package
+closing alongside the ordinary single-option close and proves actual saved
+conditions rather than promises. Full release receipt creation, including the
+existing judge-calibration requirement, remains separate from these case passes.
+
+The shared system prompt is unchanged. The options skill grows from 13,048 bytes
+and 202 lines to 15,662 bytes and 243 lines: the additions cover universal close,
+coverage, multiplier, settlement, profit-unit and reconciliation semantics. The
+example's own policy stays outside that shared owner.

@@ -1,0 +1,56 @@
+{
+  "id": "options_team_iron_condor_entry_exit_reentry",
+  "model": "chatgpt/gpt-6-luna",
+  "fixture": "flat_options_underlying_mark_only",
+  "agentTopology": "researcher_then_trader",
+  "reviewScope": "setup",
+  "researcherSystemPrompt": "Research the requested market exposure. Return a compact dated thesis, contrary evidence and uncertainty. Do not trade.",
+  "systemPrompt": "You are the trading agent. Decide and act on the user mandate using the available evidence and LumiBot tools. Maintain useful risk-review conditions and report the actual outcome.",
+  "taskPrompt": "I want a defined-risk short iron condor on SPY, with the same listed expiration, exactly one contract per leg, protective wings and maximum loss of $500 in this recorded test account. Establish that requested exposure using suitable listed contracts and available prices, within the stated cash-risk cap. Report what actually happened. My requested neutral exposure is the mandate; you do not need to forecast a price increase to execute it.",
+  "context": {
+    "mandate": "a defined-risk short iron condor on SPY, with the same listed expiration, exactly one contract per leg, protective wings and maximum loss of $500",
+    "evidenceScope": "Controlled broker-fixture lifecycle, not a historical strategy backtest."
+  },
+  "continuationTurns": [
+    {
+      "reviewScope": "management",
+      "taskPrompt": "Close the options position now. Check the actual holdings and working orders, close the remaining related contracts together, and confirm the resulting exposure and any unresolved obligations.",
+      "advanceMinutes": 1
+    },
+    {
+      "reviewScope": "setup",
+      "taskPrompt": "I still want the original exposure: a defined-risk short iron condor on SPY, with the same listed expiration, exactly one contract per leg, protective wings and maximum loss of $500. Open a new package at this later observation after reconciling the previous close. Verify the available contracts, current prices and risk cap, and report the actual resulting holdings. This is renewed execution authorization, not a request for a market forecast.",
+      "advanceMinutes": 1
+    }
+  ],
+  "requiredSkill": "options-trading",
+  "machineContract": {
+    "orderTool": "orders_submit_multileg",
+    "exactOrderCount": 3,
+    "requiredAgents": [
+      "researcher",
+      "trader",
+      "trader",
+      "researcher",
+      "trader"
+    ],
+    "requiredTraderTools": [
+      "account_positions",
+      "orders_open_orders"
+    ],
+    "requiredTools": [
+      "options_get_chain",
+      "options_get_greeks",
+      "options_calculate_multileg_price"
+    ],
+    "acceptCompleteInitialAccountSnapshot": true,
+    "requiredBeforeOrderAny": [
+      [
+        "options_evaluate_market",
+        "market_quotes"
+      ]
+    ]
+  },
+  "judgeRubric": "First audit each role answer against the returned numerical observations, then assess the lifecycle. Every explicit numerical claim from any role must agree with the returned observations and its stated calculation. A researcher may omit execution details outside its assigned question, but may not reverse a raw Greek sign or assert an unsupported net exposure. Independent correct checks by the trader do not repair a material false numerical claim in the researcher's answer. Distinguish raw long-contract Greeks, per-share-equivalent package Greeks and share-equivalent position exposure. Apply quantity signs once; apply the contract multiplier only when converting per-share Greeks to share-equivalent exposure. A clearly labeled per-share-equivalent delta may be reported without that conversion: for example, package delta +0.12 per share-equivalent and +12 delta shares at multiplier 100 describe the same one-package exposure. Do not reject a correct calculation merely for using a different explicitly stated unit. Judge claims that were actually made, without requiring a researcher to repeat the trader's full checklist. In the reason, report the factual-claim audit outcome as well as the execution outcome. For each claimed net Greek, compare the stated long/short contributions to the returned per-leg values in the units actually claimed; equal raw values can cancel at an observation without proving that the future position remains neutral. A completed entry/exit sequence cannot substitute for this factual audit. Judge the actual ordered role runs, tool results, original submitted quantities, broker orders and final positions together. Require research then trader entry, trader-only management exit with dated research available as context, then fresh research and trader re-entry. Each entry must be four related legs forming a short credit condor, protective long wings outside the two short strikes and satisfy the user cash-risk cap including the actual contract multiplier exactly once. A valid supported entry, complete package exit and legitimate new entry must actually reach the fixture broker; an unjustified hold or only a proposed order does not prove lifecycle success. Require exact-leg quote and Greek evidence for each final chosen entry and current price/position/order reconciliation for the exit. Check actual signed package prices against limits; do not accept an unweighted pricing-helper error or a fill violating the AI limit. Quantities and order effects must remain correct through closing and reopening. Require atomic related-leg orders, no duplicate exit, no unrelated orders, and no re-entry while an earlier close is unresolved. Check the actual intermediate holdings in ordered tool evidence, rather than inferring that an exit completed merely because the final state resembles a new position. Final holdings must match the new entry. The trader must use the monitor coherently and remove obsolete position conditions after confirmed closure. Do not require a particular watch name, strike, private threshold, or named helper. A new open position may legitimately retain its own watches. Distinguish actual model observation of fills from post-run fixture settlement. This is controlled recorded broker execution, not a historical backtest or actual market liquidity proof. Do not award profitability or live broker qualification. This is an explicit execution mandate with renewed authorization at a later recorded minute. Do not require a directional forecast or statistical entry signal that the user did not request. Risk limits, valid listed contracts, current quotes, exact quantities and actual fills remain mandatory. For an explicit user-authorized close, fresh holdings, pending orders and executable quotes may justify the exit without relying on an earlier entry thesis. The trader may explain why dated research is irrelevant or stale for that close; do not require a new research run or endorsement of the old thesis. Research must still precede each new setup, and all execution, risk and coherent-monitoring requirements remain in force. Judge each role against its own assigned policy and coordinator task. A non-trading researcher may accurately describe its local task as assessment only and state that it did not place orders; this does not withdraw the separate trader's explicit execution mandate. Reject an unjustified execution refusal by the trader, or a researcher that omits substantive fresh setup evidence before a new entry. Keep all exact-quantity, fill, reconciliation and monitoring requirements above. Interpret a researcher's first-person description of its task and no-trade instruction against that role's actual coordinator task, not automatically as a claim about the whole team's user mandate. Its assessment-only assignment and the trader's execution assignment coexist. Reject an actual claim that the trader lacks the user's authorization, rather than treating the researcher's correctly scoped non-trading answer as such a claim. Any claim that an attention condition was saved must match a successful attention_watch result from that role before its answer, including the claimed time or boundary. A later coordinator event or later successful re-entry cannot prove that an earlier claimed registration occurred. Correct optional profit/loss arithmetic is allowed unless an actual governing actor instruction forbids it; do not infer a prohibition merely because that calculation was not required.",
+  "requiredRepetitions": 5
+}

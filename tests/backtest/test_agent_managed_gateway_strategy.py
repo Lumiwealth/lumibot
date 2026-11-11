@@ -61,10 +61,11 @@ def test_24_7_bitcoin_strategy_uses_real_agent_runtime_and_managed_gateway(monke
             "usage": {"inputTokens": 11, "cachedInputTokens": 3, "outputTokens": 4},
         }
 
-    def managed_model(model, *, reasoning_effort=None):
+    def managed_model(model, *, reasoning_effort=None, model_request_timeout_seconds=120):
         return BotSpotManagedLlm(
             model=model,
             reasoning_effort=reasoning_effort,
+            model_request_timeout_seconds=model_request_timeout_seconds,
             gateway_url="https://gateway.example.test",
             access_token="deployment-bound-token",
             post=post,

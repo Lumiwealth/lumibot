@@ -1,5 +1,13 @@
 {
-  "version": 1,
-  "source_commit": "fc3c86254301d087be0951dbaa5f5d48d44efdf1",
-  "receipt_sha256": "38ad27a58a8b771984df1bb099a0eacf4e5a052ba7282bcd508b737087db6e5a"
+  "version": 2,
+  "source_commit": "f8f2cd14214a733938082a66ea9f1ea82a761d76",
+  "receipt_sha256": "79f2bf0b4115367d337fa119573421a08c2f97c7afc4b570957be2925d79a78b",
+  "author_review": {
+    "candidate_runtime_fingerprint": "476739795cc3e8bab9535bdb9e9c0b83e8868b92754c7ee5510210180f127a60",
+    "case_ids": [
+      "attention_overnight_management_preserves_entry_opportunity",
+      "options_unequal_call_ratio_atomic_open"
+    ],
+    "reason": "Reviewed changes since the retained f8f2cd142 native proof: routed history buffer and live Schwab execution parsing are outside synchronous in-memory Pandas fixtures. New backtest telemetry records counters and durations without changing agent context, tools, prompts, judge input or order decisions; these fixtures do not run the threaded Trader, provider history download or report pipeline. The remaining changes repair test contracts, release bookkeeping and author-retention verification only. Preserve original native passes and their source; require separate focused code tests for the changed broker and telemetry behavior, with zero new model runs. This retention does not qualify a hosted strategy or actual broker execution."
+  }
 }

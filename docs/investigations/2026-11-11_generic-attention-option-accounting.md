@@ -65,11 +65,8 @@ pending evidence on failure, without rolling back order effects or newer watches
 Three new focused cases reproduced these failures before repair and passed
 afterward. Existing package-close and recovery controls remain enforced.
 
-An ordinary unit test also attempted to verify the prior release author's
-source-bound model receipt on every PR. It has been removed from unit execution:
-that task belongs to the maintained release-workflow verification command.
-Explicit scope/pass/source checks remain in the verifier and its isolated unit
-contracts. This changes no production model assertion and adds no selector.
+The combined release carries the maintained author-written receipt verification.
+Its newer admission contracts are preserved unchanged; this task adds no selector.
 
 Additional shared guidance requires a final mandatory-policy check against the
 exact selected contract and decision time. A model must not submit an order
@@ -85,7 +82,34 @@ closing alongside the ordinary single-option close and proves actual saved
 conditions rather than promises. Full release receipt creation, including the
 existing judge-calibration requirement, remains separate from these case passes.
 
-The shared system prompt is unchanged. The options skill grows from 13,048 bytes
-and 202 lines to 15,662 bytes and 243 lines: the additions cover universal close,
-coverage, multiplier, settlement, profit-unit and reconciliation semantics. The
-example's own policy stays outside that shared owner.
+## Combined release reconciliation
+
+The change now builds on the open version/4.6.52 carrier. The carrier owns the
+attention implementation, optional research completion, package lifecycle,
+quote/order improvements, and author-written qualification. Its implementation
+is reused rather than copied into a second runtime. An overlapping attention
+research-error draft was retired in favor of the carrier's Manager classification.
+An optional disclosed research gap can complete; an incomplete trader or explicit
+decision-critical research failure remains incomplete.
+
+The remaining runtime delta repairs signed marked profit, accepts a single held
+option in the profit-read tool, and restores the claimed attention packet after
+a decision removes a watch and then fails. Generic coverage/settlement and
+single-option closing guidance accompany the compact separately labeled example.
+No security, credential handling, BotSpot infrastructure or private protocol is
+added. These capabilities apply to ordinary strategies independent of this example.
+
+Local code proof after integration: 21 explicitly selected tests passed in 4.68s
+(signed profit, single close, package-close compatibility, pending packet recovery,
+physical settlement and optional research completion). Zero new model eval attempts
+were used for these plain runtime fixes. Earlier model observations retain their
+original source and funding provenance; they are not relabeled as current-pool,
+hosted, or broker proof. The earlier separate-login model batch is not qualification
+through the required three-account pool.
+
+This task adds zero shared system-prompt bytes relative to the carrier. The options
+skill grows from 39,261 bytes / 563 lines to 41,653 bytes / 601 lines. The additions
+cover final policy checking, collateral/share coverage, settlement, single-contract
+closing and signed-profit use. The carrier's newer concise-account-read guidance
+and all other qualified options instructions are retained. This note records local
+source proof only; no package publication or installed runtime is asserted.

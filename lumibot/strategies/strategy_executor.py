@@ -7,6 +7,7 @@ from queue import Empty, Queue
 from threading import Event, Lock, RLock, Thread
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
+from lumibot.tools import backtest_telemetry as _telemetry
 
 logger = LazyLogger(__name__)
 
@@ -1162,13 +1163,16 @@ class StrategyExecutor(Thread):
 
                 net_best = 0.0
                 net_fastest = 0.0
-                for leg, leg_bid, leg_ask in quote_data:
+                from lumibot.tools.helpers import get_multileg_quantity_units
+
+                _, ratios = get_multileg_quantity_units(leg.quantity for leg in order.child_orders)
+                for (leg, leg_bid, leg_ask), ratio in zip(quote_data, ratios):
                     if leg.is_buy_order():
-                        net_best += float(leg_bid)
-                        net_fastest += float(leg_ask)
+                        net_best += ratio * float(leg_bid)
+                        net_fastest += ratio * float(leg_ask)
                     else:
-                        net_best -= float(leg_ask)
-                        net_fastest -= float(leg_bid)
+                        net_best -= ratio * float(leg_ask)
+                        net_fastest -= ratio * float(leg_bid)
 
                 tick = infer_tick_size(net_best, net_fastest)
                 mid = compute_mid(net_best, net_fastest)
@@ -1541,7 +1545,11 @@ class StrategyExecutor(Thread):
                 self.strategy.load_variables_from_db()
             if self.broker.IS_BACKTESTING_BROKER:
                 self._record_backtest_milestone("first_callback_entered_at")
-                on_trading_iteration()
+                iteration_started = _telemetry.iteration_started()
+                try:
+                    on_trading_iteration()
+                finally:
+                    _telemetry.iteration_finished(iteration_started, getattr(self.broker, "datetime", None))
             else:
                 # Live: drain fill/hedge events while the user scan runs so a
                 # 100s+ on_trading_iteration cannot gate order management.

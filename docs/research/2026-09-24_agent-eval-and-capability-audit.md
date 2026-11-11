@@ -271,6 +271,21 @@ should be `openai/gpt-6-luna`. That is a one-line fix and it is mine.
 
 ## 8. What I did not verify
 
+### Subsequent shared-runtime correction (2026-11-04)
+
+The agent snapshot now reads the existing broker market and clock methods.
+It exposes observed open state and seconds to open/close, retaining unknown
+fields when a broker lacks them. This adds no calendar service or trading
+policy. Session windows remain the strategy's choice; expiration and current
+decision dates remain distinct. Standing execution mandates do not acquire an
+unrequested tactical-signal veto, while one-time and no-repeat limits remain.
+Options guidance requires concrete short-leg delivery and temporary funding
+consequences and distinguishes minute trade-bar approximations from historical
+executable bid/ask evidence. Native regressions and real-model lifecycle cases
+qualify these separately; a native passing check is not broker execution proof.
+
+The original audit's verification limits follow unchanged.
+
 - No full eval run was executed for this audit, so every cost and timing figure
   for the eval suite is arithmetic from the code, not measurement.
 - I did not audit the skills directory for coverage, only the tools.

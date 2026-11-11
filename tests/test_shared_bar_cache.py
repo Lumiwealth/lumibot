@@ -554,3 +554,42 @@ def test_adjusted_series_still_read_their_manifest(monkeypatch, isolated):
     sbc._reset_process_memory()
     sbc.read_bars(series(adjusted=True), "2026-03-02", "2026-03-04", fetch, now=NOW)
     assert any(k.endswith("series.json") for k in remote.gets)
+
+
+def test_run_counters_report_remote_misses_uploads_and_hits(monkeypatch, isolated, caplog):
+    """The shared bar cache reads and writes S3 itself, outside BacktestCacheManager's counters.
+
+    Production showed downloads=0 misses=0 uploads=0 for every Alpaca run while repeats were
+    90 s faster, because nothing counted these reads. The run counters must show them.
+    """
+    import logging
+
+    from lumibot import constants
+    from lumibot.tools import backtest_cache
+
+    remote = SlowRemote(delay=0)
+    remote_manager(monkeypatch, remote)
+    sbc.reset_run_stats()
+    fetch, calls, _ = provider()
+    sbc.read_bars(series(), "2026-03-02", "2026-03-04", fetch, now=NOW)
+    sbc.flush_shared_bar_writes(10)
+    cold = sbc.run_stats_snapshot()
+    assert cold["provider_reads"] == 1
+    assert cold["remote_misses"] >= 1 and cold["remote_hits"] == 0
+    assert cold["uploads"] >= 1 and cold["upload_bytes"] > 0
+
+    monkeypatch.setattr(constants, "LUMIBOT_CACHE_FOLDER", str(isolated / "other-process"))
+    monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", str(isolated / "other-process"))
+    sbc._reset_process_memory()
+    sbc.reset_run_stats()
+    sbc.read_bars(series(), "2026-03-02", "2026-03-04", fetch, now=NOW)
+    warm = sbc.run_stats_snapshot()
+    assert len(calls) == 1
+    assert warm["provider_reads"] == 0
+    assert warm["remote_hits"] >= 1 and warm["download_bytes"] > 0
+    assert warm["uploads"] == 0
+
+    with caplog.at_level(logging.INFO, logger=sbc.logger.name):
+        sbc.log_run_summary()
+    line = next(r.getMessage() for r in caplog.records if "[SHARED_BARS][SUMMARY]" in r.getMessage())
+    assert "provider_reads=0" in line and "remote_hits=" in line

@@ -35,6 +35,32 @@ and buys one higher-strike call with the same expiration and normally equal wing
 widths. A long put butterfly uses the analogous put legs. Preserve the 1:-2:1
 ratio.
 
+Compute each wing width from its adjacent strikes. Shifting all three strikes
+up or down changes the center and moneyness, not the width when those differences
+remain equal. Compare the actual center, debit, payoff bounds and signed net
+Greeks. For any raw Greek g, the one-package contribution is
+`g_lower - 2*g_middle + g_upper`, scaled by the actual multiplier when reporting
+share-equivalent exposure. Small net delta alone does not remove gamma, time-decay
+or volatility risk as the underlying approaches or leaves the center.
+
+## Two-long/one-short call stock replacement
+
+Buy two lower-strike calls and sell one higher-strike call at one expiration.
+Preserve the 2:-1 ratio; one long and two shorts is a different structure with
+unbounded upside loss. Evaluate the actual debit, intrinsic/extrinsic premium,
+signed net Greeks and downside loss. Offsetting extrinsic cost does not make
+the position free. A physically settled short call can require delivering the
+underlying before either long is exercised: inspect shares, account capacity,
+dividends and remaining obligations independently of the expiration payoff.
+
+Above the higher strike at expiration, the 2:-1 package's net payoff slope is
+one call's multiplier: two long contributions minus one short contribution.
+That does not turn the inventory into one higher-strike long call. Both actual
+long calls remain at the lower strike. Keep this expiration payoff distinct
+from the package's current delta. A call ratio backspread instead sells a lower
+call and buys two higher calls; it has different intermediate-price risk and
+must not be substituted for the requested two-lower-long/one-higher-short legs.
+
 ## Straddle and strangle
 
 - Long straddle: buy one call and one put at the same strike and expiration.

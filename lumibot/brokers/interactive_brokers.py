@@ -1,11 +1,9 @@
 import datetime
-import math
 import os
 import random
 import time
 from collections import deque
 from decimal import Decimal
-from functools import reduce
 from sys import exit
 from threading import Thread
 from typing import Union
@@ -336,6 +334,14 @@ class InteractiveBrokers(Broker):
             multileg_order = OrderLum(orders[0].strategy)
             multileg_order.order_class = OrderLum.OrderClass.MULTILEG
             multileg_order.child_orders = orders
+            multileg_order.time_in_force = duration
+
+            if kwargs.get("order_type") == "credit" and price is not None:
+                price = -abs(price)
+            elif kwargs.get("order_type") == "debit" and price is not None:
+                price = abs(price)
+            elif kwargs.get("order_type") == "even":
+                price = 0
 
             #If price is not None, then set the limit price for for the parent order and set the type to limit.
             if price is not None:
@@ -1631,6 +1637,10 @@ class IBApp(IBWrapper, IBClient):
 
     def _create_multileg_order(self, order, exchange=None, **kwargs):
         """Submit a list of orders as a single multileg order"""
+        from lumibot.tools.helpers import get_multileg_quantity_units
+
+        package_quantity, leg_ratios = get_multileg_quantity_units(
+            child.quantity for child in order.child_orders)
         # Initialize the combo contract
         combo_contract = Contract()
         # Construct the symbol with commas if the symbols are different
@@ -1657,7 +1667,7 @@ class IBApp(IBWrapper, IBClient):
         combo_contract.comboLegs = []
 
         # Prepare the legs for the combo order
-        for child_order in order.child_orders:
+        for child_order, ratio in zip(order.child_orders, leg_ratios):
             # Initialize the combo leg
             leg = ComboLeg()
 
@@ -1666,30 +1676,24 @@ class IBApp(IBWrapper, IBClient):
             leg.conId = contract_details[0].contract.conId
 
             # Set the leg details
-            leg.ratio = child_order.quantity
+            leg.ratio = ratio
             leg.action = self.get_safe_action(child_order.side)
             leg.exchange = exchange if exchange else "SMART"
 
             # Append the leg to the combo contract
             combo_contract.comboLegs.append(leg)
 
-        # Reeduce the leg ratios to the smallest integer for each leg
-        ratios = [leg.ratio for leg in combo_contract.comboLegs]
-        gcd = reduce(math.gcd, ratios)
-        for leg in combo_contract.comboLegs:
-            leg.ratio = leg.ratio // gcd
-
         # Initialize the combo order
         combo_order = Order()
-        combo_order.action = "BUY" # TODO: This is a placeholder. This should be set based on the order side
+        combo_order.action = "BUY"  # Each combo leg already carries the requested action.
         combo_order.orderId = combo_order_id
         combo_order.orderType = ORDERTYPE_MAPPING[order.order_type]
         combo_order.tif = order.time_in_force.upper()
         combo_order.goodTillDate = order.good_till_date if order.good_till_date else ""
-        combo_order.totalQuantity = min([child_order.quantity for child_order in order.child_orders])
+        combo_order.totalQuantity = package_quantity
 
         # Set the limit price if this is a limit order and a price is provided
-        if order.order_type == OrderLum.OrderType.LIMIT and order.limit_price:
+        if order.order_type == OrderLum.OrderType.LIMIT and order.limit_price is not None:
             combo_order.lmtPrice = order.limit_price
 
         # Return the combo contract and order

@@ -815,6 +815,24 @@ def test_options_check_spread_profit_returns_percentage_for_credit_spread():
     assert result["profit_pct"] is not None
 
 
+def test_order_modification_returns_replacement_identity_for_next_observation():
+    order = Order('agent-options-test', Asset('SPY'), 1, 'buy',
+                  identifier='original', order_type='limit', limit_price=100)
+
+    class ReplacedStrategy(_OptionsStrategy):
+        def get_order(self, identifier, broker_refresh=True):
+            assert identifier == 'original'
+            return order
+
+        def modify_order(self, existing, **kwargs):
+            existing.identifier = 'replacement'
+
+    strategy = ReplacedStrategy()
+    tool = BuiltinTools.orders.modify().binder(strategy, AgentManager(strategy))
+    result = tool.function(identifier='original', limit_price=101, reason=ORDER_ACTION_REASON)
+    assert result['identifier'] == 'replacement'
+
+
 def test_orders_get_status_reports_missing_and_known_identifiers():
     from lumibot.entities import Asset
 

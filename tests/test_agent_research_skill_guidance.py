@@ -61,10 +61,10 @@ def test_delivered_blocked_research_guidance_requires_a_bounded_proof_handoff(
     delivered_research_guidance,
 ):
     instructions = " ".join(delivered_research_guidance[2]["instructions"].split())
-    assert "When evidence is blocked, finish with an explicit **Next evidence needed** handoff." in instructions
+    assert "When required evidence is blocked, finish with an explicit **Next evidence needed** handoff." in instructions
     assert "A limitation or refusal summary alone does not complete this handoff." in instructions
     assert (
-        "For each missing dataset, state the observations or documents to obtain, requested observation period, historical UTC cutoff or live snapshot scope, and decision still blocked."
+        "For each missing dataset, state the observations or documents to obtain, requested observation period, historical UTC cutoff or live snapshot scope, and any decision actually blocked by that requirement."
         in instructions
     )
     assert (
@@ -73,6 +73,11 @@ def test_delivered_blocked_research_guidance_requires_a_bounded_proof_handoff(
     )
     assert (
         "Name a provider only when configured or returned by tools; never claim its qualification without proof."
+        in instructions
+    )
+    assert "Missing required evidence remains unresolved." in instructions
+    assert (
+        "Disclose unavailable optional context without declaring the whole research handoff incomplete or adding an execution veto the user did not request."
         in instructions
     )
 

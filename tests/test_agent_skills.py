@@ -70,6 +70,50 @@ class _CaptureRuntime:
         )
 
 
+@pytest.mark.parametrize("market,is_open,opening,closing", [
+    ("SYNTHETIC_REGULAR", True, 0, 900),
+    ("SYNTHETIC_EARLY_CLOSE", True, 0, 450),
+    ("24/7", True, None, None),
+])
+def test_runtime_context_exposes_native_broker_clock_observations(market, is_open, opening, closing):
+    strategy = _Strategy()
+    strategy.broker = SimpleNamespace(
+        market=market, is_market_open=lambda: is_open,
+        get_time_to_open=lambda: opening, get_time_to_close=lambda: closing,
+    )
+    context = AgentManager(strategy).create(name="clock-observer")._runtime_context()
+    assert context["market"] == market
+    assert context["market_clock"] == {
+        # Clock observations use the snapshot's existing timestamp convention.
+        "as_of": context["current_datetime"],
+        "source": "broker", "is_open": is_open,
+        "seconds_to_open": opening, "seconds_to_close": closing,
+    }
+
+
+def test_runtime_clock_failure_preserves_other_observations_without_inventing_a_closed_market():
+    def unavailable():
+        raise NotImplementedError("Clock observation unavailable")
+
+    strategy = _Strategy()
+    strategy.broker = SimpleNamespace(
+        market="SYNTHETIC_OPTIONAL_CLOCK", is_market_open=unavailable,
+        get_time_to_open=unavailable, get_time_to_close=lambda: 900,
+    )
+    context = AgentManager(strategy).create(name="clock-observer")._runtime_context()
+    assert context["current_datetime"]
+    assert context["market_clock"]["is_open"] is None
+    assert context["market_clock"]["seconds_to_open"] is None
+    assert context["market_clock"]["seconds_to_close"] == 900
+
+
+def test_runtime_context_keeps_strategies_without_broker_clock_capabilities_usable():
+    context = AgentManager(_Strategy()).create(name="clock-observer")._runtime_context()
+    assert context["current_datetime"]
+    assert context["market_clock"]["is_open"] is None
+    assert context["market_clock"]["seconds_to_close"] is None
+
+
 def test_default_agent_model_is_current_and_explicit_pins_are_preserved():
     manager = AgentManager(_Strategy())
     default = manager.create(name="default", _runtime=_CaptureRuntime())
@@ -162,16 +206,18 @@ def test_options_skill_requires_atomic_multileg_or_no_trade():
     assert "make a no-trade decision" in instructions
 
 
-def test_options_skill_requires_explicit_account_reads_and_measured_deltas():
+def test_options_skill_requires_complete_current_account_evidence_and_measured_deltas():
     """Release eval options_iron_condor_atomic_open failed when the agent ordered
-    from the injected snapshot without account tool calls, and when it declined a
+    from insufficient account evidence, and when it declined a
     supported condor by inventing a 30-day minimum and guessing deltas from strike
     distance instead of measuring them."""
     options_skill = next(skill for skill in load_builtin_skills() if skill.name == "options-trading")
     instructions = " ".join(options_skill.instructions.split())
 
-    assert "Call `account_portfolio`, `account_positions`, and `orders_open_orders`" in instructions
-    assert "the injected account snapshot does not replace these calls" in instructions
+    assert "A complete, fresh Runtime Context account snapshot can supply that evidence" in instructions
+    assert "inspect its completeness, timestamps and exact identities" in instructions
+    assert "for missing, truncated or stale portions" in instructions
+    assert "reread affected state after an order action" in instructions
     assert "Never judge a delta target unreachable from strike distance alone" in instructions
     assert "Do not add your own days-to-expiration minimum" in instructions
     assert "A short strike list is not by itself a reason to decline" in instructions

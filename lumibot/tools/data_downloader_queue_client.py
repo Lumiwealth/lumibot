@@ -307,6 +307,20 @@ class QueueClient:
         remaining = self._remaining_budget()
         time.sleep(delay if remaining is None else min(delay, remaining))
 
+    def _backoff_sleep(self, delay: float) -> None:
+        """A retry wait (backoff, queue_full, transient error); counted in the run telemetry."""
+        started = time.time()
+        try:
+            self._sleep_with_budget(delay)
+        finally:
+            try:
+                from lumibot.tools import backtest_telemetry
+
+                backtest_telemetry.record_wait("backoff", max(0.0, time.time() - started))
+                backtest_telemetry.record_retry()
+            except Exception:
+                pass
+
     def _get_session(self) -> requests.Session:
         session = getattr(self._session_local, "session", None)
         generation = getattr(self._session_local, "generation", None)
@@ -575,7 +589,7 @@ class QueueClient:
                     attempt,
                     exc,
                 )
-                self._sleep_with_budget(delay)
+                self._backoff_sleep(delay)
                 continue
 
             data: Optional[Dict[str, Any]] = None
@@ -600,7 +614,7 @@ class QueueClient:
                     delay,
                     attempt,
                 )
-                self._sleep_with_budget(delay)
+                self._backoff_sleep(delay)
                 continue
 
             try:
@@ -627,7 +641,7 @@ class QueueClient:
                     delay,
                     attempt,
                 )
-                self._sleep_with_budget(delay)
+                self._backoff_sleep(delay)
                 continue
 
             if not data:
@@ -1118,7 +1132,7 @@ class QueueClient:
                     # idempotent read without spending an entire attempt timeout.
                     # Transient failures and provider waits do not enter this path.
                     correlation_override = None
-                    self._sleep_with_budget(1.0)
+                    self._backoff_sleep(1.0)
                 except TimeoutError as exc:
                     try:
                         self._remaining_budget()
@@ -1171,7 +1185,7 @@ class QueueClient:
                         max_delay=30.0,
                         jitter_pct=0.2,
                     )
-                    self._sleep_with_budget(delay)
+                    self._backoff_sleep(delay)
         finally:
             # Release semaphore when done (success or failure)
             with self._in_flight_lock:
@@ -1306,6 +1320,28 @@ def is_queue_enabled() -> bool:
     return True
 
 
+def _telemetry_scope_for_path(path: str) -> tuple[str | None, str | None]:
+    """Source and asset class for a downloader path, for the run telemetry only."""
+    parts = [part for part in str(path or "").split("/") if part]
+    if parts and parts[0] == "ibkr":
+        return "ibkr", None  # the IBKR helper sets the asset class in its scope
+    if parts and parts[0] in {"v2", "v3"}:
+        kind = parts[1] if len(parts) > 1 else None
+        return "thetadata", kind if kind in {"option", "stock", "index"} else None
+    return "downloader", None
+
+
+def _result_rows(result: Any) -> int | None:
+    if isinstance(result, list):
+        return len(result)
+    if isinstance(result, dict):
+        for name in ("data", "response"):
+            value = result.get(name)
+            if isinstance(value, list):
+                return len(value)
+    return None
+
+
 def queue_request(
     url: str,
     querystring: Optional[Dict[str, Any]],
@@ -1348,14 +1384,24 @@ def queue_request(
     if querystring:
         merged_query_params.update(querystring)
 
-    result, status_code = client.execute_request(
-        method="GET",
-        path=path,
-        query_params=merged_query_params,
-        headers=headers,
-        timeout=timeout,
-        max_timeout_attempts=max_timeout_attempts,
-    )
+    from lumibot.tools import backtest_telemetry
+
+    source, asset_class = _telemetry_scope_for_path(path)
+    with backtest_telemetry.provider_scope(source, asset_class):
+        started = time.time()
+        try:
+            result, status_code = client.execute_request(
+                method="GET",
+                path=path,
+                query_params=merged_query_params,
+                headers=headers,
+                timeout=timeout,
+                max_timeout_attempts=max_timeout_attempts,
+            )
+        except Exception:
+            backtest_telemetry.record_provider_request(max(0.0, time.time() - started))
+            raise
+        backtest_telemetry.record_provider_request(max(0.0, time.time() - started), rows=_result_rows(result))
 
     # Handle status codes
     if status_code == 472:

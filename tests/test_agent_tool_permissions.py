@@ -528,15 +528,18 @@ def test_base_prompt_selects_relevant_evidence_instead_of_every_tool_category():
     assert "use SEC financial/filing tools on the most relevant single-stock" not in prompt
 
 
-def test_backtest_prompt_treats_last_trade_option_prices_as_the_fill_basis():
+def test_backtest_prompt_discloses_last_trade_proxy_and_requires_observed_fills():
     manager = AgentManager(_Strategy())
     agent = manager.create(name="interpreter", allow_trading=False)
 
     prompt = agent._base_system_prompt(agent._runtime_context())
 
-    assert "price_basis='last_trade'" in prompt
-    assert "missing bid/ask alone is not a reason" in prompt.lower()
-    assert "recent trade bar" in prompt
+    assert "usable exact-contract last_trade prices" in prompt
+    assert "use them as disclosed pricing approximations" in prompt
+    assert "instead of declining solely because historical bid/ask is absent" in prompt
+    assert "a last-trade anchor or preview is not a fill" in prompt
+    assert "Verify the actual simulation orders, limits and fills" in prompt
+    assert "Preserve an explicit requirement for historical bid/ask" in prompt
 
 
 def test_live_prompt_does_not_carry_backtest_last_trade_guidance():
@@ -1702,11 +1705,17 @@ def test_allow_network_false_removes_even_explicit_network_tools():
 
 
 def _example_network_agents():
+    from lumibot.example_strategies.ai_bull_call_spread import AIBullCallSpreadStrategy
+    from lumibot.example_strategies.ai_call_stock_replacement import AICallStockReplacementStrategy
+    from lumibot.example_strategies.ai_iron_condor import AIIronCondorStrategy
     from lumibot.example_strategies.ai_fear_and_greed_trading_bot import FearAndGreedTradingBot
     from lumibot.example_strategies.ai_nancy_pelosi_copy_trading_bot import NancyPelosiCopyTradingBot
     from lumibot.example_strategies.ai_nancy_pelosi_trading_bot import NancyPelosiTradingBot
 
     return {
+        "ai_bull_call_spread.py": (AIBullCallSpreadStrategy, {"researcher"}),
+        "ai_call_stock_replacement.py": (AICallStockReplacementStrategy, {"researcher"}),
+        "ai_iron_condor.py": (AIIronCondorStrategy, {"researcher"}),
         "ai_nancy_pelosi_trading_bot.py": (NancyPelosiTradingBot, {"researcher"}),
         "ai_nancy_pelosi_copy_trading_bot.py": (NancyPelosiCopyTradingBot, {"researcher"}),
         "ai_fear_and_greed_trading_bot.py": (FearAndGreedTradingBot, {"researcher"}),
@@ -1730,7 +1739,7 @@ def test_every_example_that_uses_network_tools_is_covered_by_the_opt_in_contract
 
 @pytest.mark.parametrize(
     "filename",
-    ["ai_nancy_pelosi_trading_bot.py", "ai_nancy_pelosi_copy_trading_bot.py", "ai_fear_and_greed_trading_bot.py"],
+    list(_example_network_agents()),
 )
 def test_examples_that_use_the_web_opt_in_only_the_agents_that_fetch(filename):
     strategy_class, expected = _example_network_agents()[filename]

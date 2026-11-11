@@ -35,7 +35,9 @@ def calibration(monkeypatch, tmp_path):
     monkeypatch.setattr(runner.evals, "select_eval_credentials", lambda models: None)
     monkeypatch.setattr(runner.evals, "preflight", lambda *args: None)
     monkeypatch.setattr(runner.evals, "runtime_fingerprint", lambda: "same-runtime")
-    monkeypatch.setattr(runner.evals, "load_cases", lambda ids: [{"id": "research-case", "model": runner.evals.DEFAULT_JUDGE_MODEL}])
+    monkeypatch.setattr(runner.evals, "load_cases", lambda ids: [{"id": "research-case",
+        "model": runner.evals.DEFAULT_JUDGE_MODEL, "judgeRubric": "Require supported observations."}])
+    monkeypatch.setattr(runner, "judge_runtime_fingerprint", lambda **kwargs: "same-judge-protocol")
 
     def judge(case, transcript, model, budget):
         calls.append(dict(budget.scope))
@@ -146,12 +148,12 @@ def test_calibration_does_not_reuse_expired_passes(calibration):
     assert len(calibration.calls) == 6
 
 
-@pytest.mark.parametrize("change", ["runtime", "control"])
+@pytest.mark.parametrize("change", ["judge_protocol", "control"])
 def test_calibration_requalifies_changed_source_or_control_under_the_same_budget(calibration, monkeypatch, change):
     assert calibration.invoke() == 0
     original = (calibration.output / "ledger.jsonl").read_bytes()
-    if change == "runtime":
-        monkeypatch.setattr(runner.evals, "runtime_fingerprint", lambda: "changed-runtime")
+    if change == "judge_protocol":
+        monkeypatch.setattr(runner, "judge_runtime_fingerprint", lambda **kwargs: "changed-judge-protocol")
     else:
         calibration.fixtures[0]["transcript"]["evidence"] = "different synthetic evidence"
         calibration.fixture_path.write_text(json.dumps(calibration.fixtures))

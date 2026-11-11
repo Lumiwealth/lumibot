@@ -1,11 +1,27 @@
 """Native broker state, rather than fabricated tool replies, scores basket cases."""
 from types import SimpleNamespace
+from datetime import date
 
 import pytest
+import pandas as pd
 
 from lumibot.entities import Asset
 from scripts.agent_eval_production_fixture import ProductionFixture
 from scripts.run_agent_evals import build_fixture, load_cases, score_machine_contract
+
+
+def test_options_fixture_distinguishes_underlying_mark_from_option_execution_quotes():
+    """Missing stock quote sides must not erase available exact option quotes."""
+    production = ProductionFixture(build_fixture("flat_options_underlying_mark_only"))
+    try:
+        mark = production.strategy.get_quote(Asset("SPY"))
+        assert mark.price == 600
+        assert pd.isna(mark.bid) and pd.isna(mark.ask)
+        contract = Asset("SPY", asset_type="option", expiration=date(2026, 8, 28), strike=602, right="call")
+        quote = production.strategy.get_quote(contract)
+        assert quote.bid == 2.45 and quote.ask == 2.60
+    finally:
+        production.close()
 
 
 @pytest.mark.parametrize("count,quantity", [(9, 110), (25, 39)])

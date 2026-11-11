@@ -7,6 +7,8 @@ import time
 import weakref
 from functools import lru_cache
 from decimal import Decimal, ROUND_HALF_EVEN
+from fractions import Fraction
+from math import gcd, lcm
 
 import pytz
 import datetime as dt
@@ -17,6 +19,23 @@ from pandas_market_calendars.market_calendar import MarketCalendar
 from termcolor import colored
 
 from ..constants import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
+
+
+def get_multileg_quantity_units(quantities):
+    """Return package count and relatively prime ratios preserving every leg.
+
+    Quantities are absolute requested units, not already reduced leg ratios.
+    Decimal/fractional quantities remain exact; venue-specific restrictions
+    belong to the broker adapter rather than this arithmetic helper.
+    """
+    values = [Decimal(str(quantity)).copy_abs() for quantity in quantities]
+    if not values or any(not value.is_finite() or value <= 0 for value in values):
+        raise ValueError("Multi-leg quantities must be finite and nonzero.")
+    fractions = [Fraction(value) for value in values]
+    denominator = lcm(*(value.denominator for value in fractions))
+    integers = [value.numerator * (denominator // value.denominator) for value in fractions]
+    common = gcd(*integers)
+    return Decimal(common) / Decimal(denominator), [value // common for value in integers]
 
 # ============================================================================
 # PERFORMANCE CACHES - Critical for backtesting performance

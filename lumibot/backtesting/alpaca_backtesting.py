@@ -385,6 +385,35 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if self._is_option(asset):
             return self._get_option_last_price(asset, quote)
 
+        timestep = self._timestep
+        source_timestep, resample_rule = self._normalize_timestep_for_source(timestep)
+        if resample_rule is None:
+            # PERF: every Alpaca strategy asks this on every iteration. The answer is one row
+            # of the stored frame, the same row get_historical_prices(length=1,
+            # remove_incomplete_current_bar=False, _extend_history=False) would wrap in a Bars
+            # object (about 0.2 ms on a Mac, 1 ms in the cloud per call). Same data, same
+            # row, same errors; resampled steps keep the full path below.
+            try:
+                df = self.get_historical_prices_between_dates(
+                    base_asset=asset,
+                    quote_asset=quote,
+                    timestep=source_timestep,
+                    data_datetime_start=self._data_datetime_start,
+                    data_datetime_end=self._data_datetime_end,
+                    auto_adjust=self._auto_adjust,
+                )
+            except Exception as e:
+                raise RuntimeError(f"Unable to fetch historical prices during backtest: {e}")
+            if len(df) < 1:
+                raise ValueError("Not enough historical data. Requested 1 bars but only 0 available.")
+            position = self._newest_bar_position(df.index, self._datetime, timestep, False)
+            if position < 0:
+                raise ValueError(f"Datetime {self._datetime} not found in the dataset.")
+            if timestep == "day":
+                return self._daily_bar_mark(df.iloc[position:position + 1], asset, quote)
+            price = df["open"].iat[position]
+            return quantize_to_num_decimals(price, get_decimals(price))
+
         bars = self.get_historical_prices(
             asset=asset,
             length=1,  # Get one bar

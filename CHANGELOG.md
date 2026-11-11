@@ -16,6 +16,9 @@
 - `OptionsHelper` no longer repeats the same routine lines on every bar. In `find_next_valid_option`, `find_strike_for_delta`, `get_strike_deltas` and `evaluate_option_market`, the search and result lines ("Finding next valid option", "Target strike ... ->", "STRIKE SEARCH", "Search range", "Search strikes", "Trying strike", "BS estimate", "Exact match found", "RESULT: Closest strike", "Computing strike deltas", "Option market evaluation", "Using last-price fallback") are logged at INFO the first time and whenever the outcome changes, and at DEBUG otherwise. Errors, warnings, and evaluations that block a trade (spread too wide, no usable price) are still logged every time. A one-week minute run went from 1,586 to 63 log lines (strike search) and from 9,786 to 238 (delta search).
 - A finished backtest no longer stays alive retrying failed shared bar cache uploads. After 10 failures in a row the remote store is given up for that run (local files are still written, results are unaffected), and the warning now includes the error message instead of only its type.
 
+### Changed
+- Release eval check: `scripts/qualify_agent_evals.py verify` now verifies an author-written scope file, `ci/agent-evals/release-scope.json`, when it exists: the case ids the release author listed (each with a reason) and current pass evidence for each, or an empty list with a stated reason. It no longer demands a fresh run of the whole case catalog whenever any runtime file changes. It still fails when a listed case has no current passing evidence. 4.6.49 lists no cases, with the reason recorded in the file.
+
 ## 4.6.48 - 2026-11-05
 
 Deploy marker: 698b5b7645611a5d888e1ef869db877ef99afe4e

@@ -3,8 +3,15 @@
 
 The release owner reviews native private artifacts before committing this compact,
 public-safe receipt. Digests bind evidence; they are not proof of inference or a
-substitute for trusted review. CI requires the entire current catalog and SDK tuple,
-without copying a developer's rotating ChatGPT login into a hosted worker.
+substitute for trusted review. Hosted checks never copy a developer's rotating
+ChatGPT login into a hosted worker.
+
+Release scope (2026-11-11): when ``ci/agent-evals/release-scope.json`` exists, ``verify``
+checks only the author-written scope for this package version: the case ids the author
+listed, each with a reason, and current pass evidence for every listed case. An empty
+list is valid when the author states why no case can be affected. This check never
+infers, adds or refreshes cases; the author chooses them. Without the scope file the
+original whole-catalog receipt check runs unchanged.
 """
 
 from __future__ import annotations
@@ -27,6 +34,8 @@ KIND = "lumibot-real-model-qualification"
 VERSION = 2
 DEFAULT_PATH = evals.REPO_ROOT / "ci/agent-evals/qualification.json"
 CALIBRATION_CATALOG_PATH = evals.REPO_ROOT / "tests/fixtures/agent_judge_calibration.json"
+SCOPE_PATH = evals.REPO_ROOT / "ci/agent-evals/release-scope.json"
+SCOPE_VERSION = 1
 
 
 def digest(value):
@@ -484,6 +493,61 @@ def verify_receipt(receipt, cases, *, runtime_hash, versions, now=None):
         raise ValueError("Qualified calls exceed the cumulative native ledger")
 
 
+def package_version(root=None):
+    import re
+
+    text = ((root or evals.REPO_ROOT) / "setup.py").read_text()
+    match = re.search(r"""version=["']([^"']+)["']""", text)
+    if not match:
+        raise ValueError("setup.py has no version")
+    return match.group(1)
+
+
+def verify_release_scope(scope, cases, receipt, *, runtime_hash, version, now=None):
+    """Verify the author-written eval scope; return the verified case ids.
+
+    The scope names the package version it was written for, the cases the author judged
+    could be affected (each with a reason), and, when that list is empty, why. Every
+    listed case needs current passing actor/judge evidence in the receipt. Nothing here
+    selects, adds or drops cases.
+    """
+    now = now or evals.utc_now()
+    allowed = {"version", "package_version", "cases", "no_cases_reason"}
+    if not isinstance(scope, dict) or not {"version", "package_version", "cases"} <= set(scope) <= allowed:
+        raise ValueError("Invalid release eval scope; expected version, package_version, cases and optional no_cases_reason")
+    if scope["version"] != SCOPE_VERSION:
+        raise ValueError("Unsupported release eval scope version")
+    if scope["package_version"] != version:
+        raise ValueError(f"Release eval scope was written for {scope['package_version']!r}, not {version!r}; "
+                         "the release author must write the scope for this version")
+    listed = scope["cases"]
+    if not isinstance(listed, list):
+        raise ValueError("Release eval scope cases must be a list")
+    if not listed:
+        reason = scope.get("no_cases_reason")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("An empty release eval scope needs no_cases_reason")
+        return []
+    by_id = {case["id"]: case for case in cases}
+    ids = []
+    for entry in listed:
+        if (not isinstance(entry, dict) or set(entry) != {"id", "reason"}
+                or not isinstance(entry["reason"], str) or not entry["reason"].strip()):
+            raise ValueError("Each scoped case needs an id and a reason")
+        if entry["id"] not in by_id:
+            raise ValueError(f"Scoped case {entry['id']!r} is not in the case catalog")
+        if entry["id"] in ids:
+            raise ValueError(f"Scoped case {entry['id']!r} is listed twice")
+        ids.append(entry["id"])
+    records = receipt.get("cases") if isinstance(receipt, dict) else None
+    for case_id in ids:
+        record = records.get(case_id) if isinstance(records, dict) else None
+        if not isinstance(record, dict):
+            raise ValueError(f"Scoped case {case_id!r} has no pass evidence in the receipt")
+        validate_record(record, by_id[case_id], runtime_hash=runtime_hash, now=now)
+    return ids
+
+
 def read_ledger(path):
     rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
     if any(not isinstance(row, dict) for row in rows):
@@ -537,6 +601,13 @@ def main():
                                 calibration_summary=json.loads((args.calibration_output_root / "summary.json").read_text()),
                                 established_source=args.established_source)
         evals.write_json_atomic(args.receipt, receipt)
+    elif SCOPE_PATH.exists():
+        receipt = json.loads(args.receipt.read_text()) if args.receipt.exists() else None
+        ids = verify_release_scope(json.loads(SCOPE_PATH.read_text()), cases, receipt,
+                                   runtime_hash=runtime_hash, version=package_version())
+        print(f"Verified the author-written release eval scope: {len(ids)} listed case(s) with current pass evidence"
+              + ("" if ids else " (none listed; reason recorded in release-scope.json)") + ".")
+        return 0
     else:
         receipt_bytes = args.receipt.read_bytes()
         receipt = json.loads(receipt_bytes)

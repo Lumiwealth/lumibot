@@ -212,6 +212,58 @@ def test_unusable_historical_regrade_requires_fresh_stability_instead_of_blockin
     assert qualification.regression_required(cases[0], proof, [], 'current') == 3
 
 
+def test_mixed_catalog_strict_identity_preserves_original_counts(native_metadata, monkeypatch, tmp_path):
+    """Use real Git definitions; changed/new cases must retain full stability."""
+    import shutil
+    import subprocess
+    from scripts import agent_eval_source_compatibility as source
+
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    root = tmp_path / "source"
+    root.mkdir()
+    paths = source.runtime_paths()
+    for path in paths:
+        target = root / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(evals.REPO_ROOT / path, target)
+    unchanged = cases[0]
+    changed = {**unchanged, "id": "changed", "requiredRepetitions": 5}
+    for case in (unchanged, changed):
+        path = root / "agent_eval_cases" / (case["id"] + ".json")
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(json.dumps(case))
+        case["_path"] = str(path)
+        paths.append(str(path.relative_to(root)))
+    def git(*args):
+        return subprocess.check_output(["git", *args], cwd=root, text=True).strip()
+    git("init", "-q")
+    git("add", "--", *paths)
+    git("-c", "user.name=Qualification Fixture", "-c", "user.email=fixture@example.invalid",
+        "commit", "-qm", "Original neutral contract definitions")
+    ref = git("rev-parse", "HEAD")
+    monkeypatch.setattr(evals, "REPO_ROOT", root)
+    original_hash = qualification.establishment_runtime(ref, [unchanged], versions)
+    original_fingerprint = evals.case_fingerprint(
+        unchanged, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash=original_hash)
+    for row in rows:
+        row["fingerprint"] = original_fingerprint
+    for call in calls:
+        if "scope" in call:
+            call["scope"]["fingerprint"] = original_fingerprint
+    changed["judgeRubric"] = "A materially changed semantic requirement"
+    new = {**unchanged, "id": "new", "_path": str(root / "agent_eval_cases/new.json")}
+    catalog = [unchanged, changed, new]
+    proof = qualification.build_establishment(rows, calls, catalog, source_ref=ref, versions=versions, now=now)
+    assert set(proof["cases"]) == {"contract"}
+    assert qualification.regression_required(unchanged, proof, [], "current") == 1
+    assert qualification.regression_required(changed, proof, [], "current") == 5
+    assert qualification.regression_required(new, proof, [], "current") == 3
+    forged = deepcopy(proof)
+    forged["cases"]["changed"] = deepcopy(proof["cases"]["contract"])
+    with pytest.raises(ValueError, match="new or changed case"):
+        qualification.validate_establishment(forged, catalog, versions=versions, now=now)
+
+
 def test_export_verifies_original_stability_and_one_new_source_regression(native_metadata, monkeypatch):
     rows, calls, cases, versions, now = deepcopy(native_metadata)
     monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")
@@ -251,6 +303,40 @@ def test_explicit_subscription_attempt_can_qualify_with_approved_call_limit(nati
     assert receipt["call_allowance"] == {"max_calls": cap, "consumed_calls": 12}
     qualification.verify_receipt(receipt, metadata[2], runtime_hash="source",
                                  versions=metadata[3], now=metadata[4])
+
+
+def test_published_establishment_does_not_require_recreated_historical_journal(native_metadata, monkeypatch):
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")
+    monkeypatch.setattr(qualification, "_unchanged_establishment_cases", lambda ref, cases: cases)
+    original = qualification.build_establishment(
+        rows, calls, cases, source_ref="a" * 40, versions=versions, now=now,
+    )
+    current = deepcopy(rows[:1])
+    current[0]["run_id"] = str(uuid4())
+    current[0]["fingerprint"] = evals.case_fingerprint(
+        cases[0], judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash="new-source",
+    )
+    current_calls = deepcopy(calls[1:5])
+    identities = {}
+    for call in current_calls:
+        identities.setdefault(call["id"], str(uuid4()))
+        call["id"] = identities[call["id"]]
+        if "scope" in call:
+            call["scope"].update(run_id=current[0]["run_id"], fingerprint=current[0]["fingerprint"])
+    calibration_rows, calibration_calls, summary = calibration_metadata(cases, now, "new-source")
+    monkeypatch.setattr(qualification, "build_establishment", lambda *args, **kwargs: deepcopy(original))
+    journal = [calls[0], *current_calls, *calibration_calls]
+    receipt = qualification.build_receipt(
+        current, journal, cases, runtime_hash="new-source", versions=versions, now=now,
+        calibration_rows=calibration_rows, calibration_summary=summary, established_source="a" * 40,
+    )
+    assert receipt["establishment"] == original
+    assert receipt["call_allowance"]["consumed_calls"] == 8
+    qualification.verify_receipt(receipt, cases, runtime_hash="new-source", versions=versions, now=now)
+    receipt["call_allowance"]["consumed_calls"] = 7
+    with pytest.raises(ValueError, match="cumulative native ledger"):
+        qualification.verify_receipt(receipt, cases, runtime_hash="new-source", versions=versions, now=now)
 
 
 # Positive informational windows may grow; malformed values remain invalid.

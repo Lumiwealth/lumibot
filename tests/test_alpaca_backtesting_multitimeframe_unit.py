@@ -1192,3 +1192,46 @@ def test_alpaca_history_defaults_to_completed_bars_in_both_modes(monkeypatch, tm
 
     assert AlpacaBacktesting(**window)._remove_incomplete_current_bar is True
     assert AlpacaBacktesting(**window, remove_incomplete_current_bar=False)._remove_incomplete_current_bar is False
+
+
+def test_alpaca_option_last_price_reads_the_stored_bars_without_building_a_bars_object(monkeypatch, tmp_path):
+    """Minute strategies ask for an option's last price on every bar.
+
+    When a real print already exists at or before now, the price is a single row lookup in the
+    stored frame. Building a Bars object for each call cost about 1 ms and dominated warm
+    option backtests (yappi, 2026-11-10). The slow path stays for the reach-back case only.
+    """
+    import lumibot.backtesting.alpaca_backtesting as alpaca_backtesting
+
+    source = _alpaca_source(monkeypatch, tmp_path)
+    source._option_client = _FakeOptionClient(
+        _bars(
+            "SPY260821C00640000",
+            [
+                ("2026-08-04T14:00:00Z", 1.00, 1.15, 0.98, 1.10, 5),
+                ("2026-08-04T14:05:00Z", 1.20, 1.30, 1.18, 1.25, 3),
+            ],
+        )
+    )
+    option = _sparse_call()
+    source._datetime = _NY_TZ.localize(datetime(2026, 8, 4, 10, 2))
+    assert float(source.get_last_price(option)) == 1.10  # loads the frame once
+
+    built = []
+    real_bars = alpaca_backtesting.Bars
+
+    def counting_bars(*args, **kwargs):
+        built.append(1)
+        return real_bars(*args, **kwargs)
+
+    monkeypatch.setattr(alpaca_backtesting, "Bars", counting_bars)
+
+    assert float(source.get_last_price(option)) == 1.10
+    source._datetime = _NY_TZ.localize(datetime(2026, 8, 4, 10, 5))
+    assert float(source.get_last_price(option)) == 1.20
+    source._datetime = _NY_TZ.localize(datetime(2026, 8, 4, 11, 0))
+    assert float(source.get_last_price(option)) == 1.25
+    assert built == []
+
+    source._datetime = _NY_TZ.localize(datetime(2026, 8, 4, 9, 45))
+    assert source.get_last_price(option) is None  # before the first print: still never back-filled

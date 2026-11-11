@@ -899,6 +899,7 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
         # Mock the get_datetime method on the data_source
         self.mock_datetime = pd.Timestamp('2023-01-01 10:00:00', tz='America/New_York')
         self.broker.data_source.get_datetime = MagicMock(return_value=self.mock_datetime)
+        self.broker.data_source.datetime_end = pd.Timestamp('2023-01-02 00:00:00', tz='America/New_York')
 
         # Setup trading days directly on the broker instance for testing internal logic
         # Ensure _trading_days is set correctly after __new__

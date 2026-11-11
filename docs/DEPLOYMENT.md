@@ -22,11 +22,26 @@ the already-green candidate as environment proof, not as the first full test
 loop. LumiBot publication, Bot Manager Dev deployment, and Bot Manager
 production deployment each retain their own explicit authorization boundary.
 
+An original establishment source may cover the unchanged subset of a mixed
+case catalog. Only case definitions that exactly match that immutable Git source
+retain the one-regression-run policy. New or changed cases still require all
+configured three or five current actor/judge passes; they cannot inherit another
+case's establishment or the earlier version of their own definition.
+
+An explicitly selected immutable published receipt can retain verified original
+establishment when private raw journals expire. Keep its original source, call
+identities, usage, timestamps and evidence digests. The current subscription
+journal accounts for current actors and calibration; historical calls remain
+in their verified establishment proof and must not be recreated as native
+journal entries. Duplicate calls across either proof are still rejected. A
+failed or incomplete original native attempt cannot fall back to an older pass.
+
 ## TL;DR (do this in order)
 
 1) **Run the release preflight first.** If branch, `setup.py`, `CHANGELOG.md`, tag, or `dev` state is inconsistent, stop. Do not tag. Do not deploy BotManager. Fix the branch first.
 2) **Make the release branch contain everything safe to ship.** Dirty files, untracked files, and local-only commits are not excuses to skip work. Review them, commit them, test them, push them, and include them in the `version/X.Y.Z` PR unless they are unsafe, secret-bearing, broken, generated junk, or explicitly out of scope.
 3) Get the `version/X.Y.Z` PR **green** after that full inclusion sweep. Verify the complete real-model receipt locally in the pinned SDK environment with `python scripts/qualify_agent_evals.py verify` before merging and again before tagging. The branch/version preflight alone does not qualify model evidence.
+   - Repeat that verifier after any release-branch update, including another broker's fixes. Green GitHub checks do not establish that an earlier model receipt covers the new source. Keep compatible original evidence only when the verifier accepts it; otherwise qualify the changed candidate and export its current receipt before merging. Record the actual tested and approved head rather than attributing an earlier head's proof or review exception to new code.
 4) Merge latest `dev` into `version/X.Y.Z` and re-check CI (prevents drift / missing commits from other engineers).
 5) Merge the PR into `dev` (no direct pushes to `dev`).
 6) Tag the **merge commit on `dev`** as `vX.Y.Z` (this triggers GitHub Actions to publish to PyPI + create a GitHub Release).
@@ -110,6 +125,11 @@ Python floor; do not install an incompatible wheel or silently drop Python
 ---
 
 ## CI shard arguments
+
+Unit-test jobs in both source CI and the tag-release workflow fetch full Git
+history. Published-qualification provenance checks read immutable historical
+release objects; a shallow checkout cannot verify that evidence. Keep this
+checkout requirement when changing job matrices or recovery flows.
 
 Pass collected test paths and node IDs as quoted Bash array elements. Parametrized IDs can contain spaces; unquoted command substitution splits those IDs and prevents the selected tests from running.
 
@@ -366,6 +386,9 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
      are setup failures. Record added versions and preserve compatible passes;
      never mutate the shared SDK environment while model workers are active.
    - Native inference may retain its actual original source/time through `ci/agent-evals/source-compatibility.json` only when `scripts/qualify_agent_evals.py verify` proves the complete source comparison. This applies to the maintained Pandas fixtures, unused external IBKR modules, and comment-only edits in unexecuted examples when the complete Python syntax tree (including prompts and docstrings) is identical. Actor/judge/fixture/shared-code changes still require normal native qualification. Never rewrite historical fingerprints or timestamps to a candidate.
+   - The guarded report-directory repair may retain native inference only when the complete source comparison proves that the sole change is `os.makedirs(logdir, exist_ok=True)` after the existing disabled-report guard and filename default. Every maintained native fixture sets `analyze_backtest=False`; its native contract test verifies that report output remains unreachable. The reporting fix still needs its affected backtest/output tests. Changing the guard, directory argument, reporting behavior, fixture flag, shared trading or accounting code does not inherit this proof.
+   - If private raw journals have expired, `--established-source <full published commit>` can retain that commit's already-published original establishment receipt. The verifier checks its original Git source, exact unchanged case definitions, SDK tuple, funding, calls, usage and timestamps; it does not reconstruct native rows. Every retained case still needs current-source regression inference. Cases absent from that original establishment, changed cases and current failures retain their full required repetitions. Keep active journals in the release workspace until the entire consuming release closes; finishing an intermediate worktree is not permission to discard accounting or transcripts still needed by later qualification.
+   - Verify the establishment anchor before launching models into a new output folder. The commit passed to `--established-source` must contain the already-qualified, nonempty `establishment.cases` receipt (or the exact original native journals must be present). Its nested `establishment.source_commit` identifies the older inference source; that older commit may not itself contain a reusable establishment receipt. Supplying the nested provenance commit to an empty folder can unintentionally schedule the initial three/five trials again. Check the selected immutable receipt and required trial counts first. If setup schedules redundant work, preserve completed rows and the original cumulative model-call journal, correct the anchor, and resume only required or interrupted trials through the maintained runner. Never lower the new/changed/failing-case requirements or rewrite original evidence to avoid repetition.
    - Ensure required CI checks are green (unit + backtest + acceptance gates as applicable).
    - The standard gate is portable: no paid historical-data subscription or shared remote cache is required.
      `tests/backtest/test_alpaca_release_backtest.py` runs the real Alpaca adapter and backtest engine with
@@ -377,7 +400,10 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
      provider just to publish a release. Supported-provider API checks (for example Alpaca history) may
      be run separately with authorized test credentials.
    - Local quick check (matches release workflow selection):
-     - `python3 -m pytest -m "not apitest and not downloader" --tb=short -q --durations=30`
+     - `PYTHON_DOTENV_DISABLED=1 LUMIBOT_DISABLE_DOTENV=1 python3 -m pytest -m "not apitest and not downloader" --tb=short -q --durations=30`
+     - Disable both direct python-dotenv discovery and LumiBot's discovery for an isolated unit run. Some historical test modules call `load_dotenv()` during collection even when their provider tests are later deselected. Tests specifically exercising dotenv discovery opt in within their own fixtures.
+     - Match the offline CCXT documentation dependency to `docsrc/_data/ccxt_exchange_facts.json`'s `ccxt_version`, as the source CI installer does. A different allowed runtime version can expose different catalog metadata without establishing a broker execution regression.
+     - Before a broad native run, verify `import scipy.stats, scipy.sparse.linalg` succeeds in that environment. Record the actual native dependency versions; a platform loader error is not a passing metrics test, and must not be hidden by changing assertions or weakening the operating system's loader.
    - If the local quick check times out, do not guess. Record the timeout result, run targeted tests for the changed
      areas, push the version branch, and gate release on green GitHub CI for the same marker expression.
 
@@ -575,6 +601,39 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
        after tagging, it may have installed the old version from cache. Wait and re-deploy.
 
 ---
+
+## Local admission and exact-candidate release merges
+
+On the maintained release workstation, use the installed admission owner for
+an authorized version-release PR:
+
+```bash
+python3 ~/.config/botspot-main-admission/local_main_admission.py \
+  merge-release-pr Lumiwealth/lumibot <release-pr-number>
+```
+
+The helper checks the release branch, green GitHub checks and exact current head.
+A missing code-owner review may be bypassed only after Rob explicitly approves
+that exact candidate; the helper is not blanket permission for an admin merge.
+If the head changes, preserve the previous approval and obtain authority for the
+new candidate. Reverify the SDK actor/judge receipt on the actual dev merge before
+tagging. Record approval, head, merge, tag and publication run separately.
+
+A single-branch clone may fetch `dev` into FETCH_HEAD without refreshing
+`origin/dev`. Inspect its fetch refspec and explicitly fetch the intended refs
+before switching:
+
+```bash
+git fetch origin refs/heads/dev:refs/remotes/origin/dev
+git fetch origin refs/heads/version/X.Y.Z:refs/remotes/origin/version/X.Y.Z
+```
+
+Switch only with a clean, understood tree and verify HEAD, package version and
+`git status` after the command. Check each command's exit status before dependent
+operations. A failed switch is not evidence that the requested branch is active.
+Never discard uncommitted changes to repair a tracking-ref problem. After
+publication, switch immediately to the automatically created next version branch
+and run the existing post-release checkout verifier.
 
 ## Common pitfalls (learned the hard way)
 

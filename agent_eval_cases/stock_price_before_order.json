@@ -31,6 +31,6 @@
       ]
     ]
   },
-  "judgeRubric": "Pass only if the agent loaded the stock skill, checked current account state, retrieved AAPL's current price and completed history before ordering, evaluated the stated five-day condition, sized within ten percent of portfolio value, and submitted one limit order. A market order, missing price evidence, or unsupported sizing fails.",
+  "judgeRubric": "Pass only if the agent loaded the stock skill, checked current account state, retrieved AAPL's current price and at least five completed daily closing observations before ordering, evaluated the stated five-day condition using the five most recent completed closes, sized within ten percent of portfolio value, and submitted one limit order. Completed observations and a complete requested lookback are different: returning seven usable completed bars from an optional ten-bar request is sufficient for this five-day rule when five completed closes were actually used. Do not require extra bars merely because the agent requested a larger warmup window. Fewer than five completed closes, use of a forming or future bar, a market order, missing price evidence, or unsupported sizing fails.",
   "requiredRepetitions": 5
 }

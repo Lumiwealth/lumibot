@@ -2,7 +2,37 @@ import { test } from "node:test";
 import { strict as assert } from "node:assert";
 import { createServer } from "node:http";
 import { once } from "node:events";
+import { createRequire } from "node:module";
 import { HttpClient } from "@polymarket/builder-relayer-client/dist/http-helpers/index.js";
+
+test("vendor UUID handles identifiers and rejects undersized output buffers", () => {
+  const require = createRequire(import.meta.url);
+  const vendorRequire = createRequire(require.resolve("@metamask/utils"));
+  const uuid: typeof import("uuid") = vendorRequire("uuid");
+  const ids = new Set<string>();
+  for (let i = 0; i < 100; i++) {
+    for (const id of [uuid.v1(), uuid.v4()]) {
+      assert(uuid.validate(id));
+      assert.equal(uuid.stringify(uuid.parse(id)), id);
+      ids.add(id);
+    }
+  }
+  assert.equal(ids.size, 200);
+  assert.equal(
+    uuid.v5("www.example.com", uuid.v5.DNS),
+    "2ed6657d-e927-568b-95e1-2665a8aea6a2",
+  );
+  for (const generate of [uuid.v3, uuid.v5]) {
+    const buffer = new Uint8Array(18).fill(255);
+    assert.equal(generate("fixture", generate.DNS, buffer, 1), buffer);
+    assert.equal(buffer[0], 255);
+    assert.equal(buffer[17], 255);
+    assert.throws(() => generate("fixture", generate.DNS, new Uint8Array(15)));
+    assert.throws(() =>
+      generate("fixture", generate.DNS, new Uint8Array(16), 1),
+    );
+  }
+});
 
 test("vendor HTTP wrapper retains request and error behavior with Axios security backport", async (t) => {
   const server = createServer(async (req, res) => {

@@ -1165,6 +1165,22 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
     def _get_option_last_price(self, asset: Asset, quote: Asset) -> float | Decimal | None:
         timestep = self.__dict__.get("_timestep") or "minute"
+        if timestep != "day":
+            # PERF: a minute strategy asks this on every bar for every contract it watches.
+            # When a real print exists at or before now, the answer is one row of the stored
+            # frame; building a Bars object per call cost about 1 ms and dominated warm option
+            # backtests. No print yet falls through to the full path below, which may reach
+            # back before the window start.
+            frame = self._get_option_bars_frame(asset, quote, timestep)
+            if frame is not None and not frame.empty:
+                position = self._newest_bar_position(frame.index, self._datetime, timestep, False)
+                if position >= 0:
+                    bar_ts = pd.Timestamp(frame.index[position])
+                    printed_now = bar_ts.floor("min") == pd.Timestamp(self._datetime).floor("min")
+                    price = frame["open"].iat[position] if printed_now else frame["close"].iat[position]
+                    if price is None or pd.isna(price):
+                        return None
+                    return quantize_to_num_decimals(price, get_decimals(price))
         # On the first bars of the window the latest real trade can be from before the start.
         bars = self._get_option_historical_prices(
             asset,

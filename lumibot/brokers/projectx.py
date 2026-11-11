@@ -1071,7 +1071,12 @@ class ProjectX(Broker):
 
     def _pull_positions(self, strategy) -> List[Position]:
         """Get the account positions from the broker."""
-        return self._get_positions_at_broker()
+        positions = self._get_positions_at_broker()
+        strategy_name = self._strategy_name_from_input(strategy)
+        for position in positions:
+            if not position.strategy:
+                position.strategy = strategy_name
+        return positions
 
     def _pull_position(self, strategy, asset: Asset) -> Position:
         """Pull a single position from the broker that matches the asset."""
@@ -1083,7 +1088,10 @@ class ProjectX(Broker):
 
     def _parse_broker_order(self, response: dict, strategy_name: str, strategy_object=None) -> Order:
         """Parse a broker order representation to an order object."""
-        return self._convert_broker_order_to_lumibot_order(response)
+        order = self._convert_broker_order_to_lumibot_order(response)
+        if order is not None and not order.strategy:
+            order.strategy = strategy_name
+        return order
 
     def _pull_broker_order(self, identifier: str) -> Order:
         """Get a broker order representation by its id."""
@@ -1103,6 +1111,10 @@ class ProjectX(Broker):
     def _pull_broker_all_orders(self) -> List[dict]:
         """Get all orders from broker, including recently filled ones via trades."""
         try:
+            # REST-only callers defer connection until their first read, just
+            # as positions and the other order-read path already do.
+            if not self.account_id and not self.connect():
+                raise RuntimeError("Failed to connect for order retrieval")
             # Get all orders from today to catch any recent activity
             end_date = datetime.now(_default_pytz()).replace(hour=23, minute=59, second=59)
             start_date = end_date.replace(hour=0, minute=0, second=0) - timedelta(days=self.order_lookback_days)

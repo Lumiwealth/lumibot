@@ -113,7 +113,7 @@ def test_isolated_gap_loss_cannot_spend_unallocated_wallet_collateral(account):
     assert float(broker.perpetual_events[-1]["insurance_credit"]) > 0
 
 
-def test_funding_and_assumptions_are_in_normal_analyzed_results():
+def test_funding_and_assumptions_are_in_normal_analyzed_results(disable_datasource_override):
     from lumibot.backtesting import PandasDataBacktesting
     from lumibot.entities import Asset, ContractSpec, Data
     from tests.test_backtesting_perpetuals import RoundTrip

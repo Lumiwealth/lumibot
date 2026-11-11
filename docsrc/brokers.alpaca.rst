@@ -328,6 +328,11 @@ Important Notes
 **Data & Pricing**
     * Stock and options data has a 15-minute delay unless you have a paid data subscription
     * Cryptocurrency data is real-time
+    * Hourly history (``"1h"``, ``"hour"``, ``"4 hours"``, up to 23 hours) is downloaded
+      as Alpaca hourly bars rather than built from minute bars, so long hourly
+      histories stay small. With ``include_after_hours=False`` hourly bars are still
+      built from regular-session minute bars, because Alpaca's hourly bars include
+      extended hours.
     * Price precision varies by asset type
 
 **Order Limitations**

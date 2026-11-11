@@ -412,6 +412,55 @@ class Kalshi(Broker):
         self._kalshi_data._validate_asset(asset)
         return next((p for p in self._pull_positions(strategy) if p.asset == asset), None)
 
+    def get_trade_display_fields(self, entities):
+        """Return optional market labels and last-trade estimates for a broker read."""
+        tickers = sorted(
+            {entity.asset.symbol for entity in entities if entity.asset.asset_type == "prediction_contract"}
+        )
+        markets = {}
+        # Keep the ticker query comfortably within ordinary proxy URL limits.
+        for offset in range(0, len(tickers), 50):
+            batch = tickers[offset : offset + 50]
+            try:
+                rows = self._kalshi_data.search_markets(tickers=",".join(batch), status=None, limit=len(batch))
+            except KalshiAPIError:
+                # A metadata outage cannot take an otherwise valid account read down.
+                continue
+            markets.update((row["ticker"], row) for row in rows)
+
+        return [self._trade_display_row(entity, markets.get(entity.asset.symbol)) for entity in entities]
+
+    def _trade_display_row(self, entity, market):
+        outcome = entity.asset.outcome
+        if not market or outcome not in ("yes", "no"):
+            return {}
+        fields = {}
+        for field, value in (
+            ("market_title", market.get("title")),
+            ("market_subtitle", market.get(f"{outcome}_sub_title")),
+        ):
+            if isinstance(value, str) and value.strip():
+                fields[field] = value.strip()
+        if not isinstance(entity, Position):
+            return fields
+
+        try:
+            price = self._kalshi_data._selected_price(market, outcome)
+            volume = market.get("volume_fp")
+            # Kalshi returns a zero placeholder for contracts without any trades.
+            if price is None or (volume is not None and decimal_value(volume, "volume") <= 0):
+                return fields
+        except (KalshiAPIError, ValueError):
+            return fields
+
+        quantity = decimal_value(entity.quantity, "position quantity")
+        value = decimal_value(price, "last price") * quantity
+        fields.update(current_price=price, market_value=float(value), position_value_basis="last_trade")
+        if entity.avg_fill_price is not None:
+            cost = decimal_value(entity.avg_fill_price, "average fill price") * quantity
+            fields["pnl"] = float(value - cost)
+        return fields
+
     @staticmethod
     def _counts(row, known_total=None):
         filled = decimal_value(row.get("fill_count_fp", row.get("fill_count", 0)), "fill count")

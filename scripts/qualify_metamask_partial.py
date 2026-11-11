@@ -208,12 +208,13 @@ def independent_maker_observation(venue, wallet, operation, client_id):
     matches = [row for row in venue.frontend_open_orders(wallet) if row.get("oid") == venue_id]
     require(len(matches) == 1, "Exact maker live remaining size is unavailable")
     live = matches[0]
+    require(current["order"].get("cloid") == client_id, "Order-status client identity differs from the maker intent")
+    require(live.get("cloid") in (None, client_id), "Live client identity differs from the maker intent")
     for row in (current["order"], live):
         require(
             row.get("coin") == "ETH"
             and row.get("side") == "B"
             and row.get("oid") == venue_id
-            and row.get("cloid") == client_id
             and row.get("reduceOnly") is False
             and Decimal(row["origSz"]) == original,
             "Independent venue order differs from the maker intent",

@@ -140,6 +140,15 @@ the real NO buy and receives a zero-quantity selected NO Position; the tracked
 portfolio has already been refreshed to the actual net holding before callback
 queueing. No fake closing order or simultaneous synthetic YES/NO holding is added.
 
+When displaying saved-account orders or positions, the broker reader can request
+market titles and the subtitle for the selected outcome in a batched lookup.
+Position value is the contract count multiplied by the selected last-trade price.
+For NO, the selected price is one minus the YES last-trade price. Unrealized P&L
+subtracts the broker-reported open-position cost basis. These are last-trade
+estimates. A quote is required to see the current executable prices. Markets
+without trades or unavailable metadata leave the estimates empty while the
+holding, outcome, quantity, and available cost basis remain visible.
+
 `limit` uses the market's published `price_ranges`, including sub-cent grids.
 `market` is implemented as an IOC limit crossing all valid grid levels; there is
 no guaranteed fill or slippage cap. The Order retains type `market`. The adapter
@@ -226,7 +235,9 @@ needed. `get_last_price`, `get_last_prices`, `get_quote`, `get_historical_prices
 `get_historical_prices_for_assets`, `create_order`, `submit_order`, `get_order`,
 `get_orders`, `get_position` and `get_positions` retain their normal interfaces.
 
-Pass your existing Strategy subclass and selected assets to the normal runner:
+Pass your existing Strategy subclass to the normal runner. The optional selected
+assets preload history; ordinary Strategy price, quote and history calls also
+load a newly encountered YES/NO asset on first use:
 
 ```python
 from datetime import datetime, timezone
@@ -256,11 +267,15 @@ placing real orders. An existing `KalshiData` can instead be passed as
 this class through the existing environment override; as usual, an environment
 selection takes precedence over the class argument.
 
-The `assets` list preloads only the requested backtest range. For earlier signal
+The optional `assets` list preloads only the requested backtest range. On-demand
+loading uses that same bounded range, caches each outcome separately and reuses
+the ordinary PandasData store. Every read remains limited to the simulated time;
+loading a complete range does not expose future prices. Empty history is cached
+without retrying the provider on every iteration. For earlier signal
 warm-up, prepare ordinary `Data` objects containing that earlier history and
 pass `pandas_data=`. Supply their matching `market_metadata=` mapping for a fully
-offline replay. All asset identity keys retain the selected outcome. An unloaded
-asset or empty history stays empty and does not break unrelated loaded assets.
+offline replay. All asset identity keys retain the selected outcome. Empty
+history stays empty and does not break unrelated loaded assets.
 
 ### Clock, fills, positions and settlement
 

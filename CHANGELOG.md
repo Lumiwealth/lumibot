@@ -1,8 +1,35 @@
 # Changelog
 
-## 4.6.47 - 2026-11-03
+## 4.6.49 - Unreleased
 
-Deploy marker: ef37fd7223b91750067d88695d8be0b44affd85c
+### Added
+- Indicator outputs can say how they look: `line_width`, `line_style` (solid, dashed, dotted), colors with opacity (`#RRGGBBAA`) and theme colors (`chart.fg`, `chart.bg`), a color per bar (`palette` with `color_by`, optionally `gradient`), `offset`, `display`, `precision`, `pane` and `track_price`. New kinds: `step`, `columns`, `circles`, `cross`, `shape` markers (12 shapes, 5 locations, 6 sizes, text), `fill` between outputs or levels, `background`, `bar_color` and `candle`. Levels take `dotted`, `color` and `line_width`. Per-bar values stay numbers; all styling travels in `describe()`. New page "Outputs and Styles" and four example indicators (`momentum_histogram`, `trailing_band`, `oscillator_zones`, `smoothed_candles`).
+
+### Fixed
+- Download hourly history from Alpaca as hourly bars instead of sixty times as many minute bars, so a long hourly request can no longer exhaust a live bot's memory. Live data sources can declare native intervals through `supports_native_timestep`, optionally receiving `include_after_hours`. Alpaca intraday windows are sized from the bar length, and dropping the incomplete current bar keeps the hourly and multi-minute bars from today that have already closed.
+- Cap the agent `market_historical_prices` and `market_load_history_table` tools at 5,000 bars per symbol per call. A larger request returns the most recent 5,000 bars and says so in the result instead of failing.
+- Faster minute-level option backtests on Alpaca data: an option's last price is read straight from the stored trade bars instead of building a Bars object on every call, and option expiry text is parsed once instead of on every chain lookup. Prices and trades are unchanged.
+
+## 4.6.48 - 2026-11-05
+
+Deploy marker: 698b5b7645611a5d888e1ef869db877ef99afe4e
+
+### Fixed
+- Preserve decimal ProjectX protective-exit prices when rounding to contract ticks, and retain account positions and orders on the first ordinary strategy read.
+- Initialize optional secondary price fields for explicitly typed market orders, preserving the same order shape as inferred market orders.
+- Complete supported historical approximations from undated research sources with a disclosed publication-window estimate instead of treating a missing exact date as unavailable evidence.
+- Commit indicator state only after calculation and output validation succeed, preserving retry correctness after an error.
+- Load Kalshi prediction assets on their first normal backtest price, quote, history or fill request, preserving distinct outcomes and simulated-time bounds without requiring a separate preload list.
+- Preserve a single verified publication timestamp and label transaction amounts, holding values and estimates at their individual report cells.
+- Preserve verified published establishment evidence when private evaluation journals have expired, while retaining original provenance and requiring current-source regression inference and full repetitions for changed or unestablished cases.
+- Restore lazy credential aliases after their qualification test so later broker and strategy tests do not inherit a synthetic data source.
+- Create the default backtest output directory before exporting results, including first runs with custom report paths and file logging disabled.
+- Preserve provider-resolved futures contract multipliers when a backtest strategy recreates an asset and reuses its cached ProjectX history.
+- Record runtime broker and data-source parameters as connection metadata in backtest settings, without serializing their API keys, authenticated clients or tokens.
+
+## 4.6.47 - 2026-11-05
+
+Deploy marker: 97d41b56ff42bd0c200c3b2f1f98f395bf1c8dfc
 
 ### Added
 - Kalshi native contract search, event metadata and settlement rules through the existing data-source interfaces, with distinct YES/NO assets and selected-environment routing.
@@ -10,6 +37,12 @@ Deploy marker: ef37fd7223b91750067d88695d8be0b44affd85c
 
 ### Fixed
 - Report whether an attention-condition removal actually changed owned state or was already absent, while preserving the existing echoed identifier.
+- Preserve exact fractional Schwab equity quantities through replacements and advanced-order children.
+- Retain deferred futures expiry identity across Asset serialization and saved-strategy recovery, including older saved dictionaries.
+- Reuse the selected MetaMask client for data, and preserve native quote and fill-reconciliation recovery checks.
+- Preserve the distinction between reported holding values, transaction amounts and estimates in financial research tables.
+- Keep the last simulated clock when the next market opening is outside the backtest window, avoiding closed-day terminal valuation requests and trading-start callbacks after the end.
+- Initialize the selected ProjectX account before the first REST-only order synchronization. Preserve an existing account selection and report connection failure before requesting orders.
 - Keep backtest clocks and final lifecycle marks within their configured end, and make stored indicator bars visible only after their completed history boundary.
 - Read derivative positions when a CCXT adapter implements its unified positions method but leaves the capability flag unspecified; preserve explicit unsupported declarations.
 - Preserve Kalshi selected-outcome identity across process boundaries with provider-compatible UUID references, while retaining strategy ownership tags for normal fill callbacks.

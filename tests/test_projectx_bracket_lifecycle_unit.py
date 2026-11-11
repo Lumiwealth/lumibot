@@ -75,6 +75,71 @@ def mes():
     return Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
 
 
+def test_decimal_exit_prices_reach_provider_as_rounded_prices(broker, mes):
+    from decimal import Decimal
+    from lumibot.tools.projectx_helpers import ProjectXClient
+
+    broker.client.round_to_tick_size = ProjectXClient.round_to_tick_size.__get__(broker.client)
+    parent = _make_bracket_entry(mes, tp=Decimal("5100.00"), sl=Decimal("4900.00"))
+    parent.identifier = "100"
+    for kind, price in (("tp", Decimal("5100.00")), ("sl", Decimal("4900.00"))):
+        child = broker._create_bracket_child(parent, kind, price, "neutral-entry")
+        assert child._projectx_submission_state == "accepted"
+    assert broker.client.placed[0]["limit_price"] == 5100.0
+    assert broker.client.placed[1]["stop_price"] == 4900.0
+
+
+@pytest.mark.parametrize("operation", ["positions", "orders"])
+def test_first_strategy_account_read_includes_rest_positions_and_orders(broker, mes, operation):
+    from lumibot.strategies.strategy import Strategy
+
+    contract_id = "CON.F.US.MES.Z25"
+    broker._asset_cache[contract_id] = mes
+    broker.client.get_positions = Mock(return_value=[dict(
+        id=71, accountId=1, contractId=contract_id, type=1, size=1, averagePrice=5000.25,
+    )])
+    broker.client.order_search = Mock(return_value=[dict(
+        id=72, accountId=1, contractId=contract_id, type=4, side=1, size=1,
+        stopPrice=4990.0, status=1, fillVolume=0, customTag="neutral-protective-exit",
+    )])
+    broker.client.trade_search = Mock(return_value=[])
+    strategy = Strategy(broker=broker, name="AccountRead", synchronize_broker_on_start=False)
+    if operation == "positions":
+        assert [(p.asset.symbol, p.quantity) for p in strategy.get_positions()] == [("MES", 1)]
+    else:
+        assert [(o.identifier, o.stop_price) for o in strategy.get_orders()] == [("72", 4990.0)]
+
+
+@pytest.mark.parametrize('connected_account', [None, 1])
+def test_rest_order_sync_resolves_the_selected_account_without_streaming(broker, connected_account):
+    broker.account_id = connected_account
+    broker.client.get_preferred_account_id = Mock(return_value=1)
+    broker.client.order_search = Mock(return_value=[])
+    broker.client.trade_search = Mock(return_value=[])
+
+    assert broker._pull_broker_all_orders() == []
+
+    assert broker.client.order_search.call_args.kwargs['account_id'] == 1
+    assert broker.account_id == 1
+    assert broker.client.get_preferred_account_id.call_count == (1 if connected_account is None else 0)
+
+
+@pytest.mark.parametrize('unavailable', [None, RuntimeError('selected account unavailable')])
+def test_initial_order_sync_never_sends_an_empty_account_after_connection_failure(broker, unavailable):
+    broker.account_id = None
+    broker.client.get_preferred_account_id = Mock(
+        side_effect=unavailable if isinstance(unavailable, Exception) else None,
+        return_value=unavailable,
+    )
+    broker.client.order_search = Mock(return_value=[])
+    broker.client.trade_search = Mock(return_value=[])
+
+    with pytest.raises(RuntimeError, match='ProjectX order state is unavailable'):
+        broker._pull_broker_all_orders()
+
+    broker.client.order_search.assert_not_called()
+
+
 def _make_bracket_entry(asset, side="buy", qty=1, limit=None, tp=None, sl=None):
     o = Order(asset=asset, quantity=qty, order_type="limit" if limit is not None else "market", side=side, limit_price=limit, strategy="Strat")
     # Lumibot bracket order class marker

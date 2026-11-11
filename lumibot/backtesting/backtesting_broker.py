@@ -712,6 +712,13 @@ class BacktestingBroker(Broker):
                 )
             return
 
+        # A next session outside the exclusive backtest window is not an
+        # event to simulate. Keep the last real simulation clock for final
+        # valuation rather than jumping to a closed weekend/holiday boundary.
+        if self.datetime.timestamp() + float(time_to_open) >= self.data_source.datetime_end.timestamp():
+            self._end_of_trading_days_reached = True
+            return
+
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("[BROKER DEBUG] Advancing time by %s seconds", time_to_open)
         self._update_datetime(time_to_open)

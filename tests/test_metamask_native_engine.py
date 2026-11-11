@@ -475,6 +475,62 @@ def test_terminal_ioc_partial_requires_consistent_positive_execution_evidence(en
     assert result["reconciliationErrorCode"] == "FILL_HISTORY_INCOMPLETE"
 
 
+@pytest.mark.parametrize("identity", ["missing", "null"])
+@pytest.mark.parametrize("path", ["direct", "sweep", "restart"])
+def test_optional_live_client_identity_preserves_partial_reconciliation(engine, identity, path):
+    engine.submit(intent())
+    live = dict(engine.venue.order_status(WALLET, 42)["order"]["order"], sz="0.0006")
+    if identity == "missing":
+        live.pop("cloid")
+    else:
+        live["cloid"] = None
+    engine.venue.frontend_open_orders.side_effect = None
+    engine.venue.frontend_open_orders.return_value = [live]
+    engine.venue.fills.return_value = [partial_fill()]
+    owner = ExecutionEngine(engine.journal, engine.provider, engine.venue, "agent") if path == "restart" else engine
+    result = owner.orders()[0] if path == "sweep" else owner.order("one")
+    assert result["state"] == "partial_fill" and result["filledQuantity"] == "0.0004"
+    assert result["fees"] == [{"asset": "USDC", "amount": "0.001"}]
+    assert engine.provider.submit_signature.call_count == engine.venue.submit_action.call_count == 2
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_optional_live_client_identity_does_not_remove_canonical_identity_check(engine, missing):
+    engine.submit(intent())
+    status = engine.venue.order_status(WALLET, 42)
+    if missing:
+        status["order"]["order"].pop("cloid")
+    else:
+        status["order"]["order"]["cloid"] = None
+    engine.venue.order_status.side_effect = None
+    engine.venue.order_status.return_value = status
+    result = engine.order("one")
+    assert result["state"] == "unknown" and result["reconciliationErrorCode"] == "ORDER_IDENTITY_MISMATCH"
+    assert engine.provider.submit_signature.call_count == engine.venue.submit_action.call_count == 2
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_optional_live_client_identity_does_not_block_explicit_cancel(engine, missing):
+    engine.submit(intent())
+    live = dict(engine.venue.order_status(WALLET, 42)["order"]["order"])
+    if missing:
+        live.pop("cloid")
+    else:
+        live["cloid"] = None
+    engine.venue.frontend_open_orders.side_effect = None
+    engine.venue.frontend_open_orders.return_value = [live]
+    engine.provider.submit_signature.reset_mock()
+    engine.venue.submit_action.reset_mock()
+    engine.provider.submit_signature.side_effect = lambda request_id, wallet, *_: SignatureJob(
+        request_id, wallet, "DENIED"
+    )
+    result = engine.cancel("one")
+    assert result["state"] == "open" and result["cancelState"] == "rejected"
+    engine.provider.submit_signature.assert_called_once()
+    assert engine.provider.submit_signature.call_args.args[-1]["type"] == "cancel"
+    engine.venue.submit_action.assert_not_called()
+
+
 def test_open_status_size_is_a_snapshot_live_remainder_proves_partial_execution(engine):
     engine.submit(intent())
     live = dict(engine.venue.order_status(WALLET, 42)["order"]["order"], sz="0.0006")

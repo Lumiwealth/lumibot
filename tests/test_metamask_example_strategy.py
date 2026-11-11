@@ -158,13 +158,39 @@ def test_restart_recovers_finished_round_trip_without_reentering(strategy):
 def test_completed_round_trip_continues_reconciling_late_entry_fills_without_reentry(strategy):
     entry = observed_order(strategy, filled="0.0002", status="canceled")
     closing = observed_order(strategy, exit_number=1, quantity="0.0002", filled="0.0002")
-    strategy.get_orders.return_value = [entry, closing]
+    snapshots = [
+        {
+            "id": str(item.identifier),
+            "request": {
+                "kind": "perp",
+                "symbol": "ETH",
+                "quantity": str(item.quantity),
+                "side": str(item.side),
+                "orderType": "market",
+                "leverage": 1,
+                "tif": "ioc",
+                "reduceOnly": item.reduce_only,
+            },
+            "state": state,
+            "filledQuantity": "0.0002",
+            "averagePrice": "2300",
+        }
+        for item, state in ((entry, "canceled"), (closing, "filled"))
+    ]
+    # Exercise native snapshots through the real broker/Strategy refresh, not injected transactions.
+    del strategy.get_orders
+    strategy.broker.client.orders.return_value = snapshots
     strategy.on_trading_iteration()
     assert strategy.vars.completed
-    entry.add_transaction(Decimal("2300"), Decimal("0.0001"))
+    strategy.submit_order.assert_not_called()
+    tracked_entry = strategy.broker.get_tracked_order(entry.identifier)
+    assert tracked_entry is not entry and tracked_entry.is_canceled()
+    snapshots[0] = {**snapshots[0], "filledQuantity": "0.0003"}
     set_position(strategy, "0.0001")
     strategy.on_trading_iteration()
     assert not strategy.vars.completed
+    assert tracked_entry.is_canceled()
+    assert sum(Decimal(str(fill.quantity)) for fill in tracked_entry.transactions) == Decimal("0.0003")
     extra_close = strategy.submit_order.call_args.args[0]
     assert extra_close.quantity == Decimal("0.0001")
     assert extra_close.identifier == f"{strategy.exit_prefix}2" and extra_close.reduce_only

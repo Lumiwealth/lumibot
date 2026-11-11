@@ -1,5 +1,7 @@
 """Owned eval databases must release native workers even while fixtures are retained."""
 
+import subprocess
+import sys
 import time
 from types import SimpleNamespace
 
@@ -84,7 +86,7 @@ def test_fixture_web_cleanup_failure_still_closes_database_and_directory(monkeyp
         production.directory.cleanup()
 
 
-def test_repeated_fixture_teardown_releases_native_threads_without_garbage_collection():
+def _check_repeated_fixture_teardown_releases_native_threads():
     # Keep one active owner and all completed owners alive. This catches relying
     # on garbage collection of strategy/manager cycles to close native databases.
     active = ProductionFixture(build_fixture("flat_stock_account"))
@@ -102,8 +104,7 @@ def test_repeated_fixture_teardown_releases_native_threads_without_garbage_colle
                 production.manager.duckdb.connection.execute("SELECT 1")
             # Broker-owned stream threads observe their stop event on the next
             # queue timeout. Wait for teardown, never for resource admission.
-            deadline = time.monotonic() + 2
-            while process.num_threads() > baseline and time.monotonic() < deadline:
+            while process.num_threads() > baseline:
                 time.sleep(0.01)
             assert process.num_threads() <= baseline
             assert active.manager.duckdb.query(sql="SELECT 4 AS value")["rows"] == [{"value": 4}]
@@ -111,3 +112,17 @@ def test_repeated_fixture_teardown_releases_native_threads_without_garbage_colle
         for production in [*retained, active]:
             production.close()
             production.manager.duckdb.connection.close()
+
+
+def test_repeated_fixture_teardown_releases_native_threads_without_garbage_collection():
+    # Earlier broker tests can retain unrelated SDK threads in the pytest worker.
+    # A fresh process measures only this probe's actual native owners. Retain the
+    # closed owners and the live sibling, and require teardown without a timing
+    # acceptance cutoff or garbage collection.
+    subprocess.run(
+        [sys.executable, "-c", (
+            "from tests.test_agent_duckdb_lifecycle import "
+            "_check_repeated_fixture_teardown_releases_native_threads as check; check()"
+        )],
+        check=True,
+    )

@@ -1234,16 +1234,6 @@ class ProjectXClient:
             self.logger.warning(f"Could not get tick size for {contract_id}, using default 0.25: {e}")
             return 0.25
     
-    def round_to_tick_size(self, price: float, tick_size: float) -> float:
-        """Round price to the nearest tick size"""
-        try:
-            if tick_size <= 0:
-                return price
-            return round(price / tick_size) * tick_size
-        except Exception as e:
-            self.logger.warning(f"Error rounding price {price} to tick size {tick_size}: {e}")
-            return price
-    
     def get_streaming_client(self, account_id: int = None) -> ProjectXStreaming:
         """Get the reusable user/market streaming owner."""
         if not self.streaming:
@@ -1265,7 +1255,10 @@ class ProjectXClient:
         """Round price to the nearest tick size increment"""
         if price is None or tick_size is None:
             return None
-        return round(price / tick_size) * tick_size
+        from decimal import Decimal
+        price_decimal = Decimal(str(price))
+        tick_decimal = Decimal(str(tick_size))
+        return float(round(price_decimal / tick_decimal) * tick_decimal)
     
     def order_cancel(self, account_id: int, order_id: int) -> dict:
         """Cancel an order via high-level client; always return dict."""

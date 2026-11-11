@@ -166,8 +166,10 @@ Same-chain swaps
 ``broker.get_swap(identifier)``. It does not turn an input amount into a claimed
 exact-output buy. Assets require explicit ``chain_id``, ``token_address`` and
 ``decimals``. Register both assets and the native gas asset in the reviewed
-binding. Configure ``CHAIN_RPC_URLS`` and explicit ``GAS_LIMITS`` when quote gas
-ceilings are absent.
+binding. Configure ``CHAIN_RPC_URLS``. Explicit per-chain ``GAS_LIMITS`` set the
+owner ceiling even when the provider estimates less gas; estimates above the
+ceiling are rejected. Without that configuration, the quoted gas limit is
+retained. A quote without either limit is rejected.
 
 The native implementation verifies quote identity, fee-net source amount,
 slippage, bounded allowances, sequential simulation and durable managed
@@ -175,6 +177,12 @@ transaction requests. MetaMask signs and broadcasts; Python never rebroadcasts
 the signed transaction. Completion requires matching mined transaction identity,
 nonce, bounded gas, RPC-finalized canonical receipt and actual net ERC20 output transfers.
 Quote estimates are not fill receipts.
+
+After required allowances reach finality, the client journals a fresh quote for
+the unsubmitted trade. The original exact input, minimum output, authority and
+total fee reservation remain binding. New allowances, weaker output or higher
+fees stop execution for owner review. Original approval records remain intact;
+an already submitted trade resumes by its original request ID after restart.
 
 The configured RPC must support ``eth_getBlockByNumber("finalized", false)``.
 One later block does not establish finality. Pending finality retains submitted
@@ -185,8 +193,14 @@ a new trade or replay the old swap. This is the selected chain/RPC's finality
 contract, not a bridge withdrawal guarantee. See
 `Ethereum block tags <https://ethereum.org/developers/docs/apis/json-rpc/#the-block-parameter>`_.
 
+Fees may use the exact source or destination asset. Source fees count toward
+exact input; destination fees are already reflected in quoted net output.
+Conflicting fee token identities are rejected. Minimum output rounds down only
+to the output token's atomic unit; any lower whole-unit minimum is rejected.
+Completion verifies actual net receipt transfers.
+
 Testnet swap routes, native output without qualified trace proof, gasless or
-delegated routes, bridges and non-source-denominated fees are unsupported and
+delegated routes, bridges and fees in a third asset are unsupported and
 refused before execution. Spot account valuation covers the approved registry
 using real provider USD prices. Missing prices fail explicitly; no test-token
 peg or synthetic cash balance is invented. Native mainnet swaps remain

@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.6.52 - Unreleased
+
 ## 4.6.51 - 2026-11-11
 
 Deploy marker: cc6310f2cb08c2293652390df3c59a9e48019f9f

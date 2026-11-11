@@ -423,6 +423,10 @@ def _committed_establishment(source_ref, cases, *, versions, now):
         proof = {"source_commit": source_ref, "runtime_fingerprint": runtime_hash, "cases": records}
         validate_establishment(proof, cases, versions=versions, now=now)
         return records
+    if receipt.get("sdk_versions") != versions:
+        # Retained proof for another SDK grants no shortcut; fresh native
+        # trials may still establish this release's own complete stability.
+        return {}
     by_id = {case["id"]: case for case in _unchanged_establishment_cases(source_ref, cases)}
     eligible = set(by_id)
     proof = {**proof, "cases": {identity: record for identity, record in proof["cases"].items()

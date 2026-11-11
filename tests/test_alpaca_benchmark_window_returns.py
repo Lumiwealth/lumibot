@@ -91,7 +91,6 @@ def test_daily_benchmark_calendar_belongs_to_the_asset(monkeypatch, asset_type, 
     assert requests[0]["market"] == expected_calendar
 
 
-<<<<<<< HEAD
 def _index_benchmark_strategy(source):
     return SimpleNamespace(
         is_backtesting=True,

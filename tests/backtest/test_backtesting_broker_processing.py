@@ -1530,7 +1530,7 @@ def test_process_pending_orders_pandas_dataframe_with_select_attribute(monkeypat
     )
     submit_and_fill(strategy, broker, order)
 
-    assert order.status == "fill"
+    assert order.is_filled()
     position = broker.get_tracked_position(strategy.name, asset)
     assert position is not None
     assert position.quantity == pytest.approx(10.0)

@@ -3029,6 +3029,7 @@ class Broker(ABC):
         self,
         order: Order,
         additional_active_orders: list[Order] | None = None,
+        exclude_reservations: list[Order] | None = None,
     ) -> Order:
         """Resolve a single-leg option order to an explicit open/close side.
 
@@ -3085,13 +3086,11 @@ class Broker(ABC):
             return order
 
         reserved_quantity = 0.0
-        active_orders = self.get_active_tracked_orders(order.strategy, order.asset)
-        if additional_active_orders:
-            active_orders.extend(
-                candidate
-                for candidate in additional_active_orders
-                if candidate.strategy == order.strategy and candidate.asset == order.asset
-            )
+        active_orders = self._active_orders_reserving_asset(
+            order,
+            additional_active_orders=additional_active_orders,
+            exclude_reservations=exclude_reservations,
+        )
         for active_order in active_orders:
             try:
                 active_side = Order.OrderSide(active_order.side)
@@ -3107,10 +3106,7 @@ class Broker(ABC):
             if not active_is_close:
                 continue
 
-            filled_quantity = sum(
-                float(transaction.quantity)
-                for transaction in getattr(active_order, "transactions", [])
-            )
+            filled_quantity = self._reserved_quantity_already_filled(active_order)
             reserved_quantity += max(0.0, float(active_order.quantity) - filled_quantity)
 
         remaining_closable = max(0.0, abs(position_quantity) - reserved_quantity)
@@ -3121,6 +3117,33 @@ class Broker(ABC):
                 f"{remaining_closable:g} after active close orders"
             )
         return order
+
+    def _active_orders_reserving_asset(
+        self,
+        order: Order,
+        additional_active_orders: list[Order] | None = None,
+        exclude_reservations: list[Order] | None = None,
+    ) -> list[Order]:
+        """Active orders on this strategy and contract that may reserve a close.
+
+        A broker whose package legs reserve contracts overrides this.
+        ``exclude_reservations`` is for that override; the base lookup ignores it.
+        """
+        active_orders = self.get_active_tracked_orders(order.strategy, order.asset)
+        if additional_active_orders:
+            active_orders.extend(
+                candidate
+                for candidate in additional_active_orders
+                if candidate.strategy == order.strategy and candidate.asset == order.asset
+            )
+        return active_orders
+
+    def _reserved_quantity_already_filled(self, order: Order) -> float:
+        """Contracts of this close that have already filled, from its own fills."""
+        return sum(
+            float(transaction.quantity)
+            for transaction in getattr(order, "transactions", [])
+        )
 
     def _conform_order(self, order):
         """Conform an order to broker constraints. Derived brokers should implement this method."""

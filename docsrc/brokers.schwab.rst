@@ -150,12 +150,13 @@ Supported functionality
 
 * Equities and ETF trading (market, limit, stop, stop-limit).
 * Single-leg options (buy/sell, open/close).
+* Multi-leg option packages of 2 to 4 option legs on one underlying (vertical spreads, boxes, and other combinations). Submit the standard parent order with ``order_class=Order.OrderClass.MULTILEG`` and ``child_orders``, or call ``self.submit_order(legs, is_multileg=True, order_type=..., price=...)`` with ``order_type`` of ``credit``, ``debit``, ``even``, or ``limit`` (LumiBot picks credit, debit, or even from the leg quotes, weighted by each leg's size). Schwab receives one package. ``SMART_LIMIT`` and ``modify_order`` reprice the package. A priced package of 2 to 4 option legs with ``day`` or ``gtc`` duration ports without code changes; market packages, stock legs, and other durations are not sent. If leg quotes are missing, pass ``order_type`` of ``credit``, ``debit``, or ``even`` (or a negative price for a credit), because Schwab cannot otherwise tell a credit from a debit. A list holding one option is sent as a single order unless you pass ``is_multileg=True``; put its limit price on the order itself, because a list-level ``order_type`` or ``price`` is refused there.
 * OTO / one-triggers-other orders for single stock/ETF and option parent/child orders (experimental; live broker validation recommended before production use).
 * OCO / one-cancels-other and bracket orders for single stock/ETF and option orders (experimental; live broker validation recommended before production use).
 * Streaming quotes for equities/options.
 * Historical bars for equities, ETFs, and option contracts (OCC symbol). Futures candle history is not requested. Crypto is not on this API.
 
-Multi-leg option spreads and futures trades are not yet implemented.
+Futures trades are not yet implemented.
 
 Deposits, withdrawals and account transfers
 -------------------------------------------
@@ -508,7 +509,7 @@ Supported Assets & Order Types
     - ✔
     - —
     - —
-    - OTO/OCO/bracket (experimental)
+    - OTO/OCO/bracket (experimental); multi-leg net credit/debit/even
   * - Futures
     - ✖ (quotes only)
     - ✖
@@ -522,7 +523,7 @@ Supported Assets & Order Types
     - ✖
     - ✖
 
-- Multi-leg/spread options are not yet implemented in Lumibot.
+- Multi-leg option packages use the same ``OrderClass.MULTILEG`` and ``child_orders`` path as the other brokers. Schwab accepts 2 to 4 option legs on one underlying, priced as a net credit, debit, or zero, with ``day`` or ``gtc`` duration. Market packages, stock legs, and legs on different underlyings are rejected. A filled package reports its net fill price from Schwab's leg executions, which can be better than the limit. A package that cannot be sent as one order is rejected and no leg is submitted. Each leg keeps its own contract count; a hand-built parent's ``quantity`` must equal the greatest common divisor of the leg quantities (1 for an ordinary 1-lot spread). Live-test the account and order shape before relying on it in production.
 - Schwab OTO, OCO, and bracket orders use Schwab's trigger and one-cancels-other support and should be live-tested with the target account and order shape before relying on them in production.
 - **Futures trading is not supported; only streaming quotes are available.**
 
@@ -689,9 +690,9 @@ When the refresh token expires, repeat the browser login once.
 What can I trade on Schwab with LumiBot?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Stocks, ETFs and single-leg options. Stock orders can be market, limit, stop or stop-limit. OTO, OCO and bracket orders are experimental.
+Stocks, ETFs, single-leg options, and multi-leg option packages. A package is 2 to 4 option legs on one underlying, sent as one order, at a net credit, debit, or even price. The strategy uses ``OrderClass.MULTILEG`` and ``child_orders``, the same call the other brokers already accept. Stock orders can be market, limit, stop or stop-limit. OTO, OCO and bracket orders are experimental.
 
-Multi-leg option spreads, futures orders and crypto are not supported. The ticker ``BTC`` on Schwab is a bitcoin ETF, not spot bitcoin.
+Futures orders and crypto are not supported. The ticker ``BTC`` on Schwab is a bitcoin ETF, not spot bitcoin.
 
 Why do I get a 400 or 401 error when I log in to Schwab?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

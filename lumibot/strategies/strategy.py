@@ -2092,7 +2092,12 @@ class Strategy(_Strategy):
         if isinstance(order, list):
             # Submit multiple orders
             # Validate orders
-            default_multileg = True
+            # A Schwab package needs two to four legs, so one option in a list is a
+            # single order there unless the caller says otherwise. Other brokers keep
+            # their existing default. A stock in the list is never a package.
+            # getattr keeps the null-entry check below ahead of any broker lookup.
+            is_schwab = str(getattr(getattr(self, "broker", None), "name", "")).lower() == "schwab"
+            default_multileg = len(order) >= 2 if is_schwab else True
 
             for o in order:
                 if o is None:
@@ -2102,6 +2107,24 @@ class Strategy(_Strategy):
 
                 if o.asset.asset_type != "option":
                     default_multileg = False
+
+            # A list-level order_type or price is a package price. On Schwab a
+            # one-option list goes out as a single order, which would drop that
+            # price and could send a market order. Refuse instead.
+            if (
+                is_schwab
+                and 'is_multileg' not in kwargs
+                and len(order) == 1
+                and order[0].asset.asset_type == "option"
+                and (kwargs.get("order_type") is not None or kwargs.get("price") is not None)
+            ):
+                self.log_message(
+                    "A list with one option is a single Schwab order, so the list-level "
+                    "order_type/price would be ignored. Set the price on the order itself, "
+                    "or pass is_multileg=True. The order was not submitted.",
+                    color="red",
+                )
+                return None
 
             if 'is_multileg' not in kwargs:
                 kwargs['is_multileg'] = default_multileg
@@ -2138,13 +2161,14 @@ class Strategy(_Strategy):
 
             # Broker-agnostic multi-leg LIMIT UX:
             # If the caller requests a package LIMIT (`order_type='limit'`) on a broker that uses
-            # debit/credit/even semantics (Tradier) or needs net-side hints (Alpaca mleg),
-            # infer the net sign from quotes and map internally so strategies remain portable.
+            # debit/credit/even semantics (Tradier, Schwab NET_DEBIT/NET_CREDIT/NET_ZERO) or needs
+            # net-side hints (Alpaca mleg), infer the net sign from quotes and map internally so
+            # strategies remain portable. Without this a positive Schwab limit is always a debit.
             if (
                 is_multileg
                 and not self.broker.IS_BACKTESTING_BROKER
                 and str(kwargs.get("order_type", "")).lower() == str(Order.OrderType.LIMIT)
-                and str(getattr(self.broker, "name", "")).lower() in {"tradier", "alpaca"}
+                and str(getattr(self.broker, "name", "")).lower() in {"tradier", "alpaca", "schwab"}
             ):
                 inferred = self._infer_multileg_type_and_mid(order)
                 if inferred is not None:
@@ -2161,20 +2185,34 @@ class Strategy(_Strategy):
                         price_abs = None
 
                 if inferred_type is None:
-                    # Fall back to interpreting a signed price (negative=credit) if quotes are missing.
+                    # A signed price is the fallback when quotes are missing: negative is a
+                    # credit and zero is even. A positive price is only a debit guess.
+                    signed = None
                     if raw_price is not None:
                         try:
                             signed = float(raw_price)
-                            inferred_type = "even" if abs(signed) < 1e-9 else ("debit" if signed > 0 else "credit")
-                            if price_abs is None:
-                                price_abs = abs(signed)
-                            self.log_message(
-                                "[MULTILEG][LIMIT] Missing quotes; inferring debit/credit from price sign. "
-                                "For net credits, pass a negative price or explicit order_type='credit'.",
-                                color="yellow",
-                            )
                         except Exception:
-                            inferred_type = None
+                            signed = None
+                    broker_name = str(getattr(self.broker, "name", "")).lower()
+                    # Schwab turns that guess into NET_DEBIT, which can fill a credit
+                    # spread at the market. An explicit keyword or a negative price still submits.
+                    if broker_name == "schwab" and not (signed is not None and signed <= 0):
+                        self.log_message(
+                            "[MULTILEG][LIMIT] Missing quotes, so Schwab cannot tell a credit from a debit. "
+                            "Pass order_type='credit', 'debit', or 'even', or a negative price for a credit. "
+                            "The order was not submitted.",
+                            color="red",
+                        )
+                        return None
+                    if signed is not None:
+                        inferred_type = "even" if abs(signed) < 1e-9 else ("debit" if signed > 0 else "credit")
+                        if price_abs is None:
+                            price_abs = abs(signed)
+                        self.log_message(
+                            "[MULTILEG][LIMIT] Missing quotes; inferring debit/credit from price sign. "
+                            "For net credits, pass a negative price or explicit order_type='credit'.",
+                            color="yellow",
+                        )
 
                 if inferred_type is not None:
                     kwargs["order_type"] = inferred_type
@@ -2263,6 +2301,12 @@ class Strategy(_Strategy):
         - For sell legs: best=-ask, fastest=-bid (negative contribution)
         """
 
+        # Schwab prices a package once per ratio unit, so its legs are weighted
+        # by quantity / gcd. Other brokers keep the existing unweighted sum.
+        is_schwab = str(getattr(self.broker, "name", "")).lower() == "schwab"
+        if is_schwab and not child_orders:
+            return None
+
         quote_data: list[tuple[Order, float | None, float | None]] = []
         for leg in child_orders:
             try:
@@ -2277,15 +2321,38 @@ class Strategy(_Strategy):
         if any(bid is None or ask is None or bid < 0 or ask <= 0 for _, bid, ask in quote_data):
             return None
 
+        if is_schwab:
+            from math import gcd
+
+            quantities = []
+            for leg, _bid, _ask in quote_data:
+                try:
+                    quantity = abs(float(leg.quantity))
+                except (TypeError, ValueError):
+                    return None
+                if not math.isfinite(quantity) or quantity <= 0 or quantity != int(quantity):
+                    return None
+                quantities.append(int(quantity))
+            package_quantity = quantities[0]
+            for quantity in quantities[1:]:
+                package_quantity = gcd(package_quantity, quantity)
+            if package_quantity <= 0:
+                return None
+        else:
+            quantities = [1] * len(quote_data)
+            package_quantity = 1
+
         net_best = 0.0
         net_fastest = 0.0
-        for leg, bid, ask in quote_data:
+        for (leg, bid, ask), quantity in zip(quote_data, quantities):
+            # One package pays or receives the quote once per contract in the ratio.
+            ratio = quantity / package_quantity
             if leg.is_buy_order():
-                net_best += float(bid)
-                net_fastest += float(ask)
+                net_best += float(bid) * ratio
+                net_fastest += float(ask) * ratio
             else:
-                net_best -= float(ask)
-                net_fastest -= float(bid)
+                net_best -= float(ask) * ratio
+                net_fastest -= float(bid) * ratio
 
         return net_best, net_fastest
 
@@ -2305,6 +2372,12 @@ class Strategy(_Strategy):
         return "credit", float(abs(mid_signed))
 
     def _submit_multileg_smart_limit_orders(self, child_orders: List[Order], smart_limit: SmartLimitConfig, **kwargs):
+        """Submit a multi-leg SMART_LIMIT package at the walked net price.
+
+        Backtesting sends the legs through the broker as one package. A live
+        Schwab package keeps the inferred credit, debit, or even type: a missing
+        quote or a failed submit is not turned into a market or an unsigned limit.
+        """
         if self.broker.IS_BACKTESTING_BROKER:
             kwargs.setdefault("is_multileg", True)
             return self.broker.submit_orders(child_orders, **kwargs)
@@ -2314,6 +2387,13 @@ class Strategy(_Strategy):
 
         computed = self._compute_multileg_net_best_fastest(child_orders)
         if computed is None:
+            if str(getattr(self.broker, "name", "")).lower() == "schwab":
+                self.log_message(
+                    "[SMART_LIMIT] Missing bid/ask for a Schwab multi-leg package. "
+                    "Schwab requires a net price, so the package was not submitted.",
+                    color="yellow",
+                )
+                return None
             self.log_message(
                 "[SMART_LIMIT] Missing bid/ask for multileg order; downgrading to market.",
                 color="yellow",
@@ -2360,6 +2440,15 @@ class Strategy(_Strategy):
                 price=submit_price_or_none,
             )
         except Exception as exc:
+            if broker_name == "schwab":
+                # An unsigned positive limit is a debit. Retrying a failed credit
+                # that way would buy the package instead of selling it.
+                self.log_message(
+                    f"[SMART_LIMIT] Multi-leg submit failed for type={initial_type} ({exc}). "
+                    "The package was not submitted.",
+                    color="yellow",
+                )
+                return None
             self.log_message(
                 f"[SMART_LIMIT] Multi-leg submit failed for type={initial_type} ({exc}); retrying as limit.",
                 color="yellow",
@@ -2697,6 +2786,11 @@ class Strategy(_Strategy):
         reference = self._journal_order_action(order, operation="modify", reason=reason, evidence=evidence,
                                                changes=changes)
         result = self._perform_journaled_order_action(reference, lambda: self.broker.modify_order(order, **changes))
+        # A Schwab refusal (False) leaves the live order alone. Copying the
+        # requested price locally would make the next equal step look done.
+        # Other brokers keep their existing behavior.
+        if result is False and str(getattr(self.broker, "name", "")).lower() == "schwab":
+            return result
         if limit_price is not None:
             order.limit_price = limit_price
         if stop_price is not None:

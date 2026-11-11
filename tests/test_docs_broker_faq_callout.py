@@ -13,7 +13,15 @@ import sys
 from pathlib import Path
 
 import pytest
-from docutils.core import publish_doctree
+
+# Imported at collection, as before, so the doctree and docsrc/conf.py share one
+# docutils. Importing it inside the test let an earlier test's module cleanup
+# hand the two different docutils.nodes classes. docutils comes with Sphinx and
+# is optional here; the FAQ extractor test skips without it.
+try:
+    from docutils.core import publish_doctree
+except ImportError:  # pragma: no cover - depends on the local docs toolchain
+    publish_doctree = None
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCSRC = ROOT / "docsrc"
@@ -24,6 +32,8 @@ UNDERLINE = re.compile(r"^([=\-~^\"*#+])\1{3,}\s*$")
 
 
 def _load_docs_config():
+    """Load docsrc/conf.py, then restore sys.modules."""
+    pytest.importorskip("docutils")
     spec = importlib.util.spec_from_file_location("lumibot_docs_conf_faq", DOCSRC / "conf.py")
     module = importlib.util.module_from_spec(spec)
     original_modules = sys.modules.copy()
@@ -118,6 +128,9 @@ def test_new_broker_text_has_no_em_or_en_dashes():
 
 
 def test_faq_extractor_reads_both_question_styles():
+    """FAQ extractor reads both question styles."""
+    if publish_doctree is None:
+        pytest.skip("docutils is not installed")
     conf = _load_docs_config()
     doctree = publish_doctree(
         "Title\n=====\n\nFrequently asked questions\n--------------------------\n\n"

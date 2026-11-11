@@ -2,7 +2,7 @@
 
 > Notes on live broker behavior that affect backtesting semantics (extended hours, order types, and “market closed / no data” handling).
 
-**Last Updated:** 2026-11-03
+**Last Updated:** 2026-11-09
 **Status:** Active
 **Audience:** Developers, AI Agents
 
@@ -251,6 +251,117 @@ Live trading implications:
 - Do not generalize "seamless spans all sessions" into "seamless works with all
   order types." The session span and order type eligibility are separate broker
   constraints.
+
+### Schwab (multi-leg options)
+
+Schwab receives a multi-leg option package as one `orderStrategyType=SINGLE`
+order (`lumibot/brokers/schwab.py`, `_prepare_multileg_option_order_builder`).
+
+Wire contract:
+- 2 to 4 option legs, all on one underlying. Stock legs, more legs, or mixed
+  underlyings are rejected before any HTTP request; no leg is sent alone.
+- `orderType` is `NET_CREDIT`, `NET_DEBIT` or `NET_ZERO`, with a positive price
+  (`NET_ZERO` is `0.00`). Market packages, other order types, and durations
+  other than `day`/`gtc` are rejected. The type comes from the
+  `credit`/`debit`/`even` keyword, else from the parent side and price sign.
+  Zero is judged on the price as sent (four decimals under $1, chosen from the
+  original amount, so 0.9951 stays four decimals). A credit or debit that
+  rounds to `0.00` after the rounding that will be sent is refused: half-up
+  turns a `0.00006` debit into `0.0001`, and debit rounding then turns it into
+  `0.00`. An unhinted price that rounds to `0.00` with half-up is `NET_ZERO`,
+  never `NET_CREDIT`/`NET_DEBIT` at `0.00`. A debit rounds down and a credit
+  rounds up, so the sent price is never more aggressive than requested.
+  The strike in the OCC symbol keeps thousandths (`100.125` stays `100.125`).
+  A strike that is not a whole number of thousandths (`100.1254`) is refused
+  rather than rounded to a neighbouring contract.
+  A `MARKET` or `STOP_LIMIT` parent is rejected even when it carries a limit
+  price; the stop trigger would otherwise be dropped.
+- `Strategy.submit_order(legs, order_type='limit', price=...)` infers
+  credit/debit/even from leg quotes for Schwab, Tradier, and Alpaca. On Schwab
+  each leg is weighted by its ratio to the package quantity (GCD); other
+  brokers keep the unweighted sum of one quote per leg
+  (`Strategy._compute_multileg_net_best_fastest`). Without that a positive
+  Schwab limit would always be a debit. When those quotes are missing and the
+  caller did not pass `credit`, `debit`, `even`, or a zero or negative price,
+  Schwab does not submit; Tradier and Alpaca still read a positive price as a
+  debit. A SMART_LIMIT package with missing quotes, or whose submit fails, is
+  not sent to Schwab as a market or unsigned limit. A successful submit stores
+  the net effect, so a later replace cannot turn a credit into `NET_ZERO` or an
+  even package into a debit.
+- On Schwab, `submit_order([option])` with one option and no `is_multileg` is
+  a single order, because a package needs two legs; other brokers keep their
+  default. A one-option list given a list-level `order_type` or `price` (a
+  package price) is refused on Schwab, because the single order would drop it.
+- `complexOrderStrategyType` is `VERTICAL` only for one buy and one sell with
+  the same expiry and right, different strikes and equal quantities; anything
+  else is `CUSTOM`.
+- Legs keep their own contract counts. The top-level `quantity` is the GCD of
+  the leg quantities; a hand-built parent must match it.
+
+Lifecycle:
+- A snapshot whose legs are all options parses as one `OrderClass.MULTILEG`
+  parent with the broker order id. Child legs get `<id>-leg-<n>` identifiers
+  because `Order` equality uses the identifier. An all-option snapshot whose
+  legs cannot all be read is skipped, never returned as its first leg; the
+  warning is logged once per order id because the broad poll re-reads seven
+  days of history every 30 seconds.
+- Fills are counted in packages, never contracts: summing `executionLegs`
+  directly would count every contract on every side. The net fill price is
+  each leg's execution VWAP times its leg ratio (buys positive, sells negative),
+  reported positive. Schwab's `price` is the limit, not the fill. Only when an
+  execution has no `legId`, a leg has no execution, legs filled out of ratio,
+  or the executions add up to a different count than `filledQuantity` does the
+  parser use `filledQuantity` and `averagePrice` (then `price`).
+  Each new package fill uses the incremental price of that fill, derived from
+  the cumulative value, so two fills at 1.30 and 1.20 average to 1.25. Zero is
+  a real net price and is not replaced by the limit. A leg whose side is neither
+  buy nor sell uses that same fallback, and the package parent is marked
+  degraded when a leg is. A parsed `NET_CREDIT`, `NET_DEBIT`, or `NET_ZERO`
+  keeps that effect, so a replace after a restart follows the same credit,
+  debit, and even rules as the original submit.
+- When the package fills, is canceled, or errors, its original child orders are
+  marked the same way and their close events are set. A submit rejection does
+  this when the error event is applied, including after a held event is
+  released. A package that was canceled and is later confirmed filled moves
+  those legs to filled; that update does not book a second cash change. A
+  local error that a later partial fill supersedes reopens the parent and its
+  unfilled legs, so they reserve their contracts again. The parent fill does
+  not move cash (`Order.is_parent()`); leg positions come from
+  the regular Schwab position sync. A package fill reaches `on_filled_order`
+  with `position=None`; on Schwab the executor's fill notification labels it
+  by the order's asset.
+- A working package's unfilled close legs count as reserved contracts. A
+  partial fill counts only the remainder: filled packages times the leg's
+  ratio to the package quantity. The package being replaced does not reserve
+  against itself. An explicit close with no matching position is rejected
+  before the request. These rules are Schwab's overrides of
+  `_active_orders_reserving_asset` and `_reserved_quantity_already_filled`;
+  the base `Broker` versions keep the existing lookup for every other broker.
+  A filled close is no longer reserved; until the next position sync removes
+  it from the book, Schwab itself refuses a second close of those contracts.
+- `modify_order` replaces the package through the same builder, so SMART_LIMIT
+  repricing changes only the net price. A replace does not re-check the
+  position book: its legs were validated on submit, and after a partial close
+  fill the synced book no longer holds the full leg. A replace that returns no
+  new order id follows the order Schwab lists in the replaced order's
+  `replacingOrderCollection` when it names exactly one (read up to three
+  times, half a second apart, since Schwab may not mark it `REPLACED` at
+  once); otherwise it counts only when a fresh read shows that same order
+  still live at the price as sent (rounded to Schwab's tick), so later
+  modifies and cancels keep the right id. A failed order read, including HTTP
+  429, returns `False` and leaves the local price unchanged; on Schwab neither
+  `Strategy.modify_order` nor the SMART_LIMIT executor copies the requested
+  price, and the ladder prices the package again at its next step. A Schwab
+  package replacement keeps the parent's `time_in_force`, so a GTC package
+  does not fall back to DAY. Both are Schwab-only
+  (`StrategyExecutor._broker_is_schwab`); other brokers and single-order
+  SMART_LIMIT keep their existing behavior. A change between credit, debit and
+  even is a cancel and resubmit (strategy executor); modifying an `even`
+  package to a non-zero price is refused because `NET_ZERO` is always `0.00`.
+- Durations are checked in the package builder, which every path uses
+  (`submit_orders`, a hand-built parent, modify): `day`/`gtc` in any case are
+  sent; anything else is refused instead of being sent with no duration.
+  `time_in_force` is accepted as an alias for `duration` on `submit_orders`.
 
 ### Tradier (equities/options)
 

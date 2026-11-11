@@ -28,8 +28,8 @@ Agent tools use the same names without `self.fundamentals.`:
 
 Backtest safety:
 
-- Facts are gated by SEC `filed` date.
-- Filings are gated by SEC acceptance datetime when available, with filing date as fallback.
+- Facts are gated by SEC `filed` date. A date carries no time, and EDGAR accepts filings until 10 p.m. Eastern, so a fact becomes visible when its filing date ends in New York (next midnight Eastern), not at its start. Example: Microsoft's FY2026 10-K is filed 2026-07-29 but was accepted at 16:08:01 ET, after that day's close.
+- Filings are gated by SEC acceptance datetime when available, with filing date (same end-of-day rule) as fallback.
 - The default `as_of` is the current strategy datetime.
 - Responses are cached under `~/.lumibot/cache/sec` unless `LUMIBOT_SEC_CACHE_DIR` is set.
 

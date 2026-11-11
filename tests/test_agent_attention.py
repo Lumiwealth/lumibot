@@ -705,3 +705,24 @@ def test_attention_tool_does_not_coerce_invalid_time_or_numeric_conditions(metri
         tool.function(watch_id="bad", operation_id="position-a", metric=metric, comparison="gte",
                       value_json=value, asset_json='{"symbol":"XYZ"}', reason="Invalid condition")
     assert manager.attention.snapshot(owner="trader")["watches"] == []
+
+
+@pytest.mark.parametrize("delivery", ["dispatch", "decision"])
+def test_failed_review_restores_evidence_removed_by_the_deciding_agent(delivery):
+    strategy = Strategy()
+    monitor = AttentionMonitor(strategy)
+    watch(monitor)
+    original = poll(monitor, 101)
+    def fail_after_changes():
+        monitor.remove(owner="trader", watch_id="boundary")
+        watch(monitor, name="future-risk", threshold=110)
+        raise RuntimeError("Incomplete after tool changes")
+    with pytest.raises(RuntimeError, match="Incomplete"):
+        if delivery == "dispatch":
+            monitor.dispatch(lambda packet: fail_after_changes())
+        else:
+            with monitor.decision():
+                fail_after_changes()
+    assert monitor.pending() == original
+    assert [w["watch_id"] for w in monitor.snapshot(owner="trader")["watches"]] == ["future-risk"]
+    assert AttentionMonitor(strategy).pending() == original

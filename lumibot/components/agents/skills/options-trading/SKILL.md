@@ -227,3 +227,9 @@ State missing evidence honestly. This is a decision summary, not hidden internal
 reasoning, and must contain no credentials or account identifiers. The order
 service commits it before execution. Report only observed order status and fills;
 reconcile an uncertain outcome before trying again.
+
+For a single held option, `options_check_spread_profit` can read marked P&L
+from one original-direction leg; no second leg or package price is needed.
+For financial arithmetic in DuckDB, cast long decimal literals to DOUBLE when
+needed to avoid decimal-precision overflow. Correct and retry a failed read;
+a numeric conversion error is not evidence of missing market data.

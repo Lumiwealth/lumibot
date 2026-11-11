@@ -156,6 +156,15 @@ class AttentionMonitor:
                 state["pending"].pop(event_id, None)
             self._save(state)
 
+    def _restore_pending(self, packet: list[dict[str, Any]]) -> None:
+        # Agent tools may remove a claimed watch before a later read fails.
+        # Preserve that exact evidence without rolling back watches or orders.
+        with self._lock:
+            state = self._state()
+            for event in packet:
+                state["pending"].setdefault(event["id"], deepcopy(event))
+            self._save(state)
+
     def _observe(self, definition: dict[str, Any], cache: dict[str, Any],
                  observations: dict[str, Any] | None = None) -> Any:
         metric = definition["metric"]
@@ -274,6 +283,7 @@ class AttentionMonitor:
         try:
             yield selected
         except BaseException:
+            self._restore_pending(selected)
             raise
         else:
             self.acknowledge([event["id"] for event in selected])
@@ -308,6 +318,7 @@ class AttentionMonitor:
                 callback(selected)
                 self.acknowledge([event["id"] for event in selected])
             except BaseException as exc:
+                self._restore_pending(selected)
                 if live:
                     with self._lock:
                         self._worker_error = exc

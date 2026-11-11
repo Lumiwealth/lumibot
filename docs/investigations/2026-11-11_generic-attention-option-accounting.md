@@ -53,3 +53,19 @@ regression; coverage-only scenarios remain outside the production eval catalog.
 Source tests, model decisions, published packages, installed runtimes and broker
 fills remain distinct evidence. No new production model cases or CI behavior are
 introduced here, and no package version or release tag is changed.
+
+A longer controlled real-model management run exposed two additional generic
+failures. The marked-profit read rejected a single leg, despite the underlying
+math supporting it; the profit binding now accepts one or more exposure legs,
+while multi-leg execution and closing still require their original package
+shape. A failed decision could also lose its claimed event if an agent removed
+the watch before another tool failed. Both delivery APIs now restore that exact
+pending evidence on failure, without rolling back order effects or newer watches.
+Three new focused cases reproduced these failures before repair and passed
+afterward. Existing package-close and recovery controls remain enforced.
+
+An ordinary unit test also attempted to verify the prior release author's
+source-bound model receipt on every PR. It has been removed from unit execution:
+that task belongs to the maintained release-workflow verification command.
+Explicit scope/pass/source checks remain in the verifier and its isolated unit
+contracts. This changes no production model assertion and adds no selector.

@@ -1195,3 +1195,14 @@ def test_single_option_close_uses_the_single_order_tool(held, side):
     assert len(strategy.submissions) == 1
     assert strategy.submissions[0][0].side == side
     assert float(strategy.submissions[0][0].quantity) == abs(held)
+
+
+def test_profit_read_accepts_one_short_option_without_a_second_leg():
+    """A held single option has meaningful signed P&L without package pricing."""
+    strategy = _OptionsStrategy()
+    tool = BuiltinTools.options.check_spread_profit().binder(strategy, AgentManager(strategy))
+    leg = {"symbol": "SPY", "expiration": "2026-09-18", "strike": 615,
+           "right": "put", "quantity": 1, "side": "sell_to_open"}
+    result = tool.function(legs_json=json.dumps([leg]), initial_cost=-300.)
+    assert result["available"] is True
+    assert result["profit_pct"] == pytest.approx(50.)

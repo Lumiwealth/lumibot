@@ -3740,7 +3740,8 @@ class OptionsHelper:
             Total opening cash cost: positive for a debit, negative for a credit.
             Quantities must represent the remaining exposure covered by this basis.
         orders : List[Order]
-            The list of orders that constitute the spread.
+            Orders describing the original long/short directions and remaining
+            quantities, not opposite-side closing orders.
         contract_multiplier : float, optional
             Explicit multiplier override. Otherwise use each asset's multiplier.
 

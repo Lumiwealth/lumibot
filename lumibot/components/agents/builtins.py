@@ -981,14 +981,15 @@ def _option_asset(
     return asset
 
 
-def _parse_option_legs(strategy: Any, legs_json: str, *, time_in_force: TimeInForceArg = "day") -> list[Any]:
+def _parse_option_legs(strategy: Any, legs_json: str, *, time_in_force: TimeInForceArg = "day", minimum_legs: int = 2) -> list[Any]:
     raw = _require_non_empty_text("legs_json", legs_json)
     try:
         legs = json.loads(raw)
     except json.JSONDecodeError as exc:
         raise ValueError(f"legs_json must be valid JSON: {exc}") from exc
-    if not isinstance(legs, list) or len(legs) < 2:
-        raise ValueError("legs_json must decode to a list containing at least two option legs.")
+    if not isinstance(legs, list) or len(legs) < minimum_legs:
+        minimum = "one option leg" if minimum_legs == 1 else "two option legs"
+        raise ValueError(f"legs_json must decode to a list containing at least {minimum}.")
 
     orders: list[Any] = []
     for index, leg in enumerate(legs):
@@ -2303,7 +2304,7 @@ def _bind_options_check_spread_profit(strategy: Any, manager: Any) -> BoundTool:
         if not math.isfinite(initial_cost_value) or initial_cost_value == 0:
             raise ValueError("initial_cost must be a nonzero finite number.")
         multiplier = None if contract_multiplier is None else _require_positive_int("contract_multiplier", contract_multiplier)
-        orders = _parse_option_legs(strategy, legs_json)
+        orders = _parse_option_legs(strategy, legs_json, minimum_legs=1)
         profit_pct = _options_helper_for_strategy(strategy).check_spread_profit(
             initial_cost_value,
             orders,
@@ -2325,9 +2326,9 @@ def _bind_options_check_spread_profit(strategy: Any, manager: Any) -> BoundTool:
     return BoundTool(
         name="options_check_spread_profit",
         description=(
-            "Estimate current multi-leg spread P&L percentage from exact option legs and the opening cash cost. "
+            "Estimate current marked P&L percentage from one or more exact option legs and the opening cash cost. "
             "Arguments: legs_json, initial_cost, optional contract_multiplier override (otherwise each asset multiplier). "
-            "legs_json must be a JSON array of exact contracts with symbol, expiration, strike, right, quantity, and side. "
+            "Use the original long/short exposure directions and remaining quantities, not opposite closing directions. legs_json must be a JSON array of exact contracts with symbol, expiration, strike, right, quantity, and side. "
             "For opening-cost accounting, use a positive initial_cost for a net debit paid and a negative initial_cost "
             "for a net credit received. Returns profit_pct relative to abs(initial_cost), or available=false when a leg price is missing. "
             "This is generic multi-leg math; it does not assume an iron condor or any named structure. "

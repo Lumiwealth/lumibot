@@ -37,6 +37,31 @@ def test_alpaca_provider_is_outside_the_native_pandas_fixture():
     scope.check_change('lumibot/backtesting/alpaca_backtesting.py', b'before', b'after')
 
 
+def test_unused_schwab_adapter_keeps_synchronous_fixture_proof(monkeypatch):
+    scope.check_change('lumibot/brokers/schwab.py', b'before', b'after')
+
+    from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting
+    from lumibot.brokers.schwab import Schwab
+    from lumibot.entities import Asset
+    from scripts import run_agent_evals as evals
+    from scripts.agent_eval_isolation import fixture_network_boundary
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    def forbid_live_broker(*_args, **_kwargs):
+        pytest.fail('Synchronous native fixtures must not construct Schwab')
+
+    monkeypatch.setattr(Schwab, '__init__', forbid_live_broker)
+    with fixture_network_boundary():
+        fixture = ProductionFixture(evals.build_fixture('flat_stock_account'))
+        try:
+            assert isinstance(fixture.broker, BacktestingBroker)
+            assert isinstance(fixture.broker.data_source, PandasDataBacktesting)
+            fixture.create_agent(evals.load_cases({'stock_price_before_order'})[0], None)._ensure_bound_tools()
+            assert fixture.strategy.get_quote(Asset('AAPL')) is not None
+        finally:
+            fixture.close()
+
+
 @pytest.mark.parametrize('path', ['lumibot/tools/shared_bar_cache.py', 'lumibot/traders/trader.py'])
 def test_unused_cache_and_threaded_runner_keep_synchronous_fixture_proof(path):
     scope.check_change(path, b'before', b'after')

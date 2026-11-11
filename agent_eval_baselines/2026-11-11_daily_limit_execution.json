@@ -121,6 +121,12 @@
         "seconds": 0.35
       },
       "repair": "Recognize only the native TradingFee entity and the exact startup template with symmetric declared contract fees. Preserve unchanged startup control and executable fee-wiring checks."
+    },
+    "unused_live_broker_proof": {
+      "red": "one failed in 0.25 seconds because a live Schwab-only change expired synchronous Pandas fixture evidence",
+      "green": "two passed in 1.43 seconds, including unchanged rejection of shared agent/fixture/accounting changes",
+      "boundary": "The native fixture binds tools and reads an in-memory quote while Schwab construction is forbidden. The adapter has separate recorded-response tests. No case selection or inferred test list was added.",
+      "new_real_model_attempts": 0
     }
   }
 }

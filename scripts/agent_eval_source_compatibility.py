@@ -31,6 +31,9 @@ PROVIDER_ONLY_PATHS = frozenset({
     'lumibot/trading_builtins/ccxt_stream.py',
     'lumibot/brokers/bitunix.py',
     'lumibot/tools/bitunix_helpers.py',
+    # The synchronous fixtures construct BacktestingBroker, never Schwab.
+    # Its live order-activity parser has separate recorded-response tests.
+    'lumibot/brokers/schwab.py',
     # ProductionFixture drives BacktestingBroker synchronously with in-memory
     # Pandas bars. It never runs Trader or reads the provider bar cache. The
     # binding contract rejects those calls; this preserves only fixture proof,

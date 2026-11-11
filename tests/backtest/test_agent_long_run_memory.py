@@ -143,3 +143,27 @@ def test_long_two_agent_backtest_memory_stays_flat_and_keeps_every_detail_row(mo
         if path.name.startswith(detail_parquet.stem + ".") and path != detail_parquet
     ]
     assert leftovers == []
+
+
+def test_detail_spool_combines_calls_whose_column_types_differ(tmp_path):
+    """One call can record a latency as a number and a later call as text
+    (or nothing at all). The combined file must still be written: a CI example
+    backtest failed with "Unable to merge: Field call_first_event_latency_ms
+    has incompatible types: string vs int64" (2026-11-11)."""
+    import logging
+
+    from lumibot.components.agents.manager import _AgentDetailSpool
+
+    path = tmp_path / "run_agent_detail.parquet"
+    spool = _AgentDetailSpool(path)
+    logger = logging.getLogger("test")
+    spool.append(pd.DataFrame({"call_index": [1], "latency": [120], "note": [None]}), artifact="a", logger=logger)
+    spool.append(pd.DataFrame({"call_index": [2], "latency": ["slow"], "note": [None]}), artifact="a", logger=logger)
+    spool.append(pd.DataFrame({"call_index": [3], "latency": [None], "note": ["ok"]}), artifact="a", logger=logger)
+    spool.finalize()
+
+    frame = pd.read_parquet(path)
+    assert frame["call_index"].tolist() == [1, 2, 3]
+    assert [None if pd.isna(value) else str(value) for value in frame["latency"]] == ["120", "slow", None]
+    assert frame["note"].tolist()[2] == "ok"
+    assert not path.with_name(f"{path.stem}.parts").exists()

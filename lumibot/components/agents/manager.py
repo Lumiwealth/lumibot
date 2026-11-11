@@ -261,8 +261,7 @@ class _AgentDetailSpool:
         import pyarrow.parquet as pq
 
         sources = ([self.path] if self.path.exists() else []) + list(self._pending_parts)
-        schemas = [pq.read_schema(source) for source in sources]
-        schema = pa.unify_schemas(schemas, promote_options="permissive")
+        schema = self._combined_schema([pq.read_schema(source) for source in sources])
         tmp_path = self.path.with_name(f"{self.path.name}.tmp-{os.getpid()}")
         try:
             with pq.ParquetWriter(str(tmp_path), schema, compression="zstd") as writer:
@@ -285,6 +284,43 @@ class _AgentDetailSpool:
         for part in self._pending_parts:
             part.unlink(missing_ok=True)
         self._pending_parts = []
+
+    @staticmethod
+    def _combined_schema(schemas: list[Any]) -> Any:
+        """One schema for every part, field by field, in first-seen order.
+
+        A column can hold a number in one call and text in another (the
+        sanitizer turns mixed object columns into JSON text per call), or be
+        all null in one call. Nulls take the other type, numbers widen to
+        float64, and anything else that disagrees is stored as text, which is
+        what one DataFrame holding every row would have produced.
+        """
+        import pyarrow as pa
+
+        order: list[str] = []
+        types: dict[str, list[Any]] = {}
+        for schema in schemas:
+            for field in schema:
+                if field.name not in types:
+                    order.append(field.name)
+                    types[field.name] = []
+                if not pa.types.is_null(field.type) and field.type not in types[field.name]:
+                    types[field.name].append(field.type)
+        fields = []
+        for name in order:
+            seen = types[name]
+            if not seen:
+                chosen = pa.null()
+            elif len(seen) == 1:
+                chosen = seen[0]
+            elif all(pa.types.is_integer(kind) or pa.types.is_floating(kind) for kind in seen):
+                chosen = pa.float64()
+            elif all(pa.types.is_boolean(kind) for kind in seen):
+                chosen = pa.bool_()
+            else:
+                chosen = pa.string()
+            fields.append(pa.field(name, chosen))
+        return pa.schema(fields)
 
     def finalize(self) -> None:
         self.combine()

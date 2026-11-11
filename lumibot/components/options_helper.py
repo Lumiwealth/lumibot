@@ -1763,7 +1763,6 @@ class OptionsHelper:
             if cached_strike is not None and cached_strike in candidate_strikes:
                 return float(cached_strike)
 
-        is_call = option_type == "CALL"
         is_theta_option_backtest = self._is_theta_option_backtest()
 
         if is_theta_option_backtest and candidate_strikes:

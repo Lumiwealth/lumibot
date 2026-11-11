@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.49 - Unreleased
+## 4.6.49 - 2026-11-11
 
 ### Added
 - Indicator outputs can say how they look: `line_width`, `line_style` (solid, dashed, dotted), colors with opacity (`#RRGGBBAA`) and theme colors (`chart.fg`, `chart.bg`), a color per bar (`palette` with `color_by`, optionally `gradient`), `offset`, `display`, `precision`, `pane` and `track_price`. New kinds: `step`, `columns`, `circles`, `cross`, `shape` markers (12 shapes, 5 locations, 6 sizes, text), `fill` between outputs or levels, `background`, `bar_color` and `candle`. Levels take `dotted`, `color` and `line_width`. Per-bar values stay numbers; all styling travels in `describe()`. New page "Outputs and Styles" and four example indicators (`momentum_histogram`, `trailing_band`, `oscillator_zones`, `smoothed_candles`).

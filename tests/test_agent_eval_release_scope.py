@@ -126,3 +126,33 @@ def test_scoped_create_needs_only_the_listed_cases_and_their_own_controls(native
     with pytest.raises(ValueError):
         qualification.build_receipt(rows, [*calls, *cal_calls], catalog, runtime_hash="source", versions=versions,
                                     now=now, calibration_rows=cal_rows, calibration_summary=summary)
+
+
+def test_scoped_verifier_reuses_the_existing_source_compatibility_check(monkeypatch, tmp_path):
+    from scripts import agent_eval_source_compatibility as source
+
+    scope_path = tmp_path / "ci/agent-evals/release-scope.json"
+    scope_path.parent.mkdir(parents=True)
+    scope_path.write_text(json.dumps(_scope([{"id": "contract", "reason": "unchanged stock case"}])))
+    receipt_path = scope_path.with_name("qualification.json")
+    receipt_path.write_text(json.dumps({"runtime_fingerprint": "original"}))
+    scope_path.with_name("source-compatibility.json").write_text(json.dumps({"source_commit": "a" * 40}))
+    monkeypatch.setattr(qualification, "SCOPE_PATH", scope_path)
+    monkeypatch.setattr(qualification.evals, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(qualification.evals, "load_cases", lambda: [])
+    monkeypatch.setattr(qualification.evals, "runtime_fingerprint", lambda: "candidate")
+    monkeypatch.setattr(qualification.evals, "sdk_versions", lambda: {})
+    monkeypatch.setattr(qualification, "package_version", lambda: "9.9.9")
+    observed = []
+    def compatibility(receipt, raw, anchor):
+        assert raw == receipt_path.read_bytes()
+        observed.append(anchor["source_commit"])
+        return "original"
+    monkeypatch.setattr(source, "compatible_runtime", compatibility)
+    def scoped(scope, cases, receipt, *, runtime_hash, version):
+        assert runtime_hash == "original"
+        return ["contract"]
+    monkeypatch.setattr(qualification, "verify_release_scope", scoped)
+    monkeypatch.setattr(sys, "argv", ["qualify_agent_evals.py", "verify", "--receipt", str(receipt_path)])
+    assert qualification.main() == 0
+    assert observed == ["a" * 40]

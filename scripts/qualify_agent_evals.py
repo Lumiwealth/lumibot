@@ -658,8 +658,15 @@ def main():
         evals.write_json_atomic(args.receipt, receipt)
     elif SCOPE_PATH.exists():
         receipt = json.loads(args.receipt.read_text()) if args.receipt.exists() else None
+        evidence_hash = runtime_hash
+        anchor = evals.REPO_ROOT / "ci/agent-evals/source-compatibility.json"
+        if isinstance(receipt, dict) and receipt.get("runtime_fingerprint") != runtime_hash and anchor.exists():
+            from scripts.agent_eval_source_compatibility import compatible_runtime
+
+            evidence_hash = compatible_runtime(receipt, args.receipt.read_bytes(), json.loads(anchor.read_text()))
+            print(f"Preserving scoped native inference at original source {evidence_hash}; candidate {runtime_hash} is source-compatible. No inference timestamps or usage were rewritten.")
         ids = verify_release_scope(json.loads(SCOPE_PATH.read_text()), cases, receipt,
-                                   runtime_hash=runtime_hash, version=package_version())
+                                   runtime_hash=evidence_hash, version=package_version())
         print(f"Verified the author-written release eval scope: {len(ids)} listed case(s) with current pass evidence"
               + ("" if ids else " (none listed; reason recorded in release-scope.json)") + ".")
         return 0

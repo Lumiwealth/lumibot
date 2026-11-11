@@ -2097,6 +2097,10 @@ class Schwab(Broker):
             logger.debug(_format_exc())
             return []
 
+    def _order_checkpoint_account_identity(self):
+        # Both ordinary account-number and hash-only configurations are supported.
+        return getattr(self, "account_number", None) or getattr(self, "hash_value", None)
+
     def _orders_for_strategy_sync(self, orders, strategy):
         # The Schwab endpoint returns the whole account and parsing assigns the
         # requested display name to each row. Only known native identities (or

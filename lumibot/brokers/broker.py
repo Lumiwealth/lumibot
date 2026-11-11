@@ -2936,6 +2936,9 @@ class Broker(ABC):
         self._cache_result(self._tracked_orders_filter_cache, cache_key, result)
         return list(result)
 
+    def _order_checkpoint_account_identity(self):
+        return getattr(self, "account_number", None)
+
     def export_order_state(self, strategy=None):
         """Checkpoint locally tracked identities, not broad account history.
 
@@ -2958,7 +2961,7 @@ class Broker(ABC):
 
         orders = [serialize(order) for order in self.get_tracked_orders(strategy)
                   if not order.is_filled() or order.child_orders]
-        return {"broker": self.name, "account": getattr(self, "account_number", None),
+        return {"broker": self.name, "account": self._order_checkpoint_account_identity(),
                 "owner": getattr(self, "order_ownership_id", None), "orders": orders}
 
     def restore_order_state(self, state, strategy=None):
@@ -2970,7 +2973,7 @@ class Broker(ABC):
         """
         if not isinstance(state, dict) or state.get("broker") != self.name:
             raise ValueError("Order checkpoint belongs to a different broker")
-        if state.get("account") != getattr(self, "account_number", None):
+        if state.get("account") != self._order_checkpoint_account_identity():
             raise ValueError("Order checkpoint belongs to a different account")
         if state.get("owner") != getattr(self, "order_ownership_id", None):
             raise ValueError("Order checkpoint belongs to a different instance")

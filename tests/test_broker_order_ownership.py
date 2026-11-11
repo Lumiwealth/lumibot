@@ -293,3 +293,15 @@ def test_automatic_restore_never_trusts_an_unbound_name_only_checkpoint():
     strategy.logger = logging.getLogger("ownership-recovery")
     strategy._restore_order_ownership()
     assert second.get_tracked_order(own.identifier) is None
+
+
+def test_hash_only_accounts_cannot_restore_each_others_checkpoint():
+    transport = _TRANSPORT.SchwabLifecycleTransport()
+    first, _ = _TRANSPORT.data_only_schwab_broker(transport, name="same-name")
+    second, _ = _TRANSPORT.data_only_schwab_broker(transport, name="same-name")
+    first.hash_value = "synthetic-account-hash-one"
+    second.hash_value = "synthetic-account-hash-two"
+    submitted(first)
+    with pytest.raises(ValueError, match="different account"):
+        second.restore_order_state(first.export_order_state("same-name"), "same-name")
+    assert second.get_all_orders() == []

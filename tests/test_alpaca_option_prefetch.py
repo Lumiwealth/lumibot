@@ -120,3 +120,41 @@ def test_prefetch_until_loads_only_that_day_then_extends_once_when_needed(monkey
     # One batched request, then one extension per contract read after the probe day.
     assert len(batched._option_client.requests) == 1 + len(STRIKES)
     assert expected[-2][0] == 1.42  # the 08-06 print (its close) appears only after extending
+
+
+def _ends(client):
+    out = []
+    for _start, end in client.windows:
+        end = pd.Timestamp(end)
+        out.append(end.tz_localize("UTC") if end.tzinfo is None else end)
+    return out
+
+
+def test_option_requests_stop_at_the_contract_expiry(monkeypatch, tmp_path):
+    """A contract has no prints after it expires, so no request asks for later dates.
+
+    Requests ran to the end of the backtest. In a long run every contract's read planned
+    shared-cache partitions (S3 reads, provider gaps) for every month after its expiry.
+    """
+    clocks = CLOCKS + [datetime(2026, 8, 6, 11, 30), datetime(2026, 8, 7, 10, 0)]
+    short = _alpaca_source(monkeypatch, tmp_path / "short")  # window ends before the expiry
+    short._option_client = _MultiSymbolClient()
+    expected = _prices(short, clocks, STRIKES)
+
+    expiry_end = pd.Timestamp("2026-08-22T04:00:00Z")  # midnight New York after the 08-21 expiry
+    one_by_one = _alpaca_source(monkeypatch, tmp_path / "a", end=datetime(2026, 10, 30))
+    one_by_one._option_client = _MultiSymbolClient()
+    assert _prices(one_by_one, clocks, STRIKES) == expected
+    assert max(_ends(one_by_one._option_client)) <= expiry_end
+
+    batched = _alpaca_source(monkeypatch, tmp_path / "b", end=datetime(2026, 10, 30))
+    batched._option_client = _MultiSymbolClient()
+    batched._datetime = _NY_TZ.localize(CLOCKS[0])
+    batched.prefetch_option_bars([_call(k) for k in STRIKES])
+    probed = _alpaca_source(monkeypatch, tmp_path / "c", end=datetime(2026, 10, 30))
+    probed._option_client = _MultiSymbolClient()
+    probed._datetime = _NY_TZ.localize(CLOCKS[0])
+    probed.prefetch_option_bars([_call(k) for k in STRIKES], until=probed._datetime)
+    for source in (batched, probed):
+        assert _prices(source, clocks, STRIKES) == expected
+        assert max(_ends(source._option_client)) <= expiry_end

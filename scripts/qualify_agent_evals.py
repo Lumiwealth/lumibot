@@ -722,7 +722,7 @@ def package_version(root=None):
     return match.group(1)
 
 
-def verify_release_scope(scope, cases, receipt, *, runtime_hash, version, now=None):
+def verify_release_scope(scope, cases, receipt, *, runtime_hash, version, versions=None, now=None):
     """Verify the author-written eval scope; return the verified case ids.
 
     The scope names the package version it was written for, the cases the author judged
@@ -731,7 +731,7 @@ def verify_release_scope(scope, cases, receipt, *, runtime_hash, version, now=No
     selects, adds or drops cases.
     """
     now = now or evals.utc_now()
-    allowed = {"version", "package_version", "cases", "no_cases_reason"}
+    allowed = {"version", "package_version", "cases", "no_cases_reason", "qualification_source"}
     if not isinstance(scope, dict) or not {"version", "package_version", "cases"} <= set(scope) <= allowed:
         raise ValueError("Invalid release eval scope; expected version, package_version, cases and optional no_cases_reason")
     if scope["version"] != SCOPE_VERSION:
@@ -759,6 +759,30 @@ def verify_release_scope(scope, cases, receipt, *, runtime_hash, version, now=No
             raise ValueError(f"Scoped case {entry['id']!r} is listed twice")
         ids.append(entry["id"])
     records = receipt.get("cases") if isinstance(receipt, dict) else None
+    if isinstance(receipt, dict) and "scope" in receipt:
+        source_ref = scope.get("qualification_source")
+        if source_ref and receipt.get("runtime_fingerprint") != runtime_hash:
+            # A verifier-only repair cannot change the actor or judge. Preserve
+            # the immutable original receipt instead of purchasing new inference
+            # merely because this receipt-checking file is fingerprinted.
+            from scripts import rejudge_agent_eval as recovery
+
+            proof = recovery.source_compatibility(source_ref)
+            original = json.loads(recovery._git(evals.REPO_ROOT, "show",
+                f"{source_ref}:ci/agent-evals/qualification.json"))
+            if (original != receipt or proof["changedPaths"] != ["scripts/qualify_agent_evals.py"]
+                    or proof["originalRuntimeFingerprint"] != receipt.get("runtime_fingerprint")):
+                raise ValueError("Original qualification is not an unchanged actor/judge receipt")
+            for case_id in ids:
+                _, case_proof = recovery.compare_case(evals.REPO_ROOT, source_ref, by_id[case_id])
+                if case_proof["changedFields"]:
+                    raise ValueError("Verifier-only reuse cannot change a case")
+            runtime_hash = proof["originalRuntimeFingerprint"]
+        # Use the normal receipt verifier so retained establishment is checked
+        # with the current regression, including native calls and SDK identity.
+        verify_receipt(receipt, [by_id[case_id] for case_id in ids], runtime_hash=runtime_hash,
+                       versions=evals.sdk_versions() if versions is None else versions, now=now)
+        return ids
     for case_id in ids:
         record = records.get(case_id) if isinstance(records, dict) else None
         if not isinstance(record, dict):
@@ -831,7 +855,7 @@ def main():
     elif SCOPE_PATH.exists():
         receipt = json.loads(args.receipt.read_text()) if args.receipt.exists() else None
         ids = verify_release_scope(json.loads(SCOPE_PATH.read_text()), cases, receipt,
-                                   runtime_hash=runtime_hash, version=package_version())
+                                   runtime_hash=runtime_hash, version=package_version(), versions=versions)
         print(f"Verified the author-written release eval scope: {len(ids)} listed case(s) with current pass evidence"
               + ("" if ids else " (none listed; reason recorded in release-scope.json)") + ".")
         return 0

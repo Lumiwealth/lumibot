@@ -10,6 +10,7 @@ import json
 import subprocess
 import sys
 from copy import deepcopy
+from uuid import uuid4
 
 import pytest
 
@@ -121,8 +122,43 @@ def test_scoped_create_needs_only_the_listed_cases_and_their_own_controls(native
     assert set(receipt["calibration"]["controls"]) == {c["id"] for c in controls}
     assert receipt["scope"] == {"case_ids": ["contract"]}
     scope = _scope([{"id": "contract", "reason": "The change edits the tool this case exercises."}])
-    assert qualification.verify_release_scope(scope, catalog, receipt, runtime_hash="source", version="9.9.9") == ["contract"]
+    assert qualification.verify_release_scope(scope, catalog, receipt, runtime_hash="source", version="9.9.9", versions=versions) == ["contract"]
     # Without a scope the whole catalog is still required.
     with pytest.raises(ValueError):
         qualification.build_receipt(rows, [*calls, *cal_calls], catalog, runtime_hash="source", versions=versions,
                                     now=now, calibration_rows=cal_rows, calibration_summary=summary)
+
+
+def test_scoped_verification_preserves_verified_establishment(native_metadata, monkeypatch):
+    from tests.test_agent_eval_qualification import calibration_metadata
+
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")
+    monkeypatch.setattr(qualification, "_unchanged_establishment_cases", lambda ref, cases: cases)
+    current = deepcopy(rows[:1])
+    current[0]["run_id"] = str(uuid4())
+    current[0]["fingerprint"] = qualification.evals.case_fingerprint(
+        cases[0], judge_model=qualification.evals.DEFAULT_JUDGE_MODEL, runtime_hash="new-source")
+    current_calls = deepcopy(calls[1:5])
+    identities = {}
+    for call in current_calls:
+        identities.setdefault(call["id"], str(uuid4()))
+        call["id"] = identities[call["id"]]
+        if "scope" in call:
+            call["scope"].update(run_id=current[0]["run_id"], fingerprint=current[0]["fingerprint"])
+    cal_rows, cal_calls, summary = calibration_metadata(cases, now, "new-source")
+    receipt = qualification.build_receipt(
+        [*rows, *current], [*calls, *current_calls, *cal_calls], cases,
+        runtime_hash="new-source", versions=versions, now=now, calibration_rows=cal_rows,
+        calibration_summary=summary, established_source="a" * 40, scope_case_ids=["contract"])
+    scope = _scope([{"id": "contract", "reason": "Current regression retains original stability proof."}])
+    args = dict(runtime_hash="new-source", version="9.9.9", versions=versions, now=now)
+    assert qualification.verify_release_scope(scope, cases, receipt, **args) == ["contract"]
+    for section in ("establishment", "cases"):
+        damaged = deepcopy(receipt)
+        records = damaged[section]["cases"] if section == "establishment" else damaged[section]
+        records["contract"]["repetitions"].pop()
+        with pytest.raises(ValueError, match="required unique repetitions"):
+            qualification.verify_release_scope(scope, cases, damaged, **args)
+    with pytest.raises(ValueError, match="SDKs"):
+        qualification.verify_release_scope(scope, cases, receipt, **{**args, "versions": {"changed": "sdk"}})

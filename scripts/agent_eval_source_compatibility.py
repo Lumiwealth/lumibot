@@ -1,14 +1,11 @@
-"""Verify reuse of unchanged Pandas-fixture inference without rewriting its source.
+"""Verify immutable native proof and the author's explicit retention decision.
 
-The native receipt remains byte-identical. Its original full source hash is rebuilt
-from Git objects, then every model-relevant byte is compared with the candidate.
-Only exact live-provider modules, guarded live-sync method bodies unused by the
-maintained Pandas fixtures, package version metadata, and comments or literal
-agent policies in unexecuted examples are outside that comparison. Changed
-example policies still require their own strategy validation; this retains only
-the shared Pandas-fixture proof that never executes those policies.
-Any actor, judge, fixture, SDK, case, skill or shared trading change still expires
-proof. This is compatibility verification, never new case freshness.
+The author decides which model behavior needs new runs. Release verification
+binds retained evidence to its original Git bytes, SDKs and exact case list, and
+binds the written retention reason to the reviewed candidate fingerprint. It
+never infers affected cases or demands inference because a source file changed.
+The lower-level comparison helpers also support recorded actor/judge provenance;
+they do not choose the release's test scope. Historical evidence is never relabeled.
 """
 from __future__ import annotations
 
@@ -30,8 +27,10 @@ PROVIDER_ONLY_PATHS = frozenset({
     # never these live adapters. The fixture/binding contract tests that boundary.
     'lumibot/trading_builtins/ccxt_stream.py',
     'lumibot/brokers/bitunix.py',
-    'lumibot/brokers/schwab.py',
     'lumibot/tools/bitunix_helpers.py',
+    # The synchronous fixtures construct BacktestingBroker, never Schwab.
+    # Its live order-activity parser has separate recorded-response tests.
+    'lumibot/brokers/schwab.py',
     # ProductionFixture drives BacktestingBroker synchronously with in-memory
     # Pandas bars. It never runs Trader or reads the provider bar cache. The
     # binding contract rejects those calls; this preserves only fixture proof,
@@ -256,8 +255,9 @@ def _without_alpaca_benchmark_body(source):
 
 
 def compatible_runtime(receipt, receipt_bytes, anchor, *, root=ROOT):
-    if (not isinstance(anchor, dict) or set(anchor) - {'version', 'source_commit', 'receipt_sha256', 'author_decisions'}
-            or anchor.get('version') != 1):
+    base_fields = {'version', 'source_commit', 'receipt_sha256'}
+    if (not isinstance(anchor, dict) or anchor.get('version') not in {1, 2}
+            or set(anchor) != (base_fields | {'author_review'} if anchor['version'] == 2 else base_fields)):
         raise ValueError('Invalid source compatibility anchor')
     if anchor['receipt_sha256'] != hashlib.sha256(receipt_bytes).hexdigest():
         raise ValueError('Native receipt digest differs from its compatibility anchor')
@@ -270,40 +270,23 @@ def compatible_runtime(receipt, receipt_bytes, anchor, *, root=ROOT):
     original = _blobs(ref, runtime_paths(root=root, source_ref=ref), root=root)
     if _fingerprint(original, receipt['sdk_versions']) != receipt['runtime_fingerprint']:
         raise ValueError('Immutable source does not match the native inference fingerprint')
-    # The author decides whether an unrelated change preserves evidence. This
-    # verifies the written decision's exact bytes, never selects cases or asks
-    # for model reruns based on a file/folder rule.
-    current_paths = runtime_paths(root=root)
-    current = {path: (root / path).read_bytes() for path in current_paths}
-    decided = verify_author_decisions(original, current, anchor.get('author_decisions', []))
-    for path in set(current) | set(original):
-        if path in decided:
-            continue
-        if path not in current or path not in original:
-            raise ValueError('Runtime file inventory changed without an author decision')
-        before = original[path]
-        check_change(path, before, (root / path).read_bytes())
+    current = {path: (root / path).read_bytes() for path in runtime_paths(root=root)}
+    candidate = _fingerprint(current, receipt['sdk_versions'])
+    if anchor['version'] == 1:
+        # Retained historical schema is sufficient only for identical bytes.
+        # A changed candidate needs an author decision, never automatic reruns.
+        if candidate != receipt['runtime_fingerprint']:
+            raise ValueError('Author-written retention review required for this candidate; review the change, do not automatically rerun models')
+    else:
+        review = anchor['author_review']
+        if (not isinstance(review, dict) or set(review) != {'candidate_runtime_fingerprint', 'case_ids', 'reason'}
+                or not isinstance(review.get('reason'), str) or not review['reason'].strip()):
+            raise ValueError('Invalid author retention review; an exact candidate, case list and reason are required')
+        if review['candidate_runtime_fingerprint'] != candidate:
+            raise ValueError('Author retention review names another candidate; review and update the written decision without inferring model runs')
+        if review['case_ids'] != sorted(receipt.get('cases', {})):
+            raise ValueError('Author retention review does not match the receipt case list')
     return receipt['runtime_fingerprint']
-
-
-def verify_author_decisions(original, current, decisions):
-    if not isinstance(decisions, list):
-        raise ValueError('Author decisions must be a list')
-    decided = set()
-    for decision in decisions:
-        if (not isinstance(decision, dict)
-                or set(decision) != {'path', 'before_sha256', 'after_sha256', 'reason'}
-                or not isinstance(decision['reason'], str) or not decision['reason'].strip()):
-            raise ValueError('Author decision requires exact content identities and a reason')
-        path = decision['path']
-        if path in decided or path not in set(original) | set(current):
-            raise ValueError('Author decision has duplicate or unknown path')
-        for label, blobs in [('before', original), ('after', current)]:
-            actual = hashlib.sha256(blobs[path]).hexdigest() if path in blobs else None
-            if decision[label + '_sha256'] != actual:
-                raise ValueError(f'Author decision no longer matches {label} content: {path}')
-        decided.add(path)
-    return decided
 
 
 def _without_unused_report_directory_creation(source):

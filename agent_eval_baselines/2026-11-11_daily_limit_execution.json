@@ -121,6 +121,21 @@
         "seconds": 0.35
       },
       "repair": "Recognize only the native TradingFee entity and the exact startup template with symmetric declared contract fees. Preserve unchanged startup control and executable fee-wiring checks."
+    },
+    "unused_live_broker_proof": {
+      "red": "one failed in 0.25 seconds because a live Schwab-only change expired synchronous Pandas fixture evidence",
+      "green": "two passed in 1.43 seconds, including unchanged rejection of shared agent/fixture/accounting changes",
+      "boundary": "The native fixture binds tools and reads an in-memory quote while Schwab construction is forbidden. The adapter has separate recorded-response tests. No case selection or inferred test list was added.",
+      "new_real_model_attempts": 0
+    },
+    "author_retention_contract": {
+      "proof_location": "local LumiBot run",
+      "red": "one failed in 0.36 seconds; the old verifier demanded inference after a diagnostic file was added",
+      "green": "11 focused contract checks passed in 2.56 seconds, including actual release CLI verification",
+      "contract": "Retained native receipt bytes, source commit, SDKs, original calls and repetitions stay verified. The author writes the exact candidate fingerprint, case IDs and why behavior is unaffected. The verifier never selects or refreshes model cases.",
+      "new_real_model_attempts": 0,
+      "system_prompt_growth_bytes": 0,
+      "skill_growth_bytes": 0
     }
   }
 }

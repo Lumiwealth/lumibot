@@ -316,23 +316,74 @@ def _remote():
         return None, None
 
 
+# --------------------------------------------------------------------------- run counters
+#
+# This cache reads and writes S3 itself, so BacktestCacheManager's [REMOTE_CACHE][SUMMARY]
+# counters never see it: production Alpaca runs reported downloads=0 misses=0 uploads=0 while
+# their repeats were served from here. These counters are logged as [SHARED_BARS][SUMMARY].
+
+_RUN_STATS_KEYS = (
+    "provider_reads", "provider_ms", "remote_hits", "remote_misses", "download_bytes", "download_ms",
+    "uploads", "upload_bytes", "upload_ms", "upload_errors",
+)
+_RUN_STATS: dict[str, float] = dict.fromkeys(_RUN_STATS_KEYS, 0.0)
+_RUN_STATS_LOCK = threading.Lock()
+
+
+def _count(**values: float) -> None:
+    with _RUN_STATS_LOCK:
+        for name, value in values.items():
+            _RUN_STATS[name] += value
+
+
+def reset_run_stats() -> None:
+    with _RUN_STATS_LOCK:
+        for name in _RUN_STATS_KEYS:
+            _RUN_STATS[name] = 0.0
+
+
+def run_stats_snapshot() -> dict:
+    with _RUN_STATS_LOCK:
+        return {name: (round(value, 3) if name.endswith("_ms") else int(value)) for name, value in _RUN_STATS.items()}
+
+
+def log_run_summary() -> None:
+    """One INFO line with this process's shared bar cache work (numbers only)."""
+    snap = run_stats_snapshot()
+    if not any(snap.values()):
+        return
+    logger.info(
+        "[SHARED_BARS][SUMMARY] provider_reads=%d provider_ms=%.0f remote_hits=%d remote_misses=%d "
+        "download_bytes=%d download_ms=%.0f uploads=%d upload_bytes=%d upload_ms=%.0f upload_errors=%d "
+        "pending_uploads=%d",
+        snap["provider_reads"], snap["provider_ms"], snap["remote_hits"], snap["remote_misses"],
+        snap["download_bytes"], snap["download_ms"], snap["uploads"], snap["upload_bytes"],
+        snap["upload_ms"], snap["upload_errors"], pending_shared_bar_writes(),
+    )
+
+
 def _remote_get(client, manager, path: Path) -> bytes | None:
     key = manager.remote_key_for(path)
     if key is None:
         return None
     bucket = manager._settings.bucket
+    started = time.perf_counter()
     try:
         if hasattr(client, "get_object"):
             response = client.get_object(Bucket=bucket, Key=key)
-            return response["Body"].read()
-        with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / "object"
-            client.download_file(bucket, key, str(target))
-            return target.read_bytes()
+            body = response["Body"].read()
+        else:
+            with tempfile.TemporaryDirectory() as tmp:
+                target = Path(tmp) / "object"
+                client.download_file(bucket, key, str(target))
+                body = target.read_bytes()
     except Exception as exc:
         if manager._is_not_found_error(exc) or "AccessDenied" in str(exc) or "403" in str(exc):
+            _count(remote_misses=1, download_ms=(time.perf_counter() - started) * 1000)
             return None
         raise
+    _count(remote_hits=1, download_bytes=len(body or b""), download_ms=(time.perf_counter() - started) * 1000)
+    return body
 
 
 def _remote_put(client, manager, path: Path, body: bytes) -> None:
@@ -340,13 +391,19 @@ def _remote_put(client, manager, path: Path, body: bytes) -> None:
     if key is None:
         return
     bucket = manager._settings.bucket
-    if hasattr(client, "put_object"):
-        client.put_object(Bucket=bucket, Key=key, Body=body)
-        return
-    with tempfile.TemporaryDirectory() as tmp:
-        source = Path(tmp) / path.name
-        source.write_bytes(body)
-        client.upload_file(str(source), bucket, key)
+    started = time.perf_counter()
+    try:
+        if hasattr(client, "put_object"):
+            client.put_object(Bucket=bucket, Key=key, Body=body)
+        else:
+            with tempfile.TemporaryDirectory() as tmp:
+                source = Path(tmp) / path.name
+                source.write_bytes(body)
+                client.upload_file(str(source), bucket, key)
+    except Exception:
+        _count(upload_errors=1)
+        raise
+    _count(uploads=1, upload_bytes=len(body), upload_ms=(time.perf_counter() - started) * 1000)
 
 
 # --------------------------------------------------------------------------- partition files
@@ -593,7 +650,18 @@ def pending_shared_bar_writes() -> int:
     return _UPLOADER.pending()
 
 
-atexit.register(lambda: _UPLOADER.flush(120))
+def _flush_at_exit() -> None:
+    had_pending = _UPLOADER.pending() > 0
+    _UPLOADER.flush(120)
+    if had_pending:
+        # The end-of-backtest summary ran before these uploads finished; report the final counts.
+        try:
+            log_run_summary()
+        except Exception:
+            pass
+
+
+atexit.register(_flush_at_exit)
 
 
 _PREWARM_LOCK = threading.Lock()
@@ -1049,6 +1117,7 @@ def read_bars_many(
         if item not in results:  # no credential scope: never shared, read directly
             frames = fetch([item], start, end_excl) or {}
             results[item] = _normalize(frames.get(item))
+    _count(provider_reads=len(calls), provider_ms=provider_ms)
     stats = {
         "kind": "lumibot_shared_bars",
         "hit": not calls,

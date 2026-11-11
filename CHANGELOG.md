@@ -12,6 +12,7 @@ Deploy marker: e2675359fb53fb56c6bcc4e23aac79334e97ac2f
 - Faster trades.html on long minute backtests: the time axis is encoded once and shared by every line, instead of plotly copying a column of timestamps for each line. The file is the same apart from plotly's random element ids. On a 12-month one-minute put spread (98,000 points) building trades.html went from 4.5 s to 1.3 s locally, and the whole end-of-backtest analysis from 6.6 s to 3.3 s.
 
 - First-run Interactive Brokers stock and index intraday downloads start their first page at the last session close when the requested window ends in closed time (usually midnight New York). Before, the first page ended at midnight, reached back only to about 07:20, and split the last session over two pages. The bars are the same; a one-month minute download takes one request fewer (24 to 23 on a local downloader stand-in, about 2 s on production's lane).
+- Backtests log a `[SHARED_BARS][SUMMARY]` line next to `[REMOTE_CACHE][SUMMARY]` with the shared bar cache's own work: provider reads, S3 hits and misses, bytes, uploads and upload errors (again at exit if uploads were still pending). Alpaca, Schwab, Tradier, ccxt and Interactive Brokers live data use this cache, which reads and writes S3 itself, so the older summary showed `misses=0 uploads=0` for Alpaca runs while their repeats were served from S3.
 
 ### Fixed
 - Stock-trading guidance distinguishes quote request time from source observation time, preserves exact authorized limits and avoids treating a prior-session quote as current execution evidence.

@@ -1616,9 +1616,9 @@ class _Strategy:
 
             prices = {}
             if not hasattr(self, "_forward_fill_warning_cache"):
-                # Throttle repetitive backtest forward-fill warnings (asset, day) to keep
-                # valuation logs informative without dominating runtime.
+                # Sessions already reported for last-known valuation marks (one line each).
                 self._forward_fill_warning_cache = set()
+            carried_marks = []
             for position in positions:
                 asset = position.asset
                 if asset != quote_asset:
@@ -1691,19 +1691,11 @@ class _Strategy:
                     # Forward-fill fallback: use last known price when current price is unavailable.
                     # This is critical for illiquid options (LEAPS) that may not trade for days.
                     if asset in self._last_known_prices:
+                        # Valuation only: the last real mark seen for this asset. No bar, trade or
+                        # fill is created. Reported once per session below, not per contract.
                         price = self._last_known_prices[asset]
                         base_asset = asset[0] if isinstance(asset, tuple) else asset
-                        asset_symbol = getattr(base_asset, 'symbol', str(base_asset))
-                        # Throttle noisy forward-fill warnings to once per contract/symbol per run.
-                        # Daily option strategies can otherwise emit thousands of lines that materially
-                        # slow long backtests and bloat logs.
-                        warn_key = str(base_asset)
-                        if warn_key not in self._forward_fill_warning_cache:
-                            self._forward_fill_warning_cache.add(warn_key)
-                            self.logger.warning(
-                                "Using forward-filled price %.4f for %s at %s (no current price available).",
-                                price, asset_symbol, self.broker.datetime,
-                            )
+                        carried_marks.append(str(base_asset))
                     else:
                         # No price history - must skip this position
                         if isinstance(asset, Asset):
@@ -1763,6 +1755,16 @@ class _Strategy:
                     # All other cases (stocks, options, crypto, live trading)
                     position_value = float(quantity) * float(price) * multiplier
                     portfolio_value += position_value
+
+            if carried_marks:
+                session = getattr(option_mark_time_local, "date", lambda: None)() if option_mark_time_local else None
+                if session not in self._forward_fill_warning_cache:
+                    self._forward_fill_warning_cache.add(session)
+                    self.logger.warning(
+                        "Valuing %d position(s) at their last real mark at %s (no current price; valuation only, "
+                        "no trade or bar is created; reported once per session): %s",
+                        len(carried_marks), self.broker.datetime, ", ".join(carried_marks[:10]),
+                    )
 
             self._portfolio_value = portfolio_value
             self._portfolio_value_cache_key = cache_key

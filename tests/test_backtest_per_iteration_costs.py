@@ -217,3 +217,88 @@ def test_idle_minute_iterations_make_no_deepcopy(monkeypatch, tmp_path):
     assert len(marks) > 1000
     per_iteration = (marks[-1] - marks[10]) / (len(marks) - 11)
     assert per_iteration == 0, per_iteration
+
+
+# --------------------------------------------------------------------------- pick-time loads
+
+
+def _finish_reference(df, tzinfo, start, end):
+    """The previous _finish_option_frame body (without the store and CSV side effects)."""
+    df = df.copy()
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=df.empty)
+    if df["timestamp"].dt.tz is None:
+        df["timestamp"] = df["timestamp"].dt.tz_localize(tzinfo)
+    else:
+        df["timestamp"] = df["timestamp"].dt.tz_convert(tzinfo)
+    df = df[["timestamp", "open", "high", "low", "close", "volume"]]
+    df = df.sort_values("timestamp")
+    df = df[(df["timestamp"] >= start) & (df["timestamp"] <= end)]
+    return df.set_index("timestamp")
+
+
+@pytest.mark.parametrize("shape", ["sorted", "unsorted", "duplicates", "naive", "empty", "extra_columns"])
+def test_finish_option_frame_equals_the_previous_steps(monkeypatch, tmp_path, shape):
+    source = _source(monkeypatch, tmp_path)
+    stamps = pd.date_range("2026-08-04 13:30", periods=40, freq="7min", tz="UTC")
+    df = pd.DataFrame({"timestamp": stamps, "open": np.arange(40) + 1.0, "high": np.arange(40) + 2.0,
+                       "low": np.arange(40) + 0.5, "close": np.arange(40) + 1.5, "volume": 1.0})
+    if shape == "unsorted":
+        df = df.iloc[::-1].reset_index(drop=True)
+    elif shape == "duplicates":
+        df = pd.concat([df, df.iloc[[3, 3, 10]]]).reset_index(drop=True)
+    elif shape == "naive":
+        df["timestamp"] = df["timestamp"].dt.tz_localize(None)
+    elif shape == "empty":
+        df = df.iloc[0:0]
+    elif shape == "extra_columns":
+        df["trade_count"] = 3
+        df["vwap"] = df["close"]
+    start = pd.Timestamp("2026-08-04 10:00", tz=_NY_TZ.zone)
+    end = pd.Timestamp("2026-08-04 15:00", tz=_NY_TZ.zone)
+    expected = _finish_reference(df, source.tzinfo, start, end)
+    got = source._finish_option_frame("KEY", df, source.tzinfo, start, end, write_csv=False)
+    pd.testing.assert_frame_equal(got, expected)
+
+
+def test_rows_by_symbol_equals_xs_per_symbol():
+    from lumibot.backtesting.alpaca_backtesting import AlpacaBacktesting
+
+    stamps = pd.date_range("2026-08-04 13:30", periods=30, freq="5min", tz="UTC")
+    pieces = [pd.DataFrame({"open": np.arange(30) + k, "close": np.arange(30) + k + 0.5, "volume": 1.0},
+                           index=pd.MultiIndex.from_product([[symbol], stamps], names=["symbol", "timestamp"]))
+              for k, symbol in enumerate(["SPY260821C00640000", "SPY260821C00645000", "SPY260821P00600000"])]
+    frame = pd.concat(pieces).sort_index()
+    split = AlpacaBacktesting._rows_by_symbol(frame)
+    assert set(split) == set(frame.index.get_level_values(0))
+    for symbol, rows in split.items():
+        pd.testing.assert_frame_equal(rows, frame.xs(symbol, level=0).reset_index())
+
+
+def test_partition_read_equals_read_parquet():
+    import io
+
+    frame = pd.DataFrame({"open": [1.0, 2.0], "high": [1.5, 2.5], "low": [0.9, 1.9], "close": [1.2, 2.2],
+                          "volume": [3.0, 4.0]},
+                         index=pd.DatetimeIndex(["2026-08-04 13:30", "2026-08-04 13:31"], tz="UTC", name="timestamp"))
+    coverage = [["2026-08-04T13:30:00+00:00", "2026-08-04T13:32:00+00:00"]]
+    frame.attrs = {"sharedBars": {"schema": 2, "coverage": coverage}}
+    buffer = io.BytesIO()
+    frame.to_parquet(buffer)
+    body = buffer.getvalue()
+    expected = pd.read_parquet(io.BytesIO(body))
+    got = sbc._read_partition_frame(body)
+    pd.testing.assert_frame_equal(got, expected)
+    assert got.attrs == expected.attrs
+
+
+def test_a_pick_logs_one_summary_line_not_one_per_contract(monkeypatch, tmp_path, caplog):
+    import logging
+
+    source = _source(monkeypatch, tmp_path)
+    source._datetime = _NY_TZ.localize(datetime(2026, 8, 4, 10, 0))
+    legs = [_leg(k) for k in range(600, 700, 5)]  # 20 contracts
+    with caplog.at_level(logging.INFO, logger="lumibot.backtesting.alpaca_backtesting"):
+        source.prefetch_option_bars(legs, until=source._datetime)
+    lines = [r.getMessage() for r in caplog.records
+             if r.name == "lumibot.backtesting.alpaca_backtesting" and r.levelno >= logging.INFO]
+    assert len(lines) == 1 and lines[0].startswith("Loaded 20 option contracts"), lines

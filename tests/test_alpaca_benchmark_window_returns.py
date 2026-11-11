@@ -91,17 +91,18 @@ def test_daily_benchmark_calendar_belongs_to_the_asset(monkeypatch, asset_type, 
     assert requests[0]["market"] == expected_calendar
 
 
-def test_daily_report_pandas_dataframe_with_select_attribute(monkeypatch):
+def test_intraday_report_pandas_dataframe_with_select_attribute(monkeypatch):
     """pandas 3.1+ adds DataFrame.select. Ensure pandas frames are not treated as polars."""
     bars = pd.DataFrame(
         {"open": [100.0, 104.0], "close": [105.0, 110.0]},
-        index=pd.date_range("2025-01-06", periods=2, tz="America/New_York"),
+        index=pd.date_range("2025-01-06 09:30", periods=2, freq="min", tz="America/New_York"),
     )
     # Simulate pandas 3.1+ DataFrame.select presence
-    bars.select = lambda *args, **kwargs: None
-    result = report(monkeypatch, bars)
+    monkeypatch.setattr(pd.DataFrame, "select", lambda *args, **kwargs: None, raising=False)
+    result = report(monkeypatch, bars, timestep="minute")
     assert result is not None
     assert "return" in result.columns
     assert "symbol_cumprod" in result.columns
-    assert result.symbol_cumprod.iloc[-1] == pytest.approx(1.10)
+    # Intraday returns use the first close rather than the first open.
+    assert result.symbol_cumprod.iloc[-1] == pytest.approx(110 / 105)
 

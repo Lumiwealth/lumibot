@@ -2541,6 +2541,7 @@ class _Strategy:
 
 
     def _dump_benchmark_stats(self):
+        """Calculate and store benchmark statistics and returns for backtesting analysis."""
         if not self.is_backtesting or not self._benchmark_asset:
             return
         if self._backtesting_start is not None and self._backtesting_end is not None:

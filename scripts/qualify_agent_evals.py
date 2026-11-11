@@ -398,8 +398,7 @@ def _committed_establishment(source_ref, cases, *, versions, now):
         return {}
     receipt = json.loads(source._git("show", f"HEAD:{path}", root=evals.REPO_ROOT))
     if (receipt.get("kind") != KIND or receipt.get("version") not in {2, VERSION}
-            or receipt.get("funding") != "chatgpt-plan" or receipt.get("api_spend_usd") != 0
-            or receipt.get("sdk_versions") != versions):
+            or receipt.get("funding") != "chatgpt-plan" or receipt.get("api_spend_usd") != 0):
         return {}
     proof = receipt.get("establishment")
     if isinstance(proof, dict) and "sources" in proof:

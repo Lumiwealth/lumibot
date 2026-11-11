@@ -7,7 +7,8 @@ from queue import Empty, Queue
 from threading import Event, Lock, RLock, Thread
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
-from lumibot.tools import backtest_telemetry as _telemetry
+
+_telemetry = LazyModule("lumibot.tools.backtest_telemetry")
 
 logger = LazyLogger(__name__)
 

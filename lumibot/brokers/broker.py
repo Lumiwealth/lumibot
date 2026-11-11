@@ -2940,8 +2940,8 @@ class Broker(ABC):
         """Checkpoint locally tracked identities, not broad account history.
 
         Keep this with the same strategy instance's private restart state.
-        Passing another instance's checkpoint is an explicit reassignment;
-        matching a strategy display name is never automatic recovery authority.
+        Bind order_ownership_id to a stable instance value for automatic recovery;
+        matching a strategy display name is never recovery authority.
         """
         def serialize(order):
             row = order.to_dict()
@@ -2958,7 +2958,8 @@ class Broker(ABC):
 
         orders = [serialize(order) for order in self.get_tracked_orders(strategy)
                   if not order.is_filled() or order.child_orders]
-        return {"broker": self.name, "account": getattr(self, "account_number", None), "orders": orders}
+        return {"broker": self.name, "account": getattr(self, "account_number", None),
+                "owner": getattr(self, "order_ownership_id", None), "orders": orders}
 
     def restore_order_state(self, state, strategy=None):
         """Restore this instance's saved orders before observing the account.
@@ -2971,6 +2972,8 @@ class Broker(ABC):
             raise ValueError("Order checkpoint belongs to a different broker")
         if state.get("account") != getattr(self, "account_number", None):
             raise ValueError("Order checkpoint belongs to a different account")
+        if state.get("owner") != getattr(self, "order_ownership_id", None):
+            raise ValueError("Order checkpoint belongs to a different instance")
         strategy_name = self._strategy_name_from_input(strategy)
         orders = list(self._iter_order_tree([Order.from_dict(row) for row in state.get("orders", [])]))
         if any(strategy_name and order.strategy != strategy_name for order in orders):

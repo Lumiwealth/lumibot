@@ -177,6 +177,7 @@ def test_normal_variable_backup_restores_local_order_ownership(backend, tmp_path
 
     def make_strategy(broker):
         strategy = object.__new__(Strategy)
+        broker.order_ownership_id = "stable-instance"
         strategy._name = "same-name"
         strategy.is_backtesting = False
         strategy.vars = Vars()
@@ -264,3 +265,31 @@ def test_final_health_line_matches_native_callback_counts(caplog):
     assert summary["fill_callbacks"] == 1
     assert summary["foreign_callback_attempts"] == 1
     assert summary["contradictions"]["unowned_order_callback"] == 1
+
+
+def test_checkpoint_from_same_named_instance_cannot_reassign_order_ownership():
+    transport = _TRANSPORT.SchwabLifecycleTransport()
+    first, _ = _TRANSPORT.data_only_schwab_broker(transport, name="same-name")
+    second, _ = _TRANSPORT.data_only_schwab_broker(transport, name="same-name")
+    first.order_ownership_id = "instance-one"
+    second.order_ownership_id = "instance-two"
+    submitted(first)
+    state = first.export_order_state("same-name")
+    with pytest.raises(ValueError, match="different instance"):
+        second.restore_order_state(state, "same-name")
+    assert second.get_all_orders() == []
+
+
+def test_automatic_restore_never_trusts_an_unbound_name_only_checkpoint():
+    transport = _TRANSPORT.SchwabLifecycleTransport()
+    broker, _ = _TRANSPORT.data_only_schwab_broker(transport, name="same-name")
+    own = submitted(broker)
+    second, _ = _TRANSPORT.data_only_schwab_broker(transport, name="same-name")
+    strategy = object.__new__(Strategy)
+    strategy._name = "same-name"
+    strategy.vars = Vars()
+    strategy.vars.set("_lumibot_order_state", json.dumps(broker.export_order_state("same-name")))
+    strategy.broker = second
+    strategy.logger = logging.getLogger("ownership-recovery")
+    strategy._restore_order_ownership()
+    assert second.get_tracked_order(own.identifier) is None

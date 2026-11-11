@@ -16,6 +16,8 @@ Every agent call is written to ``*_agent_detail.parquet``.
 - **Backtest.** The file sits next to the tear sheet and the log, using the same run name. Example: ``logs/my_run_agent_detail.parquet``.
 - **Live and paper.** The file is in the LumiBot cache. On macOS that folder is ``~/Library/Caches/lumibot/1.0/agent_runtime/``. Set ``LUMIBOT_CACHE_FOLDER`` before you import lumibot if you want it somewhere else. Per-call JSON traces live under ``agent_runtime/traces/<agent_name>/``. The result also carries ``(result.payload or {}).get("trace_path")``.
 
+The file grows while the run is going, without keeping old calls in memory. Each call's rows are first saved as a small file in a ``*_agent_detail.parts/`` folder next to it, and the main file is rebuilt from them now and then (after 1, 2, 4, 8, ... calls). When the run ends, the main file holds every call and the folder is removed. If a run is stopped early, for example killed at a memory limit, the main file still holds every call up to its last rebuild and the folder holds the rest. LumiBot replaces parquet files in one step, so a stopped run never leaves a half-written file.
+
 Query it with DuckDB:
 
 .. code-block:: sql

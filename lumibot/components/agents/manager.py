@@ -197,6 +197,101 @@ def _get_parquet_utils():
     return _PARQUET_UTILS
 
 
+class _AgentDetailSpool:
+    """Append-only store for one agent detail parquet file.
+
+    Why: a long backtest runs agents on every bar. Keeping every past row in
+    memory and rewriting the whole file after each call made memory and write
+    time grow with every call until the process ran out of memory.
+
+    Invariants:
+    - Each call's rows go to their own small part file next to the detail file
+      (``<stem>.parts/``). Only the current call's rows are in memory.
+    - The combined detail file is rebuilt from the previous combined file plus
+      the new parts, one batch at a time, and replaced atomically. A killed
+      process leaves the last complete combined file and every complete part.
+    - Rebuilds happen when the number of new calls reaches the number already
+      combined (1, 2, 4, 8, ...), so total rebuild work stays linear in the
+      number of calls. ``finalize()`` combines everything and removes the parts.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = Path(path)
+        self.parts_dir = self.path.with_name(f"{self.path.stem}.parts")
+        self._combined_calls = 0
+        self._pending_parts: list[Path] = []
+        self._part_counter = 0
+        # A detail file left by an earlier run at the same path is replaced,
+        # exactly as the old full rewrite did on the first call.
+        if self.path.exists():
+            self.path.unlink()
+        if self.parts_dir.exists():
+            for part in self.parts_dir.glob("*.parquet"):
+                part.unlink()
+
+    def append(self, frame: Any, *, artifact: str, logger: Any) -> None:
+        (
+            coerce_object_columns_to_json_strings,
+            is_parquet_required,
+            write_parquet_with_logging,
+        ) = _get_parquet_utils()
+        self.parts_dir.mkdir(parents=True, exist_ok=True)
+        self._part_counter += 1
+        part_path = self.parts_dir / f"{self._part_counter:08d}.parquet"
+        write_parquet_with_logging(
+            df=frame,
+            path=str(part_path),
+            artifact=artifact,
+            logger=logger,
+            index=False,
+            required=is_parquet_required(),
+            compression="zstd",
+            sanitizer=coerce_object_columns_to_json_strings,
+        )
+        if not part_path.exists():
+            return
+        self._pending_parts.append(part_path)
+        if len(self._pending_parts) >= max(1, self._combined_calls):
+            self.combine()
+
+    def combine(self) -> None:
+        if not self._pending_parts:
+            return
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        sources = ([self.path] if self.path.exists() else []) + list(self._pending_parts)
+        schemas = [pq.read_schema(source) for source in sources]
+        schema = pa.unify_schemas(schemas, promote_options="permissive")
+        tmp_path = self.path.with_name(f"{self.path.name}.tmp-{os.getpid()}")
+        try:
+            with pq.ParquetWriter(str(tmp_path), schema, compression="zstd") as writer:
+                for source in sources:
+                    parquet_file = pq.ParquetFile(source)
+                    for batch in parquet_file.iter_batches():
+                        table = pa.Table.from_batches([batch])
+                        columns = []
+                        for field in schema:
+                            if field.name in table.column_names:
+                                columns.append(table.column(field.name).cast(field.type))
+                            else:
+                                columns.append(pa.nulls(table.num_rows, type=field.type))
+                        writer.write_table(pa.Table.from_arrays(columns, schema=schema))
+            os.replace(tmp_path, self.path)
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        self._combined_calls += len(self._pending_parts)
+        for part in self._pending_parts:
+            part.unlink(missing_ok=True)
+        self._pending_parts = []
+
+    def finalize(self) -> None:
+        self.combine()
+        if self.parts_dir.exists() and not any(self.parts_dir.iterdir()):
+            self.parts_dir.rmdir()
+
+
 def _get_builtin_serializers():
     global _BUILTIN_SERIALIZERS
     if _BUILTIN_SERIALIZERS is None:
@@ -2593,8 +2688,7 @@ class AgentManager:
         self.duckdb = _get_duckdb_query_layer_class()(strategy)
         self._observability_totals: dict[str, dict[str, int]] = {}
         self._observability_call_index: dict[str, int] = {}
-        self._observability_rows: dict[str, list[dict[str, Any]]] = {}
-        self._observability_all_rows: list[dict[str, Any]] = []
+        self._detail_spools: dict[str, _AgentDetailSpool] = {}
         self._tool_result_cache: dict[str, Any] = {}
         # Bars where an agent call failed and the strategy continued without a
         # decision. Surfaced in parameters and settings.json "agent_health".
@@ -2977,33 +3071,30 @@ class AgentManager:
                     "call_tool_use_input_tokens": 0,
                 }
             )
-        agent_rows = self._observability_rows.setdefault(handle.name, [])
-        agent_rows.extend(rows)
-        self._observability_all_rows.extend(rows)
-        configured_stats_file = getattr(self.strategy, "stats_file", None) or getattr(
-            self.strategy, "_stats_file", None
-        )
-        if isinstance(configured_stats_file, str) and configured_stats_file:
-            detail_rows = self._observability_all_rows
-        else:
-            detail_rows = agent_rows
-        detail_df = _get_pandas().DataFrame(detail_rows, columns=_AGENT_DETAIL_COLUMNS)
-        (
-            coerce_object_columns_to_json_strings,
-            is_parquet_required,
-            write_parquet_with_logging,
-        ) = _get_parquet_utils()
-        write_parquet_with_logging(
-            df=detail_df,
-            path=str(detail_path),
+        # With a stats file every agent shares one detail path; without one each
+        # agent has its own. One spool per path keeps both layouts. Only this
+        # call's rows are held in memory (see _AgentDetailSpool).
+        spool_key = str(detail_path)
+        spool = self._detail_spools.get(spool_key)
+        if spool is None:
+            spool = _AgentDetailSpool(detail_path)
+            self._detail_spools[spool_key] = spool
+        detail_df = _get_pandas().DataFrame(rows, columns=_AGENT_DETAIL_COLUMNS)
+        spool.append(
+            detail_df,
             artifact=f"agent_detail:{handle.name}",
             logger=getattr(self.strategy, "logger", None) or self,
-            index=False,
-            required=is_parquet_required(),
-            compression="zstd",
-            sanitizer=coerce_object_columns_to_json_strings,
         )
         return detail_path
+
+    def finalize_artifacts(self) -> None:
+        """Write the complete agent detail files. Called when the strategy ends."""
+        with self._shared_state_lock:
+            for spool in list(self._detail_spools.values()):
+                try:
+                    spool.finalize()
+                except Exception as exc:
+                    self._log_warning(f"Could not finalize agent detail file {spool.path}: {exc}")
 
     def _log_warning(self, message: str) -> None:
         try:

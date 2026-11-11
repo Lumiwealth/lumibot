@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
@@ -143,13 +144,26 @@ def write_parquet_with_logging(
             df_to_write = df
             coerced_columns = []
 
+    # Write to a temporary file in the same folder, then replace the target in
+    # one step. A process killed mid-write leaves the previous complete file
+    # (or none) instead of a truncated parquet file that cannot be read.
+    tmp_path = os.path.join(
+        os.path.dirname(os.path.abspath(path)),
+        f".{os.path.basename(path)}.tmp-{os.getpid()}-{threading.get_ident()}",
+    )
+
     def _do_write(*, compression_value: str | None) -> None:
-        df_to_write.to_parquet(
-            path,
-            index=index,
-            engine=engine,
-            compression=compression_value,
-        )
+        try:
+            df_to_write.to_parquet(
+                tmp_path,
+                index=index,
+                engine=engine,
+                compression=compression_value,
+            )
+            os.replace(tmp_path, path)
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
     try:
         try:

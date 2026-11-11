@@ -4,7 +4,7 @@ Expired option positions stay open forever, and orders on them stay "new", when 
 
 Last Updated: 2026-11-11
 
-Status: Root cause found and reproduced offline. Behaviour NOT changed. Needs a decision before a fix.
+Status: Fixed in 4.6.50 (options settle on every backtesting source; see CHANGELOG). The proposal below is what shipped, with futures left unchanged.
 
 Audience: LumiBot contributors working on backtesting and options.
 

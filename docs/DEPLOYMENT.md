@@ -29,7 +29,9 @@ configured three or five current actor/judge passes; they cannot inherit another
 case's establishment or the earlier version of their own definition.
 
 An explicitly selected immutable published receipt can retain verified original
-establishment when private raw journals expire. Keep its original source, call
+establishment when private raw journals expire. This includes a first published
+receipt whose full original repetitions are in its own case records, before
+a later receipt adds a separate establishment section. Keep its original source, call
 identities, usage, timestamps and evidence digests. The current subscription
 journal accounts for current actors and calibration; historical calls remain
 in their verified establishment proof and must not be recreated as native
@@ -41,7 +43,8 @@ failed or incomplete original native attempt cannot fall back to an older pass.
 1) **Run the release preflight first.** If branch, `setup.py`, `CHANGELOG.md`, tag, or `dev` state is inconsistent, stop. Do not tag. Do not deploy BotManager. Fix the branch first.
 2) **Make the release branch contain everything safe to ship.** Dirty files, untracked files, and local-only commits are not excuses to skip work. Review them, commit them, test them, push them, and include them in the `version/X.Y.Z` PR unless they are unsafe, secret-bearing, broken, generated junk, or explicitly out of scope.
 3) Get the `version/X.Y.Z` PR **green** after that full inclusion sweep. Verify the complete real-model receipt locally in the pinned SDK environment with `python scripts/qualify_agent_evals.py verify` before merging and again before tagging. The branch/version preflight alone does not qualify model evidence.
-   - Repeat that verifier after any release-branch update, including another broker's fixes. Green GitHub checks do not establish that an earlier model receipt covers the new source. Keep compatible original evidence only when the verifier accepts it; otherwise qualify the changed candidate and export its current receipt before merging. Record the actual tested and approved head rather than attributing an earlier head's proof or review exception to new code.
+   - **Author decides retained proof (2026-11-11).** Logging or unrelated source changes do not require model runs. The author records the exact reviewed candidate runtime fingerprint, receipt case IDs and a concrete retention reason in the version-2 `ci/agent-evals/source-compatibility.json` anchor's `author_review`. The verifier checks that declaration, immutable original receipt/source bytes, SDKs, native calls, original repetitions and the written release case list. It never infers affected cases or demands requalification from changed filenames. A different candidate requires an updated author review, not automatic inference. Retained evidence keeps its original execution date and source and is not new candidate execution proof.
+   - Repeat that verifier after any release-branch update, including another broker's fixes. Review changed behavior and update the written retention decision where needed. Run only the cases the author says can be affected; plain broker, parser, order and infrastructure changes use focused code tests. Record the actual tested and approved head rather than attributing an earlier head's proof or review exception to new code.
    - **Release eval scope (2026-11-11).** When `ci/agent-evals/release-scope.json` exists, `verify` checks only that author-written scope: `package_version` must match `setup.py`, every listed case needs an `id`, a `reason` and current passing actor/judge evidence in `ci/agent-evals/qualification.json`, and an empty `cases` list needs a `no_cases_reason`. The release author writes this file by judgment for each version: list only the cases the release's changes could affect, or none with the reason. The check never adds, infers or refreshes cases. Without the file, the original whole-catalog receipt check runs.
 4) Merge latest `dev` into `version/X.Y.Z` and re-check CI (prevents drift / missing commits from other engineers).
 5) Merge the PR into `dev` (no direct pushes to `dev`).

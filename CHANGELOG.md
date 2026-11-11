@@ -1,5 +1,39 @@
 # Changelog
 
+## 4.6.52 - 2026-11-11
+
+Deploy marker: e2675359fb53fb56c6bcc4e23aac79334e97ac2f
+
+### Release tooling
+- Keep historical qualification tests and SDK validation bound to their immutable original evidence when the current release receipt changes. Defer telemetry imports until their first use so class-only startup retains its existing dependency contract.
+- Retain native model proof by an explicit author decision bound to the exact reviewed candidate and case list. The verifier preserves original source, receipt bytes and call evidence without demanding new inference for unrelated files or diagnostic counters.
+- Reuse the original full repetitions in an immutable published native receipt when establishing later regression evidence. Preserve the original source, calls, usage and timestamps; reject invalidated, failed, funding-mismatched or SDK-mismatched proof. Parallel native fixtures now own separate Parquet export prefixes.
+- Verify original stability together with the author-listed current regressions. Synchronous in-memory model fixtures retain their native evidence across changes to the unused threaded runner and provider cache; this does not qualify those components or historical backtests.
+
+### Added
+- Agent attention watches, quiet polling and event-driven team dispatch support inexpensive monitoring while the trading agent retains decisions and order ownership. Saved watches and pending order identities survive normal strategy state restoration.
+- Slim AI examples for an overnight iron condor, bull call vertical and two-long/one-short call package, with explicit per-contract historical-backtest fees. Shared options guidance covers exact-leg quotes, signed Greeks, package units, liquidity, payoff interpretation, assignment and pending-exit protection.
+- Agent tools expose batch quotes and independent order submissions alongside atomic multi-leg submissions.
+
+### Added
+- Backtest stocks and ETFs on the daily price history of your own broker connection: `BACKTESTING_DATA_SOURCE=schwab` or `tradier` (classes `SchwabHistoryBacktesting`, `TradierHistoryBacktesting`, both built on one generic `BrokerHistoryBacktesting` with per-broker adapters in `lumibot.tools.broker_history`). Each stock's daily bars are downloaded once per backtest through the shared bar cache of that connection, stamped at the 16:00 New York close like the Yahoo daily source, and served point-in-time. Limits fail loudly with the limit named: stocks and ETFs only, daily bars only for now (minute requests name the broker's depth), Schwab daily history from 1985, 120 requests per minute per broker with bounded waits on rate-limit refusals. Never switches source and never fills a missing day. Prices are split-adjusted only and cash dividends are not credited. Live parity with Yahoo across the NVDA 2024 split: same dates, closes within 0.39%. See docs/BROKER_HISTORY_BACKTESTING.md.
+
+### Changed
+- A filled multi-leg (combo) parent order now ends with a final row in the backtest trade-event files (`*_trade_events.csv/.parquet`, `*_trades.csv/.parquet`), with status `legs_filled` and no filled quantity. Before, the parent's only row was `new`, so views that show each order's last row (progress, order lists) showed every combo as pending forever. The legs keep their `fill` rows. `legs_filled` is not a fill status and the filled quantity is empty, so tools that count trades from these files (downstream counters use fill/filled/partially_filled/partial_fill statuses or a nonzero filled quantity) count the same trades as before; trades.html markers are unchanged (`legs_filled` is not a marker status).
+- Faster trades.html on long minute backtests: the time axis is encoded once and shared by every line, instead of plotly copying a column of timestamps for each line. The file is the same apart from plotly's random element ids. On a 12-month one-minute put spread (98,000 points) building trades.html went from 4.5 s to 1.3 s locally, and the whole end-of-backtest analysis from 6.6 s to 3.3 s.
+- First-run Interactive Brokers stock and index intraday downloads start their first page at the last session close when the requested window ends in closed time (usually midnight New York). Before, the first page ended at midnight, reached back only to about 07:20, and split the last session over two pages. The bars are the same; a one-month minute download takes one request fewer (24 to 23 on a local downloader stand-in, about 2 s on production's lane).
+- Every backtest writes `<run>_telemetry.json` beside its other output files: wall seconds per phase (data setup, simulation, end-of-run reports, waiting for cache uploads), trading iterations with the slowest one and its simulated time, and per data source and asset class the provider requests, seconds waiting on the provider, rows, retries and rate-limit or backoff waits, plus reads, hits, misses, bytes and uploads for each cache layer (shared bar cache, its S3 side, the S3 backtest cache, Alpaca's files and option chains). Counts and seconds only: no hosts, buckets, keys, symbols or account data. Always on; about 0.4 microseconds per iteration and 0.5 microseconds per provider or cache event (about 40 ms on a 12-month minute run). Field names are stable (`schema: lumibot.backtest_telemetry/1`). See docs/BACKTEST_TELEMETRY.md and the Telemetry JSON page in the backtesting docs.
+- Backtests log a `[SHARED_BARS][SUMMARY]` line next to `[REMOTE_CACHE][SUMMARY]` with the shared bar cache's own work: provider reads, S3 hits and misses, bytes, uploads and upload errors (again at exit if uploads were still pending). Alpaca, Schwab, Tradier, ccxt and Interactive Brokers live data use this cache, which reads and writes S3 itself, so the older summary showed `misses=0 uploads=0` for Alpaca runs while their repeats were served from S3.
+
+### Fixed
+- Schwab canceled/replaced execution activities no longer count their canceled quantities as fills. Genuine fill activities, per-leg fill prices, older responses without an execution subtype and fills preceding cancellation remain supported. A confirmed complete execution arriving with a cancel/error status delivers a full-fill callback instead of a partial-fill callback followed by cancellation.
+- Preserve exact selected option leg quantities through ratio-weighted package pricing, simulated net-limit checks and supported broker submissions. Child cancellation reconciles the package parent without discarding filled exposure or working siblings.
+- A non-trading researcher with a final answer can hand that answer and disclosed optional-tool errors to the trader; missing answers and actual provider failures remain visible failures.
+- Routed (BotSpot Auto) Interactive Brokers stock and index minute and hour backtests load the same five-day buffer before the backtest start as the Interactive Brokers source. The prefetch began at the backtest start, and the lookback count assumes one bar per minute, so a short lookback at the first session open (for example 20 one-minute bars at 09:31) saw only that morning's pre-market prints for a thinly traded stock, and the run was marked failed with insufficient required history. A cold run now asks for a few more one-minute pages (21 to 23 on a one-month local stand-in run).
+- Stock-trading guidance distinguishes quote request time from source observation time, preserves exact authorized limits and avoids treating a prior-session quote as current execution evidence.
+- Daily-cadence stock limit orders use loaded current intraday execution data instead of stale daily quotes. Daily-only limits use the session open while forming and the completed OHLC range only at the known calendar close. Missing observations leave orders pending; cash, positions and fees follow actual fills. A native broker regression and real-model pending-order eval cover the failure.
+- AI model-request timeouts now reach the managed model's HTTP transport. Disabling the request timeout no longer leaves an independent 120-second socket timeout; finite configured timeouts are preserved. Existing injected transports retain their three-argument interface.
+
 ## 4.6.51 - 2026-11-11
 
 Deploy marker: cc6310f2cb08c2293652390df3c59a9e48019f9f
@@ -103,6 +137,7 @@ Deploy marker: 97d41b56ff42bd0c200c3b2f1f98f395bf1c8dfc
 - Optional total-quantity amendments through the normal broker, strategy and order-agent modification APIs while preserving price-only callers.
 
 ### Fixed
+- Report whether an attention-condition removal actually changed owned state or was already absent, while preserving the existing echoed identifier.
 - Preserve exact fractional Schwab equity quantities through replacements and advanced-order children.
 - Retain deferred futures expiry identity across Asset serialization and saved-strategy recovery, including older saved dictionaries.
 - Reuse the selected MetaMask client for data, and preserve native quote and fill-reconciliation recovery checks.

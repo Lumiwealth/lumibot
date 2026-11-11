@@ -33,10 +33,13 @@ Most strategies are one of these, or a hybrid:
 - **Deterministic strategy** -- Python code makes the decision with fixed rules:
   indicators crossing, time-of-day logic, thresholds, portfolio constraints,
   and explicit if/else branches.
-- **Agent-powered strategy** -- one or more agents reason over evidence, call
-  tools, summarize their views, and optionally place orders.
-- **Hybrid strategy** -- Python gates the setup, agents review the context, and
-  deterministic code may still size, filter, or submit orders.
+- **Agent-powered strategy** -- researchers gather evidence and one dedicated
+  trading agent chooses contracts, quantities, prices and orders. Add research
+  agents when the strategy needs more perspectives.
+- **Hybrid AI strategy** -- Python checks schedules and agent-defined attention
+  conditions cheaply; a meaningful event wakes the team. The trading agent
+  retains trading decisions and order management. Python-owned execution is
+  also supported when the user requests that different architecture.
 
 The same LumiBot strategy can be backtested first and then run against paper or
 live brokers.

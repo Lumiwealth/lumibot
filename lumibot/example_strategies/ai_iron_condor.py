@@ -1,47 +1,81 @@
-"""AI Iron Condor.
+"""AI-owned iron condor with inexpensive minute observations.
 
-Every afternoon at 3:45 PM the AI sells a SPY iron condor that expires the next
-trading day and lets it expire. Between those runs, plain Python checks SPY every
-5 minutes for free and wakes the AI only when SPY runs too close to one of the
-short strikes, so the AI can close the condor early.
+One researcher supplies evidence; one trader owns every trading decision and
+order. The trader saves its next attention conditions. Quiet minutes invoke no
+model. This example requires the attention API in the installed LumiBot runtime.
+Historical Alpaca option bars do not establish executable historical bid/ask.
 """
+from datetime import timedelta
 
 from lumibot.strategies import Strategy
 
 
 class AIIronCondorStrategy(Strategy):
-    parameters = {"symbol": "SPY", "stop_at": 0.4}
+    parameters = {"symbol": "SPY", "model": None, "estimated_contract_fee": 0.65}
 
     def initialize(self):
-        self.sleeptime = "5M"  # how often plain Python checks the stop (no AI call)
-        self.minutes_before_closing = 15  # before_market_closes runs at 3:45 PM
+        self.sleeptime = "1M"
+        self.minutes_before_closing = 0
         self.agents.create(
-            name="trader",
-            allow_trading=True,
-            system_prompt=(
-                "You trade SPY iron condors that expire the next trading day. When it is time to open one, "
-                "first check the VIX: if it closed above 25 yesterday, do not trade today. Otherwise sell an "
-                "iron condor on SPY that expires the next trading day: sell a put and a call near 0.14 delta, "
-                "and buy a put and a call one dollar farther out to cap the loss. Size it so the most we can "
-                "lose is about 3% of the account. Then hold it until it expires. If we ever hold SPY shares "
-                "because an option was exercised, sell them."
+            name="researcher", allow_trading=False, allow_network=True, model=self.parameters["model"],
+            reasoning_effort="high", system_prompt=(
+                (
+                'Research the supplied underlying for a short iron condor held overnight through the next '
+                'trading session. Use dated volatility, trend and event evidence, including the previous '
+                'completed VIX close. Focus on material events inside that holding window. Distinguish known '
+                'events from unavailable calendar evidence; give the trader a compact dated assessment, '
+                'contrary evidence and uncertainty. Do not trade. '
+            )
+            ),
+        )
+        self.agents.create(
+            name="trader", allow_trading=True, model=self.parameters["model"],
+            reasoning_effort="high", system_prompt=(
+                (
+                'Trade at most one short/net-credit iron condor on the supplied underlying. Consider a new '
+                'setup only in the final 15 regular-session minutes, at most once per session, using this '
+                "session's setup research. Require the previous completed VIX close at or below 25. Use next- "
+                'trading-day expiry, short strikes near 0.14 absolute delta and one-dollar outer wings. '
+                'Compare at most three candidates. You choose integer package count; maximum loss including '
+                'estimated round-trip per-contract fees must fit 3% of current account value. The supplied '
+                'fee is an estimate, not a broker fee claim. '
+                'The mandate is routine defined-risk premium collection when the priced range is reasonable. '
+                'Compare candidate premiums and risk before deciding; decline for a concrete limit, known '
+                'imminent major release or demonstrated breakout/gap risk. Ordinary mixed news or a missing '
+                'calendar is not itself a veto. '
+                'Set underlying review boundaries 40% of the distance from the short-strike midpoint toward '
+                'either short strike; a breach requires your close decision. Close remaining exposure no '
+                'later than 30 minutes before the expiration session ends. Leave the next eligible setup '
+                'review after closure. Atomic market exits are permitted if a limit cannot meet a required '
+                "close deadline. Follow LumiBot's shared options and attention guidance; you own every "
+                'trading decision. '
+            )
             ),
         )
 
-    def before_market_closes(self):
-        self.agents["trader"].run(task_prompt="It is 3:45 PM. Open today's iron condor.")
+    def before_starting_trading(self):
+        if not self.vars.get("attention_started", False):
+            self.agents.attention.watch(owner="lifecycle", watch_id="initial_review",
+                operation_id="initial_setup", metric="time", comparison="gte",
+                value=(self.get_datetime() + timedelta(seconds=max(
+                    0, (self.broker.get_time_to_close() or 0) - 15 * 60))).isoformat(),
+                reason="Initial setup review; verify entry eligibility under your policy",
+                review_scope="setup")
+            self.vars.set("attention_started", True)
+        self.on_trading_iteration()
 
     def on_trading_iteration(self):
-        # The stop, in plain Python: how far SPY has moved from the middle of the condor toward a short strike.
-        shorts = [p.asset.strike for p in self.get_positions() if p.asset.asset_type == "option" and p.quantity < 0]
-        if len(shorts) != 2 or any(order.is_active() for order in self.get_orders()):
-            return
-        middle, half_width = (max(shorts) + min(shorts)) / 2, (max(shorts) - min(shorts)) / 2
-        price = self.get_last_price(self.parameters["symbol"])
-        if price and abs(price - middle) >= self.parameters["stop_at"] * half_width:
-            self.agents["trader"].run(
-                task_prompt=f"SPY is at {price}, close to one of our short strikes. Close the whole iron condor now."
-            )
+        self.agents.attention.poll()
+        self.agents.attention.dispatch_team(decision_agent="trader", research_agents=["researcher"],
+            context={"symbol": self.parameters["symbol"],
+                     "estimated_contract_fee": self.parameters.get("estimated_contract_fee", 0.65),
+                     "estimated_contract_fee_units": "USD per contract per side"})
+
+    def on_strategy_end(self):
+        self.agents.attention.join()
+
+    def on_abrupt_closing(self):
+        self.agents.attention.join()
 
 
 if __name__ == "__main__":
@@ -49,7 +83,9 @@ if __name__ == "__main__":
 
     if IS_BACKTESTING:
         from lumibot.backtesting import AlpacaBacktesting
+        from lumibot.entities import TradingFee
 
-        AIIronCondorStrategy.backtest(AlpacaBacktesting)
+        fee = TradingFee(per_contract_fee=AIIronCondorStrategy.parameters["estimated_contract_fee"])
+        AIIronCondorStrategy.backtest(AlpacaBacktesting, buy_trading_fees=[fee], sell_trading_fees=[fee])
     else:
         AIIronCondorStrategy().run_live()

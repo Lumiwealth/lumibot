@@ -56,6 +56,23 @@ def test_research_agent_does_not_get_order_rules():
     assert "You cannot place orders." in prompt
 
 
+def test_non_trading_role_does_not_invent_a_user_no_trade_instruction():
+    prompt = _prompt(allow_trading=False)
+    assert "operating as a trading agent" not in prompt
+    assert "your role restriction, not a user instruction" in prompt
+    assert "Do not attribute your non-trading assignment to the user" in prompt
+    trading = _prompt(allow_trading=True)
+    assert "TRADING AGENT RULES (you are allowed to place orders)" in trading
+    assert "your role restriction, not a user instruction" not in trading
+
+
+def test_series_claims_distinguish_the_latest_value_from_all_observations():
+    for trading in (False, True):
+        prompt = _prompt(allow_trading=trading)
+        assert "latest observation does not establish that every observation" in prompt
+        assert "Check the complete returned set" in prompt
+
+
 def test_authorized_evidence_work_continues_before_the_final_answer_in_both_roles():
     # RC4 runtime57f316cf: the live researcher returned a next-step plan
     # after discovery; the options trader stopped after two mismatched inputs.

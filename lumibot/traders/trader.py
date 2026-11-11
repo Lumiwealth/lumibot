@@ -233,6 +233,10 @@ class Trader:
                 self._start_pool()
                 if not async_:
                     self._join_pool()
+            if self.is_backtest_broker:
+                from lumibot.tools import backtest_telemetry
+
+                backtest_telemetry.mark_simulation_end()
             result = self._collect_analysis()
 
             if self.is_backtest_broker:
@@ -240,22 +244,25 @@ class Trader:
                 logger.info("Backtesting finished")
 
                 if strat._analyze_backtest:
-                    strat.backtest_analysis(
-                        logdir=self.logdir,
-                        show_plot=show_plot,
-                        show_tearsheet=show_tearsheet,
-                        save_tearsheet=save_tearsheet,
-                        show_indicators=show_indicators,
-                        plot_file_html=plot_file_html,
-                        trades_file=trades_file,
-                        trade_events_file=trade_events_file,
-                        settings_file=settings_file,
-                        indicators_file=indicators_file,
-                        tearsheet_csv_file=tearsheet_csv_file,
-                        tearsheet_file=tearsheet_file,
-                        tearsheet_metrics_file=tearsheet_metrics_file,
-                        base_filename=base_filename,
-                    )
+                    from lumibot.tools import backtest_telemetry
+
+                    with backtest_telemetry.phase("reports"):
+                        strat.backtest_analysis(
+                            logdir=self.logdir,
+                            show_plot=show_plot,
+                            show_tearsheet=show_tearsheet,
+                            save_tearsheet=save_tearsheet,
+                            show_indicators=show_indicators,
+                            plot_file_html=plot_file_html,
+                            trades_file=trades_file,
+                            trade_events_file=trade_events_file,
+                            settings_file=settings_file,
+                            indicators_file=indicators_file,
+                            tearsheet_csv_file=tearsheet_csv_file,
+                            tearsheet_file=tearsheet_file,
+                            tearsheet_metrics_file=tearsheet_metrics_file,
+                            base_filename=base_filename,
+                        )
 
                 # Emit a single cache summary line so production runs can quantify S3 hydration
                 # cost without guessing or relying solely on profiler artifacts.
@@ -263,6 +270,12 @@ class Trader:
                     from lumibot.tools.backtest_cache import get_backtest_cache
 
                     get_backtest_cache().log_summary()
+                except Exception:
+                    pass
+                try:
+                    from lumibot.tools.shared_bar_cache import log_run_summary
+
+                    log_run_summary()
                 except Exception:
                     pass
 

@@ -16,6 +16,22 @@ Pandas backtester is named after the python dataframe library because the user m
 
 Pandas backtester allows for intra-day and inter-day backtesting. Time frames for raw data are 1 minute and 1 day.
 
+Stock execution with a daily cadence
+-----------------------------------
+
+Stock market and limit orders use matching intraday bars when those bars are
+already loaded. A missing current bar leaves an order pending; a quote from the
+previous session cannot fill a newly submitted order. Historical daily research
+bars retain their normal completed-bar meaning.
+
+For daily-only stock data, a limit can execute against the current session open.
+While that session is forming, its future high and low cannot cause a fill. The
+full daily range becomes eligible at the known calendar close, including an
+early close. Before the open there is no executable daily aggregate. If the
+calendar close is unknown, the range is not assumed complete. These are OHLC
+simulation conventions; use finer data when intraday fill timing matters. This
+does not automatically download another data resolution.
+
 Additionally, with Pandas backtester, it is possible to backtest stocks, stock-like securities, futures contracts, crypto and FOREX.
 
 Pandas backtester is the most flexible backtester in Lumibot, but it is also the most difficult to use. It is intended for advanced users who have their own data and want to use it with Lumibot.

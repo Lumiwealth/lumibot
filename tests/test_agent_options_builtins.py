@@ -815,6 +815,24 @@ def test_options_check_spread_profit_returns_percentage_for_credit_spread():
     assert result["profit_pct"] is not None
 
 
+def test_order_modification_returns_replacement_identity_for_next_observation():
+    order = Order('agent-options-test', Asset('SPY'), 1, 'buy',
+                  identifier='original', order_type='limit', limit_price=100)
+
+    class ReplacedStrategy(_OptionsStrategy):
+        def get_order(self, identifier, broker_refresh=True):
+            assert identifier == 'original'
+            return order
+
+        def modify_order(self, existing, **kwargs):
+            existing.identifier = 'replacement'
+
+    strategy = ReplacedStrategy()
+    tool = BuiltinTools.orders.modify().binder(strategy, AgentManager(strategy))
+    result = tool.function(identifier='original', limit_price=101, reason=ORDER_ACTION_REASON)
+    assert result['identifier'] == 'replacement'
+
+
 def test_orders_get_status_reports_missing_and_known_identifiers():
     from lumibot.entities import Asset
 
@@ -1177,3 +1195,32 @@ def test_missing_market_index_points_the_agent_to_fred():
     assert "VIXCLS" in tools["market_last_price"](symbol="^VIX", asset_type="index")["fred_hint"]
     assert "VIXCLS" in tools["market_last_prices"](symbols=["VIX"], asset_type="index")["fred_hint"]
     assert "fred_hint" not in tools["market_last_price"](symbol="MSFT")
+
+
+@pytest.mark.parametrize("held,side", [(-2, "buy_to_close"), (2, "sell_to_close")])
+def test_single_option_close_uses_the_single_order_tool(held, side):
+    """One option identity needs no fabricated second leg to close."""
+    from lumibot.entities import Asset, Position
+    strategy = _OptionsStrategy()
+    asset = Asset("SPY", asset_type="option", expiration=date(2026, 9, 18), strike=645, right="call")
+    strategy.get_positions = lambda **kwargs: [Position("neutral", asset, held)]
+    tools = _opening_option_tools(strategy)
+    _checked_account(tools)
+    result = tools["orders_submit_order"](reason=ORDER_ACTION_REASON, symbol="SPY",
+        quantity=abs(held), side=side, asset_type="option", expiration="2026-09-18",
+        strike=645, right="call", order_type="limit", limit_price=1.5, time_in_force="day")
+    assert "tool_error" not in result
+    assert len(strategy.submissions) == 1
+    assert strategy.submissions[0][0].side == side
+    assert float(strategy.submissions[0][0].quantity) == abs(held)
+
+
+def test_profit_read_accepts_one_short_option_without_a_second_leg():
+    """A held single option has meaningful signed P&L without package pricing."""
+    strategy = _OptionsStrategy()
+    tool = BuiltinTools.options.check_spread_profit().binder(strategy, AgentManager(strategy))
+    leg = {"symbol": "SPY", "expiration": "2026-09-18", "strike": 615,
+           "right": "put", "quantity": 1, "side": "sell_to_open"}
+    result = tool.function(legs_json=json.dumps([leg]), initial_cost=-300.)
+    assert result["available"] is True
+    assert result["profit_pct"] == pytest.approx(50.)

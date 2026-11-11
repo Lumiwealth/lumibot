@@ -137,7 +137,13 @@ def test_multileg_spread_backtest_cash_and_parent_fill():
     parent_order = parent_orders[0]
 
     assert parent_order.trade_cost == pytest.approx(0.0, abs=1e-9)
-    assert parent_order.avg_fill_price == pytest.approx((101.0 - 51.0), abs=1e-9)
+    # Ten long shares and five short shares are five 2:1 package units.
+    # Their unit price must reconcile to the unchanged cash movement.
+    assert parent_order.quantity == Decimal("5")
+    assert parent_order.avg_fill_price == pytest.approx((2 * 101.0 - 51.0), abs=1e-9)
+    assert float(parent_order.quantity * Decimal(str(parent_order.avg_fill_price))) == pytest.approx(
+        100_000.0 - expected_cash, abs=1e-9
+    )
 
     # Check that both child orders were filled (no parent fill event currently generated)
     assert len(actual_fills) == 2

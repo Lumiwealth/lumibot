@@ -817,3 +817,53 @@ def test_routed_ccxt_crypto_empty_full_window_is_not_retried_each_step(monkeypat
     assert len(calls) == 1
     assert calls[0]["symbol"] == "BTC/USDT"
     assert routed._data_store == {}
+
+
+def test_routed_stock_minute_prefetch_reaches_the_previous_session(monkeypatch):
+    """A short lookback at the first session open must be able to use the previous session.
+
+    The lookback start counts one bar per minute, so 20 one-minute bars at 09:31 on the first
+    day land in that morning's pre-market. The prefetch began at the backtest start (midnight),
+    so a thinly traded stock had only that morning's prints: production failed a month-long
+    backtest with insufficient_required_history (20 requested, 16 returned) at 09:31 on day
+    one. The IBKR-only source already keeps a five-day buffer; the router must too.
+    """
+    calls = []
+
+    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None,
+                             include_after_hours=True, source=None, history_as_of=None):
+        calls.append((start_dt, end_dt, str(timestep)))
+        idx = pd.date_range(start=start_dt, periods=5, freq="1min")
+        frame = pd.DataFrame({"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0}, index=idx)
+        frame.index.name = "timestamp"
+        return frame
+
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", _fake_get_price_data)
+    monkeypatch.setattr(ibkr_helper, "frame_covers_requested_window", lambda *args, **kwargs: True)
+
+    ny = "America/New_York"
+    backtest_start = pd.Timestamp("2026-09-01 00:00", tz=ny).to_pydatetime()
+    now = pd.Timestamp("2026-09-01 09:31", tz=ny).to_pydatetime()
+    routed = RoutedBacktestingPandas.__new__(RoutedBacktestingPandas)
+    routed._routing = {"default": "thetadata", "stock": "ibkr"}
+    routed._ibkr_fully_loaded_series = set()
+    routed._fully_loaded_series = set()
+    routed._data_store = {}
+    routed.datetime_start = backtest_start
+    routed.datetime_end = pd.Timestamp("2026-09-30 00:00", tz=ny).to_pydatetime()
+    routed.get_datetime = MethodType(lambda self: now, routed)
+    routed.get_timestep = MethodType(lambda self: "minute", routed)
+    routed.get_start_datetime_and_ts_unit = MethodType(
+        lambda self, length, ts, start_dt=None, start_buffer=timedelta(0): (start_dt - timedelta(minutes=int(length)), "minute"),
+        routed,
+    )
+    routed._build_dataset_keys = MethodType(lambda self, asset, quote, ts: ((asset, quote, ts), (asset, quote)), routed)
+
+    base = Asset("MIDC", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    routed._update_pandas_data(base, quote, 20, "minute", start_dt=now)
+
+    assert calls, "no prefetch"
+    assert pd.Timestamp(calls[0][0]).tz_convert(ny) <= pd.Timestamp("2026-08-31 04:00", tz=ny)

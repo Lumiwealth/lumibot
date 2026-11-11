@@ -16,6 +16,7 @@ import threading
 import urllib.error
 import urllib.request
 import uuid
+from functools import partial
 from typing import Any, Callable
 
 from google.adk.models.base_llm import BaseLlm
@@ -257,7 +258,9 @@ def _tools(llm_request: Any) -> list[dict[str, Any]]:
     return [tool for tool in result if tool["name"]]
 
 
-def _post_json(url: str, token: str, payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+def _post_json(
+    url: str, token: str, payload: dict[str, Any], *, timeout_seconds: float | None = 120
+) -> tuple[int, dict[str, Any]]:
     request = urllib.request.Request(
         url,
         data=json.dumps(payload, separators=(",", ":"), default=str).encode("utf-8"),
@@ -269,7 +272,7 @@ def _post_json(url: str, token: str, payload: dict[str, Any]) -> tuple[int, dict
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=120) as response:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
             return response.status, json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         try:
@@ -299,12 +302,18 @@ class BotSpotManagedLlm(BaseLlm):
         gateway_url: str,
         access_token: str,
         reasoning_effort: str | None = None,
+        model_request_timeout_seconds: float | None = 120,
         post: Callable[[str, str, dict[str, Any]], tuple[int, dict[str, Any]]] = _post_json,
     ) -> None:
         super().__init__(model=model)
         self._gateway_url = gateway_url.rstrip("/")
         self._access_token = access_token
-        self._post = post
+        # Keep the existing three-argument injectable transport contract. The
+        # default HTTP client alone owns the socket timeout; zero disables it.
+        timeout = model_request_timeout_seconds
+        if timeout is not None and timeout <= 0:
+            timeout = None
+        self._post = partial(_post_json, timeout_seconds=timeout) if post is _post_json else post
         self._renew_lock = threading.Lock()
         self._model_lock = threading.Lock()
         if reasoning_effort not in {None, "none", "low", "medium", "high", "xhigh", "max"}:
@@ -420,10 +429,13 @@ class BotSpotManagedLlm(BaseLlm):
         )
 
 
-def managed_gateway_model(model: str, *, reasoning_effort: str | None = None) -> BotSpotManagedLlm:
+def managed_gateway_model(
+    model: str, *, reasoning_effort: str | None = None, model_request_timeout_seconds: float | None = 120
+) -> BotSpotManagedLlm:
     return BotSpotManagedLlm(
         model=model,
         gateway_url=str(os.environ["LUMIBOT_AI_GATEWAY_URL"]),
         access_token=str(os.environ["LUMIBOT_AI_GATEWAY_TOKEN"]),
         reasoning_effort=reasoning_effort,
+        model_request_timeout_seconds=model_request_timeout_seconds,
     )

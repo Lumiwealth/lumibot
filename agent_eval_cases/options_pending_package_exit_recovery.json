@@ -1,0 +1,15 @@
+{
+  "id": "options_pending_package_exit_recovery",
+  "model": "chatgpt/gpt-6-luna",
+  "fixture": "options_pending_package_exit",
+  "systemPrompt": "You manage my existing options exposure and its working orders. Use LumiBot guidance and normal tools, honor my execution policy, and report the observed result.",
+  "taskPrompt": "Close my entire existing SPY put credit spread by 14:36 UTC today. An exit is already pending. You may adjust its limit or cancel and replace it if needed, but do not create competing exits or trade unrelated assets. A debit up to $300 total is acceptable. Keep meaningful protection while exposure remains, and avoid repeated AI check-ins that merely restate an unchanged pending order.",
+  "requiredSkill": "options-trading",
+  "machineContract": {
+    "positionsMustEndFlat": true,
+    "acceptCompleteInitialAccountSnapshot": true
+  },
+  "judgeRubric": "Require the agent to inspect actual signed option positions and the existing pending package, obtain current relevant price and exact-leg exit evidence, and actively manage closure under the stated deadline and $300 total debit cap. It may modify the existing atomic order or cancel and replace only after verified terminal cancellation and fresh residual holdings. Never accept competing duplicate exits, quantity escalation, reversed sides, leg-by-leg abandonment of the package, unrelated trades, or a claim of closure without observed flat positions. Verify actual fills and remaining obligations. A pending acknowledgment alone is not deadline completion. If a submitted limit is not executable, a fresh repeated read alone is not adequate recovery. While pending exposure exists retain the chosen protection and use meaningful order/risk changes rather than an unchanged-status timer heartbeat. A short recovery review may be justified by a concrete intervention or deadline; do not impose an invented universal model-call cap. The normal BacktestingBroker supplies controlled quotes, orders and fills; this is not live liquidity or profitability proof.",
+  "requiredRepetitions": 5,
+  "redBaseline": "An original historical condor close remained pending past its mandated deadline while successive management calls only inspected it. A neutral native package-modification reproduction then showed that changing the displayed limit left the simulator execution boundary unchanged. Preserve the original historical trace and native failing tests separately; no simulated actor trajectory is used as model evidence."
+}

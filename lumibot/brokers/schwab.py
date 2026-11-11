@@ -1859,6 +1859,12 @@ class Schwab(Broker):
         for activity in schwab_order.get("orderActivityCollection") or schwab_order.get("activityCollection") or []:
             if str(activity.get("activityType", "")).upper() not in {"EXECUTION", "ORDER_EXECUTION"}:
                 continue
+            # EXECUTION also describes canceled/replaced quantities that never
+            # traded. Only FILL contributes when the subtype is supplied;
+            # retain older responses that omitted executionType entirely.
+            execution_type = str(activity.get("executionType") or "").upper()
+            if execution_type and execution_type != "FILL":
+                continue
             for execution in activity.get("executionLegs") or []:
                 execution_leg_id = execution.get("legId")
                 if leg_id is not None and execution_leg_id is not None and str(execution_leg_id) != str(leg_id):
@@ -2244,7 +2250,8 @@ class Schwab(Broker):
                 self._schwab_observed_fill_quantities[identifier] = cumulative_filled
                 event = (
                     self.FILLED_ORDER
-                    if Order.is_equivalent_status(observed_status, self.FILLED_ORDER)
+                    if (Order.is_equivalent_status(observed_status, self.FILLED_ORDER)
+                        or (terminal_after_fill and cumulative_filled == float(stored_order.quantity)))
                     else self.PARTIALLY_FILLED_ORDER
                 )
                 # One atomic native bucket move; no I/O or Strategy execution.
@@ -2283,6 +2290,10 @@ class Schwab(Broker):
                             # Expiry uses the same terminal bucket as errors;
                             # retain its exact previously confirmed status.
                             stored_order.status = stored_terminal_status
+                # A genuine complete execution takes precedence over a racing
+                # cancel/error status; do not undo its filled state afterward.
+                if event == self.FILLED_ORDER:
+                    return
             if not terminal_after_fill:
                 return
 

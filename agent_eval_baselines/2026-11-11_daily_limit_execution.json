@@ -1,0 +1,141 @@
+{
+  "case_id": "stock_daily_limit_current_execution",
+  "date": "2026-11-11",
+  "observed_failure": {
+    "current_minute_price": 105,
+    "previous_session_quote": 100,
+    "buy_limit": 101,
+    "quantity": 3,
+    "incorrect_fill": 100,
+    "incorrect_final_cash": 99700,
+    "correct_pending_cash": 100000
+  },
+  "source_before_repair": "e8158b59418c51bcb1039d4c0ec3742b2a7a61a5",
+  "native_red": "test_daily_limit_waits_for_current_price_and_reconciles_cash failed before repair; previous quote incorrectly filled a new order.",
+  "native_fixture_correction": "An initial fixture set daily cadence before Strategy initialization reset it to minute; the fixture now applies daily cadence after initialization and has an independent failing-then-passing lifecycle contract.",
+  "scorer_correction": "The original scorer unconditionally required a fill after submission. The explicit expectedFilledOrderCount contract preserves the old default and can require zero real broker fills.",
+  "judge_calibration": "Two recorded controls distinguish a valid exact user-directed pending order from a stale native fill at the same clock. No fresh actor execution is claimed by a calibration result.",
+  "trials": [
+    {
+      "run": "model-red",
+      "status": "fail",
+      "machine_pass": false,
+      "judge_pass": false,
+      "source_fingerprint": "2033d30838708cea108bacf26d77389c55df5c7d48451c898e830d88d7e59dd5",
+      "record_sha256": "41f27046ee3076ac30614a96538919536e517b1a346eed582c1f5acf5dbf4e2b"
+    },
+    {
+      "run": "model-green",
+      "status": "fail",
+      "machine_pass": false,
+      "judge_pass": true,
+      "source_fingerprint": "789445cc72f2e9fab8bab07f50e0d87656035babc2094598ff8da27d2d772b16",
+      "record_sha256": "3829e86e88e9a23c40d1d800bfcc9e8dd446f829d80e8dde1bea75e4f57ab983"
+    },
+    {
+      "run": "model-red-daily",
+      "status": "fail",
+      "machine_pass": false,
+      "judge_pass": false,
+      "source_fingerprint": "daa1d977b02f317982f6be75cff32926ce166fc621b65482273e15e09bb3ecf1",
+      "record_sha256": "1d035bf21a9ab6d392e5192f05633ee7b4f62bc57995cdc6f6c5cffc07b0d8c1"
+    },
+    {
+      "run": "model-final",
+      "status": "fail",
+      "machine_pass": false,
+      "judge_pass": false,
+      "source_fingerprint": "c5e88fd4cfe699af80a19d63a0874749bcb0f8901e6443c3f1bcb5f163c85c18",
+      "record_sha256": "e1f500cf9584d371ee44e63e7df988ffb987192a0a55987333a5025f4b46cd30"
+    },
+    {
+      "run": "model-qualified",
+      "status": "fail",
+      "machine_pass": true,
+      "judge_pass": false,
+      "source_fingerprint": "a57633c3538dd321c73ec3808647b4565d65e3bd3e0f72eb8cadd492e96a8376",
+      "record_sha256": "eac9d25d9885e84cac35dc5b2f01ffea03f752fe3d4c9319f6d075ee97ce3e7f"
+    }
+  ],
+  "qualification_summary": {
+    "attempts": 38,
+    "states": {
+      "fail": 6,
+      "pass": 31,
+      "error": 1
+    },
+    "first_attempt": "2026-11-11T18:35:20.616263Z",
+    "first_model_pass": "2026-11-11T18:49:20.106689Z",
+    "settled_calls_by_role": {
+      "acting": 223,
+      "judge": 37,
+      "judge_calibration": 42
+    },
+    "api_spend_usd": 0.0,
+    "current_cases": {
+      "stock_daily_limit_current_execution": 1,
+      "stock_price_before_order": 1
+    },
+    "original_cases": {
+      "stock_daily_limit_current_execution": 5,
+      "stock_price_before_order": 5
+    },
+    "original_source": "04da13aeb449448a5cbfa47bcf2aca139978649a",
+    "qualified_evidence_runtime_fingerprint": "23ae5f7cc35c7fb1be9661aefe3fbe0f6a99cbc8157dd615c1bea448ff114780"
+  },
+  "release_validation": {
+    "retained_stock_model_source": "e21e2a7e4a1cfa2f6d38737c2f62bc8f5f4fb02b",
+    "incoming_options_proof_source": "f8f2cd14214a733938082a66ea9f1ea82a761d76",
+    "ci_run": "https://github.com/Lumiwealth/lumibot/actions/runs/43089868686",
+    "managed_contract_failure": "Three existing gateway contract tests rejected the model_request_timeout_seconds keyword before any simulated decision completed.",
+    "managed_contract_repair": "Pass the existing timeout option through the injected test model factory; retain actual runtime, broker, position and accounting assertions.",
+    "local_red": {
+      "failed": 3,
+      "passed": 1,
+      "seconds": 6.96
+    },
+    "local_green": {
+      "failed": 0,
+      "passed": 3,
+      "seconds": 7.48
+    },
+    "calibration_integrity": "The merged catalog check preserves exact source-bound control assertions and permits additional independently labeled controls; its focused test passed.",
+    "new_real_model_attempts": 0,
+    "why_zero": "This follow-up changes only test factory signatures. The execution engine repair has focused native tests, and original AI quote-date disclosure evidence stays bound to its earlier source. No fresh AI behavior or full strategy execution is claimed.",
+    "system_prompt_growth_bytes": 0,
+    "skill_growth_bytes": 0,
+    "history_buffer_contract": {
+      "red": "one failed in 1.35 seconds: the five-day buffer adds its older cold page",
+      "green": "one passed in 1.22 seconds",
+      "assertions": "Exact four initial windows, complete 250 bars on each of 12 reads, no future slice values, no duplicate requests and zero additional requests on warm reads"
+    },
+    "example_fee_contract": {
+      "red": {
+        "failed": 6,
+        "passed": 3,
+        "seconds": 0.76
+      },
+      "green": {
+        "failed": 0,
+        "passed": 8,
+        "seconds": 0.35
+      },
+      "repair": "Recognize only the native TradingFee entity and the exact startup template with symmetric declared contract fees. Preserve unchanged startup control and executable fee-wiring checks."
+    },
+    "unused_live_broker_proof": {
+      "red": "one failed in 0.25 seconds because a live Schwab-only change expired synchronous Pandas fixture evidence",
+      "green": "two passed in 1.43 seconds, including unchanged rejection of shared agent/fixture/accounting changes",
+      "boundary": "The native fixture binds tools and reads an in-memory quote while Schwab construction is forbidden. The adapter has separate recorded-response tests. No case selection or inferred test list was added.",
+      "new_real_model_attempts": 0
+    },
+    "author_retention_contract": {
+      "proof_location": "local LumiBot run",
+      "red": "one failed in 0.36 seconds; the old verifier demanded inference after a diagnostic file was added",
+      "green": "11 focused contract checks passed in 2.56 seconds, including actual release CLI verification",
+      "contract": "Retained native receipt bytes, source commit, SDKs, original calls and repetitions stay verified. The author writes the exact candidate fingerprint, case IDs and why behavior is unaffected. The verifier never selects or refreshes model cases.",
+      "new_real_model_attempts": 0,
+      "system_prompt_growth_bytes": 0,
+      "skill_growth_bytes": 0
+    }
+  }
+}

@@ -40,6 +40,15 @@ class AlpacaOptionHistoryUnavailable(RuntimeError):
     """Alpaca answered an option bars request successfully but returned no bars."""
 
 
+def _alpaca_asset_class(fn) -> str | None:
+    """Asset class of an Alpaca SDK call, from its method name (run telemetry only)."""
+    name = str(getattr(fn, "__name__", "") or "").lower()
+    for word, asset_class in (("option", "option"), ("crypto", "crypto"), ("stock", "stock"), ("news", "news")):
+        if word in name:
+            return asset_class
+    return None
+
+
 class AlpacaBacktesting(DataSourceBacktesting):
     """Backtest with historical data from your own Alpaca account (stocks, crypto, options).
 
@@ -849,6 +858,9 @@ class AlpacaBacktesting(DataSourceBacktesting):
             if wait > 0:
                 logger.info("Alpaca request budget reached (%d per minute); waiting %.1fs", limit, wait)
                 self._sleep_seconds(wait)
+                from lumibot.tools import backtest_telemetry
+
+                backtest_telemetry.record_wait("rate_limit", wait)
             now = time.monotonic()
             while recent and now - recent[0] >= 60.0:
                 recent.popleft()
@@ -887,16 +899,29 @@ class AlpacaBacktesting(DataSourceBacktesting):
         The SDK already retries a 429 three times after 3 seconds. This adds a longer,
         bounded wait (``Retry-After`` when Alpaca sends it) before failing loudly.
         """
+        from lumibot.tools import backtest_telemetry
+
+        with backtest_telemetry.provider_scope("alpaca", _alpaca_asset_class(fn)):
+            return self._alpaca_request_in_scope(fn, request, what=what)
+
+    def _alpaca_request_in_scope(self, fn, request, *, what: str):
+        from lumibot.tools import backtest_telemetry
+
         retries = 0
         waited = 0.0
         while True:
             self._throttle_alpaca_requests()
+            started = time.perf_counter()
             try:
-                return fn(request)
+                answer = fn(request)
+                backtest_telemetry.record_provider_request(time.perf_counter() - started)
+                return answer
             except Exception as exc:
+                backtest_telemetry.record_provider_request(time.perf_counter() - started)
                 if not self._is_rate_limited(exc):
                     raise
                 retries += 1
+                backtest_telemetry.record_retry()
                 wait = self._rate_limit_wait_seconds(exc, retries)
                 if (
                     retries > self.ALPACA_RATE_LIMIT_MAX_RETRIES
@@ -915,6 +940,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 )
                 waited += wait
                 self._sleep_seconds(wait)
+                backtest_telemetry.record_wait("rate_limit", wait)
 
     @staticmethod
     def _as_date(value) -> Optional[date]:
@@ -1065,6 +1091,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         cache_dir = os.path.join(LUMIBOT_CACHE_FOLDER, self.CACHE_SUBFOLDER, "option_chains")
         cache_file = os.path.join(cache_dir, "_".join(cache_key) + ".json")
+        from lumibot.tools import backtest_telemetry
+
+        backtest_telemetry.record_cache("hit" if os.path.exists(cache_file) else "miss", layer="alpaca_option_chains",
+                                        source="alpaca", asset_class="option")
         if os.path.exists(cache_file):
             try:
                 with open(cache_file, "r", encoding="utf-8") as handle:
@@ -1903,6 +1933,12 @@ class AlpacaBacktesting(DataSourceBacktesting):
         logger.info(f"Finished fetching and caching data for {key}")
         return df
 
+    @staticmethod
+    def _key_asset_class(key: str) -> str | None:
+        """Asset class in a data-store key (``<symbol>-<asset_type>_<quote>-...``), for telemetry."""
+        head = str(key).split("_", 1)[0]
+        return head.rsplit("-", 1)[-1] if "-" in head else None
+
     def _load_ohlcv_into_data_store(self, key: str) -> bool:
         """
         Loads OHLCV data from a cached file into the data store. If the loading is successful, returns True;
@@ -1924,8 +1960,18 @@ class AlpacaBacktesting(DataSourceBacktesting):
         filepath = os.path.join(cache_dir, filename)
 
         # Check if the file exists
+        from lumibot.tools import backtest_telemetry
+
+        asset_class = self._key_asset_class(key)
         if not os.path.exists(filepath):
+            backtest_telemetry.record_cache("miss", layer="alpaca_files", source="alpaca", asset_class=asset_class)
             return False
+        try:
+            nbytes = os.path.getsize(filepath)
+        except OSError:
+            nbytes = 0
+        backtest_telemetry.record_cache("hit", layer="alpaca_files", source="alpaca", asset_class=asset_class,
+                                        nbytes=nbytes)
 
         try:
             # Read CSV file with 'timestamp' column parsed as dates

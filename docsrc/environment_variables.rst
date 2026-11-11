@@ -170,7 +170,7 @@ Supported values
 
 - Values (case-insensitive):
 
-  - ``thetadata``, ``yahoo``, ``polygon``, ``alpaca``, ``ccxt``, ``databento``, ``polymarket``, ``polymarket_clob``
+  - ``thetadata``, ``yahoo``, ``polygon``, ``alpaca``, ``ccxt``, ``databento``, ``polymarket``, ``polymarket_clob``, ``schwab``, ``tradier`` (your broker's daily history, stocks and ETFs; see the Your Broker's History page)
   - ``ibkr`` / ``interactivebrokersrest`` / ``interactive_brokers_rest`` (IBKR Client Portal REST)
   - ``router`` (multi-provider routing; defaults to Theta for stock/option/index and IBKR for futures/crypto)
   - JSON mapping (multi-provider routing by asset type), e.g. ``{"default":"thetadata","stock":"thetadata","option":"thetadata","index":"thetadata","future":"ibkr","crypto":"ibkr"}``

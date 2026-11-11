@@ -116,6 +116,50 @@ def test_missing_byok_uses_managed_gateway_without_exposing_token(monkeypatch):
     assert "managed-token" not in repr(result)
 
 
+@pytest.mark.parametrize(
+    "configured,expected", [(0, None), (12.5, 12.5)], ids=["disabled", "finite"]
+)
+def test_managed_gateway_honors_model_request_timeout(monkeypatch, configured, expected):
+    """The runtime's timeout must reach the real default HTTP transport."""
+    from lumibot.components.agents import managed_gateway
+
+    for name in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_URL", "https://gateway.example.test")
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_TOKEN", "managed-test-token")
+    observed = []
+
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return b'{"parts":[{"type":"text","text":"Done."}]}'
+
+    def open_response(_request, *, timeout):
+        observed.append(timeout)
+        return Response()
+
+    monkeypatch.setattr(managed_gateway.urllib.request, "urlopen", open_response)
+    model = _resolve_model_for_adk(
+        "openai/gpt-5.4-mini", model_request_timeout_seconds=configured
+    )
+
+    async def collect():
+        return [response async for response in model.generate_content_async(
+            types.SimpleNamespace(config=None, contents=[])
+        )]
+
+    responses = asyncio.run(collect())
+    assert responses[0].content.parts[0].text == "Done."
+    assert observed == [expected]
+
+
 def test_invalid_byok_cannot_fall_back_to_managed_gateway(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "invalid-customer-key")
     monkeypatch.setenv("LUMIBOT_AI_GATEWAY_URL", "https://gateway.example.test")

@@ -4,8 +4,9 @@ No replacement agent-facing trading functions live here. Orders are real LumiBot
 orders, and fills are produced by BacktestingBroker against fixture OHLCV data.
 
 research_live_available exercises live research transport on recorded calendar
-data, never original-version historical source qualification. Its agent cannot
-trade. research_unavailable covers current observations being unavailable;
+data, never original-version historical source qualification. Each role retains
+its declared trading permissions; the user request determines authorized actions.
+research_unavailable covers current observations being unavailable;
 research_available retains the backtest clock and actual historical refusals.
 """
 
@@ -121,6 +122,7 @@ class _FixtureBroker(BacktestingBroker):
 def _capture_broker_order(order):
     """Capture actual signed package bounds without interpreting parent side/size."""
     from lumibot.components.agents.builtins import _order_to_dict
+    from lumibot.tools.helpers import get_multileg_quantity_units
 
     payload = _order_to_dict(order)
     limit = getattr(order, "_package_net_limit", None)
@@ -128,11 +130,9 @@ def _capture_broker_order(order):
     if limit is not None and children:
         net = None
         if all(child.is_filled() and child.avg_fill_price is not None for child in children):
-            unit = min(abs(float(child.quantity)) for child in children)
-            if unit <= 0:
-                raise ValueError("Filled package contains a nonpositive execution quantity")
-            net = sum(float(child.avg_fill_price) * abs(float(child.quantity)) / unit
-                      * (1 if child.is_buy_order() else -1) for child in children)
+            _, ratios = get_multileg_quantity_units(child.quantity for child in children)
+            net = sum(float(child.avg_fill_price) * ratio * (1 if child.is_buy_order() else -1)
+                      for child, ratio in zip(children, ratios))
         payload["package_execution"] = {"signed_limit_price": float(limit), "signed_fill_price": net}
     return payload
 
@@ -140,7 +140,9 @@ def _capture_broker_order(order):
 def _history(asset, fixture, quote_asset=None):
     # Minute observations include today's opening range and prior daily closes.
     now = pd.Timestamp("2026-08-11T14:35:00Z")
-    index = pd.date_range("2026-08-04T13:30:00Z", now + pd.Timedelta(minutes=2), freq="min")
+    clock_offset = pd.Timestamp(fixture.initial_datetime) - now
+    index = pd.date_range("2026-08-04T13:30:00Z",
+                          pd.Timestamp(fixture.observation_end) - clock_offset, freq="min")
     if asset.asset_type == "option":
         market_quote = fixture.quote(float(asset.strike), str(asset.right).lower())
         price = market_quote["last"]
@@ -157,6 +159,10 @@ def _history(asset, fixture, quote_asset=None):
     else:
         price = 230.0 if asset.symbol == "AAPL" else fixture.underlying_price
         market_quote = {"bid": price - 0.05, "ask": price + 0.05}
+    if fixture.name == "flat_options_underlying_mark_only" and asset.asset_type != "option":
+        # Recorded last/mark-only quote shape, as supplied by trade-bar sources.
+        # Exact option legs retain their independent two-sided execution quotes.
+        market_quote = {"bid": None, "ask": None}
     frame = pd.DataFrame(
         {"open": price, "high": price + 0.05, "low": price - 0.05, "close": price, "volume": 1000, **market_quote}, index=index
     )
@@ -215,6 +221,7 @@ def _history(asset, fixture, quote_asset=None):
                 close,
                 [200, 220, 210, 480][i // 5],
             ]
+    frame.index = frame.index + clock_offset
     return Data(asset, frame, quote=quote_asset, timestep="minute")
 
 
@@ -817,12 +824,33 @@ class ProductionFixture:
             )
         source = PandasDataBacktesting(
             pandas_data=data,
-            datetime_start=pd.Timestamp("2026-08-11T14:35:00Z"),
-            datetime_end=pd.Timestamp("2026-08-11T14:37:00Z"),
+            datetime_start=pd.Timestamp(fixture.initial_datetime),
+            datetime_end=pd.Timestamp(fixture.observation_end),
             show_progress_bar=False,
             market="24/7",
         )
         source.load_data()
+        if fixture.name == "stock_daily_limit_current_execution":
+            from lumibot.entities import Quote
+
+            asset = Asset("QZX")
+            prior = pd.Timestamp(source.get_datetime()).tz_convert("America/New_York").normalize() - pd.Timedelta(days=1)
+            daily = Data(asset, pd.DataFrame(
+                {column: [100.0] for column in ("open", "high", "low", "close", "bid", "ask", "volume")},
+                index=pd.DatetimeIndex([prior]),
+            ), timestep="day", quote=Asset("USD", asset_type="forex"))
+            ordinary_quote = source.get_quote
+
+            def recorded_daily_quote(target, quote=None, exchange=None):
+                if target != asset:
+                    return ordinary_quote(target, quote=quote, exchange=exchange)
+                # Native Data retains the previous observation's timestamp.
+                # Current minute execution remains the real 105 bars.
+                observation = daily.get_quote(source.get_datetime())
+                return Quote(asset=asset, price=observation.get("close"),
+                             bid=observation.get("bid"), ask=observation.get("ask"), raw_data=observation)
+
+            source.get_quote = recorded_daily_quote
         self.broker = _FixtureBroker(data_source=source)
         self.broker.fixture = fixture
         self.broker.initialize_market_calendars(source.get_trading_days_pandas())
@@ -836,6 +864,13 @@ class ProductionFixture:
             parameters={},
         )
         self.strategy._first_iteration = False
+        # Each concurrent fixture owns its native detail/Parquet writers.
+        # Use the existing Strategy output prefix rather than a shared fallback.
+        self.strategy._stats_file = str(self.root / "fixture_stats.csv")
+        if fixture.name == "stock_daily_limit_current_execution":
+            # Strategy initialization loads the source and restores its native
+            # cadence. Apply the simulated daily cadence after that lifecycle.
+            source._timestep = "day"
         from lumibot.components.memory import MemoryStore
         # The fixture owns this exact synthetic SQLite store and derived exports.
         # ProductionFixture.close removes them with the fixture's finally owner.
@@ -850,6 +885,13 @@ class ProductionFixture:
             order = self.strategy.create_order(Asset("AAPL"), 40, "sell", order_type="limit", limit_price=250.0)
             order.identifier = "bt_pending_exit"
             self.strategy.submit_order(order)
+        if fixture.name == "options_pending_package_exit":
+            # Existing close, deliberately below the recorded executable debit.
+            # Seed through the normal broker; no fabricated pending/fill replies.
+            legs = [self.strategy.create_order(p.asset, abs(p.quantity),
+                    "buy_to_close" if p.quantity < 0 else "sell_to_close")
+                    for p in self.strategy.get_positions() if p.asset.asset_type == "option"]
+            self.strategy.submit_order(legs, is_multileg=True, order_type="debit", price=.01)
         if fixture.empty_expirations:
             original_get_chains = self.strategy.get_chains
             empty = tuple(fixture.empty_expirations)
@@ -917,6 +959,21 @@ class ProductionFixture:
             # is live research evidence, not a qualified historical replay.
             self.strategy.is_backtesting = False
         self.manager = self.strategy.agents
+        self.agent_runs = []
+        original_observer = self.manager._record_agent_observability
+
+        def record_actual_run(**kwargs):
+            from copy import deepcopy
+
+            original_observer(**kwargs)
+            handle = kwargs["handle"]
+            self.agent_runs.append({
+                "role": handle.name, "allow_trading": handle.allow_trading,
+                "result": kwargs["result"],
+                "runtime_context": deepcopy(kwargs["runtime_context"]),
+            })
+
+        self.manager._record_agent_observability = record_actual_run
         self.manager.replay_cache.root = self.root / "replay"
         self.manager.replay_cache.remote_cache = _NoRemoteCache()
 
@@ -942,9 +999,11 @@ class ProductionFixture:
             rules_path=rules,
             _runtime=runtime,
             mcp_servers=servers,
-            allow_trading=False if self.fixture.name == "research_live_available" else allow_trading,
+            allow_trading=allow_trading,
             allow_network=bool(case.get("allowNetwork")),
             reasoning_effort=None if str(case["model"]).startswith("gemini") else EVAL_REASONING_EFFORT,
+            model_request_timeout_seconds=0,
+            run_timeout_seconds=0,
         )
 
     def tools(self):
@@ -954,6 +1013,11 @@ class ProductionFixture:
 
     def settle(self):
         self.broker.process_pending_orders(self.strategy)
+        # Direct agent runs do not start StrategyExecutor's iteration loop.
+        # Deliver the broker's real fill/cancel callbacks, as that loop does,
+        # before the next role sees positions and the associated cash ledger.
+        # Do not simulate another bar or manufacture a pending order's fill.
+        self.strategy._executor.process_queue()
 
     def _capture_memory_events(self):
         """Read committed synthetic audit rows, preserving original bytes and linkage.

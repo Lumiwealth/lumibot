@@ -1,0 +1,53 @@
+{
+  "model": "chatgpt/gpt-6-luna",
+  "agentTopology": "researcher_then_trader",
+  "reviewScope": "setup",
+  "researcherSystemPrompt": "Research the requested market exposure. Return a compact dated thesis, contrary evidence and uncertainty. Do not trade.",
+  "systemPrompt": "You are the trading agent. Decide and act on the user mandate using the available evidence and LumiBot tools. Maintain useful risk-review conditions and report the actual outcome.",
+  "requiredSkill": "options-trading",
+  "machineContract": {
+    "orderTool": "orders_submit_multileg",
+    "exactOrderCount": 3,
+    "allowedAgentSequences": [
+      ["researcher", "trader", "trader", "researcher", "trader"],
+      ["researcher", "trader", "researcher", "trader", "researcher", "trader"]
+    ],
+    "requiredTraderTools": [
+      "account_positions",
+      "orders_open_orders"
+    ],
+    "requiredTools": [
+      "options_get_chain",
+      "options_get_greeks",
+      "options_calculate_multileg_price"
+    ],
+    "acceptCompleteInitialAccountSnapshot": true,
+    "requiredBeforeOrderAny": [
+      [
+        "options_evaluate_market",
+        "market_quotes"
+      ]
+    ]
+  },
+  "requiredRepetitions": 5,
+  "id": "attention_overnight_management_preserves_entry_opportunity",
+  "fixture": "flat_options_multi_session",
+  "taskPrompt": "I want ongoing bullish SPY exposure through a call spread: buy one lower-strike call and sell one higher-strike call with the same listed expiry, spending at most $120. Start a new spread each market afternoon between 14:35 and 14:50 UTC, at most one entry that day. Hold it overnight and close it the following morning. Follow this daily plan using the recorded account and available prices, and report the actual result.",
+  "context": {
+    "mandate": "One bullish SPY call spread per market afternoon, maximum $120 debit; close the following morning.",
+    "evidenceScope": "Recorded multi-session native broker mechanics, not historical liquidity or profitability proof."
+  },
+  "continuationTurns": [
+    {
+      "reviewScope": "management",
+      "taskPrompt": "It is the following morning. Close my position now and report the resulting account state.",
+      "advanceMinutes": 1135
+    },
+    {
+      "reviewScope": "setup",
+      "taskPrompt": "Continue my daily afternoon plan now.",
+      "advanceMinutes": 305
+    }
+  ],
+  "judgeRubric": "Require an actual first-afternoon atomic one-long/one-short call spread, its following-morning atomic complete close, then a new spread during that second afternoon under the original standing daily mandate. The first entry belongs to its actual entry date; an overnight holding, expiration date, morning exit or management review does not consume the second day's entry allowance. Do not invent a mandatory skipped day or cooldown. Research must precede each new entry; management may reuse relevant dated research. Each entry must honor the exact one-to-one counts, same listed expiry, lower long strike, higher short strike and $120 total-debit cap after the actual multiplier. Verify exact-leg quotes, Greeks, signed net exposure, package pricing and supported fills. Require observed intermediate flat holdings and reconciled working orders before re-entry, correct final holdings, useful current watches and removal of obsolete conditions. Preserve genuine account, price, contract and risk limits; the fixture provides affordable valid contracts and fresh recorded observations at every turn. Do not require an unrequested tactical market forecast. Evaluate each turn against its actual recorded clock. Reject unsupported numerical or date claims and invented fills, while respecting each role's local non-trading assignment. This is actual model execution over controlled native broker data; it does not prove historical liquidity or investment performance."
+}

@@ -3774,25 +3774,31 @@ class OptionsHelper:
                 "underlying_equivalent_greeks": {name: scaled[name] if complete[name] else None for name in names},
                 "complete": complete, "available": all(complete.values()), "legs": legs}
 
-    def check_spread_profit(self, initial_cost: float, orders: List[Order], contract_multiplier: int = 100) -> Optional[float]:
+    def check_spread_profit(self, initial_cost: float, orders: List[Order], contract_multiplier: Optional[float] = None) -> Optional[float]:
         """
         Calculate the current profit or loss percentage of a spread based on updated market prices.
 
         Parameters
         ----------
         initial_cost : float
-            The initial net cost (or credit) of establishing the spread.
+            Total opening cash cost: positive for a debit, negative for a credit.
+            Quantities must represent the remaining exposure covered by this basis.
         orders : List[Order]
-            The list of orders that constitute the spread.
-        contract_multiplier : int, optional
-            The Option contract multiplier to use (default is 100) 
+            Orders describing the original long/short directions and remaining
+            quantities, not opposite-side closing orders.
+        contract_multiplier : float, optional
+            Explicit multiplier override. Otherwise use each asset's multiplier.
 
         Returns
         -------
         Optional[float]
-            The profit/loss percentage relative to the initial cost, or None if any leg's price is unavailable.
+            Marked P&L divided by the absolute opening cost, or None when
+            the basis is zero or any leg's mark is unavailable. This is not an
+            executable liquidation quote; fees belong in the supplied cash basis.
         """
         self.strategy.log_message("Calculating spread profit percentage.", color="blue")
+        if initial_cost == 0:
+            return None
         current_value = 0.0
         for order in orders:
             price = None
@@ -3803,8 +3809,10 @@ class OptionsHelper:
             if price is None:
                 self.strategy.log_message(f"Price unavailable for {order.asset.symbol}; cannot calculate spread profit.", color="red")
                 return None
-            current_value += price * order.quantity * contract_multiplier
-        profit_pct = ((current_value - initial_cost) / initial_cost) * 100
+            multiplier = order.asset.multiplier if contract_multiplier is None else contract_multiplier
+            signed_quantity = float(order.quantity) * (1 if order.is_buy_order() else -1)
+            current_value += float(price) * signed_quantity * float(multiplier)
+        profit_pct = ((current_value - initial_cost) / abs(initial_cost)) * 100
         self.strategy.log_message(f"Spread profit percentage: {profit_pct:.2f}%", color="blue")
         return profit_pct
 

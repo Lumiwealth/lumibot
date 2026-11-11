@@ -5,6 +5,7 @@
 Deploy marker: e2675359fb53fb56c6bcc4e23aac79334e97ac2f
 
 ### Release tooling
+- Retain native model proof by an explicit author decision bound to the exact reviewed candidate and case list. The verifier preserves original source, receipt bytes and call evidence without demanding new inference for unrelated files or diagnostic counters.
 - Reuse the original full repetitions in an immutable published native receipt when establishing later regression evidence. Preserve the original source, calls, usage and timestamps; reject invalidated, failed, funding-mismatched or SDK-mismatched proof. Parallel native fixtures now own separate Parquet export prefixes.
 - Verify original stability together with the author-listed current regressions. Synchronous in-memory model fixtures retain their native evidence across changes to the unused threaded runner and provider cache; this does not qualify those components or historical backtests.
 

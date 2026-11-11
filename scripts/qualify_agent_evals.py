@@ -862,7 +862,7 @@ def main():
             from scripts.agent_eval_source_compatibility import compatible_runtime
 
             evidence_hash = compatible_runtime(receipt, args.receipt.read_bytes(), json.loads(anchor.read_text()))
-            print(f"Preserving scoped native inference at original source {evidence_hash}; candidate {runtime_hash} is source-compatible. No inference timestamps or usage were rewritten.")
+            print(f"Preserving author-retained scoped native inference at original source {evidence_hash}; reviewed candidate {runtime_hash}. No new model execution, timestamps or usage are claimed.")
         ids = verify_release_scope(json.loads(SCOPE_PATH.read_text()), cases, receipt,
                                    runtime_hash=evidence_hash, version=package_version(), versions=versions)
         print(f"Verified the author-written release eval scope: {len(ids)} listed case(s) with current pass evidence"
@@ -877,7 +877,7 @@ def main():
             from scripts.agent_eval_source_compatibility import compatible_runtime
 
             evidence_hash = compatible_runtime(receipt, receipt_bytes, json.loads(anchor.read_text()))
-            print(f"Preserving native inference at original source {evidence_hash}; candidate {runtime_hash} is source-compatible. No inference timestamps or usage were rewritten.")
+            print(f"Preserving author-retained native inference at original source {evidence_hash}; reviewed candidate {runtime_hash}. No new model execution, timestamps or usage are claimed.")
         verify_receipt(receipt, cases, runtime_hash=evidence_hash, versions=versions)
     print(f"Verified {len(cases)} real-model actor/judge qualifications and complete judge calibration for the candidate and SDKs.")
     return 0
@@ -887,5 +887,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except (OSError, ValueError, KeyError, TypeError, RuntimeError) as exc:
-        print(f"Real-model qualification blocked: {exc}. Run the authenticated local evals, review evidence, then create the receipt.", file=sys.stderr)
+        print(f"Real-model qualification blocked: {exc}. Review the author-written scope and source-bound evidence; do not infer or automatically run additional cases.", file=sys.stderr)
         raise SystemExit(1) from exc

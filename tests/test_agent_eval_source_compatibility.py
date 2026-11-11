@@ -1,10 +1,66 @@
 """Native inference keeps its original source; unrelated provider edits may reuse it."""
 import ast
+import hashlib
 import json
 
 import pytest
 
 from scripts import agent_eval_source_compatibility as scope
+
+def _author_retention_source(tmp_path, monkeypatch):
+    """Real Git bytes and synthetic contract metadata, never model evidence."""
+    native = tmp_path / 'lumibot/native.py'
+    native.parent.mkdir()
+    native.write_bytes(b'VALUE = 1\n')
+    paths = ['lumibot/native.py']
+    original_hash = scope._fingerprint({paths[0]: native.read_bytes()}, {})
+    receipt = {'sdk_versions': {}, 'runtime_fingerprint': original_hash, 'cases': {'contract': {}}}
+    raw = json.dumps(receipt).encode()
+    stored = tmp_path / 'ci/agent-evals/qualification.json'
+    stored.parent.mkdir(parents=True)
+    stored.write_bytes(raw)
+    scope._git('init', '-q', '-b', 'native-proof', root=tmp_path)
+    scope._git('add', 'lumibot/native.py', 'ci/agent-evals/qualification.json', root=tmp_path)
+    scope._git('-c', 'user.name=Native Contract', '-c', 'user.email=native@example.invalid',
+               'commit', '-qm', 'Record synthetic source contract', root=tmp_path)
+    ref = scope._git('rev-parse', 'HEAD', root=tmp_path).decode().strip()
+    (native.parent / 'diagnostics.py').write_bytes(b'COUNTER = 0\n')
+    monkeypatch.setattr(scope, 'runtime_paths', lambda *, root, source_ref=None:
+                        paths if source_ref else sorted(p.relative_to(root).as_posix()
+                                                       for p in (root / 'lumibot').glob('*.py')))
+    current = {path: (tmp_path / path).read_bytes() for path in scope.runtime_paths(root=tmp_path)}
+    anchor = {'version': 2, 'source_commit': ref, 'receipt_sha256': hashlib.sha256(raw).hexdigest(),
+              'author_review': {'candidate_runtime_fingerprint': scope._fingerprint(current, {}),
+                                'case_ids': ['contract'],
+                                'reason': 'Only diagnostic counters changed; retained actor behavior is unchanged.'}}
+    return receipt, raw, anchor
+
+
+def test_author_review_retains_exact_native_source_without_inferring_new_runs(tmp_path, monkeypatch):
+    receipt, raw, anchor = _author_retention_source(tmp_path, monkeypatch)
+    assert scope.compatible_runtime(receipt, raw, anchor, root=tmp_path) == receipt['runtime_fingerprint']
+    assert (tmp_path / 'ci/agent-evals/qualification.json').read_bytes() == raw
+
+
+@pytest.mark.parametrize('field,value', [
+    ('candidate_runtime_fingerprint', '0' * 64), ('case_ids', []), ('reason', ''), ('unexpected', True),
+])
+def test_author_review_rejects_wrong_candidate_cases_or_missing_reason(tmp_path, monkeypatch, field, value):
+    receipt, raw, anchor = _author_retention_source(tmp_path, monkeypatch)
+    anchor['author_review'][field] = value
+    with pytest.raises(ValueError, match='author|Author'):
+        scope.compatible_runtime(receipt, raw, anchor, root=tmp_path)
+
+
+def test_legacy_anchor_requires_author_review_after_source_changes(tmp_path, monkeypatch):
+    receipt, raw, anchor = _author_retention_source(tmp_path, monkeypatch)
+    anchor.pop('author_review')
+    anchor['version'] = 1
+    with pytest.raises(ValueError, match='[Aa]uthor'):
+        scope.compatible_runtime(receipt, raw, anchor, root=tmp_path)
+    (tmp_path / 'lumibot/diagnostics.py').unlink()
+    assert scope.compatible_runtime(receipt, raw, anchor, root=tmp_path) == receipt['runtime_fingerprint']
+
 
 LIVE_METHODS = [
     ('lumibot/brokers/broker.py', 'Broker', 'sync_orders', 'self.IS_BACKTESTING_BROKER'),
@@ -35,6 +91,31 @@ def test_alpaca_only_benchmark_branch_preserves_pandas_inference():
 
 def test_alpaca_provider_is_outside_the_native_pandas_fixture():
     scope.check_change('lumibot/backtesting/alpaca_backtesting.py', b'before', b'after')
+
+
+def test_unused_schwab_adapter_keeps_synchronous_fixture_proof(monkeypatch):
+    scope.check_change('lumibot/brokers/schwab.py', b'before', b'after')
+
+    from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting
+    from lumibot.brokers.schwab import Schwab
+    from lumibot.entities import Asset
+    from scripts import run_agent_evals as evals
+    from scripts.agent_eval_isolation import fixture_network_boundary
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    def forbid_live_broker(*_args, **_kwargs):
+        pytest.fail('Synchronous native fixtures must not construct Schwab')
+
+    monkeypatch.setattr(Schwab, '__init__', forbid_live_broker)
+    with fixture_network_boundary():
+        fixture = ProductionFixture(evals.build_fixture('flat_stock_account'))
+        try:
+            assert isinstance(fixture.broker, BacktestingBroker)
+            assert isinstance(fixture.broker.data_source, PandasDataBacktesting)
+            fixture.create_agent(evals.load_cases({'stock_price_before_order'})[0], None)._ensure_bound_tools()
+            assert fixture.strategy.get_quote(Asset('AAPL')) is not None
+        finally:
+            fixture.close()
 
 
 @pytest.mark.parametrize('path', ['lumibot/tools/shared_bar_cache.py', 'lumibot/traders/trader.py'])

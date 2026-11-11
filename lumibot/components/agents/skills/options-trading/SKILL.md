@@ -120,6 +120,11 @@ Use a permitted contract count within the user's stated cap. Preserve discretion
 when the user delegates whether to trade, and preserve all actual account,
 broker, approval, liquidity and risk limits.
 
+Before an order, verify every mandatory policy check against the final exact
+contract and current decision time. If a check fails, choose another eligible
+contract or hold. Do not submit an order whose own reason acknowledges a failed
+requirement. A missing eligible candidate never authorizes relaxing a limit.
+
 1. Establish current cash, exact signed contract positions and pending packages.
    A complete, fresh Runtime Context account snapshot can supply that evidence;
    inspect its completeness, timestamps and exact identities. Call
@@ -292,12 +297,42 @@ broker, approval, liquidity and risk limits.
    every intended leg against fresh signed positions. One child's terminal fill
    does not prove the complete package filled. Report unresolved legs explicitly.
 
+## Short-option coverage and settlement
+
+For a cash-secured put, reserve strike times deliverable multiplier times all
+held and working short contracts, plus costs, against available cash. Opening
+premium is not permission to reuse that collateral for another obligation.
+For a covered call, reserve the corresponding unencumbered deliverable shares;
+reconcile other working calls before counting the same shares again. Obtain the
+actual contract multiplier rather than assuming every contract delivers 100.
+Assignment and exercise can change both shares and cash. Reconcile positions,
+fills, pending orders and share acquisition cost after settlement before choosing
+another contract. Retain each existing contract's original identity when future
+entry policy changes symbol. Premium income alone is not total return: include
+remaining option liabilities, share value and costs.
+
+When the strategy uses attention monitoring, retain a signed
+`position_quantity` change condition for each held option and status conditions
+for its working orders, including filled, partially filled, rejected and canceled
+transitions. Reconcile a working order's actual fill before establishing entry-cost
+profit monitoring; an acknowledgement supplies neither quantity nor cost basis.
+Assignment, exercise or partial closing can change
+exposure without a price boundary crossing. Reconcile the resulting shares,
+cash and remaining quantity before replacing the cash basis or removing watches.
+
 ## Position truth
 
 Treat current signed quantities as authoritative. Positive is long, negative
 is short, zero is flat.
 
-To close held option contracts, always pass `action='close'` to
+For one held option contract identity, inspect its exact quote and bid/ask
+spread, then use `orders_submit_order` with `buy_to_close` for a short position
+or `sell_to_close` for a long position. Use a positive quantity no greater than
+the verified remaining holding, a price-bounded limit and the intended time in
+force. A single-contract close does not use multi-leg pricing or submission.
+Reconcile any pending close before replacing it.
+
+For an atomic close of two or more option legs, pass `action='close'` to
 `options_calculate_multileg_price` and `orders_submit_multileg`. List only
 `symbol`, `expiration`, `strike`, and `right` for each held leg. LumiBot derives
 each closing side from the current signed position (long becomes
@@ -561,3 +596,6 @@ State missing evidence honestly. This is a decision summary, not hidden internal
 reasoning, and must contain no credentials or account identifiers. The order
 service commits it before execution. Report only observed order status and fills;
 reconcile an uncertain outcome before trying again.
+
+For a single held option, `options_check_spread_profit` can read marked P&L
+from one original-direction leg; no second leg or package price is needed.

@@ -1909,8 +1909,12 @@ class BacktestingBroker(Broker):
         --------
             List of orders
         """
-        if self.data_source.SOURCE != "PANDAS":
-            return
+        # Options settle on every backtesting source: settlement prices off the underlying's
+        # real close, so trade-only option data (Alpaca) does not block it. Before 2026-11-11
+        # this returned unless SOURCE == "PANDAS", so Alpaca backtests kept expired contracts
+        # (and orders on them) forever. Other expiring assets (futures) keep the old scope:
+        # only pandas-based sources auto-close them here.
+        pandas_source = self.data_source.SOURCE == "PANDAS"
 
         # If it's the same day as the expiration, we need to check the time to see if it's after market close
         time_to_close = self.get_time_to_close()
@@ -1924,6 +1928,8 @@ class BacktestingBroker(Broker):
 
         positions = self.get_tracked_positions(strategy.name)
         for position in positions:
+            if not pandas_source and position.asset.asset_type != Asset.AssetType.OPTION:
+                continue
             if position.asset.expiration is not None and position.asset.expiration <= self.datetime.date():
                 # If the contract has expired, we should sell it
                 if position.asset.expiration == self.datetime.date() and time_to_close > seconds_before_closing:

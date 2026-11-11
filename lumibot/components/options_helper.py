@@ -108,6 +108,43 @@ class OptionsHelper:
         except Exception:
             return
 
+    def _prefetch_option_contracts(self, underlying_asset: Asset, expiry: date, right: str,
+                                   strikes: List[float]) -> None:
+        """Ask the data source to load many contracts' prices at once, when it can.
+
+        A delta search probes many strikes; without this each probe downloads its own
+        contract. Data sources that implement ``prefetch_option_bars`` (for example Alpaca
+        backtests) load them in batched requests. The prices read afterwards are the same
+        stored data, so the chosen strike cannot change. Sources without it do nothing.
+        """
+        broker = getattr(self.strategy, "broker", None)
+        prefetch = getattr(getattr(broker, "data_source", None), "prefetch_option_bars", None)
+        if not callable(prefetch) or not strikes:
+            return
+        until = None
+        try:
+            until = self.strategy.get_datetime() if getattr(self.strategy, "is_backtesting", False) else None
+        except Exception:
+            until = None
+        # Minute strategies search on every bar: ask once per contract and day, so a
+        # repeated search costs a set lookup, not a batch of new Asset objects.
+        day = until.date() if until is not None and hasattr(until, "date") else None
+        done = self.__dict__.setdefault("_prefetched_option_contracts", set())
+        side = (getattr(underlying_asset, "symbol", underlying_asset), expiry, str(right).lower(), day)
+        missing = [strike for strike in strikes if (side, strike) not in done]
+        if not missing:
+            return
+        done.update((side, strike) for strike in missing)
+        assets = [
+            Asset(underlying_asset.symbol, asset_type="option", expiration=expiry, strike=strike,
+                  right=right, underlying_asset=underlying_asset)
+            for strike in missing
+        ]
+        try:
+            prefetch(assets, until=until) if until is not None else prefetch(assets)
+        except Exception as exc:  # each probe still loads its own contract and reports errors
+            logger.warning("Batched option price prefetch failed; loading contracts one at a time: %s", exc)
+
     def _reset_per_bar_caches_if_needed(self) -> None:
         """Reset per-bar caches when the strategy datetime advances."""
         try:
@@ -714,6 +751,125 @@ class OptionsHelper:
 
         expirations = sorted({OptionsHelper._normalize_to_trading_expiry(d) for d in expirations})
         return expirations
+
+    def get_option_chain_snapshot(
+        self,
+        underlying_asset: Asset,
+        expiry: date,
+        right: str,
+        strikes: Optional[List[float]] = None,
+        underlying_price: Optional[float] = None,
+        chains: Optional[Any] = None,
+    ) -> List[Dict[str, Any]]:
+        """Price, bid/ask, implied volatility and delta for many strikes at the current time.
+
+        One call per expiry and side. Data sources that can load many contracts at once
+        (``prefetch_option_bars``) are asked once for all strikes, then each strike is priced
+        with the same mark and greeks rules as :meth:`get_delta_for_strike`, so the numbers
+        match what a strike-by-strike search would see. Missing prices stay ``None``; nothing
+        is estimated or filled in.
+
+        Parameters
+        ----------
+        underlying_asset : Asset
+            The underlying.
+        expiry : date
+            Option expiration.
+        right : str
+            "call" or "put".
+        strikes : list of float, optional
+            Strikes to include. Default: every strike the chain lists for this expiry and side.
+        underlying_price : float, optional
+            Underlying price to use. Default: the current last price.
+        chains : optional
+            A chain object already fetched with ``get_chains``.
+
+        Returns
+        -------
+        list of dict
+            One row per strike, sorted by strike, with keys ``strike``, ``price``, ``bid``,
+            ``ask``, ``implied_volatility`` and ``delta``.
+        """
+        expiry = self._normalize_to_trading_expiry(expiry)
+        option_type = "CALL" if str(right).upper().startswith("C") else "PUT"
+        if strikes is None:
+            chains_data = chains if chains is not None else self.strategy.get_chains(underlying_asset)
+            strikes = []
+            if chains_data:
+                try:
+                    strikes = list(chains_data.strikes(expiry, option_type))
+                except Exception:
+                    strike_map = chains_data.get("Chains", {}).get(option_type, {}) if isinstance(chains_data, dict) else {}
+                    strikes = strike_map.get(expiry.strftime("%Y-%m-%d"), []) if strike_map else []
+        strikes = sorted({float(k) for k in strikes if k is not None and float(k) > 0})
+        if underlying_price is None:
+            underlying_price = self.strategy.get_last_price(underlying_asset)
+        rows: List[Dict[str, Any]] = []
+        if not strikes:
+            return rows
+        self._prefetch_option_contracts(underlying_asset, expiry, right, strikes)
+        self._reset_per_bar_caches_if_needed()
+        entries = []
+        for strike in strikes:
+            option = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry, strike=strike,
+                           right=right, underlying_asset=underlying_asset)
+            price, bid, ask = self._get_option_mark_from_quote(option, snapshot=True)
+            if price is None:
+                try:
+                    last = self.strategy.get_last_price(option)
+                    price = float(last) if last is not None and math.isfinite(float(last)) and float(last) > 0 else None
+                except Exception:
+                    price = None
+            entries.append((strike, option, price, bid, ask))
+        if underlying_price is not None:
+            self._batch_greeks_for_snapshot(entries, float(underlying_price))
+        for strike, option, price, bid, ask in entries:
+            iv = delta = None
+            if price is not None and underlying_price is not None:
+                delta = self.get_delta_for_strike(underlying_asset, underlying_price, strike, expiry, right)
+                greeks = self._per_bar_greeks_cache.get((option, float(underlying_price), price))
+                if isinstance(greeks, dict):
+                    iv = greeks.get("implied_volatility")
+            rows.append({"strike": strike, "price": price, "bid": bid, "ask": ask,
+                         "implied_volatility": iv, "delta": delta})
+        return rows
+
+    def _batch_greeks_for_snapshot(self, entries, underlying_price: float) -> None:
+        """Fill the per-bar greeks cache for many strikes in one array pass, when it is exact.
+
+        Only when the strategy and broker use the standard greeks path (backtesting broker,
+        ``Strategy.get_greeks`` -> ``Broker.get_greeks`` -> ``DataSource.calculate_greeks``):
+        ``calculate_greeks_many`` then returns exactly what those calls return, so
+        ``get_delta_for_strike`` reads the same numbers it would compute. Anything else
+        (live brokers that may query greeks, custom ``get_greeks``) keeps the one-by-one path.
+        """
+        from lumibot.brokers.broker import Broker
+        from lumibot.strategies.strategy import Strategy
+
+        broker = getattr(self.strategy, "broker", None)
+        source = getattr(broker, "data_source", None)
+        many = getattr(source, "calculate_greeks_many", None)
+        if (
+            not callable(many)
+            or not getattr(broker, "IS_BACKTESTING_BROKER", False)
+            or getattr(type(self.strategy), "get_greeks", None) is not Strategy.get_greeks
+            or getattr(type(broker), "get_greeks", None) is not Broker.get_greeks
+        ):
+            return
+        todo = [(option, price) for _strike, option, price, _bid, _ask in entries
+                if price is not None
+                and (option, underlying_price) not in self._per_bar_delta_cache
+                and (option, underlying_price, price) not in self._per_bar_greeks_cache]
+        if not todo:
+            return
+        try:
+            rate = self.strategy.risk_free_rate
+            greeks = many([o for o, _p in todo], [p for _o, p in todo], underlying_price, rate)
+        except Exception as exc:  # one-by-one path below still runs and reports its own errors
+            logger.debug("Batched greeks unavailable; computing one strike at a time: %s", exc)
+            return
+        for (option, price), result in zip(todo, greeks):
+            self._per_bar_greeks_cache[(option, underlying_price, price)] = result
 
     def get_strike_deltas(self, underlying_asset: Asset, expiry: date, strikes: List[float],
                           right: str, stop_greater_than: Optional[float] = None,
@@ -1512,6 +1668,9 @@ class OptionsHelper:
                     start_idx = start_idx - 1
 
             max_offsets = 6
+            # The neighbourhood probes and the binary-search fallback below both read from
+            # this candidate list, so load all of it in one batched request.
+            self._prefetch_option_contracts(underlying_asset, expiry, right, candidate_strikes)
             for offset in range(0, max_offsets + 1):
                 for idx in (start_idx - offset, start_idx + offset):
                     result = _try_strike(idx)

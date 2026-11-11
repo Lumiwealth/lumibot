@@ -126,5 +126,32 @@ def test_canceled_activity_uses_native_reconciliation_and_callback_queue(path, a
     assert sum(transaction.quantity for transaction in order.transactions) == actual_filled
     assert sum(data["quantity"] for _name, data in fills) == actual_filled
     assert len(fills) == (1 if actual_filled else 0)
-    assert sum(name == broker.CANCELED_ORDER for name, _data in events) == 1
+    # A confirmed complete execution wins cancellation; calling it partial and
+    # then canceled would prevent filled-order handlers from managing exposure.
+    assert sum(name == broker.CANCELED_ORDER for name, _data in events) == (actual_filled < 100)
+    if actual_filled == 100:
+        assert fills[0][0] == broker.FILLED_ORDER
+        assert order.is_filled()
+
+
+def test_one_contract_executed_before_cancellation_delivers_a_full_fill():
+    from datetime import date
+
+    transport = _TRANSPORT.SchwabLifecycleTransport()
+    broker, recipient = _TRANSPORT.data_only_schwab_broker(transport)
+    option = Asset("SYN", asset_type="option", expiration=date(2026, 11, 20), strike=10, right="CALL")
+    order = Order(strategy="fixture", asset=option, quantity=1, side="buy_to_open",
+                  order_type="limit", limit_price=1, time_in_force="day")
+    broker.submit_order(order)
+    _TRANSPORT.drain_stream_events(broker)
+    transport.queue_order_reads(order.identifier, {
+        "status": "CANCELED", "filledQuantity": 1, "averagePrice": 1,
+        "orderActivityCollection": [activity("FILL", 1, 1), activity("CANCELED", 0, 0)],
+    })
+    broker._reconcile_active_schwab_orders()
+    event, data = recipient.priority_queue.get_nowait()
+    assert event == broker.FILLED_ORDER
+    assert data["quantity"] == 1
+    assert recipient.priority_queue.empty()
+    assert order.is_filled()
 

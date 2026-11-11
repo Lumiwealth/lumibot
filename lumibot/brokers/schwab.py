@@ -3642,7 +3642,10 @@ class Schwab(Broker):
 
         status_code = getattr(response, "status_code", None)
         cancel_seconds = time.perf_counter() - cancel_started
-        self._get_order_health().cancel_response(cancel_seconds)
+        try:
+            self._get_order_health().cancel_response(cancel_seconds)
+        except Exception:
+            pass  # Diagnostics must not replace the actual broker outcome.
         elapsed_ms = int(cancel_seconds * 1000)
         if status_code is None:
             error_msg = f"Error canceling Schwab order {order.identifier}: unexpected response {type(response).__name__}"

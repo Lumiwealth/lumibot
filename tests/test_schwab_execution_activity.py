@@ -13,6 +13,7 @@ from queue import Empty
 
 import pytest
 
+from lumibot.brokers.broker import LumibotBrokerAPIError
 from lumibot.brokers.schwab import Schwab
 from lumibot.entities import Asset, Order
 
@@ -209,6 +210,25 @@ def test_diagnostic_consumer_failure_cannot_interrupt_fill_delivery():
     transport.queue_order_reads(order.identifier, {"status": "FILLED", "filledQuantity": 1, "averagePrice": 10})
     broker._reconcile_active_schwab_orders()
     assert recipient.priority_queue.get_nowait()[0] == broker.FILLED_ORDER
+
+
+@pytest.mark.parametrize("http_status", [204, 503])
+def test_cancel_metrics_failure_cannot_change_native_cancel_result(http_status, monkeypatch):
+    transport = _TRANSPORT.SchwabLifecycleTransport()
+    broker, _ = _TRANSPORT.data_only_schwab_broker(transport)
+    order = Order("fixture", Asset("SYN"), 1, "buy", order_type="limit", limit_price=10)
+    broker.submit_order(order)
+    _TRANSPORT.drain_stream_events(broker)
+    transport.queue_cancel_response(order.identifier, http_status, "native broker result")
+    def broken(_seconds):
+        raise RuntimeError("metric unavailable")
+    monkeypatch.setattr(broker._get_order_health(), "cancel_response", broken)
+    if http_status == 204:
+        assert broker.cancel_order(order) is None
+        assert order.status == Order.OrderStatus.CANCELLING
+    else:
+        with pytest.raises(LumibotBrokerAPIError, match="HTTP 503"):
+            broker.cancel_order(order)
 
 
 def test_broker_counter_disagreement_is_visible_and_does_not_drop_real_execution(caplog):

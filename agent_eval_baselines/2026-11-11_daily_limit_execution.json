@@ -82,5 +82,27 @@
     },
     "original_source": "04da13aeb449448a5cbfa47bcf2aca139978649a",
     "qualified_evidence_runtime_fingerprint": "23ae5f7cc35c7fb1be9661aefe3fbe0f6a99cbc8157dd615c1bea448ff114780"
+  },
+  "release_validation": {
+    "retained_stock_model_source": "e21e2a7e4a1cfa2f6d38737c2f62bc8f5f4fb02b",
+    "incoming_options_proof_source": "f8f2cd14214a733938082a66ea9f1ea82a761d76",
+    "ci_run": "https://github.com/Lumiwealth/lumibot/actions/runs/43089868686",
+    "managed_contract_failure": "Three existing gateway contract tests rejected the model_request_timeout_seconds keyword before any simulated decision completed.",
+    "managed_contract_repair": "Pass the existing timeout option through the injected test model factory; retain actual runtime, broker, position and accounting assertions.",
+    "local_red": {
+      "failed": 3,
+      "passed": 1,
+      "seconds": 6.96
+    },
+    "local_green": {
+      "failed": 0,
+      "passed": 3,
+      "seconds": 7.48
+    },
+    "calibration_integrity": "The merged catalog check preserves exact source-bound control assertions and permits additional independently labeled controls; its focused test passed.",
+    "new_real_model_attempts": 0,
+    "why_zero": "This follow-up changes only test factory signatures. The execution engine repair has focused native tests, and original AI quote-date disclosure evidence stays bound to its earlier source. No fresh AI behavior or full strategy execution is claimed.",
+    "system_prompt_growth_bytes": 0,
+    "skill_growth_bytes": 0
   }
 }

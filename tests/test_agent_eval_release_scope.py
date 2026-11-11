@@ -135,6 +135,8 @@ def test_scoped_verification_preserves_verified_establishment(native_metadata, m
     rows, calls, cases, versions, now = deepcopy(native_metadata)
     monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")
     monkeypatch.setattr(qualification, "_unchanged_establishment_cases", lambda ref, cases: cases)
+    # Native rows below are the evidence; the synthetic source has no Git receipt.
+    monkeypatch.setattr(qualification, "_committed_establishment", lambda *args, **kwargs: {})
     current = deepcopy(rows[:1])
     current[0]["run_id"] = str(uuid4())
     current[0]["fingerprint"] = qualification.evals.case_fingerprint(

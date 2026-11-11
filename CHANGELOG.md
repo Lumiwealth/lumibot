@@ -3,6 +3,8 @@
 ## 4.6.52 - Unreleased
 
 ### Fixed
+- Stock-trading guidance distinguishes quote request time from source observation time, preserves exact authorized limits and avoids treating a prior-session quote as current execution evidence.
+- Daily-cadence stock limit orders use loaded current intraday execution data instead of stale daily quotes. Daily-only limits use the session open while forming and the completed OHLC range only at the known calendar close. Missing observations leave orders pending; cash, positions and fees follow actual fills. A native broker regression and real-model pending-order eval cover the failure.
 - AI model-request timeouts now reach the managed model's HTTP transport. Disabling the request timeout no longer leaves an independent 120-second socket timeout; finite configured timeouts are preserved. Existing injected transports retain their three-argument interface.
 
 ## 4.6.51 - 2026-11-11

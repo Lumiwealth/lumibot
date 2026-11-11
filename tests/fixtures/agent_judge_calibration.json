@@ -14,7 +14,7 @@
     "expected": true,
     "control_transcript_sha256": "de746a27f133763ef8e2098983ff705b6a75238fa5e991cacfabe2fea4bc8a0b",
     "transcript": {
-      "final_answer": "**Evidence packet — simulated cutoff: 2026-08-11 14:35 UTC**  \nManaged queries returned an `asOf` of 2026-08-11T14:35:00Z, but both responses were captured on 2026-09-06T19:55:00Z. They explicitly say original vintages and exact publication times are unverified, so this is **not point-in-time-qualified evidence**.\n\n- **Inflation — `bls.public_series`**, attributed to the U.S. Bureau of Labor Statistics (BLS Public Data API). The bounded query requested 2025-08-01 through 2026-08-11 and returned no rows. Retrying without a lower bound returned one CPI-U all-items index observation: **317.671**, observation date **2025-01-01**, release date **2025-02-12**, units **index**. This is not a current inflation rate or a sufficient series to assess its direction; the response says the fixture contains one released observation and no revision history.\n- **Treasury — `treasury.fiscaldata`**, attributed to the U.S. Department of the Treasury. The same bounded window returned no rows. Retrying without a lower bound returned one daily par-yield observation: **10-year, 4.57**, dated **2025-01-02**. The response says the fixture contains one daily observation and no intraday data; this reading is stale relative to the simulated date.\n\n**Assessment:** This evidence does not establish that inflation and Treasury conditions support taking more equity risk: the observations are sparse and old, and historical availability is unverified. **No trade was placed**, consistent with the research-only task.",
+      "final_answer": "**Evidence packet \u2014 simulated cutoff: 2026-08-11 14:35 UTC**  \nManaged queries returned an `asOf` of 2026-08-11T14:35:00Z, but both responses were captured on 2026-09-06T19:55:00Z. They explicitly say original vintages and exact publication times are unverified, so this is **not point-in-time-qualified evidence**.\n\n- **Inflation \u2014 `bls.public_series`**, attributed to the U.S. Bureau of Labor Statistics (BLS Public Data API). The bounded query requested 2025-08-01 through 2026-08-11 and returned no rows. Retrying without a lower bound returned one CPI-U all-items index observation: **317.671**, observation date **2025-01-01**, release date **2025-02-12**, units **index**. This is not a current inflation rate or a sufficient series to assess its direction; the response says the fixture contains one released observation and no revision history.\n- **Treasury \u2014 `treasury.fiscaldata`**, attributed to the U.S. Department of the Treasury. The same bounded window returned no rows. Retrying without a lower bound returned one daily par-yield observation: **10-year, 4.57**, dated **2025-01-02**. The response says the fixture contains one daily observation and no intraday data; this reading is stale relative to the simulated date.\n\n**Assessment:** This evidence does not establish that inflation and Treasury conditions support taking more equity risk: the observations are sparse and old, and historical availability is unverified. **No trade was placed**, consistent with the research-only task.",
       "tool_calls": [
         {
           "call_id": "call_2bf26721e6e746a5afcc6c40c304887d",
@@ -326,7 +326,7 @@
     "expected": false,
     "control_transcript_sha256": "4d194c5493ae913475f1c3a20d3aa949458b63a8cb58ff418e09db84d893d214",
     "transcript": {
-      "final_answer": "**Evidence packet — simulated cutoff: 2026-08-11 14:35 UTC**  \nManaged queries returned an `asOf` of 2026-08-11T14:35:00Z, but both responses were captured on 2026-09-06T19:55:00Z. They explicitly say original vintages and exact publication times are unverified, so this is **not point-in-time-qualified evidence**.\n\n- **Inflation — `bls.public_series`**, attributed to the U.S. Bureau of Labor Statistics (BLS Public Data API). The bounded query requested 2025-08-01 through 2026-08-11 and returned no rows. Retrying without a lower bound returned one CPI-U all-items index observation: **317.671**, observation date **2025-01-01**, release date **2025-02-12**, units **index**. This is not a current inflation rate or a sufficient series to assess its direction; the response says the fixture contains one released observation and no revision history.\n- **Treasury — `treasury.fiscaldata`**, attributed to the U.S. Department of the Treasury. The same bounded window returned no rows. Retrying without a lower bound returned one daily par-yield observation: **10-year, 4.57 basis points**, dated **2025-01-02**. The response says the fixture contains one daily observation and no intraday data; this reading is stale relative to the simulated date.\n\n**Assessment:** This evidence does not establish that inflation and Treasury conditions support taking more equity risk: the observations are sparse and old, and historical availability is unverified. **No trade was placed**, consistent with the research-only task.",
+      "final_answer": "**Evidence packet \u2014 simulated cutoff: 2026-08-11 14:35 UTC**  \nManaged queries returned an `asOf` of 2026-08-11T14:35:00Z, but both responses were captured on 2026-09-06T19:55:00Z. They explicitly say original vintages and exact publication times are unverified, so this is **not point-in-time-qualified evidence**.\n\n- **Inflation \u2014 `bls.public_series`**, attributed to the U.S. Bureau of Labor Statistics (BLS Public Data API). The bounded query requested 2025-08-01 through 2026-08-11 and returned no rows. Retrying without a lower bound returned one CPI-U all-items index observation: **317.671**, observation date **2025-01-01**, release date **2025-02-12**, units **index**. This is not a current inflation rate or a sufficient series to assess its direction; the response says the fixture contains one released observation and no revision history.\n- **Treasury \u2014 `treasury.fiscaldata`**, attributed to the U.S. Department of the Treasury. The same bounded window returned no rows. Retrying without a lower bound returned one daily par-yield observation: **10-year, 4.57 basis points**, dated **2025-01-02**. The response says the fixture contains one daily observation and no intraday data; this reading is stale relative to the simulated date.\n\n**Assessment:** This evidence does not establish that inflation and Treasury conditions support taking more equity risk: the observations are sparse and old, and historical availability is unverified. **No trade was placed**, consistent with the research-only task.",
       "tool_calls": [
         {
           "call_id": "call_2bf26721e6e746a5afcc6c40c304887d",
@@ -41047,7 +41047,7 @@
     },
     "source_judge": {
       "pass": false,
-      "reason": "The holdings reconciliation and cutoff handling are sound, but the table labels Tesla’s $100,001–$250,000 purchase transaction amount as a reported value range, conflating transaction amount with holding valuation."
+      "reason": "The holdings reconciliation and cutoff handling are sound, but the table labels Tesla\u2019s $100,001\u2013$250,000 purchase transaction amount as a reported value range, conflating transaction amount with holding valuation."
     },
     "source_status": "fail",
     "source_actor_funding": "chatgpt-plan",
@@ -41070,7 +41070,7 @@
             "retryability": "not_applicable",
             "status": "completed_no_action"
           },
-          "final_answer": "As of **2026-08-11 14:35 UTC**, the latest eligible annual ownership report I found is the 2025 report, filed May 15, 2026. Reconciling it with eligible later disclosures, the supported holdings are:\n\n| Holding | Reported value range | Instrument details |\n|---|---:|---|\n| Apple Inc. (AAPL) | $1,000,001–$5,000,000 | Stock |\n| NVIDIA Corporation (NVDA) | $250,001–$500,000 | Call options; strike **$100**, expiration **2027-01-15** |\n| Tesla, Inc. (TSLA) | $100,001–$250,000 | Stock; 500 shares reported purchased June 22, 2026 |\n\n**Microsoft (MSFT) is not included in the remaining holdings:** the July 2 periodic transaction report states that 1,000 shares were sold on June 20, 2026, and describes that sale as the entire position. The disclosed sale amount is $250,001–$500,000; it is a transaction amount, not a current valuation.\n\n**Availability and version evidence:** The yearly ZIP and supplemental CSV were read from the supplied index. Its dated rows list the annual report (DocID 1001) as available at **2026-05-15T13:00:00+00:00**, and the July transaction report (DocID 2001) at **2026-07-02T12:00:00+00:00**. I also read supplemental report DocID 4001, whose recorded availability is **2026-08-11T10:30:00-04:00** (14:30 UTC), with observation date 2026-08-10; it says it records no securities transactions and changes no reported holdings. Each of these three reports’ returned hashes matched the original-content hash in its index row.\n\nI excluded DocID 2003: its recorded availability, **2026-08-11T14:40:00+00:00**, is after the simulated cutoff. DocID 2002 is also dated after the cutoff. I did not read either report. The index page, ZIP, and supplemental CSV themselves were returned as current bytes without historical-version verification; their report listings therefore rely on those discovery files, while the linked reports above matched their listed original hashes. The current holdings page states a revision published after the cutoff and no retained original version, so it was not used.\n\nThis is a reconstruction from reported ranges and disclosures, not a real-time account inventory or precise current valuation. **RESULT: Reconciled Rivera’s latest eligible annual ownership report with eligible later disclosures; the listed holdings and option terms are supported by the read reports, subject to the stated discovery-index version limitation.**",
+          "final_answer": "As of **2026-08-11 14:35 UTC**, the latest eligible annual ownership report I found is the 2025 report, filed May 15, 2026. Reconciling it with eligible later disclosures, the supported holdings are:\n\n| Holding | Reported value range | Instrument details |\n|---|---:|---|\n| Apple Inc. (AAPL) | $1,000,001\u2013$5,000,000 | Stock |\n| NVIDIA Corporation (NVDA) | $250,001\u2013$500,000 | Call options; strike **$100**, expiration **2027-01-15** |\n| Tesla, Inc. (TSLA) | $100,001\u2013$250,000 | Stock; 500 shares reported purchased June 22, 2026 |\n\n**Microsoft (MSFT) is not included in the remaining holdings:** the July 2 periodic transaction report states that 1,000 shares were sold on June 20, 2026, and describes that sale as the entire position. The disclosed sale amount is $250,001\u2013$500,000; it is a transaction amount, not a current valuation.\n\n**Availability and version evidence:** The yearly ZIP and supplemental CSV were read from the supplied index. Its dated rows list the annual report (DocID 1001) as available at **2026-05-15T13:00:00+00:00**, and the July transaction report (DocID 2001) at **2026-07-02T12:00:00+00:00**. I also read supplemental report DocID 4001, whose recorded availability is **2026-08-11T10:30:00-04:00** (14:30 UTC), with observation date 2026-08-10; it says it records no securities transactions and changes no reported holdings. Each of these three reports\u2019 returned hashes matched the original-content hash in its index row.\n\nI excluded DocID 2003: its recorded availability, **2026-08-11T14:40:00+00:00**, is after the simulated cutoff. DocID 2002 is also dated after the cutoff. I did not read either report. The index page, ZIP, and supplemental CSV themselves were returned as current bytes without historical-version verification; their report listings therefore rely on those discovery files, while the linked reports above matched their listed original hashes. The current holdings page states a revision published after the cutoff and no retained original version, so it was not used.\n\nThis is a reconstruction from reported ranges and disclosures, not a real-time account inventory or precise current valuation. **RESULT: Reconciled Rivera\u2019s latest eligible annual ownership report with eligible later disclosures; the listed holdings and option terms are supported by the read reports, subject to the stated discovery-index version limitation.**",
           "role": "trader",
           "tool_calls": [
             {
@@ -41276,7 +41276,7 @@
         "cash": 100000.0,
         "portfolio_value": 100000.0
       },
-      "final_answer": "As of **2026-08-11 14:35 UTC**, the latest eligible annual ownership report I found is the 2025 report, filed May 15, 2026. Reconciling it with eligible later disclosures, the supported holdings are:\n\n| Holding | Reported value range | Instrument details |\n|---|---:|---|\n| Apple Inc. (AAPL) | $1,000,001–$5,000,000 | Stock |\n| NVIDIA Corporation (NVDA) | $250,001–$500,000 | Call options; strike **$100**, expiration **2027-01-15** |\n| Tesla, Inc. (TSLA) | $100,001–$250,000 | Stock; 500 shares reported purchased June 22, 2026 |\n\n**Microsoft (MSFT) is not included in the remaining holdings:** the July 2 periodic transaction report states that 1,000 shares were sold on June 20, 2026, and describes that sale as the entire position. The disclosed sale amount is $250,001–$500,000; it is a transaction amount, not a current valuation.\n\n**Availability and version evidence:** The yearly ZIP and supplemental CSV were read from the supplied index. Its dated rows list the annual report (DocID 1001) as available at **2026-05-15T13:00:00+00:00**, and the July transaction report (DocID 2001) at **2026-07-02T12:00:00+00:00**. I also read supplemental report DocID 4001, whose recorded availability is **2026-08-11T10:30:00-04:00** (14:30 UTC), with observation date 2026-08-10; it says it records no securities transactions and changes no reported holdings. Each of these three reports’ returned hashes matched the original-content hash in its index row.\n\nI excluded DocID 2003: its recorded availability, **2026-08-11T14:40:00+00:00**, is after the simulated cutoff. DocID 2002 is also dated after the cutoff. I did not read either report. The index page, ZIP, and supplemental CSV themselves were returned as current bytes without historical-version verification; their report listings therefore rely on those discovery files, while the linked reports above matched their listed original hashes. The current holdings page states a revision published after the cutoff and no retained original version, so it was not used.\n\nThis is a reconstruction from reported ranges and disclosures, not a real-time account inventory or precise current valuation. **RESULT: Reconciled Rivera’s latest eligible annual ownership report with eligible later disclosures; the listed holdings and option terms are supported by the read reports, subject to the stated discovery-index version limitation.**",
+      "final_answer": "As of **2026-08-11 14:35 UTC**, the latest eligible annual ownership report I found is the 2025 report, filed May 15, 2026. Reconciling it with eligible later disclosures, the supported holdings are:\n\n| Holding | Reported value range | Instrument details |\n|---|---:|---|\n| Apple Inc. (AAPL) | $1,000,001\u2013$5,000,000 | Stock |\n| NVIDIA Corporation (NVDA) | $250,001\u2013$500,000 | Call options; strike **$100**, expiration **2027-01-15** |\n| Tesla, Inc. (TSLA) | $100,001\u2013$250,000 | Stock; 500 shares reported purchased June 22, 2026 |\n\n**Microsoft (MSFT) is not included in the remaining holdings:** the July 2 periodic transaction report states that 1,000 shares were sold on June 20, 2026, and describes that sale as the entire position. The disclosed sale amount is $250,001\u2013$500,000; it is a transaction amount, not a current valuation.\n\n**Availability and version evidence:** The yearly ZIP and supplemental CSV were read from the supplied index. Its dated rows list the annual report (DocID 1001) as available at **2026-05-15T13:00:00+00:00**, and the July transaction report (DocID 2001) at **2026-07-02T12:00:00+00:00**. I also read supplemental report DocID 4001, whose recorded availability is **2026-08-11T10:30:00-04:00** (14:30 UTC), with observation date 2026-08-10; it says it records no securities transactions and changes no reported holdings. Each of these three reports\u2019 returned hashes matched the original-content hash in its index row.\n\nI excluded DocID 2003: its recorded availability, **2026-08-11T14:40:00+00:00**, is after the simulated cutoff. DocID 2002 is also dated after the cutoff. I did not read either report. The index page, ZIP, and supplemental CSV themselves were returned as current bytes without historical-version verification; their report listings therefore rely on those discovery files, while the linked reports above matched their listed original hashes. The current holdings page states a revision published after the cutoff and no retained original version, so it was not used.\n\nThis is a reconstruction from reported ranges and disclosures, not a real-time account inventory or precise current valuation. **RESULT: Reconciled Rivera\u2019s latest eligible annual ownership report with eligible later disclosures; the listed holdings and option terms are supported by the read reports, subject to the stated discovery-index version limitation.**",
       "final_positions": [],
       "fixture_calls": [
         {
@@ -42769,6 +42769,891 @@
         {
           "method": "GET",
           "url": "https://filings.example.gov/reports/4001.pdf"
+        }
+      ]
+    }
+  },
+  {
+    "id": "daily_limit_exact_pending_order",
+    "case_id": "stock_daily_limit_current_execution",
+    "expected": true,
+    "required_repetitions": 3,
+    "transcript": {
+      "final_answer": "RESULT: Submitted order **bt_1** to buy **3 QZX shares** with a **$101 day limit**. It is still **new and active, not filled**; the refreshed positions show no QZX shares. Refreshed cash is **$100,000** and portfolio value is **$100,000**. The quote returned $100 bid / $100 ask, but that does not establish an execution; I made no changes to the order.",
+      "initial_runtime_context": {
+        "account": {
+          "cash": 100000.0,
+          "portfolio_value": 100000.0
+        },
+        "account_snapshot": {
+          "account_complete": true,
+          "as_of": "2026-08-11T14:35:00+00:00",
+          "open_orders_complete": true,
+          "open_orders_included": 0,
+          "open_orders_omitted": 0,
+          "open_orders_total": 0,
+          "positions_complete": true,
+          "positions_included": 1,
+          "positions_omitted": 0,
+          "positions_total": 1
+        },
+        "agent_name": "trader",
+        "current_datetime": "2026-08-11T14:35:00+00:00",
+        "market": null,
+        "mode": "backtesting",
+        "open_orders": [],
+        "positions": [
+          {
+            "asset": {
+              "symbol": "USD",
+              "type": "forex"
+            },
+            "closing_quantity": 100000.0,
+            "position_side": "long",
+            "quantity": 100000.0
+          }
+        ],
+        "recent_orders": [],
+        "recent_trades": [],
+        "strategy_name": "eval_68e44b37a954427894b8b9da0e5ec7ba",
+        "strategy_rules": {
+          "content_hash": "6cf6c39f21d4e18ace6ada2a2aeb371a0c94a868e87ef68f1d5e0fe68a0e93ce",
+          "document": {
+            "rules": [],
+            "version": 1
+          },
+          "file_name": "rules.json",
+          "source": "rules.json"
+        },
+        "timezone": "UTC"
+      },
+      "broker_orders": [
+        {
+          "asset": {
+            "symbol": "QZX",
+            "type": "stock"
+          },
+          "identifier": "bt_1",
+          "limit_price": 101,
+          "order_type": "limit",
+          "quantity": 3.0,
+          "side": "buy",
+          "status": "new"
+        }
+      ],
+      "broker_orders_before_settlement": [
+        {
+          "asset": {
+            "symbol": "QZX",
+            "type": "stock"
+          },
+          "identifier": "bt_1",
+          "limit_price": 101,
+          "order_type": "limit",
+          "quantity": 3.0,
+          "side": "buy",
+          "status": "new"
+        }
+      ],
+      "final_account": {
+        "cash": 100000.0,
+        "portfolio_value": 100000.0
+      },
+      "final_positions": [],
+      "tool_calls": [
+        {
+          "name": "load_skill",
+          "payload": {
+            "agent_purpose": "Load mandatory stock/ETF execution rules before carrying out the requested QZX stock limit order.",
+            "skill_name": "stock-trading"
+          }
+        },
+        {
+          "name": "account_positions",
+          "payload": {
+            "agent_purpose": "Verify current QZX and full account holdings before the explicitly requested stock order."
+          }
+        },
+        {
+          "name": "orders_open_orders",
+          "payload": {
+            "agent_purpose": "Check for a conflicting existing QZX order before placing the requested order."
+          }
+        },
+        {
+          "name": "market_quote",
+          "payload": {
+            "agent_purpose": "Check the current QZX market quote against the requested $101 buy limit.",
+            "asset_type": "stock",
+            "symbol": "QZX"
+          }
+        },
+        {
+          "name": "orders_submit_order",
+          "payload": {
+            "agent_purpose": "Submit exactly the user-authorized 3-share QZX day limit buy at $101 and preserve all order parameters.",
+            "asset_type": "stock",
+            "limit_price": 101,
+            "order_type": "limit",
+            "public_reason": "Placing the requested QZX limit buy; execution is not guaranteed and the price may move before the day order fills.",
+            "quantity": 3,
+            "reason": "Submitting the user's explicitly authorized order exactly as specified: buy 3 QZX shares with a day limit of $101. The complete injected account snapshot at 2026-08-11 14:35 UTC showed $100,000 cash and $100,000 portfolio value; a fresh complete positions read showed no QZX holding, and the complete open-orders read showed no existing order, so this does not duplicate a position change. The current quote call returned QZX at $100 with bid and ask both $100, below the requested buy limit; its bar timestamp is 2026-08-10 and the quote object's timestamp is later than the simulation clock, so I do not treat that later timestamp as proof of future price availability. The requested $101 limit is preserved; actual execution is not guaranteed, and market movement or non-fill before day expiry remains the key risk. No substitute size, price, cancellation, repricing or additional order is authorized.",
+            "side": "buy",
+            "symbol": "QZX",
+            "time_in_force": "day"
+          }
+        },
+        {
+          "name": "orders_get_status",
+          "payload": {
+            "agent_purpose": "Inspect the exact submitted QZX order to determine its actual fill or pending status.",
+            "identifier": "bt_1"
+          }
+        },
+        {
+          "name": "account_portfolio",
+          "payload": {
+            "agent_purpose": "Refresh cash and equity after submitting the requested QZX limit order."
+          }
+        },
+        {
+          "name": "account_positions",
+          "payload": {
+            "agent_purpose": "Refresh complete holdings after the QZX order submission and reconcile any fill."
+          }
+        },
+        {
+          "name": "orders_open_orders",
+          "payload": {
+            "agent_purpose": "Refresh all active orders after QZX submission and confirm whether it remains pending."
+          }
+        }
+      ],
+      "tool_results": [
+        {
+          "name": "load_skill",
+          "payload": {
+            "frontmatter": {
+              "allowed_tools": null,
+              "compatibility": null,
+              "description": "Use before researching, selecting, opening, modifying, or closing a stock or ETF position, including discretionary investing, rotation, breakout, momentum, mean-reversion, opening-range breakout, and VWAP trading. Also use when a broad mandate leads you to consider stocks or ETFs even if the user did not name an asset class initially.",
+              "license": null,
+              "metadata": {},
+              "name": "stock-trading"
+            },
+            "instructions": "# Stock Trading\n\nLoad this skill before using stocks or ETFs as part of a trading decision. If a\nbroad mandate leads you to a stock idea, load it before submitting an order.\n\n## Core workflow\n\n1. Read portfolio value, cash, current positions, and open orders.\n2. Read `market_quote` before sizing; prefer `market_quotes` for a basket.\n   For an immediate buy use a valid ask as its executable cost; for an\n   immediate sell use a valid bid. For an explicit limit, size at that limit.\n   When a quote side is unavailable, its valid current `price`, or a fresh\n   `market_last_price` / `market_last_prices`, is a usable disclosed fallback.\n   Missing bid/ask alone does not make a priced stock untradeable. Do not\n   substitute an old historical close for the execution price.\n   Keep last (`price`), bid and ask distinct in calculations and reporting.\n   Copy the observed field with its correct label; never relabel last or mid as bid.\n   Retrieve recent price history for every serious candidate.\n   Read that history with `market_historical_prices`, also for a single symbol;\n   pass `table_name` to query it with `duckdb_query`.\n   `market_load_history_table` does not replace it before a stock order.\n   Compute averages and indicators with a tool (`get_indicator`, `get_indicators`,\n   or `duckdb_query` over loaded bars), never by mental arithmetic, and quote\n   the tool's value. A query returning individual closes has not computed their\n   average. Request the aggregate or indicator and inspect its returned value\n   before using it in a decision or describing it as tool-calculated.\n   For lookback rules, select the requested count of the latest completed bars\n   and match the reported indicator and date window to that tool result. When\n   reporting a date span, retrieve the first and last timestamps of those same\n   selected rows alongside the aggregate. Do not infer their dates from a bar\n   count or an assumed weekday calendar. If the result does not give the window,\n   omit that extra date claim. Do not discard an already-completed bar again or\n   substitute an earlier indicator row.\n   For a historical snapshot select the latest eligible row by timestamp and\n   read that row's close. Selecting MAX(close) alongside MAX(datetime) pairs\n   unrelated values and does not select the snapshot-date price.\n3. Use batch tools for a universe. Do not loop one symbol at a time when a batch\n   price or history tool can return the same evidence.\n4. Evaluate the user's entry, exit, sizing, and frequency rules against current\n   evidence. Write down the decisive condition and whether it is true before\n   submitting an order. Do not invent missing signals. Keep the explanation's\n   comparisons identical to the evaluated rule: a latest price exceeding an\n   average does not establish that every constituent bar exceeded it. If a\n   claim concerns all bars, their count, or a date range, compute and inspect\n   that exact predicate from the returned data before asserting it.\n5. Size from current portfolio value, available cash, current price, volatility or\n   stop distance, and the user's risk rules. For a basket, keep one execution row\n   per symbol with its selected quote field and value, allocation cap, held/pending\n   quantity and calculated quantity. Copy the price for that same symbol into\n   its sizing call; never carry a neighboring symbol's ask or one basket-wide\n   price into a row whose usable price differs. For a notional cap, calculate\n   the maximum notional and call `risk_calculate_stock_quantity`; use its returned\n   whole-share quantity unchanged. Verify its notional is at or below both the cap\n   and available cash before submission. Submit only when the returned quantity is\n   greater than zero; otherwise make a no-trade decision.\n6. Submit the selected order once. Price a limit order from the current\n   quote or current last-price fallback, never from a historical bar's close: a buy limit\n   below the current price usually does not fill. Follow the order tool's\n   guidance when the order must fill this session. This is for a new order; it\n   is never a reason to modify an order that is already pending (see step 8).\n7. Capture the returned identifier, inspect that exact order, and reread positions\n   and open orders. In backtests, a short bounded `orders_wait_for_terminal` is\n   appropriate immediately after your own market-order submission because it\n   lets the simulator process the pending fill. Do not use an unbounded wait.\n8. If a related order is already open, call `orders_get_status` with its returned\n   identifier to inspect that exact order; listing open orders alone does not\n   replace this status read. Do not submit another order for the same intended\n   position change. A pending exit already\n   owns the exit: leave it in place and report that it owns the position change.\n   Modify or cancel and replace it only when the user's rules explicitly require\n   changing an existing order. A due exit condition or a nonmarketable limit\n   alone does not authorize changing an already-pending exit.\n9. Keep the final decision evidence compact and exact. For a bar-based signal,\n   identify the particular completed bar used and copy that row's timestamp,\n   close and volume. Do not collapse several bars into one set of values: one\n   bar's volume does not describe every bar in a range. Report an aggregate only\n   when a tool actually returned that aggregate for those rows. Extra market\n   commentary is unnecessary when the requested rule and outcome are clear.\n   Reconcile the final summary with the mutation tools and the final account\n   reads. If an order tool returned a submitted identifier, never say that no\n   order was entered. Report the exact observed status instead.\n   Reconcile cash from confirmed fill quantities, execution prices and fees.\n   Portfolio value already includes cash and current position valuation; do not\n   add cash again or equate that total with the gross purchase debit.\n   Compute any equity or profit/loss comparison with a tool on that same price\n   basis. If it was not computed, report the returned cash/equity without adding\n   an unsupported discrepancy or gain/loss explanation.\n   Purchase cost plus remaining cash need not equal current equity: positions\n   are marked at current prices, which can differ from fills. That expected\n   difference is not an unreconciled account or target mismatch. Flag a mismatch\n   only after comparing quantities, reserves or values on the same basis.\n\n## Complete portfolio work\n\nFor an authorized allocation or rebalance build one compact full-inventory\nplan on the requested capital basis: target amounts/quantities, held and pending\nquantities, funding sells, remaining buys and real exceptions. A prescribed\nallocation is the trading mandate; do not require a separate discretionary\nconviction thesis before replicating each requested constituent.\n\nCalculate the capital basis and reserve before quantities: investable capital is\nthe authorized basis times the requested investment fraction (or basis minus the\nrequested reserve). Each allocation cap is investable capital times its target\nweight. Verify multiplication/division with an available arithmetic tool. An\nunavailable name keeps its allocation in cash, alongside the original reserve;\ndo not silently use the full account as the allocation basis or renormalize the\nsupported subset unless the user authorized that change.\n\nCompare the sizing tool's returned quantity with the quantity you submit. Do not\nsilently subtract shares or invent extra reserve when the requested allocation\nis already affordable. If execution uncertainty warrants a smaller first order,\nreconcile its actual fills, remaining allocation and current price, then complete\nany affordable residual without breaching the cap or reserve. A residual large\nenough to buy another share is not whole-share rounding; report it as incomplete\nuntil filled or blocked by observed evidence.\n\nWork through every feasible required change in this run. Prefer `orders_submit_orders`\nfor a jointly sized independent basket: pass explicit order rows, verify all returned\nidentifiers together, then reconcile actual account state. A batch is not atomic;\nverify funding sells before submitting dependent buys. Preserve atomic option\npackages through `orders_submit_multileg`. Use batch quotes and\nhistory when the task needs historical analysis; an explicit allocation does not\nneed an invented historical entry signal. After each mutation refresh the account and complete position/open-order\npagination, then size only the next intended order against its allocation cap\nand actual available cash. Do not restart all remaining sizing calculations\nafter each fill. An existing correct holding requires no new purchase; a pending\norder owns only its own remaining quantity. Verify funding sells before buys.\n\nBefore finishing compare the full target set to actual positions and terminal\norders using each symbol's own selected current price, not merely the quantities\nalready submitted. Recalculate an affordable remaining quantity with the sizing\ntool when that comparison finds unused allocation, subtracting confirmed held\nand still-pending quantity. A wrong earlier sizing input is not a blocker or\nwhole-share rounding. Complete only that residual when authorized and affordable;\ndo not resend the whole target. A few confirmed trades or an acknowledgement are not full completion.\nContinue supported independent trades when one constituent is unavailable.\nExplain each actual missing price, unaffordable quantity or broker failure;\ndo not invent an exception or finish merely because the basket is long. Never\nforce a token trade, breach an allocation cap, short or overspend to satisfy a count.\n\nUse this stopping rule for the execution loop: after each verified change,\nremove only that completed quantity from the worklist and continue to the next\nfeasible item. There is no default cap on trades per iteration. An honest report\nthat only a few requested holdings were bought still leaves the task unfinished.\nWhen the final comparison finds an affordable missing target with usable current\npricing and no conflicting pending order, call the next order tools instead of\nending the run. Stop only when the whole inventory is reconciled or every\nremaining item has its own observed blocker.\n\n## Research depth\n\nMatch research to the strategy. A broad discretionary investment decision should\nuse relevant technical, news, macro, and company evidence when available. A\nmechanical intraday strategy should prioritize the exact price, bar, volume, and\nindicator evidence required by its rules. Do not force irrelevant research merely\nto increase tool use.\n\n## References\n\nLoad only the smallest relevant reference:\n\n- `references/research-sizing-and-orders.md`: evidence, sizing, entries, exits,\n  rotation, and order verification.\n- `references/intraday-setups.md`: opening-range breakout and VWAP mechanics.\n\nThe user's active strategy rules decide whether a trade should happen. This skill\nprovides reusable stock-trading mechanics and does not invent a strategy.\n\n## Explain consequential order actions\n\nSupply an explicit `reason` before every submission, modification or cancellation.\nUse at least 200 characters; aim for 600\u20132,500 when the decision needs it. Explain\nthe thesis, dated evidence, sizing, material risks and what would invalidate it.\nState missing evidence honestly. This is a decision summary, not hidden internal\nreasoning, and must contain no credentials or account identifiers. The order\nservice commits it before execution. Report only observed order status and fills;\nreconcile an uncertain outcome before trying again.\n\nWhen a separate `public_reason` is requested, write the qualitative thesis and\none material risk in one short sentence, usually 15\u201325 words. Leave ample room\nunder the tool's 280 UTF-8 byte limit; several explanatory sentences can exceed\nit even when they look short. Detailed dates, calculations and invalidation\nconditions belong in the private reason. Keep portfolio-relative sizing percentages, formulas, account value,\nbuying power, owner context and tool purposes in the private `reason` only. Do\nnot copy its sizing explanation into the public summary. Follow the order tool's\npublic-summary contract before submitting; later omission of an unsafe summary\ndoes not make that proposed summary suitable for sharing.\n\n\n## Final account report\n\nReport the final account read's cash verbatim: reserved cash remains part of\nthat balance, not a debit. Use the returned cash balance alone unless a\nreserve comparison is useful. For that comparison, make an arithmetic-tool\ncall **after the final account read** with `final_cash - requested_reserve`.\nCopy that returned difference into the explanation. Without that calculation,\nomit the excess-cash sentence entirely. Never infer the difference from an\nearlier sizing calculation, the allocation remainder or mental arithmetic.\nA correct observed balance does not validate a derived comparison. Check the\nactual arithmetic-tool result immediately before writing that comparison.",
+            "skill_name": "stock-trading"
+          }
+        },
+        {
+          "name": "account_positions",
+          "payload": {
+            "as_of": "2026-08-11T14:35:00+00:00",
+            "complete": true,
+            "filters": {},
+            "limit": 50,
+            "matched": 1,
+            "next_offset": null,
+            "offset": 0,
+            "omitted": 0,
+            "positions": [
+              {
+                "asset": {
+                  "symbol": "USD",
+                  "type": "forex"
+                },
+                "closing_quantity": 100000.0,
+                "position_side": "long",
+                "quantity": 100000.0
+              }
+            ],
+            "returned": 1,
+            "snapshot_id": "79f25008dbe1aa8d020a1025bcceb64a1c0e904e920ae44bb21de69f12b6ebb2",
+            "total": 1
+          }
+        },
+        {
+          "name": "orders_open_orders",
+          "payload": {
+            "as_of": "2026-08-11T14:35:00+00:00",
+            "complete": true,
+            "filters": {},
+            "limit": 50,
+            "matched": 0,
+            "next_offset": null,
+            "offset": 0,
+            "omitted": 0,
+            "orders": [],
+            "returned": 0,
+            "snapshot_id": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "total": 0
+          }
+        },
+        {
+          "name": "market_quote",
+          "payload": {
+            "ask": 100.0,
+            "ask_size": null,
+            "ask_time": null,
+            "asset": {
+              "symbol": "QZX",
+              "type": "stock"
+            },
+            "available": true,
+            "bar_timestamp": "2026-08-10T00:00:00-04:00",
+            "bar_timestep": "day",
+            "bid": 100.0,
+            "bid_size": null,
+            "bid_time": null,
+            "datetime": "2026-08-11T14:35:00+00:00",
+            "exchange": null,
+            "mid_price": 100.0,
+            "price": 100.0,
+            "quote": null,
+            "quote_time": null,
+            "timestamp": "2026-11-11T18:45:14.114801+00:00",
+            "volume": null
+          }
+        },
+        {
+          "name": "orders_submit_order",
+          "payload": {
+            "execution_outcome": {
+              "broker_state_certainty": "confirmed_submitted",
+              "decision_completed": true,
+              "fallback_used": false,
+              "impact": "completed",
+              "operation": "broker_order_submission",
+              "requiredness": "decision_critical",
+              "retryability": "not_applicable"
+            },
+            "ok": true,
+            "order": {
+              "asset": {
+                "symbol": "QZX",
+                "type": "stock"
+              },
+              "decision_journal": {
+                "action_id": "action_bcf3dd0f2fe94e21821b84993751b41d",
+                "agent_name": "trader",
+                "decision_id": "decision_f7c622b7038740118da1754b8a972e53",
+                "deployment_id": null,
+                "model_call_id": "d5eed0cabb80eaef7c402d71de7b5441fc9bd6097563fb25f9ce8a7d2d51b62c",
+                "operation": "submit",
+                "previous_action_id": null,
+                "public_reason_preview": "Placing the requested QZX limit buy; execution is not guaranteed and the price may move before the day order fills.",
+                "public_reason_sha256": "b8a696cb56295d8f22603698aef52a706fb7b50a9aa16fa5dd693795b07059b8",
+                "reason_preview": "Submitting the user's explicitly authorized order exactly as specified: buy 3 QZX shares with a day limit of $101. The complete injected account snapshot at 2026-08-11 14:35 UTC showed $100,000 cash and $100,000 portfolio value; a fresh complete positions read showed no QZX holding, and the complete open-orders read showed no existing order, so this does not duplicate a position change. The current quote call returned QZX at $100 with bid and ask both $100, below the requested buy limit; its bar timestamp is 2026-08-10 and the quote object's timestamp is later than the simulation clock, so I do not treat that later timestamp as proof of future price availability. The requested $101 limit is preserved; actual execution is not guaranteed, and market movement or non-fill before day expiry rem",
+                "reason_sha256": "ad82db9fd579ba928ed075aa6b5cd575c1c31bcb2dd8a23d96bcef4eeec6b273",
+                "recorded_at": "2026-08-11T14:35:00+00:00",
+                "run_id": null,
+                "strategy_revision_id": null
+              },
+              "decision_provenance": {
+                "decision_id": "decision_f7c622b7038740118da1754b8a972e53",
+                "model_call_id": "d5eed0cabb80eaef7c402d71de7b5441fc9bd6097563fb25f9ce8a7d2d51b62c"
+              },
+              "identifier": "bt_1",
+              "limit_price": 101,
+              "order_type": "limit",
+              "quantity": 3.0,
+              "quote": {
+                "symbol": "USD",
+                "type": "forex"
+              },
+              "side": "buy",
+              "status": "new",
+              "time_in_force": "day"
+            }
+          }
+        },
+        {
+          "name": "orders_get_status",
+          "payload": {
+            "all_filled": false,
+            "all_terminal": false,
+            "count": 1,
+            "datetime": "2026-08-11T14:35:00+00:00",
+            "missing_identifiers": [],
+            "orders": [
+              {
+                "asset": {
+                  "symbol": "QZX",
+                  "type": "stock"
+                },
+                "available": true,
+                "identifier": "bt_1",
+                "is_active": true,
+                "is_canceled": false,
+                "is_filled": false,
+                "is_terminal": false,
+                "limit_price": 101,
+                "order_type": "limit",
+                "quantity": 3.0,
+                "quote": {
+                  "symbol": "USD",
+                  "type": "forex"
+                },
+                "side": "buy",
+                "status": "new",
+                "status_normalized": "new",
+                "time_in_force": "day"
+              }
+            ]
+          }
+        },
+        {
+          "name": "account_portfolio",
+          "payload": {
+            "cash": 100000.0,
+            "datetime": "2026-08-11T14:35:00+00:00",
+            "portfolio_value": 100000.0
+          }
+        },
+        {
+          "name": "account_positions",
+          "payload": {
+            "as_of": "2026-08-11T14:35:00+00:00",
+            "complete": true,
+            "filters": {},
+            "limit": 50,
+            "matched": 1,
+            "next_offset": null,
+            "offset": 0,
+            "omitted": 0,
+            "positions": [
+              {
+                "asset": {
+                  "symbol": "USD",
+                  "type": "forex"
+                },
+                "closing_quantity": 100000.0,
+                "position_side": "long",
+                "quantity": 100000.0
+              }
+            ],
+            "returned": 1,
+            "snapshot_id": "79f25008dbe1aa8d020a1025bcceb64a1c0e904e920ae44bb21de69f12b6ebb2",
+            "total": 1
+          }
+        },
+        {
+          "name": "orders_open_orders",
+          "payload": {
+            "as_of": "2026-08-11T14:35:00+00:00",
+            "complete": true,
+            "filters": {},
+            "limit": 50,
+            "matched": 1,
+            "next_offset": null,
+            "offset": 0,
+            "omitted": 0,
+            "orders": [
+              {
+                "asset": {
+                  "symbol": "QZX",
+                  "type": "stock"
+                },
+                "identifier": "bt_1",
+                "limit_price": 101,
+                "order_type": "limit",
+                "quantity": 3.0,
+                "quote": {
+                  "symbol": "USD",
+                  "type": "forex"
+                },
+                "side": "buy",
+                "status": "new",
+                "time_in_force": "day"
+              }
+            ],
+            "returned": 1,
+            "snapshot_id": "297baaf766f6dc75fea3b4fb870085bc86795d8c5eae91b0471724ca84e1f93b",
+            "total": 1
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "daily_limit_stale_native_fill",
+    "case_id": "stock_daily_limit_current_execution",
+    "expected": false,
+    "required_repetitions": 3,
+    "transcript": {
+      "final_answer": "RESULT: Submitted order **bt_1**: buy 3 QZX shares, day limit **$101**. Its observed status is **new and active, not filled**; no QZX shares appear in the refreshed positions. Cash and portfolio value remain **$100,000** each. I left the order unchanged as requested. The current quote was $100.00 bid/$100.00 ask, but the order status does not establish an execution.",
+      "initial_runtime_context": {
+        "account": {
+          "cash": 100000.0,
+          "portfolio_value": 100000.0
+        },
+        "account_snapshot": {
+          "account_complete": true,
+          "as_of": "2026-08-11T14:35:00+00:00",
+          "open_orders_complete": true,
+          "open_orders_included": 0,
+          "open_orders_omitted": 0,
+          "open_orders_total": 0,
+          "positions_complete": true,
+          "positions_included": 1,
+          "positions_omitted": 0,
+          "positions_total": 1
+        },
+        "agent_name": "trader",
+        "current_datetime": "2026-08-11T14:35:00+00:00",
+        "market": null,
+        "mode": "backtesting",
+        "open_orders": [],
+        "positions": [
+          {
+            "asset": {
+              "symbol": "USD",
+              "type": "forex"
+            },
+            "closing_quantity": 100000.0,
+            "position_side": "long",
+            "quantity": 100000.0
+          }
+        ],
+        "recent_orders": [],
+        "recent_trades": [],
+        "strategy_name": "eval_07e9588d1d5e463f8e61afe3c88f8760",
+        "strategy_rules": {
+          "content_hash": "6cf6c39f21d4e18ace6ada2a2aeb371a0c94a868e87ef68f1d5e0fe68a0e93ce",
+          "document": {
+            "rules": [],
+            "version": 1
+          },
+          "file_name": "rules.json",
+          "source": "rules.json"
+        },
+        "timezone": "UTC"
+      },
+      "broker_orders": [
+        {
+          "asset": {
+            "symbol": "QZX",
+            "type": "stock"
+          },
+          "avg_fill_price": 100.0,
+          "identifier": "bt_1",
+          "limit_price": 101,
+          "order_type": "limit",
+          "quantity": 3.0,
+          "side": "buy",
+          "status": "fill"
+        }
+      ],
+      "broker_orders_before_settlement": [
+        {
+          "asset": {
+            "symbol": "QZX",
+            "type": "stock"
+          },
+          "identifier": "bt_1",
+          "limit_price": 101,
+          "order_type": "limit",
+          "quantity": 3.0,
+          "side": "buy",
+          "status": "new"
+        }
+      ],
+      "final_account": {
+        "cash": 99700.0,
+        "portfolio_value": 100000.0
+      },
+      "final_positions": [
+        {
+          "asset": {
+            "symbol": "QZX",
+            "type": "stock"
+          },
+          "avg_fill_price": 100.0,
+          "closing_quantity": 3.0,
+          "position_side": "long",
+          "quantity": 3.0
+        }
+      ],
+      "tool_calls": [
+        {
+          "name": "load_skill",
+          "payload": {
+            "agent_purpose": "Load stock trading execution and risk instructions for the requested QZX stock limit order.",
+            "skill_name": "stock-trading"
+          }
+        },
+        {
+          "name": "market_quote",
+          "payload": {
+            "agent_purpose": "Check current QZX pricing before placing the requested fixed-quantity limit order.",
+            "asset_type": "stock",
+            "symbol": "QZX"
+          }
+        },
+        {
+          "name": "account_portfolio",
+          "payload": {
+            "agent_purpose": "Verify current cash and portfolio equity before the requested QZX purchase."
+          }
+        },
+        {
+          "name": "account_positions",
+          "payload": {
+            "agent_purpose": "Verify current holdings before placing the requested QZX order."
+          }
+        },
+        {
+          "name": "orders_open_orders",
+          "payload": {
+            "agent_purpose": "Verify no existing QZX order conflicts with the requested purchase."
+          }
+        },
+        {
+          "name": "market_historical_prices",
+          "payload": {
+            "agent_purpose": "Retrieve recent QZX history as required by the stock-trading workflow; the order itself remains at the user's fixed limit.",
+            "length": 20,
+            "symbol": "QZX",
+            "table_name": "qzx_recent",
+            "timestep": "day"
+          }
+        },
+        {
+          "name": "orders_submit_order",
+          "payload": {
+            "agent_purpose": "Place the user's exact QZX 3-share day limit buy at $101 and then verify its actual order status.",
+            "asset_type": "stock",
+            "limit_price": 101,
+            "order_type": "limit",
+            "public_reason": "Submitting the requested QZX limit buy; execution is not guaranteed and the share price can move.",
+            "quantity": 3,
+            "reason": "Submitting the user's explicitly authorized day limit order to buy exactly 3 shares of QZX at $101, without repricing or changing the requested quantity. The current strategy-time quote is $100.00 bid/$100.00 ask and $100.00 last, so the limit is above the observed ask; actual execution is not guaranteed and may depend on simulator/broker processing. Verified cash is $100,000 and portfolio value is $100,000; there is no QZX holding and no open order in the complete account reads. Maximum purchase principal at the limit is $303 before any fees. Invalidate only if the order expires unfilled at day end; per instruction, do not cancel, modify, replace, or add another order.",
+            "side": "buy",
+            "symbol": "QZX",
+            "time_in_force": "day"
+          }
+        },
+        {
+          "name": "orders_get_status",
+          "payload": {
+            "agent_purpose": "Check the exact submitted QZX order identifier for current execution status and any fills.",
+            "identifier": "bt_1"
+          }
+        },
+        {
+          "name": "account_portfolio",
+          "payload": {
+            "agent_purpose": "Refresh cash and equity after submitting the QZX order."
+          }
+        },
+        {
+          "name": "account_positions",
+          "payload": {
+            "agent_purpose": "Refresh complete holdings after the QZX order submission."
+          }
+        },
+        {
+          "name": "orders_open_orders",
+          "payload": {
+            "agent_purpose": "Confirm current open-order state after the QZX submission."
+          }
+        }
+      ],
+      "tool_results": [
+        {
+          "name": "load_skill",
+          "payload": {
+            "frontmatter": {
+              "allowed_tools": null,
+              "compatibility": null,
+              "description": "Use before researching, selecting, opening, modifying, or closing a stock or ETF position, including discretionary investing, rotation, breakout, momentum, mean-reversion, opening-range breakout, and VWAP trading. Also use when a broad mandate leads you to consider stocks or ETFs even if the user did not name an asset class initially.",
+              "license": null,
+              "metadata": {},
+              "name": "stock-trading"
+            },
+            "instructions": "# Stock Trading\n\nLoad this skill before using stocks or ETFs as part of a trading decision. If a\nbroad mandate leads you to a stock idea, load it before submitting an order.\n\n## Core workflow\n\n1. Read portfolio value, cash, current positions, and open orders.\n2. Read `market_quote` before sizing; prefer `market_quotes` for a basket.\n   For an immediate buy use a valid ask as its executable cost; for an\n   immediate sell use a valid bid. For an explicit limit, size at that limit.\n   When a quote side is unavailable, its valid current `price`, or a fresh\n   `market_last_price` / `market_last_prices`, is a usable disclosed fallback.\n   Missing bid/ask alone does not make a priced stock untradeable. Do not\n   substitute an old historical close for the execution price.\n   Keep last (`price`), bid and ask distinct in calculations and reporting.\n   Copy the observed field with its correct label; never relabel last or mid as bid.\n   Retrieve recent price history for every serious candidate.\n   Read that history with `market_historical_prices`, also for a single symbol;\n   pass `table_name` to query it with `duckdb_query`.\n   `market_load_history_table` does not replace it before a stock order.\n   Compute averages and indicators with a tool (`get_indicator`, `get_indicators`,\n   or `duckdb_query` over loaded bars), never by mental arithmetic, and quote\n   the tool's value. A query returning individual closes has not computed their\n   average. Request the aggregate or indicator and inspect its returned value\n   before using it in a decision or describing it as tool-calculated.\n   For lookback rules, select the requested count of the latest completed bars\n   and match the reported indicator and date window to that tool result. When\n   reporting a date span, retrieve the first and last timestamps of those same\n   selected rows alongside the aggregate. Do not infer their dates from a bar\n   count or an assumed weekday calendar. If the result does not give the window,\n   omit that extra date claim. Do not discard an already-completed bar again or\n   substitute an earlier indicator row.\n   For a historical snapshot select the latest eligible row by timestamp and\n   read that row's close. Selecting MAX(close) alongside MAX(datetime) pairs\n   unrelated values and does not select the snapshot-date price.\n3. Use batch tools for a universe. Do not loop one symbol at a time when a batch\n   price or history tool can return the same evidence.\n4. Evaluate the user's entry, exit, sizing, and frequency rules against current\n   evidence. Write down the decisive condition and whether it is true before\n   submitting an order. Do not invent missing signals. Keep the explanation's\n   comparisons identical to the evaluated rule: a latest price exceeding an\n   average does not establish that every constituent bar exceeded it. If a\n   claim concerns all bars, their count, or a date range, compute and inspect\n   that exact predicate from the returned data before asserting it.\n5. Size from current portfolio value, available cash, current price, volatility or\n   stop distance, and the user's risk rules. For a basket, keep one execution row\n   per symbol with its selected quote field and value, allocation cap, held/pending\n   quantity and calculated quantity. Copy the price for that same symbol into\n   its sizing call; never carry a neighboring symbol's ask or one basket-wide\n   price into a row whose usable price differs. For a notional cap, calculate\n   the maximum notional and call `risk_calculate_stock_quantity`; use its returned\n   whole-share quantity unchanged. Verify its notional is at or below both the cap\n   and available cash before submission. Submit only when the returned quantity is\n   greater than zero; otherwise make a no-trade decision.\n6. Submit the selected order once. Price a limit order from the current\n   quote or current last-price fallback, never from a historical bar's close: a buy limit\n   below the current price usually does not fill. Follow the order tool's\n   guidance when the order must fill this session. This is for a new order; it\n   is never a reason to modify an order that is already pending (see step 8).\n7. Capture the returned identifier, inspect that exact order, and reread positions\n   and open orders. In backtests, a short bounded `orders_wait_for_terminal` is\n   appropriate immediately after your own market-order submission because it\n   lets the simulator process the pending fill. Do not use an unbounded wait.\n8. If a related order is already open, call `orders_get_status` with its returned\n   identifier to inspect that exact order; listing open orders alone does not\n   replace this status read. Do not submit another order for the same intended\n   position change. A pending exit already\n   owns the exit: leave it in place and report that it owns the position change.\n   Modify or cancel and replace it only when the user's rules explicitly require\n   changing an existing order. A due exit condition or a nonmarketable limit\n   alone does not authorize changing an already-pending exit.\n9. Keep the final decision evidence compact and exact. For a bar-based signal,\n   identify the particular completed bar used and copy that row's timestamp,\n   close and volume. Do not collapse several bars into one set of values: one\n   bar's volume does not describe every bar in a range. Report an aggregate only\n   when a tool actually returned that aggregate for those rows. Extra market\n   commentary is unnecessary when the requested rule and outcome are clear.\n   Reconcile the final summary with the mutation tools and the final account\n   reads. If an order tool returned a submitted identifier, never say that no\n   order was entered. Report the exact observed status instead.\n   Reconcile cash from confirmed fill quantities, execution prices and fees.\n   Portfolio value already includes cash and current position valuation; do not\n   add cash again or equate that total with the gross purchase debit.\n   Compute any equity or profit/loss comparison with a tool on that same price\n   basis. If it was not computed, report the returned cash/equity without adding\n   an unsupported discrepancy or gain/loss explanation.\n   Purchase cost plus remaining cash need not equal current equity: positions\n   are marked at current prices, which can differ from fills. That expected\n   difference is not an unreconciled account or target mismatch. Flag a mismatch\n   only after comparing quantities, reserves or values on the same basis.\n\n## Complete portfolio work\n\nFor an authorized allocation or rebalance build one compact full-inventory\nplan on the requested capital basis: target amounts/quantities, held and pending\nquantities, funding sells, remaining buys and real exceptions. A prescribed\nallocation is the trading mandate; do not require a separate discretionary\nconviction thesis before replicating each requested constituent.\n\nCalculate the capital basis and reserve before quantities: investable capital is\nthe authorized basis times the requested investment fraction (or basis minus the\nrequested reserve). Each allocation cap is investable capital times its target\nweight. Verify multiplication/division with an available arithmetic tool. An\nunavailable name keeps its allocation in cash, alongside the original reserve;\ndo not silently use the full account as the allocation basis or renormalize the\nsupported subset unless the user authorized that change.\n\nCompare the sizing tool's returned quantity with the quantity you submit. Do not\nsilently subtract shares or invent extra reserve when the requested allocation\nis already affordable. If execution uncertainty warrants a smaller first order,\nreconcile its actual fills, remaining allocation and current price, then complete\nany affordable residual without breaching the cap or reserve. A residual large\nenough to buy another share is not whole-share rounding; report it as incomplete\nuntil filled or blocked by observed evidence.\n\nWork through every feasible required change in this run. Prefer `orders_submit_orders`\nfor a jointly sized independent basket: pass explicit order rows, verify all returned\nidentifiers together, then reconcile actual account state. A batch is not atomic;\nverify funding sells before submitting dependent buys. Preserve atomic option\npackages through `orders_submit_multileg`. Use batch quotes and\nhistory when the task needs historical analysis; an explicit allocation does not\nneed an invented historical entry signal. After each mutation refresh the account and complete position/open-order\npagination, then size only the next intended order against its allocation cap\nand actual available cash. Do not restart all remaining sizing calculations\nafter each fill. An existing correct holding requires no new purchase; a pending\norder owns only its own remaining quantity. Verify funding sells before buys.\n\nBefore finishing compare the full target set to actual positions and terminal\norders using each symbol's own selected current price, not merely the quantities\nalready submitted. Recalculate an affordable remaining quantity with the sizing\ntool when that comparison finds unused allocation, subtracting confirmed held\nand still-pending quantity. A wrong earlier sizing input is not a blocker or\nwhole-share rounding. Complete only that residual when authorized and affordable;\ndo not resend the whole target. A few confirmed trades or an acknowledgement are not full completion.\nContinue supported independent trades when one constituent is unavailable.\nExplain each actual missing price, unaffordable quantity or broker failure;\ndo not invent an exception or finish merely because the basket is long. Never\nforce a token trade, breach an allocation cap, short or overspend to satisfy a count.\n\nUse this stopping rule for the execution loop: after each verified change,\nremove only that completed quantity from the worklist and continue to the next\nfeasible item. There is no default cap on trades per iteration. An honest report\nthat only a few requested holdings were bought still leaves the task unfinished.\nWhen the final comparison finds an affordable missing target with usable current\npricing and no conflicting pending order, call the next order tools instead of\nending the run. Stop only when the whole inventory is reconciled or every\nremaining item has its own observed blocker.\n\n## Research depth\n\nMatch research to the strategy. A broad discretionary investment decision should\nuse relevant technical, news, macro, and company evidence when available. A\nmechanical intraday strategy should prioritize the exact price, bar, volume, and\nindicator evidence required by its rules. Do not force irrelevant research merely\nto increase tool use.\n\n## References\n\nLoad only the smallest relevant reference:\n\n- `references/research-sizing-and-orders.md`: evidence, sizing, entries, exits,\n  rotation, and order verification.\n- `references/intraday-setups.md`: opening-range breakout and VWAP mechanics.\n\nThe user's active strategy rules decide whether a trade should happen. This skill\nprovides reusable stock-trading mechanics and does not invent a strategy.\n\n## Explain consequential order actions\n\nSupply an explicit `reason` before every submission, modification or cancellation.\nUse at least 200 characters; aim for 600\u20132,500 when the decision needs it. Explain\nthe thesis, dated evidence, sizing, material risks and what would invalidate it.\nState missing evidence honestly. This is a decision summary, not hidden internal\nreasoning, and must contain no credentials or account identifiers. The order\nservice commits it before execution. Report only observed order status and fills;\nreconcile an uncertain outcome before trying again.\n\nWhen a separate `public_reason` is requested, write the qualitative thesis and\none material risk in one short sentence, usually 15\u201325 words. Leave ample room\nunder the tool's 280 UTF-8 byte limit; several explanatory sentences can exceed\nit even when they look short. Detailed dates, calculations and invalidation\nconditions belong in the private reason. Keep portfolio-relative sizing percentages, formulas, account value,\nbuying power, owner context and tool purposes in the private `reason` only. Do\nnot copy its sizing explanation into the public summary. Follow the order tool's\npublic-summary contract before submitting; later omission of an unsafe summary\ndoes not make that proposed summary suitable for sharing.\n\n\n## Final account report\n\nReport the final account read's cash verbatim: reserved cash remains part of\nthat balance, not a debit. Use the returned cash balance alone unless a\nreserve comparison is useful. For that comparison, make an arithmetic-tool\ncall **after the final account read** with `final_cash - requested_reserve`.\nCopy that returned difference into the explanation. Without that calculation,\nomit the excess-cash sentence entirely. Never infer the difference from an\nearlier sizing calculation, the allocation remainder or mental arithmetic.\nA correct observed balance does not validate a derived comparison. Check the\nactual arithmetic-tool result immediately before writing that comparison.",
+            "skill_name": "stock-trading"
+          }
+        },
+        {
+          "name": "market_quote",
+          "payload": {
+            "ask": 100.0,
+            "ask_size": null,
+            "ask_time": null,
+            "asset": {
+              "symbol": "QZX",
+              "type": "stock"
+            },
+            "available": true,
+            "bar_timestamp": "2026-08-10T00:00:00-04:00",
+            "bar_timestep": "day",
+            "bid": 100.0,
+            "bid_size": null,
+            "bid_time": null,
+            "datetime": "2026-08-11T14:35:00+00:00",
+            "exchange": null,
+            "mid_price": 100.0,
+            "price": 100.0,
+            "quote": null,
+            "quote_time": null,
+            "timestamp": "2026-11-11T18:41:06.484651+00:00",
+            "volume": null
+          }
+        },
+        {
+          "name": "account_portfolio",
+          "payload": {
+            "cash": 100000.0,
+            "datetime": "2026-08-11T14:35:00+00:00",
+            "portfolio_value": 100000.0
+          }
+        },
+        {
+          "name": "account_positions",
+          "payload": {
+            "as_of": "2026-08-11T14:35:00+00:00",
+            "complete": true,
+            "filters": {},
+            "limit": 50,
+            "matched": 1,
+            "next_offset": null,
+            "offset": 0,
+            "omitted": 0,
+            "positions": [
+              {
+                "asset": {
+                  "symbol": "USD",
+                  "type": "forex"
+                },
+                "closing_quantity": 100000.0,
+                "position_side": "long",
+                "quantity": 100000.0
+              }
+            ],
+            "returned": 1,
+            "snapshot_id": "79f25008dbe1aa8d020a1025bcceb64a1c0e904e920ae44bb21de69f12b6ebb2",
+            "total": 1
+          }
+        },
+        {
+          "name": "orders_open_orders",
+          "payload": {
+            "as_of": "2026-08-11T14:35:00+00:00",
+            "complete": true,
+            "filters": {},
+            "limit": 50,
+            "matched": 0,
+            "next_offset": null,
+            "offset": 0,
+            "omitted": 0,
+            "orders": [],
+            "returned": 0,
+            "snapshot_id": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "total": 0
+          }
+        },
+        {
+          "name": "market_historical_prices",
+          "payload": {
+            "asset_type": "stock",
+            "bar_counts_by_symbol": {
+              "QZX": 7
+            },
+            "columns": [
+              "symbol",
+              "datetime",
+              "open",
+              "high",
+              "low",
+              "close",
+              "volume"
+            ],
+            "count_available": 1,
+            "count_requested": 1,
+            "datetime": "2026-08-11T14:35:00+00:00",
+            "datetime_timezone": "America/New_York",
+            "first_datetime": "2026-08-04T00:00:00",
+            "history_note": "Requested 20 bars per symbol. symbols_incomplete contains fewer actual observations; those rows remain usable research, but do not establish the complete requested history.",
+            "include_after_hours": true,
+            "last_datetime": "2026-08-10T00:00:00",
+            "length": 20,
+            "row_count": 7,
+            "rows_by_symbol": {
+              "QZX": 7
+            },
+            "symbols_available": [
+              "QZX"
+            ],
+            "symbols_data_errors": {},
+            "symbols_incomplete": [
+              "QZX"
+            ],
+            "symbols_interval_mismatch": [],
+            "symbols_missing": [],
+            "symbols_requested": [
+              "QZX"
+            ],
+            "table_name": "qzx_recent",
+            "timestep": "day"
+          }
+        },
+        {
+          "name": "orders_submit_order",
+          "payload": {
+            "execution_outcome": {
+              "broker_state_certainty": "confirmed_submitted",
+              "decision_completed": true,
+              "fallback_used": false,
+              "impact": "completed",
+              "operation": "broker_order_submission",
+              "requiredness": "decision_critical",
+              "retryability": "not_applicable"
+            },
+            "ok": true,
+            "order": {
+              "asset": {
+                "symbol": "QZX",
+                "type": "stock"
+              },
+              "decision_journal": {
+                "action_id": "action_f5c3f890d588424a9259c304bc776b61",
+                "agent_name": "trader",
+                "decision_id": "decision_90c64b97fbfa41bb82d64fbe0ae2b9d4",
+                "deployment_id": null,
+                "model_call_id": "2740be5016a30c68b9fc841e8f21a7ac54be8a06edaed5305ce13f8196dbbe45",
+                "operation": "submit",
+                "previous_action_id": null,
+                "public_reason_preview": "Submitting the requested QZX limit buy; execution is not guaranteed and the share price can move.",
+                "public_reason_sha256": "a620252a7566f811dcf6cb4ce96a7a2755d0882cb669f62cc5163e3ac33b022c",
+                "reason_preview": "Submitting the user's explicitly authorized day limit order to buy exactly 3 shares of QZX at $101, without repricing or changing the requested quantity. The current strategy-time quote is $100.00 bid/$100.00 ask and $100.00 last, so the limit is above the observed ask; actual execution is not guaranteed and may depend on simulator/broker processing. Verified cash is $100,000 and portfolio value is $100,000; there is no QZX holding and no open order in the complete account reads. Maximum purchase principal at the limit is $303 before any fees. Invalidate only if the order expires unfilled at day end; per instruction, do not cancel, modify, replace, or add another order.",
+                "reason_sha256": "1eb8431539e4fecbceea61700bb4bdd3f9b4c6177f2f3f1b5bd723a604063f0f",
+                "recorded_at": "2026-08-11T14:35:00+00:00",
+                "run_id": null,
+                "strategy_revision_id": null
+              },
+              "decision_provenance": {
+                "decision_id": "decision_90c64b97fbfa41bb82d64fbe0ae2b9d4",
+                "model_call_id": "2740be5016a30c68b9fc841e8f21a7ac54be8a06edaed5305ce13f8196dbbe45"
+              },
+              "identifier": "bt_1",
+              "limit_price": 101,
+              "order_type": "limit",
+              "quantity": 3.0,
+              "quote": {
+                "symbol": "USD",
+                "type": "forex"
+              },
+              "side": "buy",
+              "status": "new",
+              "time_in_force": "day"
+            }
+          }
+        },
+        {
+          "name": "orders_get_status",
+          "payload": {
+            "all_filled": false,
+            "all_terminal": false,
+            "count": 1,
+            "datetime": "2026-08-11T14:35:00+00:00",
+            "missing_identifiers": [],
+            "orders": [
+              {
+                "asset": {
+                  "symbol": "QZX",
+                  "type": "stock"
+                },
+                "available": true,
+                "identifier": "bt_1",
+                "is_active": true,
+                "is_canceled": false,
+                "is_filled": false,
+                "is_terminal": false,
+                "limit_price": 101,
+                "order_type": "limit",
+                "quantity": 3.0,
+                "quote": {
+                  "symbol": "USD",
+                  "type": "forex"
+                },
+                "side": "buy",
+                "status": "new",
+                "status_normalized": "new",
+                "time_in_force": "day"
+              }
+            ]
+          }
+        },
+        {
+          "name": "account_portfolio",
+          "payload": {
+            "cash": 100000.0,
+            "datetime": "2026-08-11T14:35:00+00:00",
+            "portfolio_value": 100000.0
+          }
+        },
+        {
+          "name": "account_positions",
+          "payload": {
+            "as_of": "2026-08-11T14:35:00+00:00",
+            "complete": true,
+            "filters": {},
+            "limit": 50,
+            "matched": 1,
+            "next_offset": null,
+            "offset": 0,
+            "omitted": 0,
+            "positions": [
+              {
+                "asset": {
+                  "symbol": "USD",
+                  "type": "forex"
+                },
+                "closing_quantity": 100000.0,
+                "position_side": "long",
+                "quantity": 100000.0
+              }
+            ],
+            "returned": 1,
+            "snapshot_id": "79f25008dbe1aa8d020a1025bcceb64a1c0e904e920ae44bb21de69f12b6ebb2",
+            "total": 1
+          }
+        },
+        {
+          "name": "orders_open_orders",
+          "payload": {
+            "as_of": "2026-08-11T14:35:00+00:00",
+            "complete": true,
+            "filters": {},
+            "limit": 50,
+            "matched": 1,
+            "next_offset": null,
+            "offset": 0,
+            "omitted": 0,
+            "orders": [
+              {
+                "asset": {
+                  "symbol": "QZX",
+                  "type": "stock"
+                },
+                "identifier": "bt_1",
+                "limit_price": 101,
+                "order_type": "limit",
+                "quantity": 3.0,
+                "quote": {
+                  "symbol": "USD",
+                  "type": "forex"
+                },
+                "side": "buy",
+                "status": "new",
+                "time_in_force": "day"
+              }
+            ],
+            "returned": 1,
+            "snapshot_id": "6d06966b5c0375a163e51311fc548f9c3b9f8695b71bd1e9967fa66c532dcffb",
+            "total": 1
+          }
         }
       ]
     }

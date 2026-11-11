@@ -43,17 +43,20 @@ def test_daily_cadence_market_fill_uses_loaded_current_minute_and_keeps_history_
         production.close()
 
 
-def test_daily_only_stock_and_nonmarket_timestep_selection_is_preserved():
+def test_daily_only_stock_and_other_order_timestep_selection_is_preserved():
     production = _execution_fixture()
     try:
         asset = Asset("AAPL")
         source = production.broker.data_source
         market = Order(production.strategy.name, asset, 1, "buy", order_type="market")
         limit = Order(production.strategy.name, asset, 1, "buy", order_type="limit", limit_price=98)
-        assert production.broker._resolve_order_fill_timestep(limit, "day") == "day"
+        stop = Order(production.strategy.name, asset, 1, "buy", order_type="stop", stop_price=101)
+        assert production.broker._resolve_order_fill_timestep(limit, "day") == "minute"
+        assert production.broker._resolve_order_fill_timestep(stop, "day") == "day"
         store = source._data_store
         source._data_store = {}
         assert production.broker._resolve_order_fill_timestep(market, "day") == "day"
+        assert production.broker._resolve_order_fill_timestep(limit, "day") == "day"
         source._data_store = store
     finally:
         production.close()

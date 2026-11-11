@@ -1,0 +1,60 @@
+{
+  "case_id": "stock_daily_limit_current_execution",
+  "date": "2026-11-11",
+  "observed_failure": {
+    "current_minute_price": 105,
+    "previous_session_quote": 100,
+    "buy_limit": 101,
+    "quantity": 3,
+    "incorrect_fill": 100,
+    "incorrect_final_cash": 99700,
+    "correct_pending_cash": 100000
+  },
+  "source_before_repair": "e8158b59418c51bcb1039d4c0ec3742b2a7a61a5",
+  "native_red": "test_daily_limit_waits_for_current_price_and_reconciles_cash failed before repair; previous quote incorrectly filled a new order.",
+  "native_fixture_correction": "An initial fixture set daily cadence before Strategy initialization reset it to minute; the fixture now applies daily cadence after initialization and has an independent failing-then-passing lifecycle contract.",
+  "scorer_correction": "The original scorer unconditionally required a fill after submission. The explicit expectedFilledOrderCount contract preserves the old default and can require zero real broker fills.",
+  "judge_calibration": "Two recorded controls distinguish a valid exact user-directed pending order from a stale native fill at the same clock. No fresh actor execution is claimed by a calibration result.",
+  "trials": [
+    {
+      "run": "model-red",
+      "status": "fail",
+      "machine_pass": false,
+      "judge_pass": false,
+      "source_fingerprint": "2033d30838708cea108bacf26d77389c55df5c7d48451c898e830d88d7e59dd5",
+      "record_sha256": "41f27046ee3076ac30614a96538919536e517b1a346eed582c1f5acf5dbf4e2b"
+    },
+    {
+      "run": "model-green",
+      "status": "fail",
+      "machine_pass": false,
+      "judge_pass": true,
+      "source_fingerprint": "789445cc72f2e9fab8bab07f50e0d87656035babc2094598ff8da27d2d772b16",
+      "record_sha256": "3829e86e88e9a23c40d1d800bfcc9e8dd446f829d80e8dde1bea75e4f57ab983"
+    },
+    {
+      "run": "model-red-daily",
+      "status": "fail",
+      "machine_pass": false,
+      "judge_pass": false,
+      "source_fingerprint": "daa1d977b02f317982f6be75cff32926ce166fc621b65482273e15e09bb3ecf1",
+      "record_sha256": "1d035bf21a9ab6d392e5192f05633ee7b4f62bc57995cdc6f6c5cffc07b0d8c1"
+    },
+    {
+      "run": "model-final",
+      "status": "fail",
+      "machine_pass": false,
+      "judge_pass": false,
+      "source_fingerprint": "c5e88fd4cfe699af80a19d63a0874749bcb0f8901e6443c3f1bcb5f163c85c18",
+      "record_sha256": "e1f500cf9584d371ee44e63e7df988ffb987192a0a55987333a5025f4b46cd30"
+    },
+    {
+      "run": "model-qualified",
+      "status": "fail",
+      "machine_pass": true,
+      "judge_pass": false,
+      "source_fingerprint": "a57633c3538dd321c73ec3808647b4565d65e3bd3e0f72eb8cadd492e96a8376",
+      "record_sha256": "eac9d25d9885e84cac35dc5b2f01ffea03f752fe3d4c9319f6d075ee97ce3e7f"
+    }
+  ]
+}

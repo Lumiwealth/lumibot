@@ -2,6 +2,9 @@
 
 ## 4.6.52 - Unreleased
 
+### Changed
+- A filled multi-leg (combo) parent order now ends with a final row in the backtest trade-event files (`*_trade_events.csv/.parquet`, `*_trades.csv/.parquet`), with status `legs_filled` and no filled quantity. Before, the parent's only row was `new`, so views that show each order's last row (progress, order lists) showed every combo as pending forever. The legs keep their `fill` rows. `legs_filled` is not a fill status and the filled quantity is empty, so tools that count trades from these files (BotSpot Node and Bot Manager count fill/filled/partially_filled/partial_fill statuses or a nonzero filled quantity) count the same trades as before; trades.html markers are unchanged (`legs_filled` is not a marker status).
+
 ### Fixed
 - AI model-request timeouts now reach the managed model's HTTP transport. Disabling the request timeout no longer leaves an independent 120-second socket timeout; finite configured timeouts are preserved. Existing injected transports retain their three-argument interface.
 

@@ -58,7 +58,43 @@ from typing import Any, Iterable, NamedTuple
 import pandas as pd
 
 INPUT_TYPES = ("int", "float", "bool", "color", "source", "string", "enum")
-OUTPUT_KINDS = ("line", "area", "histogram", "scatter", "markers")
+OUTPUT_KINDS = (
+    "line",
+    "step",
+    "area",
+    "histogram",
+    "columns",
+    "circles",
+    "cross",
+    "scatter",
+    "markers",
+    "shape",
+    "fill",
+    "background",
+    "bar_color",
+    "candle",
+)
+LINE_STYLES = ("solid", "dashed", "dotted")
+DISPLAY_MODES = ("all", "pane", "status_line", "data_window", "none")
+PANES = ("price", "own")
+SHAPES = (
+    "circle",
+    "square",
+    "diamond",
+    "cross",
+    "xcross",
+    "triangle_up",
+    "triangle_down",
+    "arrow_up",
+    "arrow_down",
+    "label_up",
+    "label_down",
+    "flag",
+)
+SHAPE_LOCATIONS = ("above_bar", "below_bar", "absolute", "top", "bottom")
+SHAPE_SIZES = ("auto", "tiny", "small", "normal", "large", "huge")
+#: Colors that follow the chart's theme: its text color and its background color.
+THEME_COLORS = ("chart.fg", "chart.bg")
 SOURCES = ("close", "open", "high", "low", "hl2", "hlc3", "ohlc4", "hlcc4")
 
 
@@ -125,34 +161,217 @@ class InputSpec:
         return value
 
 
+def _is_color(value) -> bool:
+    """``#RRGGBB``, ``#RRGGBBAA`` (the last two digits are opacity) or a theme color."""
+    if not isinstance(value, str):
+        return False
+    if value in THEME_COLORS:
+        return True
+    if not value.startswith("#") or len(value) not in (7, 9):
+        return False
+    try:
+        int(value[1:], 16)
+    except ValueError:
+        return False
+    return True
+
+
+def _check_color(value, what: str) -> None:
+    if not _is_color(value):
+        raise ValueError(
+            f"{what} must be #RRGGBB, #RRGGBBAA (AA = opacity) or one of {THEME_COLORS}, got {value!r}"
+        )
+
+
+def _check_choice(value, choices, what: str) -> None:
+    if value not in choices:
+        raise ValueError(f"{what} must be one of {choices}, got {value!r}")
+
+
+def _check_width(value, what: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value <= 10:
+        raise ValueError(f"{what} must be above 0 and at most 10, got {value!r}")
+
+
 @dataclass(frozen=True)
 class OutputSpec:
-    """One plotted series. ``kind`` is ``line``, ``area``, ``histogram``,
-    ``scatter`` or ``markers``."""
+    """One thing the indicator draws.
+
+    Each bar's value is a number (or ``None``). Everything about how it looks
+    is declared here once. The "Indicator outputs and styles" documentation
+    page shows every option with an example.
+
+    ``kind``
+        ``line`` (breaks where the value is ``None``), ``step``, ``area``,
+        ``histogram``, ``columns``, ``circles``, ``cross``, ``scatter``,
+        ``markers``, ``shape`` (a mark on bars whose value is set and not 0),
+        ``fill`` (shades between two outputs or levels, see ``between``),
+        ``background`` (colors the bar's whole column), ``bar_color``
+        (recolors the price candles) or ``candle`` (draws candles from four
+        outputs, see ``candle``).
+    ``color``
+        ``#RRGGBB``, ``#RRGGBBAA`` (the last two hex digits are opacity: ``80``
+        is half) or ``chart.fg`` / ``chart.bg`` to follow the chart's theme.
+    ``line_width``, ``line_style``
+        Width in pixels (for ``circles``, ``cross`` and ``scatter``: the mark
+        size), and ``solid``, ``dashed`` or ``dotted``.
+    ``palette``, ``color_by``, ``gradient``
+        A color per bar. ``color_by`` names another output whose value on each
+        bar picks the color: an index into ``palette`` (0, 1, 2...), or, with
+        ``gradient=(low, high)``, a position blended across the palette.
+        ``None`` on a bar falls back to ``color``. ``background`` and
+        ``bar_color`` outputs may pick with their own value instead.
+    ``offset``
+        Shift the drawing by this many bars (negative: left, positive: right).
+    ``display``
+        ``all``, ``pane`` (drawn, value not in the status line),
+        ``status_line`` (value shown, nothing drawn), ``data_window`` or
+        ``none`` (a helper output, such as the one ``color_by`` reads).
+    ``precision``
+        Decimals shown for this output's value.
+    ``pane``
+        ``price`` or ``own``: draw this output in a different place than the
+        indicator's ``overlay`` setting (Pine's ``force_overlay``).
+    ``track_price``
+        Draw a dotted line across the pane at the newest value.
+    ``shape``, ``location``, ``size``, ``text``, ``text_color``
+        For ``shape`` outputs: which mark, where (``above_bar``,
+        ``below_bar``, ``absolute`` at the value, ``top`` or ``bottom`` of the
+        pane), how big, and optional short text (one character works like
+        Pine's ``plotchar``).
+    ``between``
+        For ``fill`` outputs: two output ids or level values to shade between.
+    ``candle``
+        For ``candle`` outputs: the ids of the open, high, low and close outputs.
+    """
 
     id: str
     label: str
     kind: str = "line"
     color: str = "#2962FF"
+    line_width: float = 1
+    line_style: str = "solid"
+    palette: tuple = ()
+    color_by: str | None = None
+    gradient: tuple | None = None
+    offset: int = 0
+    display: str = "all"
+    precision: int | None = None
+    pane: str | None = None
+    track_price: bool = False
+    shape: str = "circle"
+    location: str = "above_bar"
+    size: str = "auto"
+    text: str = ""
+    text_color: str | None = None
+    between: tuple | None = None
+    candle: tuple | None = None
 
     def __post_init__(self):
-        if self.kind not in OUTPUT_KINDS:
-            raise ValueError(f"output kind must be one of {OUTPUT_KINDS}, got {self.kind!r}")
+        name = f"output {self.id!r}"
+        _check_choice(self.kind, OUTPUT_KINDS, "output kind")
+        _check_color(self.color, f"{name} color")
+        _check_width(self.line_width, f"{name} line_width")
+        _check_choice(self.line_style, LINE_STYLES, f"{name} line_style")
+        object.__setattr__(self, "palette", tuple(self.palette))
+        for item in self.palette:
+            _check_color(item, f"{name} palette color")
+        if self.gradient is not None:
+            low, high = self.gradient
+            if not (math.isfinite(low) and math.isfinite(high)) or low == high:
+                raise ValueError(f"{name} gradient must be two different numbers, got {self.gradient!r}")
+            if len(self.palette) < 2:
+                raise ValueError(f"{name} gradient needs a palette of at least two colors")
+            object.__setattr__(self, "gradient", (float(low), float(high)))
+        if self.color_by is not None and not self.palette:
+            raise ValueError(f"{name} color_by needs a palette")
+        if isinstance(self.offset, bool) or not isinstance(self.offset, int):
+            raise ValueError(f"{name} offset must be a whole number of bars, got {self.offset!r}")
+        _check_choice(self.display, DISPLAY_MODES, f"{name} display")
+        if self.precision is not None and (
+            isinstance(self.precision, bool) or not isinstance(self.precision, int) or not 0 <= self.precision <= 10
+        ):
+            raise ValueError(f"{name} precision must be a whole number from 0 to 10, got {self.precision!r}")
+        if self.pane is not None:
+            _check_choice(self.pane, PANES, f"{name} pane")
+        _check_choice(self.shape, SHAPES, f"{name} shape")
+        _check_choice(self.location, SHAPE_LOCATIONS, f"{name} location")
+        _check_choice(self.size, SHAPE_SIZES, f"{name} size")
+        if not isinstance(self.text, str) or len(self.text) > 40:
+            raise ValueError(f"{name} text must be at most 40 characters")
+        if self.text_color is not None:
+            _check_color(self.text_color, f"{name} text_color")
+        if self.kind == "fill":
+            if self.between is None or len(self.between) != 2:
+                raise ValueError(f"fill {name} needs between=(output id or level value, output id or level value)")
+            object.__setattr__(self, "between", tuple(self.between))
+        elif self.between is not None:
+            raise ValueError(f"{name}: between is only for fill outputs")
+        if self.kind == "candle":
+            if self.candle is None or len(self.candle) != 4:
+                raise ValueError(f"candle {name} needs candle=(open id, high id, low id, close id)")
+            object.__setattr__(self, "candle", tuple(self.candle))
+        elif self.candle is not None:
+            raise ValueError(f"{name}: candle is only for candle outputs")
+
+    def references(self) -> list:
+        """Ids of other outputs this one reads (``color_by``, ``between``, ``candle``)."""
+        refs = [self.color_by] if self.color_by else []
+        refs += [item for item in (self.between or ()) if isinstance(item, str)]
+        refs += list(self.candle or ())
+        return refs
 
     def describe(self) -> dict:
-        return {"id": self.id, "label": self.label, "kind": self.kind, "color": self.color}
+        return {
+            "id": self.id,
+            "label": self.label,
+            "kind": self.kind,
+            "color": self.color,
+            "line_width": self.line_width,
+            "line_style": self.line_style,
+            "palette": list(self.palette),
+            "color_by": self.color_by,
+            "gradient": list(self.gradient) if self.gradient is not None else None,
+            "offset": self.offset,
+            "display": self.display,
+            "precision": self.precision,
+            "pane": self.pane,
+            "track_price": self.track_price,
+            "shape": self.shape,
+            "location": self.location,
+            "size": self.size,
+            "text": self.text,
+            "text_color": self.text_color,
+            "between": list(self.between) if self.between is not None else None,
+            "candle": list(self.candle) if self.candle is not None else None,
+        }
 
 
 @dataclass(frozen=True)
 class Level:
-    """A fixed horizontal guide line (Pine ``hline``)."""
+    """A fixed horizontal guide line (Pine ``hline``). ``style`` is ``solid``,
+    ``dashed`` or ``dotted``; ``color`` left out uses the chart's own."""
 
     value: float
     label: str = ""
     style: str = "dashed"
+    color: str | None = None
+    line_width: float = 1
+
+    def __post_init__(self):
+        _check_choice(self.style, LINE_STYLES, "level style")
+        if self.color is not None:
+            _check_color(self.color, "level color")
+        _check_width(self.line_width, "level line_width")
 
     def describe(self) -> dict:
-        return {"value": self.value, "label": self.label, "style": self.style}
+        return {
+            "value": self.value,
+            "label": self.label,
+            "style": self.style,
+            "color": self.color,
+            "line_width": self.line_width,
+        }
 
 
 class Bar(NamedTuple):
@@ -321,6 +540,7 @@ class Indicator:
     def describe(cls, inputs: dict | None = None) -> dict:
         """JSON-safe schema for UIs and AI agents."""
         resolved = cls.resolve_inputs(inputs or {})
+        cls.check_outputs()
         return {
             "key": cls.key,
             "version": cls.version,
@@ -331,6 +551,19 @@ class Indicator:
             "outputs": [spec.describe() for spec in cls.outputs],
             "levels": [level.describe() for level in cls.levels_for(resolved)],
         }
+
+    @classmethod
+    def check_outputs(cls) -> None:
+        """Output ids are unique and every ``color_by``, ``between`` and
+        ``candle`` reference names a declared output."""
+        ids = [spec.id for spec in cls.outputs]
+        dupes = sorted({item for item in ids if ids.count(item) > 1})
+        if dupes:
+            raise ValueError(f"{cls.key or cls.__name__} has duplicate output ids {dupes}")
+        for spec in cls.outputs:
+            missing = [ref for ref in spec.references() if ref not in ids]
+            if missing:
+                raise ValueError(f"{cls.key or cls.__name__} output {spec.id!r} refers to unknown output(s) {missing}")
 
     @classmethod
     def resolve_inputs(cls, inputs: dict | None) -> dict:
@@ -356,6 +589,7 @@ class Indicator:
 
     def reset(self, inputs: dict | None = None) -> None:
         """Validate inputs and clear all state."""
+        type(self).check_outputs()
         self.inputs = self.resolve_inputs(inputs)
         self._state = self.init_state()
         self._last_time = None
@@ -451,14 +685,21 @@ def _class_inputs(cls) -> list:
 
 __all__ = [
     "Bar",
+    "DISPLAY_MODES",
     "INPUT_TYPES",
     "Indicator",
     "InputSpec",
     "InvalidIndicatorInputError",
+    "LINE_STYLES",
     "Level",
     "OUTPUT_KINDS",
     "OutputSpec",
+    "PANES",
+    "SHAPES",
+    "SHAPE_LOCATIONS",
+    "SHAPE_SIZES",
     "SOURCES",
+    "THEME_COLORS",
     "iter_bars",
     "to_bar",
 ]

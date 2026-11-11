@@ -104,9 +104,13 @@ def round_to_tick(*args, **kwargs):
 
 
 def _logging_warning(*args, **kwargs):
-    import logging
+    # Through the LumiBot logger, never the bare ``logging.warning``: on an unconfigured
+    # root logger that calls ``logging.basicConfig()``, which adds a second console handler
+    # and prints every later LumiBot record twice.
+    from lumibot.tools.lumibot_logger import get_logger as _get_logger
 
-    return logging.warning(*args, **kwargs)
+    kwargs.setdefault("stacklevel", 2)
+    return _get_logger(__name__).warning(*args, **kwargs)
 
 
 def _colored(*args, **kwargs):
@@ -125,6 +129,30 @@ def _inspect_module():
     import inspect
 
     return inspect
+
+
+def _data_source_serves_timestep_natively(data_source, timestep, *, include_after_hours=True) -> bool:
+    """Ask a live data source whether it can download ``timestep`` bars directly.
+
+    Data sources opt in by defining ``supports_native_timestep(timestep)``. They may
+    also accept ``include_after_hours`` when their native bars only match the
+    requested session for some settings. Sources without the method keep the
+    base-unit download and local aggregation.
+    """
+    check = getattr(data_source, "supports_native_timestep", None)
+    if not callable(check):
+        return False
+    inspect_module = _inspect_module()
+    try:
+        params = inspect_module.signature(check).parameters
+    except (TypeError, ValueError):
+        params = {}
+    accepts_session = "include_after_hours" in params or any(
+        param.kind == inspect_module.Parameter.VAR_KEYWORD for param in params.values()
+    )
+    if accepts_session:
+        return bool(check(timestep, include_after_hours=include_after_hours))
+    return bool(check(timestep))
 
 
 def _uuid4_hex():
@@ -4931,12 +4959,15 @@ class Strategy(_Strategy):
             # results internally.
             multiplier, base_unit = parsed
             live_data_source = getattr(getattr(self, "broker", None), "data_source", None)
-            supports_native_timestep = getattr(live_data_source, "supports_native_timestep", None)
             if getattr(self, "is_backtesting", False) or getattr(getattr(self, "broker", None), "IS_BACKTESTING_BROKER", False):
                 actual_timestep = original_timestep
                 actual_length = length
                 needs_resampling = False
-            elif callable(supports_native_timestep) and supports_native_timestep(original_timestep):
+            elif _data_source_serves_timestep_natively(
+                live_data_source, original_timestep, include_after_hours=include_after_hours
+            ):
+                # Download the requested interval directly. Converting it to the base
+                # unit would fetch `multiplier` times as many rows (60x for hourly).
                 actual_timestep = original_timestep
                 actual_length = length
                 needs_resampling = False

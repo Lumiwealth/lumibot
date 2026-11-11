@@ -387,3 +387,53 @@ def test_scope_needs_an_identity_beyond_the_provider_name():
     assert sbc.credential_scope("ibkr", "") is None
     assert sbc.credential_scope("ibkr", "DU1") != sbc.credential_scope("ibkr", "DU2")
     assert sbc.credential_scope("ibkr", "DU1") != sbc.credential_scope("tradier", "DU1")
+
+
+def test_uploader_stops_trying_the_remote_store_after_repeated_failures(caplog):
+    """A store that keeps failing must not hold a finished process open.
+
+    A 2.5-year option backtest finished in 15 minutes and then spent 40 more minutes failing
+    962 queued uploads one by one before the process could exit (production, 2026-11-05).
+    The local write of each partition still happens; only the remote step is given up.
+    """
+    import logging
+
+    uploader = sbc._Uploader()
+    local, remote = [], []
+
+    def job(index):
+        def run(remote_allowed):
+            local.append(index)
+            if remote_allowed:
+                remote.append(index)
+                raise RuntimeError("store unavailable for this run")
+        return run
+
+    with caplog.at_level(logging.WARNING, logger=sbc.logger.name):
+        for index in range(200):
+            uploader.submit(f"key-{index}", job(index))
+        assert uploader.flush(30)
+
+    assert sorted(local) == list(range(200))
+    assert len(remote) == sbc.UPLOAD_FAILURES_BEFORE_GIVING_UP
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("store unavailable for this run" in message for message in messages)  # the reason is visible
+    assert sum("giving up" in message for message in messages) == 1
+
+
+def test_uploader_keeps_using_the_remote_store_when_failures_are_isolated():
+    uploader = sbc._Uploader()
+    remote = []
+
+    def job(index):
+        def run(remote_allowed):
+            if remote_allowed:
+                remote.append(index)
+                if index % 3 == 0:
+                    raise OSError("one bad object")
+        return run
+
+    for index in range(60):
+        uploader.submit(f"key-{index}", job(index))
+    assert uploader.flush(30)
+    assert sorted(remote) == list(range(60))

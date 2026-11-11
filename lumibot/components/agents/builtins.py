@@ -167,6 +167,33 @@ def _require_single_symbol_text(name: str, value: Any) -> str:
     return text
 
 
+# Most bars one agent history tool call fetches per symbol. A data source may
+# download several base bars per requested bar (for example 60 minute bars per
+# hourly bar when it cannot serve hours natively), so an unbounded length can
+# exhaust a live bot's memory. 5,000 covers about 20 years of daily bars.
+MAX_AGENT_HISTORY_BARS = 5_000
+
+
+def _cap_history_length(length: int, timestep: str) -> tuple[int, dict[str, Any]]:
+    """Trim an agent history request to MAX_AGENT_HISTORY_BARS and explain the trim.
+
+    Returns the length to fetch plus result fields that disclose the trim. The
+    request still succeeds with the most recent bars; nothing is invented.
+    """
+    if length <= MAX_AGENT_HISTORY_BARS:
+        return length, {}
+    return MAX_AGENT_HISTORY_BARS, {
+        "length_requested": length,
+        "length": MAX_AGENT_HISTORY_BARS,
+        "length_note": (
+            f"Requested {length} {timestep} bars per symbol; this tool returns at most "
+            f"{MAX_AGENT_HISTORY_BARS} bars per symbol, so only the most recent "
+            f"{MAX_AGENT_HISTORY_BARS} were fetched. For a longer period, use a coarser timestep "
+            "(for example day instead of hour)."
+        ),
+    }
+
+
 def _require_positive_int(name: str, value: Any) -> int:
     try:
         parsed = int(value)
@@ -1555,6 +1582,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
         symbol_list = _parse_symbol_list(symbols=symbols, symbols_json=symbols_json, max_symbols=150)
         length = _require_positive_int("length", length)
         timestep = _require_non_empty_text("timestep", timestep)
+        length, length_fields = _cap_history_length(length, timestep)
 
         def validated_records(symbol, bars):
             frame = getattr(bars, "pandas_df", None)
@@ -1692,6 +1720,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
                 "symbols_missing": missing,
                 **_fred_hint(missing),
                 **interval_fields,
+                **length_fields,
                 "count_requested": len(symbol_list),
                 "count_available": len(available),
                 "length": length,
@@ -1707,6 +1736,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
             "symbols_missing": missing,
             **_fred_hint(missing),
             **interval_fields,
+            **length_fields,
             "count_requested": len(symbol_list),
             "count_available": len(available),
             "length": length,
@@ -2572,7 +2602,8 @@ def _bind_load_history(strategy: Any, manager: Any) -> BoundTool:
         symbol = _require_single_symbol_text("symbol", symbol)
         length = _require_positive_int("length", length)
         timestep = _require_non_empty_text("timestep", timestep)
-        return manager.duckdb.load_history_table(
+        length, length_fields = _cap_history_length(length, timestep)
+        info = manager.duckdb.load_history_table(
             symbol=symbol,
             length=length,
             timestep=timestep,
@@ -2585,6 +2616,7 @@ def _bind_load_history(strategy: Any, manager: Any) -> BoundTool:
             right=right,
             include_after_hours=include_after_hours,
         )
+        return {**info, **length_fields} if length_fields else info
 
     return BoundTool(
         name="market_load_history_table",

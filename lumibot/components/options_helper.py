@@ -79,6 +79,35 @@ class OptionsHelper:
         self._expiration_validation_disabled_until: Dict[str, date] = {}
         self.strategy.log_message("OptionsHelper initialized.", color="blue")
 
+    def _first_time(self, kind: str, key: Any, value: Any = None) -> bool:
+        """True the first time ``(kind, key)`` is seen, or when its ``value`` changed.
+
+        Minute strategies call the search helpers on every bar with the same inputs. Their
+        routine detail lines are logged at INFO the first time and when the outcome changes,
+        and at DEBUG otherwise, so a run is not flooded with hundreds of identical lines per
+        minute. Warnings and anything explaining why no option was usable stay at INFO.
+        """
+        seen = self.__dict__.setdefault("_routine_log_seen", {})
+        slot = (kind, key)
+        if slot in seen and seen[slot] == value:
+            return False
+        seen[slot] = value
+        return True
+
+    def _detail(self, loud: bool, message: str, color: Optional[str] = None) -> None:
+        """Log routine detail at INFO when ``loud``, otherwise at DEBUG."""
+        if loud:
+            self.strategy.log_message(message, color=color)
+            return
+        strategy_logger = getattr(self.strategy, "logger", None)
+        if strategy_logger is None:
+            return
+        try:
+            if strategy_logger.isEnabledFor(logging.DEBUG):
+                strategy_logger.debug(message)
+        except Exception:
+            return
+
     def _reset_per_bar_caches_if_needed(self) -> None:
         """Reset per-bar caches when the strategy datetime advances."""
         try:
@@ -295,7 +324,9 @@ class OptionsHelper:
             if next_retry_at is not None and current_dt < next_retry_at:
                 return None
 
-        self.strategy.log_message(
+        search_log_key = (search_key, rounded_underlying_price)
+        self._detail(
+            self._first_time("next_valid_option_search", search_log_key),
             f"Finding next valid option for {underlying_asset.symbol} at strike {rounded_underlying_price} and expiry {expiry}",
             color="blue",
         )
@@ -428,13 +459,15 @@ class OptionsHelper:
                             if max_spread_pct is not None and (bid is None or ask is None):
                                 mark_price = None
                             if mark_price is not None:
-                                self.strategy.log_message(
+                                self._detail(
+                                    self._first_time("next_valid_option_result", search_log_key, ('Using requested strike with price data', requested_strike)),
                                     f"Target strike {rounded_underlying_price} -> Using requested strike with price data: {requested_strike}",
                                     color="green",
                                 )
                                 return option
                     else:
-                        self.strategy.log_message(
+                        self._detail(
+                            self._first_time("next_valid_option_result", search_log_key, ('Using requested strike', requested_strike)),
                             f"Target strike {rounded_underlying_price} -> Using requested strike: {requested_strike}",
                             color="green",
                         )
@@ -474,7 +507,8 @@ class OptionsHelper:
                         distance = abs(float(rounded_underlying_price) - underlying_price) / underlying_price
                         if distance <= 0.05:
                             closest_strike = strikes_sorted[0]
-                            self.strategy.log_message(
+                            self._detail(
+                                self._first_time("next_valid_option_result", search_log_key, ('Using closest strike without quote probe (index fast-path)', closest_strike)),
                                 f"Target strike {rounded_underlying_price} -> Using closest strike without quote probe (index fast-path): {closest_strike}",
                                 color="green",
                             )
@@ -529,7 +563,8 @@ class OptionsHelper:
                             if spread_pct > max_spread_pct:
                                 continue
 
-                        self.strategy.log_message(
+                        self._detail(
+                            self._first_time("next_valid_option_result", search_log_key, ('Using strike with price data', candidate_strike)),
                             f"Target strike {rounded_underlying_price} -> Using strike with price data: {candidate_strike}",
                             color="green",
                         )
@@ -582,7 +617,8 @@ class OptionsHelper:
                         spread_pct = (ask - bid) / mid
                         if spread_pct > max_spread_pct:
                             continue
-                    self.strategy.log_message(
+                    self._detail(
+                        self._first_time("next_valid_option_result", search_log_key, ('Using actionable strike', candidate_strike)),
                         f"Target strike {rounded_underlying_price} -> Using actionable strike: {candidate_strike}",
                         color="green",
                     )
@@ -601,7 +637,8 @@ class OptionsHelper:
                 continue
 
             closest_strike = strikes_sorted[0]
-            self.strategy.log_message(
+            self._detail(
+                self._first_time("next_valid_option_result", search_log_key, ('Closest available strike', closest_strike)),
                 f"Target strike {rounded_underlying_price} -> Closest available strike: {closest_strike}",
                 color="green",
             )
@@ -704,7 +741,11 @@ class OptionsHelper:
         Dict[float, Optional[float]]
             Mapping from strike price to its delta.
         """
-        self.strategy.log_message(f"Computing strike deltas for {underlying_asset.symbol} at expiry {expiry}.", color="blue")
+        self._detail(
+            self._first_time("strike_deltas", (underlying_asset.symbol, expiry)),
+            f"Computing strike deltas for {underlying_asset.symbol} at expiry {expiry}.",
+            color="blue",
+        )
         strike_deltas: Dict[float, Optional[float]] = {}
 
         underlying_price = self.strategy.get_last_price(underlying_asset)
@@ -1267,7 +1308,10 @@ class OptionsHelper:
         Optional[float]
             The strike price that best matches the target delta, or None.
         """
-        self.strategy.log_message(
+        delta_log_key = (getattr(underlying_asset, "symbol", underlying_asset), expiry, str(right).upper(), target_delta)
+        search_loud = self._first_time("delta_strike_search", delta_log_key)
+        self._detail(
+            search_loud,
             f"🎯 STRIKE SEARCH: Finding strike for {underlying_asset.symbol} "
             f"(underlying_price=${underlying_price}, target_delta={target_delta}, right={right}, expiry={expiry})", 
             color="blue"
@@ -1341,11 +1385,11 @@ class OptionsHelper:
             # Fallback for data sources that don't provide chains: preserve original behavior.
             candidate_strikes = [float(s) for s in range(int(strike_min), int(strike_max) + 1)]
 
-        self.strategy.log_message(
+        self._detail(search_loud,
             f"🔍 Search range: strikes {strike_min:.2f} to {strike_max:.2f} (underlying=${underlying_price})",
             color="blue",
         )
-        self.strategy.log_message(
+        self._detail(search_loud,
             f"🔍 Search strikes: {len(candidate_strikes)} candidates (range {strike_min:.2f}-{strike_max:.2f})",
             color="blue",
         )
@@ -1444,7 +1488,7 @@ class OptionsHelper:
                 return None
             visited.add(idx)
             strike = candidate_strikes[idx]
-            self.strategy.log_message(
+            self._detail(search_loud,
                 f"🔍 Trying strike {strike:g} (range: {strike_min:.2f}-{strike_max:.2f})",
                 color="blue",
             )
@@ -1454,7 +1498,7 @@ class OptionsHelper:
             return float(strike), float(delta)
 
         if strike_estimate is not None and candidate_strikes:
-            self.strategy.log_message(
+            self._detail(search_loud,
                 f"🔍 BS estimate: strike≈{strike_estimate:.2f} (target_delta={normalized_target_delta})",
                 color="blue",
             )
@@ -1491,7 +1535,7 @@ class OptionsHelper:
                         best_strike = strike
 
                     if abs(mid_delta - normalized_target_delta) < 0.001:
-                        self.strategy.log_message(
+                        self._detail(search_loud,
                             f"🎯 Exact match found at strike {strike:g} with delta {mid_delta:.4f}",
                             color="green",
                         )
@@ -1518,7 +1562,7 @@ class OptionsHelper:
             visited.add(mid)
 
             strike = candidate_strikes[mid]
-            self.strategy.log_message(
+            self._detail(search_loud,
                 f"🔍 Trying strike {strike:g} (range: {strike_min:.2f}-{strike_max:.2f})",
                 color="blue",
             )
@@ -1567,7 +1611,7 @@ class OptionsHelper:
                 best_strike = float(strike)
 
             if abs(mid_delta - normalized_target_delta) < 0.001:
-                self.strategy.log_message(
+                self._detail(search_loud,
                     f"🎯 Exact match found at strike {strike:g} with delta {mid_delta:.4f}",
                     color="green",
                 )
@@ -1592,7 +1636,8 @@ class OptionsHelper:
             self.strategy.log_message(f"❌ No valid strike found for target delta {normalized_target_delta}", color="red")
             return None
 
-        self.strategy.log_message(
+        self._detail(
+            self._first_time("delta_strike_result", delta_log_key, best_strike),
             f"✅ RESULT: Closest strike {best_strike:g} with delta {best_delta:.4f} (target was {normalized_target_delta})",
             color="green",
         )
@@ -1905,7 +1950,10 @@ class OptionsHelper:
             sell_price = last_price
             used_last_price_fallback = True
             if should_log_info:
-                self.strategy.log_message(
+                # Once per contract: data sources with trade bars only (no bid/ask) would
+                # otherwise repeat this on every evaluation.
+                self._detail(
+                    self._first_time("last_price_fallback", option_asset),
                     f"Using last-price fallback for {option_asset} due to missing bid/ask quotes.",
                     color="yellow",
                 )
@@ -1930,7 +1978,18 @@ class OptionsHelper:
                     f"Option data sanitization for {option_asset}: {note_summary}",
                     color="yellow",
                 )
-            self.strategy.log_message(
+            # INFO when the evaluation blocks a trade (spread too wide, no usable price) and the
+            # first time or when the outcome changes for a contract; DEBUG for repeats.
+            not_actionable = spread_too_wide or buy_price is None or sell_price is None
+            evaluation_outcome = (
+                missing_bid_ask,
+                missing_last_price,
+                spread_too_wide,
+                used_last_price_fallback,
+                tuple(data_quality_flags),
+            )
+            self._detail(
+                not_actionable or self._first_time("option_market_evaluation", option_asset, evaluation_outcome),
                 (
                     f"Option market evaluation for {option_asset}: "
                     f"bid={bid}, ask={ask}, last={last_price}, spread={spread_str}, "

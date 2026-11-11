@@ -1,5 +1,26 @@
 # Changelog
 
+## 4.6.49 - 2026-11-11
+
+Deploy marker: d4b9de7ecaf5d93cacb3eb680c90ce857c859fbc
+
+### Added
+- Indicator outputs can say how they look: `line_width`, `line_style` (solid, dashed, dotted), colors with opacity (`#RRGGBBAA`) and theme colors (`chart.fg`, `chart.bg`), a color per bar (`palette` with `color_by`, optionally `gradient`), `offset`, `display`, `precision`, `pane` and `track_price`. New kinds: `step`, `columns`, `circles`, `cross`, `shape` markers (12 shapes, 5 locations, 6 sizes, text), `fill` between outputs or levels, `background`, `bar_color` and `candle`. Levels take `dotted`, `color` and `line_width`. Per-bar values stay numbers; all styling travels in `describe()`. New page "Outputs and Styles" and four example indicators (`momentum_histogram`, `trailing_band`, `oscillator_zones`, `smoothed_candles`).
+- Kalshi account reads can show market titles and the selected outcome's subtitle (one batched lookup), plus last-trade position value and unrealized P&L estimates against the broker cost basis. Markets with no trades or no metadata leave the estimates empty; holdings, outcome, quantity and cost basis stay visible.
+
+### Fixed
+- Download hourly history from Alpaca as hourly bars instead of sixty times as many minute bars, so a long hourly request can no longer exhaust a live bot's memory. Live data sources can declare native intervals through `supports_native_timestep`, optionally receiving `include_after_hours`. Alpaca intraday windows are sized from the bar length, and dropping the incomplete current bar keeps the hourly and multi-minute bars from today that have already closed.
+- Cap the agent `market_historical_prices` and `market_load_history_table` tools at 5,000 bars per symbol per call. A larger request returns the most recent 5,000 bars and says so in the result instead of failing.
+- Faster minute-level option backtests on Alpaca data: an option's last price is read straight from the stored trade bars instead of building a Bars object on every call, and option expiry text is parsed once instead of on every chain lookup. Prices and trades are unchanged.
+- Faster option greeks and delta strike selection in every backtest: the risk free rate lookup no longer re-converts its date index on each call (about 9 ms saved per greeks call), and Black-Scholes implied volatility prices each bisection step without building an object and stops once the step no longer moves. Results are identical (12,000 cases checked against the original solver). A greeks call went from about 12 ms to 1.3 ms and a delta strike search from about 105 ms to 11 ms.
+- Faster stock and crypto last price in every Alpaca backtest: `get_last_price` reads the current row of the stored bars instead of building a Bars object on every call (about 0.19 ms to 0.05 ms per call on a Mac). Daily session marks and intraday fill prices are unchanged.
+- Every log line is printed once again. The `BACKTESTING_START`/`BACKTESTING_END` override warning and the broker event stream used the bare `logging` module, which on an unconfigured root logger calls `logging.basicConfig()` and adds a second console handler; from then on every LumiBot record also printed as `INFO:lumibot...`. They now log through the LumiBot logger, and the override warning still shows.
+- `OptionsHelper` no longer repeats the same routine lines on every bar. In `find_next_valid_option`, `find_strike_for_delta`, `get_strike_deltas` and `evaluate_option_market`, the search and result lines ("Finding next valid option", "Target strike ... ->", "STRIKE SEARCH", "Search range", "Search strikes", "Trying strike", "BS estimate", "Exact match found", "RESULT: Closest strike", "Computing strike deltas", "Option market evaluation", "Using last-price fallback") are logged at INFO the first time and whenever the outcome changes, and at DEBUG otherwise. Errors, warnings, and evaluations that block a trade (spread too wide, no usable price) are still logged every time. A one-week minute run went from 1,586 to 63 log lines (strike search) and from 9,786 to 238 (delta search).
+- A finished backtest no longer stays alive retrying failed shared bar cache uploads. After 10 failures in a row the remote store is given up for that run (local files are still written, results are unaffected), and the warning now includes the error message instead of only its type.
+
+### Changed
+- Release eval check: `scripts/qualify_agent_evals.py verify` now verifies an author-written scope file, `ci/agent-evals/release-scope.json`, when it exists: the case ids the release author listed (each with a reason) and current pass evidence for each, or an empty list with a stated reason. It no longer demands a fresh run of the whole case catalog whenever any runtime file changes. It still fails when a listed case has no current passing evidence. 4.6.49 lists no cases, with the reason recorded in the file.
+
 ## 4.6.48 - 2026-11-05
 
 Deploy marker: 698b5b7645611a5d888e1ef869db877ef99afe4e

@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "package_version": "4.6.49",
+  "cases": [],
+  "no_cases_reason": "No agent prompt, skill or tool instruction changed in 4.6.49. The only agent-code change (32e4f4406, lumibot/components/agents/builtins.py) caps market_historical_prices and market_load_history_table at 5,000 bars per symbol; it changes a result only for requests above 5,000 bars, no case in agent_eval_cases asks for that many, and the cap is covered by unit tests in tests/test_agent_options_builtins.py. The other changes are backtest speed (Alpaca last price, option last price, greeks and implied volatility), logging volume, shared cache upload retries, Kalshi account labels and indicator styling, none of which an agent eval exercises differently. Written by the release author on 2026-11-11."
+}

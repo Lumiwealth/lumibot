@@ -8,7 +8,7 @@ import pytest
 from lumibot.brokers import Broker, Kalshi
 from lumibot.brokers.kalshi import _parse_balances
 from lumibot.data_sources import DataSource, KalshiData
-from lumibot.entities import Asset
+from lumibot.entities import Asset, Order, Position
 from lumibot.tools.kalshi_client import KalshiAPIError, KalshiClient
 
 
@@ -42,6 +42,59 @@ def test_balance_arithmetic_preserves_cash_and_adds_holdings(row, expected):
 def test_bad_snapshot_never_becomes_zero_account(row):
     with pytest.raises(KalshiAPIError):
         _parse_balances(row)
+
+
+def test_trade_display_batches_markets_and_marks_each_selected_outcome():
+    client = Mock(spec=KalshiClient)
+    client.pages.return_value = iter([
+        {
+            "ticker": "DEMO-TEMP-25", "title": "Will the daily temperature exceed 25 degrees?",
+            "yes_sub_title": "Above 25 degrees", "no_sub_title": "25 degrees or below",
+            "last_price_dollars": "0.6500", "volume_fp": "10.00",
+        },
+        {
+            "ticker": "DEMO-TEMP-30", "title": "Will the daily temperature exceed 30 degrees?",
+            "last_price_dollars": "0.0000", "volume_fp": "0.00",
+        },
+    ])
+    broker = Kalshi(client=client, connect_stream=False)
+    yes = Asset("DEMO-TEMP-25", "prediction_contract", outcome="yes")
+    no = Asset("DEMO-TEMP-25", "prediction_contract", outcome="no")
+    untraded = Asset("DEMO-TEMP-30", "prediction_contract", outcome="no")
+    missing = Asset("DEMO-TEMP-35", "prediction_contract", outcome="yes")
+    fields = broker.get_trade_display_fields([
+        Position("test", yes, 1, avg_fill_price=.45),
+        Position("test", no, 2, avg_fill_price=.4),
+        Order("test", no, 3, "buy", limit_price=.3),
+        Position("test", untraded, 1, avg_fill_price=.5),
+        Position("test", missing, 1, avg_fill_price=.5),
+    ])
+
+    client.pages.assert_called_once_with(
+        "/markets", "markets",
+        params={"tickers": "DEMO-TEMP-25,DEMO-TEMP-30,DEMO-TEMP-35", "limit": 3},
+        authenticated=False,
+    )
+    assert (fields[0]["current_price"], fields[0]["market_value"], fields[0]["pnl"]) == (.65, .65, .2)
+    assert fields[1] == {
+        "market_title": "Will the daily temperature exceed 25 degrees?",
+        "market_subtitle": "25 degrees or below",
+        "current_price": .35, "market_value": .7, "pnl": -.1, "position_value_basis": "last_trade",
+    }
+    assert fields[2] == {key: fields[1][key] for key in ("market_title", "market_subtitle")}
+    assert fields[3] == {"market_title": "Will the daily temperature exceed 30 degrees?"}
+    assert fields[4] == {}
+
+
+def test_market_lookup_failure_leaves_trade_rows_usable():
+    client = Mock(spec=KalshiClient)
+    client.pages.side_effect = KalshiAPIError("market metadata unavailable")
+    broker = Kalshi(client=client, connect_stream=False)
+    asset = Asset("DEMO-TEMP-25", "prediction_contract", outcome="yes")
+    position = Position("test", asset, 2, avg_fill_price=.4)
+    assert broker.get_trade_display_fields([position]) == [{}]
+    assert position.quantity == 2
+    assert position.avg_fill_price == .4
 
 
 def test_skeleton_reuses_existing_broker_and_data_source():

@@ -140,6 +140,15 @@ the real NO buy and receives a zero-quantity selected NO Position; the tracked
 portfolio has already been refreshed to the actual net holding before callback
 queueing. No fake closing order or simultaneous synthetic YES/NO holding is added.
 
+When displaying saved-account orders or positions, the broker reader can request
+market titles and the subtitle for the selected outcome in a batched lookup.
+Position value is the contract count multiplied by the selected last-trade price.
+For NO, the selected price is one minus the YES last-trade price. Unrealized P&L
+subtracts the broker-reported open-position cost basis. These are last-trade
+estimates. A quote is required to see the current executable prices. Markets
+without trades or unavailable metadata leave the estimates empty while the
+holding, outcome, quantity, and available cost basis remain visible.
+
 `limit` uses the market's published `price_ranges`, including sub-cent grids.
 `market` is implemented as an IOC limit crossing all valid grid levels; there is
 no guaranteed fill or slippage cap. The Order retains type `market`. The adapter

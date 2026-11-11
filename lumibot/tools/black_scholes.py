@@ -9,11 +9,87 @@ try:
 except ImportError:
     print("Mibian requires scipy to work properly")
 
+try:
+    from scipy.special import ndtr
+except ImportError:
+    ndtr = None
+
 # WARNING: All numbers should be floats -> x = 1.0
+
+
+def _bs_call_put(args, volatility):
+    """Black-Scholes [call, put] with the same arithmetic as ``BS(..., performance=True)``.
+
+    Same operations in the same order, and ``ndtr`` is the function ``scipy.stats.norm.cdf``
+    evaluates, so the prices are bit-identical to the class. It skips building an object and
+    the ``norm.cdf`` argument checks, which made each bisection step about 40 times slower.
+    """
+    underlying = float(args[0])
+    strike = float(args[1])
+    rate = float(args[2]) / 100
+    years = float(args[3]) / 365
+    vol = float(volatility) / 100
+    a = vol * years**0.5
+    try:
+        d1 = (log(underlying / strike) + (rate + (vol**2) / 2) * years) / a
+    except ZeroDivisionError:
+        d1 = 0
+    d2 = d1 - a
+    if strike == 0:
+        raise ZeroDivisionError("The strike price cannot be zero")
+    discount = e ** (-rate * years)
+    call = underlying * ndtr(d1) - strike * discount * ndtr(d2)
+    put = strike * discount * ndtr(-d2) - underlying * ndtr(-d1)
+    return call, put
+
+
+def _implied_volatility_bs(args, callPrice=None, putPrice=None, high=500.0, low=0.0):
+    """The bisection below for the BS model, without an object per step.
+
+    Returns exactly what the generic loop returns. Two differences in cost only: prices come
+    from ``_bs_call_put``, and the loop stops once a step leaves ``mid`` unchanged. From that
+    point ``high`` and ``low`` can no longer move, so every later step of the original
+    10,000 would produce the same ``mid``.
+    """
+    if callPrice:
+        target = callPrice
+        if _bs_call_put(args, high)[0] < target:
+            return high
+        if args[0] > args[1] + callPrice:
+            return 0.001
+    if putPrice:
+        target = putPrice
+        if _bs_call_put(args, high)[1] < target:
+            return high
+        if args[1] > args[0] + putPrice:
+            return 0.001
+    decimals = len(str(target).split(".")[1])  # Count decimals
+    previous = None
+    for i in range(10000):  # To avoid infinite loops
+        mid = (high + low) / 2
+        if mid < 0.00001:
+            mid = 0.00001
+        if mid == previous:
+            break
+        previous = mid
+        call, put = _bs_call_put(args, mid)
+        if callPrice:
+            estimate = call
+        if putPrice:
+            estimate = put
+        if np.round(estimate, decimals) == target:
+            break
+        elif estimate > target:
+            high = mid
+        elif estimate < target:
+            low = mid
+    return mid
 
 
 def impliedVolatility(className, args, callPrice=None, putPrice=None, high=500.0, low=0.0):
     """Returns the estimated implied volatility"""
+    if className == "BS" and ndtr is not None:
+        return _implied_volatility_bs(args, callPrice=callPrice, putPrice=putPrice, high=high, low=low)
     if callPrice:
         target = callPrice
         restimate = eval(className)(args, volatility=high, performance=True).callPrice

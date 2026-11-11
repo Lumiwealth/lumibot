@@ -485,6 +485,58 @@ def test_load_history_table_excludes_the_bar_that_starts_at_the_current_time():
     assert pd.Timestamp(last) == pd.Timestamp("2026-08-11T14:34:00Z")
 
 
+AGENT_HISTORY_BAR_CAP = 5_000
+
+
+@pytest.mark.parametrize("batch_api", [True, False], ids=["batch", "per-symbol"])
+def test_market_historical_prices_caps_huge_bar_requests(batch_api):
+    """An agent asking for 10,000+ bars must not make the data source fetch them all.
+
+    Regression: an agent requested 10,000 hourly bars and the live bot ran out of
+    memory downloading the minute bars behind them. The tool trims the request,
+    returns the rows it did fetch and says so; it never fails or invents rows.
+    """
+    strategy = _OptionsStrategy()
+    if not batch_api:
+        strategy.get_historical_prices_for_assets = None
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.historical_prices()])
+
+    batch = tools["market_historical_prices"](symbols=["SPY"], length=10_000, timestep="hour")
+
+    calls = strategy.historical_batch_calls if batch_api else strategy.historical_single_calls
+    assert [call["length"] for call in calls] == [AGENT_HISTORY_BAR_CAP]
+    assert batch["length"] == AGENT_HISTORY_BAR_CAP
+    assert batch["length_requested"] == 10_000
+    assert len(batch["bars_by_symbol"]["SPY"]) == AGENT_HISTORY_BAR_CAP
+    assert "SPY" not in batch["symbols_incomplete"]
+    assert str(AGENT_HISTORY_BAR_CAP) in batch["length_note"]
+    assert "10000" in batch["length_note"]
+
+
+def test_market_historical_prices_leaves_normal_requests_untouched():
+    strategy = _OptionsStrategy()
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.historical_prices()])
+
+    batch = tools["market_historical_prices"](symbols=["SPY"], length=AGENT_HISTORY_BAR_CAP, timestep="day")
+
+    assert strategy.historical_batch_calls[0]["length"] == AGENT_HISTORY_BAR_CAP
+    assert batch["length"] == AGENT_HISTORY_BAR_CAP
+    assert "length_requested" not in batch
+    assert "length_note" not in batch
+
+
+def test_load_history_table_caps_huge_bar_requests():
+    strategy = _OptionsStrategy()
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.load_history_table()])
+
+    info = tools["market_load_history_table"](symbol="SPY", length=10_000, timestep="hour", table_name="spy_hourly")
+
+    assert [call["length"] for call in strategy.historical_single_calls] == [AGENT_HISTORY_BAR_CAP]
+    assert info["length_requested"] == 10_000
+    assert info["length"] == AGENT_HISTORY_BAR_CAP
+    assert str(AGENT_HISTORY_BAR_CAP) in info["length_note"]
+
+
 def test_market_historical_prices_rejects_unsafe_table_name():
     strategy = _OptionsStrategy()
     tool = BuiltinTools.market.historical_prices().binder(strategy, AgentManager(strategy))

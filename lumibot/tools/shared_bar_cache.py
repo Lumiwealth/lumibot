@@ -450,18 +450,29 @@ def _merge_partitions(base: _Partition, other: _Partition) -> _Partition:
 # --------------------------------------------------------------------------- background uploads
 
 
+# A remote store that fails this many jobs in a row is given up for the rest of the process.
+# Without a limit a finished backtest stayed alive for 40 minutes failing 962 queued uploads.
+UPLOAD_FAILURES_BEFORE_GIVING_UP = 10
+
+
 class _Uploader:
-    """One background thread that publishes local partition files to S3."""
+    """One background thread that writes partition files locally and publishes them to S3.
+
+    A job takes one argument, ``remote_allowed``. It always does its local write and touches
+    the remote store only when ``remote_allowed`` is true.
+    """
 
     def __init__(self):
-        self._queue: queue.Queue[tuple[str, Callable[[], None]]] = queue.Queue()
+        self._queue: queue.Queue[tuple[str, Callable[[bool], None]]] = queue.Queue()
         self._pending: dict[str, int] = {}
         self._lock = threading.Lock()
         self._idle = threading.Condition(self._lock)
         self._thread: threading.Thread | None = None
         self.errors: list[str] = []
+        self._failures_in_a_row = 0
+        self._remote_given_up = False
 
-    def submit(self, key: str, job: Callable[[], None]) -> None:
+    def submit(self, key: str, job: Callable[[bool], None]) -> None:
         with self._lock:
             self._pending[key] = self._pending.get(key, 0) + 1
             if self._thread is None or not self._thread.is_alive():
@@ -481,10 +492,20 @@ class _Uploader:
                         return
                 continue
             try:
-                job()
+                job(not self._remote_given_up)
+                self._failures_in_a_row = 0
             except Exception as exc:  # never lose the caller's bars to a cache upload problem
                 self.errors.append(type(exc).__name__)
-                logger.warning("Shared bar cache upload failed: %s", type(exc).__name__)
+                self._failures_in_a_row += 1
+                if not self._remote_given_up:
+                    logger.warning("Shared bar cache upload failed: %s: %s", type(exc).__name__, exc)
+                    if self._failures_in_a_row >= UPLOAD_FAILURES_BEFORE_GIVING_UP:
+                        self._remote_given_up = True
+                        logger.warning(
+                            "Shared bar cache: %d uploads failed in a row; giving up on the remote store "
+                            "for this run. Local files are still written and results are not affected.",
+                            self._failures_in_a_row,
+                        )
             finally:
                 with self._lock:
                     self._pending[key] -= 1
@@ -721,8 +742,10 @@ class _Store:
         self._remember(part, None)
         client, manager, path = self.client, self.manager, part.path
 
-        def write_and_upload():
+        def write_and_upload(remote_allowed: bool = True):
             self._write_merged(part)
+            if not remote_allowed:
+                return
             local = _decode_partition(_Partition(part.series, part.start, part.stop, path), path.read_bytes())
             remote = _decode_partition(
                 _Partition(part.series, part.start, part.stop, path), _remote_get(client, manager, path)
@@ -749,8 +772,10 @@ class _Store:
             return
         client, manager = self.client, self.manager
 
-        def upload():
+        def upload(remote_allowed: bool = True):
             _write_local(path, body)
+            if not remote_allowed:
+                return
             current = _remote_get(client, manager, path)
             if current:
                 try:

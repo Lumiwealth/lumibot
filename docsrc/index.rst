@@ -281,6 +281,7 @@ Table of Contents
    Custom Indicators: What They Can Do <indicators_overview>
    Build Your First Indicator <indicators_first_custom>
    Settings and Outputs <indicators_settings_outputs>
+   Outputs and Styles <indicators_styles>
    Price Chart or Own Pane <indicators_chart_placement>
    Indicators in Backtests <indicators_backtesting>
    Indicators in Live Strategies <indicators_live_strategies>

@@ -136,14 +136,39 @@ class OptionsHelper:
             return
         done.update((side, strike) for strike in missing)
         assets = [
-            Asset(underlying_asset.symbol, asset_type="option", expiration=expiry, strike=strike,
-                  right=right, underlying_asset=underlying_asset)
+            self._option_contract(underlying_asset, expiry, strike, right)
             for strike in missing
         ]
         try:
             prefetch(assets, until=until) if until is not None else prefetch(assets)
         except Exception as exc:  # each probe still loads its own contract and reports errors
             logger.warning("Batched option price prefetch failed; loading contracts one at a time: %s", exc)
+
+    # Contracts kept for reuse; cleared when it grows past this many (about 1 KB each).
+    _OPTION_CONTRACT_CACHE_LIMIT = 20000
+
+    def _option_contract(self, underlying_asset: Asset, expiry, strike, right) -> Asset:
+        """The option Asset for this contract, built once and reused.
+
+        Snapshots and delta picks name the same contracts over and over (row, delta lookup,
+        prefetch); building an Asset each time was about a fifth of a warm snapshot. Equal
+        inputs give an equal Asset either way, so callers see no difference.
+        """
+        cache = self.__dict__.setdefault("_option_contracts", {})
+        key = (underlying_asset, expiry, strike, right)
+        try:
+            option = cache.get(key)
+        except TypeError:  # unhashable input: build it as before
+            option = None
+            key = None
+        if option is None:
+            option = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry, strike=strike,
+                           right=right, underlying_asset=underlying_asset)
+            if key is not None:
+                if len(cache) >= self._OPTION_CONTRACT_CACHE_LIMIT:
+                    cache.clear()
+                cache[key] = option
+        return option
 
     def _prefetch_option_quotes(self, underlying, expiry, right, strikes) -> None:
         """Load live quotes for many strikes with one request, for the current pick only.
@@ -167,8 +192,7 @@ class OptionsHelper:
         if not callable(many):
             return
         assets = [
-            Asset(underlying.symbol, asset_type="option", expiration=expiry, strike=strike,
-                  right=right, underlying_asset=underlying)
+            self._option_contract(underlying, expiry, strike, right)
             for strike in strikes
         ]
         try:
@@ -864,8 +888,7 @@ class OptionsHelper:
         self._reset_per_bar_caches_if_needed()
         entries = []
         for strike in strikes:
-            option = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry, strike=strike,
-                           right=right, underlying_asset=underlying_asset)
+            option = self._option_contract(underlying_asset, expiry, strike, right)
             price, bid, ask = self._get_option_mark_from_quote(option, snapshot=True)
             if price is None:
                 try:
@@ -1267,14 +1290,7 @@ class OptionsHelper:
         """
         self._reset_per_bar_caches_if_needed()
 
-        option = Asset(
-            underlying_asset.symbol,
-            asset_type="option",
-            expiration=expiry,
-            strike=strike,
-            right=right,
-            underlying_asset=underlying_asset,
-        )
+        option = self._option_contract(underlying_asset, expiry, strike, right)
 
         cache_underlying: Optional[float]
         try:

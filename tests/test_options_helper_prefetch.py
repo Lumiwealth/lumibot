@@ -67,3 +67,27 @@ def test_chain_snapshot_keeps_missing_prices_empty():
     strategy = _Strategy(last=None)
     rows = OptionsHelper(strategy).get_option_chain_snapshot(Asset("SPY"), date(2026, 10, 23), "put", strikes=[500])
     assert rows == [{"strike": 500.0, "price": None, "bid": None, "ask": None, "implied_volatility": None, "delta": None}]
+
+
+def test_option_contracts_are_built_once_and_reused(monkeypatch):
+    """Snapshots and delta picks reuse one Asset per contract instead of rebuilding it.
+
+    Building an Asset costs about 9 microseconds; a warm 51-strike snapshot built about 115
+    of them (snapshot row, delta lookup, prefetch), about a fifth of its time.
+    """
+    built = []
+    original = Asset.__init__
+
+    def counting(self, *args, **kwargs):
+        built.append(kwargs.get("asset_type") or (args[1] if len(args) > 1 else None))
+        original(self, *args, **kwargs)
+
+    strategy = _Strategy()
+    strategy.broker.data_source = _PrefetchingSource()
+    helper = OptionsHelper(strategy)
+    helper.get_option_chain_snapshot(Asset("SPY"), date(2026, 10, 23), "call", underlying_price=500.0)
+    monkeypatch.setattr(Asset, "__init__", counting)
+    rows = helper.get_option_chain_snapshot(Asset("SPY"), date(2026, 10, 23), "call", underlying_price=500.0)
+    helper.find_strike_for_delta(Asset("SPY"), 500.0, 0.3, date(2026, 10, 23), "call")
+    assert [r["strike"] for r in rows] == [495.0, 500.0, 505.0]
+    assert [t for t in built if str(t).lower().endswith("option")] == []

@@ -75,3 +75,39 @@ def test_unusual_prices_take_the_one_by_one_path(bad):
             many.calculate_greeks_many([asset], [bad], 500.0, 0.0412)
         return
     assert many.calculate_greeks_many([asset], [bad], 500.0, 0.0412) == [expected]
+
+
+def _fresh_greeks(source, asset, price, underlying, rate):
+    """Greeks from an empty cache: the answer for exactly these inputs at this moment."""
+    clean = _source()
+    clean._datetime = source._datetime
+    return clean.calculate_greeks(asset, price, underlying, rate)
+
+
+def test_greeks_are_for_the_current_minute_not_an_earlier_one_the_same_day():
+    """The cache must not hand back a value computed for an earlier minute.
+
+    Same option price and underlying price at 10:00 and 15:00 on one day: time to expiry
+    differs, so implied volatility and delta differ. A per-day cache returned the 10:00
+    answer at 15:00, which made results depend on what was asked earlier in the day.
+    """
+    tz = pytz.timezone("America/New_York")
+    option = Asset("SPY", asset_type="option", expiration=date(2026, 10, 23), strike=505, right="CALL")
+    source = _source()
+    morning = source.calculate_greeks(option, 2.95, 500.0, 0.0412)
+    source._datetime = tz.localize(datetime(2026, 10, 19, 15, 0))
+    afternoon = source.calculate_greeks(option, 2.95, 500.0, 0.0412)
+    assert afternoon == _fresh_greeks(source, option, 2.95, 500.0, 0.0412)
+    assert afternoon["implied_volatility"] != morning["implied_volatility"]
+    many = source.calculate_greeks_many([option], [2.95], 500.0, 0.0412)
+    assert many == [afternoon]
+
+
+def test_greeks_use_exact_prices_not_rounded_ones():
+    """2.954 and 2.951 round to the same cents; each must get its own greeks."""
+    option = Asset("SPY", asset_type="option", expiration=date(2026, 10, 23), strike=505, right="CALL")
+    source = _source()
+    source.calculate_greeks(option, 2.954, 500.004, 0.0412)
+    second = source.calculate_greeks(option, 2.951, 500.001, 0.0412)
+    assert second == _fresh_greeks(source, option, 2.951, 500.001, 0.0412)
+    assert source.calculate_greeks_many([option], [2.951], 500.001, 0.0412) == [second]

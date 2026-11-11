@@ -1,5 +1,44 @@
 # Changelog
 
+## 4.6.51 - 2026-11-11
+
+Deploy marker: cc6310f2cb08c2293652390df3c59a9e48019f9f
+
+### Release tooling
+- `scripts/qualify_agent_evals.py create` with a release scope builds the receipt for the listed cases and their own judge-calibration controls only, instead of requiring calibration of the whole catalog. A scoped receipt verifies only against exactly its listed cases; without a scope the whole catalog is still required.
+
+### Changed
+- **Trades and results change for strategies that pick strikes by delta, in backtests and in live trading.** `OptionsHelper.find_strike_for_delta` now returns the listed strike whose delta is closest to the requested delta. Before, the search tried a few strikes near an estimate and stopped once one was within 0.02 of the target, so it could return a strike up to about 0.12 delta away while a closer strike was listed. Candidates are the listed strikes from $20 below to $30 above the underlying that have a real price. The search starts at the strike nearest a Black-Scholes estimate and walks outward on each side until three priced strikes in a row are past the target and farther from it than the best so far; since delta falls as the strike rises, no strike beyond can be closer. On the week below this gave the same strike as checking every listed strike in all 780 picks. Ties go to the smaller absolute delta (further out of the money), then to the lower strike. Strikes with no price are skipped; no price or delta is ever estimated. Live trading and backtests use the same rule, so the same prices give the same strike. The pick is remembered for the current bar only, not for the rest of the day. Measured on one week of recorded SPY option prices, 780 picks (call 0.16, 0.30, 0.5; put -0.16, -0.30; every 15 minutes), 415 picks changed:
+
+  | Distance from target delta | median | 90th percentile | worst |
+  |---|---|---|---|
+  | Before | 0.0133 | 0.1026 | 0.1180 |
+  | After | 0.0049 | 0.0118 | 0.0252 |
+
+  The new pick was never farther from the target than the old one. With the Black-Scholes speedup below, a delta pick takes about the same time as before (one-week minute run: 9.6 ms per pick before, 8.9 ms now). Example: a 0.30 call request on 2026-10-19 at 09:30 returned the 772 strike (delta 0.370); it now returns 775 (delta 0.275). A one-month SPY iron condor (2026-09-01 to 2026-09-29, 0.16 delta shorts) kept its 124 fills, with 87 of them at a different strike.
+
+  Live calls per pick, measured read-only against Alpaca paper market data (SPY, same-day expiry, 2026-11-11 10:20 ET with the market open, three runs each; times vary with the API):
+
+  | | put -0.16 | call 0.30 |
+  |---|---|---|
+  | Before (probe search) | 19 quote requests, 1.3-2.0 s, strike 748 or 749 (delta about -0.04 to -0.06) | 13 requests, 0.6-0.9 s, strike 758 |
+  | After, data source with bulk quotes (Alpaca, Schwab) | 1 request, 0.38-0.41 s, strike 752 (delta -0.168) | 1 request, 0.04-0.13 s, strike 758 |
+  | After, data source without bulk quotes | 16-20 requests, 1.5-1.8 s, strike 752 | 12-13 requests, 0.6-1.1 s, strike 757 or 758 |
+
+  Strike 752 is the closest listed strike to -0.16 on those quotes (0.008 away; the old pick was about 0.12 away).
+- Greeks are computed for the current minute's inputs instead of reusing a value from the same day, in backtests and in live trading (any data source that computes greeks locally). `DataSource.calculate_greeks` cached per day on prices rounded to cents, so a later minute (or a price within half a cent) got greeks computed for other inputs. On one week of recorded SPY option prices, 67 of 6,948 greeks values change, each to the value for its own inputs.
+
+### Added
+- `AlpacaData.get_quotes(assets)`: latest quotes for many assets, up to 100 option contracts per request, used by `Strategy.get_quotes` and by `OptionsHelper` delta picks in live trading. Each quote is the same `Quote` that `get_quote` builds; a contract with no quote maps to `None`. Request failures raise.
+
+### Fixed
+- A delta pick extends candidates it loaded on an earlier day together (one request per covered day and 100 contracts) instead of one shared-cache read per contract. One-month SPY iron condor, repeat run on a fresh container against a local S3 stand-in: 28.1 to 25.7 s at 50 ms per request (same at 30 ms); trades and portfolio values identical.
+- Long Alpaca option backtests no longer slow down month after month. A delta pick loaded every candidate contract from the start of the backtest and every request ran to its end, so each pick read one shared-cache partition per elapsed month per contract (49 a pick in the first month, 97 by the third). Now option requests stop at the contract's expiry (no prints exist after it), and a pick loads candidates from the start of the month a week before the pick. Earlier prints are loaded for one contract only when a lookup needs them: a last price with no print in the loaded part, or a history request for more bars than the loaded part holds. Partly loaded contracts are never written to the per-window CSV cache. Three-month SPY iron condor (minute bars, local cache): warm simulation 49.4 to 44.3 s, partition decodes 9,945 to 5,963; trades, fills and every portfolio value identical, cold and warm. The saving grows with the run length.
+- Half the S3 requests on a fresh cloud container for option backtests: the shared bar cache no longer looks up a `series.json` manifest for unadjusted series (options), which never write one. A one-month SPY iron condor against a local S3 stand-in (30 ms per request): repeat run 3,421 to 1,754 requests, simulation 24.9 to 22.6 s; cold run 5,106 to 3,439 GETs. Same 124 fills.
+- Faster option chain snapshots and delta picks: `OptionsHelper` builds each option contract `Asset` once and reuses it (a warm 51-strike snapshot built about 115 of them). Warm snapshot 2.90 to 2.44 ms on one week of SPY minute data; results identical.
+- Faster `get_historical_prices` in every backtest: the market input evidence recorder (which keeps every bar a strategy reads) now reads plain numeric columns as lists instead of building a pandas Series per column per call. Recorded rows and observations are identical (checked for numeric, object, bool, float32, nullable, duplicate-column and empty frames, and overlapping windows); nullable and other extension columns keep the old path. One week of SPY minute bars: 20 minute bars 0.59 to 0.43 ms per call, 5 daily bars 0.40 to 0.28 ms.
+- Faster greeks in every backtest and live strategy: Black-Scholes now calls scipy's normal functions directly for single numbers (`ndtr` for the CDF, the same `exp` expression scipy uses for the PDF) instead of `scipy.stats.norm.cdf`/`.pdf`, which spent most of their time checking arguments. Results are bit-identical (22,000 inputs including infinities and NaN, and every greek of 1,600 random options). A greeks call went from 1.17 ms to 0.76 ms; a delta pick, which now prices every candidate strike, from 24 ms to 8.9 ms.
+
 ## 4.6.50 - 2026-11-11
 
 Deploy marker: 77f2d47e3a73d9b848627c60fb9fa2d7d2cfef00

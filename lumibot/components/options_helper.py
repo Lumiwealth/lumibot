@@ -136,14 +136,74 @@ class OptionsHelper:
             return
         done.update((side, strike) for strike in missing)
         assets = [
-            Asset(underlying_asset.symbol, asset_type="option", expiration=expiry, strike=strike,
-                  right=right, underlying_asset=underlying_asset)
+            self._option_contract(underlying_asset, expiry, strike, right)
             for strike in missing
         ]
         try:
             prefetch(assets, until=until) if until is not None else prefetch(assets)
         except Exception as exc:  # each probe still loads its own contract and reports errors
             logger.warning("Batched option price prefetch failed; loading contracts one at a time: %s", exc)
+
+    # Contracts kept for reuse; cleared when it grows past this many (about 1 KB each).
+    _OPTION_CONTRACT_CACHE_LIMIT = 20000
+
+    def _option_contract(self, underlying_asset: Asset, expiry, strike, right) -> Asset:
+        """The option Asset for this contract, built once and reused.
+
+        Snapshots and delta picks name the same contracts over and over (row, delta lookup,
+        prefetch); building an Asset each time was about a fifth of a warm snapshot. Equal
+        inputs give an equal Asset either way, so callers see no difference.
+        """
+        cache = self.__dict__.setdefault("_option_contracts", {})
+        key = (underlying_asset, expiry, strike, right)
+        try:
+            option = cache.get(key)
+        except TypeError:  # unhashable input: build it as before
+            option = None
+            key = None
+        if option is None:
+            option = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry, strike=strike,
+                           right=right, underlying_asset=underlying_asset)
+            if key is not None:
+                if len(cache) >= self._OPTION_CONTRACT_CACHE_LIMIT:
+                    cache.clear()
+                cache[key] = option
+        return option
+
+    def _prefetch_option_quotes(self, underlying, expiry, right, strikes) -> None:
+        """Load live quotes for many strikes with one request, for the current pick only.
+
+        Live only, when the quote source offers the bulk ``get_quotes(assets)`` adapter used by
+        ``Strategy.get_quotes`` (one request for many contracts) and the strategy reads quotes
+        through the standard ``get_quote``. The quotes are kept in ``_quote_batch`` until
+        ``_end_quote_batch``; a contract the source returned no quote for counts as no quote,
+        the same as a failed single request.
+        """
+        from lumibot.strategies.strategy import Strategy
+
+        self._quote_batch = None
+        broker = getattr(self.strategy, "broker", None)
+        if broker is None or getattr(broker, "IS_BACKTESTING_BROKER", False):
+            return
+        if getattr(type(self.strategy), "get_quote", None) is not Strategy.get_quote:
+            return
+        source = getattr(broker, "option_source", None) or getattr(broker, "data_source", None)
+        many = getattr(source, "get_quotes", None)
+        if not callable(many):
+            return
+        assets = [
+            self._option_contract(underlying, expiry, strike, right)
+            for strike in strikes
+        ]
+        try:
+            quotes = many(assets, quote=None, exchange=None) or {}
+        except Exception as exc:  # each strike still asks for its own quote
+            logger.warning("Batched option quotes failed; asking one contract at a time: %s", exc)
+            return
+        self._quote_batch = {asset: quotes.get(asset) for asset in assets}
+
+    def _end_quote_batch(self) -> None:
+        self._quote_batch = None
 
     def _reset_per_bar_caches_if_needed(self) -> None:
         """Reset per-bar caches when the strategy datetime advances."""
@@ -242,36 +302,46 @@ class OptionsHelper:
         if cached is not None:
             return cached
 
+        batch = getattr(self, "_quote_batch", None)
         try:
-            # PERF: delta/strike probing can touch many strikes that will never be traded. For those,
-            # we want a point-in-time quote snapshot (1-2 bars), not a full-day prefetch that can
-            # balloon to ~956 minute rows per strike. Use a ThetaData backtesting fast-path when
-            # available; otherwise fall back to the normal Strategy.get_quote().
-            broker = getattr(self.strategy, "broker", None)
-            if snapshot and broker is not None and getattr(broker, "IS_BACKTESTING_BROKER", False) is True:
-                asset_type = getattr(option_asset, "asset_type", None)
-                is_option_asset = asset_type == Asset.AssetType.OPTION or "option" in str(asset_type).lower()
-
-                # Mirror Strategy.get_quote behavior: prefer the broker's option_source when
-                # available; otherwise fall back to the primary data source.
-                source = getattr(broker, "option_source", None) if is_option_asset else None
-                if source is None:
-                    source = getattr(broker, "data_source", None)
-                # Use the data source's snapshot_only fast-path when available so option selection
-                # doesn't trigger full-day minute downloads for strikes that will never be traded.
-                # ThetaDataBacktestingPandas handles daily-cadence quirks internally (forward window).
-                if source is not None:
-                    try:
-                        quote = source.get_quote(option_asset, quote=None, exchange=None, snapshot_only=True)
-                    except TypeError:
-                        quote = source.get_quote(option_asset, quote=None, exchange=None)
-                else:
-                    quote = self.strategy.get_quote(option_asset)
+            if batch is not None and option_asset in batch:
+                quote = batch[option_asset]
             else:
-                quote = self.strategy.get_quote(option_asset)
+                quote = self._fetch_option_quote(option_asset, snapshot)
         except Exception:
             return None, None, None
+        return self._mark_from_quote(cache_key, quote)
 
+    def _fetch_option_quote(self, option_asset: Asset, snapshot: bool):
+        # PERF: delta/strike probing can touch many strikes that will never be traded. For those,
+        # we want a point-in-time quote snapshot (1-2 bars), not a full-day prefetch that can
+        # balloon to ~956 minute rows per strike. Use a ThetaData backtesting fast-path when
+        # available; otherwise fall back to the normal Strategy.get_quote().
+        broker = getattr(self.strategy, "broker", None)
+        if snapshot and broker is not None and getattr(broker, "IS_BACKTESTING_BROKER", False) is True:
+            asset_type = getattr(option_asset, "asset_type", None)
+            is_option_asset = asset_type == Asset.AssetType.OPTION or "option" in str(asset_type).lower()
+
+            # Mirror Strategy.get_quote behavior: prefer the broker's option_source when
+            # available; otherwise fall back to the primary data source.
+            source = getattr(broker, "option_source", None) if is_option_asset else None
+            if source is None:
+                source = getattr(broker, "data_source", None)
+            # Use the data source's snapshot_only fast-path when available so option selection
+            # doesn't trigger full-day minute downloads for strikes that will never be traded.
+            # ThetaDataBacktestingPandas handles daily-cadence quirks internally (forward window).
+            if source is not None:
+                try:
+                    quote = source.get_quote(option_asset, quote=None, exchange=None, snapshot_only=True)
+                except TypeError:
+                    quote = source.get_quote(option_asset, quote=None, exchange=None)
+            else:
+                quote = self.strategy.get_quote(option_asset)
+        else:
+            quote = self.strategy.get_quote(option_asset)
+        return quote
+
+    def _mark_from_quote(self, cache_key, quote) -> Tuple[Optional[float], Optional[float], Optional[float]]:
         bid = self._float_positive(getattr(quote, "bid", None))
         ask = self._float_positive(getattr(quote, "ask", None))
 
@@ -804,6 +874,13 @@ class OptionsHelper:
         strikes = sorted({float(k) for k in strikes if k is not None and float(k) > 0})
         if underlying_price is None:
             underlying_price = self.strategy.get_last_price(underlying_asset)
+        if not strikes:
+            return []
+        return self._price_strikes(underlying_asset, expiry, right, strikes, underlying_price)
+
+    def _price_strikes(self, underlying_asset: Asset, expiry: date, right: str, strikes: List[float],
+                       underlying_price: Optional[float]) -> List[Dict[str, Any]]:
+        """Snapshot rows for these strikes of one expiry and side (see get_option_chain_snapshot)."""
         rows: List[Dict[str, Any]] = []
         if not strikes:
             return rows
@@ -811,8 +888,7 @@ class OptionsHelper:
         self._reset_per_bar_caches_if_needed()
         entries = []
         for strike in strikes:
-            option = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry, strike=strike,
-                           right=right, underlying_asset=underlying_asset)
+            option = self._option_contract(underlying_asset, expiry, strike, right)
             price, bid, ask = self._get_option_mark_from_quote(option, snapshot=True)
             if price is None:
                 try:
@@ -825,8 +901,10 @@ class OptionsHelper:
             self._batch_greeks_for_snapshot(entries, float(underlying_price))
         for strike, option, price, bid, ask in entries:
             iv = delta = None
-            if price is not None and underlying_price is not None:
+            if underlying_price is not None:
+                # get_delta_for_strike reads the same mark (and returns None without one).
                 delta = self.get_delta_for_strike(underlying_asset, underlying_price, strike, expiry, right)
+            if price is not None and underlying_price is not None:
                 greeks = self._per_bar_greeks_cache.get((option, float(underlying_price), price))
                 if isinstance(greeks, dict):
                     iv = greeks.get("implied_volatility")
@@ -1212,14 +1290,7 @@ class OptionsHelper:
         """
         self._reset_per_bar_caches_if_needed()
 
-        option = Asset(
-            underlying_asset.symbol,
-            asset_type="option",
-            expiration=expiry,
-            strike=strike,
-            right=right,
-            underlying_asset=underlying_asset,
-        )
+        option = self._option_contract(underlying_asset, expiry, strike, right)
 
         cache_underlying: Optional[float]
         try:
@@ -1433,6 +1504,111 @@ class OptionsHelper:
             )
         return best_strike
 
+    # Valid strikes past the target, each farther from it than the best so far, that close one
+    # side of the walk. Delta falls as the strike rises, so on a well-behaved chain one is
+    # enough. Stale prints at the open can break that order for a strike or two: with 2, two
+    # of 780 picks on a week of real SPY prices missed the closest strike; with 3, none did.
+    _DELTA_WALK_CONFIRM = 3
+
+    def _delta_walk_start(self, underlying_asset: Asset, underlying_price: float, expiry: date,
+                          is_call: bool, target_delta: float, strikes: List[float]) -> int:
+        """Index of the listed strike nearest a Black-Scholes estimate for the target delta."""
+        estimate: Optional[float] = None
+        try:
+            call_delta = target_delta if is_call else target_delta + 1.0
+            if 0.01 < call_delta < 0.99:
+                as_of = None
+                try:
+                    now = self.strategy.get_datetime()
+                    as_of = now.date() if isinstance(now, datetime) else now if isinstance(now, date) else None
+                except Exception:
+                    as_of = None
+                as_of = as_of or date.today()
+                t_years = max(1.0 / 365.0, float((expiry - as_of).days) / 365.0)
+                try:
+                    index_like = self._is_index_like_underlying(underlying_asset, getattr(underlying_asset, "symbol", None))
+                except Exception:
+                    index_like = False
+                sigma = 0.25 if index_like else 0.35
+                d1 = NormalDist().inv_cdf(call_delta)
+                sig_sqrt_t = sigma * math.sqrt(t_years)
+                if sig_sqrt_t > 0:
+                    estimate = underlying_price / math.exp(d1 * sig_sqrt_t - 0.5 * sigma * sigma * t_years)
+        except Exception:
+            estimate = None
+        if estimate is None:
+            estimate = underlying_price
+        at = min(max(bisect_left(strikes, estimate), 0), len(strikes) - 1)
+        if at > 0 and abs(strikes[at - 1] - estimate) <= abs(strikes[at] - estimate):
+            at -= 1
+        return at
+
+    def _closest_delta_strike(self, underlying_asset: Asset, underlying_price: float, expiry: date,
+                              right: str, strikes: List[float], target_delta: float,
+                              loud: bool = False) -> Tuple[Optional[float], Optional[float]]:
+        """The strike whose delta is closest to ``target_delta``, pricing as few strikes as possible.
+
+        Starts at the strike nearest a closed-form estimate and walks outward on both sides.
+        Delta falls as the strike rises, so once a side has passed the target and its deltas
+        are moving away (``_DELTA_WALK_CONFIRM`` valid strikes in a row farther than the best),
+        no strike beyond can be closer and that side stops. Gives the same strike as checking
+        every listed strike whenever delta is monotonic over the chain, with far fewer quotes.
+        """
+        if not strikes:
+            return None, None
+        is_call = str(right).upper().startswith("C")
+        # One batched load for all candidates where the data source offers it (backtest bars,
+        # live latest quotes); the walk below then reads them from memory.
+        self._prefetch_option_contracts(underlying_asset, expiry, right, strikes)
+        self._prefetch_option_quotes(underlying_asset, expiry, right, strikes)
+        try:
+            return self._walk_strikes(underlying_asset, underlying_price, expiry, right, strikes,
+                                      target_delta, loud, is_call)
+        finally:
+            self._end_quote_batch()
+
+    def _walk_strikes(self, underlying_asset, underlying_price, expiry, right, strikes, target_delta,
+                      loud, is_call) -> Tuple[Optional[float], Optional[float]]:
+        start = self._delta_walk_start(underlying_asset, underlying_price, expiry, is_call, target_delta, strikes)
+        self._detail(loud,
+            f"🔍 Trying strikes from {strikes[start]:g} outward ({len(strikes)} listed "
+            f"{strikes[0]:g}-{strikes[-1]:g}; the closest delta wins)",
+            color="blue",
+        )
+        best_key = None
+        best: Tuple[Optional[float], Optional[float]] = (None, None)
+
+        def visit(idx: int) -> Optional[float]:
+            nonlocal best_key, best
+            strike = strikes[idx]
+            delta = self.get_delta_for_strike(underlying_asset, underlying_price, strike, expiry, right)
+            try:
+                delta = float(delta) if delta is not None else None
+            except (TypeError, ValueError):
+                delta = None
+            if delta is None or not math.isfinite(delta):
+                return None
+            key = (abs(delta - target_delta), abs(delta), float(strike))
+            if best_key is None or key < best_key:
+                best_key = key
+                best = (float(strike), delta)
+            return delta
+
+        visit(start)
+        # Lower strikes have higher deltas: that side is past the target once delta > target.
+        for step, beyond in ((-1, lambda d: d > target_delta), (1, lambda d: d < target_delta)):
+            confirmed = 0
+            idx = start + step
+            while 0 <= idx < len(strikes) and confirmed < self._DELTA_WALK_CONFIRM:
+                delta = visit(idx)
+                if delta is not None:
+                    if beyond(delta) and best_key is not None and abs(delta - target_delta) > best_key[0]:
+                        confirmed += 1
+                    else:
+                        confirmed = 0
+                idx += step
+        return best
+
     def find_strike_for_delta(
         self,
         underlying_asset: Asset,
@@ -1443,8 +1619,12 @@ class OptionsHelper:
         chains: Optional[Any] = None,
     ) -> Optional[float]:
         """
-        Find the strike whose delta is closest to the target delta using binary search.
-        (This function replaces the older "find_strike_for_delta_original".)
+        Find the listed strike whose delta is closest to the target delta.
+
+        Every candidate strike with a real price is checked (strikes from $20 below to $30
+        above the underlying price). Ties go to the smaller absolute delta (further out of
+        the money), then to the lower strike. Strikes with no price are skipped. Live trading
+        and backtests use the same rule. The pick is remembered for the current bar only.
 
         Parameters
         ----------
@@ -1550,10 +1730,8 @@ class OptionsHelper:
             color="blue",
         )
 
-        # PERF: In intraday option backtests, strategies often re-request the same strike-for-delta
-        # multiple times per trading day. Cache per (underlying, date, expiry, side, delta, underlying_price)
-        # so we don't redo the delta search.
         cache_date: Optional[date] = None
+        now = None
         try:
             now = self.strategy.get_datetime()
             if isinstance(now, datetime):
@@ -1564,25 +1742,27 @@ class OptionsHelper:
             cache_date = None
 
         strike_cache = getattr(self, "_strike_for_delta_cache", None)
-        if not isinstance(strike_cache, dict):
+        if not isinstance(strike_cache, dict) or getattr(self, "_strike_for_delta_cache_dt", None) != now:
             strike_cache = {}
-            setattr(self, "_strike_for_delta_cache", strike_cache)
+            self._strike_for_delta_cache = strike_cache
+            self._strike_for_delta_cache_dt = now
 
+        # Remembered for the current bar only (exact time and underlying price): a later
+        # minute has different prices and time to expiry, so it is a new search.
         cache_key = None
-        if cache_date is not None:
+        if now is not None:
             cache_key = (
                 getattr(underlying_asset, "symbol", str(underlying_asset)),
-                cache_date,
+                now,
                 expiry,
                 option_type,
-                round(float(normalized_target_delta), 4),
-                round(float(underlying_price), 2),
+                float(normalized_target_delta),
+                float(underlying_price),
             )
             cached_strike = strike_cache.get(cache_key)
             if cached_strike is not None and cached_strike in candidate_strikes:
                 return float(cached_strike)
 
-        is_call = option_type == "CALL"
         is_theta_option_backtest = self._is_theta_option_backtest()
 
         if is_theta_option_backtest and candidate_strikes:
@@ -1604,192 +1784,13 @@ class OptionsHelper:
                     strike_cache[cache_key] = float(modeled)
                 return float(modeled)
 
-        best_strike: Optional[float] = None
-        best_delta: Optional[float] = None
-
-        # ------------------------------------------------------------------
-        # PERF: The existing binary search is O(log N) but still triggers 8-20
-        # expensive delta computations per call (each can require an option quote-history
-        # download). Use a Black–Scholes delta inversion *estimate* to jump near the target
-        # strike and probe a small neighborhood, falling back to binary search only when
-        # the estimate fails.
-        # ------------------------------------------------------------------
-        strike_estimate: Optional[float] = None
-        try:
-            call_delta = float(normalized_target_delta) if is_call else float(normalized_target_delta) + 1.0
-            if 0.01 < call_delta < 0.99:
-                as_of = cache_date or date.today()
-                days_to_expiry = (expiry - as_of).days
-                t_years = max(1.0 / 365.0, float(days_to_expiry) / 365.0)
-
-                try:
-                    is_index_like = self._is_index_like_underlying(underlying_asset, getattr(underlying_asset, "symbol", None))
-                except Exception:
-                    is_index_like = False
-                sigma = 0.25 if is_index_like else 0.35
-
-                nd = NormalDist()
-                d1 = nd.inv_cdf(call_delta)
-                sig_sqrt_t = sigma * math.sqrt(t_years)
-                if sig_sqrt_t > 0:
-                    ln_s_over_k = (d1 * sig_sqrt_t) - (0.5 * sigma * sigma * t_years)
-                    strike_estimate = float(underlying_price) / math.exp(ln_s_over_k)
-        except Exception:
-            strike_estimate = None
-
-        visited: set[int] = set()
-
-        def _try_strike(idx: int) -> Optional[Tuple[float, float]]:
-            if idx < 0 or idx >= len(candidate_strikes) or idx in visited:
-                return None
-            visited.add(idx)
-            strike = candidate_strikes[idx]
-            self._detail(search_loud,
-                f"🔍 Trying strike {strike:g} (range: {strike_min:.2f}-{strike_max:.2f})",
-                color="blue",
-            )
-            delta = self.get_delta_for_strike(underlying_asset, underlying_price, strike, expiry, right)
-            if delta is None:
-                return None
-            return float(strike), float(delta)
-
-        if strike_estimate is not None and candidate_strikes:
-            self._detail(search_loud,
-                f"🔍 BS estimate: strike≈{strike_estimate:.2f} (target_delta={normalized_target_delta})",
-                color="blue",
-            )
-
-            insert_at = bisect_left(candidate_strikes, strike_estimate)
-            start_idx = min(max(insert_at, 0), len(candidate_strikes) - 1)
-            if start_idx > 0:
-                before = candidate_strikes[start_idx - 1]
-                after = candidate_strikes[start_idx]
-                if abs(before - strike_estimate) <= abs(after - strike_estimate):
-                    start_idx = start_idx - 1
-
-            max_offsets = 6
-            # The neighbourhood probes and the binary-search fallback below both read from
-            # this candidate list, so load all of it in one batched request.
-            self._prefetch_option_contracts(underlying_asset, expiry, right, candidate_strikes)
-            for offset in range(0, max_offsets + 1):
-                for idx in (start_idx - offset, start_idx + offset):
-                    result = _try_strike(idx)
-                    if result is None:
-                        continue
-                    strike, mid_delta = result
-
-                    if logger.isEnabledFor(logging.DEBUG):
-                        logger.debug(
-                            "[OptionsHelper] strike probe symbol=%s right=%s expiry=%s strike=%s delta=%s target=%s",
-                            getattr(underlying_asset, "symbol", None),
-                            option_type,
-                            expiry,
-                            strike,
-                            mid_delta,
-                            normalized_target_delta,
-                        )
-
-                    if best_delta is None or abs(mid_delta - normalized_target_delta) < abs(best_delta - normalized_target_delta):
-                        best_delta = mid_delta
-                        best_strike = strike
-
-                    if abs(mid_delta - normalized_target_delta) < 0.001:
-                        self._detail(search_loud,
-                            f"🎯 Exact match found at strike {strike:g} with delta {mid_delta:.4f}",
-                            color="green",
-                        )
-                        if cache_key is not None:
-                            strike_cache[cache_key] = strike
-                        return float(strike)
-
-                # Early exit if we are already very close.
-                if best_delta is not None and abs(best_delta - normalized_target_delta) < 0.02:
-                    break
-
-        # Fallback: original binary-search walk (kept for robustness).
-        lo = 0
-        hi = len(candidate_strikes) - 1
-        max_iters = int(math.ceil(math.log2(len(candidate_strikes) + 1))) + 8
-
-        for _ in range(max_iters):
-            if lo > hi:
-                break
-
-            mid = (lo + hi) // 2
-            if mid in visited:
-                break
-            visited.add(mid)
-
-            strike = candidate_strikes[mid]
-            self._detail(search_loud,
-                f"🔍 Trying strike {strike:g} (range: {strike_min:.2f}-{strike_max:.2f})",
-                color="blue",
-            )
-            mid_delta = self.get_delta_for_strike(underlying_asset, underlying_price, strike, expiry, right)
-
-            if mid_delta is None:
-                # Try nearby strikes when the midpoint has no actionable prices.
-                resolved = False
-                for offset in range(1, 6):
-                    for idx in (mid - offset, mid + offset):
-                        if idx < lo or idx > hi or idx in visited:
-                            continue
-                        visited.add(idx)
-                        strike_candidate = candidate_strikes[idx]
-                        delta_candidate = self.get_delta_for_strike(
-                            underlying_asset, underlying_price, strike_candidate, expiry, right
-                        )
-                        if delta_candidate is None:
-                            continue
-                        strike = strike_candidate
-                        mid_delta = delta_candidate
-                        mid = idx
-                        resolved = True
-                        break
-                    if resolved:
-                        break
-
-                if mid_delta is None:
-                    break
-
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(
-                    "[OptionsHelper] strike search step symbol=%s right=%s expiry=%s strike=%s delta=%s target=%s lo=%s hi=%s",
-                    getattr(underlying_asset, "symbol", None),
-                    option_type,
-                    expiry,
-                    strike,
-                    mid_delta,
-                    normalized_target_delta,
-                    lo,
-                    hi,
-                )
-
-            if best_delta is None or abs(mid_delta - normalized_target_delta) < abs(best_delta - normalized_target_delta):
-                best_delta = mid_delta
-                best_strike = float(strike)
-
-            if abs(mid_delta - normalized_target_delta) < 0.001:
-                self._detail(search_loud,
-                    f"🎯 Exact match found at strike {strike:g} with delta {mid_delta:.4f}",
-                    color="green",
-                )
-                if cache_key is not None:
-                    strike_cache[cache_key] = float(strike)
-                return float(strike)
-
-            # Preserve the legacy binary-walk direction logic to minimize behavior drift; the
-            # best_strike accumulator above ensures we still return the closest delta.
-            if is_call:
-                if mid_delta > normalized_target_delta:
-                    lo = mid + 1
-                else:
-                    hi = mid - 1
-            else:
-                if mid_delta < normalized_target_delta:
-                    lo = mid + 1
-                else:
-                    hi = mid - 1
+        # One rule for live trading and backtests: the closest delta among the listed strikes
+        # that have a real price. Ties go to the smaller absolute delta (further out of the
+        # money), then to the lower strike. Strikes with no price are skipped, never estimated.
+        best_strike, best_delta = self._closest_delta_strike(
+            underlying_asset, float(underlying_price), expiry, right, candidate_strikes,
+            float(normalized_target_delta), search_loud,
+        )
 
         if best_strike is None:
             self.strategy.log_message(f"❌ No valid strike found for target delta {normalized_target_delta}", color="red")

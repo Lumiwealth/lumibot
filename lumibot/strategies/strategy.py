@@ -3152,8 +3152,9 @@ class Strategy(_Strategy):
         """Return exact Assets mapped to Quote objects (or None when absent).
 
         Schwab batches up to 50 symbols per request, including selected option
-        contracts. Other providers retain their existing get_quote behavior;
-        no batching speed is promised without a native adapter. Option assets
+        contracts; Alpaca batches up to 100 option contracts per request. Other
+        providers retain their existing get_quote behavior; no batching speed is
+        promised without a native adapter. Option assets
         honor the configured option_source just like get_quote. A native batch
         failure raises instead of silently triggering serial retries. Snapshot
         freshness and trading decisions remain the strategy's responsibility.

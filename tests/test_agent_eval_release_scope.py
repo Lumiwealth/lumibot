@@ -89,3 +89,40 @@ def test_the_committed_scope_verifies_from_the_command_line():
     assert result.returncode == 0, result.stderr
     assert "author-written release eval scope" in result.stdout
     json.loads(qualification.SCOPE_PATH.read_text())
+
+
+def test_scoped_create_needs_only_the_listed_cases_and_their_own_controls(native_metadata, monkeypatch, tmp_path):
+    """With a release scope, the receipt covers the listed cases and their own calibration controls.
+
+    Without this, creating the receipt demanded every catalog case's calibration controls (36
+    judge runs) for a release that changed four cases: the whole-catalog gate the scope
+    replaced (Rob, 2026-11-07).
+    """
+    from tests.test_agent_eval_qualification import calibration_metadata
+
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    other = {"id": "other", "model": qualification.evals.DEFAULT_ACTING_MODEL, "judgeRubric": "Unrelated case"}
+    controls = json.loads(qualification.CALIBRATION_CATALOG_PATH.read_text())
+    own_path = tmp_path / "own-controls.json"
+    own_path.write_text(json.dumps(controls))
+    full = controls + [{"id": "other-accept", "case_id": "other", "expected": True, "required_repetitions": 3,
+                        "transcript": {"private": "x"}},
+                       {"id": "other-reject", "case_id": "other", "expected": False, "required_repetitions": 3,
+                        "transcript": {"private": "x"}}]
+    cal_rows, cal_calls, summary = calibration_metadata(cases, now)  # controls of "contract" only
+    full_path = tmp_path / "full-controls.json"
+    full_path.write_text(json.dumps(full))
+    monkeypatch.setattr(qualification, "CALIBRATION_CATALOG_PATH", full_path)
+    catalog = [*cases, other]
+    receipt = qualification.build_receipt(rows, [*calls, *cal_calls], catalog, runtime_hash="source",
+                                          versions=versions, now=now, calibration_rows=cal_rows,
+                                          calibration_summary=summary, scope_case_ids=["contract"])
+    assert set(receipt["cases"]) == {"contract"}
+    assert set(receipt["calibration"]["controls"]) == {c["id"] for c in controls}
+    assert receipt["scope"] == {"case_ids": ["contract"]}
+    scope = _scope([{"id": "contract", "reason": "The change edits the tool this case exercises."}])
+    assert qualification.verify_release_scope(scope, catalog, receipt, runtime_hash="source", version="9.9.9") == ["contract"]
+    # Without a scope the whole catalog is still required.
+    with pytest.raises(ValueError):
+        qualification.build_receipt(rows, [*calls, *cal_calls], catalog, runtime_hash="source", versions=versions,
+                                    now=now, calibration_rows=cal_rows, calibration_summary=summary)

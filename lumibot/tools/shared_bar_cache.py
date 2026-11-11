@@ -711,6 +711,11 @@ class _Store:
                 known = self._manifests.get(str(path))
             if known is not None:
                 return known
+            if not item.adjusted:
+                # Only adjusted series ever write a manifest (a re-adjusted history starts a new
+                # epoch), so looking one up for unadjusted bars always misses: on a fresh
+                # container that was one extra S3 request per option contract.
+                return _Manifest()
             body = self._load_bytes(path)
             if not body:
                 return _Manifest()

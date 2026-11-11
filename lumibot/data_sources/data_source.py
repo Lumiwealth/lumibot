@@ -62,6 +62,14 @@ def _normalized_data_error(error):
     }
 
 
+def _greeks_cache_key(asset, asset_price, underlying_price, risk_free_rate, current_time):
+    """Greeks depend on every one of these inputs exactly, so the cache keys on all of them."""
+    return (
+        asset.symbol, asset.strike, asset.right, asset.expiration,
+        float(asset_price), float(underlying_price), float(risk_free_rate), current_time,
+    )
+
+
 class DataSource(ABC):
     SOURCE = ""
     IS_BACKTESTING_DATA_SOURCE = False
@@ -1158,19 +1166,11 @@ class DataSource(ABC):
         if asset_price is None or underlying_price is None or risk_free_rate is None:
             return None
 
-        # Optimization: Cache Greeks calculations based on key parameters
-        # Round prices to 2 decimal places for cache key to handle minor price fluctuations
+        # Cache on the exact inputs and the exact current time. A per-day key with rounded
+        # prices returned greeks computed for an earlier minute (or a nearby price), so a
+        # result depended on what had been asked before it.
         current_date = self.get_datetime()
-        cache_key = (
-            asset.symbol,
-            asset.strike,
-            asset.right,
-            asset.expiration,
-            round(asset_price, 2),
-            round(underlying_price, 2),
-            round(risk_free_rate, 4),
-            current_date.date() if hasattr(current_date, 'date') else current_date  # Cache per day to handle time decay
-        )
+        cache_key = _greeks_cache_key(asset, asset_price, underlying_price, risk_free_rate, current_date)
 
         # Check cache
         if cache_key in self._greeks_cache:
@@ -1252,7 +1252,6 @@ class DataSource(ABC):
 
         black_scholes = _black_scholes()
         current_date = self.get_datetime()
-        day = current_date.date() if hasattr(current_date, "date") else current_date
         results = [None] * len(assets)
         solve = []  # (index, asset, price, args, is_call, cache_key)
         if underlying_price is None or risk_free_rate is None:
@@ -1267,10 +1266,7 @@ class DataSource(ABC):
             if not usable or right not in ("CALL", "PUT"):
                 solve.append((i, asset, price, None, None, None))
                 continue
-            cache_key = (
-                asset.symbol, asset.strike, asset.right, asset.expiration,
-                round(price, 2), round(underlying_price, 2), round(risk_free_rate, 4), day,
-            )
+            cache_key = _greeks_cache_key(asset, price, underlying_price, risk_free_rate, current_date)
             expiration = asset.expiration
             if isinstance(expiration, datetime):
                 expiration = expiration.date()

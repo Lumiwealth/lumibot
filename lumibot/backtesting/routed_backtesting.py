@@ -511,7 +511,12 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             # `get_historical_prices()` every loop iteration. Prefetch the full window once, then
             # serve slices from in-memory Data to avoid one downloader roundtrip per minute.
             try:
-                prefetch_start = min(start_datetime, self._router.datetime_start)
+                # Same five-day buffer as the IBKR-only source: completed bars from earlier
+                # sessions across weekends and holidays. The lookback start counts one bar per
+                # minute, so a short lookback at the first session open landed in that
+                # morning's pre-market, and a thinly traded stock had too few bars there
+                # (production: 20 requested, 16 returned at 09:31 on day one).
+                prefetch_start = min(start_datetime, self._router.datetime_start) - timedelta(days=5)
             except Exception:
                 prefetch_start = start_datetime
             prefetch_end = self._router.datetime_end or end_dt

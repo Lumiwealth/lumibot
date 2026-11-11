@@ -5,6 +5,9 @@
 ### Backtesting and history
 - Financial summaries retain trading costs and cash flows when several account snapshots share one timestamp. Returns compound in event order, the latest account snapshot survives consolidation, and drawdown includes losses from initial capital.
 - Preserve the frequency of user-supplied bars when a daily strategy initializes. Minute observations remain minute observations, so a daily strategy runs once per session instead of once per loaded minute. Explicit provider cadence policies remain unchanged.
+- Faster options backtests with identical results. Held option legs are priced from in-memory arrays, cache rows are validated with numpy, partitions are read with pyarrow, batched option answers are split in one pass and a prefetch logs one summary line instead of one line per contract. On a warm 3-month iron condor, simulation time fell from 50.8 s to 31.3 s; trades, stats and tearsheets match the previous code for option, stock and crypto strategies.
+- A profiled backtest's yappi export folds all threads into one row per function and keeps the top 5,000 by total time, so the export no longer grows memory with every thread (160 MB to 2 MB on a 16-thread profile).
+- Outside regular option hours, portfolio valuation reports positions valued at their last real mark in one warning per session instead of one per contract. Valuation only: no bar, trade or fill is created.
 - Split oversized multi-asset history chunks across the data source's existing worker pool. Honor each call's lower worker limit with bounded submission, preserving per-asset results, quote identity and request pacing.
 
 ### Added

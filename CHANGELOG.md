@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.52 - Unreleased
+## 4.6.52 - 2026-11-11
 
 ### Release tooling
 - Reuse the original full repetitions in an immutable published native receipt when establishing later regression evidence. Preserve the original source, calls, usage and timestamps; reject invalidated, failed, funding-mismatched or SDK-mismatched proof. Parallel native fixtures now own separate Parquet export prefixes.

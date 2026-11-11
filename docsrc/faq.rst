@@ -637,7 +637,7 @@ What is OptionsHelper and why should I use it?
 Why is my options backtest slow?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The most common cause is brute-force delta or strike selection -- scanning many strikes and calling ``get_greeks()`` per strike. Each call can trigger additional data downloads. Use ``OptionsHelper.find_strike_for_delta()`` instead, which uses bounded probing and caching. Also call ``self.get_chains()`` once per iteration and reuse the result.
+The most common cause is brute-force delta or strike selection -- scanning many strikes and calling ``get_greeks()`` per strike. Each call can trigger additional data downloads. Use ``OptionsHelper.find_strike_for_delta()`` instead, which loads candidate strikes in one batch where the data source allows it and returns the strike whose delta is closest to the target. Also call ``self.get_chains()`` once per iteration and reuse the result.
 
 Why are my option position sizes off by 100x?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

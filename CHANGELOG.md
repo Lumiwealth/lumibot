@@ -2,6 +2,17 @@
 
 ## 4.6.51 - Unreleased
 
+### Changed
+- **Trades and results change for strategies that pick strikes by delta, in backtests and in live trading.** `OptionsHelper.find_strike_for_delta` now returns the listed strike whose delta is closest to the requested delta. Before, the search tried a few strikes near an estimate and stopped once one was within 0.02 of the target, so it could return a strike up to about 0.12 delta away while a closer strike was listed. Now every candidate strike with a real price (from $20 below to $30 above the underlying) is checked. Ties go to the smaller absolute delta (further out of the money), then to the lower strike. Strikes with no price are skipped; no price or delta is ever estimated. Live trading and backtests use the same rule, so the same prices give the same strike. The pick is remembered for the current bar only, not for the rest of the day. Measured on one week of recorded SPY option prices, 780 picks (call 0.16, 0.30, 0.5; put -0.16, -0.30; every 15 minutes), 415 picks changed:
+
+  | Distance from target delta | median | 90th percentile | worst |
+  |---|---|---|---|
+  | Before | 0.0133 | 0.1026 | 0.1180 |
+  | After | 0.0049 | 0.0118 | 0.0252 |
+
+  The new pick was never farther from the target than the old one. Example: a 0.30 call request on 2026-10-19 at 09:30 returned the 772 strike (delta 0.370); it now returns 775 (delta 0.275). A one-month SPY iron condor (2026-09-01 to 2026-09-29, 0.16 delta shorts) kept its 124 fills, with 87 of them at a different strike.
+- Greeks are computed for the current minute's inputs instead of reusing a value from the same day. `DataSource.calculate_greeks` cached per day on prices rounded to cents, so a later minute (or a price within half a cent) got greeks computed for other inputs. On one week of recorded SPY option prices, 67 of 6,948 greeks values change, each to the value for its own inputs.
+
 ## 4.6.50 - 2026-11-11
 
 Deploy marker: 77f2d47e3a73d9b848627c60fb9fa2d7d2cfef00

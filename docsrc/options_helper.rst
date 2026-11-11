@@ -62,7 +62,7 @@ That pattern is a common cause of slow runs because each greek/mark computation 
 
 Instead, use:
 
-- ``OptionsHelper.find_strike_for_delta(...)`` (bounded probing + caching)
+- ``OptionsHelper.find_strike_for_delta(...)`` (returns the listed strike whose delta is closest to the target; data sources that can load many contracts at once are asked once, and backtests solve all greeks in one pass)
 - strategy-level caching: if you retry entry intraday, cache the selected expiry/strike(s) in ``self.vars`` and only recompute when the underlying moved materially.
 
 Validate market data before trading
@@ -166,6 +166,8 @@ Use ``OptionsHelper.find_strike_for_delta(...)`` instead of scanning strikes. Al
 
 2b) See a whole expiry at once (chain snapshot)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``find_strike_for_delta`` looks at every listed strike within $20 below to $30 above the underlying price, skips strikes with no real price, and returns the one whose delta is closest to the target. Ties go to the smaller absolute delta (further out of the money), then to the lower strike. Live trading and backtests use the same rule, so the same prices give the same strike. The pick is remembered for the current bar only.
 
 ``get_option_chain_snapshot`` returns one row per strike for one expiry and side, with the price, bid, ask, implied volatility and delta at the current backtest or live time. Data sources that can load many contracts at once (Alpaca backtests) are asked once for all strikes. Each strike uses the same price and greeks rules as ``find_strike_for_delta``, so the numbers match what a search sees. Missing prices stay ``None``.
 

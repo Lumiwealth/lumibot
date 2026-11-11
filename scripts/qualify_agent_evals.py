@@ -391,6 +391,8 @@ def _unchanged_establishment_cases(source_ref, cases):
 
 def _committed_establishment(source_ref, cases, *, versions, now):
     """Read already reviewed native proof, never an editable working receipt."""
+    if not cases:
+        return {}
     from scripts import agent_eval_source_compatibility as source
 
     path = "ci/agent-evals/qualification.json"

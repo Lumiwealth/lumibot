@@ -512,3 +512,45 @@ def test_uploader_runs_jobs_in_parallel_but_keeps_one_path_in_order(monkeypatch)
 
     assert all(seen[key] == list(range(10)) for key in seen)
     assert elapsed < 2.0  # 80 jobs x 0.05 s took 4 s on one worker
+
+
+class CountingRemote(SlowRemote):
+    def __init__(self):
+        super().__init__(delay=0)
+        self.gets = []
+
+    def get_object(self, Bucket, Key):  # noqa: N803
+        self.gets.append(Key)
+        return super().get_object(Bucket, Key)
+
+
+def test_unadjusted_series_never_look_up_a_manifest(monkeypatch, isolated):
+    """Only adjusted series ever write series.json, so an unadjusted read never asks S3 for one.
+
+    On a fresh cloud container every option contract cost one extra S3 request that always
+    missed (1,712 of 3,421 requests on a repeat one-month iron condor).
+    """
+    remote = CountingRemote()
+    remote_manager(monkeypatch, remote)
+    fetch, calls, _ = provider()
+    first = sbc.read_bars(series(adjusted=False), "2026-03-02", "2026-03-04", fetch, now=NOW)
+    sbc.flush_shared_bar_writes(10)
+    assert not any(key.endswith("series.json") for key in remote.objects)
+    remote.gets.clear()
+    sbc._reset_process_memory()
+    second = sbc.read_bars(series(adjusted=False), "2026-03-02", "2026-03-04", fetch, now=NOW)
+    pd.testing.assert_frame_equal(first, second)
+    assert len(calls) == 1
+    assert [k for k in remote.gets if k.endswith("series.json")] == []
+
+
+def test_adjusted_series_still_read_their_manifest(monkeypatch, isolated):
+    remote = CountingRemote()
+    remote_manager(monkeypatch, remote)
+    fetch, _, _ = provider()
+    sbc.read_bars(series(adjusted=True), "2026-03-02", "2026-03-04", fetch, now=NOW)
+    sbc.flush_shared_bar_writes(10)
+    remote.gets.clear()
+    sbc._reset_process_memory()
+    sbc.read_bars(series(adjusted=True), "2026-03-02", "2026-03-04", fetch, now=NOW)
+    assert any(k.endswith("series.json") for k in remote.gets)

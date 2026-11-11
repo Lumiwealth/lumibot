@@ -1217,11 +1217,18 @@ class BacktestingBroker(Broker):
                 order.avg_fill_price = net_price
                 order.trade_cost = 0.0
 
+            was_filled = order.is_filled()
             order.status = Order.OrderStatus.FILLED
             order.set_filled()
             self._new_orders.remove(order.identifier, key="identifier")
             self._unprocessed_orders.remove(order.identifier, key="identifier")
             self._partially_filled_orders.remove(order.identifier, key="identifier")
+            if not was_filled:
+                # The legs carry the fills. Give the parent a final row so readers of the
+                # trade-event log do not show the combo as pending forever. "legs_filled" with no
+                # filled quantity is not a fill to downstream trade counters, which count fill
+                # statuses or a nonzero filled quantity, so trade counts do not change.
+                self._record_trade_event_row(order, order.avg_fill_price, None, 1, status=self.MULTILEG_LEGS_FILLED)
 
             self._track_filled_order(order)
 

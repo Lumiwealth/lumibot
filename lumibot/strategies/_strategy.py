@@ -2431,7 +2431,7 @@ class _Strategy:
         self._stats = pd.DataFrame(self._stats_list)
         if "datetime" in self._stats.columns:
             self._stats = self._stats.set_index("datetime")
-            self._stats = self._stats.sort_index()
+            self._stats = self._stats.sort_index(kind="stable")
 
         cumulative_period_columns = (
             ("cash_deposits_total", "cash_deposits_period"),

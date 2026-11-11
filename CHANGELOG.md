@@ -3,6 +3,7 @@
 ## 4.6.53 - Unreleased
 
 ### Backtesting and history
+- Financial summaries retain trading costs and cash flows when several account snapshots share one timestamp. Returns compound in event order, the latest account snapshot survives consolidation, and drawdown includes losses from initial capital.
 - Preserve the frequency of user-supplied bars when a daily strategy initializes. Minute observations remain minute observations, so a daily strategy runs once per session instead of once per loaded minute. Explicit provider cadence policies remain unchanged.
 - Split oversized multi-asset history chunks across the data source's existing worker pool. Honor each call's lower worker limit with bounded submission, preserving per-asset results, quote identity and request pacing.
 

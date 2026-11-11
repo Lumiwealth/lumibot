@@ -21,6 +21,52 @@ class _BacktestProfilingConfig:
         self.output_path = output_path
 
 
+PROFILE_MAX_ROWS = 5000
+PROFILE_COLUMNS = ["full_name", "module", "lineno", "name", "ncall", "nactualcall", "ttot_s", "tsub_s", "tavg_s",
+                   "ctx_name"]
+
+
+def write_yappi_profile_csv(yappi_module, path, max_rows: int = PROFILE_MAX_ROWS) -> int:
+    """Write the yappi function profile as CSV with bounded memory; return the rows written.
+
+    ``yappi.get_func_stats()`` builds a Python object for every function in every thread,
+    each with its callee list. After a long backtest that reached 4 GB and the task was
+    killed before the file was written. Here each stat is folded into one row per function
+    (all threads together, ``ctx_name`` is "all") inside yappi's filter callback, which then
+    returns False so yappi keeps nothing; the top ``max_rows`` functions by total time are
+    written. Callee detail is not exported.
+    """
+    import csv
+
+    totals: dict = {}
+
+    def fold(stat) -> bool:
+        key = getattr(stat, "full_name", "")
+        row = totals.get(key)
+        if row is None:
+            totals[key] = [getattr(stat, "module", ""), getattr(stat, "lineno", ""), getattr(stat, "name", ""),
+                           int(getattr(stat, "ncall", 0) or 0), int(getattr(stat, "nactualcall", 0) or 0),
+                           float(getattr(stat, "ttot", 0.0) or 0.0), float(getattr(stat, "tsub", 0.0) or 0.0)]
+        else:
+            row[3] += int(getattr(stat, "ncall", 0) or 0)
+            row[4] += int(getattr(stat, "nactualcall", 0) or 0)
+            row[5] += float(getattr(stat, "ttot", 0.0) or 0.0)
+            row[6] += float(getattr(stat, "tsub", 0.0) or 0.0)
+        return False  # keep nothing in yappi's own list
+
+    yappi_module.get_func_stats(filter_callback=fold)
+    top = sorted(totals.items(), key=lambda item: -item[1][5])[: max(1, int(max_rows))]
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    # A text CSV so existing backtest artifact download paths can serve it without binary handling.
+    with open(path, "w", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(PROFILE_COLUMNS)
+        for full_name, (module, lineno, name, ncall, nactual, ttot, tsub) in top:
+            writer.writerow([full_name, module, lineno, name, ncall, nactual, ttot, tsub,
+                             ttot / ncall if ncall else 0.0, "all"])
+    return len(top)
+
+
 class Trader:
     def __init__(self, logfile="", backtest=False, debug=False, strategies=None, quiet_logs=False):
         """
@@ -284,46 +330,8 @@ class Trader:
             if _yappi is not None and profiling is not None and profiling.enabled:
                 try:
                     _yappi.stop()
-                    stats = _yappi.get_func_stats()
-                    stats.sort("ttot", "desc")
-
-                    profiling.output_path.parent.mkdir(parents=True, exist_ok=True)
-                    import csv
-
-                    # Write a text CSV artifact so existing backtest artifact download paths
-                    # (Bot Manager → BotSpot "View Files") can serve it without binary handling.
-                    with open(profiling.output_path, "w", newline="") as handle:
-                        writer = csv.writer(handle)
-                        writer.writerow(
-                            [
-                                "full_name",
-                                "module",
-                                "lineno",
-                                "name",
-                                "ncall",
-                                "nactualcall",
-                                "ttot_s",
-                                "tsub_s",
-                                "tavg_s",
-                                "ctx_name",
-                            ]
-                        )
-                        for entry in stats:
-                            writer.writerow(
-                                [
-                                    getattr(entry, "full_name", ""),
-                                    getattr(entry, "module", ""),
-                                    getattr(entry, "lineno", ""),
-                                    getattr(entry, "name", ""),
-                                    getattr(entry, "ncall", ""),
-                                    getattr(entry, "nactualcall", ""),
-                                    getattr(entry, "ttot", ""),
-                                    getattr(entry, "tsub", ""),
-                                    getattr(entry, "tavg", ""),
-                                    getattr(entry, "ctx_name", ""),
-                                ]
-                            )
-                    logger.info("Wrote backtest profile artifact: %s", profiling.output_path)
+                    rows = write_yappi_profile_csv(_yappi, profiling.output_path)
+                    logger.info("Wrote backtest profile artifact: %s (%d functions)", profiling.output_path, rows)
                 except Exception as exc:
                     logger.warning("Failed to write yappi profile artifact: %s", exc)
                 finally:

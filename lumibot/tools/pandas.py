@@ -6,10 +6,22 @@ import numpy as np
 
 
 def day_deduplicate(df_):
+    """Keep the final snapshot at each instant without discarding its events."""
     df_copy = df_.copy()
-    df_copy = df_copy.groupby(level=0).head(1)
-
-    return df_copy
+    if df_copy.index.is_unique:
+        return df_copy
+    grouped = df_copy.groupby(level=0, sort=False)
+    latest = grouped.tail(1).copy()
+    if "return" in df_copy:
+        # A fill and its preceding valuation can share a timestamp. Their
+        # returns are consecutive periods, not interchangeable observations.
+        latest["return"] = grouped["return"].agg(
+            lambda values: (1.0 + values).prod(min_count=1) - 1.0
+        )
+    for column in df_copy:
+        if isinstance(column, str) and column.startswith("cash_") and column.endswith("_period"):
+            latest[column] = grouped[column].sum(min_count=1)
+    return latest
 
 
 def is_daily_data(df_):

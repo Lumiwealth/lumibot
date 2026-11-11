@@ -1219,15 +1219,28 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 )
             except Exception as e:
                 raise RuntimeError(f"Failed to fetch data for {what}: {e}")
-            frame = bars.df
-            present = set(frame.index.get_level_values(0)) if not frame.empty else set()
+            by_symbol = self._rows_by_symbol(bars.df)
             for key, (asset, asset_quote) in chunk:
-                occ = self._occ_symbol(asset)
-                rows = frame.xs(occ, level=0).reset_index() if occ in present else None
+                rows = by_symbol.get(self._occ_symbol(asset))
                 self._store_option_rows(key, asset, rows, covered_until=covered_until, loaded_from=loaded_from)
                 if self._refresh_cache:
                     refreshed[key] = True
+        if items:
+            through = f" up to {covered_until.date()}" if covered_until is not None else ""
+            logger.info("Loaded %d option contracts in %d request(s)%s", len(items),
+                        (len(items) + size - 1) // size, through)
         return len(items) + len(extend)
+
+    @staticmethod
+    def _rows_by_symbol(frame: pd.DataFrame) -> dict:
+        """Each symbol's rows of a (symbol, timestamp) frame, as ``frame.xs(symbol).reset_index()`` gives them.
+
+        One groupby pass instead of one full scan per contract (a pick asks for up to 100).
+        """
+        if frame is None or frame.empty:
+            return {}
+        return {symbol: rows.droplevel(0).reset_index()
+                for symbol, rows in frame.groupby(level=0, sort=False)}
 
     def _extend_option_frames(self, contracts: dict, timestep: str) -> None:
         """``_extend_option_frame`` for many contracts: one request per covered day and 100 symbols.
@@ -1275,11 +1288,9 @@ class AlpacaBacktesting(DataSourceBacktesting):
                     for key, _a, _q in chunk:
                         covered[key] = covered_until
                     raise RuntimeError(f"Failed to fetch data for {what}: {e}")
-                frame = bars.df
-                present = set(frame.index.get_level_values(0)) if not frame.empty else set()
+                by_symbol = self._rows_by_symbol(bars.df)
                 for key, asset, quote in chunk:
-                    occ = self._occ_symbol(asset)
-                    later = frame.xs(occ, level=0).reset_index() if occ in present else None
+                    later = by_symbol.get(self._occ_symbol(asset))
                     self._apply_extension(key, asset, quote, timestep, store.get(key), later)
 
     def _store_option_rows(self, key: str, asset: Asset, rows: pd.DataFrame | None,
@@ -1981,14 +1992,15 @@ class AlpacaBacktesting(DataSourceBacktesting):
         invent prices (and back-fill a later trade into the past). Keep only real bars;
         get_last_price/get_historical_prices handle the gaps honestly.
         """
-        df = df.copy()
-        df['timestamp'] = pd.to_datetime(df['timestamp'], utc=df.empty)
-        if df['timestamp'].dt.tz is None:
-            df['timestamp'] = df['timestamp'].dt.tz_localize(tzinfo)
-        else:
-            df['timestamp'] = df['timestamp'].dt.tz_convert(tzinfo)
-        df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
-        df = df.sort_values("timestamp")
+        # PERF: a delta pick stores about 200 contracts. Convert the timestamps once, keep the
+        # six columns, and sort only when needed (the shared cache already returns sorted rows);
+        # the result equals the copy, convert, select, sort, filter sequence it replaces.
+        stamps = pd.to_datetime(df['timestamp'], utc=df.empty)
+        stamps = stamps.dt.tz_localize(tzinfo) if stamps.dt.tz is None else stamps.dt.tz_convert(tzinfo)
+        df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']].copy()
+        df['timestamp'] = stamps
+        if not (df['timestamp'].is_monotonic_increasing and df['timestamp'].is_unique):
+            df = df.sort_values("timestamp")
         df = df[(df['timestamp'] >= data_datetime_start) & (df['timestamp'] <= data_datetime_end)]
         if write_csv:
             cache_dir = os.path.join(LUMIBOT_CACHE_FOLDER, self.CACHE_SUBFOLDER)
@@ -1996,7 +2008,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
             df.to_csv(os.path.join(cache_dir, f"{key}.csv"), index=False)
         df = df.set_index('timestamp')
         self._state("_data_store", dict)[key] = df
-        logger.info(f"Finished fetching and caching data for {key}")
+        # Debug only: a delta pick stores about 200 contracts; prefetch_option_bars logs one summary.
+        logger.debug("Finished fetching and caching data for %s", key)
         return df
 
     @staticmethod

@@ -530,14 +530,16 @@ def max_drawdown(_df):
     The dataframe _df must include a column "return" that
     has the return for that time period (eg. daily)
     """
-    if _df.shape[0] == 1:
-        return {"drawdown": 0, "date": _df.index[0]}
     df = _df.copy()
     df = df.sort_index(ascending=True)
     df["cum_return"] = (1 + df["return"]).cumprod()
-    df["cum_return_max"] = df["cum_return"].cummax()
+    # Initial capital is the first high-water mark even when the first
+    # recorded period is a loss (for example, initial trading costs).
+    df["cum_return_max"] = df["cum_return"].cummax().clip(lower=1.0)
     df["drawdown"] = df["cum_return_max"] - df["cum_return"]
     df["drawdown_pct"] = df["drawdown"] / df["cum_return_max"]
+    if not df["drawdown_pct"].notna().any():
+        return {"drawdown": 0, "date": df.index[0]}
 
     drawdown = df["drawdown_pct"].max()
     if math.isnan(drawdown):

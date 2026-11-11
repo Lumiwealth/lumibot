@@ -1120,12 +1120,17 @@ class AlpacaBacktesting(DataSourceBacktesting):
             quote = self.LUMIBOT_DEFAULT_QUOTE_ASSET
         store = self._state("_data_store", dict)
         refreshed = self._state("_refreshed_keys", dict)
+        covered = self._state("_option_covered_until", dict)
         wanted = {}
+        extend = {}
         for asset in assets or []:
             if not self._is_option(asset):
                 continue
             asset, asset_quote = self._sanitize_base_and_quote_asset(asset, quote)
             key = self._get_asset_key(base_asset=asset, quote_asset=asset_quote, timestep=source_timestep)
+            if key in store and key in covered and pd.Timestamp(self._datetime) > covered[key]:
+                extend.setdefault(key, (asset, asset_quote))
+                continue
             if key in wanted or key in store:
                 continue
             if self._refresh_cache and key not in refreshed:
@@ -1134,8 +1139,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
             if self._load_ohlcv_into_data_store(key):
                 continue
             wanted[key] = (asset, asset_quote)
+        if extend:
+            self._extend_option_frames(extend, source_timestep)
         if not wanted:
-            return 0
+            return len(extend)
         items = list(wanted.items())
         covered_until = None
         loaded_from = None
@@ -1190,7 +1197,60 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 self._store_option_rows(key, asset, rows, covered_until=covered_until, loaded_from=loaded_from)
                 if self._refresh_cache:
                     refreshed[key] = True
-        return len(items)
+        return len(items) + len(extend)
+
+    def _extend_option_frames(self, contracts: dict, timestep: str) -> None:
+        """``_extend_option_frame`` for many contracts: one request per covered day and 100 symbols.
+
+        Each contract gets exactly the rows its own extension would fetch (from its covered
+        day to its expiry, same shared-cache series), merged the same way. On a cloud
+        container each single extension was its own shared-cache read and S3 round trips.
+        """
+        covered = self._state("_option_covered_until", dict)
+        store = self._state("_data_store", dict)
+        groups = {}
+        for key, (asset, quote) in contracts.items():
+            groups.setdefault(covered[key], []).append((key, asset, quote))
+        size = max(1, int(self.ALPACA_OPTION_SYMBOLS_PER_REQUEST))
+        for covered_until, members in sorted(groups.items(), key=lambda kv: kv[0]):
+            for offset in range(0, len(members), size):
+                chunk = members[offset:offset + size]
+                _key, first_asset, first_quote = chunk[0]
+                client, request = self._history_request(
+                    base_asset=first_asset, quote_asset=first_quote, timestep=timestep,
+                    data_datetime_start=covered_until.to_pydatetime(), data_datetime_end=self._data_datetime_end,
+                    auto_adjust=self._auto_adjust,
+                )
+                end = self._option_request_end(
+                    [a for _k, a, _q in chunk], request.start, self._data_datetime_end + timedelta(days=1)
+                )
+                # Same "no later than 16 minutes ago" limit as a single request.
+                latest_allowed = datetime.now(pytz.UTC) - timedelta(minutes=16)
+                if pd.Timestamp(end) > pd.Timestamp(latest_allowed):
+                    end = max(latest_allowed, covered_until.to_pydatetime() + timedelta(minutes=1))
+                request = request.model_copy(update={
+                    "symbol_or_symbols": sorted(self._occ_symbol(a) for _k, a, _q in chunk),
+                    "end": pd.Timestamp(end).to_pydatetime(),
+                })
+                what = f"{len(chunk)} option contracts after {covered_until.date()}"
+                for key, _a, _q in chunk:
+                    covered.pop(key, None)
+                try:
+                    bars = fetch_alpaca_bars(
+                        client, request,
+                        lambda query: self._alpaca_request(client.get_option_bars, query, what=what),
+                        refresh=getattr(self, "_refresh_cache", False),
+                    )
+                except Exception as e:
+                    for key, _a, _q in chunk:
+                        covered[key] = covered_until
+                    raise RuntimeError(f"Failed to fetch data for {what}: {e}")
+                frame = bars.df
+                present = set(frame.index.get_level_values(0)) if not frame.empty else set()
+                for key, asset, quote in chunk:
+                    occ = self._occ_symbol(asset)
+                    later = frame.xs(occ, level=0).reset_index() if occ in present else None
+                    self._apply_extension(key, asset, quote, timestep, store.get(key), later)
 
     def _store_option_rows(self, key: str, asset: Asset, rows: pd.DataFrame | None,
                            covered_until: pd.Timestamp | None = None,
@@ -1289,6 +1349,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
         frame = bars.df
         occ = self._occ_symbol(asset)
         later = frame.xs(occ, level=0).reset_index() if not frame.empty and occ in set(frame.index.get_level_values(0)) else None
+        self._apply_extension(key, asset, quote, timestep, loaded, later)
+
+    def _apply_extension(self, key, asset, quote, timestep, loaded, later) -> None:
+        """Merge a contract's rows after its covered day into its stored frame."""
         pieces = [loaded.reset_index()] if loaded is not None and not loaded.empty else []
         if later is not None and not later.empty:
             pieces.append(later)

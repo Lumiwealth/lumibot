@@ -158,3 +158,28 @@ def test_option_requests_stop_at_the_contract_expiry(monkeypatch, tmp_path):
     for source in (batched, probed):
         assert _prices(source, clocks, STRIKES) == expected
         assert max(_ends(source._option_client)) <= expiry_end
+
+
+def test_next_day_pick_extends_its_candidates_in_one_request(monkeypatch, tmp_path):
+    """Candidates prefetched up to an earlier day are extended together, not one by one.
+
+    On a cloud container each one-contract extension is its own shared-cache read (S3 round
+    trips): 48 of them cost 2.2 s of a 22 s repeat month at 30 ms per request.
+    """
+    clocks = [datetime(2026, 8, 5, 10, 0), datetime(2026, 8, 6, 11, 30), datetime(2026, 8, 7, 10, 0)]
+    one_by_one = _alpaca_source(monkeypatch, tmp_path / "a")
+    one_by_one._option_client = _MultiSymbolClient()
+    expected = _prices(one_by_one, clocks, STRIKES)
+
+    batched = _alpaca_source(monkeypatch, tmp_path / "b")
+    batched._option_client = _MultiSymbolClient()
+    day_one = _NY_TZ.localize(datetime(2026, 8, 4, 9, 45))
+    batched._datetime = day_one
+    batched.prefetch_option_bars([_call(k) for k in STRIKES], until=day_one)
+    day_two = _NY_TZ.localize(clocks[0])
+    batched._datetime = day_two
+    batched.prefetch_option_bars([_call(k) for k in STRIKES], until=day_two)
+    assert len(batched._option_client.requests) == 2
+    assert batched._option_client.requests[1] == sorted(_ROWS)
+    assert _prices(batched, clocks, STRIKES) == expected
+    assert len(batched._option_client.requests) == 2  # nothing extended one contract at a time

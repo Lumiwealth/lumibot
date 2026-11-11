@@ -45,3 +45,25 @@ def test_sources_without_prefetch_are_unaffected():
     strategy = _Strategy()
     assert not hasattr(strategy.broker.data_source, "prefetch_option_bars")
     assert _pick(strategy) is not None
+
+
+def test_chain_snapshot_matches_strike_by_strike_deltas_with_one_prefetch():
+    strategy = _Strategy()
+    source = _PrefetchingSource()
+    strategy.broker.data_source = source
+    helper = OptionsHelper(strategy)
+    rows = helper.get_option_chain_snapshot(Asset("SPY"), date(2026, 10, 23), "call", underlying_price=500.0)
+    assert [r["strike"] for r in rows] == [495.0, 500.0, 505.0]
+    assert len(source.calls) == 1
+
+    reference = OptionsHelper(_Strategy())
+    for row in rows:
+        assert row["price"] == 2.5
+        assert row["delta"] == reference.get_delta_for_strike(Asset("SPY"), 500.0, row["strike"], date(2026, 10, 23), "call")
+        assert set(row) == {"strike", "price", "bid", "ask", "implied_volatility", "delta"}
+
+
+def test_chain_snapshot_keeps_missing_prices_empty():
+    strategy = _Strategy(last=None)
+    rows = OptionsHelper(strategy).get_option_chain_snapshot(Asset("SPY"), date(2026, 10, 23), "put", strikes=[500])
+    assert rows == [{"strike": 500.0, "price": None, "bid": None, "ask": None, "implied_volatility": None, "delta": None}]

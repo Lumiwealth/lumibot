@@ -752,6 +752,82 @@ class OptionsHelper:
         expirations = sorted({OptionsHelper._normalize_to_trading_expiry(d) for d in expirations})
         return expirations
 
+    def get_option_chain_snapshot(
+        self,
+        underlying_asset: Asset,
+        expiry: date,
+        right: str,
+        strikes: Optional[List[float]] = None,
+        underlying_price: Optional[float] = None,
+        chains: Optional[Any] = None,
+    ) -> List[Dict[str, Any]]:
+        """Price, bid/ask, implied volatility and delta for many strikes at the current time.
+
+        One call per expiry and side. Data sources that can load many contracts at once
+        (``prefetch_option_bars``) are asked once for all strikes, then each strike is priced
+        with the same mark and greeks rules as :meth:`get_delta_for_strike`, so the numbers
+        match what a strike-by-strike search would see. Missing prices stay ``None``; nothing
+        is estimated or filled in.
+
+        Parameters
+        ----------
+        underlying_asset : Asset
+            The underlying.
+        expiry : date
+            Option expiration.
+        right : str
+            "call" or "put".
+        strikes : list of float, optional
+            Strikes to include. Default: every strike the chain lists for this expiry and side.
+        underlying_price : float, optional
+            Underlying price to use. Default: the current last price.
+        chains : optional
+            A chain object already fetched with ``get_chains``.
+
+        Returns
+        -------
+        list of dict
+            One row per strike, sorted by strike, with keys ``strike``, ``price``, ``bid``,
+            ``ask``, ``implied_volatility`` and ``delta``.
+        """
+        expiry = self._normalize_to_trading_expiry(expiry)
+        option_type = "CALL" if str(right).upper().startswith("C") else "PUT"
+        if strikes is None:
+            chains_data = chains if chains is not None else self.strategy.get_chains(underlying_asset)
+            strikes = []
+            if chains_data:
+                try:
+                    strikes = list(chains_data.strikes(expiry, option_type))
+                except Exception:
+                    strike_map = chains_data.get("Chains", {}).get(option_type, {}) if isinstance(chains_data, dict) else {}
+                    strikes = strike_map.get(expiry.strftime("%Y-%m-%d"), []) if strike_map else []
+        strikes = sorted({float(k) for k in strikes if k is not None and float(k) > 0})
+        if underlying_price is None:
+            underlying_price = self.strategy.get_last_price(underlying_asset)
+        rows: List[Dict[str, Any]] = []
+        if not strikes:
+            return rows
+        self._prefetch_option_contracts(underlying_asset, expiry, right, strikes)
+        for strike in strikes:
+            option = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry, strike=strike,
+                           right=right, underlying_asset=underlying_asset)
+            price, bid, ask = self._get_option_mark_from_quote(option, snapshot=True)
+            if price is None:
+                try:
+                    last = self.strategy.get_last_price(option)
+                    price = float(last) if last is not None and math.isfinite(float(last)) and float(last) > 0 else None
+                except Exception:
+                    price = None
+            iv = delta = None
+            if price is not None and underlying_price is not None:
+                delta = self.get_delta_for_strike(underlying_asset, underlying_price, strike, expiry, right)
+                greeks = self._per_bar_greeks_cache.get((option, float(underlying_price), price))
+                if isinstance(greeks, dict):
+                    iv = greeks.get("implied_volatility")
+            rows.append({"strike": strike, "price": price, "bid": bid, "ask": ask,
+                         "implied_volatility": iv, "delta": delta})
+        return rows
+
     def get_strike_deltas(self, underlying_asset: Asset, expiry: date, strikes: List[float],
                           right: str, stop_greater_than: Optional[float] = None,
                           stop_less_than: Optional[float] = None) -> Dict[float, Optional[float]]:

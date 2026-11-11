@@ -164,6 +164,25 @@ Use ``OptionsHelper.find_strike_for_delta(...)`` instead of scanning strikes. Al
        right="put",
    )
 
+2b) See a whole expiry at once (chain snapshot)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``get_option_chain_snapshot`` returns one row per strike for one expiry and side, with the price, bid, ask, implied volatility and delta at the current backtest or live time. Data sources that can load many contracts at once (Alpaca backtests) are asked once for all strikes. Each strike uses the same price and greeks rules as ``find_strike_for_delta``, so the numbers match what a search sees. Missing prices stay ``None``.
+
+.. code-block:: python
+
+   rows = self.options_helper.get_option_chain_snapshot(
+       underlying_asset=underlying,
+       expiry=expiry,
+       right="put",
+       underlying_price=float(underlying_price),
+   )
+   for row in rows:
+       if row["delta"] is not None:
+           self.log_message(f"{row['strike']}: delta {row['delta']:.2f}, IV {row['implied_volatility']}")
+
+Pass ``strikes=[...]`` to limit the rows; by default every strike the chain lists for that expiry is included, which costs one greeks calculation per strike.
+
 3) Validate liquidity / data quality before placing orders
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

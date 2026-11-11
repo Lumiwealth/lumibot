@@ -220,6 +220,8 @@ _BACKTESTING_CLASS_MODULES = {
     "ThetaDataBacktesting": "lumibot.backtesting.thetadata_backtesting",
     "ThetaDataBacktestingPandas": "lumibot.backtesting.thetadata_backtesting_pandas",
     "YahooDataBacktesting": "lumibot.backtesting.yahoo_backtesting",
+    "SchwabHistoryBacktesting": "lumibot.backtesting.broker_history_backtesting",
+    "TradierHistoryBacktesting": "lumibot.backtesting.broker_history_backtesting",
 }
 
 AlpacaBacktesting = lazy_class("lumibot.backtesting.alpaca_backtesting", "AlpacaBacktesting")
@@ -3393,6 +3395,9 @@ class _Strategy:
                 "thetadata": "ThetaDataBacktesting",
                 "yahoo": "YahooDataBacktesting",
                 "alpaca": "AlpacaBacktesting",
+                # Your own broker connection's daily history (stocks and ETFs).
+                "schwab": "SchwabHistoryBacktesting",
+                "tradier": "TradierHistoryBacktesting",
                 "ccxt": "CcxtBacktesting",
                 "databento": "DataBentoDataBacktesting",
                 "ibkr": "InteractiveBrokersRESTBacktesting",

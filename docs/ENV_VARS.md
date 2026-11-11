@@ -113,7 +113,7 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 ### `BACKTESTING_DATA_SOURCE`
 - Purpose: Selects the backtesting datasource **even if code passes an explicit `datasource_class`**.
 - Values (case-insensitive):
-  - `thetadata`, `yahoo`, `polygon`, `alpaca`, `ccxt`, `databento`
+  - `thetadata`, `yahoo`, `polygon`, `alpaca`, `ccxt`, `databento`, `schwab`, `tradier` (broker daily history, stocks and ETFs; `docs/BROKER_HISTORY_BACKTESTING.md`)
   - `polymarket` / `polymarket_clob` for Polymarket prediction-contract history
   - `ibkr` / `interactivebrokersrest` / `interactive_brokers_rest` (IBKR Client Portal REST via Data Downloader)
   - `router` (multi-provider routing; defaults to Theta for stock/option/index and IBKR for futures/crypto)

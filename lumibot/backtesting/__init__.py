@@ -8,6 +8,7 @@ _NAME_TO_MODULE = {
     "AlpacaBacktesting": "alpaca_backtesting",
     "AlphaVantageBacktesting": "alpha_vantage_backtesting",
     "BacktestingBroker": "backtesting_broker",
+    "BrokerHistoryBacktesting": "broker_history_backtesting",
     "CcxtBacktesting": "ccxt_backtesting",
     "DataBentoDataBacktesting": "databento_backtesting",
     "DataBentoDataBacktestingPandas": "databento_backtesting_pandas",
@@ -17,8 +18,10 @@ _NAME_TO_MODULE = {
     "PolymarketBacktesting": "polymarket_backtesting",
     "PolygonDataBacktesting": "polygon_backtesting",
     "RoutedBacktestingPandas": "routed_backtesting",
+    "SchwabHistoryBacktesting": "broker_history_backtesting",
     "ThetaDataBacktesting": "thetadata_backtesting",
     "ThetaDataBacktestingPandas": "thetadata_backtesting_pandas",
+    "TradierHistoryBacktesting": "broker_history_backtesting",
     "YahooDataBacktesting": "yahoo_backtesting",
 }
 

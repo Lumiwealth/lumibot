@@ -2,6 +2,8 @@
 
 ## 4.6.51 - 2026-11-11
 
+Deploy marker: cc6310f2cb08c2293652390df3c59a9e48019f9f
+
 ### Release tooling
 - `scripts/qualify_agent_evals.py create` with a release scope builds the receipt for the listed cases and their own judge-calibration controls only, instead of requiring calibration of the whole catalog. A scoped receipt verifies only against exactly its listed cases; without a scope the whole catalog is still required.
 

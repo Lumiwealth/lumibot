@@ -128,9 +128,12 @@ def test_rebuilt_example_imports_only_lumibot_and_keeps_runtime_wiring(name):
     for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.ImportFrom):
             modules.add(node.module)
+            if node.module == "lumibot.entities":
+                assert {alias.name for alias in node.names} == {"TradingFee"}, (name, node.names)
         if isinstance(node, ast.Import):
             modules.update(alias.name for alias in node.names)
-    assert modules <= {"datetime", "lumibot.strategies", "lumibot.backtesting", "lumibot.credentials"}, (name, modules)
+    assert modules <= {"datetime", "lumibot.strategies", "lumibot.backtesting", "lumibot.credentials",
+                       "lumibot.entities"}, (name, modules)
     for banned in ("rules_path", "os.environ", "budget=", "run_cycle", "interpreter"):
         assert banned not in source, (name, banned)
 
@@ -170,6 +173,18 @@ STANDARD_MAIN = """if __name__ == "__main__":
     else:
         {cls}().run_live()
 """
+STANDARD_MAIN_WITH_CONTRACT_FEES = """if __name__ == "__main__":
+    from lumibot.credentials import IS_BACKTESTING
+
+    if IS_BACKTESTING:
+        from lumibot.backtesting import {source}
+        from lumibot.entities import TradingFee
+
+        fee = TradingFee(per_contract_fee={cls}.parameters["estimated_contract_fee"])
+        {cls}.backtest({source}, buy_trading_fees=[fee], sell_trading_fees=[fee])
+    else:
+        {cls}().run_live()
+"""
 # Pages owned by dedicated sessions (2026-09-29); they follow the same rules and
 # remove themselves from this set when their rewrite lands.
 OWNED_ELSEWHERE: set[str] = set()
@@ -180,7 +195,9 @@ def test_rebuilt_example_ends_with_the_standard_main_block(name):
     source = (EXAMPLES / name).read_text()
     cls = REBUILT[name][0]
     main = source[source.index('if __name__ == "__main__":'):]
-    assert any(main == STANDARD_MAIN.format(source=ds, cls=cls) for ds in ("YahooDataBacktesting", "AlpacaBacktesting")), main
+    templates = (STANDARD_MAIN, STANDARD_MAIN_WITH_CONTRACT_FEES)
+    assert any(main == template.format(source=ds, cls=cls)
+               for template in templates for ds in ("YahooDataBacktesting", "AlpacaBacktesting")), main
 
 
 # Prompts are plain English a non-technical trader could write. LumiBot's

@@ -42,7 +42,23 @@ def _empty():
     )
 
 
+def _request_asset_class(request) -> str | None:
+    name = type(request).__name__.lower()
+    for word in ("option", "crypto", "stock"):
+        if word in name:
+            return word
+    return None
+
+
 def fetch_alpaca_bars(client, request, method, *, now=None, refresh=False):
+    """Run an Alpaca SDK bars read through the shared bar cache (see ``_fetch_alpaca_bars``)."""
+    from lumibot.tools import backtest_telemetry
+
+    with backtest_telemetry.provider_scope("alpaca", _request_asset_class(request)):
+        return _fetch_alpaca_bars(client, request, method, now=now, refresh=refresh)
+
+
+def _fetch_alpaca_bars(client, request, method, *, now=None, refresh=False):
     """Run an Alpaca SDK bars read through the shared bar cache.
 
     Returns an object with the ``BarSet.df`` contract LumiBot adapters consume.
@@ -92,6 +108,9 @@ def fetch_alpaca_bars(client, request, method, *, now=None, refresh=False):
             update={"symbol_or_symbols": wanted, "start": start.to_pydatetime(), "end": stop.to_pydatetime()}
         )
         frame = _frame(method(params), wanted)
+        from lumibot.tools import backtest_telemetry
+
+        backtest_telemetry.record_provider_rows(len(frame))
         out = {}
         for item in members:
             symbol = by_series[item]

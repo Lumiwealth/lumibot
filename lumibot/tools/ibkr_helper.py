@@ -868,6 +868,24 @@ class IbkrConidKey:
         )
 
 
+
+def _telemetry_ibkr_scope(function):
+    """Attribute downloader requests and cache events inside to source ``ibkr`` and the asset class."""
+    import functools
+
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        from lumibot.tools import backtest_telemetry
+
+        asset = kwargs.get("asset")
+        asset_type = _normalize_asset_type(getattr(asset, "asset_type", "")) or None
+        with backtest_telemetry.provider_scope("ibkr", asset_type):
+            return function(*args, **kwargs)
+
+    return wrapper
+
+
+@_telemetry_ibkr_scope
 def get_price_data(
     *,
     asset: Asset,

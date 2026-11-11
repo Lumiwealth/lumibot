@@ -34,6 +34,7 @@ files sit next to the backtest cache under ``<prefix>/<version>/bars/``.
 from __future__ import annotations
 
 import atexit
+import contextvars
 import hashlib
 import io
 import json
@@ -362,6 +363,24 @@ def log_run_summary() -> None:
     )
 
 
+def _path_provider(path: Path) -> str | None:
+    """The provider directory in a partition path (``bars/v<schema>/<provider>/...``)."""
+    parts = Path(path).parts
+    for index, part in enumerate(parts[:-2]):
+        if part == "bars" and parts[index + 1] == f"v{SCHEMA}":
+            return parts[index + 2]
+    return None
+
+
+def _telemetry(event: str, layer: str, path: Path, nbytes: int = 0, seconds: float = 0.0) -> None:
+    try:
+        from lumibot.tools import backtest_telemetry
+
+        backtest_telemetry.record_cache(event, layer=layer, source=_path_provider(path), nbytes=nbytes, seconds=seconds)
+    except Exception:
+        pass
+
+
 def _remote_get(client, manager, path: Path) -> bytes | None:
     key = manager.remote_key_for(path)
     if key is None:
@@ -380,9 +399,11 @@ def _remote_get(client, manager, path: Path) -> bytes | None:
     except Exception as exc:
         if manager._is_not_found_error(exc) or "AccessDenied" in str(exc) or "403" in str(exc):
             _count(remote_misses=1, download_ms=(time.perf_counter() - started) * 1000)
+            _telemetry("miss", "shared_bars_s3", path, seconds=time.perf_counter() - started)
             return None
         raise
     _count(remote_hits=1, download_bytes=len(body or b""), download_ms=(time.perf_counter() - started) * 1000)
+    _telemetry("hit", "shared_bars_s3", path, nbytes=len(body or b""), seconds=time.perf_counter() - started)
     return body
 
 
@@ -402,8 +423,10 @@ def _remote_put(client, manager, path: Path, body: bytes) -> None:
                 client.upload_file(str(source), bucket, key)
     except Exception:
         _count(upload_errors=1)
+        _telemetry("upload_error", "shared_bars_s3", path)
         raise
     _count(uploads=1, upload_bytes=len(body), upload_ms=(time.perf_counter() - started) * 1000)
+    _telemetry("upload", "shared_bars_s3", path, nbytes=len(body), seconds=time.perf_counter() - started)
 
 
 # --------------------------------------------------------------------------- partition files
@@ -570,7 +593,9 @@ class _Uploader:
                 thread.start()
             # Queue under the lock so an idle worker cannot exit between the liveness
             # check above and this put.
-            self._queues[slot].put((key, job))
+            # Run the job in the submitter's context so run telemetry keeps its asset class.
+            context = contextvars.copy_context()
+            self._queues[slot].put((key, lambda remote_allowed, _job=job: context.run(_job, remote_allowed)))
 
     def _run(self, slot: int):
         jobs = self._queues[slot]
@@ -770,8 +795,11 @@ class _Store:
             cached = self._memory_get(part.path)
             if cached is not None:
                 cached.series = part.series  # same file, possibly another equal-identity series object
+                _telemetry("hit", "shared_bars", part.path)
                 return cached
-            return _decode_partition(part, self._load_bytes(part.path))
+            body = self._load_bytes(part.path)
+            _telemetry("hit" if body else "miss", "shared_bars", part.path, nbytes=len(body or b""))
+            return _decode_partition(part, body)
 
         def load_manifest(item):
             path = _series_dir(item) / "series.json"
@@ -797,8 +825,8 @@ class _Store:
         jobs = len(parts) + len(series)
         if self.client is not None and jobs > 1:
             with ThreadPoolExecutor(max_workers=min(32, jobs)) as pool:
-                part_futures = [pool.submit(load_part, p) for p in parts]
-                manifest_futures = {s: pool.submit(load_manifest, s) for s in series}
+                part_futures = [pool.submit(contextvars.copy_context().run, load_part, p) for p in parts]
+                manifest_futures = {s: pool.submit(contextvars.copy_context().run, load_manifest, s) for s in series}
                 loaded = [f.result() for f in part_futures]
                 manifests = {s: f.result() for s, f in manifest_futures.items()}
         else:

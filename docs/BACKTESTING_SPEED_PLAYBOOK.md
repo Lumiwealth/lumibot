@@ -16,6 +16,8 @@ This document is a **how-to playbook** for speeding up backtests in a way that i
 - **Evidence-driven:** every change must be backed by measured runs and profiler evidence.
 - **Safe:** never leak secrets in docs; never “fix” by editing strategies; never break sacred legacy/acceptance behavior.
 
+Before profiling, read the run's `*_telemetry.json` (always written). It shows phase times, provider requests and waits, and cache hits and misses per source; see `docs/BACKTEST_TELEMETRY.md`.
+
 If you want deeper conceptual background (phase model, pattern catalog, cost notes), start with:
 - `docs/BACKTESTING_PERFORMANCE.md`
 - `docs/BACKTESTING_ARCHITECTURE.md`

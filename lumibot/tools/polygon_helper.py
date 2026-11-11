@@ -143,6 +143,8 @@ def get_price_data_from_polygon(
     missing_dates = get_missing_dates(df_all, asset, start, end)
     if not missing_dates:
         if df_all is not None:
+            if "missing" in df_all.columns:
+                df_all = df_all[~df_all["missing"].astype(bool)].copy()
             df_all = df_all.dropna(how="all")
             # Filter cached data to requested date range before returning
             if not df_all.empty:

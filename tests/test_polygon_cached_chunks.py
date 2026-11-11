@@ -149,9 +149,7 @@ def test_unavailable_dates_stay_checked_without_losing_supported_history(history
     assert stored.loc[stored.index.date == sentinel, "missing"].all()
     assert not result.get("missing", pd.Series(False, index=result.index)).fillna(False).any()
     client.get_aggs.reset_mock()
-    # This check covers request reuse. The existing fully-cached return path's
-    # inconsistent sentinel filtering is a separate defect, outside this repair.
-    run()
+    pd.testing.assert_frame_equal(run(), result)
     client.get_aggs.assert_not_called()
 
 
@@ -160,5 +158,28 @@ def test_fully_cached_history_never_constructs_a_provider_request(history):
     seed(dates, "day")
     result = run()
     assert set(result.index.date) == set(dates)
+    client.get_aggs.assert_not_called()
+    progress.assert_not_called()
+
+
+@pytest.mark.parametrize("timespan", ["day", "minute"])
+@pytest.mark.parametrize("all_unavailable", [False, True], ids=["partial", "all"])
+def test_fully_cached_reads_exclude_unavailable_rows(history, timespan, all_unavailable):
+    asset, dates, client, progress, _, aggregates, seed, run, _ = history
+    unavailable = dates if all_unavailable else [date(2025, 1, 15)]
+    supported = [d for d in dates if d not in unavailable]
+    seed(supported, timespan, unavailable=unavailable)
+
+    result = run(timespan)
+
+    assert set(result.index.date) == set(supported)
+    if supported:
+        expected = ph.update_polygon_data(None, aggregates(supported, timespan))
+        pd.testing.assert_frame_equal(result[expected.columns], expected, check_dtype=False)
+    else:
+        assert result.empty
+    stored = ph.load_cache(ph.build_cache_filename(asset, timespan))
+    assert set(stored.index.date) == set(dates)
+    assert stored.loc[[d in unavailable for d in stored.index.date], "missing"].all()
     client.get_aggs.assert_not_called()
     progress.assert_not_called()

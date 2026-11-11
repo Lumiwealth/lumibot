@@ -32,5 +32,23 @@
     "junit.xml": "29d3d81b6485c1ae086a0a4125a53c215b88be7c694b6d6c90de611b5ee11ec5",
     "unavailable-junit.xml": "d3bceacfd6988fce2adbe63ef7dfa6a9bf7668aca337ceb458d4dc71d257a27e"
   },
-  "known_separate_defect": "The existing fully cached return path exposes unavailable sentinel rows; this repair only preserves their checked status and avoids re-requesting them. Filtering that return path is separate scope."
+  "warm_cache_follow_up": {
+    "source_base": "fba48313d6d1755ab1b02284bc51327605a5fc04",
+    "red_baseline": "test_fully_cached_reads_exclude_unavailable_rows[partial-day] returned an unavailable date as a price observation.",
+    "fix": "Apply the existing download-path sentinel filter to the fully cached return. Cache files retain the checked dates.",
+    "passed": 6,
+    "tests": [
+      "test_fully_cached_reads_exclude_unavailable_rows[partial-day]",
+      "test_fully_cached_reads_exclude_unavailable_rows[partial-minute]",
+      "test_fully_cached_reads_exclude_unavailable_rows[all-day]",
+      "test_fully_cached_reads_exclude_unavailable_rows[all-minute]",
+      "test_unavailable_dates_stay_checked_without_losing_supported_history",
+      "test_get_price_data_from_polygon"
+    ],
+    "red_sha256": "3b03759228842db11438fc5f688b5ed378681cf61d4927f560b76b6739df9139",
+    "junit_sha256": "a68c4ded281e6a02e937468e500378a8b35fd5d1c42c3a3c1e114c896aaf3123",
+    "model_attempts": 0,
+    "prompt_skill_delta_bytes": 0
+  },
+  "previous_pass_reuse": "Retain the first repair\u2019s original passes. The new filter runs only on the fully cached return and is covered by the six named current checks. Incoming loaded-cadence, broker array-pricing and per-iteration caching changes do not alter Polygon request planning, trading-date discovery, aggregate parsing or cache IO. No model cases are affected; no old proof is relabeled."
 }

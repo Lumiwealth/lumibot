@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "mandate",
+      "title": "Mandate",
+      "status": "active",
+      "interpretation": "Trade a configurable ETF wheel, default SPY. Changing the entry symbol preserves management of existing contracts and shares under their original identity. The investor is willing to own the selected ETF and wants recurrent eligible wheel exposure. Optional event uncertainty is disclosed; the trader obtains contract and premium evidence rather than requiring it from the researcher."
+    },
+    {
+      "id": "ownership",
+      "title": "Ownership",
+      "status": "active",
+      "interpretation": "One nontrading researcher supplies compact dated evidence. Exactly one trading and risk agent selects contracts, quantities, prices and every order. Python only wires the shared attention runtime. Use Luna Medium via Login with ChatGPT for both agents."
+    },
+    {
+      "id": "coverage",
+      "title": "Coverage",
+      "status": "active",
+      "interpretation": "Use max_contracts and max_collateral_pct. Puts are fully cash secured including costs; calls require unencumbered deliverable shares. No borrowing, naked options, automatic rolls or disposal of unrelated holdings. Defaults: one contract and 90 percent of account equity."
+    },
+    {
+      "id": "contracts",
+      "title": "Contracts",
+      "status": "active",
+      "interpretation": "Choose listed contracts in min_dte/max_dte near target_delta. Prefer covered-call strikes at or above verified share cost. Hold if no suitable contract or capacity exists. Defaults: 30 to 45 days to expiry and absolute delta near 0.25."
+    },
+    {
+      "id": "management",
+      "title": "Management",
+      "status": "active",
+      "interpretation": "Accept expiry and assignment. Persist a favorable review at profit_capture_pct of actual entry premium after costs even before it is met. It requests a trader decision, not an automatic close. Reconcile residual orders and exposure before re-entry. Default profit capture is 90 percent."
+    },
+    {
+      "id": "attention",
+      "title": "Attention",
+      "status": "active",
+      "interpretation": "Plan at startup; observe cheaply each minute through session close. Preserve one near-close entry opportunity per eligible session when capacity is free. Use actual close or a disclosed reasonable approximation. While occupied, remove obsolete daily setup watches; retain meaningful profit, position, order, expiry and thesis conditions plus management within holding_review_days. Reuse dated research when appropriate. Clean obsolete watches before replacing a review. New entries occur only in the final entry window. Defaults: final 15 minutes and seven calendar days between routine holding reviews. Do not register setup-scope watches while short options or related working orders occupy capacity."
+    },
+    {
+      "id": "pricing",
+      "title": "Pricing",
+      "status": "active",
+      "interpretation": "Use bounded limit orders and time_in_force. Inspect exact bid/ask and spread when available. Disclose historical trade-bar approximation; do not substitute future or current quotes. Smart limits are not the default."
+    },
+    {
+      "id": "validation",
+      "title": "Validation",
+      "status": "active",
+      "interpretation": "Qualification and performance comparisons are checks after execution, never permission to manufacture a trade or override the entry policy. Backtest results are simulated and do not promise future returns."
+    }
+  ]
+}

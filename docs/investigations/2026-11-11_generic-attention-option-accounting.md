@@ -69,3 +69,11 @@ source-bound model receipt on every PR. It has been removed from unit execution:
 that task belongs to the maintained release-workflow verification command.
 Explicit scope/pass/source checks remain in the verifier and its isolated unit
 contracts. This changes no production model assertion and adds no selector.
+
+Additional shared guidance requires a final mandatory-policy check against the
+exact selected contract and decision time. A model must not submit an order
+whose own reason acknowledges a failed requirement. Working-order monitoring
+covers partial fills and terminal failures as well as fills and cancellation;
+an acknowledgement is not entry cost or filled exposure. These instructions
+apply to ordinary single options and packages without embedding any strategy's
+policy values. The separately labeled example contains its own entry policy.

@@ -19,6 +19,11 @@ Use a permitted contract count within the user's stated cap. Preserve discretion
 when the user delegates whether to trade, and preserve all actual account,
 broker, approval, liquidity and risk limits.
 
+Before an order, verify every mandatory policy check against the final exact
+contract and current decision time. If a check fails, choose another eligible
+contract or hold. Do not submit an order whose own reason acknowledges a failed
+requirement. A missing eligible candidate never authorizes relaxing a limit.
+
 1. Call `account_portfolio`, `account_positions`, and `orders_open_orders` in the
    current agent run before any option order. For options, the injected account
    snapshot does not replace these calls: an option package needs the exact
@@ -129,7 +134,10 @@ remaining option liabilities, share value and costs.
 
 When the strategy uses attention monitoring, retain a signed
 `position_quantity` change condition for each held option and status conditions
-for its working orders. Assignment, exercise or partial closing can change
+for its working orders, including filled, partially filled, rejected and canceled
+transitions. Reconcile a working order's actual fill before establishing entry-cost
+profit monitoring; an acknowledgement supplies neither quantity nor cost basis.
+Assignment, exercise or partial closing can change
 exposure without a price boundary crossing. Reconcile the resulting shares,
 cash and remaining quantity before replacing the cash basis or removing watches.
 

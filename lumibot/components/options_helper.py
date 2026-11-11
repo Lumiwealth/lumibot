@@ -108,6 +108,43 @@ class OptionsHelper:
         except Exception:
             return
 
+    def _prefetch_option_contracts(self, underlying_asset: Asset, expiry: date, right: str,
+                                   strikes: List[float]) -> None:
+        """Ask the data source to load many contracts' prices at once, when it can.
+
+        A delta search probes many strikes; without this each probe downloads its own
+        contract. Data sources that implement ``prefetch_option_bars`` (for example Alpaca
+        backtests) load them in batched requests. The prices read afterwards are the same
+        stored data, so the chosen strike cannot change. Sources without it do nothing.
+        """
+        broker = getattr(self.strategy, "broker", None)
+        prefetch = getattr(getattr(broker, "data_source", None), "prefetch_option_bars", None)
+        if not callable(prefetch) or not strikes:
+            return
+        until = None
+        try:
+            until = self.strategy.get_datetime() if getattr(self.strategy, "is_backtesting", False) else None
+        except Exception:
+            until = None
+        # Minute strategies search on every bar: ask once per contract and day, so a
+        # repeated search costs a set lookup, not a batch of new Asset objects.
+        day = until.date() if until is not None and hasattr(until, "date") else None
+        done = self.__dict__.setdefault("_prefetched_option_contracts", set())
+        side = (getattr(underlying_asset, "symbol", underlying_asset), expiry, str(right).lower(), day)
+        missing = [strike for strike in strikes if (side, strike) not in done]
+        if not missing:
+            return
+        done.update((side, strike) for strike in missing)
+        assets = [
+            Asset(underlying_asset.symbol, asset_type="option", expiration=expiry, strike=strike,
+                  right=right, underlying_asset=underlying_asset)
+            for strike in missing
+        ]
+        try:
+            prefetch(assets, until=until) if until is not None else prefetch(assets)
+        except Exception as exc:  # each probe still loads its own contract and reports errors
+            logger.warning("Batched option price prefetch failed; loading contracts one at a time: %s", exc)
+
     def _reset_per_bar_caches_if_needed(self) -> None:
         """Reset per-bar caches when the strategy datetime advances."""
         try:
@@ -1512,6 +1549,9 @@ class OptionsHelper:
                     start_idx = start_idx - 1
 
             max_offsets = 6
+            # The neighbourhood probes and the binary-search fallback below both read from
+            # this candidate list, so load all of it in one batched request.
+            self._prefetch_option_contracts(underlying_asset, expiry, right, candidate_strikes)
             for offset in range(0, max_offsets + 1):
                 for idx in (start_idx - offset, start_idx + offset):
                     result = _try_strike(idx)

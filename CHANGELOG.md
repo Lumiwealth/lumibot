@@ -3,6 +3,7 @@
 ## 4.6.50 - 2026-11-11
 
 ### Fixed
+- Far fewer Alpaca requests in option backtests that pick strikes by delta. `OptionsHelper.find_strike_for_delta` asks the data source for all candidate strikes at once; `AlpacaBacktesting.prefetch_option_bars` loads up to 100 contracts per request and only up to the current backtest day, then loads the rest of a contract's window once, the first time it is read on a later day. Prices, trades and chosen strikes are unchanged (a one-month SPY iron condor: 297 trades and 7,880 stats rows identical). A cold one-week daily iron condor went from 163 to 51 Alpaca requests.
 - Long AI-agent backtests no longer run out of memory. The agent detail recorder kept every row of every past agent call (prompts, tool results, model text) in memory and rewrote the whole `*_agent_detail.parquet` file after each call, so memory and write time grew with every call. A synthetic two-agent backtest of 480 calls grew by about 1,013 MB before and about 49 MB after; per-call time at the end of the run fell from about 362 ms to 92 ms. Each call's rows now go to a small part file, the main file is rebuilt from them at 1, 2, 4, 8, ... calls and when the run ends, and every call is still in the final file.
 - Parquet artifacts are written to a temporary file and then swapped in, so a process killed mid-write keeps the previous complete file instead of leaving a truncated one ("No magic bytes found at end of file").
 

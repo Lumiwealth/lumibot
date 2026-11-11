@@ -498,7 +498,12 @@ class _Uploader:
                 self.errors.append(type(exc).__name__)
                 self._failures_in_a_row += 1
                 if not self._remote_given_up:
-                    logger.warning("Shared bar cache upload failed: %s: %s", type(exc).__name__, exc)
+                    # The first failure carries its traceback, so the failing call is visible in
+                    # one log line instead of only an exception type.
+                    logger.warning(
+                        "Shared bar cache upload failed: %s: %s", type(exc).__name__, exc,
+                        exc_info=self._failures_in_a_row == 1,
+                    )
                     if self._failures_in_a_row >= UPLOAD_FAILURES_BEFORE_GIVING_UP:
                         self._remote_given_up = True
                         logger.warning(

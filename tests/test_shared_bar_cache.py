@@ -419,6 +419,10 @@ def test_uploader_stops_trying_the_remote_store_after_repeated_failures(caplog):
     messages = [record.getMessage() for record in caplog.records]
     assert any("store unavailable for this run" in message for message in messages)  # the reason is visible
     assert sum("giving up" in message for message in messages) == 1
+    failures = [record for record in caplog.records if "upload failed" in record.getMessage()]
+    # Only the first failure carries the traceback, so the failing call is visible once.
+    assert failures[0].exc_info
+    assert not any(record.exc_info for record in failures[1:])
 
 
 def test_uploader_keeps_using_the_remote_store_when_failures_are_isolated():

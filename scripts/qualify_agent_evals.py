@@ -583,11 +583,15 @@ def verify_release_scope(scope, cases, receipt, *, runtime_hash, version, now=No
             raise ValueError(f"Scoped case {entry['id']!r} is listed twice")
         ids.append(entry["id"])
     records = receipt.get("cases") if isinstance(receipt, dict) else None
+    establishment = receipt.get("establishment") if isinstance(receipt, dict) else None
+    if establishment is not None:
+        validate_establishment(establishment, cases, versions=evals.sdk_versions(), now=now)
     for case_id in ids:
         record = records.get(case_id) if isinstance(records, dict) else None
         if not isinstance(record, dict):
             raise ValueError(f"Scoped case {case_id!r} has no pass evidence in the receipt")
-        validate_record(record, by_id[case_id], runtime_hash=runtime_hash, now=now)
+        required = 1 if establishment and case_id in establishment["cases"] else None
+        validate_record(record, by_id[case_id], runtime_hash=runtime_hash, now=now, required=required)
     return ids
 
 

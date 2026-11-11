@@ -5,246 +5,246 @@
     "catalog_digest": "9de2137eedd4d4800f088624d53017305ab4fac6877a8462bd43539aec79cdad",
     "controls": {
       "daily_limit_exact_pending_order": {
-        "fingerprint": "d653cda860ca1ed56cbca5c1955bd5f1310063082b3464c9ba4aaff067340365",
+        "fingerprint": "d6517d5922b00b42854d372e195c96b8416b197ff9106d94d204441c2a146e15",
         "repetitions": [
           {
             "calls": [
               {
-                "id": "4be1ebc1-5eee-40cf-b533-debb12b3b570",
+                "id": "a1438b78-4c05-4482-8425-0e19acef45d8",
                 "kind": "settle",
                 "model": "chatgpt/gpt-6-luna",
                 "nano_usd": 0,
                 "reserved_nano_usd": 0,
                 "scope": {
                   "case_id": "daily_limit_exact_pending_order",
-                  "fingerprint": "d653cda860ca1ed56cbca5c1955bd5f1310063082b3464c9ba4aaff067340365",
+                  "fingerprint": "d6517d5922b00b42854d372e195c96b8416b197ff9106d94d204441c2a146e15",
                   "repetition": 1,
                   "role": "judge_calibration",
-                  "run_id": "a0e150d9-42ef-4e5c-acf8-77d888938094"
+                  "run_id": "6fe3d91d-6a19-4def-88ff-a2491c90cfc7"
                 },
-                "settled_at": "2026-11-11T19:03:52.169100+00:00",
-                "timestamp": "2026-11-11T19:03:44.869048+00:00",
-                "usage": {
-                  "cached_input_tokens": 0,
-                  "input_tokens": 7429,
-                  "output_tokens": 80,
-                  "thinking_tokens": 208
-                }
-              }
-            ],
-            "case_id": "stock_daily_limit_current_execution",
-            "expected": true,
-            "fingerprint": "d653cda860ca1ed56cbca5c1955bd5f1310063082b3464c9ba4aaff067340365",
-            "id": "daily_limit_exact_pending_order",
-            "judge_model": "chatgpt/gpt-6-luna",
-            "judge_pass": true,
-            "native_evidence_digest": "85bb822564f11a2083a6214a7f3e8baf6036b569661a76dff0f19ec39ae7d129",
-            "passed": true,
-            "repetition": 1,
-            "run_id": "a0e150d9-42ef-4e5c-acf8-77d888938094",
-            "started_at": "2026-11-11T19:03:41.814655Z",
-            "status": "pass",
-            "timestamp": "2026-11-11T19:03:52.171945Z"
-          },
-          {
-            "calls": [
-              {
-                "id": "e06e00e7-d82c-489b-bd25-b5b7907dc583",
-                "kind": "settle",
-                "model": "chatgpt/gpt-6-luna",
-                "nano_usd": 0,
-                "reserved_nano_usd": 0,
-                "scope": {
-                  "case_id": "daily_limit_exact_pending_order",
-                  "fingerprint": "d653cda860ca1ed56cbca5c1955bd5f1310063082b3464c9ba4aaff067340365",
-                  "repetition": 2,
-                  "role": "judge_calibration",
-                  "run_id": "a0e150d9-42ef-4e5c-acf8-77d888938094"
-                },
-                "settled_at": "2026-11-11T19:03:49.864528+00:00",
-                "timestamp": "2026-11-11T19:03:44.870139+00:00",
+                "settled_at": "2026-11-11T19:18:05.351401+00:00",
+                "timestamp": "2026-11-11T19:17:59.674853+00:00",
                 "usage": {
                   "cached_input_tokens": 0,
                   "input_tokens": 7429,
                   "output_tokens": 76,
-                  "thinking_tokens": 92
+                  "thinking_tokens": 135
                 }
               }
             ],
             "case_id": "stock_daily_limit_current_execution",
             "expected": true,
-            "fingerprint": "d653cda860ca1ed56cbca5c1955bd5f1310063082b3464c9ba4aaff067340365",
+            "fingerprint": "d6517d5922b00b42854d372e195c96b8416b197ff9106d94d204441c2a146e15",
             "id": "daily_limit_exact_pending_order",
             "judge_model": "chatgpt/gpt-6-luna",
             "judge_pass": true,
-            "native_evidence_digest": "ab13255fd056326d52a3949496a375580dde751d2649b114f7156ba5b6370f07",
+            "native_evidence_digest": "8929dc231584090e0e6f8120f4bf22ff5653ed7431a3a0a5889a3ee67d649844",
             "passed": true,
-            "repetition": 2,
-            "run_id": "a0e150d9-42ef-4e5c-acf8-77d888938094",
-            "started_at": "2026-11-11T19:03:41.814722Z",
+            "repetition": 1,
+            "run_id": "6fe3d91d-6a19-4def-88ff-a2491c90cfc7",
+            "started_at": "2026-11-11T19:17:56.174802Z",
             "status": "pass",
-            "timestamp": "2026-11-11T19:03:49.866785Z"
+            "timestamp": "2026-11-11T19:18:05.355962Z"
           },
           {
             "calls": [
               {
-                "id": "341536b5-2c79-4e06-b30b-b0c22b996dc0",
+                "id": "fa64f86a-2938-455d-b482-df0b8906882d",
                 "kind": "settle",
                 "model": "chatgpt/gpt-6-luna",
                 "nano_usd": 0,
                 "reserved_nano_usd": 0,
                 "scope": {
                   "case_id": "daily_limit_exact_pending_order",
-                  "fingerprint": "d653cda860ca1ed56cbca5c1955bd5f1310063082b3464c9ba4aaff067340365",
-                  "repetition": 3,
+                  "fingerprint": "d6517d5922b00b42854d372e195c96b8416b197ff9106d94d204441c2a146e15",
+                  "repetition": 2,
                   "role": "judge_calibration",
-                  "run_id": "a0e150d9-42ef-4e5c-acf8-77d888938094"
+                  "run_id": "6fe3d91d-6a19-4def-88ff-a2491c90cfc7"
                 },
-                "settled_at": "2026-11-11T19:03:50.833089+00:00",
-                "timestamp": "2026-11-11T19:03:44.867945+00:00",
+                "settled_at": "2026-11-11T19:18:07.130782+00:00",
+                "timestamp": "2026-11-11T19:17:59.676556+00:00",
                 "usage": {
                   "cached_input_tokens": 0,
                   "input_tokens": 7429,
-                  "output_tokens": 71,
+                  "output_tokens": 75,
+                  "thinking_tokens": 250
+                }
+              }
+            ],
+            "case_id": "stock_daily_limit_current_execution",
+            "expected": true,
+            "fingerprint": "d6517d5922b00b42854d372e195c96b8416b197ff9106d94d204441c2a146e15",
+            "id": "daily_limit_exact_pending_order",
+            "judge_model": "chatgpt/gpt-6-luna",
+            "judge_pass": true,
+            "native_evidence_digest": "f5674f6272600631f6caab4d5e31b759f1c70fe58dacc04ca741857575583904",
+            "passed": true,
+            "repetition": 2,
+            "run_id": "6fe3d91d-6a19-4def-88ff-a2491c90cfc7",
+            "started_at": "2026-11-11T19:17:56.174891Z",
+            "status": "pass",
+            "timestamp": "2026-11-11T19:18:07.134372Z"
+          },
+          {
+            "calls": [
+              {
+                "id": "8f6eb051-261c-4eb2-96ff-147c5904a826",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "daily_limit_exact_pending_order",
+                  "fingerprint": "d6517d5922b00b42854d372e195c96b8416b197ff9106d94d204441c2a146e15",
+                  "repetition": 3,
+                  "role": "judge_calibration",
+                  "run_id": "6fe3d91d-6a19-4def-88ff-a2491c90cfc7"
+                },
+                "settled_at": "2026-11-11T19:18:06.233597+00:00",
+                "timestamp": "2026-11-11T19:17:59.678322+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 7429,
+                  "output_tokens": 87,
+                  "thinking_tokens": 182
+                }
+              }
+            ],
+            "case_id": "stock_daily_limit_current_execution",
+            "expected": true,
+            "fingerprint": "d6517d5922b00b42854d372e195c96b8416b197ff9106d94d204441c2a146e15",
+            "id": "daily_limit_exact_pending_order",
+            "judge_model": "chatgpt/gpt-6-luna",
+            "judge_pass": true,
+            "native_evidence_digest": "3578ce32a0df3edcee2e9c6cdda84ecfa8c02e3484da0c2627e25f7cd204bd9d",
+            "passed": true,
+            "repetition": 3,
+            "run_id": "6fe3d91d-6a19-4def-88ff-a2491c90cfc7",
+            "started_at": "2026-11-11T19:17:56.174998Z",
+            "status": "pass",
+            "timestamp": "2026-11-11T19:18:06.237160Z"
+          }
+        ]
+      },
+      "daily_limit_stale_native_fill": {
+        "fingerprint": "3f5fa71b834576f33cfc59016b39e41f31c11e1ac2dac0c9127ca6ae1085ae31",
+        "repetitions": [
+          {
+            "calls": [
+              {
+                "id": "bd4bfec9-58f1-4751-b605-9b7006ea024a",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "daily_limit_stale_native_fill",
+                  "fingerprint": "3f5fa71b834576f33cfc59016b39e41f31c11e1ac2dac0c9127ca6ae1085ae31",
+                  "repetition": 1,
+                  "role": "judge_calibration",
+                  "run_id": "6fe3d91d-6a19-4def-88ff-a2491c90cfc7"
+                },
+                "settled_at": "2026-11-11T19:18:10.753971+00:00",
+                "timestamp": "2026-11-11T19:18:05.362813+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 7817,
+                  "output_tokens": 74,
+                  "thinking_tokens": 107
+                }
+              }
+            ],
+            "case_id": "stock_daily_limit_current_execution",
+            "expected": false,
+            "fingerprint": "3f5fa71b834576f33cfc59016b39e41f31c11e1ac2dac0c9127ca6ae1085ae31",
+            "id": "daily_limit_stale_native_fill",
+            "judge_model": "chatgpt/gpt-6-luna",
+            "judge_pass": false,
+            "native_evidence_digest": "a3b50dbe1c6a5a6c4b4fe15aa5731364d7371b206f0cad6c05b46bcace92f0c5",
+            "passed": true,
+            "repetition": 1,
+            "run_id": "6fe3d91d-6a19-4def-88ff-a2491c90cfc7",
+            "started_at": "2026-11-11T19:18:05.356179Z",
+            "status": "pass",
+            "timestamp": "2026-11-11T19:18:10.757135Z"
+          },
+          {
+            "calls": [
+              {
+                "id": "86f37464-b93d-4620-9184-09410d6cbb96",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "daily_limit_stale_native_fill",
+                  "fingerprint": "3f5fa71b834576f33cfc59016b39e41f31c11e1ac2dac0c9127ca6ae1085ae31",
+                  "repetition": 2,
+                  "role": "judge_calibration",
+                  "run_id": "6fe3d91d-6a19-4def-88ff-a2491c90cfc7"
+                },
+                "settled_at": "2026-11-11T19:18:11.727022+00:00",
+                "timestamp": "2026-11-11T19:18:06.244082+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 7817,
+                  "output_tokens": 78,
+                  "thinking_tokens": 121
+                }
+              }
+            ],
+            "case_id": "stock_daily_limit_current_execution",
+            "expected": false,
+            "fingerprint": "3f5fa71b834576f33cfc59016b39e41f31c11e1ac2dac0c9127ca6ae1085ae31",
+            "id": "daily_limit_stale_native_fill",
+            "judge_model": "chatgpt/gpt-6-luna",
+            "judge_pass": false,
+            "native_evidence_digest": "9846005928ee27e4685d3b1a6d51d11a58b6e788c230c545e5fb68db7a153ef8",
+            "passed": true,
+            "repetition": 2,
+            "run_id": "6fe3d91d-6a19-4def-88ff-a2491c90cfc7",
+            "started_at": "2026-11-11T19:18:06.237492Z",
+            "status": "pass",
+            "timestamp": "2026-11-11T19:18:11.730314Z"
+          },
+          {
+            "calls": [
+              {
+                "id": "a41ef80d-54c6-41a5-a5ac-a0b8a7232904",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "daily_limit_stale_native_fill",
+                  "fingerprint": "3f5fa71b834576f33cfc59016b39e41f31c11e1ac2dac0c9127ca6ae1085ae31",
+                  "repetition": 3,
+                  "role": "judge_calibration",
+                  "run_id": "6fe3d91d-6a19-4def-88ff-a2491c90cfc7"
+                },
+                "settled_at": "2026-11-11T19:18:13.094786+00:00",
+                "timestamp": "2026-11-11T19:18:07.141044+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 7817,
+                  "output_tokens": 74,
                   "thinking_tokens": 150
                 }
               }
             ],
             "case_id": "stock_daily_limit_current_execution",
-            "expected": true,
-            "fingerprint": "d653cda860ca1ed56cbca5c1955bd5f1310063082b3464c9ba4aaff067340365",
-            "id": "daily_limit_exact_pending_order",
+            "expected": false,
+            "fingerprint": "3f5fa71b834576f33cfc59016b39e41f31c11e1ac2dac0c9127ca6ae1085ae31",
+            "id": "daily_limit_stale_native_fill",
             "judge_model": "chatgpt/gpt-6-luna",
-            "judge_pass": true,
-            "native_evidence_digest": "5c1e901930147b5394e2f8cdaceb8267207c3bdfb43c5332425e57fce3e5a969",
+            "judge_pass": false,
+            "native_evidence_digest": "e8f3f0afde2ef77da9f6092b3fc3b2fb2eb8a1ffdd232cff57ff0c7a2b0af6b7",
             "passed": true,
             "repetition": 3,
-            "run_id": "a0e150d9-42ef-4e5c-acf8-77d888938094",
-            "started_at": "2026-11-11T19:03:41.814777Z",
+            "run_id": "6fe3d91d-6a19-4def-88ff-a2491c90cfc7",
+            "started_at": "2026-11-11T19:18:07.134622Z",
             "status": "pass",
-            "timestamp": "2026-11-11T19:03:50.835523Z"
-          }
-        ]
-      },
-      "daily_limit_stale_native_fill": {
-        "fingerprint": "ab0863dfd140888f60052904a4ea725c1b28cef067796fa4c7aa2fb35bc6baea",
-        "repetitions": [
-          {
-            "calls": [
-              {
-                "id": "63fea51d-845c-45f4-b655-6666436a6613",
-                "kind": "settle",
-                "model": "chatgpt/gpt-6-luna",
-                "nano_usd": 0,
-                "reserved_nano_usd": 0,
-                "scope": {
-                  "case_id": "daily_limit_stale_native_fill",
-                  "fingerprint": "ab0863dfd140888f60052904a4ea725c1b28cef067796fa4c7aa2fb35bc6baea",
-                  "repetition": 1,
-                  "role": "judge_calibration",
-                  "run_id": "a0e150d9-42ef-4e5c-acf8-77d888938094"
-                },
-                "settled_at": "2026-11-11T19:03:55.276052+00:00",
-                "timestamp": "2026-11-11T19:03:49.871716+00:00",
-                "usage": {
-                  "cached_input_tokens": 0,
-                  "input_tokens": 7817,
-                  "output_tokens": 74,
-                  "thinking_tokens": 105
-                }
-              }
-            ],
-            "case_id": "stock_daily_limit_current_execution",
-            "expected": false,
-            "fingerprint": "ab0863dfd140888f60052904a4ea725c1b28cef067796fa4c7aa2fb35bc6baea",
-            "id": "daily_limit_stale_native_fill",
-            "judge_model": "chatgpt/gpt-6-luna",
-            "judge_pass": false,
-            "native_evidence_digest": "3f37e74ff3c96d80d87ee8a543245de0b4d2f8232b4f0d64e6826d1dfa77284d",
-            "passed": true,
-            "repetition": 1,
-            "run_id": "a0e150d9-42ef-4e5c-acf8-77d888938094",
-            "started_at": "2026-11-11T19:03:49.866943Z",
-            "status": "pass",
-            "timestamp": "2026-11-11T19:03:55.279333Z"
-          },
-          {
-            "calls": [
-              {
-                "id": "836f6e21-6c84-4d13-b24e-50f461de0ba4",
-                "kind": "settle",
-                "model": "chatgpt/gpt-6-luna",
-                "nano_usd": 0,
-                "reserved_nano_usd": 0,
-                "scope": {
-                  "case_id": "daily_limit_stale_native_fill",
-                  "fingerprint": "ab0863dfd140888f60052904a4ea725c1b28cef067796fa4c7aa2fb35bc6baea",
-                  "repetition": 2,
-                  "role": "judge_calibration",
-                  "run_id": "a0e150d9-42ef-4e5c-acf8-77d888938094"
-                },
-                "settled_at": "2026-11-11T19:03:55.967970+00:00",
-                "timestamp": "2026-11-11T19:03:50.840848+00:00",
-                "usage": {
-                  "cached_input_tokens": 0,
-                  "input_tokens": 7817,
-                  "output_tokens": 87,
-                  "thinking_tokens": 98
-                }
-              }
-            ],
-            "case_id": "stock_daily_limit_current_execution",
-            "expected": false,
-            "fingerprint": "ab0863dfd140888f60052904a4ea725c1b28cef067796fa4c7aa2fb35bc6baea",
-            "id": "daily_limit_stale_native_fill",
-            "judge_model": "chatgpt/gpt-6-luna",
-            "judge_pass": false,
-            "native_evidence_digest": "bf728ce2b2db9545be0f61598396c7e1ea035b571055296837a696cddfe62671",
-            "passed": true,
-            "repetition": 2,
-            "run_id": "a0e150d9-42ef-4e5c-acf8-77d888938094",
-            "started_at": "2026-11-11T19:03:50.835796Z",
-            "status": "pass",
-            "timestamp": "2026-11-11T19:03:55.971154Z"
-          },
-          {
-            "calls": [
-              {
-                "id": "98d3ba37-5ca7-4b2d-a0f0-f5577f445611",
-                "kind": "settle",
-                "model": "chatgpt/gpt-6-luna",
-                "nano_usd": 0,
-                "reserved_nano_usd": 0,
-                "scope": {
-                  "case_id": "daily_limit_stale_native_fill",
-                  "fingerprint": "ab0863dfd140888f60052904a4ea725c1b28cef067796fa4c7aa2fb35bc6baea",
-                  "repetition": 3,
-                  "role": "judge_calibration",
-                  "run_id": "a0e150d9-42ef-4e5c-acf8-77d888938094"
-                },
-                "settled_at": "2026-11-11T19:03:57.424992+00:00",
-                "timestamp": "2026-11-11T19:03:52.178433+00:00",
-                "usage": {
-                  "cached_input_tokens": 0,
-                  "input_tokens": 7817,
-                  "output_tokens": 77,
-                  "thinking_tokens": 91
-                }
-              }
-            ],
-            "case_id": "stock_daily_limit_current_execution",
-            "expected": false,
-            "fingerprint": "ab0863dfd140888f60052904a4ea725c1b28cef067796fa4c7aa2fb35bc6baea",
-            "id": "daily_limit_stale_native_fill",
-            "judge_model": "chatgpt/gpt-6-luna",
-            "judge_pass": false,
-            "native_evidence_digest": "19a65fa9fd654257f7df56062bd6156200ea3be29fedae3b99a5af068aab755e",
-            "passed": true,
-            "repetition": 3,
-            "run_id": "a0e150d9-42ef-4e5c-acf8-77d888938094",
-            "started_at": "2026-11-11T19:03:52.172152Z",
-            "status": "pass",
-            "timestamp": "2026-11-11T19:03:57.427510Z"
+            "timestamp": "2026-11-11T19:18:13.098198Z"
           }
         ]
       }
@@ -253,1730 +253,2108 @@
     "external_writes": 0
   },
   "call_allowance": {
-    "consumed_calls": 195,
+    "consumed_calls": 236,
     "max_calls": 500
   },
   "cases": {
     "stock_daily_limit_current_execution": {
-      "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+      "fingerprint": "e2c5a5921ad74d4a215093e3b25f4f06ec8d572262fdc090a2c7fb5f94c4a1b7",
       "repetitions": [
         {
           "acting_model": "chatgpt/gpt-6-luna",
           "calls": [
             {
-              "id": "69f6f7c1-07da-4276-bd67-242907a8d93b",
+              "id": "74339bf8-f8fc-43ce-96ce-7711b809d5d2",
               "kind": "settle",
               "model": "chatgpt/gpt-6-luna",
               "nano_usd": 0,
               "reserved_nano_usd": 0,
               "scope": {
                 "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                "fingerprint": "e2c5a5921ad74d4a215093e3b25f4f06ec8d572262fdc090a2c7fb5f94c4a1b7",
                 "repetition": 1,
                 "role": "acting",
-                "run_id": "e272c501-57e1-4577-86ed-bb8921a7bf0a"
+                "run_id": "b01e374e-d4af-42f6-92e8-5448bcfb4486"
               },
-              "settled_at": "2026-11-11T19:03:50.422312+00:00",
-              "timestamp": "2026-11-11T19:03:47.370567+00:00",
+              "settled_at": "2026-11-11T19:18:04.375384+00:00",
+              "timestamp": "2026-11-11T19:18:01.706743+00:00",
               "usage": {
                 "cached_input_tokens": 19712,
-                "input_tokens": 20691,
-                "output_tokens": 42,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "2970744b-0355-49fa-ab01-329fc7481822",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 1,
-                "role": "acting",
-                "run_id": "e272c501-57e1-4577-86ed-bb8921a7bf0a"
-              },
-              "settled_at": "2026-11-11T19:03:56.037868+00:00",
-              "timestamp": "2026-11-11T19:03:50.440440+00:00",
-              "usage": {
-                "cached_input_tokens": 0,
-                "input_tokens": 23703,
-                "output_tokens": 204,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "69c58e2c-d612-4728-a837-a3eeab0423e9",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 1,
-                "role": "acting",
-                "run_id": "e272c501-57e1-4577-86ed-bb8921a7bf0a"
-              },
-              "settled_at": "2026-11-11T19:04:04.183870+00:00",
-              "timestamp": "2026-11-11T19:03:56.090328+00:00",
-              "usage": {
-                "cached_input_tokens": 13824,
-                "input_tokens": 24671,
-                "output_tokens": 248,
-                "thinking_tokens": 37
-              }
-            },
-            {
-              "id": "12c73f18-184f-4d13-b31e-64c8e9c75f52",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 1,
-                "role": "acting",
-                "run_id": "e272c501-57e1-4577-86ed-bb8921a7bf0a"
-              },
-              "settled_at": "2026-11-11T19:04:08.962043+00:00",
-              "timestamp": "2026-11-11T19:04:04.267335+00:00",
-              "usage": {
-                "cached_input_tokens": 19712,
-                "input_tokens": 25644,
-                "output_tokens": 136,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "f44f033d-528a-47a3-bc7b-28fe66db2765",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 1,
-                "role": "acting",
-                "run_id": "e272c501-57e1-4577-86ed-bb8921a7bf0a"
-              },
-              "settled_at": "2026-11-11T19:04:13.413873+00:00",
-              "timestamp": "2026-11-11T19:04:08.989550+00:00",
-              "usage": {
-                "cached_input_tokens": 19712,
-                "input_tokens": 27446,
-                "output_tokens": 120,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "a4936e5d-8b1b-44fc-b85c-3f30cd6ffb8b",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 1,
-                "role": "judge",
-                "run_id": "e272c501-57e1-4577-86ed-bb8921a7bf0a"
-              },
-              "settled_at": "2026-11-11T19:04:20.664835+00:00",
-              "timestamp": "2026-11-11T19:04:13.466375+00:00",
-              "usage": {
-                "cached_input_tokens": 0,
-                "input_tokens": 34186,
-                "output_tokens": 69,
-                "thinking_tokens": 223
-              }
-            }
-          ],
-          "case_id": "stock_daily_limit_current_execution",
-          "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-          "judge_model": "chatgpt/gpt-6-luna",
-          "judge_pass": true,
-          "machine_pass": true,
-          "native_evidence_digest": "d444f582420155bd23178567e41356d2dbde568ee45700ffc4b21358f27d2e05",
-          "repetition": 1,
-          "run_id": "e272c501-57e1-4577-86ed-bb8921a7bf0a",
-          "started_at": "2026-11-11T19:03:41.827015Z",
-          "status": "pass",
-          "timestamp": "2026-11-11T19:04:20.667636Z"
-        },
-        {
-          "acting_model": "chatgpt/gpt-6-luna",
-          "calls": [
-            {
-              "id": "a6b30537-5855-41c8-ba54-44703f5cedb9",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 2,
-                "role": "acting",
-                "run_id": "78115c5a-e998-4c52-b3e0-017d8efb5911"
-              },
-              "settled_at": "2026-11-11T19:03:51.279270+00:00",
-              "timestamp": "2026-11-11T19:03:47.371825+00:00",
-              "usage": {
-                "cached_input_tokens": 19712,
-                "input_tokens": 20682,
+                "input_tokens": 20674,
                 "output_tokens": 40,
                 "thinking_tokens": 0
               }
             },
             {
-              "id": "ca1cb195-c23a-494d-9df7-ff21d9147036",
+              "id": "a9ac5b7b-fdf6-46a1-a73d-27519e1c87ca",
               "kind": "settle",
               "model": "chatgpt/gpt-6-luna",
               "nano_usd": 0,
               "reserved_nano_usd": 0,
               "scope": {
                 "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 2,
+                "fingerprint": "e2c5a5921ad74d4a215093e3b25f4f06ec8d572262fdc090a2c7fb5f94c4a1b7",
+                "repetition": 1,
                 "role": "acting",
-                "run_id": "78115c5a-e998-4c52-b3e0-017d8efb5911"
+                "run_id": "b01e374e-d4af-42f6-92e8-5448bcfb4486"
               },
-              "settled_at": "2026-11-11T19:03:58.469318+00:00",
-              "timestamp": "2026-11-11T19:03:51.304315+00:00",
+              "settled_at": "2026-11-11T19:18:09.787873+00:00",
+              "timestamp": "2026-11-11T19:18:04.387584+00:00",
               "usage": {
                 "cached_input_tokens": 19712,
-                "input_tokens": 23692,
-                "output_tokens": 124,
-                "thinking_tokens": 87
-              }
-            },
-            {
-              "id": "a4e25089-1fc5-44c6-b067-1f05b4c69aba",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 2,
-                "role": "acting",
-                "run_id": "78115c5a-e998-4c52-b3e0-017d8efb5911"
-              },
-              "settled_at": "2026-11-11T19:04:08.350260+00:00",
-              "timestamp": "2026-11-11T19:03:58.500750+00:00",
-              "usage": {
-                "cached_input_tokens": 19712,
-                "input_tokens": 24702,
-                "output_tokens": 330,
-                "thinking_tokens": 106
-              }
-            },
-            {
-              "id": "7fa47cb1-2425-4a18-a255-eeca7ff5a25e",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 2,
-                "role": "acting",
-                "run_id": "78115c5a-e998-4c52-b3e0-017d8efb5911"
-              },
-              "settled_at": "2026-11-11T19:04:13.805032+00:00",
-              "timestamp": "2026-11-11T19:04:08.378921+00:00",
-              "usage": {
-                "cached_input_tokens": 19712,
-                "input_tokens": 25845,
-                "output_tokens": 134,
-                "thinking_tokens": 65
-              }
-            },
-            {
-              "id": "5dcd9f80-2cfb-4222-ae28-df3205e989c0",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 2,
-                "role": "acting",
-                "run_id": "78115c5a-e998-4c52-b3e0-017d8efb5911"
-              },
-              "settled_at": "2026-11-11T19:04:19.212152+00:00",
-              "timestamp": "2026-11-11T19:04:13.842634+00:00",
-              "usage": {
-                "cached_input_tokens": 19712,
-                "input_tokens": 27744,
-                "output_tokens": 161,
+                "input_tokens": 23684,
+                "output_tokens": 191,
                 "thinking_tokens": 0
               }
             },
             {
-              "id": "faff4791-c184-41f7-9695-993a863548a5",
+              "id": "25c775af-5ba1-4080-bb4f-b9a15f8efc73",
               "kind": "settle",
               "model": "chatgpt/gpt-6-luna",
               "nano_usd": 0,
               "reserved_nano_usd": 0,
               "scope": {
                 "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 2,
-                "role": "judge",
-                "run_id": "78115c5a-e998-4c52-b3e0-017d8efb5911"
-              },
-              "settled_at": "2026-11-11T19:04:27.028365+00:00",
-              "timestamp": "2026-11-11T19:04:19.279680+00:00",
-              "usage": {
-                "cached_input_tokens": 0,
-                "input_tokens": 30282,
-                "output_tokens": 69,
-                "thinking_tokens": 229
-              }
-            }
-          ],
-          "case_id": "stock_daily_limit_current_execution",
-          "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-          "judge_model": "chatgpt/gpt-6-luna",
-          "judge_pass": true,
-          "machine_pass": true,
-          "native_evidence_digest": "0867f0ad244bac1bbe61d8cb1eea1f9b0b7f98d797b2fb6eab6a9890d47f87fb",
-          "repetition": 2,
-          "run_id": "78115c5a-e998-4c52-b3e0-017d8efb5911",
-          "started_at": "2026-11-11T19:03:41.827212Z",
-          "status": "pass",
-          "timestamp": "2026-11-11T19:04:27.031800Z"
-        },
-        {
-          "acting_model": "chatgpt/gpt-6-luna",
-          "calls": [
-            {
-              "id": "7d937973-ef4f-451e-b204-b04502f0ddeb",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 3,
+                "fingerprint": "e2c5a5921ad74d4a215093e3b25f4f06ec8d572262fdc090a2c7fb5f94c4a1b7",
+                "repetition": 1,
                 "role": "acting",
-                "run_id": "a7ebd0bd-50b2-4d8e-979c-be01da781aa2"
+                "run_id": "b01e374e-d4af-42f6-92e8-5448bcfb4486"
               },
-              "settled_at": "2026-11-11T19:03:51.273557+00:00",
-              "timestamp": "2026-11-11T19:03:47.374024+00:00",
+              "settled_at": "2026-11-11T19:18:18.006774+00:00",
+              "timestamp": "2026-11-11T19:18:09.825638+00:00",
               "usage": {
                 "cached_input_tokens": 19712,
-                "input_tokens": 20680,
-                "output_tokens": 41,
+                "input_tokens": 25029,
+                "output_tokens": 254,
+                "thinking_tokens": 81
+              }
+            },
+            {
+              "id": "e68bc728-bd8e-4be3-82d8-1d93ab7ef45e",
+              "kind": "settle",
+              "model": "chatgpt/gpt-6-luna",
+              "nano_usd": 0,
+              "reserved_nano_usd": 0,
+              "scope": {
+                "case_id": "stock_daily_limit_current_execution",
+                "fingerprint": "e2c5a5921ad74d4a215093e3b25f4f06ec8d572262fdc090a2c7fb5f94c4a1b7",
+                "repetition": 1,
+                "role": "acting",
+                "run_id": "b01e374e-d4af-42f6-92e8-5448bcfb4486"
+              },
+              "settled_at": "2026-11-11T19:18:20.574729+00:00",
+              "timestamp": "2026-11-11T19:18:18.138124+00:00",
+              "usage": {
+                "cached_input_tokens": 19712,
+                "input_tokens": 26056,
+                "output_tokens": 40,
                 "thinking_tokens": 0
               }
             },
             {
-              "id": "29075da7-268e-4a47-b089-3299c1bad4c2",
+              "id": "0f2d2474-f544-4d97-ab76-f92b71e63d34",
               "kind": "settle",
               "model": "chatgpt/gpt-6-luna",
               "nano_usd": 0,
               "reserved_nano_usd": 0,
               "scope": {
                 "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 3,
+                "fingerprint": "e2c5a5921ad74d4a215093e3b25f4f06ec8d572262fdc090a2c7fb5f94c4a1b7",
+                "repetition": 1,
                 "role": "acting",
-                "run_id": "a7ebd0bd-50b2-4d8e-979c-be01da781aa2"
+                "run_id": "b01e374e-d4af-42f6-92e8-5448bcfb4486"
               },
-              "settled_at": "2026-11-11T19:04:01.604198+00:00",
-              "timestamp": "2026-11-11T19:03:51.293513+00:00",
+              "settled_at": "2026-11-11T19:18:24.536251+00:00",
+              "timestamp": "2026-11-11T19:18:20.586476+00:00",
               "usage": {
                 "cached_input_tokens": 19712,
-                "input_tokens": 23691,
-                "output_tokens": 198,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "1cd3eba2-a373-47e1-bd26-3332cb83cc39",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 3,
-                "role": "acting",
-                "run_id": "a7ebd0bd-50b2-4d8e-979c-be01da781aa2"
-              },
-              "settled_at": "2026-11-11T19:04:10.824456+00:00",
-              "timestamp": "2026-11-11T19:04:01.640975+00:00",
-              "usage": {
-                "cached_input_tokens": 19712,
-                "input_tokens": 24653,
-                "output_tokens": 267,
-                "thinking_tokens": 80
-              }
-            },
-            {
-              "id": "ec60e864-93e7-42b2-9f31-9c880ea1119d",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 3,
-                "role": "acting",
-                "run_id": "a7ebd0bd-50b2-4d8e-979c-be01da781aa2"
-              },
-              "settled_at": "2026-11-11T19:04:15.863404+00:00",
-              "timestamp": "2026-11-11T19:04:10.856979+00:00",
-              "usage": {
-                "cached_input_tokens": 19712,
-                "input_tokens": 25689,
-                "output_tokens": 138,
-                "thinking_tokens": 24
-              }
-            },
-            {
-              "id": "dfdabfb8-299e-4434-adcc-726152fc3e50",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 3,
-                "role": "acting",
-                "run_id": "a7ebd0bd-50b2-4d8e-979c-be01da781aa2"
-              },
-              "settled_at": "2026-11-11T19:04:20.359503+00:00",
-              "timestamp": "2026-11-11T19:04:15.891901+00:00",
-              "usage": {
-                "cached_input_tokens": 19712,
-                "input_tokens": 27519,
-                "output_tokens": 125,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "84fc864b-81a9-4a20-9084-ef3c5ce5d54f",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 3,
-                "role": "judge",
-                "run_id": "a7ebd0bd-50b2-4d8e-979c-be01da781aa2"
-              },
-              "settled_at": "2026-11-11T19:04:27.905542+00:00",
-              "timestamp": "2026-11-11T19:04:20.424863+00:00",
-              "usage": {
-                "cached_input_tokens": 0,
-                "input_tokens": 33728,
-                "output_tokens": 65,
-                "thinking_tokens": 144
-              }
-            }
-          ],
-          "case_id": "stock_daily_limit_current_execution",
-          "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-          "judge_model": "chatgpt/gpt-6-luna",
-          "judge_pass": true,
-          "machine_pass": true,
-          "native_evidence_digest": "dee529704b9d43435cf0bf70ac8d1eae79a4a9205a14d43ff14a2b2c0415bf08",
-          "repetition": 3,
-          "run_id": "a7ebd0bd-50b2-4d8e-979c-be01da781aa2",
-          "started_at": "2026-11-11T19:03:41.827301Z",
-          "status": "pass",
-          "timestamp": "2026-11-11T19:04:27.908231Z"
-        },
-        {
-          "acting_model": "chatgpt/gpt-6-luna",
-          "calls": [
-            {
-              "id": "3a787b94-bd6b-4465-a792-78b1063e0a57",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 4,
-                "role": "acting",
-                "run_id": "fd85ea5d-7918-4644-a894-689584e79d84"
-              },
-              "settled_at": "2026-11-11T19:03:51.277103+00:00",
-              "timestamp": "2026-11-11T19:03:47.351761+00:00",
-              "usage": {
-                "cached_input_tokens": 19712,
-                "input_tokens": 20686,
-                "output_tokens": 42,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "2194c08e-916f-486a-8369-bf067bcf90ad",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 4,
-                "role": "acting",
-                "run_id": "fd85ea5d-7918-4644-a894-689584e79d84"
-              },
-              "settled_at": "2026-11-11T19:03:56.574497+00:00",
-              "timestamp": "2026-11-11T19:03:51.303005+00:00",
-              "usage": {
-                "cached_input_tokens": 19712,
-                "input_tokens": 23698,
-                "output_tokens": 171,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "1ed31a4b-fbc6-41de-bf32-c7172fbc19bd",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 4,
-                "role": "acting",
-                "run_id": "fd85ea5d-7918-4644-a894-689584e79d84"
-              },
-              "settled_at": "2026-11-11T19:04:04.796601+00:00",
-              "timestamp": "2026-11-11T19:03:56.606750+00:00",
-              "usage": {
-                "cached_input_tokens": 0,
-                "input_tokens": 25023,
-                "output_tokens": 227,
-                "thinking_tokens": 76
-              }
-            },
-            {
-              "id": "559e7722-7806-49d2-9628-202b1f06807a",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 4,
-                "role": "acting",
-                "run_id": "fd85ea5d-7918-4644-a894-689584e79d84"
-              },
-              "settled_at": "2026-11-11T19:04:09.194236+00:00",
-              "timestamp": "2026-11-11T19:04:04.829349+00:00",
-              "usage": {
-                "cached_input_tokens": 19712,
-                "input_tokens": 25930,
-                "output_tokens": 130,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "032ab070-2c12-4399-9d4d-9b94f0508c94",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 4,
-                "role": "acting",
-                "run_id": "fd85ea5d-7918-4644-a894-689584e79d84"
-              },
-              "settled_at": "2026-11-11T19:04:13.180528+00:00",
-              "timestamp": "2026-11-11T19:04:09.216584+00:00",
-              "usage": {
-                "cached_input_tokens": 19712,
-                "input_tokens": 27556,
+                "input_tokens": 26807,
                 "output_tokens": 104,
                 "thinking_tokens": 0
               }
             },
             {
-              "id": "600342bd-5a36-4154-a0a4-d121b7f2bc14",
+              "id": "55900726-c787-473f-90d4-d552b13e611e",
               "kind": "settle",
               "model": "chatgpt/gpt-6-luna",
               "nano_usd": 0,
               "reserved_nano_usd": 0,
               "scope": {
                 "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 4,
+                "fingerprint": "e2c5a5921ad74d4a215093e3b25f4f06ec8d572262fdc090a2c7fb5f94c4a1b7",
+                "repetition": 1,
                 "role": "judge",
-                "run_id": "fd85ea5d-7918-4644-a894-689584e79d84"
+                "run_id": "b01e374e-d4af-42f6-92e8-5448bcfb4486"
               },
-              "settled_at": "2026-11-11T19:04:19.610884+00:00",
-              "timestamp": "2026-11-11T19:04:13.257101+00:00",
+              "settled_at": "2026-11-11T19:18:32.909063+00:00",
+              "timestamp": "2026-11-11T19:18:24.609962+00:00",
               "usage": {
                 "cached_input_tokens": 0,
-                "input_tokens": 33234,
-                "output_tokens": 72,
-                "thinking_tokens": 169
+                "input_tokens": 29222,
+                "output_tokens": 62,
+                "thinking_tokens": 268
               }
             }
           ],
           "case_id": "stock_daily_limit_current_execution",
-          "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+          "fingerprint": "e2c5a5921ad74d4a215093e3b25f4f06ec8d572262fdc090a2c7fb5f94c4a1b7",
           "judge_model": "chatgpt/gpt-6-luna",
           "judge_pass": true,
           "machine_pass": true,
-          "native_evidence_digest": "1f88d6fab942bab33f0055eeadf48cef5d204e82a17338ffb1708bb7a26f5a65",
-          "repetition": 4,
-          "run_id": "fd85ea5d-7918-4644-a894-689584e79d84",
-          "started_at": "2026-11-11T19:03:41.827376Z",
+          "native_evidence_digest": "d830c8b46fb2ad03d63f84d68b243768967b348136d92ecf3983dfd967d5e2ad",
+          "repetition": 1,
+          "run_id": "b01e374e-d4af-42f6-92e8-5448bcfb4486",
+          "started_at": "2026-11-11T19:17:57.525637Z",
           "status": "pass",
-          "timestamp": "2026-11-11T19:04:19.614076Z"
-        },
-        {
-          "acting_model": "chatgpt/gpt-6-luna",
-          "calls": [
-            {
-              "id": "26cf7fc5-134d-4b14-9644-90cf00d29fef",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 5,
-                "role": "acting",
-                "run_id": "480cbcf6-6ee8-46ea-9408-05dd7379c675"
-              },
-              "settled_at": "2026-11-11T19:04:33.472627+00:00",
-              "timestamp": "2026-11-11T19:04:30.861812+00:00",
-              "usage": {
-                "cached_input_tokens": 14976,
-                "input_tokens": 21911,
-                "output_tokens": 42,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "da641b70-9613-4aeb-a69f-abea9c091002",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 5,
-                "role": "acting",
-                "run_id": "480cbcf6-6ee8-46ea-9408-05dd7379c675"
-              },
-              "settled_at": "2026-11-11T19:04:40.050598+00:00",
-              "timestamp": "2026-11-11T19:04:33.485881+00:00",
-              "usage": {
-                "cached_input_tokens": 14976,
-                "input_tokens": 24923,
-                "output_tokens": 195,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "ec12644f-724c-4f76-9de6-25779c160635",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 5,
-                "role": "acting",
-                "run_id": "480cbcf6-6ee8-46ea-9408-05dd7379c675"
-              },
-              "settled_at": "2026-11-11T19:04:47.338635+00:00",
-              "timestamp": "2026-11-11T19:04:40.085711+00:00",
-              "usage": {
-                "cached_input_tokens": 14976,
-                "input_tokens": 25920,
-                "output_tokens": 209,
-                "thinking_tokens": 61
-              }
-            },
-            {
-              "id": "b9fa1fd4-946f-4ec5-8327-4915bb6dfba3",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 5,
-                "role": "acting",
-                "run_id": "480cbcf6-6ee8-46ea-9408-05dd7379c675"
-              },
-              "settled_at": "2026-11-11T19:04:52.064561+00:00",
-              "timestamp": "2026-11-11T19:04:47.443182+00:00",
-              "usage": {
-                "cached_input_tokens": 0,
-                "input_tokens": 26768,
-                "output_tokens": 134,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "2672cceb-6d0b-469c-93d6-8d3e60940a7b",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 5,
-                "role": "acting",
-                "run_id": "480cbcf6-6ee8-46ea-9408-05dd7379c675"
-              },
-              "settled_at": "2026-11-11T19:04:56.063060+00:00",
-              "timestamp": "2026-11-11T19:04:52.087435+00:00",
-              "usage": {
-                "cached_input_tokens": 14976,
-                "input_tokens": 28344,
-                "output_tokens": 108,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "b5048b73-ffb9-4d52-9e5d-6a06af1c7cea",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_daily_limit_current_execution",
-                "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-                "repetition": 5,
-                "role": "judge",
-                "run_id": "480cbcf6-6ee8-46ea-9408-05dd7379c675"
-              },
-              "settled_at": "2026-11-11T19:05:02.245174+00:00",
-              "timestamp": "2026-11-11T19:04:56.126837+00:00",
-              "usage": {
-                "cached_input_tokens": 0,
-                "input_tokens": 32566,
-                "output_tokens": 64,
-                "thinking_tokens": 170
-              }
-            }
-          ],
-          "case_id": "stock_daily_limit_current_execution",
-          "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
-          "judge_model": "chatgpt/gpt-6-luna",
-          "judge_pass": true,
-          "machine_pass": true,
-          "native_evidence_digest": "b01477f0bb5edf18824c164525d0f954527a12106eac642a750ea52096a9ca21",
-          "repetition": 5,
-          "run_id": "480cbcf6-6ee8-46ea-9408-05dd7379c675",
-          "started_at": "2026-11-11T19:04:27.911544Z",
-          "status": "pass",
-          "timestamp": "2026-11-11T19:05:02.248231Z"
+          "timestamp": "2026-11-11T19:18:32.912334Z"
         }
       ]
     },
     "stock_price_before_order": {
-      "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+      "fingerprint": "a5e706fb73c6ac559c4fff1bebaa09b17480d5d3e1ce65e69e232b09ca66b718",
       "repetitions": [
         {
           "acting_model": "chatgpt/gpt-6-luna",
           "calls": [
             {
-              "id": "e06cbe52-086a-4168-bd63-990b8209dfe7",
+              "id": "0397acad-1be9-48b4-b3f0-c2a9ceb08d39",
               "kind": "settle",
               "model": "chatgpt/gpt-6-luna",
               "nano_usd": 0,
               "reserved_nano_usd": 0,
               "scope": {
                 "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                "fingerprint": "a5e706fb73c6ac559c4fff1bebaa09b17480d5d3e1ce65e69e232b09ca66b718",
                 "repetition": 1,
                 "role": "acting",
-                "run_id": "730a61a7-21d9-4e5a-b88c-390b3b02c328"
+                "run_id": "3ecbb7b1-7e0c-4842-8d94-6e1deaeee45c"
               },
-              "settled_at": "2026-11-11T19:04:33.804460+00:00",
-              "timestamp": "2026-11-11T19:04:30.724055+00:00",
+              "settled_at": "2026-11-11T19:18:06.173884+00:00",
+              "timestamp": "2026-11-11T19:18:01.709103+00:00",
               "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 21896,
-                "output_tokens": 41,
-                "thinking_tokens": 0
+                "cached_input_tokens": 13824,
+                "input_tokens": 20655,
+                "output_tokens": 45,
+                "thinking_tokens": 64
               }
             },
             {
-              "id": "f5535c83-f877-4967-822a-94a453b3df6b",
+              "id": "3d741ea2-8f79-4670-9046-c46bd2f40eb5",
               "kind": "settle",
               "model": "chatgpt/gpt-6-luna",
               "nano_usd": 0,
               "reserved_nano_usd": 0,
               "scope": {
                 "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                "fingerprint": "a5e706fb73c6ac559c4fff1bebaa09b17480d5d3e1ce65e69e232b09ca66b718",
                 "repetition": 1,
                 "role": "acting",
-                "run_id": "730a61a7-21d9-4e5a-b88c-390b3b02c328"
+                "run_id": "3ecbb7b1-7e0c-4842-8d94-6e1deaeee45c"
               },
-              "settled_at": "2026-11-11T19:04:39.737177+00:00",
-              "timestamp": "2026-11-11T19:04:33.815833+00:00",
+              "settled_at": "2026-11-11T19:18:12.770915+00:00",
+              "timestamp": "2026-11-11T19:18:06.185310+00:00",
               "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 24907,
-                "output_tokens": 198,
-                "thinking_tokens": 0
+                "cached_input_tokens": 13824,
+                "input_tokens": 23734,
+                "output_tokens": 125,
+                "thinking_tokens": 69
               }
             },
             {
-              "id": "8b8819a0-2c03-437a-a578-a49dad897264",
+              "id": "4d8afa89-ec8b-45c0-8c2a-5a4df42970ca",
               "kind": "settle",
               "model": "chatgpt/gpt-6-luna",
               "nano_usd": 0,
               "reserved_nano_usd": 0,
               "scope": {
                 "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                "fingerprint": "a5e706fb73c6ac559c4fff1bebaa09b17480d5d3e1ce65e69e232b09ca66b718",
                 "repetition": 1,
                 "role": "acting",
-                "run_id": "730a61a7-21d9-4e5a-b88c-390b3b02c328"
+                "run_id": "3ecbb7b1-7e0c-4842-8d94-6e1deaeee45c"
               },
-              "settled_at": "2026-11-11T19:04:44.359146+00:00",
-              "timestamp": "2026-11-11T19:04:39.773845+00:00",
+              "settled_at": "2026-11-11T19:18:21.110527+00:00",
+              "timestamp": "2026-11-11T19:18:12.800609+00:00",
               "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 25859,
-                "output_tokens": 109,
-                "thinking_tokens": 0
+                "cached_input_tokens": 19712,
+                "input_tokens": 24377,
+                "output_tokens": 229,
+                "thinking_tokens": 127
               }
             },
             {
-              "id": "24639c77-c02c-439f-9f6d-2390148a77e5",
+              "id": "c770973e-1f81-40b1-8f77-375a6c5fcd3c",
               "kind": "settle",
               "model": "chatgpt/gpt-6-luna",
               "nano_usd": 0,
               "reserved_nano_usd": 0,
               "scope": {
                 "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                "fingerprint": "a5e706fb73c6ac559c4fff1bebaa09b17480d5d3e1ce65e69e232b09ca66b718",
                 "repetition": 1,
                 "role": "acting",
-                "run_id": "730a61a7-21d9-4e5a-b88c-390b3b02c328"
+                "run_id": "3ecbb7b1-7e0c-4842-8d94-6e1deaeee45c"
               },
-              "settled_at": "2026-11-11T19:04:50.741252+00:00",
-              "timestamp": "2026-11-11T19:04:44.385368+00:00",
+              "settled_at": "2026-11-11T19:18:28.429770+00:00",
+              "timestamp": "2026-11-11T19:18:21.131558+00:00",
               "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 26293,
+                "cached_input_tokens": 19712,
+                "input_tokens": 25073,
+                "output_tokens": 209,
+                "thinking_tokens": 56
+              }
+            },
+            {
+              "id": "d0d884ca-2e90-4f14-a84a-6e0303510dc2",
+              "kind": "settle",
+              "model": "chatgpt/gpt-6-luna",
+              "nano_usd": 0,
+              "reserved_nano_usd": 0,
+              "scope": {
+                "case_id": "stock_price_before_order",
+                "fingerprint": "a5e706fb73c6ac559c4fff1bebaa09b17480d5d3e1ce65e69e232b09ca66b718",
+                "repetition": 1,
+                "role": "acting",
+                "run_id": "3ecbb7b1-7e0c-4842-8d94-6e1deaeee45c"
+              },
+              "settled_at": "2026-11-11T19:18:35.520177+00:00",
+              "timestamp": "2026-11-11T19:18:28.455576+00:00",
+              "usage": {
+                "cached_input_tokens": 13824,
+                "input_tokens": 25533,
                 "output_tokens": 65,
-                "thinking_tokens": 173
+                "thinking_tokens": 161
               }
             },
             {
-              "id": "34ea5f40-f475-426b-89fe-42eb8bae6400",
+              "id": "c3d54aac-be04-4c57-82fa-e851aae8eb25",
               "kind": "settle",
               "model": "chatgpt/gpt-6-luna",
               "nano_usd": 0,
               "reserved_nano_usd": 0,
               "scope": {
                 "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                "fingerprint": "a5e706fb73c6ac559c4fff1bebaa09b17480d5d3e1ce65e69e232b09ca66b718",
                 "repetition": 1,
                 "role": "acting",
-                "run_id": "730a61a7-21d9-4e5a-b88c-390b3b02c328"
+                "run_id": "3ecbb7b1-7e0c-4842-8d94-6e1deaeee45c"
               },
-              "settled_at": "2026-11-11T19:04:58.797219+00:00",
-              "timestamp": "2026-11-11T19:04:50.759599+00:00",
+              "settled_at": "2026-11-11T19:18:44.289531+00:00",
+              "timestamp": "2026-11-11T19:18:35.533014+00:00",
               "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 26634,
-                "output_tokens": 288,
-                "thinking_tokens": 23
+                "cached_input_tokens": 19712,
+                "input_tokens": 25862,
+                "output_tokens": 325,
+                "thinking_tokens": 51
               }
             },
             {
-              "id": "7b3346cc-0d29-4256-afeb-f2acd4e36a88",
+              "id": "f48ce1a2-d675-4b8f-9048-cbb5545a14d7",
               "kind": "settle",
               "model": "chatgpt/gpt-6-luna",
               "nano_usd": 0,
               "reserved_nano_usd": 0,
               "scope": {
                 "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                "fingerprint": "a5e706fb73c6ac559c4fff1bebaa09b17480d5d3e1ce65e69e232b09ca66b718",
                 "repetition": 1,
                 "role": "acting",
-                "run_id": "730a61a7-21d9-4e5a-b88c-390b3b02c328"
+                "run_id": "3ecbb7b1-7e0c-4842-8d94-6e1deaeee45c"
               },
-              "settled_at": "2026-11-11T19:05:04.330874+00:00",
-              "timestamp": "2026-11-11T19:04:58.832773+00:00",
+              "settled_at": "2026-11-11T19:18:49.236018+00:00",
+              "timestamp": "2026-11-11T19:18:44.334416+00:00",
               "usage": {
-                "cached_input_tokens": 25728,
-                "input_tokens": 27658,
-                "output_tokens": 136,
+                "cached_input_tokens": 19712,
+                "input_tokens": 26985,
+                "output_tokens": 138,
+                "thinking_tokens": 25
+              }
+            },
+            {
+              "id": "f9143e55-982b-4434-9b95-9bd3fd8a3a3f",
+              "kind": "settle",
+              "model": "chatgpt/gpt-6-luna",
+              "nano_usd": 0,
+              "reserved_nano_usd": 0,
+              "scope": {
+                "case_id": "stock_price_before_order",
+                "fingerprint": "a5e706fb73c6ac559c4fff1bebaa09b17480d5d3e1ce65e69e232b09ca66b718",
+                "repetition": 1,
+                "role": "acting",
+                "run_id": "3ecbb7b1-7e0c-4842-8d94-6e1deaeee45c"
+              },
+              "settled_at": "2026-11-11T19:18:54.114997+00:00",
+              "timestamp": "2026-11-11T19:18:49.267161+00:00",
+              "usage": {
+                "cached_input_tokens": 19712,
+                "input_tokens": 28931,
+                "output_tokens": 151,
                 "thinking_tokens": 0
               }
             },
             {
-              "id": "1e9e623f-42fb-43c3-978b-5c96dc5093db",
+              "id": "c5bc1ba5-f544-4f24-b060-3901b71caf04",
               "kind": "settle",
               "model": "chatgpt/gpt-6-luna",
               "nano_usd": 0,
               "reserved_nano_usd": 0,
               "scope": {
                 "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 1,
-                "role": "acting",
-                "run_id": "730a61a7-21d9-4e5a-b88c-390b3b02c328"
-              },
-              "settled_at": "2026-11-11T19:05:09.476289+00:00",
-              "timestamp": "2026-11-11T19:05:04.362340+00:00",
-              "usage": {
-                "cached_input_tokens": 0,
-                "input_tokens": 29512,
-                "output_tokens": 161,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "b6d22f70-d5cc-40c9-9581-902b8c4057de",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                "fingerprint": "a5e706fb73c6ac559c4fff1bebaa09b17480d5d3e1ce65e69e232b09ca66b718",
                 "repetition": 1,
                 "role": "judge",
-                "run_id": "730a61a7-21d9-4e5a-b88c-390b3b02c328"
+                "run_id": "3ecbb7b1-7e0c-4842-8d94-6e1deaeee45c"
               },
-              "settled_at": "2026-11-11T19:05:19.479765+00:00",
-              "timestamp": "2026-11-11T19:05:09.540374+00:00",
+              "settled_at": "2026-11-11T19:19:01.667376+00:00",
+              "timestamp": "2026-11-11T19:18:54.189206+00:00",
               "usage": {
                 "cached_input_tokens": 0,
-                "input_tokens": 38412,
-                "output_tokens": 63,
-                "thinking_tokens": 369
+                "input_tokens": 37955,
+                "output_tokens": 64,
+                "thinking_tokens": 227
               }
             }
           ],
           "case_id": "stock_price_before_order",
-          "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+          "fingerprint": "a5e706fb73c6ac559c4fff1bebaa09b17480d5d3e1ce65e69e232b09ca66b718",
           "judge_model": "chatgpt/gpt-6-luna",
           "judge_pass": true,
           "machine_pass": true,
-          "native_evidence_digest": "96d2976c33e697e23e8d7f773b6e473a7f4d42dd3a7fb8e3375fce4356cae217",
+          "native_evidence_digest": "b4985dc84e649181d4c4f8693596dea4371aac1757f5d98e0cd92341f75c2c30",
           "repetition": 1,
-          "run_id": "730a61a7-21d9-4e5a-b88c-390b3b02c328",
-          "started_at": "2026-11-11T19:04:27.912121Z",
+          "run_id": "3ecbb7b1-7e0c-4842-8d94-6e1deaeee45c",
+          "started_at": "2026-11-11T19:17:57.525942Z",
           "status": "pass",
-          "timestamp": "2026-11-11T19:05:19.482743Z"
-        },
-        {
-          "acting_model": "chatgpt/gpt-6-luna",
-          "calls": [
-            {
-              "id": "bf60407f-dc4a-41f3-8cee-025416794fc0",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 2,
-                "role": "acting",
-                "run_id": "3e78d356-6fe5-4c65-9b42-a945012c4791"
-              },
-              "settled_at": "2026-11-11T19:04:33.685842+00:00",
-              "timestamp": "2026-11-11T19:04:30.784311+00:00",
-              "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 21898,
-                "output_tokens": 42,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "27bb4f89-8c5f-4357-b305-b14af56f1129",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 2,
-                "role": "acting",
-                "run_id": "3e78d356-6fe5-4c65-9b42-a945012c4791"
-              },
-              "settled_at": "2026-11-11T19:04:41.826292+00:00",
-              "timestamp": "2026-11-11T19:04:33.697312+00:00",
-              "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 24910,
-                "output_tokens": 205,
-                "thinking_tokens": 131
-              }
-            },
-            {
-              "id": "47a0c8ed-8f39-4d82-91bf-e92cf35a60d0",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 2,
-                "role": "acting",
-                "run_id": "3e78d356-6fe5-4c65-9b42-a945012c4791"
-              },
-              "settled_at": "2026-11-11T19:04:48.297679+00:00",
-              "timestamp": "2026-11-11T19:04:41.866381+00:00",
-              "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 26050,
-                "output_tokens": 141,
-                "thinking_tokens": 65
-              }
-            },
-            {
-              "id": "e00e22cd-a43f-443d-9b57-2b5ec2fe694b",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 2,
-                "role": "acting",
-                "run_id": "3e78d356-6fe5-4c65-9b42-a945012c4791"
-              },
-              "settled_at": "2026-11-11T19:04:53.426905+00:00",
-              "timestamp": "2026-11-11T19:04:48.320898+00:00",
-              "usage": {
-                "cached_input_tokens": 0,
-                "input_tokens": 26397,
-                "output_tokens": 66,
-                "thinking_tokens": 87
-              }
-            },
-            {
-              "id": "e82dec91-e017-40b5-856c-a8f6f508d98e",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 2,
-                "role": "acting",
-                "run_id": "3e78d356-6fe5-4c65-9b42-a945012c4791"
-              },
-              "settled_at": "2026-11-11T19:05:02.111311+00:00",
-              "timestamp": "2026-11-11T19:04:53.442606+00:00",
-              "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 26653,
-                "output_tokens": 343,
-                "thinking_tokens": 26
-              }
-            },
-            {
-              "id": "ac593a65-62a0-41e4-a2a0-b793a50659a1",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 2,
-                "role": "acting",
-                "run_id": "3e78d356-6fe5-4c65-9b42-a945012c4791"
-              },
-              "settled_at": "2026-11-11T19:05:07.666872+00:00",
-              "timestamp": "2026-11-11T19:05:02.147102+00:00",
-              "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 27791,
-                "output_tokens": 136,
-                "thinking_tokens": 18
-              }
-            },
-            {
-              "id": "6c56badc-f9c5-4fb9-914f-c9c2673e7a52",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 2,
-                "role": "acting",
-                "run_id": "3e78d356-6fe5-4c65-9b42-a945012c4791"
-              },
-              "settled_at": "2026-11-11T19:05:14.270825+00:00",
-              "timestamp": "2026-11-11T19:05:07.690802+00:00",
-              "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 29774,
-                "output_tokens": 178,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "d28fa587-2b63-4136-bde5-f5059a9927bf",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 2,
-                "role": "judge",
-                "run_id": "3e78d356-6fe5-4c65-9b42-a945012c4791"
-              },
-              "settled_at": "2026-11-11T19:05:21.865247+00:00",
-              "timestamp": "2026-11-11T19:05:14.351809+00:00",
-              "usage": {
-                "cached_input_tokens": 0,
-                "input_tokens": 40807,
-                "output_tokens": 63,
-                "thinking_tokens": 175
-              }
-            }
-          ],
-          "case_id": "stock_price_before_order",
-          "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-          "judge_model": "chatgpt/gpt-6-luna",
-          "judge_pass": true,
-          "machine_pass": true,
-          "native_evidence_digest": "7b48599ab3e131bb9cdd92cf46883f110d375cf95e9de16deb7f561ba2089e19",
-          "repetition": 2,
-          "run_id": "3e78d356-6fe5-4c65-9b42-a945012c4791",
-          "started_at": "2026-11-11T19:04:27.912247Z",
-          "status": "pass",
-          "timestamp": "2026-11-11T19:05:21.868012Z"
-        },
-        {
-          "acting_model": "chatgpt/gpt-6-luna",
-          "calls": [
-            {
-              "id": "a3dbdc62-91bb-4431-9fb7-a447f01a1bee",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 3,
-                "role": "acting",
-                "run_id": "3d447f8e-b5a7-451b-af4a-4c52c9a171e4"
-              },
-              "settled_at": "2026-11-11T19:04:33.585385+00:00",
-              "timestamp": "2026-11-11T19:04:30.646633+00:00",
-              "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 21893,
-                "output_tokens": 40,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "5193550f-743d-48c1-8ce3-305b26135606",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 3,
-                "role": "acting",
-                "run_id": "3d447f8e-b5a7-451b-af4a-4c52c9a171e4"
-              },
-              "settled_at": "2026-11-11T19:04:40.671894+00:00",
-              "timestamp": "2026-11-11T19:04:33.596193+00:00",
-              "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 24903,
-                "output_tokens": 197,
-                "thinking_tokens": 95
-              }
-            },
-            {
-              "id": "b231ee52-8ab2-4325-be72-e575ae999c68",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 3,
-                "role": "acting",
-                "run_id": "3d447f8e-b5a7-451b-af4a-4c52c9a171e4"
-              },
-              "settled_at": "2026-11-11T19:04:45.997051+00:00",
-              "timestamp": "2026-11-11T19:04:40.701379+00:00",
-              "usage": {
-                "cached_input_tokens": 0,
-                "input_tokens": 25999,
-                "output_tokens": 145,
-                "thinking_tokens": 38
-              }
-            },
-            {
-              "id": "286890f2-5999-40c2-83c4-acda215f473f",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 3,
-                "role": "acting",
-                "run_id": "3d447f8e-b5a7-451b-af4a-4c52c9a171e4"
-              },
-              "settled_at": "2026-11-11T19:04:51.759042+00:00",
-              "timestamp": "2026-11-11T19:04:46.019731+00:00",
-              "usage": {
-                "cached_input_tokens": 0,
-                "input_tokens": 26325,
-                "output_tokens": 65,
-                "thinking_tokens": 96
-              }
-            },
-            {
-              "id": "9906e0c3-eb8a-4103-ba2e-ae0a58baceaf",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 3,
-                "role": "acting",
-                "run_id": "3d447f8e-b5a7-451b-af4a-4c52c9a171e4"
-              },
-              "settled_at": "2026-11-11T19:05:00.362295+00:00",
-              "timestamp": "2026-11-11T19:04:51.776564+00:00",
-              "usage": {
-                "cached_input_tokens": 14976,
-                "input_tokens": 26589,
-                "output_tokens": 321,
-                "thinking_tokens": 45
-              }
-            },
-            {
-              "id": "c0c33b10-e544-4264-8521-7495bde1b280",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 3,
-                "role": "acting",
-                "run_id": "3d447f8e-b5a7-451b-af4a-4c52c9a171e4"
-              },
-              "settled_at": "2026-11-11T19:05:05.181984+00:00",
-              "timestamp": "2026-11-11T19:05:00.399450+00:00",
-              "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 27699,
-                "output_tokens": 130,
-                "thinking_tokens": 23
-              }
-            },
-            {
-              "id": "66852de1-a292-48c9-901b-e9f3b95a27a1",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 3,
-                "role": "acting",
-                "run_id": "3d447f8e-b5a7-451b-af4a-4c52c9a171e4"
-              },
-              "settled_at": "2026-11-11T19:05:11.053422+00:00",
-              "timestamp": "2026-11-11T19:05:05.206717+00:00",
-              "usage": {
-                "cached_input_tokens": 26240,
-                "input_tokens": 29628,
-                "output_tokens": 187,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "b22ce132-3453-4300-830b-cd3702c15b78",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 3,
-                "role": "judge",
-                "run_id": "3d447f8e-b5a7-451b-af4a-4c52c9a171e4"
-              },
-              "settled_at": "2026-11-11T19:05:22.038112+00:00",
-              "timestamp": "2026-11-11T19:05:11.117803+00:00",
-              "usage": {
-                "cached_input_tokens": 0,
-                "input_tokens": 39369,
-                "output_tokens": 57,
-                "thinking_tokens": 415
-              }
-            }
-          ],
-          "case_id": "stock_price_before_order",
-          "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-          "judge_model": "chatgpt/gpt-6-luna",
-          "judge_pass": true,
-          "machine_pass": true,
-          "native_evidence_digest": "5b9183329e7c707919de21983fc3cdf781e73de8385c2d16807d602f060987d3",
-          "repetition": 3,
-          "run_id": "3d447f8e-b5a7-451b-af4a-4c52c9a171e4",
-          "started_at": "2026-11-11T19:04:27.912323Z",
-          "status": "pass",
-          "timestamp": "2026-11-11T19:05:22.040974Z"
-        },
-        {
-          "acting_model": "chatgpt/gpt-6-luna",
-          "calls": [
-            {
-              "id": "9ea894f5-1daa-481b-9655-3e72b0ced77d",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 4,
-                "role": "acting",
-                "run_id": "cdebfcc6-715e-43b7-88e8-04aad9eb8d42"
-              },
-              "settled_at": "2026-11-11T19:05:26.183414+00:00",
-              "timestamp": "2026-11-11T19:05:23.383207+00:00",
-              "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 21906,
-                "output_tokens": 44,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "a1b20ad9-ab4d-43c7-9a0a-2a288d2b3123",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 4,
-                "role": "acting",
-                "run_id": "cdebfcc6-715e-43b7-88e8-04aad9eb8d42"
-              },
-              "settled_at": "2026-11-11T19:05:32.387968+00:00",
-              "timestamp": "2026-11-11T19:05:26.194036+00:00",
-              "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 24920,
-                "output_tokens": 215,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "cfe9cb63-72c3-4f3d-a30f-0c05512af511",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 4,
-                "role": "acting",
-                "run_id": "cdebfcc6-715e-43b7-88e8-04aad9eb8d42"
-              },
-              "settled_at": "2026-11-11T19:05:38.619005+00:00",
-              "timestamp": "2026-11-11T19:05:32.432154+00:00",
-              "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 25940,
-                "output_tokens": 167,
-                "thinking_tokens": 58
-              }
-            },
-            {
-              "id": "6f56d787-f6ae-42e0-aef8-68db84d3b8c1",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 4,
-                "role": "acting",
-                "run_id": "cdebfcc6-715e-43b7-88e8-04aad9eb8d42"
-              },
-              "settled_at": "2026-11-11T19:05:43.120511+00:00",
-              "timestamp": "2026-11-11T19:05:38.636200+00:00",
-              "usage": {
-                "cached_input_tokens": 14976,
-                "input_tokens": 26324,
-                "output_tokens": 61,
-                "thinking_tokens": 55
-              }
-            },
-            {
-              "id": "25feb343-4ca3-4780-84c7-7c6c4c08e4b4",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 4,
-                "role": "acting",
-                "run_id": "cdebfcc6-715e-43b7-88e8-04aad9eb8d42"
-              },
-              "settled_at": "2026-11-11T19:05:51.271890+00:00",
-              "timestamp": "2026-11-11T19:05:43.135483+00:00",
-              "usage": {
-                "cached_input_tokens": 14976,
-                "input_tokens": 26543,
-                "output_tokens": 246,
-                "thinking_tokens": 21
-              }
-            },
-            {
-              "id": "a4f30225-d9cb-4d2f-9a16-cfe08358ac8e",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 4,
-                "role": "acting",
-                "run_id": "cdebfcc6-715e-43b7-88e8-04aad9eb8d42"
-              },
-              "settled_at": "2026-11-11T19:05:56.342164+00:00",
-              "timestamp": "2026-11-11T19:05:51.308584+00:00",
-              "usage": {
-                "cached_input_tokens": 26368,
-                "input_tokens": 27479,
-                "output_tokens": 146,
-                "thinking_tokens": 22
-              }
-            },
-            {
-              "id": "696b19c9-e092-47cc-a6ba-90ad201fed4d",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 4,
-                "role": "acting",
-                "run_id": "cdebfcc6-715e-43b7-88e8-04aad9eb8d42"
-              },
-              "settled_at": "2026-11-11T19:06:01.738745+00:00",
-              "timestamp": "2026-11-11T19:05:56.366169+00:00",
-              "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 29275,
-                "output_tokens": 160,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "ae70ee85-50c5-4528-80d2-17610f58e59c",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 4,
-                "role": "judge",
-                "run_id": "cdebfcc6-715e-43b7-88e8-04aad9eb8d42"
-              },
-              "settled_at": "2026-11-11T19:06:07.912637+00:00",
-              "timestamp": "2026-11-11T19:06:01.806181+00:00",
-              "usage": {
-                "cached_input_tokens": 0,
-                "input_tokens": 38986,
-                "output_tokens": 55,
-                "thinking_tokens": 130
-              }
-            }
-          ],
-          "case_id": "stock_price_before_order",
-          "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-          "judge_model": "chatgpt/gpt-6-luna",
-          "judge_pass": true,
-          "machine_pass": true,
-          "native_evidence_digest": "6c9f1dc16845c642298d6d873c1c894b89ab2cb15aa50e3b01338588c4a83111",
-          "repetition": 4,
-          "run_id": "cdebfcc6-715e-43b7-88e8-04aad9eb8d42",
-          "started_at": "2026-11-11T19:05:22.044772Z",
-          "status": "pass",
-          "timestamp": "2026-11-11T19:06:07.916607Z"
-        },
-        {
-          "acting_model": "chatgpt/gpt-6-luna",
-          "calls": [
-            {
-              "id": "500b5bcc-6ff6-468e-8751-d58c911ddf5d",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 5,
-                "role": "acting",
-                "run_id": "b2d47c7e-253d-45ad-8e2b-80f215eb8361"
-              },
-              "settled_at": "2026-11-11T19:05:26.386502+00:00",
-              "timestamp": "2026-11-11T19:05:23.431845+00:00",
-              "usage": {
-                "cached_input_tokens": 0,
-                "input_tokens": 21892,
-                "output_tokens": 44,
-                "thinking_tokens": 19
-              }
-            },
-            {
-              "id": "3df3f711-e65b-4b43-a742-772aca23d6cd",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 5,
-                "role": "acting",
-                "run_id": "b2d47c7e-253d-45ad-8e2b-80f215eb8361"
-              },
-              "settled_at": "2026-11-11T19:05:33.689036+00:00",
-              "timestamp": "2026-11-11T19:05:26.397824+00:00",
-              "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 24925,
-                "output_tokens": 122,
-                "thinking_tokens": 159
-              }
-            },
-            {
-              "id": "986f20ed-1484-47f5-b092-6c2432bf964b",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 5,
-                "role": "acting",
-                "run_id": "b2d47c7e-253d-45ad-8e2b-80f215eb8361"
-              },
-              "settled_at": "2026-11-11T19:05:40.517854+00:00",
-              "timestamp": "2026-11-11T19:05:33.721701+00:00",
-              "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 25656,
-                "output_tokens": 142,
-                "thinking_tokens": 80
-              }
-            },
-            {
-              "id": "8244fa7a-58cc-46e4-a18d-62f4af6648df",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 5,
-                "role": "acting",
-                "run_id": "b2d47c7e-253d-45ad-8e2b-80f215eb8361"
-              },
-              "settled_at": "2026-11-11T19:05:47.605431+00:00",
-              "timestamp": "2026-11-11T19:05:40.535108+00:00",
-              "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 26201,
-                "output_tokens": 66,
-                "thinking_tokens": 201
-              }
-            },
-            {
-              "id": "a44e1be6-413a-40c2-9e6d-66778d809dd7",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 5,
-                "role": "acting",
-                "run_id": "b2d47c7e-253d-45ad-8e2b-80f215eb8361"
-              },
-              "settled_at": "2026-11-11T19:05:56.392371+00:00",
-              "timestamp": "2026-11-11T19:05:47.616926+00:00",
-              "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 26571,
-                "output_tokens": 308,
-                "thinking_tokens": 68
-              }
-            },
-            {
-              "id": "a49e460f-4253-4a6e-b1a8-498773455272",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 5,
-                "role": "acting",
-                "run_id": "b2d47c7e-253d-45ad-8e2b-80f215eb8361"
-              },
-              "settled_at": "2026-11-11T19:06:02.517906+00:00",
-              "timestamp": "2026-11-11T19:05:56.430356+00:00",
-              "usage": {
-                "cached_input_tokens": 0,
-                "input_tokens": 27652,
-                "output_tokens": 156,
-                "thinking_tokens": 21
-              }
-            },
-            {
-              "id": "15027ac6-3f9c-4c83-b2db-b292e1ad9722",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 5,
-                "role": "acting",
-                "run_id": "b2d47c7e-253d-45ad-8e2b-80f215eb8361"
-              },
-              "settled_at": "2026-11-11T19:06:07.710483+00:00",
-              "timestamp": "2026-11-11T19:06:02.538433+00:00",
-              "usage": {
-                "cached_input_tokens": 20992,
-                "input_tokens": 29534,
-                "output_tokens": 167,
-                "thinking_tokens": 0
-              }
-            },
-            {
-              "id": "0c8d19ae-f70a-42b0-a78a-acdff88c06eb",
-              "kind": "settle",
-              "model": "chatgpt/gpt-6-luna",
-              "nano_usd": 0,
-              "reserved_nano_usd": 0,
-              "scope": {
-                "case_id": "stock_price_before_order",
-                "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-                "repetition": 5,
-                "role": "judge",
-                "run_id": "b2d47c7e-253d-45ad-8e2b-80f215eb8361"
-              },
-              "settled_at": "2026-11-11T19:06:14.289872+00:00",
-              "timestamp": "2026-11-11T19:06:07.776337+00:00",
-              "usage": {
-                "cached_input_tokens": 0,
-                "input_tokens": 34519,
-                "output_tokens": 65,
-                "thinking_tokens": 159
-              }
-            }
-          ],
-          "case_id": "stock_price_before_order",
-          "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
-          "judge_model": "chatgpt/gpt-6-luna",
-          "judge_pass": true,
-          "machine_pass": true,
-          "native_evidence_digest": "372f72eb71fa88e8e2fb6bf36a43cb5962071c61a3b4b20ea59f957d8f47720c",
-          "repetition": 5,
-          "run_id": "b2d47c7e-253d-45ad-8e2b-80f215eb8361",
-          "started_at": "2026-11-11T19:05:22.045288Z",
-          "status": "pass",
-          "timestamp": "2026-11-11T19:06:14.294450Z"
+          "timestamp": "2026-11-11T19:19:01.671461Z"
         }
       ]
     }
   },
+  "establishment": {
+    "cases": {
+      "stock_daily_limit_current_execution": {
+        "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+        "repetitions": [
+          {
+            "acting_model": "chatgpt/gpt-6-luna",
+            "calls": [
+              {
+                "id": "69f6f7c1-07da-4276-bd67-242907a8d93b",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 1,
+                  "role": "acting",
+                  "run_id": "e272c501-57e1-4577-86ed-bb8921a7bf0a"
+                },
+                "settled_at": "2026-11-11T19:03:50.422312+00:00",
+                "timestamp": "2026-11-11T19:03:47.370567+00:00",
+                "usage": {
+                  "cached_input_tokens": 19712,
+                  "input_tokens": 20691,
+                  "output_tokens": 42,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "2970744b-0355-49fa-ab01-329fc7481822",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 1,
+                  "role": "acting",
+                  "run_id": "e272c501-57e1-4577-86ed-bb8921a7bf0a"
+                },
+                "settled_at": "2026-11-11T19:03:56.037868+00:00",
+                "timestamp": "2026-11-11T19:03:50.440440+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 23703,
+                  "output_tokens": 204,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "69c58e2c-d612-4728-a837-a3eeab0423e9",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 1,
+                  "role": "acting",
+                  "run_id": "e272c501-57e1-4577-86ed-bb8921a7bf0a"
+                },
+                "settled_at": "2026-11-11T19:04:04.183870+00:00",
+                "timestamp": "2026-11-11T19:03:56.090328+00:00",
+                "usage": {
+                  "cached_input_tokens": 13824,
+                  "input_tokens": 24671,
+                  "output_tokens": 248,
+                  "thinking_tokens": 37
+                }
+              },
+              {
+                "id": "12c73f18-184f-4d13-b31e-64c8e9c75f52",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 1,
+                  "role": "acting",
+                  "run_id": "e272c501-57e1-4577-86ed-bb8921a7bf0a"
+                },
+                "settled_at": "2026-11-11T19:04:08.962043+00:00",
+                "timestamp": "2026-11-11T19:04:04.267335+00:00",
+                "usage": {
+                  "cached_input_tokens": 19712,
+                  "input_tokens": 25644,
+                  "output_tokens": 136,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "f44f033d-528a-47a3-bc7b-28fe66db2765",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 1,
+                  "role": "acting",
+                  "run_id": "e272c501-57e1-4577-86ed-bb8921a7bf0a"
+                },
+                "settled_at": "2026-11-11T19:04:13.413873+00:00",
+                "timestamp": "2026-11-11T19:04:08.989550+00:00",
+                "usage": {
+                  "cached_input_tokens": 19712,
+                  "input_tokens": 27446,
+                  "output_tokens": 120,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "a4936e5d-8b1b-44fc-b85c-3f30cd6ffb8b",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 1,
+                  "role": "judge",
+                  "run_id": "e272c501-57e1-4577-86ed-bb8921a7bf0a"
+                },
+                "settled_at": "2026-11-11T19:04:20.664835+00:00",
+                "timestamp": "2026-11-11T19:04:13.466375+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 34186,
+                  "output_tokens": 69,
+                  "thinking_tokens": 223
+                }
+              }
+            ],
+            "case_id": "stock_daily_limit_current_execution",
+            "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+            "judge_model": "chatgpt/gpt-6-luna",
+            "judge_pass": true,
+            "machine_pass": true,
+            "native_evidence_digest": "d444f582420155bd23178567e41356d2dbde568ee45700ffc4b21358f27d2e05",
+            "repetition": 1,
+            "run_id": "e272c501-57e1-4577-86ed-bb8921a7bf0a",
+            "started_at": "2026-11-11T19:03:41.827015Z",
+            "status": "pass",
+            "timestamp": "2026-11-11T19:04:20.667636Z"
+          },
+          {
+            "acting_model": "chatgpt/gpt-6-luna",
+            "calls": [
+              {
+                "id": "a6b30537-5855-41c8-ba54-44703f5cedb9",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 2,
+                  "role": "acting",
+                  "run_id": "78115c5a-e998-4c52-b3e0-017d8efb5911"
+                },
+                "settled_at": "2026-11-11T19:03:51.279270+00:00",
+                "timestamp": "2026-11-11T19:03:47.371825+00:00",
+                "usage": {
+                  "cached_input_tokens": 19712,
+                  "input_tokens": 20682,
+                  "output_tokens": 40,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "ca1cb195-c23a-494d-9df7-ff21d9147036",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 2,
+                  "role": "acting",
+                  "run_id": "78115c5a-e998-4c52-b3e0-017d8efb5911"
+                },
+                "settled_at": "2026-11-11T19:03:58.469318+00:00",
+                "timestamp": "2026-11-11T19:03:51.304315+00:00",
+                "usage": {
+                  "cached_input_tokens": 19712,
+                  "input_tokens": 23692,
+                  "output_tokens": 124,
+                  "thinking_tokens": 87
+                }
+              },
+              {
+                "id": "a4e25089-1fc5-44c6-b067-1f05b4c69aba",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 2,
+                  "role": "acting",
+                  "run_id": "78115c5a-e998-4c52-b3e0-017d8efb5911"
+                },
+                "settled_at": "2026-11-11T19:04:08.350260+00:00",
+                "timestamp": "2026-11-11T19:03:58.500750+00:00",
+                "usage": {
+                  "cached_input_tokens": 19712,
+                  "input_tokens": 24702,
+                  "output_tokens": 330,
+                  "thinking_tokens": 106
+                }
+              },
+              {
+                "id": "7fa47cb1-2425-4a18-a255-eeca7ff5a25e",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 2,
+                  "role": "acting",
+                  "run_id": "78115c5a-e998-4c52-b3e0-017d8efb5911"
+                },
+                "settled_at": "2026-11-11T19:04:13.805032+00:00",
+                "timestamp": "2026-11-11T19:04:08.378921+00:00",
+                "usage": {
+                  "cached_input_tokens": 19712,
+                  "input_tokens": 25845,
+                  "output_tokens": 134,
+                  "thinking_tokens": 65
+                }
+              },
+              {
+                "id": "5dcd9f80-2cfb-4222-ae28-df3205e989c0",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 2,
+                  "role": "acting",
+                  "run_id": "78115c5a-e998-4c52-b3e0-017d8efb5911"
+                },
+                "settled_at": "2026-11-11T19:04:19.212152+00:00",
+                "timestamp": "2026-11-11T19:04:13.842634+00:00",
+                "usage": {
+                  "cached_input_tokens": 19712,
+                  "input_tokens": 27744,
+                  "output_tokens": 161,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "faff4791-c184-41f7-9695-993a863548a5",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 2,
+                  "role": "judge",
+                  "run_id": "78115c5a-e998-4c52-b3e0-017d8efb5911"
+                },
+                "settled_at": "2026-11-11T19:04:27.028365+00:00",
+                "timestamp": "2026-11-11T19:04:19.279680+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 30282,
+                  "output_tokens": 69,
+                  "thinking_tokens": 229
+                }
+              }
+            ],
+            "case_id": "stock_daily_limit_current_execution",
+            "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+            "judge_model": "chatgpt/gpt-6-luna",
+            "judge_pass": true,
+            "machine_pass": true,
+            "native_evidence_digest": "0867f0ad244bac1bbe61d8cb1eea1f9b0b7f98d797b2fb6eab6a9890d47f87fb",
+            "repetition": 2,
+            "run_id": "78115c5a-e998-4c52-b3e0-017d8efb5911",
+            "started_at": "2026-11-11T19:03:41.827212Z",
+            "status": "pass",
+            "timestamp": "2026-11-11T19:04:27.031800Z"
+          },
+          {
+            "acting_model": "chatgpt/gpt-6-luna",
+            "calls": [
+              {
+                "id": "7d937973-ef4f-451e-b204-b04502f0ddeb",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 3,
+                  "role": "acting",
+                  "run_id": "a7ebd0bd-50b2-4d8e-979c-be01da781aa2"
+                },
+                "settled_at": "2026-11-11T19:03:51.273557+00:00",
+                "timestamp": "2026-11-11T19:03:47.374024+00:00",
+                "usage": {
+                  "cached_input_tokens": 19712,
+                  "input_tokens": 20680,
+                  "output_tokens": 41,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "29075da7-268e-4a47-b089-3299c1bad4c2",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 3,
+                  "role": "acting",
+                  "run_id": "a7ebd0bd-50b2-4d8e-979c-be01da781aa2"
+                },
+                "settled_at": "2026-11-11T19:04:01.604198+00:00",
+                "timestamp": "2026-11-11T19:03:51.293513+00:00",
+                "usage": {
+                  "cached_input_tokens": 19712,
+                  "input_tokens": 23691,
+                  "output_tokens": 198,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "1cd3eba2-a373-47e1-bd26-3332cb83cc39",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 3,
+                  "role": "acting",
+                  "run_id": "a7ebd0bd-50b2-4d8e-979c-be01da781aa2"
+                },
+                "settled_at": "2026-11-11T19:04:10.824456+00:00",
+                "timestamp": "2026-11-11T19:04:01.640975+00:00",
+                "usage": {
+                  "cached_input_tokens": 19712,
+                  "input_tokens": 24653,
+                  "output_tokens": 267,
+                  "thinking_tokens": 80
+                }
+              },
+              {
+                "id": "ec60e864-93e7-42b2-9f31-9c880ea1119d",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 3,
+                  "role": "acting",
+                  "run_id": "a7ebd0bd-50b2-4d8e-979c-be01da781aa2"
+                },
+                "settled_at": "2026-11-11T19:04:15.863404+00:00",
+                "timestamp": "2026-11-11T19:04:10.856979+00:00",
+                "usage": {
+                  "cached_input_tokens": 19712,
+                  "input_tokens": 25689,
+                  "output_tokens": 138,
+                  "thinking_tokens": 24
+                }
+              },
+              {
+                "id": "dfdabfb8-299e-4434-adcc-726152fc3e50",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 3,
+                  "role": "acting",
+                  "run_id": "a7ebd0bd-50b2-4d8e-979c-be01da781aa2"
+                },
+                "settled_at": "2026-11-11T19:04:20.359503+00:00",
+                "timestamp": "2026-11-11T19:04:15.891901+00:00",
+                "usage": {
+                  "cached_input_tokens": 19712,
+                  "input_tokens": 27519,
+                  "output_tokens": 125,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "84fc864b-81a9-4a20-9084-ef3c5ce5d54f",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 3,
+                  "role": "judge",
+                  "run_id": "a7ebd0bd-50b2-4d8e-979c-be01da781aa2"
+                },
+                "settled_at": "2026-11-11T19:04:27.905542+00:00",
+                "timestamp": "2026-11-11T19:04:20.424863+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 33728,
+                  "output_tokens": 65,
+                  "thinking_tokens": 144
+                }
+              }
+            ],
+            "case_id": "stock_daily_limit_current_execution",
+            "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+            "judge_model": "chatgpt/gpt-6-luna",
+            "judge_pass": true,
+            "machine_pass": true,
+            "native_evidence_digest": "dee529704b9d43435cf0bf70ac8d1eae79a4a9205a14d43ff14a2b2c0415bf08",
+            "repetition": 3,
+            "run_id": "a7ebd0bd-50b2-4d8e-979c-be01da781aa2",
+            "started_at": "2026-11-11T19:03:41.827301Z",
+            "status": "pass",
+            "timestamp": "2026-11-11T19:04:27.908231Z"
+          },
+          {
+            "acting_model": "chatgpt/gpt-6-luna",
+            "calls": [
+              {
+                "id": "3a787b94-bd6b-4465-a792-78b1063e0a57",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 4,
+                  "role": "acting",
+                  "run_id": "fd85ea5d-7918-4644-a894-689584e79d84"
+                },
+                "settled_at": "2026-11-11T19:03:51.277103+00:00",
+                "timestamp": "2026-11-11T19:03:47.351761+00:00",
+                "usage": {
+                  "cached_input_tokens": 19712,
+                  "input_tokens": 20686,
+                  "output_tokens": 42,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "2194c08e-916f-486a-8369-bf067bcf90ad",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 4,
+                  "role": "acting",
+                  "run_id": "fd85ea5d-7918-4644-a894-689584e79d84"
+                },
+                "settled_at": "2026-11-11T19:03:56.574497+00:00",
+                "timestamp": "2026-11-11T19:03:51.303005+00:00",
+                "usage": {
+                  "cached_input_tokens": 19712,
+                  "input_tokens": 23698,
+                  "output_tokens": 171,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "1ed31a4b-fbc6-41de-bf32-c7172fbc19bd",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 4,
+                  "role": "acting",
+                  "run_id": "fd85ea5d-7918-4644-a894-689584e79d84"
+                },
+                "settled_at": "2026-11-11T19:04:04.796601+00:00",
+                "timestamp": "2026-11-11T19:03:56.606750+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 25023,
+                  "output_tokens": 227,
+                  "thinking_tokens": 76
+                }
+              },
+              {
+                "id": "559e7722-7806-49d2-9628-202b1f06807a",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 4,
+                  "role": "acting",
+                  "run_id": "fd85ea5d-7918-4644-a894-689584e79d84"
+                },
+                "settled_at": "2026-11-11T19:04:09.194236+00:00",
+                "timestamp": "2026-11-11T19:04:04.829349+00:00",
+                "usage": {
+                  "cached_input_tokens": 19712,
+                  "input_tokens": 25930,
+                  "output_tokens": 130,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "032ab070-2c12-4399-9d4d-9b94f0508c94",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 4,
+                  "role": "acting",
+                  "run_id": "fd85ea5d-7918-4644-a894-689584e79d84"
+                },
+                "settled_at": "2026-11-11T19:04:13.180528+00:00",
+                "timestamp": "2026-11-11T19:04:09.216584+00:00",
+                "usage": {
+                  "cached_input_tokens": 19712,
+                  "input_tokens": 27556,
+                  "output_tokens": 104,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "600342bd-5a36-4154-a0a4-d121b7f2bc14",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 4,
+                  "role": "judge",
+                  "run_id": "fd85ea5d-7918-4644-a894-689584e79d84"
+                },
+                "settled_at": "2026-11-11T19:04:19.610884+00:00",
+                "timestamp": "2026-11-11T19:04:13.257101+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 33234,
+                  "output_tokens": 72,
+                  "thinking_tokens": 169
+                }
+              }
+            ],
+            "case_id": "stock_daily_limit_current_execution",
+            "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+            "judge_model": "chatgpt/gpt-6-luna",
+            "judge_pass": true,
+            "machine_pass": true,
+            "native_evidence_digest": "1f88d6fab942bab33f0055eeadf48cef5d204e82a17338ffb1708bb7a26f5a65",
+            "repetition": 4,
+            "run_id": "fd85ea5d-7918-4644-a894-689584e79d84",
+            "started_at": "2026-11-11T19:03:41.827376Z",
+            "status": "pass",
+            "timestamp": "2026-11-11T19:04:19.614076Z"
+          },
+          {
+            "acting_model": "chatgpt/gpt-6-luna",
+            "calls": [
+              {
+                "id": "26cf7fc5-134d-4b14-9644-90cf00d29fef",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 5,
+                  "role": "acting",
+                  "run_id": "480cbcf6-6ee8-46ea-9408-05dd7379c675"
+                },
+                "settled_at": "2026-11-11T19:04:33.472627+00:00",
+                "timestamp": "2026-11-11T19:04:30.861812+00:00",
+                "usage": {
+                  "cached_input_tokens": 14976,
+                  "input_tokens": 21911,
+                  "output_tokens": 42,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "da641b70-9613-4aeb-a69f-abea9c091002",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 5,
+                  "role": "acting",
+                  "run_id": "480cbcf6-6ee8-46ea-9408-05dd7379c675"
+                },
+                "settled_at": "2026-11-11T19:04:40.050598+00:00",
+                "timestamp": "2026-11-11T19:04:33.485881+00:00",
+                "usage": {
+                  "cached_input_tokens": 14976,
+                  "input_tokens": 24923,
+                  "output_tokens": 195,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "ec12644f-724c-4f76-9de6-25779c160635",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 5,
+                  "role": "acting",
+                  "run_id": "480cbcf6-6ee8-46ea-9408-05dd7379c675"
+                },
+                "settled_at": "2026-11-11T19:04:47.338635+00:00",
+                "timestamp": "2026-11-11T19:04:40.085711+00:00",
+                "usage": {
+                  "cached_input_tokens": 14976,
+                  "input_tokens": 25920,
+                  "output_tokens": 209,
+                  "thinking_tokens": 61
+                }
+              },
+              {
+                "id": "b9fa1fd4-946f-4ec5-8327-4915bb6dfba3",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 5,
+                  "role": "acting",
+                  "run_id": "480cbcf6-6ee8-46ea-9408-05dd7379c675"
+                },
+                "settled_at": "2026-11-11T19:04:52.064561+00:00",
+                "timestamp": "2026-11-11T19:04:47.443182+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 26768,
+                  "output_tokens": 134,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "2672cceb-6d0b-469c-93d6-8d3e60940a7b",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 5,
+                  "role": "acting",
+                  "run_id": "480cbcf6-6ee8-46ea-9408-05dd7379c675"
+                },
+                "settled_at": "2026-11-11T19:04:56.063060+00:00",
+                "timestamp": "2026-11-11T19:04:52.087435+00:00",
+                "usage": {
+                  "cached_input_tokens": 14976,
+                  "input_tokens": 28344,
+                  "output_tokens": 108,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "b5048b73-ffb9-4d52-9e5d-6a06af1c7cea",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_daily_limit_current_execution",
+                  "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+                  "repetition": 5,
+                  "role": "judge",
+                  "run_id": "480cbcf6-6ee8-46ea-9408-05dd7379c675"
+                },
+                "settled_at": "2026-11-11T19:05:02.245174+00:00",
+                "timestamp": "2026-11-11T19:04:56.126837+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 32566,
+                  "output_tokens": 64,
+                  "thinking_tokens": 170
+                }
+              }
+            ],
+            "case_id": "stock_daily_limit_current_execution",
+            "fingerprint": "1879390af03932f6c6d1519157eacc90c26a3cc9409a7014984f16f799534119",
+            "judge_model": "chatgpt/gpt-6-luna",
+            "judge_pass": true,
+            "machine_pass": true,
+            "native_evidence_digest": "b01477f0bb5edf18824c164525d0f954527a12106eac642a750ea52096a9ca21",
+            "repetition": 5,
+            "run_id": "480cbcf6-6ee8-46ea-9408-05dd7379c675",
+            "started_at": "2026-11-11T19:04:27.911544Z",
+            "status": "pass",
+            "timestamp": "2026-11-11T19:05:02.248231Z"
+          }
+        ]
+      },
+      "stock_price_before_order": {
+        "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+        "repetitions": [
+          {
+            "acting_model": "chatgpt/gpt-6-luna",
+            "calls": [
+              {
+                "id": "e06cbe52-086a-4168-bd63-990b8209dfe7",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 1,
+                  "role": "acting",
+                  "run_id": "730a61a7-21d9-4e5a-b88c-390b3b02c328"
+                },
+                "settled_at": "2026-11-11T19:04:33.804460+00:00",
+                "timestamp": "2026-11-11T19:04:30.724055+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 21896,
+                  "output_tokens": 41,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "f5535c83-f877-4967-822a-94a453b3df6b",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 1,
+                  "role": "acting",
+                  "run_id": "730a61a7-21d9-4e5a-b88c-390b3b02c328"
+                },
+                "settled_at": "2026-11-11T19:04:39.737177+00:00",
+                "timestamp": "2026-11-11T19:04:33.815833+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 24907,
+                  "output_tokens": 198,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "8b8819a0-2c03-437a-a578-a49dad897264",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 1,
+                  "role": "acting",
+                  "run_id": "730a61a7-21d9-4e5a-b88c-390b3b02c328"
+                },
+                "settled_at": "2026-11-11T19:04:44.359146+00:00",
+                "timestamp": "2026-11-11T19:04:39.773845+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 25859,
+                  "output_tokens": 109,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "24639c77-c02c-439f-9f6d-2390148a77e5",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 1,
+                  "role": "acting",
+                  "run_id": "730a61a7-21d9-4e5a-b88c-390b3b02c328"
+                },
+                "settled_at": "2026-11-11T19:04:50.741252+00:00",
+                "timestamp": "2026-11-11T19:04:44.385368+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 26293,
+                  "output_tokens": 65,
+                  "thinking_tokens": 173
+                }
+              },
+              {
+                "id": "34ea5f40-f475-426b-89fe-42eb8bae6400",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 1,
+                  "role": "acting",
+                  "run_id": "730a61a7-21d9-4e5a-b88c-390b3b02c328"
+                },
+                "settled_at": "2026-11-11T19:04:58.797219+00:00",
+                "timestamp": "2026-11-11T19:04:50.759599+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 26634,
+                  "output_tokens": 288,
+                  "thinking_tokens": 23
+                }
+              },
+              {
+                "id": "7b3346cc-0d29-4256-afeb-f2acd4e36a88",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 1,
+                  "role": "acting",
+                  "run_id": "730a61a7-21d9-4e5a-b88c-390b3b02c328"
+                },
+                "settled_at": "2026-11-11T19:05:04.330874+00:00",
+                "timestamp": "2026-11-11T19:04:58.832773+00:00",
+                "usage": {
+                  "cached_input_tokens": 25728,
+                  "input_tokens": 27658,
+                  "output_tokens": 136,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "1e9e623f-42fb-43c3-978b-5c96dc5093db",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 1,
+                  "role": "acting",
+                  "run_id": "730a61a7-21d9-4e5a-b88c-390b3b02c328"
+                },
+                "settled_at": "2026-11-11T19:05:09.476289+00:00",
+                "timestamp": "2026-11-11T19:05:04.362340+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 29512,
+                  "output_tokens": 161,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "b6d22f70-d5cc-40c9-9581-902b8c4057de",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 1,
+                  "role": "judge",
+                  "run_id": "730a61a7-21d9-4e5a-b88c-390b3b02c328"
+                },
+                "settled_at": "2026-11-11T19:05:19.479765+00:00",
+                "timestamp": "2026-11-11T19:05:09.540374+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 38412,
+                  "output_tokens": 63,
+                  "thinking_tokens": 369
+                }
+              }
+            ],
+            "case_id": "stock_price_before_order",
+            "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+            "judge_model": "chatgpt/gpt-6-luna",
+            "judge_pass": true,
+            "machine_pass": true,
+            "native_evidence_digest": "96d2976c33e697e23e8d7f773b6e473a7f4d42dd3a7fb8e3375fce4356cae217",
+            "repetition": 1,
+            "run_id": "730a61a7-21d9-4e5a-b88c-390b3b02c328",
+            "started_at": "2026-11-11T19:04:27.912121Z",
+            "status": "pass",
+            "timestamp": "2026-11-11T19:05:19.482743Z"
+          },
+          {
+            "acting_model": "chatgpt/gpt-6-luna",
+            "calls": [
+              {
+                "id": "bf60407f-dc4a-41f3-8cee-025416794fc0",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 2,
+                  "role": "acting",
+                  "run_id": "3e78d356-6fe5-4c65-9b42-a945012c4791"
+                },
+                "settled_at": "2026-11-11T19:04:33.685842+00:00",
+                "timestamp": "2026-11-11T19:04:30.784311+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 21898,
+                  "output_tokens": 42,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "27bb4f89-8c5f-4357-b305-b14af56f1129",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 2,
+                  "role": "acting",
+                  "run_id": "3e78d356-6fe5-4c65-9b42-a945012c4791"
+                },
+                "settled_at": "2026-11-11T19:04:41.826292+00:00",
+                "timestamp": "2026-11-11T19:04:33.697312+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 24910,
+                  "output_tokens": 205,
+                  "thinking_tokens": 131
+                }
+              },
+              {
+                "id": "47a0c8ed-8f39-4d82-91bf-e92cf35a60d0",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 2,
+                  "role": "acting",
+                  "run_id": "3e78d356-6fe5-4c65-9b42-a945012c4791"
+                },
+                "settled_at": "2026-11-11T19:04:48.297679+00:00",
+                "timestamp": "2026-11-11T19:04:41.866381+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 26050,
+                  "output_tokens": 141,
+                  "thinking_tokens": 65
+                }
+              },
+              {
+                "id": "e00e22cd-a43f-443d-9b57-2b5ec2fe694b",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 2,
+                  "role": "acting",
+                  "run_id": "3e78d356-6fe5-4c65-9b42-a945012c4791"
+                },
+                "settled_at": "2026-11-11T19:04:53.426905+00:00",
+                "timestamp": "2026-11-11T19:04:48.320898+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 26397,
+                  "output_tokens": 66,
+                  "thinking_tokens": 87
+                }
+              },
+              {
+                "id": "e82dec91-e017-40b5-856c-a8f6f508d98e",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 2,
+                  "role": "acting",
+                  "run_id": "3e78d356-6fe5-4c65-9b42-a945012c4791"
+                },
+                "settled_at": "2026-11-11T19:05:02.111311+00:00",
+                "timestamp": "2026-11-11T19:04:53.442606+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 26653,
+                  "output_tokens": 343,
+                  "thinking_tokens": 26
+                }
+              },
+              {
+                "id": "ac593a65-62a0-41e4-a2a0-b793a50659a1",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 2,
+                  "role": "acting",
+                  "run_id": "3e78d356-6fe5-4c65-9b42-a945012c4791"
+                },
+                "settled_at": "2026-11-11T19:05:07.666872+00:00",
+                "timestamp": "2026-11-11T19:05:02.147102+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 27791,
+                  "output_tokens": 136,
+                  "thinking_tokens": 18
+                }
+              },
+              {
+                "id": "6c56badc-f9c5-4fb9-914f-c9c2673e7a52",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 2,
+                  "role": "acting",
+                  "run_id": "3e78d356-6fe5-4c65-9b42-a945012c4791"
+                },
+                "settled_at": "2026-11-11T19:05:14.270825+00:00",
+                "timestamp": "2026-11-11T19:05:07.690802+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 29774,
+                  "output_tokens": 178,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "d28fa587-2b63-4136-bde5-f5059a9927bf",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 2,
+                  "role": "judge",
+                  "run_id": "3e78d356-6fe5-4c65-9b42-a945012c4791"
+                },
+                "settled_at": "2026-11-11T19:05:21.865247+00:00",
+                "timestamp": "2026-11-11T19:05:14.351809+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 40807,
+                  "output_tokens": 63,
+                  "thinking_tokens": 175
+                }
+              }
+            ],
+            "case_id": "stock_price_before_order",
+            "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+            "judge_model": "chatgpt/gpt-6-luna",
+            "judge_pass": true,
+            "machine_pass": true,
+            "native_evidence_digest": "7b48599ab3e131bb9cdd92cf46883f110d375cf95e9de16deb7f561ba2089e19",
+            "repetition": 2,
+            "run_id": "3e78d356-6fe5-4c65-9b42-a945012c4791",
+            "started_at": "2026-11-11T19:04:27.912247Z",
+            "status": "pass",
+            "timestamp": "2026-11-11T19:05:21.868012Z"
+          },
+          {
+            "acting_model": "chatgpt/gpt-6-luna",
+            "calls": [
+              {
+                "id": "a3dbdc62-91bb-4431-9fb7-a447f01a1bee",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 3,
+                  "role": "acting",
+                  "run_id": "3d447f8e-b5a7-451b-af4a-4c52c9a171e4"
+                },
+                "settled_at": "2026-11-11T19:04:33.585385+00:00",
+                "timestamp": "2026-11-11T19:04:30.646633+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 21893,
+                  "output_tokens": 40,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "5193550f-743d-48c1-8ce3-305b26135606",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 3,
+                  "role": "acting",
+                  "run_id": "3d447f8e-b5a7-451b-af4a-4c52c9a171e4"
+                },
+                "settled_at": "2026-11-11T19:04:40.671894+00:00",
+                "timestamp": "2026-11-11T19:04:33.596193+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 24903,
+                  "output_tokens": 197,
+                  "thinking_tokens": 95
+                }
+              },
+              {
+                "id": "b231ee52-8ab2-4325-be72-e575ae999c68",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 3,
+                  "role": "acting",
+                  "run_id": "3d447f8e-b5a7-451b-af4a-4c52c9a171e4"
+                },
+                "settled_at": "2026-11-11T19:04:45.997051+00:00",
+                "timestamp": "2026-11-11T19:04:40.701379+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 25999,
+                  "output_tokens": 145,
+                  "thinking_tokens": 38
+                }
+              },
+              {
+                "id": "286890f2-5999-40c2-83c4-acda215f473f",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 3,
+                  "role": "acting",
+                  "run_id": "3d447f8e-b5a7-451b-af4a-4c52c9a171e4"
+                },
+                "settled_at": "2026-11-11T19:04:51.759042+00:00",
+                "timestamp": "2026-11-11T19:04:46.019731+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 26325,
+                  "output_tokens": 65,
+                  "thinking_tokens": 96
+                }
+              },
+              {
+                "id": "9906e0c3-eb8a-4103-ba2e-ae0a58baceaf",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 3,
+                  "role": "acting",
+                  "run_id": "3d447f8e-b5a7-451b-af4a-4c52c9a171e4"
+                },
+                "settled_at": "2026-11-11T19:05:00.362295+00:00",
+                "timestamp": "2026-11-11T19:04:51.776564+00:00",
+                "usage": {
+                  "cached_input_tokens": 14976,
+                  "input_tokens": 26589,
+                  "output_tokens": 321,
+                  "thinking_tokens": 45
+                }
+              },
+              {
+                "id": "c0c33b10-e544-4264-8521-7495bde1b280",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 3,
+                  "role": "acting",
+                  "run_id": "3d447f8e-b5a7-451b-af4a-4c52c9a171e4"
+                },
+                "settled_at": "2026-11-11T19:05:05.181984+00:00",
+                "timestamp": "2026-11-11T19:05:00.399450+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 27699,
+                  "output_tokens": 130,
+                  "thinking_tokens": 23
+                }
+              },
+              {
+                "id": "66852de1-a292-48c9-901b-e9f3b95a27a1",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 3,
+                  "role": "acting",
+                  "run_id": "3d447f8e-b5a7-451b-af4a-4c52c9a171e4"
+                },
+                "settled_at": "2026-11-11T19:05:11.053422+00:00",
+                "timestamp": "2026-11-11T19:05:05.206717+00:00",
+                "usage": {
+                  "cached_input_tokens": 26240,
+                  "input_tokens": 29628,
+                  "output_tokens": 187,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "b22ce132-3453-4300-830b-cd3702c15b78",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 3,
+                  "role": "judge",
+                  "run_id": "3d447f8e-b5a7-451b-af4a-4c52c9a171e4"
+                },
+                "settled_at": "2026-11-11T19:05:22.038112+00:00",
+                "timestamp": "2026-11-11T19:05:11.117803+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 39369,
+                  "output_tokens": 57,
+                  "thinking_tokens": 415
+                }
+              }
+            ],
+            "case_id": "stock_price_before_order",
+            "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+            "judge_model": "chatgpt/gpt-6-luna",
+            "judge_pass": true,
+            "machine_pass": true,
+            "native_evidence_digest": "5b9183329e7c707919de21983fc3cdf781e73de8385c2d16807d602f060987d3",
+            "repetition": 3,
+            "run_id": "3d447f8e-b5a7-451b-af4a-4c52c9a171e4",
+            "started_at": "2026-11-11T19:04:27.912323Z",
+            "status": "pass",
+            "timestamp": "2026-11-11T19:05:22.040974Z"
+          },
+          {
+            "acting_model": "chatgpt/gpt-6-luna",
+            "calls": [
+              {
+                "id": "9ea894f5-1daa-481b-9655-3e72b0ced77d",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 4,
+                  "role": "acting",
+                  "run_id": "cdebfcc6-715e-43b7-88e8-04aad9eb8d42"
+                },
+                "settled_at": "2026-11-11T19:05:26.183414+00:00",
+                "timestamp": "2026-11-11T19:05:23.383207+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 21906,
+                  "output_tokens": 44,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "a1b20ad9-ab4d-43c7-9a0a-2a288d2b3123",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 4,
+                  "role": "acting",
+                  "run_id": "cdebfcc6-715e-43b7-88e8-04aad9eb8d42"
+                },
+                "settled_at": "2026-11-11T19:05:32.387968+00:00",
+                "timestamp": "2026-11-11T19:05:26.194036+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 24920,
+                  "output_tokens": 215,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "cfe9cb63-72c3-4f3d-a30f-0c05512af511",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 4,
+                  "role": "acting",
+                  "run_id": "cdebfcc6-715e-43b7-88e8-04aad9eb8d42"
+                },
+                "settled_at": "2026-11-11T19:05:38.619005+00:00",
+                "timestamp": "2026-11-11T19:05:32.432154+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 25940,
+                  "output_tokens": 167,
+                  "thinking_tokens": 58
+                }
+              },
+              {
+                "id": "6f56d787-f6ae-42e0-aef8-68db84d3b8c1",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 4,
+                  "role": "acting",
+                  "run_id": "cdebfcc6-715e-43b7-88e8-04aad9eb8d42"
+                },
+                "settled_at": "2026-11-11T19:05:43.120511+00:00",
+                "timestamp": "2026-11-11T19:05:38.636200+00:00",
+                "usage": {
+                  "cached_input_tokens": 14976,
+                  "input_tokens": 26324,
+                  "output_tokens": 61,
+                  "thinking_tokens": 55
+                }
+              },
+              {
+                "id": "25feb343-4ca3-4780-84c7-7c6c4c08e4b4",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 4,
+                  "role": "acting",
+                  "run_id": "cdebfcc6-715e-43b7-88e8-04aad9eb8d42"
+                },
+                "settled_at": "2026-11-11T19:05:51.271890+00:00",
+                "timestamp": "2026-11-11T19:05:43.135483+00:00",
+                "usage": {
+                  "cached_input_tokens": 14976,
+                  "input_tokens": 26543,
+                  "output_tokens": 246,
+                  "thinking_tokens": 21
+                }
+              },
+              {
+                "id": "a4f30225-d9cb-4d2f-9a16-cfe08358ac8e",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 4,
+                  "role": "acting",
+                  "run_id": "cdebfcc6-715e-43b7-88e8-04aad9eb8d42"
+                },
+                "settled_at": "2026-11-11T19:05:56.342164+00:00",
+                "timestamp": "2026-11-11T19:05:51.308584+00:00",
+                "usage": {
+                  "cached_input_tokens": 26368,
+                  "input_tokens": 27479,
+                  "output_tokens": 146,
+                  "thinking_tokens": 22
+                }
+              },
+              {
+                "id": "696b19c9-e092-47cc-a6ba-90ad201fed4d",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 4,
+                  "role": "acting",
+                  "run_id": "cdebfcc6-715e-43b7-88e8-04aad9eb8d42"
+                },
+                "settled_at": "2026-11-11T19:06:01.738745+00:00",
+                "timestamp": "2026-11-11T19:05:56.366169+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 29275,
+                  "output_tokens": 160,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "ae70ee85-50c5-4528-80d2-17610f58e59c",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 4,
+                  "role": "judge",
+                  "run_id": "cdebfcc6-715e-43b7-88e8-04aad9eb8d42"
+                },
+                "settled_at": "2026-11-11T19:06:07.912637+00:00",
+                "timestamp": "2026-11-11T19:06:01.806181+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 38986,
+                  "output_tokens": 55,
+                  "thinking_tokens": 130
+                }
+              }
+            ],
+            "case_id": "stock_price_before_order",
+            "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+            "judge_model": "chatgpt/gpt-6-luna",
+            "judge_pass": true,
+            "machine_pass": true,
+            "native_evidence_digest": "6c9f1dc16845c642298d6d873c1c894b89ab2cb15aa50e3b01338588c4a83111",
+            "repetition": 4,
+            "run_id": "cdebfcc6-715e-43b7-88e8-04aad9eb8d42",
+            "started_at": "2026-11-11T19:05:22.044772Z",
+            "status": "pass",
+            "timestamp": "2026-11-11T19:06:07.916607Z"
+          },
+          {
+            "acting_model": "chatgpt/gpt-6-luna",
+            "calls": [
+              {
+                "id": "500b5bcc-6ff6-468e-8751-d58c911ddf5d",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 5,
+                  "role": "acting",
+                  "run_id": "b2d47c7e-253d-45ad-8e2b-80f215eb8361"
+                },
+                "settled_at": "2026-11-11T19:05:26.386502+00:00",
+                "timestamp": "2026-11-11T19:05:23.431845+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 21892,
+                  "output_tokens": 44,
+                  "thinking_tokens": 19
+                }
+              },
+              {
+                "id": "3df3f711-e65b-4b43-a742-772aca23d6cd",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 5,
+                  "role": "acting",
+                  "run_id": "b2d47c7e-253d-45ad-8e2b-80f215eb8361"
+                },
+                "settled_at": "2026-11-11T19:05:33.689036+00:00",
+                "timestamp": "2026-11-11T19:05:26.397824+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 24925,
+                  "output_tokens": 122,
+                  "thinking_tokens": 159
+                }
+              },
+              {
+                "id": "986f20ed-1484-47f5-b092-6c2432bf964b",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 5,
+                  "role": "acting",
+                  "run_id": "b2d47c7e-253d-45ad-8e2b-80f215eb8361"
+                },
+                "settled_at": "2026-11-11T19:05:40.517854+00:00",
+                "timestamp": "2026-11-11T19:05:33.721701+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 25656,
+                  "output_tokens": 142,
+                  "thinking_tokens": 80
+                }
+              },
+              {
+                "id": "8244fa7a-58cc-46e4-a18d-62f4af6648df",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 5,
+                  "role": "acting",
+                  "run_id": "b2d47c7e-253d-45ad-8e2b-80f215eb8361"
+                },
+                "settled_at": "2026-11-11T19:05:47.605431+00:00",
+                "timestamp": "2026-11-11T19:05:40.535108+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 26201,
+                  "output_tokens": 66,
+                  "thinking_tokens": 201
+                }
+              },
+              {
+                "id": "a44e1be6-413a-40c2-9e6d-66778d809dd7",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 5,
+                  "role": "acting",
+                  "run_id": "b2d47c7e-253d-45ad-8e2b-80f215eb8361"
+                },
+                "settled_at": "2026-11-11T19:05:56.392371+00:00",
+                "timestamp": "2026-11-11T19:05:47.616926+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 26571,
+                  "output_tokens": 308,
+                  "thinking_tokens": 68
+                }
+              },
+              {
+                "id": "a49e460f-4253-4a6e-b1a8-498773455272",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 5,
+                  "role": "acting",
+                  "run_id": "b2d47c7e-253d-45ad-8e2b-80f215eb8361"
+                },
+                "settled_at": "2026-11-11T19:06:02.517906+00:00",
+                "timestamp": "2026-11-11T19:05:56.430356+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 27652,
+                  "output_tokens": 156,
+                  "thinking_tokens": 21
+                }
+              },
+              {
+                "id": "15027ac6-3f9c-4c83-b2db-b292e1ad9722",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 5,
+                  "role": "acting",
+                  "run_id": "b2d47c7e-253d-45ad-8e2b-80f215eb8361"
+                },
+                "settled_at": "2026-11-11T19:06:07.710483+00:00",
+                "timestamp": "2026-11-11T19:06:02.538433+00:00",
+                "usage": {
+                  "cached_input_tokens": 20992,
+                  "input_tokens": 29534,
+                  "output_tokens": 167,
+                  "thinking_tokens": 0
+                }
+              },
+              {
+                "id": "0c8d19ae-f70a-42b0-a78a-acdff88c06eb",
+                "kind": "settle",
+                "model": "chatgpt/gpt-6-luna",
+                "nano_usd": 0,
+                "reserved_nano_usd": 0,
+                "scope": {
+                  "case_id": "stock_price_before_order",
+                  "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+                  "repetition": 5,
+                  "role": "judge",
+                  "run_id": "b2d47c7e-253d-45ad-8e2b-80f215eb8361"
+                },
+                "settled_at": "2026-11-11T19:06:14.289872+00:00",
+                "timestamp": "2026-11-11T19:06:07.776337+00:00",
+                "usage": {
+                  "cached_input_tokens": 0,
+                  "input_tokens": 34519,
+                  "output_tokens": 65,
+                  "thinking_tokens": 159
+                }
+              }
+            ],
+            "case_id": "stock_price_before_order",
+            "fingerprint": "41416826273bd05c3dfbaef4f9d7f4f0cb28c0eda765158a499cfc09304ea036",
+            "judge_model": "chatgpt/gpt-6-luna",
+            "judge_pass": true,
+            "machine_pass": true,
+            "native_evidence_digest": "372f72eb71fa88e8e2fb6bf36a43cb5962071c61a3b4b20ea59f957d8f47720c",
+            "repetition": 5,
+            "run_id": "b2d47c7e-253d-45ad-8e2b-80f215eb8361",
+            "started_at": "2026-11-11T19:05:22.045288Z",
+            "status": "pass",
+            "timestamp": "2026-11-11T19:06:14.294450Z"
+          }
+        ]
+      }
+    },
+    "runtime_fingerprint": "7963c2491a8349f2824148bdcd8feed407835b4e8e7af539b095ec5b512ae512",
+    "source_commit": "04da13aeb449448a5cbfa47bcf2aca139978649a"
+  },
   "funding": "chatgpt-plan",
   "kind": "lumibot-real-model-qualification",
   "native_ledger_digests": {
-    "calibration": "488d3a0e2b73469d7daa46e07d132de9a7c2bfbaca2abc4853db3b0eb1aa13a9",
-    "calibration_summary": "f6156023ddfb0572bd01cc5a4855c97472c7e4a6bf1f664fb56fdb4b60e5fa8d",
-    "model_calls": "adec22accd79c7d46c66b5831d80f1d578fb639e3aabcff7c829093246006932",
-    "repetitions": "87647c79eff4ade345e73f18acd94f4e4d4c6a0111c27954c79af4424b63a532"
+    "calibration": "5690aa7624e12e6098b97d5f65747c2912fc3280173ff82b477474be83d06891",
+    "calibration_summary": "a493b10fb7c8fb5e7844af00221890dcdf2f339e724054876e1e419cd32943d8",
+    "model_calls": "d5cd7b0e75e52ebc2009a1d406b393bfe5e625c6b526a89f25a7db94e7e860b3",
+    "repetitions": "ebdbf507e1ade7611857bc0b906ffab59b48be6d3b17f46038a166f38f4abc15"
   },
-  "runtime_fingerprint": "7963c2491a8349f2824148bdcd8feed407835b4e8e7af539b095ec5b512ae512",
+  "runtime_fingerprint": "1f7d09f2ab55a3a3529a36e26ef4a6962196c93a6a803336de8fab4f6f8b2e6b",
   "scope": {
     "case_ids": [
       "stock_daily_limit_current_execution",

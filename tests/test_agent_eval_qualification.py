@@ -736,3 +736,27 @@ def test_published_native_receipt_preserves_original_passes_without_recreated_ro
     published["cases"][cases[0]["id"]]["repetitions"][0]["machine_pass"] = False
     with pytest.raises(ValueError):
         qualification.build_establishment([], [], cases, source_ref="a" * 40, versions=versions, now=now)
+
+
+def test_release_scope_accepts_current_regression_with_verified_original_passes(native_metadata, monkeypatch):
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    published = make_receipt((rows, calls, cases, versions, now))
+    original = {"source_commit": "a" * 40, "runtime_fingerprint": "source", "cases": deepcopy(published["cases"])}
+    record = deepcopy(published["cases"]["contract"])
+    record["fingerprint"] = evals.case_fingerprint(cases[0], judge_model=evals.DEFAULT_JUDGE_MODEL,
+                                                   runtime_hash="new-source")
+    record["repetitions"] = record["repetitions"][:1]
+    row = record["repetitions"][0]
+    row["fingerprint"], row["run_id"] = record["fingerprint"], str(uuid4())
+    for call in row["calls"]:
+        call["id"] = str(uuid4())
+        call["scope"].update(fingerprint=row["fingerprint"], run_id=row["run_id"])
+    receipt = {**published, "runtime_fingerprint": "new-source", "cases": {"contract": record},
+               "establishment": original}
+    monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")
+    monkeypatch.setattr(evals, "sdk_versions", lambda: versions)
+    scope = {"version": 1, "package_version": "9.9.9", "cases": [{"id": "contract", "reason": "same case, current regression"}]}
+    assert qualification.verify_release_scope(scope, cases, receipt, runtime_hash="new-source", version="9.9.9", now=now) == ["contract"]
+    original["cases"]["contract"]["repetitions"].pop()
+    with pytest.raises(ValueError, match="required unique repetitions"):
+        qualification.verify_release_scope(scope, cases, receipt, runtime_hash="new-source", version="9.9.9", now=now)

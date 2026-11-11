@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.51 - Unreleased
+## 4.6.51 - 2026-11-11
 
 ### Release tooling
 - `scripts/qualify_agent_evals.py create` with a release scope builds the receipt for the listed cases and their own judge-calibration controls only, instead of requiring calibration of the whole catalog. A scoped receipt verifies only against exactly its listed cases; without a scope the whole catalog is still required.
@@ -15,16 +15,16 @@
 
   The new pick was never farther from the target than the old one. With the Black-Scholes speedup below, a delta pick takes about the same time as before (one-week minute run: 9.6 ms per pick before, 8.9 ms now). Example: a 0.30 call request on 2026-10-19 at 09:30 returned the 772 strike (delta 0.370); it now returns 775 (delta 0.275). A one-month SPY iron condor (2026-09-01 to 2026-09-29, 0.16 delta shorts) kept its 124 fills, with 87 of them at a different strike.
 
-  Live calls per pick, measured read-only against Alpaca paper market data (SPY, same-day expiry, before the open on 2026-11-11, two runs each; times vary with the API):
+  Live calls per pick, measured read-only against Alpaca paper market data (SPY, same-day expiry, 2026-11-11 10:20 ET with the market open, three runs each; times vary with the API):
 
   | | put -0.16 | call 0.30 |
   |---|---|---|
-  | Before (probe search) | 19 quote requests, 1.0-7.2 s, strike 741 | 7 requests, 0.26 s, strike 752 |
-  | After, data source with bulk quotes (Alpaca, Schwab) | 1 request, 0.36-0.42 s, strike 742 | 1 request, 0.04 s, strike 752 |
-  | After, data source without bulk quotes | 15 requests, 7.0 s, strike 742 | 10 requests, 3.4 s, strike 752 |
+  | Before (probe search) | 19 quote requests, 1.3-2.0 s, strike 748 or 749 (delta about -0.04 to -0.06) | 13 requests, 0.6-0.9 s, strike 758 |
+  | After, data source with bulk quotes (Alpaca, Schwab) | 1 request, 0.38-0.41 s, strike 752 (delta -0.168) | 1 request, 0.04-0.13 s, strike 758 |
+  | After, data source without bulk quotes | 16-20 requests, 1.5-1.8 s, strike 752 | 12-13 requests, 0.6-1.1 s, strike 757 or 758 |
 
-  Strike 742 is the closest listed strike to -0.16 on those quotes; checking all 51 listed strikes one at a time would cost 100 requests.
-- Greeks are computed for the current minute's inputs instead of reusing a value from the same day. `DataSource.calculate_greeks` cached per day on prices rounded to cents, so a later minute (or a price within half a cent) got greeks computed for other inputs. On one week of recorded SPY option prices, 67 of 6,948 greeks values change, each to the value for its own inputs.
+  Strike 752 is the closest listed strike to -0.16 on those quotes (0.008 away; the old pick was about 0.12 away).
+- Greeks are computed for the current minute's inputs instead of reusing a value from the same day, in backtests and in live trading (any data source that computes greeks locally). `DataSource.calculate_greeks` cached per day on prices rounded to cents, so a later minute (or a price within half a cent) got greeks computed for other inputs. On one week of recorded SPY option prices, 67 of 6,948 greeks values change, each to the value for its own inputs.
 
 ### Added
 - `AlpacaData.get_quotes(assets)`: latest quotes for many assets, up to 100 option contracts per request, used by `Strategy.get_quotes` and by `OptionsHelper` delta picks in live trading. Each quote is the same `Quote` that `get_quote` builds; a contract with no quote maps to `None`. Request failures raise.

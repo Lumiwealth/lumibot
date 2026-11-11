@@ -249,14 +249,17 @@ def validate_rows(rows: pd.DataFrame) -> bool:
         return False
     try:
         prices = rows[PRICE_FIELDS].to_numpy(dtype=float)
+        # Columns of ``prices``: open, high, low, close. Prices are checked finite before the
+        # high/low comparisons, so numpy minimum/maximum match the pandas row-wise min/max.
+        opens, highs, lows, closes = prices[:, 0], prices[:, 1], prices[:, 2], prices[:, 3]
         ok = (
             isinstance(rows.index, pd.DatetimeIndex)
             and not rows.index.hasnans
             and not rows.index.has_duplicates
             and bool(np.isfinite(prices).all())
             and bool((prices > 0).all())
-            and bool((rows["low"] <= rows[["open", "close", "high"]].min(axis=1)).all())
-            and bool((rows["high"] >= rows[["open", "close", "low"]].max(axis=1)).all())
+            and bool((lows <= np.minimum(np.minimum(opens, closes), highs)).all())
+            and bool((highs >= np.maximum(np.maximum(opens, closes), lows)).all())
         )
         if ok and "volume" in rows.columns:
             volume = rows["volume"].to_numpy(dtype=float)

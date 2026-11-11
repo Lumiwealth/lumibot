@@ -194,7 +194,7 @@ def test_fill_proof_log_carries_quantity_and_actual_observation_source(caplog):
     assert len(proof) == 1
     for expected in ("event_quantity=40", "cumulative_quantity=40", "broker_filled_quantity=40", "source=rest_direct_order"):
         assert expected in proof[0]
-    assert broker._get_order_health().snapshot()["fill_callbacks"] == 1
+    assert broker._get_order_health().snapshot()["fill_callbacks_enqueued"] == 1
 
 
 def test_diagnostic_consumer_failure_cannot_interrupt_fill_delivery():

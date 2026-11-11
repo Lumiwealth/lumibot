@@ -7,7 +7,7 @@
 - A generic `Broker.on_order_observation` application hook exposes broker evidence without adding storage, credentials or infrastructure to the public library. Schwab invokes it on real REST observations; consumer failures do not stop order processing.
 
 ### Fixed
-- Schwab account-wide order reads no longer import another instance's or a manual order into local strategy state merely because its display name or tag matches. Submitted orders, explicitly checkpointed recovery and children of verified parent orders retain ownership. Normal variable backups preserve those order identities and already delivered fills, without replaying historical fill callbacks. Broad account inspection remains available.
+- Schwab account-wide order reads no longer import another instance's or a manual order into local strategy state merely because its display name or tag matches. Submitted orders, explicitly checkpointed recovery and children of verified parent orders retain ownership, including arbitrary user order tags. Automatic recovery requires a bound instance and account identity. Normal variable backups preserve those order identities and already delivered fills, without replaying historical fill callbacks. Broad account inspection remains available.
 - Live order callbacks require a locally tracked identity. Schwab order reads preserve returned DAY/GTC/open/close duration metadata instead of replacing it with a default; explicit order durations and other brokers' account-history recovery remain supported.
 
 ## 4.6.52 - 2026-11-11

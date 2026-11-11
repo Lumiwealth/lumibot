@@ -4923,9 +4923,10 @@ class _Strategy:
         state = self.vars.all().get("_lumibot_order_state")
         restorer = getattr(getattr(self, "broker", None), "restore_order_state", None)
         if state is not None and callable(restorer):
-            if not getattr(self.broker, "order_ownership_id", None):
+            account_identity = getattr(self.broker, "_order_checkpoint_account_identity", lambda: None)()
+            if not getattr(self.broker, "order_ownership_id", None) or account_identity is None:
                 if not getattr(self, "_unbound_order_checkpoint_logged", False):
-                    self.logger.warning("Order checkpoint not restored automatically: no stable instance identity")
+                    self.logger.warning("Order checkpoint not restored automatically: no stable instance/account identity")
                     self._unbound_order_checkpoint_logged = True
                 return
             if isinstance(state, str):

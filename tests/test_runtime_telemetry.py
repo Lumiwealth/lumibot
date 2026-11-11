@@ -117,7 +117,7 @@ def test_order_health_keeps_bounded_samples_and_exact_totals():
     health = rt.OrderRuntimeHealth()
     for i in range(1100):
         health.iteration(i)
-    health.count("fill_callbacks")
+    health.count("fill_callbacks_enqueued")
     health.contradiction("unowned_order_callback")
     health.cancel_response(0.5)
     summary = health.snapshot()
@@ -125,6 +125,6 @@ def test_order_health_keeps_bounded_samples_and_exact_totals():
     assert summary["iteration_sample_count"] == 1024
     assert summary["iteration_max_seconds"] == 1099
     assert summary["iteration_window_median_seconds"] == 587.5
-    assert summary["fill_callbacks"] == 1
+    assert summary["fill_callbacks_enqueued"] == 1
     assert summary["contradictions"] == {"unowned_order_callback": 1}
     assert summary["cancel_http_max_seconds"] == 0.5

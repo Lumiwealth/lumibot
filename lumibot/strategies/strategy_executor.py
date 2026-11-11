@@ -1754,6 +1754,8 @@ class StrategyExecutor(Thread):
     def _on_partially_filled_order(self, position, order, price, quantity, multiplier):
         if not self._owns_order_event(order):
             return
+        if not self.broker.IS_BACKTESTING_BROKER:
+            self.broker._record_fill_callback_entry()
         self.strategy.on_partially_filled_order(position, order, price, quantity, multiplier)
 
     @event_method
@@ -1772,6 +1774,8 @@ class StrategyExecutor(Thread):
                 )
             return
 
+        if not self.broker.IS_BACKTESTING_BROKER:
+            self.broker._record_fill_callback_entry()
         self.strategy.on_filled_order(position, order, price, quantity, multiplier)
 
         # PERF: In backtesting we never send Discord notifications (`Strategy.send_discord_message`

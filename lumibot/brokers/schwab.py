@@ -2123,6 +2123,7 @@ class Schwab(Broker):
                 stored.strategy = tracked_parent.strategy
                 stored.status = Order.OrderStatus.SUBMITTED
                 self._unprocessed_orders.append(stored)
+            stored._local_order_ownership = bool(getattr(tracked_parent, "_local_order_ownership", False))
             self._bind_owned_child_orders(child, stored)
             children.append(stored)
         if children:
@@ -2767,6 +2768,7 @@ class Schwab(Broker):
 
             # Update the order with the identifier
             order.identifier = order_id
+            order._local_order_ownership = True
             order.status = Order.OrderStatus.SUBMITTED
 
             # Store the raw response data
@@ -3509,6 +3511,7 @@ class Schwab(Broker):
             order.previous_identifiers = getattr(order, "previous_identifiers", None) or []
             order.previous_identifiers.append(order.identifier)
             order.identifier = new_order_id
+            order._local_order_ownership = True
             # Update price information
             if limit_price is not None:
                 order.limit_price = limit_price

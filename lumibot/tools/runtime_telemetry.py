@@ -68,7 +68,8 @@ class OrderRuntimeHealth:
                 connected += max(0, now - self.feed_changed)
             return {
                 "schema": "lumibot.order_health/1",
-                "fill_callbacks": self.counts["fill_callbacks"],
+                "fill_callbacks_enqueued": self.counts["fill_callbacks_enqueued"],
+                "fill_callback_entries": self.counts["fill_callback_entries"],
                 "foreign_callback_attempts": self.counts["foreign_callback_attempts"],
                 "contradictions": dict(self.contradictions),
                 "feed_observed_seconds": observed,

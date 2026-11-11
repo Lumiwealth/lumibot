@@ -245,6 +245,7 @@ def test_executor_rechecks_ownership_before_invoking_strategy(callback):
         getattr(executor, callback)(*args)
     assert len(calls) == 1
     assert own in calls[0]
+    assert broker._get_order_health().snapshot()["fill_callback_entries"] == int(callback in {"_on_partially_filled_order", "_on_filled_order"})
 
 
 def test_final_health_line_matches_native_callback_counts(caplog):
@@ -262,7 +263,8 @@ def test_final_health_line_matches_native_callback_counts(caplog):
     rows = [r.message for r in caplog.records if "[OrderRunHealth]" in r.message]
     assert len(rows) == 1
     summary = json.loads(rows[0].split("[OrderRunHealth] ", 1)[1])
-    assert summary["fill_callbacks"] == 1
+    assert summary["fill_callbacks_enqueued"] == 1
+    assert summary["fill_callback_entries"] == 0  # This control inspected the queue, not the executor.
     assert summary["foreign_callback_attempts"] == 1
     assert summary["contradictions"]["unowned_order_callback"] == 1
 
@@ -305,3 +307,37 @@ def test_hash_only_accounts_cannot_restore_each_others_checkpoint():
     with pytest.raises(ValueError, match="different account"):
         second.restore_order_state(first.export_order_state("same-name"), "same-name")
     assert second.get_all_orders() == []
+
+
+@pytest.mark.parametrize("recover", [False, True])
+def test_owned_submission_with_an_arbitrary_tag_still_receives_its_fill(recover):
+    transport = _TRANSPORT.SchwabLifecycleTransport()
+    broker, recipient = _TRANSPORT.data_only_schwab_broker(transport, name="same-name")
+    own = Order("same-name", Asset("SYN"), 1, "buy", order_type="limit", limit_price=10, tag="operation-42")
+    broker.submit_order(own)
+    _TRANSPORT.drain_stream_events(broker)
+    if recover:
+        state = broker.export_order_state("same-name")
+        broker, recipient = _TRANSPORT.data_only_schwab_broker(transport, name="same-name")
+        broker.restore_order_state(state, "same-name")
+    transport.queue_order_reads(own.identifier, {"status": "FILLED", "filledQuantity": 1, "averagePrice": 10})
+    broker._reconcile_active_schwab_orders()
+    assert recipient.priority_queue.get_nowait()[0] == broker.FILLED_ORDER
+
+
+def test_automatic_restore_requires_adapter_account_identity():
+    transport = _TRANSPORT.SchwabLifecycleTransport()
+    first, _ = _TRANSPORT.data_only_schwab_broker(transport, name="same-name")
+    second, _ = _TRANSPORT.data_only_schwab_broker(transport, name="same-name")
+    own = submitted(first)
+    first.order_ownership_id = second.order_ownership_id = "stable-instance"
+    # Exercise the generic default used by adapters without an account scope.
+    first._order_checkpoint_account_identity = second._order_checkpoint_account_identity = lambda: None
+    strategy = object.__new__(Strategy)
+    strategy._name = "same-name"
+    strategy.vars = Vars()
+    strategy.vars.set("_lumibot_order_state", json.dumps(first.export_order_state("same-name")))
+    strategy.broker = second
+    strategy.logger = logging.getLogger("ownership-recovery")
+    strategy._restore_order_ownership()
+    assert second.get_tracked_order(own.identifier) is None

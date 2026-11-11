@@ -605,6 +605,13 @@ class Broker(ABC):
             except Exception:
                 pass
 
+    def _record_fill_callback_entry(self):
+        if not self.IS_BACKTESTING_BROKER:
+            try:
+                self._get_order_health().count("fill_callback_entries")
+            except Exception:
+                pass
+
     def _record_fill_proof(self, order, quantity):
         if self.IS_BACKTESTING_BROKER:
             return
@@ -612,7 +619,7 @@ class Broker(ABC):
             cumulative = sum(float(t.quantity) for t in order.transactions)
             reported = getattr(order, "_broker_reported_filled_quantity", None)
             source = getattr(order, "_observation_source", "broker_callback")
-            self._get_order_health().count("fill_callbacks")
+            self._get_order_health().count("fill_callbacks_enqueued")
             self.logger.info(
                 "[OrderFillProof] event_quantity=%s cumulative_quantity=%s broker_filled_quantity=%s source=%s",
                 quantity, cumulative, reported, source,
@@ -2983,6 +2990,7 @@ class Broker(ABC):
             raise ValueError("Order checkpoint belongs to a different strategy")
         for order in orders:
             if self.get_tracked_order(order.identifier, use_placeholders=True) is None:
+                order._local_order_ownership = True
                 self._process_broker_synced_order(order)
 
     def get_active_tracked_orders(self, strategy=None, asset=None) -> list[Order]:
@@ -3557,7 +3565,8 @@ class Broker(ABC):
 
         tracked = self.get_tracked_order(getattr(order, "identifier", None), use_placeholders=True)
         tag = getattr(order, "tag", None)
-        if tag and not self.strategy_tag_matches(tag, local_name):
+        if (tag and not self.strategy_tag_matches(tag, local_name)
+                and not getattr(tracked, "_local_order_ownership", False)):
             return False
         return tracked is not None and tracked.strategy == local_name
 

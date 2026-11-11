@@ -187,6 +187,9 @@ class Broker(ABC):
     EXPIRED_OPTION = "expired"
     ERROR_ORDER = "error"
     PLACEHOLDER_ORDER = "placeholder"
+    # Trade-event log status of a multi-leg parent once every leg filled (a log row only, not an
+    # order status). Not a fill status, so trade counters keep counting the legs only.
+    MULTILEG_LEGS_FILLED = "legs_filled"
 
     @staticmethod
     def _truthy_env(value: str | None) -> bool:
@@ -3823,6 +3826,19 @@ class Broker(ABC):
             else:
                 self.logger.warning(f"Unknown trade event type: {type_event}")
 
+        self._record_trade_event_row(stored_order, price, filled_quantity, multiplier)
+
+        # Ensure cleanup runs even when a strategy rarely submits orders.
+        try:
+            self._trigger_periodic_cleanup()
+        except Exception:
+            pass
+
+        return
+
+    def _record_trade_event_row(self, stored_order, price, filled_quantity, multiplier=1, status=None):
+        """Append one row to the trade-event log; ``status`` overrides the order's status."""
+        is_backtesting = getattr(self, "IS_BACKTESTING_BROKER", False)
         # PERF: backtesting data sources often store the current dt on `_datetime`. Avoid the extra
         # method call overhead in the hot-path trade-event logger, but fall back to `get_datetime()`
         # for stubbed sources used in unit tests.
@@ -3847,7 +3863,7 @@ class Broker(ABC):
                 "symbol": stored_order.symbol,
                 "side": stored_order.side,
                 "type": stored_order.order_type,
-                "status": stored_order.status,
+                "status": stored_order.status if status is None else status,
                 "price": price,
                 "filled_quantity": filled_quantity,
                 "multiplier": multiplier,
@@ -3886,7 +3902,7 @@ class Broker(ABC):
                 stored_order.symbol,
                 stored_order.side,
                 stored_order.order_type,
-                stored_order._status,
+                stored_order._status if status is None else status,
                 price,
                 filled_quantity,
                 multiplier,
@@ -3949,13 +3965,6 @@ class Broker(ABC):
             # Invalidate cached DataFrame representation.
             self._trade_event_log_df_cache = None
 
-        # Ensure cleanup runs even when a strategy rarely submits orders.
-        try:
-            self._trigger_periodic_cleanup()
-        except Exception:
-            pass
-
-        return
 
     def _launch_stream(self):
         """Set the asynchronous actions to be executed after

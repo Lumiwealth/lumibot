@@ -128,9 +128,11 @@ def test_rebuilt_example_imports_only_lumibot_and_keeps_runtime_wiring(name):
     for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.ImportFrom):
             modules.add(node.module)
+            if node.module == "lumibot.entities":
+                assert {alias.name for alias in node.names} == {"TradingFee"}, name
         if isinstance(node, ast.Import):
             modules.update(alias.name for alias in node.names)
-    assert modules <= {"datetime", "lumibot.strategies", "lumibot.backtesting", "lumibot.credentials"}, (name, modules)
+    assert modules <= {"datetime", "lumibot.strategies", "lumibot.backtesting", "lumibot.credentials", "lumibot.entities"}, (name, modules)
     for banned in ("rules_path", "os.environ", "budget=", "run_cycle", "interpreter"):
         assert banned not in source, (name, banned)
 

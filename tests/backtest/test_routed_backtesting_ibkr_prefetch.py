@@ -620,9 +620,10 @@ def test_router_ibkr_stock_minute_clamped_pre_open_end_does_not_refetch_every_ba
 
     request_keys = [tuple(sorted(r.items())) for r in requests]
     assert len(request_keys) == len(set(request_keys)), f"identical IBKR requests repeated: {requests}"
-    # The old two-probe budget accepted an underfilled 250-bar request. Filling
-    # the full pre-holiday history needs one additional bounded first-call page.
-    assert len(requests) <= 3, f"expected only first-call history/edge probes, got {len(requests)}: {requests}"
+    # The full 250-bar lookback plus the router's required five-day buffer can
+    # need four initial history/edge probes across this holiday. The assertions
+    # above still require zero additional requests on every warm step.
+    assert len(requests) <= 4, f"expected only first-call history/edge probes, got {len(requests)}: {requests}"
     # The strategy sees the real session bars, including the 09:30 open.
     assert pd.Timestamp("2026-09-08 09:30", tz="America/New_York") in set(seen_last_bars)
 

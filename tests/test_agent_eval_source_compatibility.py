@@ -41,6 +41,36 @@ def test_unused_schwab_adapter_keeps_synchronous_fixture_proof():
     scope.check_change('lumibot/brokers/schwab.py', b'before', b'after')
 
 
+def _author_decision(path, before, after, reason='Only records timing; model inputs stay unchanged'):
+    import hashlib
+    return dict(path=path, before_sha256=hashlib.sha256(before).hexdigest() if before is not None else None,
+                after_sha256=hashlib.sha256(after).hexdigest() if after is not None else None, reason=reason)
+
+
+def test_author_decision_preserves_exact_reviewed_change():
+    entry = _author_decision('shared.py', b'old', b'new')
+    assert scope.verify_author_decisions({'shared.py': b'old'}, {'shared.py': b'new'}, [entry]) == {'shared.py'}
+
+
+def test_author_decision_rejects_later_unreviewed_bytes():
+    entry = _author_decision('shared.py', b'old', b'new')
+    with pytest.raises(ValueError, match='no longer matches'):
+        scope.verify_author_decisions({'shared.py': b'old'}, {'shared.py': b'other'}, [entry])
+
+
+def test_author_decision_requires_written_reason():
+    entry = _author_decision('shared.py', b'old', b'new', reason='')
+    with pytest.raises(ValueError, match='reason'):
+        scope.verify_author_decisions({'shared.py': b'old'}, {'shared.py': b'new'}, [entry])
+
+
+def test_author_decision_checks_added_file_inventory():
+    entry = _author_decision('metrics.py', None, b'counts')
+    assert scope.verify_author_decisions({}, {'metrics.py': b'counts'}, [entry]) == {'metrics.py'}
+    with pytest.raises(ValueError, match='unknown path'):
+        scope.verify_author_decisions({}, {}, [entry])
+
+
 @pytest.mark.parametrize('path', ['lumibot/tools/shared_bar_cache.py', 'lumibot/traders/trader.py'])
 def test_unused_cache_and_threaded_runner_keep_synchronous_fixture_proof(path):
     scope.check_change(path, b'before', b'after')

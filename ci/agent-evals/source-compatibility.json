@@ -1,5 +1,43 @@
 {
   "version": 1,
   "source_commit": "f8f2cd14214a733938082a66ea9f1ea82a761d76",
-  "receipt_sha256": "79f2bf0b4115367d337fa119573421a08c2f97c7afc4b570957be2925d79a78b"
+  "receipt_sha256": "79f2bf0b4115367d337fa119573421a08c2f97c7afc4b570957be2925d79a78b",
+  "author_decisions": [
+    {
+      "path": "lumibot/strategies/_strategy.py",
+      "before_sha256": "93d159744b172c879017e3decfb6febf97b0cfe42cceee10d000a8e794ba4372",
+      "after_sha256": "e7d077f1a7b13ef23c710093ff43e0bf19f3d110d008a92dc2a8dcdda2689966",
+      "reason": "The reviewed diff only resets/writes backtest timing and flushes pre-existing background uploads after simulation. Native fixtures do not call run_backtest. No prompts, quotes, orders or model inputs change."
+    },
+    {
+      "path": "lumibot/strategies/strategy_executor.py",
+      "before_sha256": "bcf50fc0c7a78607b57a4436125dadb8cd1d1d84b2952945108f109cbaadd644",
+      "after_sha256": "6d3abfba84d0377bc3bb3c8ebc2308a63b4c35b7fab88ffecca3c03e5a1444d9",
+      "reason": "The reviewed diff wraps the same on_trading_iteration call in timing counters and a finally recording call; the call, return and exceptions are retained. The native fixture drives its decisions directly. No decision inputs or execution policy change."
+    },
+    {
+      "path": "lumibot/tools/backtest_telemetry.py",
+      "before_sha256": null,
+      "after_sha256": "6d9cc0eb07a5eb1d05bca995fb4d995b252d2d14659635a518aa18fc479bdff9",
+      "reason": "New process-local counters, context labels and a telemetry JSON writer only. No network, provider dispatch, model inputs, order mutation or strategy policy."
+    },
+    {
+      "path": "lumibot/tools/backtest_cache.py",
+      "before_sha256": "6387e5881d63ff1952cd297190e5e6a366b6c10eceec61db695ae37f2e782d06",
+      "after_sha256": "8b82da88f48a8a455258f60cab3202fe3def6c258f64f40498c6c7dc30787543",
+      "reason": "The reviewed diff mirrors existing cache outcomes to counters inside an exception-contained observer. Cache keys, bytes, return values and error behavior are unchanged."
+    },
+    {
+      "path": "lumibot/tools/alpaca_history.py",
+      "before_sha256": "e798c425d0a38ba2f95b3394c57f2c2a29d8650b8d871ebff65094f7408d7649",
+      "after_sha256": "cd0084125cf8f116ae800d5bc6792e3e2a04047f066a1e5f88557b91c75a69f3",
+      "reason": "The reviewed diff forwards the same request and result through a provider timing scope and counts returned rows. Native Pandas fixtures never invoke the Alpaca history provider."
+    },
+    {
+      "path": "lumibot/tools/data_downloader_queue_client.py",
+      "before_sha256": "a40008cfcf178ff9ba6dfe49470374a776d9e8d2bfc6538458103f32051efd99",
+      "after_sha256": "9baaf9ab8c51c1550bb99b2eeecfa9cbe6ce5eb7ca901ad0c248859aea548e54",
+      "reason": "The reviewed diff only measures existing requests and waits. Native Pandas fixtures never invoke the downloader; request parameters, retries and returned market data are unchanged."
+    }
+  ]
 }

@@ -87,9 +87,9 @@ current measurement.
 Keep expiration payoff separate from profit. Gross expiration payoff is the
 signed sum of the legs' intrinsic values, with their quantities and multipliers.
 Profit subtracts the opening net debit and applicable fees; an opening credit
-is a negative debit. For a one-to-one debit vertical of width W and multiplier
-M, the gross payoff ceiling is W*M per package. Maximum expiration loss is the
-actual total debit paid plus fees; maximum profit is W*M minus that debit and
+is a negative debit. For N matched one-to-one debit verticals of width W and
+multiplier M, the gross payoff ceiling is N*W*M. Maximum expiration loss is the
+actual total debit paid plus fees; maximum profit is N*W*M minus that debit and
 fees. Subtracting the debit from the width calculates profit, not loss. Calculate
 and label these separately before describing a loss watch; a partial loss must
 not be called full-premium loss. The premium budget is neither payoff nor profit.

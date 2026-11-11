@@ -83,7 +83,9 @@ if __name__ == "__main__":
 
     if IS_BACKTESTING:
         from lumibot.backtesting import AlpacaBacktesting
+        from lumibot.entities import TradingFee
 
-        AIIronCondorStrategy.backtest(AlpacaBacktesting)
+        fee = TradingFee(per_contract_fee=AIIronCondorStrategy.parameters["estimated_contract_fee"])
+        AIIronCondorStrategy.backtest(AlpacaBacktesting, buy_trading_fees=[fee], sell_trading_fees=[fee])
     else:
         AIIronCondorStrategy().run_live()

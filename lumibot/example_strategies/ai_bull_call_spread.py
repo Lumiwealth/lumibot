@@ -75,7 +75,9 @@ if __name__ == "__main__":
 
     if IS_BACKTESTING:
         from lumibot.backtesting import AlpacaBacktesting
+        from lumibot.entities import TradingFee
 
-        AIBullCallSpreadStrategy.backtest(AlpacaBacktesting)
+        fee = TradingFee(per_contract_fee=AIBullCallSpreadStrategy.parameters["estimated_contract_fee"])
+        AIBullCallSpreadStrategy.backtest(AlpacaBacktesting, buy_trading_fees=[fee], sell_trading_fees=[fee])
     else:
         AIBullCallSpreadStrategy().run_live()

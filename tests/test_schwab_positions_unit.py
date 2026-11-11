@@ -204,11 +204,11 @@ def _broker_for_order_pull(client=None):
     return broker
 
 
-def _order(status=Order.OrderStatus.SUBMITTED, identifier="order-123"):
+def _order(status=Order.OrderStatus.SUBMITTED, identifier="order-123", quantity=1):
     return Order(
         strategy="unit-test",
         asset=Asset("LW"),
-        quantity=1,
+        quantity=quantity,
         side=Order.OrderSide.BUY,
         order_type=Order.OrderType.LIMIT,
         identifier=identifier,
@@ -235,6 +235,9 @@ def _broker_for_lifecycle(stored_order):
 
     def process_trade_event(order, event, **payload):
         broker._lifecycle_events.append((event, payload))
+        if event in (broker.PARTIALLY_FILLED_ORDER, broker.FILLED_ORDER):
+            # The real handler records each fill; the next delta is priced from it.
+            order.add_transaction(payload.get("price"), payload.get("filled_quantity"))
         if event == broker.PARTIALLY_FILLED_ORDER:
             order.status = Order.OrderStatus.PARTIALLY_FILLED
         elif event == broker.FILLED_ORDER:
@@ -653,6 +656,7 @@ def test_schwab_option_replacement_uses_option_builder_and_updates_identifier():
     broker.schwab_authorization_error = False
     broker.client = client
     broker.hash_value = "account-hash"
+    broker._lock = RLock()
     order = _option_order()
 
     broker._modify_order(order, limit_price=4.75)
@@ -1278,6 +1282,37 @@ def test_schwab_complete_position_sync_removes_missing_tracked_positions():
     assert "SPY" in symbols
 
 
+def test_a_successful_pull_ignores_another_syncs_degraded_flag():
+    """The book from this pull is applied even when another sync sets the shared flag."""
+    broker = _broker_with_positions([_position("EQUITY", "SPY", quantity=3)])
+    broker._lock = RLock()
+    broker._filled_positions = SafeList(broker._lock)
+    broker._tracked_positions_cache = {}
+    broker.quote_assets = []
+    stale_asset = Asset("OLD", asset_type=Asset.AssetType.STOCK)
+    broker._filled_positions.append(Position("unit-test", stale_asset, 5))
+    client = broker.client
+
+    class _OverlappingClient:
+        """Another thread's pull fails while this thread's pull is in flight."""
+
+        Account = client.Account
+
+        def get_account(self, hash_value, fields):
+            other = Thread(target=broker._set_positions_refresh_degraded, args=(True,))
+            other.start()
+            other.join()
+            return client.get_account(hash_value, fields)
+
+    broker.client = _OverlappingClient()
+    broker.sync_positions(SimpleNamespace(name="unit-test"))
+
+    symbols = {position.asset.symbol for position in broker._filled_positions.get_list()}
+    assert "OLD" not in symbols
+    assert "SPY" in symbols
+    assert broker._last_positions_refresh_degraded is True
+
+
 def test_schwab_cancel_order_calls_client_with_order_id_then_account_hash():
     client = _CancelClient()
     stream = _Stream()
@@ -1493,7 +1528,8 @@ def test_schwab_account_activity_reconciliation_reads_only_active_tracked_orders
 
 
 def test_schwab_snapshot_reducer_emits_incremental_partial_and_final_fill_once():
-    stored = _order(status=Order.OrderStatus.SUBMITTED)
+    # Three units, so 1 and 2 are partial fills; a 1-unit order is filled by its first unit.
+    stored = _order(status=Order.OrderStatus.SUBMITTED, quantity=3)
     broker = _broker_for_lifecycle(stored)
 
     observations = [
@@ -1507,15 +1543,19 @@ def test_schwab_snapshot_reducer_emits_incremental_partial_and_final_fill_once()
     for observation in observations:
         broker._process_schwab_order_snapshot(observation)
 
+    # Schwab's average is cumulative (10.0, 10.5, 11.0), so each new unit
+    # filled at 10.0, 11.0 and 12.0. The cumulative average is not the new fill.
     assert broker._lifecycle_events == [
         (broker.PARTIALLY_FILLED_ORDER, {"price": 10.0, "filled_quantity": 1.0, "multiplier": 1}),
-        (broker.PARTIALLY_FILLED_ORDER, {"price": 10.5, "filled_quantity": 1.0, "multiplier": 1}),
-        (broker.FILLED_ORDER, {"price": 11.0, "filled_quantity": 1.0, "multiplier": 1}),
+        (broker.PARTIALLY_FILLED_ORDER, {"price": 11.0, "filled_quantity": 1.0, "multiplier": 1}),
+        (broker.FILLED_ORDER, {"price": 12.0, "filled_quantity": 1.0, "multiplier": 1}),
     ]
+    assert stored.get_fill_price() == 11.0
 
 
 def test_schwab_snapshot_reducer_serializes_duplicate_stream_and_rest_observations():
-    stored = _order(status=Order.OrderStatus.SUBMITTED)
+    # Two units, so the one-unit observation is a partial fill.
+    stored = _order(status=Order.OrderStatus.SUBMITTED, quantity=2)
     broker = _broker_for_lifecycle(stored)
     simultaneous_gets = Barrier(2)
 

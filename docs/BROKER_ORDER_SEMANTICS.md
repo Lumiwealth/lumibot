@@ -2,7 +2,7 @@
 
 > Notes on live broker behavior that affect backtesting semantics (extended hours, order types, and “market closed / no data” handling).
 
-**Last Updated:** 2026-11-03
+**Last Updated:** 2026-11-08
 **Status:** Active
 **Audience:** Developers, AI Agents
 
@@ -251,6 +251,207 @@ Live trading implications:
 - Do not generalize "seamless spans all sessions" into "seamless works with all
   order types." The session span and order type eligibility are separate broker
   constraints.
+- Single-order limit prices (stock limit, stock stop-limit, option limit) are
+  passed to schwab-py as strings by `_format_schwab_single_price`. schwab-py's
+  float path is deprecated, and it truncates in binary: 1.15 was sent as
+  "1.14". The string keeps schwab-py's rule (4 decimals under $1, 2 at or
+  above, toward zero) using `Decimal`. `tests/test_schwab_single_order_prices_unit.py`
+  turns the deprecation warning into an error. Stop prices were already sent
+  as `str(stop_price)` and are not reformatted.
+
+### Schwab (multi-leg options)
+
+Schwab receives a multi-leg option package as one `orderStrategyType=SINGLE`
+order (`lumibot/brokers/schwab.py`, `_prepare_multileg_option_order_builder`).
+
+Wire contract:
+- 2 to 4 option legs, all on one underlying. Stock legs, more legs, or mixed
+  underlyings are rejected before any HTTP request; no leg is sent alone.
+- `submit_order([option])` with one option and no `is_multileg` is a single
+  order on Schwab (`Strategy.submit_order`); other brokers keep their default.
+  A Schwab `modify_order` that returns `False` leaves the local limit unchanged.
+  That single option is sent with its strike to the thousandth (OCC symbol
+  written directly, as the package builder does), and a fractional contract
+  quantity is refused instead of being truncated. A one-option list given a
+  list-level `order_type` or `price` (a package price) is refused, because a
+  single order would drop it. Any order the Schwab builder refuses (fractional
+  contracts, an unlisted strike, a refused package leg) is closed through the
+  error event, so a caller waiting on it is released.
+- `orderType` is `NET_CREDIT`, `NET_DEBIT` or `NET_ZERO`, with a positive price
+  (`NET_ZERO` is `0.00`). Market packages, other order types, and durations
+  other than `day`/`gtc` are rejected. The type comes from the
+  `credit`/`debit`/`even` keyword, else from the parent side and price sign.
+  Zero is judged on the price as sent (four decimals under $1, chosen from the
+  original amount, so 0.9951 stays four decimals). A credit or debit that
+  rounds to `0.00` after the rounding that will be sent is refused: half-up
+  turns a `0.00006` debit into `0.0001`, and debit rounding then turns it into
+  `0.00`. An unhinted price that rounds to `0.00` with half-up is `NET_ZERO`,
+  never `NET_CREDIT`/`NET_DEBIT` at `0.00`. A debit rounds down and a credit
+  rounds up, so the sent price is never more aggressive than requested.
+  The strike in the OCC symbol keeps thousandths (`100.125` stays `100.125`).
+  A strike that is not a whole number of thousandths (`100.1254`) is refused
+  rather than rounded to a neighbouring contract; float noise far below a
+  thousandth still maps to its contract.
+  A `MARKET` or `STOP_LIMIT` parent is rejected even when it carries a limit
+  price; the stop trigger would otherwise be dropped.
+- `Strategy.submit_order(legs, order_type='limit', price=...)` infers
+  credit/debit/even from leg quotes for Schwab, Tradier, and Alpaca. On Schwab
+  each leg is weighted by its ratio to the package quantity (GCD); other
+  brokers keep the unweighted sum of one quote per leg
+  (`Strategy._compute_multileg_net_best_fastest`). Without that a positive
+  Schwab limit would always be a debit. A
+  successful submit stores the net effect, so a later replace cannot turn a
+  credit into `NET_ZERO` or an even package into a debit.
+- `complexOrderStrategyType` is `VERTICAL` only for one buy and one sell with
+  the same expiry and right, different strikes and equal quantities; anything
+  else is `CUSTOM`.
+- Legs keep their own contract counts. The top-level `quantity` is the GCD of
+  the leg quantities; a hand-built parent must match it.
+
+Lifecycle:
+- A snapshot whose legs are all options parses as one `OrderClass.MULTILEG`
+  parent with the broker order id. Child legs get `<id>-leg-<n>` identifiers
+  because `Order` equality uses the identifier. An all-option snapshot whose
+  legs cannot all be read is skipped, never returned as its first leg; the
+  warning is logged once per order id because the broad poll re-reads seven
+  days of history every 30 seconds.
+- Fills are counted in packages, never contracts: summing `executionLegs`
+  directly would count every contract on every side. The net fill price is
+  each leg's execution VWAP times its leg ratio (buys positive, sells negative),
+  reported positive. Schwab's `price` is the limit, not the fill. Only when an
+  execution has no `legId`, a leg has no execution, or legs filled out of ratio
+  does the parser use `filledQuantity` and `averagePrice` (then `price`).
+  Each new package fill uses the incremental price of that fill, derived from
+  the cumulative value, so two fills at 1.30 and 1.20 average to 1.25. A single
+  order uses the same rule: one unit at 1.10 and then an average of 1.20 over
+  two is a new fill at 1.30, not 1.20. After each fill the order's cached
+  `avg_fill_price` is the broker's cumulative average, so `get_fill_price()`
+  does not keep an older value. Zero is a real net price. The limit does not
+  replace it. A leg whose side is neither
+  buy nor sell uses that same fallback, and the package parent is marked
+  degraded when a leg is. A parsed `NET_CREDIT`, `NET_DEBIT`, or `NET_ZERO`
+  keeps that effect, so a replace after a restart follows the same credit,
+  debit, and even rules as the original submit.
+- A working order whose Schwab `tag` matches this strategy is recovered after a
+  restart; untagged and foreign orders never are. Recovery runs in
+  `set_strategy_name`, which the executor calls right before `initialize()`, so
+  a close submitted there sees the working close instead of duplicating it.
+  That pull reads 59 days of history (the poll reads 7) because a working GTC
+  close can be older than a week; Schwab rejects a start more than 60 days back,
+  so a working order older than that cannot be recovered from history. A
+  response at Schwab's default page (3000 orders) may have cut off the oldest
+  orders, so that window is split in half and both halves are read (up to
+  `SCHWAB_ORDER_HISTORY_SPLITS` times), deduplicated by order id. A page still
+  full after every split is logged: a warning once per history window and
+  debug afterward, because the poll repeats every 30 seconds. An imported
+  filled or canceled package also closes its legs. Overlapping position syncs
+  (startup recovery, the constructor's initial load and the stream thread)
+  reconcile into one book and apply in the order they started, in one sequence
+  for account-wide and named syncs; an older snapshot that finishes last is
+  discarded, and a pull that failed before returning any position does not
+  count as newer. The quote asset (cash) stored by the balance refresh is never
+  pruned by a position sync, matching the base broker.
+- `Order.cash_pending` estimates only multi-leg packages differently (single
+  orders keep the shared code). The submitted credit, debit, or even effect is
+  kept by `Order.to_dict` / `Order.from_dict`. A package that never stored one
+  still rebuilds it from the limit sign and side for a priced fill. Leg marks
+  that disagree with a stored credit or debit are not used; the estimate falls
+  back to the package limit, or is unavailable when there is none. An `even`
+  package has no pending cash. A missing leg quote falls back to the limit,
+  else `None`. A
+  working order with fills (WORKING with a filled quantity, or
+  PARTIALLY_FILLED) is recovered with that history, as partially filled and
+  without a callback; a later WORKING snapshot does not move it back to new.
+  The first-iteration `sync_orders` import uses the same tag gate, for working
+  orders and for filled or canceled history, because the order pull parses
+  every account order under this strategy's name. A package leg
+  (`<id>-leg-<n>`) copies its parent's tag but is never imported or recovered
+  on its own; it is tracked through the parent. An order
+  this broker submitted is never treated as foreign, by the poll or by the fill
+  callbacks, for the strategy that submitted it. Schwab's `tag` is always the
+  strategy name (normalized as recovery matches it), on submit and on every
+  replacement; a custom `Order.tag` such as `entry-42` stays on the local
+  order, because sending it would hide the order from recovery after a restart.
+  Imported filled or canceled history keeps its fills without a callback and
+  without being replayed by a later poll, unpriced when Schwab's only price is
+  the limit; its cancel or error outcome is not delivered again either. A FILLED snapshot at a quantity already recorded in full (for
+  example a recovered WORKING order that was already complete) closes the
+  order and its package legs without another fill. A PARTIALLY_FILLED snapshot
+  that brings the cumulative quantity to the full order is delivered as the
+  filled callback, so `on_filled_order` runs even though Schwab's status lagged. Fills it already had are
+  recorded without a callback, at Schwab's `averagePrice` or execution price.
+  When neither exists the parser's limit fallback is not a fill, so that
+  quantity is left unpriced; the next fill values it at the new average, and
+  the shared sync importer does the same instead of failing on the missing
+  price. A later fill whose only price is that limit fallback is recorded at
+  the limit, never derived from it as if it were a cumulative average. That
+  limit-priced fill is an estimate: when Schwab later reports a cumulative
+  average, the next fill is priced as if the estimate had filled at that
+  average. A snapshot at the same quantity that finally carries an average
+  fills in the order's average without adding a fill, also after the order is
+  filled. When Schwab confirms an average, limit estimates are rewritten so the
+  ledger totals that value. A same-quantity correction leaves a price that was
+  already confirmed in place. Strategy cash needs no correction because it is
+  re-read from the account. Each confirmed
+  cumulative value (quantity times Schwab's average) is kept, and later fills
+  are priced from it, so 1 at a 10 limit, 2 averaging 9.50, then 3 averaging
+  9.60 records the third unit at 9.80. The order's average is updated before
+  the fill callback runs. A
+  recovered stop-limit keeps its limit in `stop_limit_price`, where the
+  stock builder reads it. Every replacement (package, stock or option) carries
+  the same tag, so a repriced order is still recognized after the next
+  restart. A history pull that cannot read a package keeps that package's last
+  known fill, because an unreadable snapshot is not evidence the fill is gone,
+  and a stale pull reporting a smaller fill does not lower it: fills only grow.
+- An unlabeled (`Unknown`) position row counts as this strategy's only when no
+  other strategy has a named row for the asset. Otherwise it may be that
+  strategy's holding, and it cannot classify a sell as a close or authorize one.
+  A named position sync follows the same rule: it keeps that row's quantity
+  current but does not relabel it as this strategy's.
+- When the package fills, is canceled, or errors, its original child orders are
+  marked the same way and their close events are set. A submit rejection does
+  this when the error event is applied, including after a held event is
+  released. A package that was canceled and is later confirmed filled moves
+  those legs to filled; that update does not book a second cash change. A
+  local error that a later partial fill supersedes reopens the parent and its
+  legs, so the outstanding contracts stay reserved. The parent fill does not
+  move cash (`Order.is_parent()`); leg positions come from the regular Schwab
+  position sync. A package fill reaches `on_filled_order` with
+  `position=None`; the executor's fill notification labels it by the order's
+  asset on Schwab.
+- A working package's unfilled close legs count as reserved contracts. Filled
+  close contracts stay reserved as well until position sync removes them from
+  the book; the sync drops that hold and leaves only the unfilled remainder.
+  The package being replaced does not reserve against itself. An explicit close
+  with no matching position is rejected before the request. These rules live in
+  Schwab's overrides of `_active_orders_reserving_asset`,
+  `_reserved_quantity_already_filled` and
+  `_unreconciled_package_close_quantity`; the base `Broker` versions keep the
+  existing lookup for every other broker. Likewise only Schwab's
+  `_recorded_fill_value` values an unpriced recovered fill at the cumulative
+  average.
+- `modify_order` replaces the package through the same builder, so SMART_LIMIT
+  repricing changes only the net price. A failed order read, including HTTP 429,
+  returns `False` and leaves the local price unchanged. An HTTP 429 on the
+  replace itself sets a cooldown from `Retry-After` (backoff when absent); until
+  it ends `modify_order` returns `False` without reading or sending anything.
+  The strategy does not
+  copy the requested price, and SMART_LIMIT retries that ladder step for both
+  a package and a single order. A single-order replacement is submitted as a
+  limit order; the tracked order stays `SMART_LIMIT` so the ladder continues.
+  When one package has filled and the legs have no ledger of their own, the
+  replacement uses the parent's filled quantity. A leg that has its own fills
+  must still match that remainder. Only Schwab retries that refused step, and
+  only Schwab passes the parent's `time_in_force` to a package replacement
+  (`StrategyExecutor._broker_is_schwab`). Other brokers keep their existing
+  SMART_LIMIT behavior. A change
+  between credit, debit and even is a cancel and resubmit (strategy executor);
+  modifying an `even` package to a non-zero price is refused because `NET_ZERO`
+  is always `0.00`.
+- Durations are checked in the package builder, which every path uses
+  (`submit_orders`, a hand-built parent, modify): `day`/`gtc` in any case are
+  sent; anything else is refused instead of being sent with no duration.
+  `time_in_force` is accepted as an alias for `duration` on `submit_orders`.
 
 ### Tradier (equities/options)
 

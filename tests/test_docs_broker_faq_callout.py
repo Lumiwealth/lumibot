@@ -13,7 +13,6 @@ import sys
 from pathlib import Path
 
 import pytest
-from docutils.core import publish_doctree
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCSRC = ROOT / "docsrc"
@@ -24,6 +23,8 @@ UNDERLINE = re.compile(r"^([=\-~^\"*#+])\1{3,}\s*$")
 
 
 def _load_docs_config():
+    """Load docsrc/conf.py once docutils is present, then restore sys.modules."""
+    pytest.importorskip("docutils")
     spec = importlib.util.spec_from_file_location("lumibot_docs_conf_faq", DOCSRC / "conf.py")
     module = importlib.util.module_from_spec(spec)
     original_modules = sys.modules.copy()
@@ -118,6 +119,9 @@ def test_new_broker_text_has_no_em_or_en_dashes():
 
 
 def test_faq_extractor_reads_both_question_styles():
+    pytest.importorskip("docutils")
+    from docutils.core import publish_doctree
+
     conf = _load_docs_config()
     doctree = publish_doctree(
         "Title\n=====\n\nFrequently asked questions\n--------------------------\n\n"

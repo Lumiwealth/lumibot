@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import math
 import os
 import re
 import threading
@@ -300,6 +301,10 @@ class Schwab(Broker):
     """
 
     NAME = "Schwab"
+    # Schwab's default maxResults for the order-history endpoint.
+    SCHWAB_ORDER_HISTORY_PAGE = 3000
+    # How many times a full history page is split into smaller windows (up to 2**n reads).
+    SCHWAB_ORDER_HISTORY_SPLITS = 4
     CASH_FUNDING_TRANSACTION_TYPES = {
         "ACH_RECEIPT", "ACH_DISBURSEMENT", "CASH_RECEIPT",
         "CASH_DISBURSEMENT", "WIRE_IN", "WIRE_OUT", "ELECTRONIC_FUND",
@@ -1393,17 +1398,29 @@ class Schwab(Broker):
             broker_parse_degraded=(mapped_asset_type == Asset.AssetType.UNKNOWN and not is_known_unsupported),
         )
 
+    def _set_positions_refresh_degraded(self, degraded: bool) -> None:
+        """Remember whether the pull on this thread returned a complete book. A replaced ``_pull_positions``
+        still sets the shared flag, which is the fallback.
+        """
+        degraded = bool(degraded)
+        self._last_positions_refresh_degraded = degraded
+        status = getattr(self, "_schwab_position_pull_local", None)
+        if status is None:
+            return
+        status.degraded = degraded
+        status.ready = True
+
     # Position methods
-    def _pull_positions(self, strategy: 'Strategy') -> List[Position]:
-        self._last_positions_refresh_degraded = False
+    def _pull_positions(self, strategy: 'Strategy') -> list:
+        self._set_positions_refresh_degraded(False)
         # Add check for authorization error first
         if not self._broker_fully_ready:
             logger.warning(colored("[Schwab] Broker not fully ready. Cannot pull positions.", "yellow"))
-            self._last_positions_refresh_degraded = True
+            self._set_positions_refresh_degraded(True)
             return []
         if self.schwab_authorization_error:
             logger.warning(colored("Schwab authorization failed previously. Cannot pull positions.", "yellow"))
-            self._last_positions_refresh_degraded = True
+            self._set_positions_refresh_degraded(True)
             return []
 
         Position = _position_class()
@@ -1412,7 +1429,7 @@ class Schwab(Broker):
             # Add check for valid client and hash_value
             if not self.client or not self.hash_value:
                 logger.error(colored("Schwab client or account hash not initialized. Cannot pull positions.", "red"))
-                self._last_positions_refresh_degraded = True
+                self._set_positions_refresh_degraded(True)
                 return [] # Return empty list
 
             # Get account details with positions
@@ -1420,7 +1437,7 @@ class Schwab(Broker):
 
             if response.status_code != 200:
                 logger.error(colored(f"Error fetching positions from Schwab: {response.status_code}", "red"))
-                self._last_positions_refresh_degraded = True
+                self._set_positions_refresh_degraded(True)
                 return []
 
             account_data = response.json()
@@ -1445,7 +1462,7 @@ class Schwab(Broker):
                     context=f"position symbol {symbol or '<missing>'}",
                 )
                 if asset is None:
-                    self._last_positions_refresh_degraded = True
+                    self._set_positions_refresh_degraded(True)
                     logger.warning(colored(
                         f"Skipping Schwab position with no usable symbol/instrument identifier: {schwab_position}",
                         "yellow",
@@ -1461,7 +1478,7 @@ class Schwab(Broker):
                         - self._coerce_float(short_quantity, field_name="shortQuantity", context=f"position {symbol}")
                     )
                 except ValueError as exc:
-                    self._last_positions_refresh_degraded = True
+                    self._set_positions_refresh_degraded(True)
                     logger.warning(colored(
                         f"Skipping Schwab position with invalid quantity for asset type: {asset_type}, "
                         f"symbol: {symbol}: {exc}",
@@ -1521,7 +1538,7 @@ class Schwab(Broker):
         except Exception as e:
             logger.error(colored(f"Error pulling positions from Schwab: {str(e)}", "red"))
             logger.error(_format_exc())
-            self._last_positions_refresh_degraded = True
+            self._set_positions_refresh_degraded(True)
             return []
 
     def _pull_position(self, strategy: 'Strategy', asset: Asset) -> Optional[Position]:
@@ -1571,21 +1588,11 @@ class Schwab(Broker):
         return None
 
     # Order methods
-    def _pull_broker_all_orders(self) -> list:
+    def _pull_broker_all_orders(self, days: int = 7) -> list:
+        """Return orders from the last ``days`` days, capped at 59. A full page is split. A failed pull returns
+        an empty list and stays degraded.
         """
-        Get the broker's open orders.
-
-        Returns
-        -------
-        list
-            A list of order responses from the broker query. These will be passed to 
-            _parse_broker_order() to be converted to Order objects.
-            
-        Notes
-        -----
-        This method retrieves orders from the past 7 days by default to limit the
-        volume of data returned while still capturing relevant recent orders.
-        """
+        self._set_orders_refresh_degraded(True)
         # Add check for authorization error first
         if not self._broker_fully_ready:
             logger.warning(colored("[Schwab] Broker not fully ready. Cannot pull all orders.", "yellow"))
@@ -1603,32 +1610,90 @@ class Schwab(Broker):
             return []
 
         try:
-            # Get orders from last 7 days
             from pytz import timezone
 
-            seek_start = datetime.now(timezone('UTC')) - timedelta(days=7)
-
-            response = self.client.get_orders_for_account(
-                self.hash_value,
-                from_entered_datetime=seek_start
-            )
-
-            if response.status_code == 429:
-                self._record_schwab_rate_limit(response, "order_history")
-                return []
-            if response.status_code != 200:
-                logger.error(colored(f"Error fetching orders from Schwab: {response.status_code}", "red"))
+            seek_end = datetime.now(timezone('UTC'))
+            seek_start = seek_end - timedelta(days=min(max(int(days), 1), 59))
+            schwab_orders = self._pull_schwab_order_window(seek_start, seek_end, days)
+            if schwab_orders is None:
                 return []
 
             self._clear_schwab_rate_limit("order_history")
-            schwab_orders = response.json()
-
+            self._set_orders_refresh_degraded(False)
             return schwab_orders
 
         except Exception as e:
             logger.error(colored(f"Error pulling orders from Schwab: {str(e)}", "red"))
             logger.error(_format_exc())
             return []
+
+    def _set_orders_refresh_degraded(self, degraded: bool) -> None:
+        """Remember whether this thread's order pull failed, so another thread's success cannot hide it."""
+        degraded = bool(degraded)
+        self._last_orders_refresh_degraded = degraded
+        # dict.setdefault is atomic, so two threads share one thread-local holder.
+        self.__dict__.setdefault("_schwab_order_pull_local", threading.local()).degraded = degraded
+
+    def _orders_refresh_degraded(self) -> bool:
+        """True when this thread's last order pull failed."""
+        local = getattr(self, "_schwab_order_pull_local", None)
+        if local is not None and hasattr(local, "degraded"):
+            return bool(local.degraded)
+        return bool(getattr(self, "_last_orders_refresh_degraded", False))
+
+    def _pull_schwab_order_window(self, start, end, days, depth: int = 0):
+        """Read one history window. A full page is split and deduplicated; a failed read returns None."""
+        response = self.client.get_orders_for_account(
+            self.hash_value,
+            from_entered_datetime=start,
+            to_entered_datetime=end,
+        )
+        if response.status_code == 429:
+            self._record_schwab_rate_limit(response, "order_history")
+            return None
+        if response.status_code != 200:
+            logger.error(colored(f"Error fetching orders from Schwab: {response.status_code}", "red"))
+            return None
+        schwab_orders = response.json()
+        if not isinstance(schwab_orders, list):
+            logger.error(colored("Schwab order history was not a list.", "red"))
+            return None
+        if len(schwab_orders) < self.SCHWAB_ORDER_HISTORY_PAGE:
+            return schwab_orders
+
+        if depth < self.SCHWAB_ORDER_HISTORY_SPLITS and end - start > timedelta(minutes=1):
+            middle = start + (end - start) / 2
+            older = self._pull_schwab_order_window(start, middle, days, depth + 1)
+            if older is None:
+                return None
+            newer = self._pull_schwab_order_window(middle, end, days, depth + 1)
+            if newer is None:
+                return None
+            combined, seen = [], set()
+            for payload in newer + older:
+                key = payload.get("orderId") if isinstance(payload, dict) else None
+                if key is not None:
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                combined.append(payload)
+            return combined
+
+        # Still a full page after every split. The poll repeats every 30
+        # seconds, so this is a warning once per window.
+        message = (
+            f"Schwab returned {len(schwab_orders)} orders for part of the last {days} days, its page "
+            "limit; older orders may be missing from this history."
+        )
+        warned = getattr(self, "_schwab_history_page_warned", None)
+        if warned is None:
+            warned = self._schwab_history_page_warned = set()
+        if days in warned:
+            logger.debug(message)
+        else:
+            warned.add(days)
+            logger.warning(colored(message, "yellow"))
+        return schwab_orders
 
     def _pull_broker_order(self, identifier: str) -> dict:
         """
@@ -1778,8 +1843,28 @@ class Schwab(Broker):
                 if skipped_child_orders == len(child_order_strategies):
                     return None
             else:
-                # Process simple order
+                # Process simple order. A multi-leg option package is one broker
+                # order, so return the parent with its legs instead of the first leg.
                 simple_orders = self._parse_simple_order(response, strategy_name)
+                multileg_order = self._parse_multileg_option_snapshot(response, simple_orders, strategy_name)
+                if multileg_order is not None:
+                    return multileg_order
+                # A broken option package must not surface as its first leg.
+                # Mixed stock-and-option orders keep the existing one-order parse.
+                if self._schwab_snapshot_is_option_package(response):
+                    # The broad poll re-reads seven days of history every 30 seconds;
+                    # warn once per order instead of on every poll.
+                    package_id = str(response.get("orderId", ""))
+                    skipped = getattr(self, "_schwab_skipped_package_ids", None)
+                    if skipped is None:
+                        skipped = self._schwab_skipped_package_ids = set()
+                    message = f"Skipping Schwab option package {package_id}: the legs could not be read as one order."
+                    if package_id in skipped:
+                        logger.debug(message)
+                    else:
+                        skipped.add(package_id)
+                        logger.warning(colored(message, "yellow"))
+                    return None
                 if simple_orders:
                     return simple_orders[0]  # Return the first order
 
@@ -1795,12 +1880,21 @@ class Schwab(Broker):
             return None
 
     def _schwab_order_type_to_lumibot(self, raw_order_type):
+        """Map a Schwab order type to a lumibot type.
+
+        NET_DEBIT, NET_CREDIT, and NET_ZERO stay limits at the net price. The
+        raw type remains on the order. Exercise and unknown types stay unknown.
+        """
         order_type_map = {
             "LIMIT": Order.OrderType.LIMIT,
             "MARKET": Order.OrderType.MARKET,
             "STOP": Order.OrderType.STOP,
             "STOP_LIMIT": Order.OrderType.STOP_LIMIT,
             "TRAILING_STOP": Order.OrderType.TRAIL,
+            # A Schwab package is a limit at the net price. The raw type stays on the order.
+            "NET_DEBIT": Order.OrderType.LIMIT,
+            "NET_CREDIT": Order.OrderType.LIMIT,
+            "NET_ZERO": Order.OrderType.LIMIT,
         }
         if raw_order_type in order_type_map:
             return order_type_map[raw_order_type]
@@ -1855,22 +1949,7 @@ class Schwab(Broker):
         cumulative broker value on the observed Order and the reducer calculates
         the delta against a per-order high-water mark.
         """
-        execution_rows = []
-        for activity in schwab_order.get("orderActivityCollection") or schwab_order.get("activityCollection") or []:
-            if str(activity.get("activityType", "")).upper() not in {"EXECUTION", "ORDER_EXECUTION"}:
-                continue
-            for execution in activity.get("executionLegs") or []:
-                execution_leg_id = execution.get("legId")
-                if leg_id is not None and execution_leg_id is not None and str(execution_leg_id) != str(leg_id):
-                    continue
-                try:
-                    quantity = float(execution.get("quantity") or 0)
-                    price = float(execution.get("price"))
-                except (TypeError, ValueError):
-                    continue
-                if quantity > 0:
-                    execution_rows.append((quantity, price))
-
+        execution_rows = Schwab._schwab_execution_rows(schwab_order, leg_id=leg_id)
         if execution_rows:
             cumulative = sum(quantity for quantity, _ in execution_rows)
             average_price = sum(quantity * price for quantity, price in execution_rows) / cumulative
@@ -1886,6 +1965,26 @@ class Schwab(Broker):
         except (TypeError, ValueError):
             average_price = None
         return cumulative, average_price
+
+    @staticmethod
+    def _schwab_execution_rows(schwab_order: dict, leg_id=None):
+        """Return (quantity, price) for each broker execution, optionally for one leg."""
+        execution_rows = []
+        for activity in schwab_order.get("orderActivityCollection") or schwab_order.get("activityCollection") or []:
+            if str(activity.get("activityType", "")).upper() not in {"EXECUTION", "ORDER_EXECUTION"}:
+                continue
+            for execution in activity.get("executionLegs") or []:
+                execution_leg_id = execution.get("legId")
+                if leg_id is not None and execution_leg_id is not None and str(execution_leg_id) != str(leg_id):
+                    continue
+                try:
+                    quantity = float(execution.get("quantity") or 0)
+                    price = float(execution.get("price"))
+                except (TypeError, ValueError):
+                    continue
+                if quantity > 0:
+                    execution_rows.append((quantity, price))
+        return execution_rows
 
     def _schwab_instruction_to_side(self, instruction):
         side_mapping = {
@@ -1907,7 +2006,7 @@ class Schwab(Broker):
         ))
         return Order.OrderSide.UNKNOWN
 
-    def _parse_simple_order(self, schwab_order: dict, strategy_name: str) -> List[Order]:
+    def _parse_simple_order(self, schwab_order: dict, strategy_name: str) -> list:
         """
         Parse a simple Schwab order (non-OCO) into Lumibot Order objects.
         
@@ -2038,13 +2137,25 @@ class Schwab(Broker):
                     stop_price=stop_price,
                     identifier=order_id,
                 )
+                # The package parent keeps this same broker tag. An empty tag stays
+                # unset, so an untagged working order is not adopted as this strategy.
+                raw_tag = schwab_order.get("tag")
+                if isinstance(raw_tag, str) and raw_tag.strip():
+                    order.tag = raw_tag.strip()
+                if order_type == Order.OrderType.STOP_LIMIT and price is not None:
+                    # The stock builder reads a stop-limit's limit from stop_limit_price.
+                    order.stop_limit_price = price
 
-                cumulative_filled, average_fill_price = self._schwab_execution_summary(
-                    schwab_order,
-                    leg_id=schwab_leg.get("legId", leg_index + 1),
-                )
+                leg_id = schwab_leg.get("legId", leg_index + 1)
+                cumulative_filled, average_fill_price = self._schwab_execution_summary(schwab_order, leg_id=leg_id)
                 order._schwab_cumulative_filled_quantity = cumulative_filled
                 order._schwab_average_fill_price = average_fill_price
+                # With no executions and no averagePrice, the summary falls back to the limit.
+                order._schwab_average_from_limit = bool(
+                    average_fill_price is not None
+                    and not schwab_order.get("averagePrice")
+                    and not self._schwab_execution_rows(schwab_order, leg_id=leg_id)
+                )
                 if average_fill_price is not None:
                     order.avg_fill_price = average_fill_price
 
@@ -2086,6 +2197,1210 @@ class Schwab(Broker):
             logger.warning(colored(f"Skipping malformed Schwab simple order: {str(e)}", "yellow"))
             logger.debug(_format_exc())
             return []
+
+    def _parse_multileg_option_snapshot(self, schwab_order: dict, simple_orders: list[Order], strategy_name: str):
+        """Return a MULTILEG parent when a snapshot is one option package. Single-leg orders and mixed asset
+        legs keep the existing one-order parse.
+        """
+        if not isinstance(schwab_order, dict) or not simple_orders or len(simple_orders) < 2:
+            return None
+
+        schwab_legs = schwab_order.get("orderLegCollection") or []
+        if len(simple_orders) != len(schwab_legs):
+            return None
+        if any(
+            getattr(getattr(order, "asset", None), "asset_type", None) != Asset.AssetType.OPTION
+            for order in simple_orders
+        ):
+            return None
+
+        order_id = schwab_order.get("orderId")
+        if order_id is None:
+            return None
+
+        raw_order_type = schwab_order.get("orderType")
+        if raw_order_type == "NET_CREDIT":
+            side = Order.OrderSide.SELL
+        elif raw_order_type in {"NET_DEBIT", "NET_ZERO"}:
+            side = Order.OrderSide.BUY
+        else:
+            side = simple_orders[0].side
+
+        price = schwab_order.get("price")
+        try:
+            price = float(price) if price is not None else None
+        except (TypeError, ValueError):
+            price = None
+        if raw_order_type == "NET_ZERO" and price is None:
+            price = 0.0
+
+        raw_quantity = schwab_order.get("quantity")
+        if raw_quantity is None:
+            raw_quantity = simple_orders[0].quantity
+
+        duration = schwab_order.get("duration")
+        time_in_force = "gtc" if duration == "GOOD_TILL_CANCEL" else "day"
+
+        for index, child in enumerate(simple_orders, start=1):
+            child.identifier = f"{order_id}-leg-{index}"
+
+        parent = Order(
+            strategy=strategy_name,
+            asset=Asset(
+                symbol=simple_orders[0].asset.symbol,
+                asset_type=Asset.AssetType.MULTILEG,
+            ),
+            quantity=raw_quantity,
+            side=side,
+            limit_price=price,
+            order_type=self._schwab_order_type_to_lumibot(raw_order_type),
+            time_in_force=time_in_force,
+            order_class=Order.OrderClass.MULTILEG,
+            child_orders=simple_orders,
+            identifier=order_id,
+        )
+        parent.status = simple_orders[0].status
+        parent.broker_create_date = simple_orders[0].broker_create_date
+        parent.created_at = simple_orders[0].created_at
+        parent.broker_update_date = simple_orders[0].broker_update_date
+
+        # Package fills are one net quantity. Summing execution legs would count
+        # every contract on every side, so executions are converted to packages.
+        execution_fill = self._schwab_multileg_execution_fill(schwab_order, schwab_legs, simple_orders)
+        if execution_fill is not None:
+            cumulative, average_price = execution_fill
+        else:
+            filled_quantity = schwab_order.get("filledQuantity")
+            try:
+                cumulative = float(filled_quantity) if filled_quantity is not None else 0.0
+            except (TypeError, ValueError):
+                cumulative = 0.0
+            average_price = schwab_order.get("averagePrice")
+            if average_price is None and cumulative > 0:
+                average_price = schwab_order.get("price")
+            try:
+                average_price = float(average_price) if average_price is not None else None
+            except (TypeError, ValueError):
+                average_price = None
+        parent._schwab_cumulative_filled_quantity = cumulative
+        parent._schwab_average_fill_price = average_price
+        parent._schwab_average_from_limit = bool(
+            execution_fill is None and schwab_order.get("averagePrice") is None and average_price is not None
+        )
+        if average_price is not None and cumulative > 0:
+            parent.avg_fill_price = average_price
+
+        degraded_child = next(
+            (child for child in simple_orders if getattr(child, "broker_parse_degraded", False)),
+            None,
+        )
+        self._attach_raw_broker_data(
+            parent,
+            schwab_order,
+            raw_order_type=raw_order_type,
+            raw_order_status=schwab_order.get("status"),
+            broker_parse_degraded=degraded_child is not None,
+            broker_parse_warning=getattr(degraded_child, "broker_parse_warning", None),
+        )
+        # A restart only has this snapshot. Keep the net type so a later replace
+        # cannot turn an even package into a debit, or a credit into zero.
+        effect = {"NET_CREDIT": "credit", "NET_DEBIT": "debit", "NET_ZERO": "even"}.get(raw_order_type)
+        if effect is not None:
+            parent._multileg_effect = effect
+        # Ownership for recovery is the broker tag. Snapshots without one stay
+        # untagged, so a shared account cannot be adopted through the strategy name.
+        raw_tag = schwab_order.get("tag")
+        if isinstance(raw_tag, str) and raw_tag.strip():
+            parent.tag = raw_tag.strip()
+        return parent
+
+    @staticmethod
+    def _schwab_snapshot_is_option_package(schwab_order) -> bool:
+        """True when every leg of a multi-leg snapshot is an option."""
+        if not isinstance(schwab_order, dict) or schwab_order.get("childOrderStrategies"):
+            return False
+        legs = schwab_order.get("orderLegCollection") or []
+        if len(legs) < 2:
+            return False
+        for leg in legs:
+            if not isinstance(leg, dict):
+                return False
+            instrument = leg.get("instrument") or {}
+            asset_type = leg.get("orderLegType") or instrument.get("assetType")
+            if asset_type != "OPTION":
+                return False
+        return True
+
+    def _schwab_multileg_execution_fill(self, schwab_order: dict, schwab_legs: list, legs: list[Order]):
+        """Return (packages filled, net average price) from the leg executions. The net price is each leg's
+        execution VWAP times its leg ratio, buys positive and sells negative, reported as a positive package
+        price.
+        """
+        try:
+            package_quantity = float(schwab_order.get("quantity"))
+        except (TypeError, ValueError):
+            return None
+        if package_quantity <= 0:
+            return None
+
+        for activity in schwab_order.get("orderActivityCollection") or schwab_order.get("activityCollection") or []:
+            if str(activity.get("activityType", "")).upper() not in {"EXECUTION", "ORDER_EXECUTION"}:
+                continue
+            if any(execution.get("legId") is None for execution in activity.get("executionLegs") or []):
+                return None
+
+        packages_filled = None
+        net_price = 0.0
+        for index, (schwab_leg, leg) in enumerate(zip(schwab_legs, legs)):
+            rows = self._schwab_execution_rows(schwab_order, leg_id=schwab_leg.get("legId", index + 1))
+            try:
+                ratio = float(schwab_leg.get("quantity")) / package_quantity
+            except (TypeError, ValueError):
+                return None
+            if not rows or ratio <= 0:
+                return None
+            leg_filled = sum(quantity for quantity, _ in rows)
+            leg_average = sum(quantity * price for quantity, price in rows) / leg_filled
+            leg_packages = leg_filled / ratio
+            if packages_filled is None:
+                packages_filled = leg_packages
+            elif abs(leg_packages - packages_filled) > 1e-9:
+                return None
+            if leg.is_buy_order():
+                sign = 1
+            elif leg.is_sell_order():
+                sign = -1
+            else:
+                # An unknown side would be treated as a sell and invent a net price.
+                return None
+            net_price += ratio * leg_average * sign
+
+        return packages_filled, round(abs(net_price), 6)
+
+    def _complete_schwab_package_children(self, parent: Order) -> None:
+        """Close the original legs when the package itself is terminal. The legs are not broker orders of their
+        own.
+        """
+        if getattr(parent, "order_class", None) != Order.OrderClass.MULTILEG:
+            return
+        if parent.is_filled():
+            terminal_status = Order.OrderStatus.FILLED
+        elif parent.is_canceled():
+            terminal_status = parent.status
+        else:
+            return
+        for child in list(getattr(parent, "child_orders", None) or []):
+            if child.is_filled():
+                if not child._closed_event.is_set():
+                    child.set_filled()
+                continue
+            # A cancel can win the race and then lose it. A later confirmed fill
+            # has to move those legs to filled. set_filled only releases the
+            # wait; it does not book another cash or position change.
+            if parent.is_filled() and child.is_canceled():
+                child.status = Order.OrderStatus.FILLED
+                child.set_filled()
+                continue
+            if child.is_canceled():
+                if not child._closed_event.is_set():
+                    child.set_canceled()
+                continue
+            child.status = terminal_status
+            if parent.is_filled():
+                child.set_filled()
+            elif Order.is_equivalent_status(terminal_status, self.ERROR_ORDER):
+                message = getattr(parent, "error_message", None) or "Schwab package closed"
+                child.set_error(getattr(parent, "_error", None) or LumibotBrokerAPIError(message))
+            else:
+                child.set_canceled()
+
+    def _process_error_order(self, order, error):
+        """Close package legs when the parent error is applied. Submit rejections arrive as stream events, and
+        a sync can hold that event until ``process_held_trades`` releases it.
+        """
+        order = super()._process_error_order(order, error)
+        if order is not None:
+            self._complete_schwab_package_children(order)
+        return order
+
+    def _reopen_schwab_package_children(self, parent: Order) -> None:
+        """Return legs to active after a local error loses to a later fill. The fill reopens the parent only."""
+        if getattr(parent, "order_class", None) != Order.OrderClass.MULTILEG:
+            return
+        for child in list(getattr(parent, "child_orders", None) or []):
+            if child.is_filled():
+                continue
+            if child.is_canceled():
+                child.status = Order.OrderStatus.SUBMITTED
+            if child._closed_event.is_set():
+                child._closed_event.clear()
+
+    def _process_partially_filled_order(self, order, price, quantity):
+        self._note_package_close_fill(order, quantity)
+        return super()._process_partially_filled_order(order, price, quantity)
+
+    def _process_filled_order(self, order, price, quantity):
+        self._note_package_close_fill(order, quantity)
+        return super()._process_filled_order(order, price, quantity)
+
+    def _note_package_close_fill(self, order, package_fill_qty):
+        """Remember close contracts a package fill did not remove from the book."""
+        if getattr(order, "order_class", None) != Order.OrderClass.MULTILEG:
+            return
+        try:
+            package_fill_qty = float(package_fill_qty)
+            parent_quantity = float(order.quantity)
+        except (TypeError, ValueError):
+            return
+        if package_fill_qty <= 0 or parent_quantity <= 0:
+            return
+        if not hasattr(self, "_unreconciled_package_closes"):
+            self._unreconciled_package_closes = {}
+        for child in list(getattr(order, "child_orders", None) or []):
+            if not self._schwab_leg_is_close(child):
+                continue
+            try:
+                leg_qty = package_fill_qty * (float(child.quantity) / parent_quantity)
+            except (TypeError, ValueError):
+                continue
+            if leg_qty <= 0:
+                continue
+            key = self._package_close_key(child)
+            if key is None:
+                continue
+            position_abs = self._package_close_position_abs(child)
+            with self._lock:
+                # A drop since the anchor may already be this fill, including a
+                # drop an earlier position sync already applied. Spend only this
+                # package's credit. Another package's drop cannot pay for it.
+                self._refresh_unreconciled_package_close(key, position_abs)
+                state = self._unreconciled_package_closes.get(key)
+                order_id = str(getattr(order, "identifier", None) or "")
+                credit = 0.0
+                if state is not None and order_id:
+                    credits = state.setdefault("credits", {})
+                    credit = min(leg_qty, float(credits.get(order_id, 0.0)))
+                    if credit:
+                        credits[order_id] = float(credits[order_id]) - credit
+                    limits = state.setdefault("limits", {})
+                    if order_id in limits:
+                        limits[order_id] = max(0.0, float(limits[order_id]) - leg_qty)
+                    state["absorbed"] = sum(float(value) for value in credits.values())
+                reserve = leg_qty - credit
+                if reserve <= 0:
+                    continue
+                if state is None:
+                    self._unreconciled_package_closes[key] = {
+                        "qty": reserve,
+                        "position_abs": position_abs,
+                        "absorbed": 0.0,
+                        "credits": {},
+                        "limits": {},
+                    }
+                else:
+                    state["qty"] += reserve
+
+    @staticmethod
+    def _schwab_leg_is_close(order) -> bool:
+        """True for an explicit sell-to-close or buy-to-close leg."""
+        try:
+            side = order.side if isinstance(order.side, Order.OrderSide) else Order.OrderSide(order.side)
+        except (TypeError, ValueError):
+            return False
+        return side in {Order.OrderSide.SELL_TO_CLOSE, Order.OrderSide.BUY_TO_CLOSE}
+
+    def _package_close_key(self, order):
+        """Key for the contract a package close reserves, or None without an asset."""
+        asset = getattr(order, "asset", None)
+        if asset is None:
+            return None
+        return (getattr(order, "strategy", None), asset.symbol, asset.asset_type,
+                getattr(asset, "expiration", None), getattr(asset, "strike", None),
+                str(getattr(asset, "right", None) or ""))
+
+    def _remember_schwab_package_fills(self, order_payloads, unparsed_ids=()) -> None:
+        """Replace the package-fill map from a reliable history pull. An unreadable order keeps its fill."""
+        previous = getattr(self, "_schwab_seen_package_fills", None) or {}
+        unparsed = {str(order_id) for order_id in unparsed_ids or () if order_id not in (None, "")}
+        seen = {}
+        strategy_name = getattr(self, "_strategy_name", None)
+        for payload in order_payloads or []:
+            if isinstance(payload, Order):
+                observed = payload
+            elif isinstance(payload, dict):
+                try:
+                    observed = self._parse_broker_order(payload, strategy_name)
+                except Exception:
+                    logger.error(_format_exc())
+                    observed = None
+                if observed is None and payload.get("orderId") not in (None, ""):
+                    unparsed.add(str(payload.get("orderId")))
+                    continue
+            else:
+                continue
+            if observed is None or getattr(observed, "order_class", None) != Order.OrderClass.MULTILEG:
+                continue
+            order_id = str(getattr(observed, "identifier", None) or "")
+            if not order_id:
+                continue
+            try:
+                cumulative = float(getattr(observed, "_schwab_cumulative_filled_quantity", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            # Fills only grow. A stale pull reporting less keeps the larger value.
+            cumulative = max(cumulative, float(previous.get(order_id, 0.0) or 0.0))
+            if cumulative > 0:
+                seen[order_id] = cumulative
+        for order_id in unparsed:
+            if order_id not in seen and order_id in previous:
+                seen[order_id] = previous[order_id]
+        self._schwab_seen_package_fills = seen
+
+    def _schwab_unnoted_package_fill(self, order_id) -> float:
+        """Packages a pulled snapshot filled that this order has not noted yet."""
+        seen = getattr(self, "_schwab_seen_package_fills", None) or {}
+        try:
+            cumulative = float(seen.get(str(order_id), 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+        if cumulative <= 0:
+            return 0.0
+        recorded = 0.0
+        order = self.get_tracked_order(order_id)
+        if order is not None:
+            try:
+                recorded = sum(float(item.quantity) for item in order.transactions)
+            except (TypeError, ValueError):
+                recorded = 0.0
+        quantities = getattr(self, "_schwab_observed_fill_quantities", None) or {}
+        try:
+            noted = float(quantities.get(str(order_id), 0.0) or 0.0)
+        except (TypeError, ValueError):
+            noted = 0.0
+        return max(0.0, cumulative - max(recorded, noted))
+
+    def _schwab_unnoted_close_contracts(self, order_id, key) -> float:
+        """Close contracts of one key covered by a pulled fill that is not noted."""
+        packages = self._schwab_unnoted_package_fill(order_id)
+        if packages <= 0 or key is None:
+            return 0.0
+        order = self.get_tracked_order(order_id)
+        if order is None:
+            return 0.0
+        try:
+            parent_quantity = float(order.quantity)
+        except (TypeError, ValueError):
+            return 0.0
+        if parent_quantity <= 0:
+            return 0.0
+        contracts = 0.0
+        for child in list(getattr(order, "child_orders", None) or []):
+            if not self._schwab_leg_is_close(child) or self._package_close_key(child) != key:
+                continue
+            try:
+                contracts += packages * (abs(float(child.quantity)) / parent_quantity)
+            except (TypeError, ValueError):
+                continue
+        return contracts
+
+    def _refresh_unreconciled_package_close(self, key, position_abs) -> float:
+        """Reduce the reserved quantity when the position shrinks, and return the rest. A drop larger than the
+        reservation becomes credit for a package that can still fill this contract.
+        """
+        state = getattr(self, "_unreconciled_package_closes", {}).get(key)
+        if not state:
+            return 0.0
+        if position_abs < state["position_abs"]:
+            drop = state["position_abs"] - position_abs
+            applied = min(float(state["qty"]), drop)
+            state["qty"] = float(state["qty"]) - applied
+            excess = drop - applied
+            if excess > 0:
+                credits = state.setdefault("credits", {})
+                limits = state.setdefault("limits", {})
+                executed = []
+                resting = []
+                for order_id in limits:
+                    if self._schwab_unnoted_package_fill(order_id) > 0:
+                        executed.append(order_id)
+                    else:
+                        resting.append(order_id)
+                for prioritize_execution in (True, False):
+                    order_ids = executed if prioritize_execution else executed + resting
+                    for order_id in order_ids:
+                        if excess <= 0:
+                            break
+                        credit = float(credits.get(order_id, 0.0))
+                        room = float(limits[order_id]) - credit
+                        if prioritize_execution:
+                            unnoted = self._schwab_unnoted_close_contracts(order_id, key)
+                            room = min(room, unnoted - credit)
+                        if room <= 0:
+                            continue
+                        take = room if room < excess else excess
+                        credits[order_id] = credit + take
+                        excess -= take
+                    if excess <= 0:
+                        break
+                state["absorbed"] = sum(float(value) for value in credits.values())
+        state["position_abs"] = position_abs
+        return state["qty"]
+
+    @staticmethod
+    def _recorded_fill_value(order, average_price):
+        """Value recorded fills at their own price, and an unpriced fill at the cumulative average."""
+        from decimal import Decimal
+
+        value = Decimal(0)
+        for transaction in order.transactions:
+            price = average_price if transaction.price is None else Decimal(str(transaction.price))
+            value += Decimal(str(transaction.quantity)) * price
+        return value
+
+    def _active_orders_reserving_asset(self, order, additional_active_orders=None, exclude_reservations=None):
+        """Active closes of this contract, including legs of a working package. A package parent is not the
+        option, so an asset lookup misses its legs.
+        """
+        excluded = {id(item) for item in (exclude_reservations or [])}
+        if additional_active_orders:
+            excluded.difference_update(id(item) for item in additional_active_orders)
+
+        active_orders = []
+        seen = set()
+
+        def add(candidate):
+            """Keep one active order for this strategy and contract."""
+            if candidate is None or id(candidate) in seen or id(candidate) in excluded:
+                return
+            if candidate.strategy != order.strategy or candidate.asset != order.asset:
+                return
+            if not candidate.is_active():
+                return
+            seen.add(id(candidate))
+            active_orders.append(candidate)
+
+        for candidate in self.get_active_tracked_orders(order.strategy, order.asset):
+            add(candidate)
+        for package in self.get_active_tracked_orders(order.strategy):
+            for child in getattr(package, "child_orders", None) or []:
+                add(child)
+        for candidate in additional_active_orders or []:
+            add(candidate)
+        return active_orders
+
+    def _reserved_quantity_already_filled(self, order) -> float:
+        """Filled contracts from this close's own fills, or the parent's filled packages times this leg's
+        ratio.
+        """
+        filled = 0.0
+        try:
+            filled = sum(
+                float(item.quantity)
+                for item in getattr(order, "transactions", [])
+                if getattr(item, "quantity", None) is not None
+            )
+        except (TypeError, ValueError):
+            filled = 0.0
+
+        parent_id = getattr(order, "parent_identifier", None)
+        if not parent_id:
+            return filled
+        parent = self.get_tracked_order(parent_id)
+        if parent is None or getattr(parent, "order_class", None) != Order.OrderClass.MULTILEG:
+            return filled
+        try:
+            parent_quantity = float(parent.quantity)
+            child_quantity = float(order.quantity)
+            parent_filled = sum(
+                float(item.quantity)
+                for item in getattr(parent, "transactions", [])
+                if getattr(item, "quantity", None) is not None
+            )
+        except (TypeError, ValueError):
+            return filled
+        if parent_quantity <= 0 or child_quantity < 0:
+            return filled
+        return max(filled, parent_filled * (child_quantity / parent_quantity))
+
+    def _unreconciled_package_close_quantity(self, order) -> float:
+        """Filled close contracts this order still reserves until the book drops."""
+        key = self._package_close_key(order)
+        if key is None:
+            return 0.0
+        position_abs = self._package_close_position_abs(order)
+        with self._lock:
+            self._refresh_unreconciled_package_close(key, position_abs)
+            self._prune_obsolete_package_close_anchor(key)
+            state = getattr(self, "_unreconciled_package_closes", {}).get(key)
+            return float(state["qty"]) if state is not None else 0.0
+
+    def _position_for_order(self, order):
+        """Return this order's position, including an unlabeled row for this strategy. A named row wins."""
+        position = super()._position_for_order(order)
+        if position is not None:
+            return position
+        local_name = getattr(self, "_strategy_name", None) or ""
+        if not local_name or getattr(order, "strategy", None) != local_name:
+            return None
+        asset = getattr(order, "asset", None)
+        if asset is None:
+            return None
+        filled = getattr(self, "_filled_positions", None)
+        if filled is None:
+            return None
+        unlabeled = None
+        for candidate in filled.get_list():
+            if getattr(candidate, "asset", None) != asset:
+                continue
+            if getattr(candidate, "strategy", None) not in (None, "", "Unknown"):
+                # Another strategy holds this asset, so an unlabeled account row
+                # may be its holding. It cannot classify or authorize this close.
+                return None
+            if unlabeled is None:
+                unlabeled = candidate
+        return unlabeled
+
+    def _package_close_book_position(self, order):
+        """Return the close leg's position, including a row labeled Unknown. A position sync with no strategy
+        labels the book "Unknown".
+        """
+        return self._position_for_order(order)
+
+    def _package_close_position_abs(self, order) -> float:
+        """Absolute book size for one order, or zero when it has no position."""
+        position = self._package_close_book_position(order)
+        try:
+            return abs(float(position.quantity)) if position is not None else 0.0
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _package_close_baselines(self, order):
+        """Book size and close credit for each close leg before the order is sent. The credit copy is the
+        amount already stored before this request.
+        """
+        baselines = {}
+        for child in list(getattr(order, "child_orders", None) or []):
+            if not self._schwab_leg_is_close(child):
+                continue
+            key = self._package_close_key(child)
+            if key is None:
+                continue
+            book = self._package_close_position_abs(child)
+            states = getattr(self, "_unreconciled_package_closes", None) or {}
+            with self._lock:
+                state = states.get(key)
+                if state is None:
+                    baselines[key] = {"position_abs": book, "qty": 0.0, "credits": {}}
+                else:
+                    baselines[key] = {
+                        "position_abs": book,
+                        "qty": float(state.get("qty", 0.0)),
+                        "credits": {
+                            str(order_id): float(amount)
+                            for order_id, amount in state.get("credits", {}).items()
+                        },
+                    }
+        return baselines
+
+    def _claim_package_close_baseline(
+        self, state, order_id, baseline_abs, live_abs, baseline_qty, baseline_credits, key=None,
+    ) -> None:
+        """Give this package the contracts the book lost since its own baseline. An older close may already own
+        the anchor.
+        """
+        if not order_id:
+            return
+        own_drop = max(0.0, float(baseline_abs) - float(live_abs))
+        if own_drop <= 0:
+            return
+        credits = state.setdefault("credits", {})
+        limits = state.setdefault("limits", {})
+        qty_released = max(0.0, float(baseline_qty) - float(state.get("qty", 0.0)))
+        # The released reservation already accounted for this much of the drop.
+        # Leave it released, including when the old anchor was removed and this
+        # state was seeded again at the pre-submission size.
+        gap = max(0.0, float(state["position_abs"]) - float(live_abs))
+        released_gap = min(qty_released, gap, own_drop)
+        if released_gap > 0:
+            state["position_abs"] = float(state["position_abs"]) - released_gap
+        available = own_drop - qty_released
+        room = float(limits.get(order_id, 0.0)) - float(credits.get(order_id, 0.0))
+        if room <= 0 or available <= 0:
+            return
+        gained = []
+        for other_id, amount in credits.items():
+            if other_id == order_id:
+                continue
+            extra = float(amount) - float(baseline_credits.get(other_id, 0.0))
+            if extra > 0:
+                gained.append((other_id, extra))
+        protected = {
+            other_id: min(extra, self._schwab_unnoted_close_contracts(other_id, key))
+            for other_id, extra in gained
+        }
+        owned = sum(protected.values())
+        claim = min(room, max(0.0, available - owned))
+        # Newest anchored package first, the reverse of the refresh walk.
+        order_index = {other_id: index for index, other_id in enumerate(limits)}
+        gained.sort(key=lambda item: order_index.get(item[0], -1), reverse=True)
+        for other_id, extra in gained:
+            if claim <= 0:
+                break
+            transferable = extra - protected.get(other_id, 0.0)
+            if transferable <= 0:
+                continue
+            take = min(transferable, claim)
+            credits[other_id] = float(credits[other_id]) - take
+            credits[order_id] = float(credits.get(order_id, 0.0)) + take
+            claim -= take
+        unapplied = max(0.0, float(state["position_abs"]) - float(live_abs))
+        take_unapplied = min(claim, unapplied)
+        if take_unapplied > 0:
+            state["position_abs"] = float(state["position_abs"]) - take_unapplied
+            credits[order_id] = float(credits.get(order_id, 0.0)) + take_unapplied
+            claim -= take_unapplied
+        if claim > 0:
+            credits[order_id] = float(credits.get(order_id, 0.0)) + claim
+        state["absorbed"] = sum(float(value) for value in credits.values())
+
+    def _anchor_package_close_positions(self, order, baselines=None) -> None:
+        """Anchor each close leg. A passed baseline is the book before submit; with none, the anchor is the
+        current book.
+        """
+        if getattr(order, "order_class", None) != Order.OrderClass.MULTILEG:
+            return
+        if not hasattr(self, "_unreconciled_package_closes"):
+            self._unreconciled_package_closes = {}
+        close_legs = {}
+        for child in list(getattr(order, "child_orders", None) or []):
+            if not self._schwab_leg_is_close(child):
+                continue
+            key = self._package_close_key(child)
+            if key is None:
+                continue
+            try:
+                leg_qty = abs(float(child.quantity))
+            except (TypeError, ValueError):
+                leg_qty = 0.0
+            bucket = close_legs.get(key)
+            if bucket is None:
+                close_legs[key] = {"child": child, "leg_limit": leg_qty}
+            else:
+                bucket["leg_limit"] += leg_qty
+        for key, bucket in close_legs.items():
+            child = bucket["child"]
+            leg_limit = bucket["leg_limit"]
+            live_abs = self._package_close_position_abs(child)
+            recorded = baselines.get(key) if baselines is not None else None
+            if recorded is None:
+                baseline_abs = live_abs
+                baseline_qty = 0.0
+                baseline_credits = {}
+            else:
+                baseline_abs = float(recorded["position_abs"])
+                baseline_qty = float(recorded["qty"])
+                baseline_credits = recorded["credits"]
+            with self._lock:
+                state = self._unreconciled_package_closes.get(key)
+                if state is None:
+                    state = {
+                        "qty": 0.0,
+                        "position_abs": baseline_abs,
+                        "absorbed": 0.0,
+                        "credits": {},
+                        "limits": {},
+                    }
+                    self._unreconciled_package_closes[key] = state
+                else:
+                    state.setdefault("credits", {})
+                    state.setdefault("limits", {})
+                order_id = str(getattr(order, "identifier", None) or "")
+                if order_id and leg_limit > 0:
+                    # This call already summed every close leg of the contract.
+                    # A later call keeps the larger of that sum and the stored
+                    # cap, so it does not double-count or shrink the room.
+                    state["limits"][order_id] = max(
+                        float(state["limits"].get(order_id, 0.0)),
+                        leg_limit,
+                    )
+                if order_id:
+                    # Submit and recovery both anchor before the order is tracked.
+                    # The following sync has to keep this id until adoption.
+                    if self.get_tracked_order(order_id) is None:
+                        awaiting = getattr(self, "_package_close_awaiting_adoption", None)
+                        if awaiting is None:
+                            awaiting = set()
+                            self._package_close_awaiting_adoption = awaiting
+                        awaiting.add(order_id)
+                if recorded is not None:
+                    self._claim_package_close_baseline(
+                        state, order_id, baseline_abs, live_abs, baseline_qty, baseline_credits, key,
+                    )
+                self._refresh_unreconciled_package_close(key, live_abs)
+
+    def _rekey_package_close_order(self, order, old_identifier, new_identifier) -> None:
+        """Move one package's close credit onto the broker id from a replace. A same-effect replace is still
+        that package, but Schwab assigns a new order id.
+        """
+        old_id = str(old_identifier or "")
+        new_id = str(new_identifier or "")
+        if not old_id or not new_id or old_id == new_id:
+            return
+        states = getattr(self, "_unreconciled_package_closes", None)
+        if not states:
+            return
+        with self._lock:
+            for key in self._package_close_keys(order):
+                state = states.get(key)
+                if not state:
+                    continue
+                credits = state.setdefault("credits", {})
+                limits = state.setdefault("limits", {})
+                state["credits"] = self._rekey_close_map(
+                    credits, old_id, new_id, lambda old_value, new_value: (
+                        old_value if new_value is None else old_value + new_value
+                    ),
+                )
+                state["limits"] = self._rekey_close_map(
+                    limits, old_id, new_id, lambda old_value, _new_value: old_value,
+                )
+                state["absorbed"] = sum(float(value) for value in state["credits"].values())
+
+    @staticmethod
+    def _rekey_close_map(mapping, old_id, new_id, combine):
+        """Rebuild one map so the new id sits where the old id sat. Popping and reinserting would move this
+        package behind newer closes.
+        """
+        if old_id not in mapping:
+            return mapping
+        old_value = float(mapping[old_id])
+        new_value = float(mapping[new_id]) if new_id in mapping else None
+        merged = combine(old_value, new_value)
+        rebuilt = {}
+        for key, value in mapping.items():
+            if key == new_id:
+                continue
+            if key == old_id:
+                rebuilt[new_id] = merged
+            else:
+                rebuilt[key] = value
+        return rebuilt
+
+    def _package_close_keys(self, order):
+        """Close-leg keys for one package, or an empty list for any other order."""
+        if getattr(order, "order_class", None) != Order.OrderClass.MULTILEG:
+            return []
+        keys = []
+        for child in list(getattr(order, "child_orders", None) or []):
+            if not self._schwab_leg_is_close(child):
+                continue
+            key = self._package_close_key(child)
+            if key is not None:
+                keys.append(key)
+        return keys
+
+    def _package_close_order_status(self):
+        """Map each tracked multi-leg id to open or filled. Canceled, rejected, expired, and working closes
+        stay open.
+        """
+        status = {}
+        buckets = (
+            self._unprocessed_orders,
+            self._new_orders,
+            self._partially_filled_orders,
+            self._placeholder_orders,
+            self._canceled_orders,
+            self._error_orders,
+            self._filled_orders,
+        )
+        for bucket in buckets:
+            for order in bucket.get_list():
+                if getattr(order, "order_class", None) != Order.OrderClass.MULTILEG:
+                    continue
+                order_id = str(getattr(order, "identifier", None) or "")
+                if not order_id:
+                    continue
+                status[order_id] = "filled" if order.is_filled() else "open"
+        return status
+
+    def _drop_obsolete_package_close_ids(self, state, status, awaiting):
+        """Remove close-credit ids that a later fill can no longer spend. A tracked open order stays, including
+        a canceled order with no credit yet, so a book drop can still pay its delayed fill.
+        """
+        credits = state.setdefault("credits", {})
+        limits = state.setdefault("limits", {})
+        for order_id in set(limits) | set(credits):
+            kind = status.get(order_id)
+            if kind == "open" or (kind is None and order_id in awaiting):
+                if kind == "open":
+                    awaiting.discard(order_id)
+                continue
+            limits.pop(order_id, None)
+            credits.pop(order_id, None)
+        state["absorbed"] = sum(float(value) for value in credits.values())
+
+    def _package_close_state_is_needed(self, state, status, awaiting) -> bool:
+        """True when a later book drop should still be kept for some order."""
+        for order_id, limit in state.get("limits", {}).items():
+            if float(limit) <= 0:
+                continue
+            kind = status.get(order_id)
+            if kind == "open" or (kind is None and order_id in awaiting):
+                return True
+        return False
+
+    def _prune_obsolete_package_close_anchor(self, key, status=None, awaiting=None):
+        """Drop one anchor once no tracked or pending close still needs it. Reservation quantity stays until
+        the book drops.
+        """
+        states = getattr(self, "_unreconciled_package_closes", None)
+        if not states or key not in states:
+            return
+        if status is None:
+            status = self._package_close_order_status()
+        if awaiting is None:
+            awaiting = getattr(self, "_package_close_awaiting_adoption", None)
+            if awaiting is None:
+                awaiting = set()
+                self._package_close_awaiting_adoption = awaiting
+        state = states[key]
+        self._drop_obsolete_package_close_ids(state, status, awaiting)
+        if float(state["qty"]) > 0 or float(state.get("absorbed", 0.0)) > 0:
+            return
+        if self._package_close_state_is_needed(state, status, awaiting):
+            return
+        del states[key]
+
+    def _reconcile_package_close_holds(self) -> None:
+        """Apply the current book to every package-close anchor. A shrink reduces the reservation and keeps the
+        extra drop an outstanding package can still fill.
+        """
+        states = getattr(self, "_unreconciled_package_closes", None)
+        if not states:
+            return
+        current = {}
+        local_name = getattr(self, "_strategy_name", None) or ""
+        named_assets = set()
+        unlabeled = []
+        for position in self._filled_positions.get_list():
+            asset = getattr(position, "asset", None)
+            if asset is None:
+                continue
+            asset_id = (
+                asset.symbol,
+                asset.asset_type,
+                getattr(asset, "expiration", None),
+                getattr(asset, "strike", None),
+                str(getattr(asset, "right", None) or ""),
+            )
+            try:
+                position_abs = abs(float(position.quantity))
+            except (TypeError, ValueError):
+                position_abs = 0.0
+            strategy = getattr(position, "strategy", None)
+            current[(strategy,) + asset_id] = position_abs
+            # A sync before the strategy name existed labels the row Unknown.
+            # That row is this strategy's book when no named row is present.
+            if local_name and strategy == local_name:
+                named_assets.add(asset_id)
+            elif local_name and strategy in (None, "", "Unknown"):
+                unlabeled.append((asset_id, position_abs))
+        for asset_id, position_abs in unlabeled:
+            if asset_id in named_assets:
+                continue
+            current.setdefault((local_name,) + asset_id, position_abs)
+        with self._lock:
+            status = self._package_close_order_status()
+            awaiting = getattr(self, "_package_close_awaiting_adoption", None)
+            if awaiting is None:
+                awaiting = set()
+                self._package_close_awaiting_adoption = awaiting
+            for key in list(states):
+                self._refresh_unreconciled_package_close(key, current.get(key, 0.0))
+                self._prune_obsolete_package_close_anchor(key, status, awaiting)
+
+    def _price_unpriced_schwab_history(self, stored_order, observed_order) -> None:
+        """Give unpriced or limit-estimated fills the broker's average once Schwab reports it."""
+        transactions = getattr(stored_order, "transactions", None) or []
+        estimated = getattr(stored_order, "_schwab_estimated_fill_indexes", None)
+        if not estimated and not any(item.price is None for item in transactions):
+            return
+        average = self._schwab_execution_average(stored_order, observed_order)
+        if average is None:
+            return
+        try:
+            cumulative = float(getattr(observed_order, "_schwab_cumulative_filled_quantity", 0) or 0)
+            recorded = sum(float(item.quantity) for item in transactions)
+        except (TypeError, ValueError):
+            return
+        if cumulative <= 0 and Order.is_equivalent_status(
+            getattr(observed_order, "status", None), self.FILLED_ORDER
+        ):
+            # A later FILLED snapshot can omit filledQuantity. The fill path
+            # substitutes the order quantity; this correction has to as well.
+            cumulative = float(stored_order.quantity or getattr(observed_order, "quantity", 0) or 0)
+        if cumulative > 0 and abs(cumulative - recorded) < 1e-9:
+            self._reconcile_schwab_same_quantity_estimates(stored_order, cumulative, average)
+            stored_order.avg_fill_price = average
+            self._remember_schwab_known_fill(stored_order, cumulative, average)
+
+    @staticmethod
+    def _reconcile_schwab_same_quantity_estimates(order, cumulative, average) -> None:
+        """Price limit estimates so this quantity's ledger equals Schwab's value. Rows already confirmed at
+        their own price stay.
+        """
+        indexes = getattr(order, "_schwab_estimated_fill_indexes", None)
+        if not indexes:
+            return
+        transactions = getattr(order, "transactions", None) or []
+        try:
+            target = float(cumulative) * float(average)
+            valid = [index for index in indexes if 0 <= index < len(transactions)]
+            estimated_qty = sum(float(transactions[index].quantity) for index in valid)
+            if estimated_qty <= 0:
+                return
+            estimated = set(valid)
+            confirmed = 0.0
+            for index, item in enumerate(transactions):
+                if index in estimated:
+                    continue
+                price = float(average) if item.price is None else float(item.price)
+                confirmed += float(item.quantity) * price
+            residual = (target - confirmed) / estimated_qty
+        except (TypeError, ValueError, ZeroDivisionError):
+            return
+        package = getattr(order, "order_class", None) == Order.OrderClass.MULTILEG
+        if not math.isfinite(residual) or (not package and residual <= 0):
+            # A single-order fill is positive; history that does not reconcile
+            # cleanly falls back to Schwab's average rather than an invented price.
+            residual = float(average)
+        for index in valid:
+            item = transactions[index]
+            transactions[index] = Order.Transaction(quantity=item.quantity, price=float(residual))
+        order._schwab_estimated_fill_indexes = []
+
+    @staticmethod
+    def _reconcile_schwab_estimates(order, average) -> None:
+        """Rewrite fills that were priced at the limit to Schwab's confirmed average. Schwab gives one
+        cumulative average, not each fill's price, so the estimates take that average and the ledger total
+        matches Schwab's (10, 9.50, 9.80 would otherwise total 29.30 instead of 28.80).
+        """
+        indexes = getattr(order, "_schwab_estimated_fill_indexes", None)
+        if not indexes:
+            return
+        for index in indexes:
+            if 0 <= index < len(order.transactions):
+                item = order.transactions[index]
+                order.transactions[index] = Order.Transaction(quantity=item.quantity, price=float(average))
+        order._schwab_estimated_fill_indexes = []
+
+    @staticmethod
+    def _remember_schwab_known_fill(order, cumulative, average) -> None:
+        """Keep Schwab's confirmed cumulative fill value; later fills are priced from it."""
+        try:
+            order._schwab_known_fill = (float(cumulative), float(cumulative) * float(average))
+        except (TypeError, ValueError):
+            pass
+
+    @staticmethod
+    def _schwab_execution_average(stored_order, observed_order):
+        """Schwab's cumulative execution average, or None when it is unknown or only the limit."""
+        if getattr(observed_order, "_schwab_average_from_limit", False):
+            return None
+        average = getattr(observed_order, "_schwab_average_fill_price", None)
+        if average is None:
+            average = getattr(observed_order, "avg_fill_price", None)
+        if getattr(stored_order, "order_class", None) != Order.OrderClass.MULTILEG and not average:
+            # A single-order price of zero is not an execution. A package can net to zero.
+            return None
+        return average
+
+    def _schwab_reported_fill_price(self, stored_order, observed_order, cumulative_filled, fill_delta):
+        """Price of one new fill: the change in cumulative value, or the limit when Schwab has no average."""
+        package = getattr(stored_order, "order_class", None) == Order.OrderClass.MULTILEG
+        average = self._schwab_execution_average(stored_order, observed_order)
+        if average is None or not fill_delta:
+            # No execution average (or only the parser's limit fallback). It is not
+            # cumulative, so subtracting earlier fills from it would invent a price
+            # (9 then a 10 limit is not a new fill at 11). The limit prices this fill.
+            return getattr(observed_order, "limit_price", None)
+        try:
+            recorded = sum(float(item.quantity) for item in stored_order.transactions)
+            known = getattr(stored_order, "_schwab_known_fill", None)
+            if known and known[0] <= recorded + 1e-9:
+                # Schwab confirmed the value up to known[0]; that is exact. Fills
+                # after it were estimates or unpriced, so they take the new average.
+                prior_value = known[1] + (recorded - known[0]) * float(average)
+                price = (float(cumulative_filled) * float(average) - prior_value) / float(fill_delta)
+                return average if not package and price <= 0 else price
+            prior_value = 0.0
+            unpriced = 0.0
+            for item in stored_order.transactions:
+                quantity = float(item.quantity)
+                if item.price is None:
+                    unpriced += quantity
+                else:
+                    prior_value += quantity * float(item.price)
+            if unpriced:
+                prior_value += unpriced * float(average)
+            price = (float(cumulative_filled) * float(average) - prior_value) / float(fill_delta)
+        except (TypeError, ValueError, ZeroDivisionError):
+            return average
+        if not package and price <= 0:
+            # A single-order fill is positive. History priced at the limit can
+            # push the difference to zero or below; the broker average is honest.
+            return average
+        return price
+
+    def order_is_foreign_to_local_strategy(self, order, local_strategy_name: str | None = None) -> bool:
+        """An order this broker submitted is never foreign, whatever its tag says. ``Order.tag`` can be a user
+        label such as "entry-42".
+        """
+        local_name = local_strategy_name or getattr(self, "_strategy_name", None) or ""
+        if getattr(order, "_schwab_submitted_locally", False) and (
+            not local_name or self.strategy_tag_matches(getattr(order, "strategy", None), local_name)
+        ):
+            # Submitted here by this strategy. Another strategy's order stays foreign.
+            return False
+        return super().order_is_foreign_to_local_strategy(order, local_strategy_name)
+
+    def order_belongs_to_local_strategy(self, order, local_strategy_name: str | None = None) -> bool:
+        """An order this strategy submitted here belongs to it, whatever its local tag says."""
+        local_name = local_strategy_name or getattr(self, "_strategy_name", None) or ""
+        if (
+            local_name
+            and getattr(order, "_schwab_submitted_locally", False)
+            and self.strategy_tag_matches(getattr(order, "strategy", None), local_name)
+        ):
+            return True
+        return super().order_belongs_to_local_strategy(order, local_strategy_name)
+
+    def _process_broker_synced_order(self, order):
+        """Import a synced order. Working orders use the snapshot path. Owned terminal history is seeded and
+        committed under the transition lock.
+        """
+        if self.get_tracked_order(order.identifier) is None:
+            if order.is_active():
+                if self._schwab_recovered_working_order(order):
+                    self._process_schwab_order_snapshot(order)
+                return None
+            if not self._schwab_order_owned_by_tag(order):
+                return None
+            # The poll takes this lock before it reads a tracked order. Hold it
+            # across the import so that read cannot see the order without its
+            # fill mark and terminal key. The poll acquires this lock before the
+            # tracker lock, so take it first here too.
+            if not hasattr(self, "_schwab_order_transition_lock"):
+                self._schwab_order_transition_lock = threading.RLock()
+            with self._schwab_order_transition_lock:
+                self._seed_schwab_history_fill(order)
+                imported = super()._process_broker_synced_order(order)
+                self._commit_schwab_history_import(order)
+            return imported
+        return super()._process_broker_synced_order(order)
+
+    def _seed_schwab_terminal_history(self, order) -> None:
+        """Mark an imported order's terminal outcome as already observed. It ended before startup."""
+        status = getattr(order, "status", None)
+        if not hasattr(self, "_schwab_terminal_observations"):
+            self._schwab_terminal_observations = set()
+        if Order.is_equivalent_status(status, self.CANCELED_ORDER):
+            self._schwab_terminal_observations.add((order.identifier, self.CANCELED_ORDER))
+        elif Order.is_equivalent_status(status, self.ERROR_ORDER) or Order.is_equivalent_status(
+            status, Order.OrderStatus.EXPIRED
+        ):
+            self._schwab_terminal_observations.add((order.identifier, str(status)))
+
+    def _seed_schwab_history_fill(self, order) -> None:
+        """Remember the cumulative quantity and average. Do not add a transaction or move the high-water mark."""
+        try:
+            cumulative = float(getattr(order, "_schwab_cumulative_filled_quantity", 0) or 0)
+        except (TypeError, ValueError):
+            cumulative = 0.0
+        if cumulative <= 0 and Order.is_equivalent_status(order.status, self.FILLED_ORDER):
+            cumulative = float(order.quantity or 0)
+        if cumulative <= 0:
+            return
+        average = self._schwab_execution_average(order, order)
+        order.filled_quantity = cumulative
+        order.avg_fill_price = average
+        if average is not None:
+            self._remember_schwab_known_fill(order, cumulative, average)
+
+    def _commit_schwab_history_import(self, order) -> None:
+        """After the order is tracked, store the fill high-water mark and an unpriced transaction when the
+        average is missing.
+        """
+        tracked = self.get_tracked_order(getattr(order, "identifier", None))
+        if tracked is None:
+            return
+        try:
+            cumulative = float(getattr(tracked, "filled_quantity", 0) or 0)
+        except (TypeError, ValueError):
+            cumulative = 0.0
+        if cumulative > 0:
+            if not hasattr(self, "_schwab_observed_fill_quantities"):
+                self._schwab_observed_fill_quantities = {}
+            self._schwab_observed_fill_quantities[tracked.identifier] = max(
+                cumulative,
+                float(self._schwab_observed_fill_quantities.get(tracked.identifier, 0.0) or 0.0),
+            )
+            if not tracked.transactions and self._schwab_execution_average(tracked, tracked) is None:
+                tracked.add_transaction(None, cumulative)
+        self._seed_schwab_terminal_history(tracked)
+        # A filled or canceled package's legs are not broker orders. Close them
+        # here, or a wait on a leg blocks with no later observation to end it.
+        self._complete_schwab_package_children(tracked)
+
+    def _schwab_recovered_working_order(self, observed_order) -> bool:
+        """True when an untracked working order's tag belongs to this strategy. Untagged snapshots are ignored
+        so shared-account activity cannot become this strategy's tracked order.
+        """
+        identifier = getattr(observed_order, "identifier", None)
+        if not identifier or self.get_tracked_order(identifier) is not None:
+            return False
+        status = getattr(observed_order, "status", None)
+        return self._schwab_order_owned_by_tag(observed_order) and (
+            Order.is_equivalent_status(status, self.NEW_ORDER)
+            or Order.is_equivalent_status(status, Order.OrderStatus.CANCELLING)
+            or Order.is_equivalent_status(status, self.PARTIALLY_FILLED_ORDER)
+        )
+
+    def _schwab_order_owned_by_tag(self, observed_order) -> bool:
+        """True when a broker snapshot's tag is this strategy's.
+
+        A package leg (``<id>-leg-<n>``) copies its parent's tag but is never an
+        order of its own; it is tracked through the parent package.
+        """
+        if getattr(observed_order, "parent_identifier", None):
+            return False
+        local_name = getattr(self, "_strategy_name", None)
+        if self.order_is_foreign_to_local_strategy(observed_order, local_name):
+            return False
+        tag = getattr(observed_order, "tag", None)
+        return bool(local_name and tag and self.strategy_tag_matches(tag, local_name))
+
+    def _anchor_recovered_working_packages(self, order_payloads) -> None:
+        """Anchor untracked working packages from the book before it can shrink. The recovery gate is the same
+        one that adopts the order.
+        """
+        if not order_payloads:
+            return
+        strategy_name = getattr(self, "_strategy_name", None)
+        for payload in order_payloads:
+            if isinstance(payload, Order):
+                observed = payload
+            elif isinstance(payload, dict):
+                try:
+                    observed = self._parse_broker_order(payload, strategy_name)
+                except Exception:
+                    logger.error(_format_exc())
+                    continue
+            else:
+                continue
+            if observed is None or not self._schwab_recovered_working_order(observed):
+                continue
+            self._anchor_package_close_positions(observed)
 
     def _process_schwab_order_snapshot(self, observed_order: Order) -> None:
         """Serialize every REST/stream observation through one reducer."""
@@ -2129,30 +3444,71 @@ class Schwab(Broker):
         # Never adopt untracked account orders into this strategy. Locally
         # submitted orders are tracked at submit time; seeding foreign NEW
         # orders previously let a shared-account MOS fill reach an STM
-        # on_filled_order hedge path.
+        # on_filled_order hedge path. Only a broker tag proves ownership.
         if stored_order is None:
-            if self.order_is_foreign_to_local_strategy(observed_order, getattr(self, "_strategy_name", None)):
-                return
-            local_name = getattr(self, "_strategy_name", None)
-            tag = getattr(observed_order, "tag", None)
-            # Only re-bind untracked active orders when the broker tag proves
-            # ownership. Untagged snapshots are ignored so shared-account
-            # activity cannot become this strategy's tracked order.
-            if (
-                local_name
-                and tag
-                and self.strategy_tag_matches(tag, local_name)
-                and (
-                    Order.is_equivalent_status(observed_status, self.NEW_ORDER)
-                    or Order.is_equivalent_status(observed_status, Order.OrderStatus.CANCELLING)
-                )
-            ):
+            if self._schwab_recovered_working_order(observed_order):
+                # The book at adoption is the baseline. A fill after this must
+                # not be measured from a position sync that already shrank it.
+                self._anchor_package_close_positions(observed_order)
                 self._process_new_order(observed_order)
+                awaiting = getattr(self, "_package_close_awaiting_adoption", None)
+                if awaiting is not None:
+                    awaiting.discard(str(observed_order.identifier or ""))
                 if Order.is_equivalent_status(observed_status, Order.OrderStatus.CANCELLING):
                     observed_order.status = Order.OrderStatus.CANCELLING
+                try:
+                    cumulative_filled = float(
+                        getattr(observed_order, "_schwab_cumulative_filled_quantity", 0) or 0
+                    )
+                except (TypeError, ValueError):
+                    cumulative_filled = 0.0
+                if cumulative_filled > 0:
+                    # Already executed. Callbacks after adoption report only the increase.
+                    # A limit is not an execution price. Leave that quantity unpriced.
+                    prior_filled = float(self._schwab_observed_fill_quantities.get(identifier, 0.0) or 0.0)
+                    if cumulative_filled > prior_filled:
+                        self._schwab_observed_fill_quantities[identifier] = cumulative_filled
+                    price = None
+                    raw = getattr(observed_order, "raw_broker_payload", None)
+                    if isinstance(raw, dict):
+                        average = raw.get("averagePrice")
+                        if average not in (None, ""):
+                            try:
+                                price = float(average)
+                            except (TypeError, ValueError):
+                                price = None
+                        elif self._schwab_execution_rows(raw) and not getattr(
+                            observed_order, "_schwab_average_from_limit", False
+                        ):
+                            # Incomplete package rows fall back to the limit, which is not a fill.
+                            try:
+                                price = float(observed_order._schwab_average_fill_price)
+                            except (TypeError, ValueError):
+                                price = None
+                    observed_order.add_transaction(price, cumulative_filled)
+                    if price is None:
+                        observed_order.avg_fill_price = None
+                    else:
+                        self._remember_schwab_known_fill(observed_order, cumulative_filled, price)
+                    if getattr(observed_order, "order_class", None) == Order.OrderClass.MULTILEG:
+                        self._note_package_close_fill(observed_order, cumulative_filled)
+                    if not Order.is_equivalent_status(observed_status, Order.OrderStatus.CANCELLING):
+                        # It already has fills, so it is partially filled, not new. The
+                        # history is not replayed as a callback.
+                        with self._lock:
+                            self._new_orders.remove(identifier, key="identifier")
+                            self._unprocessed_orders.remove(identifier, key="identifier")
+                            observed_order.status = Order.OrderStatus.PARTIALLY_FILLED
+                            observed_order.set_partially_filled()
+                            if observed_order not in self._partially_filled_orders:
+                                self._partially_filled_orders.append(observed_order)
             return
 
+        # A filled order can still be priced: its fill may have been recorded at
+        # the limit, or unpriced, before Schwab reported the average.
+        self._price_unpriced_schwab_history(stored_order, observed_order)
         if stored_order.is_filled():
+            self._complete_schwab_package_children(stored_order)
             return
         stored_terminal_status = stored_order.status
         stored_terminal_reason = getattr(stored_order, "error_message", None)
@@ -2185,8 +3541,12 @@ class Schwab(Broker):
 
         if Order.is_equivalent_status(observed_status, self.NEW_ORDER):
             # Never regress a local/broker cancel-pending order back to NEW when
-            # an older snapshot arrives out of order.
-            if not Order.is_equivalent_status(stored_order.status, Order.OrderStatus.CANCELLING):
+            # an older snapshot arrives out of order. Schwab reports a partially
+            # filled order as WORKING, so recorded fills keep it partially filled.
+            if not Order.is_equivalent_status(stored_order.status, Order.OrderStatus.CANCELLING) and not (
+                stored_order.transactions
+                and Order.is_equivalent_status(stored_order.status, self.PARTIALLY_FILLED_ORDER)
+            ):
                 stored_order.status = Order.OrderStatus.NEW
             return
 
@@ -2213,12 +3573,15 @@ class Schwab(Broker):
                 recorded_filled,
             )
             if cumulative_filled <= prior_filled and not terminal_after_fill:
-                if (was_terminal and Order.is_equivalent_status(observed_status, self.FILLED_ORDER)
+                if (Order.is_equivalent_status(observed_status, self.FILLED_ORDER)
                         and recorded_filled == float(stored_order.quantity)):
-                    # The fill was already delivered before a local ERROR
-                    # moved this object to the error bucket. Restore confirmed
-                    # terminal state without a zero-quantity/fabricated fill.
+                    # Every unit is already recorded: delivered before a local
+                    # ERROR moved this object to the error bucket, or recovered
+                    # as history from a WORKING snapshot that was already full.
+                    # Make it filled without a zero-quantity or invented fill.
                     with self._lock:
+                        self._new_orders.remove(identifier, key="identifier")
+                        self._unprocessed_orders.remove(identifier, key="identifier")
                         self._error_orders.remove(identifier, key="identifier")
                         self._canceled_orders.remove(identifier, key="identifier")
                         self._partially_filled_orders.remove(identifier, key="identifier")
@@ -2226,12 +3589,14 @@ class Schwab(Broker):
                         stored_order.set_filled()
                         if stored_order not in self._filled_orders:
                             self._filled_orders.append(stored_order)
+                self._complete_schwab_package_children(stored_order)
                 return
             fill_delta = cumulative_filled - prior_filled
-            price = (
-                getattr(observed_order, "_schwab_average_fill_price", None)
-                or getattr(observed_order, "avg_fill_price", None)
-                or getattr(observed_order, "limit_price", None)
+            confirmed = self._schwab_execution_average(stored_order, observed_order)
+            if confirmed is not None and fill_delta > 0:
+                self._reconcile_schwab_estimates(stored_order, confirmed)
+            price = self._schwab_reported_fill_price(
+                stored_order, observed_order, cumulative_filled, fill_delta,
             )
             if price is None and fill_delta > 0:
                 logger.warning(
@@ -2242,9 +3607,15 @@ class Schwab(Broker):
 
             if fill_delta > 0:
                 self._schwab_observed_fill_quantities[identifier] = cumulative_filled
+                # A partial-fill snapshot that reaches the full quantity is the fill
+                # that completes the order. Sending it as partial would leave the
+                # later FILLED snapshot with nothing new, so on_filled_order never ran.
+                completes_order = Order.is_equivalent_status(
+                    observed_status, self.PARTIALLY_FILLED_ORDER
+                ) and cumulative_filled >= float(stored_order.quantity or 0) > 0
                 event = (
                     self.FILLED_ORDER
-                    if Order.is_equivalent_status(observed_status, self.FILLED_ORDER)
+                    if Order.is_equivalent_status(observed_status, self.FILLED_ORDER) or completes_order
                     else self.PARTIALLY_FILLED_ORDER
                 )
                 # One atomic native bucket move; no I/O or Strategy execution.
@@ -2257,6 +3628,22 @@ class Schwab(Broker):
                             # outcome was known. Fresh partial fill proves it is
                             # still open; do not leave wait-for-close signaled.
                             stored_order._closed_event.clear()
+                            self._reopen_schwab_package_children(stored_order)
+                    # get_fill_price() prefers this cached value, so a recovered order
+                    # would keep its adoption average. A limit fallback is not an
+                    # average; None lets the price come from the ledger instead.
+                    # Set before the callback so the strategy sees the new average.
+                    stored_order.avg_fill_price = self._schwab_execution_average(stored_order, observed_order)
+                    if stored_order.avg_fill_price is None:
+                        # Priced at the limit, not an execution. Remember which ledger
+                        # entry it is (the trade event appends it next) so a later
+                        # confirmed average rewrites it instead of keeping the estimate.
+                        stored_order._schwab_estimated_fill_indexes = [
+                            *getattr(stored_order, "_schwab_estimated_fill_indexes", []),
+                            len(stored_order.transactions),
+                        ]
+                    else:
+                        self._remember_schwab_known_fill(stored_order, cumulative_filled, stored_order.avg_fill_price)
                     self._process_trade_event(
                         stored_order,
                         event,
@@ -2283,6 +3670,7 @@ class Schwab(Broker):
                             # Expiry uses the same terminal bucket as errors;
                             # retain its exact previously confirmed status.
                             stored_order.status = stored_terminal_status
+            self._complete_schwab_package_children(stored_order)
             if not terminal_after_fill:
                 return
 
@@ -2298,6 +3686,7 @@ class Schwab(Broker):
                     broker_status=observed_status,
                     local_status=stored_order.status,
                 )
+            self._complete_schwab_package_children(stored_order)
             return
 
         if Order.is_equivalent_status(observed_status, self.ERROR_ORDER) or Order.is_equivalent_status(
@@ -2324,6 +3713,7 @@ class Schwab(Broker):
                     broker_status=observed_status,
                     local_status=stored_order.status,
                 )
+            self._complete_schwab_package_children(stored_order)
 
     def _finish_initialization(self, config, data_source, account_number, hash_value):
         """
@@ -2495,21 +3885,42 @@ class Schwab(Broker):
         def on_trade_event_poll():
             # Implement polling similar to tradier.py without referencing _orders
             try:
-                # Track the last time we synced positions to avoid doing it too frequently
+                # Pull first so a recovered working package takes its close
+                # baseline before this cycle's position sync can shrink the book.
+                # A failed pull leaves the last reliable fill map in place.
+                orders = broker._pull_broker_all_orders()
+                parsed_orders = []
+                unparsed_ids = []
+                if not broker._orders_refresh_degraded():
+                    for order_data in orders:
+                        if not isinstance(order_data, dict):
+                            continue
+                        try:
+                            order = broker._parse_broker_order(order_data, broker._strategy_name)
+                        except Exception:
+                            logger.error(_format_exc())
+                            order = None
+                        if order:
+                            parsed_orders.append(order)
+                        else:
+                            unparsed_ids.append(order_data.get("orderId"))
+                    broker._remember_schwab_package_fills(parsed_orders, unparsed_ids)
                 current_time = datetime.now()
                 if not hasattr(broker, '_last_position_sync_time') or (current_time - broker._last_position_sync_time).total_seconds() > 30:
-                    # Only sync positions every 30 seconds to avoid duplication
-                    broker.sync_positions(None)
+                    broker._anchor_recovered_working_packages(parsed_orders)
+                    # Only sync positions every 30 seconds to avoid duplication.
+                    # Use the local strategy name so the book is not labeled Unknown.
+                    broker.sync_positions(broker._position_sync_strategy())
                     broker._last_position_sync_time = current_time
 
-                # Always check for new orders
-                orders = broker._pull_broker_all_orders()
-                for order_data in orders:
-                    order = broker._parse_broker_order(order_data, broker._strategy_name)
-                    if not order:
-                        continue
+                for order in parsed_orders:
                     # Shared-account safety: skip foreign-tagged snapshots early.
-                    if broker.order_is_foreign_to_local_strategy(order, broker._strategy_name):
+                    # An order this broker already tracks is ours by its id; its tag
+                    # can be a user label such as "entry-42" rather than the strategy.
+                    if (
+                        broker.get_tracked_order(order.identifier) is None
+                        and broker.order_is_foreign_to_local_strategy(order, broker._strategy_name)
+                    ):
                         continue
                     broker._process_schwab_order_snapshot(order)
             except Exception:
@@ -2578,6 +3989,54 @@ class Schwab(Broker):
             logger.error(f"Error running Schwab stream: {e}")
             logger.error(_format_exc())
 
+    def _position_sync_strategy(self):
+        """Strategy name for a stream or poll position sync, or None if unset. Those paths have no Strategy
+        instance.
+        """
+        raw_name = getattr(self, "_strategy_name", None)
+        if raw_name is None:
+            return None
+        name = str(raw_name)
+        if not name.strip():
+            return None
+        return type("_SchwabPositionSync", (), {"name": name})()
+
+    def set_strategy_name(self, strategy_name):
+        """Register the strategy, then recover its working orders. The executor calls this right before
+        ``initialize()``.
+        """
+        super().set_strategy_name(strategy_name)
+        self._recover_schwab_working_orders()
+
+    def _set_initial_positions(self, strategy):
+        """Load the strategy's starting book by reconciling it, not appending. Recovery can load the book first
+        (``set_strategy_name`` before the strategy is built).
+        """
+        self.sync_positions(strategy)
+
+    def _recover_schwab_working_orders(self) -> None:
+        """Track this strategy's tagged working orders from one history pull."""
+        if not getattr(self, "_broker_fully_ready", False) or getattr(self, "schwab_authorization_error", False):
+            return
+        strategy_name = getattr(self, "_strategy_name", None)
+        if not strategy_name:
+            return
+        try:
+            # Load the book first: adoption anchors package closes at its size.
+            self.sync_positions(self._position_sync_strategy())
+            # A GTC close can be older than the poll's 7 days; read as far as Schwab allows.
+            payloads = self._pull_broker_all_orders(days=59)
+            if self._orders_refresh_degraded():
+                return
+            for payload in payloads or []:
+                if not isinstance(payload, dict):
+                    continue
+                observed = self._parse_broker_order(payload, strategy_name)
+                if observed is not None and self._schwab_recovered_working_order(observed):
+                    self._process_schwab_order_snapshot(observed)
+        except Exception:
+            logger.error(_format_exc())
+
     def _stream_established(self):
         """
         Called when the stream is established.
@@ -2589,13 +4048,144 @@ class Schwab(Broker):
             self._unprocessed_orders.remove(item)
         self._initialized = True
 
-        # First time initialization - sync positions
-        self.sync_positions(None)
+        # Load the book first, then anchor recovered packages at that size.
+        # Later polls anchor before their own sync. The local strategy name
+        # keeps the loaded rows on the same key as the recovered package.
+        self.sync_positions(self._position_sync_strategy())
+        try:
+            self._anchor_recovered_working_packages(self._pull_broker_all_orders())
+        except Exception:
+            logger.error(_format_exc())
 
     def _safe_stream_dispatch(self, event, **kwargs):
         stream = getattr(self, "stream", None)
         if stream is not None and hasattr(stream, "dispatch"):
             stream.dispatch(event, **kwargs)
+
+    def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None, **kwargs):
+        """Submit orders. A multi-leg request is one package, never one order per leg."""
+        if not orders:
+            return None
+
+        if not is_multileg:
+            return [self._submit_order(order) for order in orders]
+
+        # Strategy SMART_LIMIT accepts time_in_force as an alias for duration.
+        if kwargs.get("time_in_force") and duration in (None, "day"):
+            duration = kwargs["time_in_force"]
+
+        parent = self._multileg_parent_from_orders(orders, order_type=order_type, duration=duration, price=price)
+        if parent is None:
+            return None
+
+        submitted = self._submit_order(parent)
+        if submitted is None:
+            return None
+        return [submitted]
+
+    def _multileg_effect_name(self, order_type):
+        """Return credit, debit, or even when the submit keyword says so."""
+        if order_type is None:
+            return None
+        value = getattr(order_type, "value", order_type)
+        value = str(value).strip().lower()
+        if value in {"credit", "debit", "even"}:
+            return value
+        return None
+
+    def _multileg_parent_from_orders(self, orders, order_type=None, duration="day", price=None):
+        """Build the MULTILEG parent that `_submit_order` already knows how to send."""
+        if not orders:
+            logger.error(colored("Schwab multi-leg submission received no orders.", "red"))
+            return None
+
+        first_asset = getattr(orders[0], "asset", None)
+        symbol = getattr(first_asset, "symbol", None)
+        if not symbol:
+            logger.error(colored("Schwab multi-leg submission is missing an underlying symbol.", "red"))
+            return None
+
+        # Reject what Schwab cannot send instead of quietly pricing it as a limit.
+        requested_type = str(getattr(order_type, "value", order_type) or "").strip().lower()
+        if requested_type == "market":
+            logger.error(colored(
+                "Schwab multi-leg option orders need a net price; use credit, debit, even, or limit. "
+                "No leg was submitted.",
+                "red",
+            ))
+            return None
+        if requested_type not in {"", "limit", "credit", "debit", "even"}:
+            logger.error(colored(
+                f"Unsupported Schwab multi-leg order type {order_type!r}. No leg was submitted.",
+                "red",
+            ))
+            return None
+
+        effect = self._multileg_effect_name(order_type)
+        limit_price = None
+        side = orders[0].side
+        parent_order_type = Order.OrderType.MARKET
+        if effect == "even":
+            parent_order_type = Order.OrderType.LIMIT
+            limit_price = 0.0
+            side = Order.OrderSide.BUY
+        elif effect in {"credit", "debit"}:
+            parent_order_type = Order.OrderType.LIMIT
+            side = Order.OrderSide.SELL if effect == "credit" else Order.OrderSide.BUY
+            if price is not None:
+                limit_price = self._finite_multileg_price(price)
+                if limit_price is None:
+                    return None
+                limit_price = abs(limit_price)
+        elif price is not None:
+            limit_price = self._finite_multileg_price(price)
+            if limit_price is None:
+                return None
+            parent_order_type = Order.OrderType.LIMIT
+            side = Order.OrderSide.SELL if limit_price < 0 else Order.OrderSide.BUY
+
+        package_quantity = self._multileg_package_quantity(
+            [self._multileg_contract_quantity(order) for order in orders]
+        )
+
+        parent = Order(
+            strategy=orders[0].strategy,
+            asset=Asset(symbol=symbol, asset_type=Asset.AssetType.MULTILEG),
+            quantity=package_quantity or orders[0].quantity,
+            side=side,
+            limit_price=limit_price,
+            order_type=parent_order_type,
+            time_in_force=duration or "day",
+            order_class=Order.OrderClass.MULTILEG,
+            child_orders=list(orders),
+            tag=getattr(orders[0], "tag", None) or orders[0].strategy,
+        )
+        if effect is not None:
+            parent._multileg_effect = effect
+        return parent
+
+    @staticmethod
+    def _multileg_contract_quantity(order):
+        """Return a positive whole-contract quantity, or None when the leg cannot be sent."""
+        try:
+            quantity = float(order.quantity)
+        except (TypeError, ValueError):
+            return None
+        if quantity <= 0 or not quantity.is_integer():
+            return None
+        return int(quantity)
+
+    @staticmethod
+    def _multileg_package_quantity(quantities):
+        """Return the package quantity (GCD of the legs), or None when any leg cannot be sent."""
+        if not quantities or any(not quantity for quantity in quantities):
+            return None
+        from math import gcd
+
+        package_quantity = quantities[0]
+        for quantity in quantities[1:]:
+            package_quantity = gcd(package_quantity, quantity)
+        return package_quantity
 
     def _submit_order(self, order: Order) -> Order:
         """
@@ -2624,11 +4214,11 @@ class Schwab(Broker):
             return None
 
         try:
-            # Create tag for the order (use strategy name if tag not provided)
-            tag = order.tag if order.tag else order.strategy
-
-            # Replace any characters that might cause issues
-            tag = re.sub(r'[^a-zA-Z0-9-]', '-', tag)
+            # Schwab's tag is how recovery finds this strategy's orders after a
+            # restart, so it is always the strategy name, normalized the way the
+            # recovery match is. A custom Order.tag (such as "entry-42") stays on
+            # the local order; sending it instead would hide the order from recovery.
+            tag = self._schwab_ownership_tag(order)
 
             if order.order_class is Order.OrderClass.OTO:
                 order_builder = self._prepare_oto_order_builder(order)
@@ -2636,6 +4226,8 @@ class Schwab(Broker):
                 order_builder = self._prepare_oco_order_builder(order)
             elif order.order_class is Order.OrderClass.BRACKET:
                 order_builder = self._prepare_bracket_order_builder(order)
+            elif order.order_class is Order.OrderClass.MULTILEG:
+                order_builder = self._prepare_multileg_option_order_builder(order)
             elif order.is_advanced_order():
                 logger.error(colored("Only OTO, OCO, and bracket advanced orders are implemented for Schwab broker.", "red"))
                 return None
@@ -2643,7 +4235,12 @@ class Schwab(Broker):
                 order_builder = self._prepare_schwab_single_order_builder(order)
 
             if not order_builder:
-                logger.error(colored(f"Failed to create order builder for {order}", "red"))
+                # The builder already logged why (a fractional contract count, a
+                # strike that is not an OCC contract, a refused package leg). Close
+                # the order as an error so a caller waiting on it is released.
+                error_msg = f"Failed to create order builder for {order}"
+                logger.error(colored(error_msg, "red"))
+                self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
                 return None
 
             order_spec = self._build_order_spec_from_builder(
@@ -2654,9 +4251,25 @@ class Schwab(Broker):
             )
             if not order_spec:
                 return None
+            # Single-leg orders need the same tag. Advanced payloads stay unchanged.
+            if tag and not order.is_advanced_order():
+                order_spec["tag"] = tag
 
             # Log the final order request - reduce verbosity
-            logger.info(colored(f"Sending order to Schwab: {order.asset.symbol, order.quantity} @ {order.limit_price or 'market'}", "cyan"))
+            if order.order_class is Order.OrderClass.MULTILEG:
+                # A package can be NET_ZERO at 0.00; "or 'market'" would mislabel it as market.
+                price_text = f"{order_spec.get('orderType')} {order_spec.get('price')}"
+            else:
+                price_text = order.limit_price or 'market'
+            logger.info(colored(f"Sending order to Schwab: {order.asset.symbol, order.quantity} @ {price_text}", "cyan"))
+
+            # The book can change while this request is in flight. Keep the
+            # pre-submission size, and install it only after Schwab accepts.
+            close_baselines = (
+                self._package_close_baselines(order)
+                if order.order_class is Order.OrderClass.MULTILEG
+                else None
+            )
 
             # Submit the order to Schwab
             response = self.client.place_order(self.hash_value, order_spec)
@@ -2716,13 +4329,25 @@ class Schwab(Broker):
             # Update the order with the identifier
             order.identifier = order_id
             order.status = Order.OrderStatus.SUBMITTED
+            order._schwab_submitted_locally = True
+            if order.order_class is Order.OrderClass.MULTILEG:
+                # Keep the net type that was actually sent. A later replace must
+                # not infer a new credit, debit, or even from the changed price.
+                sent_effect = self._schwab_effect_name(order_spec.get("orderType"))
+                if sent_effect is not None:
+                    order._multileg_effect = sent_effect
+                self._anchor_package_close_positions(order, close_baselines)
 
             # Store the raw response data
             order_data = {"id": order_id, "status": "SUBMITTED"}
             order.update_raw(order_data)
 
-            # Add to unprocessed orders and dispatch to stream
+            # Add to unprocessed orders and dispatch to stream. The pre-adoption
+            # hold can drop once this order is tracked.
             self._unprocessed_orders.append(order)
+            awaiting = getattr(self, "_package_close_awaiting_adoption", None)
+            if awaiting is not None:
+                awaiting.discard(str(order.identifier or ""))
             self._safe_stream_dispatch(self.NEW_ORDER, order=order)
 
             return order
@@ -2856,6 +4481,414 @@ class Schwab(Broker):
 
         return first_triggers_second(parent_builder, oco_builder)
 
+    def _prepare_multileg_option_order_builder(self, order):
+        """Build an OrderBuilder for a multi-leg options package (vertical, box, etc.)."""
+        children = list(getattr(order, "child_orders", None) or [])
+        if not 2 <= len(children) <= 4:
+            logger.error(colored(
+                f"Schwab multi-leg option orders require 2 to 4 option legs. Found {len(children)}.",
+                "red",
+            ))
+            return None
+
+        # Every path (submit_orders, a hand-built parent, modify) passes here.
+        # Order keeps time_in_force as given, and the spec builder matches only
+        # lowercase, so "GTC" would otherwise be sent with no duration at all.
+        time_in_force = str(getattr(order, "time_in_force", None) or "day").strip().lower()
+        if time_in_force not in {"day", "gtc"}:
+            logger.error(colored(
+                f"Schwab multi-leg option orders support day or gtc duration, not {order.time_in_force!r}. "
+                "No leg was submitted.",
+                "red",
+            ))
+            return None
+        order.time_in_force = time_in_force
+
+        resolved_children = []
+        for child in children:
+            if getattr(getattr(child, "asset", None), "asset_type", None) != Asset.AssetType.OPTION:
+                logger.error(colored("Schwab multi-leg option orders accept option legs only.", "red"))
+                return None
+            # Generic sides need a position book. Explicit closes do too, so two
+            # closes of one contract are refused. A bare broker used by price-only
+            # tests has no book; those legs are already explicit opens or closes.
+            if child.side in (Order.OrderSide.BUY, Order.OrderSide.SELL) or hasattr(self, "_filled_positions"):
+                try:
+                    # Earlier legs of this package count as active orders, as in Broker.submit_orders.
+                    # This package's own legs do not reserve contracts against the replacement.
+                    self.resolve_option_order_intent(
+                        child,
+                        additional_active_orders=resolved_children,
+                        exclude_reservations=children,
+                    )
+                except ValueError as exc:
+                    logger.error(colored(
+                        f"Schwab multi-leg option leg was rejected: {exc} No leg was submitted.",
+                        "red",
+                    ))
+                    return None
+                if hasattr(self, "_filled_positions") and not self._schwab_explicit_close_matches_position(child):
+                    logger.error(colored(
+                        "Schwab multi-leg close leg does not match a held position. No leg was submitted.",
+                        "red",
+                    ))
+                    return None
+            resolved_children.append(child)
+
+        try:
+            from schwab.orders.common import (
+                ComplexOrderStrategyType,
+                OptionInstruction,
+                OrderStrategyType,
+                OrderType as SchwabOrderType,
+            )
+            from schwab.orders.generic import OrderBuilder
+            from schwab.orders.options import OptionSymbol
+        except ImportError:
+            logger.error(colored(
+                "Failed to import Schwab order templates. Make sure the schwab-py library is installed.",
+                "red",
+            ))
+            return None
+
+        try:
+            leg_parts = []
+            underlyings = []
+            for child in children:
+                contract = self._schwab_multileg_option_contract(child, OptionSymbol)
+                if contract is None:
+                    return None
+                instruction = self._schwab_option_instruction(child, OptionInstruction)
+                if instruction is None:
+                    logger.error(colored(
+                        f"Unsupported order side for Schwab multi-leg options: {child.side}",
+                        "red",
+                    ))
+                    return None
+                quantity = self._multileg_contract_quantity(child)
+                if quantity is None:
+                    logger.error(colored(
+                        "Schwab multi-leg option legs require a positive whole-number quantity.",
+                        "red",
+                    ))
+                    return None
+                underlying, option_symbol = contract
+                underlyings.append(underlying)
+                leg_parts.append((child, instruction, option_symbol, quantity))
+
+            if len(set(underlyings)) != 1:
+                logger.error(colored(
+                    "Schwab multi-leg option orders require the same underlying on every leg.",
+                    "red",
+                ))
+                return None
+
+            package_quantity = self._multileg_package_quantity([part[3] for part in leg_parts])
+            if not package_quantity:
+                logger.error(colored("Schwab multi-leg option orders require a positive package quantity.", "red"))
+                return None
+
+            if getattr(order, "quantity", None) is not None:
+                parent_quantity = self._multileg_contract_quantity(order)
+                if parent_quantity != package_quantity:
+                    logger.error(colored(
+                        "Schwab multi-leg parent quantity must match the greatest common divisor "
+                        f"of the leg quantities ({package_quantity}).",
+                        "red",
+                    ))
+                    return None
+
+            net_order = self._schwab_multileg_net_order(order, SchwabOrderType)
+            if net_order is None:
+                return None
+            net_type, net_price = net_order
+            price_effect = self._schwab_effect_name(net_type)
+            # Half-up can keep a sub-tick debit (0.00006 -> "0.0001") that debit
+            # rounding then sends as NET_DEBIT "0.00". Refuse that sent price.
+            formatted_price = self._format_schwab_package_price(net_price, effect=price_effect)
+            if price_effect in {"credit", "debit"} and formatted_price == "0.00":
+                logger.error(colored(
+                    f"Schwab multi-leg {price_effect} price rounds to 0.00. No leg was submitted.",
+                    "red",
+                ))
+                return None
+
+            strategy_type = (
+                ComplexOrderStrategyType.VERTICAL
+                if self._schwab_multileg_is_vertical(leg_parts)
+                else ComplexOrderStrategyType.CUSTOM
+            )
+            builder = (
+                OrderBuilder()
+                .set_order_type(net_type)
+                .set_complex_order_strategy_type(strategy_type)
+                .set_quantity(package_quantity)
+                .set_order_strategy_type(OrderStrategyType.SINGLE)
+                .set_price(formatted_price)
+            )
+            for _, instruction, option_symbol, quantity in leg_parts:
+                builder = builder.add_option_leg(instruction, option_symbol, quantity)
+            return builder
+        except Exception as e:
+            logger.error(colored(f"Error creating multi-leg option order builder: {e}", "red"))
+            logger.error(_format_exc())
+            return None
+
+    def _schwab_multileg_option_contract(self, order, OptionSymbol):
+        """Return (underlying, OCC symbol) for one option leg."""
+        asset = order.asset
+        underlying = self._normalize_symbol_for_broker(asset.symbol, asset_type=asset.asset_type)
+        right = getattr(getattr(asset, "right", None), "value", getattr(asset, "right", None))
+        right_text = str(right or "").upper()
+        if right_text.startswith("C"):
+            option_type = "C"
+        elif right_text.startswith("P"):
+            option_type = "P"
+        else:
+            option_type = None
+
+        try:
+            strike = float(asset.strike)
+        except (TypeError, ValueError):
+            strike = None
+        # Schwab OCC symbols left-justify the underlying in six characters and
+        # do not truncate. A longer root would be sent as an invalid symbol.
+        if (
+            not underlying
+            or len(str(underlying)) > 6
+            or asset.expiration is None
+            or strike is None
+            or strike <= 0
+            or option_type is None
+        ):
+            logger.error(colored(
+                "Schwab multi-leg option legs require a 1- to 6-character underlying, "
+                "expiration, positive strike, and right.",
+                "red",
+            ))
+            return None
+
+        # OptionSymbol stays imported so a missing schwab-py still fails here.
+        # Its builder does int(float(strike) * 1000), which truncates 1.005 to
+        # 1.004 and would also round 100.125 to 100.12 if the strike was first
+        # cut to two decimals. Write the OCC thousandths directly.
+        if OptionSymbol is None:
+            return None
+        option_symbol = self._schwab_occ_symbol(underlying, asset.expiration, option_type, strike)
+        if option_symbol is None:
+            logger.error(colored(
+                "Schwab multi-leg option legs require a positive strike that fits an OCC symbol.",
+                "red",
+            ))
+            return None
+        return underlying, option_symbol
+
+    @staticmethod
+    def _schwab_option_instruction(order, OptionInstruction):
+        """Map a resolved option side to the Schwab leg instruction."""
+        try:
+            side = order.side if isinstance(order.side, Order.OrderSide) else Order.OrderSide(order.side)
+        except (TypeError, ValueError):
+            return None
+        return {
+            Order.OrderSide.BUY_TO_OPEN: OptionInstruction.BUY_TO_OPEN,
+            Order.OrderSide.BUY_TO_CLOSE: OptionInstruction.BUY_TO_CLOSE,
+            Order.OrderSide.SELL_TO_OPEN: OptionInstruction.SELL_TO_OPEN,
+            Order.OrderSide.SELL_TO_CLOSE: OptionInstruction.SELL_TO_CLOSE,
+        }.get(side)
+
+    @staticmethod
+    def _schwab_multileg_is_vertical(leg_parts):
+        """Ordinary vertical: one buy and one sell, same expiry and right, different strikes."""
+        if len(leg_parts) != 2:
+            return False
+        first, second = leg_parts[0][0], leg_parts[1][0]
+        if first.asset.expiration != second.asset.expiration:
+            return False
+        first_right = str(getattr(first.asset.right, "value", first.asset.right) or "").upper()
+        second_right = str(getattr(second.asset.right, "value", second.asset.right) or "").upper()
+        if first_right != second_right:
+            return False
+        if first.asset.strike == second.asset.strike:
+            return False
+        if first.is_buy_order() == second.is_buy_order():
+            return False
+        return leg_parts[0][3] == leg_parts[1][3]
+
+    def _schwab_multileg_net_order(self, order, SchwabOrderType):
+        """Choose NET_CREDIT, NET_DEBIT, or NET_ZERO from the parent price and side."""
+        requested = str(
+            getattr(getattr(order, "order_type", None), "value", getattr(order, "order_type", "")) or ""
+        ).strip().lower()
+        # SMART_LIMIT is repriced as a net limit. A stop or market parent would
+        # otherwise be sent as that net limit and drop the trigger.
+        if requested in {"market", "stop", "stop_limit", "trailing_stop"}:
+            logger.error(colored(
+                f"Schwab multi-leg option orders do not send a {requested} trigger. "
+                "Use credit, debit, even, or limit. No leg was submitted.",
+                "red",
+            ))
+            return None
+
+        effect = getattr(order, "_multileg_effect", None)
+        if isinstance(effect, str):
+            effect = effect.strip().lower()
+        if effect not in {"credit", "debit", "even"}:
+            effect = None
+
+        price = getattr(order, "limit_price", None)
+        if price is not None:
+            price = self._finite_multileg_price(price)
+            if price is None:
+                return None
+
+        # Zero means zero as sent: a sub-tick price is formatted as "0.00", and a
+        # NET_CREDIT or NET_DEBIT at 0.00 is not the package that was asked for.
+        rounds_to_zero = price is not None and self._format_schwab_package_price(price) == "0.00"
+
+        if effect == "even":
+            return SchwabOrderType.NET_ZERO, 0.0
+        if effect in {"credit", "debit"}:
+            if price is None or rounds_to_zero:
+                logger.error(colored(
+                    f"Schwab multi-leg {effect} orders require a net price.",
+                    "red",
+                ))
+                return None
+            net_type = SchwabOrderType.NET_CREDIT if effect == "credit" else SchwabOrderType.NET_DEBIT
+            return net_type, abs(price)
+        if price is None:
+            logger.error(colored(
+                "Schwab multi-leg option orders require a net credit, debit, or zero price.",
+                "red",
+            ))
+            return None
+        if rounds_to_zero:
+            return SchwabOrderType.NET_ZERO, 0.0
+        if price < 0 or order.is_sell_order():
+            return SchwabOrderType.NET_CREDIT, abs(price)
+        return SchwabOrderType.NET_DEBIT, abs(price)
+
+    @staticmethod
+    def _finite_multileg_price(price):
+        """Return a finite net price, or None after logging."""
+        try:
+            value = float(price)
+        except (TypeError, ValueError):
+            logger.error(colored(f"Schwab multi-leg price {price!r} is not a number.", "red"))
+            return None
+        if value != value or value in (float("inf"), float("-inf")):
+            logger.error(colored(f"Schwab multi-leg price {price!r} is not a finite number.", "red"))
+            return None
+        return value
+
+    @staticmethod
+    def _schwab_effect_name(order_type):
+        """Map a Schwab NET_* order type to credit, debit, or even."""
+        if order_type is None:
+            return None
+        text = getattr(order_type, "value", order_type)
+        text = str(text).rsplit(".", 1)[-1].strip().upper()
+        return {"NET_CREDIT": "credit", "NET_DEBIT": "debit", "NET_ZERO": "even"}.get(text)
+
+    @staticmethod
+    def _schwab_occ_symbol(underlying, expiration, option_type, strike):
+        """OCC symbol with the strike kept to the thousandth of a dollar. None when the strike is not a whole
+        number of thousandths: 100.1254 would otherwise become the 100.125 contract.
+        """
+        from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+
+        try:
+            scaled = Decimal(str(strike)) * Decimal(1000)
+            millis = scaled.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        except (InvalidOperation, ValueError, TypeError):
+            return None
+        if abs(scaled - millis) > Decimal("0.000001"):
+            return None
+        if millis <= 0 or millis > 99_999_999:
+            return None
+        return "{:<6}{}{}{:08d}".format(
+            str(underlying),
+            expiration.strftime("%y%m%d"),
+            option_type,
+            int(millis),
+        )
+
+    def _schwab_explicit_close_matches_position(self, order) -> bool:
+        """False when an explicit close has no matching long or short position."""
+        try:
+            side = order.side if isinstance(order.side, Order.OrderSide) else Order.OrderSide(order.side)
+        except (TypeError, ValueError):
+            return False
+        if side not in {Order.OrderSide.BUY_TO_CLOSE, Order.OrderSide.SELL_TO_CLOSE}:
+            return True
+        position = self._position_for_order(order)
+        quantity = float(position.quantity) if position is not None else 0.0
+        if side == Order.OrderSide.SELL_TO_CLOSE:
+            return quantity > 0
+        return quantity < 0
+
+    @staticmethod
+    def _format_schwab_package_price(price, effect=None):
+        """Format a package price. A debit rounds down and a credit rounds up. The four-decimal cutoff is the
+        original amount, and a price that reaches one dollar is sent with two decimals.
+        """
+        from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP, ROUND_UP
+
+        amount = abs(Decimal(str(price)))
+        if amount == 0:
+            return "0.00"
+        quantum = Decimal("0.01") if amount >= 1 else Decimal("0.0001")
+        effect_name = effect.strip().lower() if isinstance(effect, str) else None
+        if effect_name == "debit":
+            rounding = ROUND_DOWN
+        elif effect_name == "credit":
+            rounding = ROUND_UP
+        else:
+            rounding = ROUND_HALF_UP
+        rounded = amount.quantize(quantum, rounding=rounding)
+        if rounded <= 0:
+            return "0.00"
+        if rounded >= 1 and quantum != Decimal("0.01"):
+            return f"{rounded.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):.2f}"
+        if quantum == Decimal("0.01"):
+            return f"{rounded:.2f}"
+        return f"{rounded:.4f}"
+
+    @staticmethod
+    def _format_schwab_single_price(price):
+        """Format a single-order limit in decimal space, truncating toward zero, so the exact value 1.15 stays
+        "1.15".
+        """
+        if price is None:
+            return None
+        from decimal import Decimal, ROUND_DOWN
+
+        amount = Decimal(str(price))
+        if amount != 0 and abs(amount) < 1:
+            return f"{amount.quantize(Decimal('0.0001'), rounding=ROUND_DOWN):.4f}"
+        return f"{amount.quantize(Decimal('0.01'), rounding=ROUND_DOWN):.2f}"
+
+    def _schwab_multileg_is_even_package(self, order) -> bool:
+        """True when this package is NET_ZERO and cannot take a new non-zero price."""
+        effect = getattr(order, "_multileg_effect", None)
+        if isinstance(effect, str):
+            effect = effect.strip().lower()
+        if effect == "even":
+            return True
+        if effect in {"credit", "debit"}:
+            return False
+        if str(getattr(order, "raw_order_type", "") or "").upper() == "NET_ZERO":
+            return True
+        price = getattr(order, "limit_price", None)
+        if price is None:
+            return False
+        try:
+            value = float(price)
+        except (TypeError, ValueError):
+            return False
+        return value == value and abs(value) < 1e-9
+
     def _prepare_stock_order_builder(self, order, equity_buy_market, equity_buy_limit,
                                    equity_sell_market, equity_sell_limit,
                                    equity_sell_short_market, equity_sell_short_limit,
@@ -2893,6 +4926,7 @@ class Schwab(Broker):
         limit_price = order.limit_price
         if order.order_type == Order.OrderType.STOP_LIMIT:
             limit_price = order.stop_limit_price
+        limit_price = self._format_schwab_single_price(limit_price)
 
         # Create the appropriate order builder based on order side and type
         order_builder = None
@@ -2991,9 +5025,21 @@ class Schwab(Broker):
         if order.side in (Order.OrderSide.BUY, Order.OrderSide.SELL):
             self.resolve_option_order_intent(order)
         try:
-            # Get order parameters
-            quantity = int(order.quantity)
-            limit_price = order.limit_price
+            # Get order parameters. Options trade in whole contracts; int() would
+            # silently send 1 for a requested 1.5.
+            requested_quantity = float(order.quantity)
+            if (
+                not math.isfinite(requested_quantity)
+                or requested_quantity <= 0
+                or requested_quantity != int(requested_quantity)
+            ):
+                logger.error(colored(
+                    f"Schwab option orders need a whole number of contracts; got {order.quantity}.",
+                    "red",
+                ))
+                return None
+            quantity = int(requested_quantity)
+            limit_price = self._format_schwab_single_price(order.limit_price)
 
             # Construct the option symbol in Schwab format
             # Get option data from the order's asset
@@ -3002,16 +5048,16 @@ class Schwab(Broker):
             strike_price = order.asset.strike
             option_type = 'C' if order.asset.right == 'CALL' else 'P'
 
-            # Format strike price as string with proper decimal format
-            strike_price_str = f"{strike_price:.2f}"
-
-            # Create option symbol using Schwab's OptionSymbol builder
-            option_symbol = OptionSymbol(
-                underlying_symbol,
-                expiration_date,
-                option_type,
-                strike_price_str
-            ).build()
+            # Write the OCC thousandths directly, as the package builder does.
+            # Formatting the strike to two decimals sent 100.125 as 100.12, a
+            # different or nonexistent contract. OptionSymbol stays a parameter so
+            # a missing schwab-py still fails before this point.
+            option_symbol = self._schwab_occ_symbol(
+                underlying_symbol, expiration_date, option_type, float(strike_price)
+            )
+            if option_symbol is None:
+                logger.error(colored(f"Schwab cannot build an option symbol for strike {strike_price}.", "red"))
+                return None
 
             logger.info(colored(f"Created option symbol: {option_symbol}", "cyan"))
 
@@ -3210,12 +5256,13 @@ class Schwab(Broker):
             return None
 
         original_limit_price = order.limit_price
+        original_stop_limit_price = order.stop_limit_price
         original_stop_price = order.stop_price
         original_tag = order.tag
 
         try:
             if limit_price is not None:
-                order.limit_price = limit_price
+                self._set_schwab_limit_price(order, limit_price)
             if stop_price is not None:
                 order.stop_price = stop_price
             if tag is not None:
@@ -3239,6 +5286,7 @@ class Schwab(Broker):
             )
         finally:
             order.limit_price = original_limit_price
+            order.stop_limit_price = original_stop_limit_price
             order.stop_price = original_stop_price
             order.tag = original_tag
 
@@ -3299,6 +5347,38 @@ class Schwab(Broker):
             order.limit_price = original_limit_price
             order.stop_price = original_stop_price
             order.tag = original_tag
+
+    def _prepare_multileg_option_order_spec(self, order, limit_price=None):
+        """Replacement-side equivalent of `_prepare_multileg_option_order_builder`.
+
+        The same builder as new submits keeps the legs, package quantity and
+        credit/debit/even type; only the net price changes.
+        """
+        replacement = None
+        if limit_price is not None:
+            replacement = self._finite_multileg_price(limit_price)
+            if replacement is None:
+                return None
+        if self._schwab_multileg_is_even_package(order) and replacement is not None and abs(replacement) >= 1e-9:
+            # NET_ZERO is always 0.00. A parsed or hand-built even package has no
+            # submit-time flag, and replacing it would silently become a debit.
+            logger.error(colored(
+                "A Schwab even (NET_ZERO) package cannot be repriced; cancel it and submit a credit or debit package.",
+                "red",
+            ))
+            return None
+        original_limit_price = order.limit_price
+        try:
+            if replacement is not None:
+                order.limit_price = replacement
+            order_builder = self._prepare_multileg_option_order_builder(order)
+            return self._build_order_spec_from_builder(
+                order_builder,
+                order.time_in_force,
+                session=self._schwab_session_for_order(order),
+            )
+        finally:
+            order.limit_price = original_limit_price
 
     def _prepare_futures_order_builder(self, order, OrderBuilder):
         """
@@ -3406,34 +5486,56 @@ class Schwab(Broker):
         # Add check for authorization error first
         if self.schwab_authorization_error:
             logger.error(colored(f"Schwab authorization failed previously. Cannot modify order {order.identifier}.", "red"))
-            return
+            return False
 
         # Add check for valid client and hash_value
         if not self.client or not self.hash_value:
             logger.error(colored(f"Schwab client or account hash not initialized. Cannot modify order {order.identifier}.", "red"))
-            return # Return early
+            return False
 
         if not order.identifier:
             logger.error(colored("Order identifier is not set, unable to modify order. Did you remember to submit it?", "red"))
-            return
+            return False
+
+        # A throttled replace sets a cooldown from Retry-After. Until it ends,
+        # nothing is read or sent; the caller keeps its price and retries later.
+        if not self._schwab_request_allowed("order_replace"):
+            logger.warning(colored(
+                f"Schwab replace for {order.identifier} is waiting out a rate limit; nothing was sent.",
+                "yellow",
+            ))
+            return False
 
         try:
             # Get the original order first to use as base for modification
             original_order_data = self._pull_broker_order(order.identifier) # Already checks hash_value
 
             if not original_order_data:
+                # A 429 or other failed read sends nothing. The caller must keep
+                # the local price and must not advance a reprice ladder.
                 logger.error(colored(f"Unable to fetch original order {order.identifier} for modification", "red"))
-                return
+                return False
 
             # Create a new order spec based on the original order
             new_order_spec = self._prepare_replacement_order_spec(order, original_order_data, limit_price, stop_price)
 
             if not new_order_spec:
                 logger.error(colored(f"Failed to create replacement order specification for {order}", "red"))
-                return
+                return False
 
             # Replace the order
             response = self.client.replace_order(self.hash_value, order.identifier, new_order_spec)
+            status_code = getattr(response, "status_code", None)
+            if status_code is not None and int(status_code) == 429:
+                self._record_schwab_rate_limit(response, "order_replace")
+            elif status_code is not None and int(status_code) < 400:
+                self._clear_schwab_rate_limit("order_replace")
+            if status_code is not None and int(status_code) >= 400:
+                logger.error(colored(
+                    f"Schwab rejected the replacement for {order.identifier}: HTTP {status_code}",
+                    "red",
+                ))
+                return False
 
             # Extract new order ID from response (the replaced order will have a new ID)
             new_order_id = None
@@ -3449,25 +5551,78 @@ class Schwab(Broker):
                 logger.error(colored(f"Error extracting new order ID: {e}", "red"))
 
             if not new_order_id:
-                logger.error(colored("Failed to get new order ID after replacement", "red"))
-                return
+                # The replace may have landed without a Location header. Adopt
+                # the new price only when a fresh read shows it on this order.
+                if not self._schwab_replacement_confirmed(order, limit_price, stop_price):
+                    logger.error(colored(
+                        "Schwab replace did not confirm a new order id. "
+                        "The local package price was left unchanged.",
+                        "red",
+                    ))
+                    return False
+                if limit_price is not None:
+                    self._set_schwab_limit_price(order, limit_price)
+                if stop_price is not None:
+                    order.stop_price = stop_price
+                return True
 
-            # Update the order with the new identifier
-
+            # Update the order with the new identifier. The fill path reads the
+            # identifier under this lock and spends that id's credit. Publishing
+            # the new id and moving the credit in one section keeps a concurrent
+            # fill from reserving contracts the book already removed. The lock
+            # is not held across the replace request above.
+            previous_identifier = order.identifier
             order.previous_identifiers = getattr(order, "previous_identifiers", None) or []
-            order.previous_identifiers.append(order.identifier)
-            order.identifier = new_order_id
+            order.previous_identifiers.append(previous_identifier)
+            with self._lock:
+                order.identifier = new_order_id
+                if order.order_class == Order.OrderClass.MULTILEG:
+                    self._rekey_package_close_order(order, previous_identifier, new_order_id)
             # Update price information
             if limit_price is not None:
-                order.limit_price = limit_price
+                self._set_schwab_limit_price(order, limit_price)
             if stop_price is not None:
                 order.stop_price = stop_price
 
             # No need to dispatch any events as the order is still considered the same from Lumibot's perspective
+            return True
 
         except Exception as e:
             logger.error(colored(f"Error modifying order {order.identifier}: {str(e)}", "red"))
             logger.error(_format_exc())
+            return False
+
+    def _schwab_ownership_tag(self, order) -> str:
+        """Schwab tag for an order: the strategy name, or the order's own tag without one."""
+        return self.normalize_broker_strategy_tag(order.strategy) or self.normalize_broker_strategy_tag(order.tag)
+
+    @staticmethod
+    def _set_schwab_limit_price(order, limit_price):
+        """Set an order's limit. A stop-limit's limit is read from stop_limit_price."""
+        order.limit_price = limit_price
+        if order.order_type == Order.OrderType.STOP_LIMIT:
+            order.stop_limit_price = limit_price
+
+    def _schwab_replacement_confirmed(self, order, limit_price, stop_price) -> bool:
+        """True when a follow-up read shows the requested prices on this order."""
+        refreshed = self._pull_broker_order(order.identifier)
+        if not isinstance(refreshed, dict):
+            return False
+        if limit_price is not None:
+            try:
+                live_price = refreshed.get("price")
+                if live_price is None or abs(float(live_price) - float(limit_price)) > 1e-9:
+                    return False
+            except (TypeError, ValueError):
+                return False
+        if stop_price is not None:
+            try:
+                live_stop = refreshed.get("stopPrice")
+                if live_stop is None or abs(float(live_stop) - float(stop_price)) > 1e-9:
+                    return False
+            except (TypeError, ValueError):
+                return False
+        return True
 
     def _prepare_replacement_order_spec(self, order, original_order_data, limit_price, stop_price):
         """
@@ -3492,22 +5647,28 @@ class Schwab(Broker):
         # This will need to be implemented based on the actual structure of Schwab's order specs
         # For now, let's create a basic implementation
 
-        # Start with tag for the order
-        tag = order.tag if order.tag else order.strategy
-        tag = re.sub(r'[^a-zA-Z0-9-]', '-', tag)
+        # The same ownership tag as the original submit.
+        tag = self._schwab_ownership_tag(order)
 
         # Use original values for prices if new ones are not provided
         final_limit_price = limit_price if limit_price is not None else order.limit_price
         final_stop_price = stop_price if stop_price is not None else order.stop_price
 
-        # Create the replacement order spec based on asset type
-        if order.asset.asset_type == Asset.AssetType.STOCK:
-            return self._prepare_stock_order_spec(order, final_limit_price, final_stop_price, tag)
+        # A package is replaced as a package; its parent asset is not an option.
+        if order.order_class == Order.OrderClass.MULTILEG:
+            spec = self._prepare_multileg_option_order_spec(order, final_limit_price)
+        elif order.asset.asset_type == Asset.AssetType.STOCK:
+            spec = self._prepare_stock_order_spec(order, final_limit_price, final_stop_price, tag)
         elif order.asset.asset_type == Asset.AssetType.OPTION:
-            return self._prepare_option_order_spec(order, final_limit_price, final_stop_price, tag)
+            spec = self._prepare_option_order_spec(order, final_limit_price, final_stop_price, tag)
         else:
             logger.error(colored(f"Asset type {order.asset.asset_type} is not supported for order modification", "red"))
             return None
+        # The builders do not carry the tag. Without it the replacement is no
+        # longer recognized as this strategy's order after a restart.
+        if isinstance(spec, dict) and tag:
+            spec["tag"] = tag
+        return spec
 
     def get_historical_account_value(self) -> dict:
         """
@@ -3720,11 +5881,61 @@ class Schwab(Broker):
         # Removed blocking wait for stream connection establishment
         return
 
+    @staticmethod
+    def _schwab_position_key(position):
+        """Asset identity shared by a tracked row and the broker row that updates it."""
+        asset = position.asset
+        return (
+            asset.symbol,
+            asset.asset_type,
+            getattr(asset, "expiration", None),
+            getattr(asset, "strike", None),
+            getattr(asset, "right", None),
+        )
+
+    @staticmethod
+    def _schwab_position_is_unlabeled(position, strategy_name) -> bool:
+        """True when a named sync should fold this row into the registered strategy. None, an empty label, and
+        "Unknown" are the book written before the strategy name existed.
+        """
+        label = getattr(position, "strategy", None)
+        if label == strategy_name:
+            return False
+        return label in (None, "", "Unknown")
+
+    def _schwab_unlabeled_positions(self, key, strategy_name):
+        """Unlabeled rows for one asset that a named sync should fold."""
+        matches = []
+        for position in list(self._filled_positions.get_list()):
+            if not self._schwab_position_is_unlabeled(position, strategy_name):
+                continue
+            if self._schwab_position_key(position) == key:
+                matches.append(position)
+        return matches
+
+    def _schwab_position_has_foreign_owner(self, key, strategy_name) -> bool:
+        """True when a strategy other than ``strategy_name`` has a named row for this asset."""
+        for position in list(self._filled_positions.get_list()):
+            label = getattr(position, "strategy", None)
+            if label in (None, "", "Unknown", strategy_name):
+                continue
+            if self._schwab_position_key(position) == key:
+                return True
+        return False
+
+    def _schwab_remove_filled_position(self, position) -> None:
+        """Drop one tracked row when it is still in the book."""
+        filled = getattr(self, "_filled_positions", None)
+        if filled is not None and position in filled.get_list():
+            filled.remove(position)
+
     def sync_positions(self, strategy):
         """
         Override the default sync_positions method to prevent duplicate positions.
 
         This method ensures that positions are properly synchronized without creating duplicates.
+        A named sync folds an unlabeled row for the same holding into that strategy
+        so the book keeps one current quantity. Other strategies stay in place.
         """
         # Add check for initialization status
         # This check should now work reliably as schwab_authorization_error always exists
@@ -3735,32 +5946,62 @@ class Schwab(Broker):
              logger.warning(colored("[Schwab] Broker not fully initialized or in error state, skipping position sync.", "yellow"))
              return
 
-        # Get current tracked positions for this strategy
         strategy_name = strategy.name if strategy else None
+        # Two syncs can overlap (startup recovery and the stream thread). Each
+        # takes a ticket before its pull from one account-wide sequence, and a
+        # response is applied only when no later-started sync covering the same
+        # rows was applied first, so an older quantity cannot overwrite a newer one.
+        with self._lock:
+            ticket = getattr(self, "_schwab_position_sync_ticket", 0) + 1
+            self._schwab_position_sync_ticket = ticket
+            status = getattr(self, "_schwab_position_pull_local", None)
+            if status is None:
+                status = self._schwab_position_pull_local = threading.local()
+            status.ready = False
+
+        # Pull fresh positions from the broker. Read the degraded bit this pull
+        # stored. The shared flag can change when another sync is in flight.
+        new_positions = self._pull_positions(strategy)
+        status = getattr(self, "_schwab_position_pull_local", None)
+        if status is not None and getattr(status, "ready", False):
+            degraded = bool(getattr(status, "degraded", False))
+        else:
+            degraded = getattr(self, "_last_positions_refresh_degraded", False)
+
+        with self._lock:
+            applied = getattr(self, "_schwab_position_sync_applied", None)
+            if applied is None:
+                applied = self._schwab_position_sync_applied = {}
+            # An account-wide sync covers every strategy's rows, and a named sync
+            # covers rows an account-wide sync also writes.
+            if strategy_name is None:
+                newest = max(applied.values(), default=0)
+            else:
+                newest = max(applied.get(strategy_name, 0), applied.get(None, 0))
+            if ticket < newest:
+                logger.debug("[Schwab] Discarding a position snapshot older than the last one applied.")
+                return
+            # A pull that failed before returning any position is not a newer
+            # snapshot. It must not make an older successful pull look stale.
+            if new_positions or not degraded:
+                applied[strategy_name] = ticket
+            self._apply_schwab_positions(strategy_name, new_positions, degraded)
+
+    def _apply_schwab_positions(self, strategy_name, new_positions, degraded) -> None:
+        """Apply one pulled position snapshot to the tracked book (caller holds the lock)."""
+        # Get current tracked positions for this strategy
         tracked = self.get_tracked_positions(strategy_name)
         tracked_dict = {}
 
         # Create a dict of tracked positions keyed by their unique asset identifiers
         for position in tracked:
-            asset = position.asset
-            key = (asset.symbol, asset.asset_type,
-                  getattr(asset, 'expiration', None),
-                  getattr(asset, 'strike', None),
-                  getattr(asset, 'right', None))
-            tracked_dict[key] = position
+            tracked_dict[self._schwab_position_key(position)] = position
 
-        # Pull fresh positions from the broker
-        new_positions = self._pull_positions(strategy)
         new_dict = {}
         for position in new_positions:
-            asset = position.asset
-            key = (asset.symbol, asset.asset_type,
-                  getattr(asset, 'expiration', None),
-                  getattr(asset, 'strike', None),
-                  getattr(asset, 'right', None))
-            new_dict[key] = position
+            new_dict[self._schwab_position_key(position)] = position
 
-        if getattr(self, "_last_positions_refresh_degraded", False):
+        if degraded:
             logger.warning(colored(
                 "Schwab position refresh was degraded; updating parsed positions but not removing "
                 "tracked positions that were missing from the partial broker parse.",
@@ -3768,20 +6009,47 @@ class Schwab(Broker):
             ))
         else:
             # Remove positions that no longer exist only after a complete broker parse.
+            # The quote asset (cash) is stored by the balance refresh, not by this
+            # response, so it is never pruned here; the base sync keeps it too.
+            quote_assets = getattr(self, "quote_assets", None) or ()
             for key, position in tracked_dict.items():
-                if key not in new_dict:
-                    # Use the proper method to remove positions from filled_positions list
-                    if position in self._filled_positions.get_list():
-                        self._filled_positions.remove(position)
+                if key not in new_dict and position.asset not in quote_assets:
+                    self._schwab_remove_filled_position(position)
+            # A named sync also drops an unlabeled row whose holding is gone.
+            # Other strategies stay. An account-wide sync does not relabel anyone.
+            if strategy_name:
+                for position in list(self._filled_positions.get_list()):
+                    if position.asset in quote_assets:
+                        continue
+                    if not self._schwab_position_is_unlabeled(position, strategy_name):
+                        continue
+                    if self._schwab_position_key(position) not in new_dict:
+                        self._schwab_remove_filled_position(position)
 
-        # Update or add positions
+        # Update or add positions. An unlabeled row for this holding is the same
+        # position: relabel it, and drop a stale twin when the named row exists.
         for key, position in new_dict.items():
+            unlabeled = self._schwab_unlabeled_positions(key, strategy_name) if strategy_name else []
             if key in tracked_dict:
-                # Update existing position
                 tracked_position = tracked_dict[key]
                 self._sync_position_fields_from_broker(tracked_position, position)
+                for twin in unlabeled:
+                    self._schwab_remove_filled_position(twin)
+            elif unlabeled and self._schwab_position_has_foreign_owner(key, strategy_name):
+                # The unlabeled row may be that other strategy's holding. Keep it
+                # current but unclaimed, so a local close cannot be validated against it.
+                self._sync_position_fields_from_broker(unlabeled[0], position)
+            elif unlabeled:
+                kept = unlabeled[0]
+                self._sync_position_fields_from_broker(kept, position)
+                for twin in unlabeled[1:]:
+                    self._schwab_remove_filled_position(twin)
+                if kept.strategy != strategy_name:
+                    kept.strategy = strategy_name
+                    self._filled_positions.revision += 1
             else:
-                # Add new position
                 self._filled_positions.append(position)
+
+        self._reconcile_package_close_holds()
 
         logger.debug(f"Synchronized {len(new_positions)} positions for strategy {strategy_name if strategy_name else 'None'}")

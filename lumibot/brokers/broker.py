@@ -1172,6 +1172,19 @@ class Broker(ABC):
         # A package price is a signed net debit/credit, not a leg execution.
         return price.is_finite() and (price > 0 or order.order_class == Order.OrderClass.MULTILEG)
 
+    @staticmethod
+    def _recorded_fill_value(order, average_price):
+        """Value of the fills already recorded on ``order``.
+
+        Every recorded fill carries its own price here. A broker that can
+        recover unpriced fills overrides this; ``average_price`` is the
+        broker's cumulative average for that override.
+        """
+        return sum(
+            (Decimal(str(transaction.quantity)) * Decimal(str(transaction.price))
+             for transaction in order.transactions), Decimal(0)
+        )
+
     def _reconcile_cumulative_execution(self, order, cumulative_quantity, average_price, *, terminal=False, raw=None):
         """Process only unrecorded quantity from a confirmed cumulative fill.
 
@@ -1187,10 +1200,7 @@ class Broker(ABC):
                     (Decimal(str(transaction.quantity)) for transaction in order.transactions), Decimal(0)
                 )
                 prior_quantity = max(prior_quantity, getattr(order, "_broker_synced_filled_quantity", Decimal(0)))
-                prior_value = sum(
-                    (Decimal(str(transaction.quantity)) * Decimal(str(transaction.price))
-                     for transaction in order.transactions), Decimal(0)
-                )
+                prior_value = self._recorded_fill_value(order, price)
                 remaining_quantity = total_quantity - prior_quantity
                 if not terminal and total_quantity.is_finite() and 0 <= total_quantity <= prior_quantity:
                     order.filled_quantity = prior_quantity
@@ -1271,11 +1281,10 @@ class Broker(ABC):
             # Reconcile executions before a terminal transition. A partially
             # filled canceled/replaced/expired/rejected order keeps its fills.
             if cumulative is not None and cumulative > processed and order.avg_fill_price is not None:
-                prior_value = sum(
-                    (Decimal(str(t.quantity)) * Decimal(str(t.price)) for t in order.transactions), Decimal(0)
-                )
+                average = Decimal(str(order.avg_fill_price))
+                prior_value = self._recorded_fill_value(order, average)
                 delta = cumulative - processed
-                price = (cumulative * Decimal(str(order.avg_fill_price)) - prior_value) / delta
+                price = (cumulative * average - prior_value) / delta
                 if not self._valid_fill_price(order, price):
                     raise ValueError("Broker cumulative fill price is invalid")
                 self._process_new_order(order)
@@ -3029,6 +3038,7 @@ class Broker(ABC):
         self,
         order: Order,
         additional_active_orders: list[Order] | None = None,
+        exclude_reservations: list[Order] | None = None,
     ) -> Order:
         """Resolve a single-leg option order to an explicit open/close side.
 
@@ -3085,13 +3095,11 @@ class Broker(ABC):
             return order
 
         reserved_quantity = 0.0
-        active_orders = self.get_active_tracked_orders(order.strategy, order.asset)
-        if additional_active_orders:
-            active_orders.extend(
-                candidate
-                for candidate in additional_active_orders
-                if candidate.strategy == order.strategy and candidate.asset == order.asset
-            )
+        active_orders = self._active_orders_reserving_asset(
+            order,
+            additional_active_orders=additional_active_orders,
+            exclude_reservations=exclude_reservations,
+        )
         for active_order in active_orders:
             try:
                 active_side = Order.OrderSide(active_order.side)
@@ -3107,13 +3115,17 @@ class Broker(ABC):
             if not active_is_close:
                 continue
 
-            filled_quantity = sum(
-                float(transaction.quantity)
-                for transaction in getattr(active_order, "transactions", [])
+            reserved_quantity += max(
+                0.0,
+                float(active_order.quantity) - self._reserved_quantity_already_filled(active_order),
             )
-            reserved_quantity += max(0.0, float(active_order.quantity) - filled_quantity)
 
-        remaining_closable = max(0.0, abs(position_quantity) - reserved_quantity)
+        # A broker whose package fills do not change the position book reports
+        # those contracts here until a sync drops them. The base returns 0.
+        remaining_closable = max(
+            0.0,
+            abs(position_quantity) - reserved_quantity - self._unreconciled_package_close_quantity(order),
+        )
         requested_quantity = float(order.quantity)
         if requested_quantity > remaining_closable + 1e-9:
             raise ValueError(
@@ -3121,6 +3133,41 @@ class Broker(ABC):
                 f"{remaining_closable:g} after active close orders"
             )
         return order
+
+    def _active_orders_reserving_asset(
+        self,
+        order: Order,
+        additional_active_orders: list[Order] | None = None,
+        exclude_reservations: list[Order] | None = None,
+    ) -> list[Order]:
+        """Active orders on this strategy and contract that may reserve a close.
+
+        ``exclude_reservations`` is for brokers whose package replacement must
+        not reserve against itself; the base lookup does not use it.
+        """
+        active_orders = self.get_active_tracked_orders(order.strategy, order.asset)
+        if additional_active_orders:
+            active_orders.extend(
+                candidate
+                for candidate in additional_active_orders
+                if candidate.strategy == order.strategy and candidate.asset == order.asset
+            )
+        return active_orders
+
+    def _reserved_quantity_already_filled(self, order: Order) -> float:
+        """Contracts of this close that have already filled, from its own fills."""
+        return sum(
+            float(transaction.quantity)
+            for transaction in getattr(order, "transactions", [])
+        )
+
+    def _unreconciled_package_close_quantity(self, order: Order) -> float:
+        """Close fills the position book does not yet show.
+
+        Brokers that apply package fills to the position book return 0. Schwab
+        keeps the filled contracts here until position sync drops them.
+        """
+        return 0.0
 
     def _conform_order(self, order):
         """Conform an order to broker constraints. Derived brokers should implement this method."""

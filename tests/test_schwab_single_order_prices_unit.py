@@ -1,0 +1,144 @@
+"""Schwab single-order prices are sent to schwab-py as strings.
+
+schwab-py deprecated float prices and will remove them. Its float path also
+truncates in binary, which sends a 1.15 limit as "1.14". These tests turn the
+deprecation warning into an error so a float price cannot slip back in.
+"""
+from datetime import date
+from threading import RLock
+
+import pytest
+
+from lumibot.brokers.schwab import Schwab
+from lumibot.entities import Asset, Order
+from lumibot.trading_builtins import SafeList
+
+pytestmark = pytest.mark.filterwarnings("error:passing floats to set_price:UserWarning")
+
+
+class _PlaceClient:
+    def __init__(self):
+        self.place_calls = []
+
+    def place_order(self, account_hash, order_spec):
+        self.place_calls.append(order_spec)
+        return type("Response", (), {
+            "status_code": 201,
+            "headers": {"Location": "https://api.schwabapi.com/trader/v1/accounts/hash/orders/order-1"},
+            "text": "",
+        })()
+
+
+def _broker():
+    broker = Schwab.__new__(Schwab)
+    broker.name = "Schwab"
+    broker.schwab_authorization_error = False
+    broker.client = _PlaceClient()
+    broker.hash_value = "account-hash"
+    broker.stream = None
+    broker._unprocessed_orders = SafeList(RLock())
+    return broker
+
+
+def _option(strike=500, right="PUT"):
+    return Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration=date(2026, 6, 19), strike=strike, right=right)
+
+
+@pytest.mark.parametrize(
+    ("price", "expected"),
+    [
+        (500, "500.00"),
+        (1.15, "1.15"),  # the float path sends "1.14"
+        (4.35, "4.35"),  # the float path sends "4.34"
+        (1.159, "1.15"),  # truncated toward zero, as schwab-py does
+        (0.12345, "0.1234"),
+        (0.1, "0.1000"),
+        (0, "0.00"),
+        (None, None),
+    ],
+)
+def test_single_price_keeps_schwab_py_truncation_without_float_error(price, expected):
+    assert Schwab._format_schwab_single_price(price) == expected
+
+
+@pytest.mark.parametrize(
+    "order",
+    [
+        Order("unit-test", Asset("SPY"), 10, Order.OrderSide.BUY, limit_price=1.15),
+        Order("unit-test", Asset("SPY"), 10, Order.OrderSide.SELL, stop_price=1.20, stop_limit_price=1.15),
+        Order("unit-test", _option(), 1, Order.OrderSide.BUY_TO_OPEN, limit_price=1.15),
+        Order("unit-test", _option(), 1, Order.OrderSide.SELL_TO_CLOSE, limit_price=1.15),
+    ],
+    ids=["stock-limit", "stock-stop-limit", "option-buy-to-open", "option-sell-to-close"],
+)
+def test_single_limit_order_sends_string_price(order):
+    broker = _broker()
+
+    submitted = broker._submit_orders([order], is_multileg=False)
+
+    assert submitted == [order]
+    assert broker.client.place_calls[0]["price"] == "1.15"
+    assert broker.client.place_calls[0]["tag"] == "unit-test"
+
+
+def test_submit_tag_strips_before_the_shared_normalization():
+    """A strategy name with surrounding spaces matches recovery after submit."""
+    broker = _broker()
+    order = Order(" fixture ", Asset("SPY"), 1, Order.OrderSide.BUY, limit_price=1.15)
+
+    submitted = broker._submit_order(order)
+
+    assert submitted is order
+    assert broker.client.place_calls[0]["tag"] == "fixture"
+    assert Schwab.strategy_tag_matches(broker.client.place_calls[0]["tag"], order.strategy)
+
+    blank = Order("fixture", Asset("SPY"), 1, Order.OrderSide.BUY, limit_price=1.15)
+    blank.tag = "   "
+    assert broker._submit_order(blank) is blank
+    assert broker.client.place_calls[1]["tag"] == "fixture"
+
+
+def test_single_option_keeps_the_strike_to_the_thousandth():
+    """A 100.125 strike is that contract, not 100.12."""
+    broker = _broker()
+    order = Order("unit-test", _option(strike=100.125, right="CALL"), 1, Order.OrderSide.BUY_TO_OPEN, limit_price=1.15)
+
+    broker._submit_orders([order], is_multileg=False)
+
+    symbol = broker.client.place_calls[0]["orderLegCollection"][0]["instrument"]["symbol"]
+    assert symbol == "SPY   260619C00100125"
+
+
+def test_single_option_refuses_a_fractional_contract_quantity():
+    """1.5 contracts is not sent as 1."""
+    broker = _broker()
+    order = Order("unit-test", _option(), 1.5, Order.OrderSide.BUY_TO_OPEN, limit_price=1.15)
+
+    broker._submit_orders([order], is_multileg=False)
+
+    assert broker.client.place_calls == []
+
+
+class _RecordingStream:
+    def __init__(self):
+        self.events = []
+
+    def dispatch(self, event, **kwargs):
+        self.events.append((event, kwargs))
+
+
+@pytest.mark.parametrize(
+    ("quantity", "strike"),
+    [(1.5, 500), (1, 100.1254)],
+    ids=["fractional-contracts", "strike-not-a-thousandth"],
+)
+def test_a_refused_single_option_closes_as_an_error(quantity, strike):
+    """A refused order is reported as an error, so a caller waiting on it is released."""
+    broker = _broker()
+    broker.stream = _RecordingStream()
+    order = Order("unit-test", _option(strike=strike), quantity, Order.OrderSide.BUY_TO_OPEN, limit_price=1.15)
+
+    assert broker._submit_orders([order], is_multileg=False) == [None]
+
+    assert broker.client.place_calls == []
+    assert [(event, kwargs["order"]) for event, kwargs in broker.stream.events] == [(broker.ERROR_ORDER, order)]

@@ -416,3 +416,159 @@ class TestOrderAdvanced:
 
     def test_is_equivalent_status(self):
         assert Order.is_equivalent_status("pending_new", Order.OrderStatus.NEW)
+
+
+class TestCashPending:
+    """cash_pending estimates the cash a multi-leg package's unfilled quantity will move."""
+
+    @staticmethod
+    def _strategy(price):
+        prices = price if isinstance(price, dict) else None
+        return type("Strategy", (), {
+            "get_last_price": lambda _self, asset: prices.get(asset.strike) if prices else price,
+        })()
+
+    @staticmethod
+    def _option(strike, right="PUT"):
+        return Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration=date(2026, 6, 19), strike=strike, right=right)
+
+    def test_unpriced_package_is_estimated_from_its_legs_not_the_underlying(self):
+        legs = [
+            Order("Example", self._option(500), 2, Order.OrderSide.SELL_TO_OPEN),
+            Order("Example", self._option(490), 2, Order.OrderSide.BUY_TO_OPEN),
+        ]
+        package = Order(
+            "Example", Asset("SPY", asset_type=Asset.AssetType.MULTILEG), 2, Order.OrderSide.SELL,
+            limit_price=1.25, order_class=Order.OrderClass.MULTILEG, child_orders=legs,
+        )
+        package.add_transaction(None, 1)
+
+        # One package left: sell 500 at 3.00, buy 490 at 1.20 -> 1.80 credit x100.
+        assert package.cash_pending(self._strategy({500: 3.00, 490: 1.20})) == pytest.approx(180.0)
+
+    def test_missing_leg_quote_falls_back_to_the_package_limit(self):
+        """A missing quote is not zero cash: the known limit is used, or None when there is none."""
+        legs = [
+            Order("Example", self._option(500), 2, Order.OrderSide.SELL_TO_OPEN),
+            Order("Example", self._option(490), 2, Order.OrderSide.BUY_TO_OPEN),
+        ]
+        package = Order(
+            "Example", Asset("SPY", asset_type=Asset.AssetType.MULTILEG), 2, Order.OrderSide.BUY,
+            limit_price=1.25, order_class=Order.OrderClass.MULTILEG, child_orders=legs,
+        )
+        package._multileg_effect = "debit"
+        package.add_transaction(None, 1)
+
+        # One debit package left at the 1.25 limit, x100.
+        assert package.cash_pending(self._strategy({500: 3.00})) == pytest.approx(-125.0)
+
+        package.limit_price = None
+        assert package.cash_pending(self._strategy({500: 3.00})) is None
+
+    def test_priced_package_fill_uses_the_leg_multiplier(self):
+        legs = [
+            Order("Example", self._option(500), 1, Order.OrderSide.SELL_TO_OPEN),
+            Order("Example", self._option(490), 1, Order.OrderSide.BUY_TO_OPEN),
+        ]
+        package = Order(
+            "Example", Asset("SPY", asset_type=Asset.AssetType.MULTILEG), 2, Order.OrderSide.SELL,
+            limit_price=1.25, order_class=Order.OrderClass.MULTILEG, child_orders=legs,
+        )
+        package.add_transaction(1.30, 1)
+
+        assert package.cash_pending(self._strategy(None)) == pytest.approx(130.0)
+
+    def test_priced_package_uses_the_effect_it_was_sent_with(self):
+        """A BUY parent with a negative limit is sent as a credit; its remainder is proceeds."""
+        legs = [
+            Order("Example", self._option(500), 1, Order.OrderSide.SELL_TO_OPEN),
+            Order("Example", self._option(490), 1, Order.OrderSide.BUY_TO_OPEN),
+        ]
+        package = Order(
+            "Example", Asset("SPY", asset_type=Asset.AssetType.MULTILEG), 2, Order.OrderSide.BUY,
+            limit_price=-1.25, order_class=Order.OrderClass.MULTILEG, child_orders=legs,
+        )
+        package._multileg_effect = "credit"
+        package.add_transaction(1.30, 1)
+
+        assert package.cash_pending(self._strategy(None)) == pytest.approx(130.0)
+
+    def test_restored_package_without_its_effect_rebuilds_it_from_the_limit(self):
+        """A serialized BUY credit package has no private effect; its negative limit says credit."""
+        legs = [
+            Order("Example", self._option(500), 1, Order.OrderSide.SELL_TO_OPEN),
+            Order("Example", self._option(490), 1, Order.OrderSide.BUY_TO_OPEN),
+        ]
+        package = Order(
+            "Example", Asset("SPY", asset_type=Asset.AssetType.MULTILEG), 2, Order.OrderSide.BUY,
+            limit_price=-1.25, order_class=Order.OrderClass.MULTILEG, child_orders=legs,
+        )
+        restored = Order.from_dict(package.to_dict())
+        assert getattr(restored, "_multileg_effect", None) is None
+        restored.add_transaction(1.30, 1)
+
+        assert restored.cash_pending(self._strategy(None)) == pytest.approx(130.0)
+
+    def test_even_package_has_no_pending_cash_whatever_the_leg_marks(self):
+        """A NET_ZERO package cannot execute at a debit, so leg marks that imply one are ignored."""
+        legs = [
+            Order("Example", self._option(500), 1, Order.OrderSide.SELL_TO_OPEN),
+            Order("Example", self._option(490), 1, Order.OrderSide.BUY_TO_OPEN),
+        ]
+        package = Order(
+            "Example", Asset("SPY", asset_type=Asset.AssetType.MULTILEG), 1, Order.OrderSide.BUY,
+            limit_price=0.0, order_class=Order.OrderClass.MULTILEG, child_orders=legs,
+        )
+        package._multileg_effect = "even"
+
+        assert package.cash_pending(self._strategy({500: 1.00, 490: 1.50})) == 0
+
+    def test_ratio_package_weights_each_leg_by_its_quantity(self):
+        """Buy 2 of the 500 call and sell 4 of the 510: one package is 1 bought and 2 sold."""
+        legs = [
+            Order("Example", self._option(500, "CALL"), 2, Order.OrderSide.BUY_TO_OPEN),
+            Order("Example", self._option(510, "CALL"), 4, Order.OrderSide.SELL_TO_OPEN),
+        ]
+        package = Order(
+            "Example", Asset("SPY", asset_type=Asset.AssetType.MULTILEG), 2, Order.OrderSide.SELL,
+            order_class=Order.OrderClass.MULTILEG, child_orders=legs,
+        )
+        package.add_transaction(None, 1)
+
+        # One package left: -1 x 1.00 + 2 x 0.80 = 0.60 credit, x100.
+        assert package.cash_pending(self._strategy({500: 1.00, 510: 0.80})) == pytest.approx(60.0)
+
+    def test_restored_sell_credit_keeps_the_effect_it_was_sent_with(self):
+        """A SELL package with a negative limit stays a credit after serialization."""
+        legs = [
+            Order("Example", self._option(500), 1, Order.OrderSide.SELL_TO_OPEN),
+            Order("Example", self._option(490), 1, Order.OrderSide.BUY_TO_OPEN),
+        ]
+        package = Order(
+            "Example", Asset("SPY", asset_type=Asset.AssetType.MULTILEG), 2, Order.OrderSide.SELL,
+            limit_price=-1.25, order_class=Order.OrderClass.MULTILEG, child_orders=legs,
+        )
+        package._multileg_effect = "credit"
+        restored = Order.from_dict(package.to_dict())
+        restored.add_transaction(1.30, 1)
+
+        assert restored._multileg_effect == "credit"
+        assert restored.cash_pending(self._strategy(None)) == pytest.approx(130.0)
+
+    def test_marks_that_contradict_a_stored_credit_use_the_limit(self):
+        """A known credit does not spend cash just because the leg marks are a debit."""
+        legs = [
+            Order("Example", self._option(500), 1, Order.OrderSide.BUY_TO_OPEN),
+            Order("Example", self._option(490), 1, Order.OrderSide.SELL_TO_OPEN),
+        ]
+        package = Order(
+            "Example", Asset("SPY", asset_type=Asset.AssetType.MULTILEG), 1, Order.OrderSide.SELL,
+            limit_price=1.25, order_class=Order.OrderClass.MULTILEG, child_orders=legs,
+        )
+        package._multileg_effect = "credit"
+
+        # Marks are a 1.80 debit. The stored effect says the limit's 1.25 credit.
+        assert package.cash_pending(self._strategy({500: 3.00, 490: 1.20})) == pytest.approx(125.0)
+
+        package.limit_price = None
+        assert package.cash_pending(self._strategy({500: 3.00, 490: 1.20})) is None

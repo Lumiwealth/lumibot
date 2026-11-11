@@ -67,7 +67,9 @@
     "first_attempt": "2026-11-11T18:35:20.616263Z",
     "first_model_pass": "2026-11-11T18:49:20.106689Z",
     "settled_calls_by_role": {
-      "unknown": 262
+      "acting": 199,
+      "judge": 33,
+      "judge_calibration": 30
     },
     "api_spend_usd": 0.0,
     "current_cases": {

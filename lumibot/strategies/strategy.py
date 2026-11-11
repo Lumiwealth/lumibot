@@ -104,9 +104,13 @@ def round_to_tick(*args, **kwargs):
 
 
 def _logging_warning(*args, **kwargs):
-    import logging
+    # Through the LumiBot logger, never the bare ``logging.warning``: on an unconfigured
+    # root logger that calls ``logging.basicConfig()``, which adds a second console handler
+    # and prints every later LumiBot record twice.
+    from lumibot.tools.lumibot_logger import get_logger as _get_logger
 
-    return logging.warning(*args, **kwargs)
+    kwargs.setdefault("stacklevel", 2)
+    return _get_logger(__name__).warning(*args, **kwargs)
 
 
 def _colored(*args, **kwargs):

@@ -13,8 +13,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-from lumibot.entities import Asset, Order
 from lumibot.brokers.broker import Broker, LumibotBrokerAPIError
+from lumibot.entities import Asset, Order
 from lumibot.strategies.strategy_executor import (
     StrategyExecutor,
     should_hold_trade_event_for_sync,
@@ -31,6 +31,17 @@ class _DummyBroker:
 
     def is_market_open(self) -> bool:
         return True
+
+    def order_belongs_to_local_strategy(self, order, strategy=None) -> bool:
+        # These isolated executor controls inject their own orders directly;
+        # native broker submission/identity contracts live in ownership tests.
+        return getattr(order, "strategy", strategy) == strategy
+
+    def _record_foreign_callback(self):
+        pass
+
+    def _record_fill_callback_entry(self):
+        pass
 
 
 class _Logger:

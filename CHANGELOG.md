@@ -2,10 +2,18 @@
 
 ## 4.6.52 - Unreleased
 
+### Release tooling
+- Reuse the original full repetitions in an immutable published native receipt when establishing later regression evidence. Preserve the original source, calls, usage and timestamps; reject invalidated, failed, funding-mismatched or SDK-mismatched proof. Parallel native fixtures now own separate Parquet export prefixes.
+
 ### Changed
-- A filled multi-leg (combo) parent order now ends with a final row in the backtest trade-event files (`*_trade_events.csv/.parquet`, `*_trades.csv/.parquet`), with status `legs_filled` and no filled quantity. Before, the parent's only row was `new`, so views that show each order's last row (progress, order lists) showed every combo as pending forever. The legs keep their `fill` rows. `legs_filled` is not a fill status and the filled quantity is empty, so tools that count trades from these files (BotSpot Node and Bot Manager count fill/filled/partially_filled/partial_fill statuses or a nonzero filled quantity) count the same trades as before; trades.html markers are unchanged (`legs_filled` is not a marker status).
+- A filled multi-leg (combo) parent order now ends with a final row in the backtest trade-event files (`*_trade_events.csv/.parquet`, `*_trades.csv/.parquet`), with status `legs_filled` and no filled quantity. Before, the parent's only row was `new`, so views that show each order's last row (progress, order lists) showed every combo as pending forever. The legs keep their `fill` rows. `legs_filled` is not a fill status and the filled quantity is empty, so tools that count trades from these files (downstream counters use fill/filled/partially_filled/partial_fill statuses or a nonzero filled quantity) count the same trades as before; trades.html markers are unchanged (`legs_filled` is not a marker status).
+- Faster trades.html on long minute backtests: the time axis is encoded once and shared by every line, instead of plotly copying a column of timestamps for each line. The file is the same apart from plotly's random element ids. On a 12-month one-minute put spread (98,000 points) building trades.html went from 4.5 s to 1.3 s locally, and the whole end-of-backtest analysis from 6.6 s to 3.3 s.
+
+- First-run Interactive Brokers stock and index intraday downloads start their first page at the last session close when the requested window ends in closed time (usually midnight New York). Before, the first page ended at midnight, reached back only to about 07:20, and split the last session over two pages. The bars are the same; a one-month minute download takes one request fewer (24 to 23 on a local downloader stand-in, about 2 s on production's lane).
 
 ### Fixed
+- Stock-trading guidance distinguishes quote request time from source observation time, preserves exact authorized limits and avoids treating a prior-session quote as current execution evidence.
+- Daily-cadence stock limit orders use loaded current intraday execution data instead of stale daily quotes. Daily-only limits use the session open while forming and the completed OHLC range only at the known calendar close. Missing observations leave orders pending; cash, positions and fees follow actual fills. A native broker regression and real-model pending-order eval cover the failure.
 - AI model-request timeouts now reach the managed model's HTTP transport. Disabling the request timeout no longer leaves an independent 120-second socket timeout; finite configured timeouts are preserved. Existing injected transports retain their three-argument interface.
 
 ## 4.6.51 - 2026-11-11

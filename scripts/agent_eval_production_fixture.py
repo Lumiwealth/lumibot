@@ -830,6 +830,27 @@ class ProductionFixture:
             market="24/7",
         )
         source.load_data()
+        if fixture.name == "stock_daily_limit_current_execution":
+            from lumibot.entities import Quote
+
+            asset = Asset("QZX")
+            prior = pd.Timestamp(source.get_datetime()).tz_convert("America/New_York").normalize() - pd.Timedelta(days=1)
+            daily = Data(asset, pd.DataFrame(
+                {column: [100.0] for column in ("open", "high", "low", "close", "bid", "ask", "volume")},
+                index=pd.DatetimeIndex([prior]),
+            ), timestep="day", quote=Asset("USD", asset_type="forex"))
+            ordinary_quote = source.get_quote
+
+            def recorded_daily_quote(target, quote=None, exchange=None):
+                if target != asset:
+                    return ordinary_quote(target, quote=quote, exchange=exchange)
+                # Native Data retains the previous observation's timestamp.
+                # Current minute execution remains the real 105 bars.
+                observation = daily.get_quote(source.get_datetime())
+                return Quote(asset=asset, price=observation.get("close"),
+                             bid=observation.get("bid"), ask=observation.get("ask"), raw_data=observation)
+
+            source.get_quote = recorded_daily_quote
         self.broker = _FixtureBroker(data_source=source)
         self.broker.fixture = fixture
         self.broker.initialize_market_calendars(source.get_trading_days_pandas())
@@ -843,6 +864,13 @@ class ProductionFixture:
             parameters={},
         )
         self.strategy._first_iteration = False
+        # Each concurrent fixture owns its native detail/Parquet writers.
+        # Use the existing Strategy output prefix rather than a shared fallback.
+        self.strategy._stats_file = str(self.root / "fixture_stats.csv")
+        if fixture.name == "stock_daily_limit_current_execution":
+            # Strategy initialization loads the source and restores its native
+            # cadence. Apply the simulated daily cadence after that lifecycle.
+            source._timestep = "day"
         from lumibot.components.memory import MemoryStore
         # The fixture owns this exact synthetic SQLite store and derived exports.
         # ProductionFixture.close removes them with the fixture's finally owner.

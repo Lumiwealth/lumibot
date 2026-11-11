@@ -405,7 +405,23 @@ def _committed_establishment(source_ref, cases, *, versions, now):
     if isinstance(proof, dict) and "sources" in proof:
         proof = next((part for part in proof["sources"] if part.get("source_commit") == source_ref), None)
     if not isinstance(proof, dict) or proof.get("source_commit") != source_ref:
-        return {}
+        if not source._git("ls-tree", "--name-only", source_ref, "--", path, root=evals.REPO_ROOT).strip():
+            return {}
+        published = json.loads(source._git("show", f"{source_ref}:{path}", root=evals.REPO_ROOT))
+        runtime_hash = establishment_runtime(source_ref, [], versions)
+        if (published.get("sdk_versions") != versions or published.get("funding") != "chatgpt-plan"
+                or published.get("api_spend_usd") != 0 or published.get("invalidated")):
+            raise ValueError("Published establishment SDK, funding or validity mismatch")
+        if published.get("runtime_fingerprint") != runtime_hash:
+            return {}
+        unchanged = _unchanged_establishment_cases(source_ref, cases)
+        records = {case["id"]: published.get("cases", {}).get(case["id"]) for case in unchanged}
+        records = {identity: record for identity, record in records.items() if isinstance(record, dict)
+                   and len(record.get("repetitions", [])) >= evals.case_required_passes(
+                       next(case for case in unchanged if case["id"] == identity))}
+        proof = {"source_commit": source_ref, "runtime_fingerprint": runtime_hash, "cases": records}
+        validate_establishment(proof, cases, versions=versions, now=now)
+        return records
     by_id = {case["id"]: case for case in _unchanged_establishment_cases(source_ref, cases)}
     eligible = set(by_id)
     proof = {**proof, "cases": {identity: record for identity, record in proof["cases"].items()
@@ -441,7 +457,7 @@ def build_establishment(rows, call_rows, cases, *, source_ref, versions, now=Non
     unchanged = _unchanged_establishment_cases(source_ref, cases)
     if rows and not call_rows:
         raise ValueError("Native subscription call ledger is required for native rows")
-    _, calls = subscription_call_state(call_rows)
+    _, calls = subscription_call_state(call_rows) if call_rows else (None, {})
     established = []
     for case in unchanged:
         fingerprint = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash=runtime_hash)
@@ -731,7 +747,7 @@ def verify_release_scope(scope, cases, receipt, *, runtime_hash, version, versio
     selects, adds or drops cases.
     """
     now = now or evals.utc_now()
-    allowed = {"version", "package_version", "cases", "no_cases_reason", "qualification_source"}
+    allowed = {"version", "package_version", "cases", "no_cases_reason"}
     if not isinstance(scope, dict) or not {"version", "package_version", "cases"} <= set(scope) <= allowed:
         raise ValueError("Invalid release eval scope; expected version, package_version, cases and optional no_cases_reason")
     if scope["version"] != SCOPE_VERSION:
@@ -760,34 +776,20 @@ def verify_release_scope(scope, cases, receipt, *, runtime_hash, version, versio
         ids.append(entry["id"])
     records = receipt.get("cases") if isinstance(receipt, dict) else None
     if isinstance(receipt, dict) and "scope" in receipt:
-        source_ref = scope.get("qualification_source")
-        if source_ref and receipt.get("runtime_fingerprint") != runtime_hash:
-            # A verifier-only repair cannot change the actor or judge. Preserve
-            # the immutable original receipt instead of purchasing new inference
-            # merely because this receipt-checking file is fingerprinted.
-            from scripts import rejudge_agent_eval as recovery
-
-            proof = recovery.source_compatibility(source_ref)
-            original = json.loads(recovery._git(evals.REPO_ROOT, "show",
-                f"{source_ref}:ci/agent-evals/qualification.json"))
-            if (original != receipt or proof["changedPaths"] != ["scripts/qualify_agent_evals.py"]
-                    or proof["originalRuntimeFingerprint"] != receipt.get("runtime_fingerprint")):
-                raise ValueError("Original qualification is not an unchanged actor/judge receipt")
-            for case_id in ids:
-                _, case_proof = recovery.compare_case(evals.REPO_ROOT, source_ref, by_id[case_id])
-                if case_proof["changedFields"]:
-                    raise ValueError("Verifier-only reuse cannot change a case")
-            runtime_hash = proof["originalRuntimeFingerprint"]
         # Use the normal receipt verifier so retained establishment is checked
         # with the current regression, including native calls and SDK identity.
         verify_receipt(receipt, [by_id[case_id] for case_id in ids], runtime_hash=runtime_hash,
                        versions=evals.sdk_versions() if versions is None else versions, now=now)
         return ids
+    establishment = receipt.get("establishment") if isinstance(receipt, dict) else None
+    if establishment is not None:
+        validate_establishment(establishment, cases, versions=evals.sdk_versions(), now=now)
     for case_id in ids:
         record = records.get(case_id) if isinstance(records, dict) else None
         if not isinstance(record, dict):
             raise ValueError(f"Scoped case {case_id!r} has no pass evidence in the receipt")
-        validate_record(record, by_id[case_id], runtime_hash=runtime_hash, now=now)
+        required = 1 if establishment and case_id in establishment["cases"] else None
+        validate_record(record, by_id[case_id], runtime_hash=runtime_hash, now=now, required=required)
     return ids
 
 
@@ -854,8 +856,15 @@ def main():
         evals.write_json_atomic(args.receipt, receipt)
     elif SCOPE_PATH.exists():
         receipt = json.loads(args.receipt.read_text()) if args.receipt.exists() else None
+        evidence_hash = runtime_hash
+        anchor = evals.REPO_ROOT / "ci/agent-evals/source-compatibility.json"
+        if isinstance(receipt, dict) and receipt.get("runtime_fingerprint") != runtime_hash and anchor.exists():
+            from scripts.agent_eval_source_compatibility import compatible_runtime
+
+            evidence_hash = compatible_runtime(receipt, args.receipt.read_bytes(), json.loads(anchor.read_text()))
+            print(f"Preserving scoped native inference at original source {evidence_hash}; candidate {runtime_hash} is source-compatible. No inference timestamps or usage were rewritten.")
         ids = verify_release_scope(json.loads(SCOPE_PATH.read_text()), cases, receipt,
-                                   runtime_hash=runtime_hash, version=package_version(), versions=versions)
+                                   runtime_hash=evidence_hash, version=package_version(), versions=versions)
         print(f"Verified the author-written release eval scope: {len(ids)} listed case(s) with current pass evidence"
               + ("" if ids else " (none listed; reason recorded in release-scope.json)") + ".")
         return 0

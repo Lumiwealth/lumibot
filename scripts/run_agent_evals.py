@@ -359,6 +359,9 @@ def build_fixture(name: str) -> FixtureRuntime:
         fixture.expiration = "2026-09-25"
     if name == "flat_options_multi_session":
         fixture.observation_end = "2026-08-12T14:50:00Z"
+
+    if name == "stock_daily_limit_current_execution":
+        fixture.stock_markets = {"QZX": {"price": 105.0, "bid": 105.0, "ask": 105.0, "snapshot_close": 100.0}}
     portfolio_sizes = {
         "portfolio_initial_25": 25, "portfolio_initial_9": 9,
         "portfolio_rebalance": 9, "portfolio_quote_sizing": 1,
@@ -1013,10 +1016,15 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
             failures.append(f"required failed tool {required['name']} did not return error code {required['code']}")
         else:
             observed_results.pop(matched)  # One actual result cannot satisfy two required failures.
-    if "broker_orders" in transcript and int(contract.get("exactOrderCount", 0)) > 0:
-        if not any(
-            order.get("status") == "fill" or order.get("status") == "filled" for order in transcript["broker_orders"]
-        ):
+    if "broker_orders" in transcript:
+        filled_count = sum(order.get("status") in {"fill", "filled"} for order in transcript["broker_orders"])
+        if "expectedFilledOrderCount" in contract:
+            expected = contract["expectedFilledOrderCount"]
+            if type(expected) is not int or expected < 0:
+                failures.append("expectedFilledOrderCount must be a nonnegative integer")
+            elif filled_count != expected:
+                failures.append(f"expected {expected} broker-simulated fills, observed {filled_count}")
+        elif int(contract.get("exactOrderCount", 0)) > 0 and filled_count == 0:
             failures.append("execution case produced no broker-simulated fill")
 
     for order in transcript.get("broker_orders", []):

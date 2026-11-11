@@ -1245,8 +1245,8 @@ class BacktestingBroker(Broker):
             if not was_filled:
                 # The legs carry the fills. Give the parent a final row so readers of the
                 # trade-event log do not show the combo as pending forever. "legs_filled" with no
-                # filled quantity is not a fill to trade counters (BotSpot Node counts fill
-                # statuses or a nonzero filled quantity), so trade counts do not change.
+                # filled quantity is not a fill to downstream trade counters, which count fill
+                # statuses or a nonzero filled quantity, so trade counts do not change.
                 self._record_trade_event_row(order, order.avg_fill_price, None, 1, status=self.MULTILEG_LEGS_FILLED)
 
             self._track_filled_order(order)
@@ -3289,6 +3289,17 @@ class BacktestingBroker(Broker):
                 price = open
 
             elif order.order_type == Order.OrderType.LIMIT:
+                if str(order_fill_timestep) == "day" and self._normalize_asset_type(
+                    getattr(order.asset, "asset_type", "")
+                ) in {"stock", "equity"}:
+                    state = self._daily_stock_execution_state(order, dt)
+                    if state == "unavailable":
+                        continue
+                    # A daily bar supplies its open during the session, not a
+                    # future high/low touch. Full-range execution is a close-time
+                    # OHLC convention when no finer observations are loaded.
+                    if state != "closed":
+                        high = low = open
                 price = self.limit_order(order.limit_price, simple_side, open, high, low)
 
             elif order.order_type == Order.OrderType.STOP:
@@ -3588,12 +3599,9 @@ class BacktestingBroker(Broker):
             _, unit = parse_timestep_qty_and_unit(timestep or getattr(getattr(self, "data_source", None), "_timestep", None))
         except Exception:
             unit = str(timestep or "").strip().lower()
-        if str(unit or "").strip().lower() == "day":
-            return False
-
         # Daily strategy cadence can use already loaded intraday stock bars for
-        # market execution. A missing current bar must not become a stale fill.
-        if order is not None and order.order_type == Order.OrderType.MARKET and self._normalize_asset_type(
+        # market and limit execution. A missing current bar must not become a stale fill.
+        if order is not None and order.order_type in (Order.OrderType.MARKET, Order.OrderType.LIMIT) and self._normalize_asset_type(
             getattr(order.asset, "asset_type", "")
         ) in {"stock", "equity"}:
             try:
@@ -3602,6 +3610,9 @@ class BacktestingBroker(Broker):
                     return True
             except (TypeError, ValueError):
                 pass
+
+        if str(unit or "").strip().lower() == "day":
+            return False
 
         source = getattr(self, "data_source", None)
         source_name = data_source_name or str(getattr(source, "SOURCE", "") or "").upper()
@@ -3893,7 +3904,35 @@ class BacktestingBroker(Broker):
         if source_timestamp is None:
             return False
 
+        if (
+            source_timestep == "day"
+            and isinstance(raw, dict)
+            and raw.get("bar_timestep") == "day"
+            and self._normalize_asset_type(getattr(order.asset, "asset_type", "")) in {"stock", "equity"}
+            and order.order_type in (Order.OrderType.MARKET, Order.OrderType.LIMIT)
+            and self._daily_stock_execution_state(order, source_timestamp) != "closed"
+        ):
+            return False
+
         return self._execution_bar_matches_datetime(source_timestamp, self.datetime, timestep)
+
+    def _daily_stock_execution_state(self, order: Order, bar_dt) -> str:
+        """Daily OHLC is open-only until its actual calendar session closes."""
+        bar_ts, now = self._coerce_timestamps_for_execution_check(bar_dt, self.datetime)
+        if bar_ts is None or now is None or bar_ts.date() != now.date():
+            return "unavailable"
+        days = getattr(self, "_trading_days", None)
+        if days is not None and "market_open" in days:
+            for close_time, open_time in zip(days.index, days["market_open"]):
+                opening, clock = self._coerce_timestamps_for_execution_check(open_time, now)
+                closing, _ = self._coerce_timestamps_for_execution_check(close_time, now)
+                if opening is None or closing is None or opening.date() != bar_ts.date():
+                    continue
+                if clock < opening:
+                    return "unavailable"
+                return "closed" if clock >= closing else "forming"
+        # Without a known close, do not infer that the completed range is available.
+        return "forming"
 
     def _fast_get_bid_ask_for_fill(
         self,
@@ -4081,9 +4120,9 @@ class BacktestingBroker(Broker):
     def _resolve_order_fill_timestep(self, order: Optional[Order], default_timestep: Optional[str]) -> str:
         """Resolve the OHLC timestep for pending-order fills.
 
-        Stock market orders under daily cadence use matching intraday data when
+        Stock market/limit orders under daily cadence use matching intraday data when
         already loaded; this selection never requests a new data resolution.
-        Daily-only data and non-market orders retain their existing behavior.
+        Daily-only data and other order types retain their existing behavior.
         The other exception is the
         IBKR stock/index daily-data contract: routed/direct IBKR stock and index
         backtests explicitly prefer native daily bars so a warmed minute frame
@@ -4091,7 +4130,7 @@ class BacktestingBroker(Broker):
         the same asset, preserve the data source's intraday timestep.
         """
         fallback = str(default_timestep or "minute")
-        if order is not None and order.order_type == Order.OrderType.MARKET and self._normalize_asset_type(
+        if order is not None and order.order_type in (Order.OrderType.MARKET, Order.OrderType.LIMIT) and self._normalize_asset_type(
             getattr(order.asset, "asset_type", "")
         ) in {"stock", "equity"}:
             try:

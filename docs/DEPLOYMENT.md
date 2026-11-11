@@ -29,7 +29,9 @@ configured three or five current actor/judge passes; they cannot inherit another
 case's establishment or the earlier version of their own definition.
 
 An explicitly selected immutable published receipt can retain verified original
-establishment when private raw journals expire. Keep its original source, call
+establishment when private raw journals expire. This includes a first published
+receipt whose full original repetitions are in its own case records, before
+a later receipt adds a separate establishment section. Keep its original source, call
 identities, usage, timestamps and evidence digests. The current subscription
 journal accounts for current actors and calibration; historical calls remain
 in their verified establishment proof and must not be recreated as native

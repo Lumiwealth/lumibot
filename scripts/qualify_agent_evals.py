@@ -303,6 +303,22 @@ def build_establishment(rows, call_rows, cases, *, source_ref, versions, now=Non
         path = "ci/agent-evals/qualification.json"
         if source._git("ls-tree", "--name-only", source_ref, "--", path, root=evals.REPO_ROOT).strip():
             published = json.loads(source._git("show", f"{source_ref}:{path}", root=evals.REPO_ROOT))
+            if (published.get("sdk_versions") != versions or published.get("funding") != "chatgpt-plan"
+                    or published.get("api_spend_usd") != 0 or published.get("invalidated")):
+                raise ValueError("Published establishment SDK, funding or validity mismatch")
+            # A first published qualification has its original full repetitions
+            # in cases, before any later receipt adds an establishment section.
+            # Preserve those verified native records without recreating journals.
+            if published.get("runtime_fingerprint") == runtime_hash:
+                native = {case["id"]: published.get("cases", {}).get(case["id"]) for case in unchanged}
+                native = {key: value for key, value in native.items() if isinstance(value, dict)
+                          and isinstance(value.get("repetitions"), list)
+                          and len(value["repetitions"]) >= evals.case_required_passes(
+                              next(case for case in unchanged if case["id"] == key))}
+                if native:
+                    proof = {"source_commit": source_ref, "runtime_fingerprint": runtime_hash, "cases": native}
+                    validate_establishment(proof, cases, versions=versions, now=now)
+                    return proof
             prior = published.get("establishment")
             if prior:
                 if published.get("sdk_versions") != versions or published.get("funding") != "chatgpt-plan":

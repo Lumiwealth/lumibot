@@ -718,3 +718,21 @@ def test_unknown_judge_exception_never_hides_foreign_scope_or_model(native_metad
     calls.append(old)
     with pytest.raises(ValueError):
         build_with_calibration(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
+
+
+def test_published_native_receipt_preserves_original_passes_without_recreated_rows(native_metadata, monkeypatch):
+    from scripts import agent_eval_source_compatibility as source
+
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    published = make_receipt((rows, calls, cases, versions, now))
+    monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")
+    monkeypatch.setattr(qualification, "unchanged_establishment_cases", lambda ref, cases: cases)
+    monkeypatch.setattr(source, "_git", lambda *args, **kwargs:
+                        b"ci/agent-evals/qualification.json\n" if args[0] == "ls-tree"
+                        else json.dumps(published).encode())
+    proof = qualification.build_establishment([], [], cases, source_ref="a" * 40, versions=versions, now=now)
+    assert proof["cases"] == published["cases"]
+    assert qualification.regression_required(cases[0], proof, [], "new-source") == 1
+    published["cases"][cases[0]["id"]]["repetitions"][0]["machine_pass"] = False
+    with pytest.raises(ValueError):
+        qualification.build_establishment([], [], cases, source_ref="a" * 40, versions=versions, now=now)

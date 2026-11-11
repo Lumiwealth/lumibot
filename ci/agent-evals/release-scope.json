@@ -1,22 +1,14 @@
 {
   "version": 1,
-  "package_version": "4.6.51",
+  "package_version": "4.6.52",
   "cases": [
     {
-      "id": "options_single_leg_chain_and_quote",
-      "reason": "find_strike_for_delta now returns the closest listed strike (was a probe search that stopped within 0.02) and greeks are cached on exact inputs; this case picks option strikes by delta, so the strikes the tool returns, and the agent's order, can change."
+      "id": "attention_overnight_management_preserves_entry_opportunity",
+      "reason": "Payoff/loss teaching, optional management research, package parent completion and final ordinary model transport must preserve actual overnight exit and next-session re-entry. Five native establishment passes retained at immutable source 4a1fb87468325230d2119791265dc62c145688a2; one current regression."
     },
     {
-      "id": "options_iron_condor_limit_between_bid_ask",
-      "reason": "find_strike_for_delta now returns the closest listed strike (was a probe search that stopped within 0.02) and greeks are cached on exact inputs; this case picks option strikes by delta, so the strikes the tool returns, and the agent's order, can change."
-    },
-    {
-      "id": "options_expiration_with_data",
-      "reason": "find_strike_for_delta now returns the closest listed strike (was a probe search that stopped within 0.02) and greeks are cached on exact inputs; this case picks option strikes by delta, so the strikes the tool returns, and the agent's order, can change."
-    },
-    {
-      "id": "options_iron_condor_atomic_open",
-      "reason": "find_strike_for_delta now returns the closest listed strike (was a probe search that stopped within 0.02) and greeks are cached on exact inputs; this case picks option strikes by delta, so the strikes the tool returns, and the agent's order, can change."
+      "id": "options_unequal_call_ratio_atomic_open",
+      "reason": "Exact two-to-one quantities, quote-quality assessment and package parent completion must remain correct on the final ordinary model transport. Five native establishment passes retained at immutable source 4a1fb87468325230d2119791265dc62c145688a2; one current regression."
     }
   ]
 }

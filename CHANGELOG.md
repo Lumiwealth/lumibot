@@ -2,6 +2,8 @@
 
 ## 4.6.50 - 2026-11-11
 
+Deploy marker: 77f2d47e3a73d9b848627c60fb9fa2d7d2cfef00
+
 ### Added
 - `OptionsHelper.get_option_chain_snapshot(underlying_asset, expiry, right, strikes=None, underlying_price=None, chains=None)`: one row per strike with price, bid, ask, implied volatility and delta at the current time. Data sources with `prefetch_option_bars` load all strikes in one batch; each strike uses the same rules as `find_strike_for_delta` (1,992 strike rows on real SPY data matched strike-by-strike deltas exactly). Documented on the Options Helper page.
 - `DataSource.calculate_greeks_many(assets, asset_prices, underlying_price, risk_free_rate)` and `black_scholes.implied_volatility_bs_many(...)`: implied volatility for many options in one array pass, bit-identical to the one-by-one solver (12,000 cases) and leaving the greeks cache exactly as one-by-one calls would. The chain snapshot uses it in backtests (about 20% faster per snapshot on real SPY data; identical rows). `find_strike_for_delta` does not use it: filling the per-day greeks cache for strikes a search never probes could change later cache hits, so the same strike cannot be guaranteed.

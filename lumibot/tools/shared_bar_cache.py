@@ -384,8 +384,22 @@ def _encode_partition(part: _Partition) -> bytes:
             "strict": bool(part.strict),
         }
     }
+    # Same bytes as ``rows.to_parquet(buffer)``, but the column conversion runs on this thread
+    # (nthreads=1). pandas' to_parquet lets pyarrow convert columns on a concurrent.futures
+    # pool; once Python starts shutting down (the main thread returned while this non-daemon
+    # uploader still has jobs) that pool raises "cannot schedule new futures after interpreter
+    # shutdown", and every remaining upload of a finished backtest failed (production,
+    # 2026-11-11).
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    table = pa.Table.from_pandas(rows, nthreads=1)
+    if rows.attrs:
+        table = table.replace_schema_metadata(
+            {**(table.schema.metadata or {}), "PANDAS_ATTRS": json.dumps(rows.attrs)}
+        )
     buffer = io.BytesIO()
-    rows.to_parquet(buffer)
+    pq.write_table(table, buffer, compression="snappy")
     return buffer.getvalue()
 
 
@@ -450,41 +464,94 @@ def _merge_partitions(base: _Partition, other: _Partition) -> _Partition:
 # --------------------------------------------------------------------------- background uploads
 
 
+# A remote store that fails this many jobs in a row is given up for the rest of the process.
+# Without a limit a finished backtest stayed alive for 40 minutes failing 962 queued uploads.
+UPLOAD_FAILURES_BEFORE_GIVING_UP = 10
+
+
 class _Uploader:
-    """One background thread that publishes local partition files to S3."""
+    """Background workers that write partition files locally and send them to S3.
+
+    A job takes one argument, ``remote_allowed``. It always does its local write and touches
+    the remote store only when ``remote_allowed`` is true.
+
+    Jobs for one path always go to the same worker, so they run one at a time in the order
+    they were submitted; different paths upload in parallel. A finished backtest waits for
+    its queued uploads before it exits, and one worker made that wait minutes long.
+    ``LUMIBOT_SHARED_BARS_UPLOAD_WORKERS`` sets the number of workers (default 8).
+    """
 
     def __init__(self):
-        self._queue: queue.Queue[tuple[str, Callable[[], None]]] = queue.Queue()
+        try:
+            workers = int(os.environ.get("LUMIBOT_SHARED_BARS_UPLOAD_WORKERS", "8"))
+        except ValueError:
+            workers = 8
+        self._workers = max(1, workers)
+        self._queues = [queue.Queue() for _ in range(self._workers)]
+        self._threads = [None] * self._workers
         self._pending: dict[str, int] = {}
         self._lock = threading.Lock()
         self._idle = threading.Condition(self._lock)
-        self._thread: threading.Thread | None = None
         self.errors: list[str] = []
+        self._failures_in_a_row = 0
+        self._remote_given_up = False
 
-    def submit(self, key: str, job: Callable[[], None]) -> None:
+    def _slot(self, key: str) -> int:
+        return int(hashlib.sha256(key.encode()).hexdigest()[:8], 16) % self._workers
+
+    def submit(self, key: str, job: Callable[[bool], None]) -> None:
+        slot = self._slot(key)
         with self._lock:
             self._pending[key] = self._pending.get(key, 0) + 1
-            if self._thread is None or not self._thread.is_alive():
+            thread = self._threads[slot]
+            if thread is None or not thread.is_alive():
                 # Not a daemon: a process must not exit with unsaved uploads.
-                self._thread = threading.Thread(target=self._run, name="lumibot-shared-bars-upload", daemon=False)
-                self._thread.start()
-        self._queue.put((key, job))
+                thread = threading.Thread(
+                    target=self._run, args=(slot,), name=f"lumibot-shared-bars-upload-{slot}", daemon=False
+                )
+                self._threads[slot] = thread
+                thread.start()
+            # Queue under the lock so an idle worker cannot exit between the liveness
+            # check above and this put.
+            self._queues[slot].put((key, job))
 
-    def _run(self):
+    def _run(self, slot: int):
+        jobs = self._queues[slot]
         while True:
             try:
-                key, job = self._queue.get(timeout=5)
+                key, job = jobs.get(timeout=5)
             except queue.Empty:
                 with self._lock:
-                    if not self._pending:
-                        self._thread = None
+                    if jobs.empty():
+                        self._threads[slot] = None
                         return
                 continue
             try:
-                job()
+                job(not self._remote_given_up)
+                with self._lock:
+                    self._failures_in_a_row = 0
             except Exception as exc:  # never lose the caller's bars to a cache upload problem
-                self.errors.append(type(exc).__name__)
-                logger.warning("Shared bar cache upload failed: %s", type(exc).__name__)
+                with self._lock:
+                    self.errors.append(type(exc).__name__)
+                    self._failures_in_a_row += 1
+                    failures = self._failures_in_a_row
+                    report = not self._remote_given_up
+                    give_up = report and failures >= UPLOAD_FAILURES_BEFORE_GIVING_UP
+                    if give_up:
+                        self._remote_given_up = True
+                if report:
+                    # The first failure carries its traceback, so the failing call is visible in
+                    # one log line instead of only an exception type.
+                    logger.warning(
+                        "Shared bar cache upload failed: %s: %s", type(exc).__name__, exc,
+                        exc_info=failures == 1,
+                    )
+                    if give_up:
+                        logger.warning(
+                            "Shared bar cache: %d uploads failed in a row; giving up on the remote store "
+                            "for this run. Local files are still written and results are not affected.",
+                            failures,
+                        )
             finally:
                 with self._lock:
                     self._pending[key] -= 1
@@ -644,6 +711,11 @@ class _Store:
                 known = self._manifests.get(str(path))
             if known is not None:
                 return known
+            if not item.adjusted:
+                # Only adjusted series ever write a manifest (a re-adjusted history starts a new
+                # epoch), so looking one up for unadjusted bars always misses: on a fresh
+                # container that was one extra S3 request per option contract.
+                return _Manifest()
             body = self._load_bytes(path)
             if not body:
                 return _Manifest()
@@ -721,8 +793,10 @@ class _Store:
         self._remember(part, None)
         client, manager, path = self.client, self.manager, part.path
 
-        def write_and_upload():
+        def write_and_upload(remote_allowed: bool = True):
             self._write_merged(part)
+            if not remote_allowed:
+                return
             local = _decode_partition(_Partition(part.series, part.start, part.stop, path), path.read_bytes())
             remote = _decode_partition(
                 _Partition(part.series, part.start, part.stop, path), _remote_get(client, manager, path)
@@ -749,8 +823,10 @@ class _Store:
             return
         client, manager = self.client, self.manager
 
-        def upload():
+        def upload(remote_allowed: bool = True):
             _write_local(path, body)
+            if not remote_allowed:
+                return
             current = _remote_get(client, manager, path)
             if current:
                 try:

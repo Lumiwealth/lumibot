@@ -19,6 +19,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from threading import RLock
 
+import numpy as np
 import pandas as pd
 
 MARKET_COLUMNS = {"open", "high", "low", "close", "volume", "dividend", "dividends",
@@ -47,6 +48,25 @@ def asset_identity(asset, quote=None):
     if quote is not None:
         result["quote"] = asset_identity(quote)
     return result
+
+
+def _frame_rows(frame, columns):
+    """``frame[columns].itertuples(name=None)`` without building a Series per column.
+
+    For plain numpy columns, ``ndarray.tolist()`` gives the same Python scalars that
+    iterating the Series gives (both use ``ndarray.item``), and iterating the index gives the
+    same Timestamps. Duplicate column names and extension dtypes (nullable, categorical,
+    datetime) keep the itertuples path, so every row is exactly what it was.
+    """
+    if not columns or not frame.columns.is_unique:
+        return frame[columns].itertuples(name=None)
+    values = []
+    for column in columns:
+        array = frame[column]._values
+        if not isinstance(array, np.ndarray) or array.dtype.kind not in "biufcO":
+            return frame[columns].itertuples(name=None)
+        values.append(array.tolist())
+    return zip(frame.index, *values)
 
 
 def _encoded(value):
@@ -196,7 +216,7 @@ class MarketInputEvidence:
             try:
                 with self._connection:
                     if frame is not None:
-                        for index, *row in frame[columns].itertuples(name=None):
+                        for index, *row in _frame_rows(frame, columns):
                             signature = (identity, str(timestep), tuple(columns), timezone_name, index.value,
                                          tuple((type(v), v.hex() if isinstance(v, float) else v) for v in row))
                             try:

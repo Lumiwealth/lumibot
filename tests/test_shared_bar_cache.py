@@ -387,3 +387,170 @@ def test_scope_needs_an_identity_beyond_the_provider_name():
     assert sbc.credential_scope("ibkr", "") is None
     assert sbc.credential_scope("ibkr", "DU1") != sbc.credential_scope("ibkr", "DU2")
     assert sbc.credential_scope("ibkr", "DU1") != sbc.credential_scope("tradier", "DU1")
+
+
+def test_uploader_stops_trying_the_remote_store_after_repeated_failures(caplog, monkeypatch):
+    """A store that keeps failing must not hold a finished process open.
+
+    A 2.5-year option backtest finished in 15 minutes and then spent 40 more minutes failing
+    962 queued uploads one by one before the process could exit (production, 2026-11-05).
+    The local write of each partition still happens; only the remote step is given up.
+    """
+    import logging
+
+    # One worker, so exactly the first ten jobs reach the remote store (with several
+    # workers a few more can already be in flight when the limit trips).
+    monkeypatch.setenv("LUMIBOT_SHARED_BARS_UPLOAD_WORKERS", "1")
+    uploader = sbc._Uploader()
+    local, remote = [], []
+
+    def job(index):
+        def run(remote_allowed):
+            local.append(index)
+            if remote_allowed:
+                remote.append(index)
+                raise RuntimeError("store unavailable for this run")
+        return run
+
+    with caplog.at_level(logging.WARNING, logger=sbc.logger.name):
+        for index in range(200):
+            uploader.submit(f"key-{index}", job(index))
+        assert uploader.flush(30)
+
+    assert sorted(local) == list(range(200))
+    assert len(remote) == sbc.UPLOAD_FAILURES_BEFORE_GIVING_UP
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("store unavailable for this run" in message for message in messages)  # the reason is visible
+    assert sum("giving up" in message for message in messages) == 1
+    failures = [record for record in caplog.records if "upload failed" in record.getMessage()]
+    # Only the first failure carries the traceback, so the failing call is visible once.
+    assert failures[0].exc_info
+    assert not any(record.exc_info for record in failures[1:])
+
+
+def test_uploader_keeps_using_the_remote_store_when_failures_are_isolated(monkeypatch):
+    monkeypatch.setenv("LUMIBOT_SHARED_BARS_UPLOAD_WORKERS", "1")
+    uploader = sbc._Uploader()
+    remote = []
+
+    def job(index):
+        def run(remote_allowed):
+            if remote_allowed:
+                remote.append(index)
+                if index % 3 == 0:
+                    raise OSError("one bad object")
+        return run
+
+    for index in range(60):
+        uploader.submit(f"key-{index}", job(index))
+    assert uploader.flush(30)
+    assert sorted(remote) == list(range(60))
+
+
+def test_partition_encoding_works_after_interpreter_shutdown_starts(monkeypatch):
+    """Uploads that run after the main thread returns must still encode their partition.
+
+    pandas' to_parquet converts columns on a concurrent.futures thread pool. Once Python
+    starts shutting down (the main thread returned, the non-daemon uploader keeps going),
+    that pool refuses work with "RuntimeError: cannot schedule new futures after interpreter
+    shutdown", so every queued upload failed in production from the end of the simulation
+    on (2026-11-11). Encoding must not need a new thread.
+    """
+    import concurrent.futures.thread as cf_thread
+
+    import pandas as pd
+
+    # Enough rows that pyarrow converts columns in parallel (rows > 100 x columns).
+    index = pd.date_range("2026-08-03T13:30:00Z", periods=1000, freq="min", name="timestamp")
+    rows = pd.DataFrame(
+        {"open": 1.0, "high": 1.5, "low": 0.5, "close": 1.2, "volume": 10.0}, index=index,
+    )
+    series = sbc.BarSeries.make("alpaca", "SPY", "1minute", scope="scope")
+    start = pd.Timestamp("2026-08-03T00:00:00Z")
+    stop = pd.Timestamp("2026-08-04T00:00:00Z")
+    part = sbc._Partition(series, start, stop, None, rows, [(start, stop)], 1, True)
+    expected = sbc._encode_partition(part)
+
+    monkeypatch.setattr(cf_thread, "_shutdown", True)
+    encoded = sbc._encode_partition(part)
+
+    assert encoded == expected
+    decoded = sbc._decode_partition(sbc._Partition(series, start, stop, None), encoded)
+    assert decoded.rows.equals(sbc._normalize(rows))
+
+
+def test_uploader_runs_jobs_in_parallel_but_keeps_one_path_in_order(monkeypatch):
+    """A finished backtest waits for its queued uploads; one at a time that was minutes.
+
+    Jobs for different paths run on several workers. Jobs for the same path always run on
+    the same worker, one after another, in the order they were submitted.
+    """
+    import threading
+    import time
+
+    monkeypatch.setenv("LUMIBOT_SHARED_BARS_UPLOAD_WORKERS", "8")
+    uploader = sbc._Uploader()
+    running, seen, lock = {}, {}, threading.Lock()
+
+    def job(key, index):
+        def run(remote_allowed):
+            with lock:
+                assert running.get(key, 0) == 0, "two jobs for one path ran at the same time"
+                running[key] = 1
+            time.sleep(0.05)
+            with lock:
+                running[key] = 0
+                seen.setdefault(key, []).append(index)
+        return run
+
+    started = time.monotonic()
+    for index in range(10):
+        for key in ("a", "b", "c", "d", "e", "f", "g", "h"):
+            uploader.submit(key, job(key, index))
+    assert uploader.flush(30)
+    elapsed = time.monotonic() - started
+
+    assert all(seen[key] == list(range(10)) for key in seen)
+    assert elapsed < 2.0  # 80 jobs x 0.05 s took 4 s on one worker
+
+
+class CountingRemote(SlowRemote):
+    def __init__(self):
+        super().__init__(delay=0)
+        self.gets = []
+
+    def get_object(self, Bucket, Key):  # noqa: N803
+        self.gets.append(Key)
+        return super().get_object(Bucket, Key)
+
+
+def test_unadjusted_series_never_look_up_a_manifest(monkeypatch, isolated):
+    """Only adjusted series ever write series.json, so an unadjusted read never asks S3 for one.
+
+    On a fresh cloud container every option contract cost one extra S3 request that always
+    missed (1,712 of 3,421 requests on a repeat one-month iron condor).
+    """
+    remote = CountingRemote()
+    remote_manager(monkeypatch, remote)
+    fetch, calls, _ = provider()
+    first = sbc.read_bars(series(adjusted=False), "2026-03-02", "2026-03-04", fetch, now=NOW)
+    sbc.flush_shared_bar_writes(10)
+    assert not any(key.endswith("series.json") for key in remote.objects)
+    remote.gets.clear()
+    sbc._reset_process_memory()
+    second = sbc.read_bars(series(adjusted=False), "2026-03-02", "2026-03-04", fetch, now=NOW)
+    pd.testing.assert_frame_equal(first, second)
+    assert len(calls) == 1
+    assert [k for k in remote.gets if k.endswith("series.json")] == []
+
+
+def test_adjusted_series_still_read_their_manifest(monkeypatch, isolated):
+    remote = CountingRemote()
+    remote_manager(monkeypatch, remote)
+    fetch, _, _ = provider()
+    sbc.read_bars(series(adjusted=True), "2026-03-02", "2026-03-04", fetch, now=NOW)
+    sbc.flush_shared_bar_writes(10)
+    remote.gets.clear()
+    sbc._reset_process_memory()
+    sbc.read_bars(series(adjusted=True), "2026-03-02", "2026-03-04", fetch, now=NOW)
+    assert any(k.endswith("series.json") for k in remote.gets)

@@ -506,8 +506,12 @@ class YahooHelper:
                 return None
 
             # Ensure the DataFrame index is in datetime format and sort it
-            irx_df.index = pd.to_datetime(irx_df.index)
-            irx_df.sort_index(inplace=True)
+            # PERF: get_greeks asks on every call. Converting an index that already holds
+            # datetimes, and sorting one that is already sorted, cost about 9 ms each time.
+            if not isinstance(irx_df.index, pd.DatetimeIndex):
+                irx_df.index = pd.to_datetime(irx_df.index)
+            if not irx_df.index.is_monotonic_increasing:
+                irx_df.sort_index(inplace=True)
 
             # Calculate the absolute difference between the given datetime and all dates in the index
             delta = abs(irx_df.index - dt)

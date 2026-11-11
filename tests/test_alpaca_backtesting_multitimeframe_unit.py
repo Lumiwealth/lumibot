@@ -1235,3 +1235,76 @@ def test_alpaca_option_last_price_reads_the_stored_bars_without_building_a_bars_
 
     source._datetime = _NY_TZ.localize(datetime(2026, 8, 4, 9, 45))
     assert source.get_last_price(option) is None  # before the first print: still never back-filled
+
+
+def test_alpaca_stock_last_price_reads_the_stored_bars_without_building_a_bars_object(monkeypatch, tmp_path):
+    """Every Alpaca strategy asks for a stock's last price on every iteration.
+
+    The answer is one row of the stored frame: the open of the bar that starts now (the fill
+    price) for intraday steps. Building a Bars object per call cost about 0.2 ms on a Mac and
+    1 ms in the cloud (2026-11-10). Prices must stay identical to the Bars path.
+    """
+    import lumibot.backtesting.alpaca_backtesting as alpaca_backtesting
+
+    days = ["2026-08-03", "2026-08-04"]
+    source = _alpaca_source(monkeypatch, tmp_path)
+    source._stock_client = _FakeStockClient(_spy_minute_bars(days))
+    spy = Asset("SPY")
+    clocks = [
+        _NY_TZ.localize(datetime(2026, 8, 3, 9, 30)),
+        _NY_TZ.localize(datetime(2026, 8, 3, 9, 30, 30)),
+        _NY_TZ.localize(datetime(2026, 8, 3, 12, 7)),
+        _NY_TZ.localize(datetime(2026, 8, 3, 15, 59)),
+        _NY_TZ.localize(datetime(2026, 8, 3, 17, 0)),  # after hours: latest bar of the day
+        _NY_TZ.localize(datetime(2026, 8, 4, 9, 31)),
+    ]
+    expected = []
+    for clock in clocks:
+        source._datetime = clock
+        bars = source.get_historical_prices(
+            spy, length=1, remove_incomplete_current_bar=False, _extend_history=False
+        )
+        expected.append(float(bars.df["open"].iat[0]))
+
+    built = []
+    real_bars = alpaca_backtesting.Bars
+
+    def counting_bars(*args, **kwargs):
+        built.append(1)
+        return real_bars(*args, **kwargs)
+
+    monkeypatch.setattr(alpaca_backtesting, "Bars", counting_bars)
+    observed = []
+    for clock in clocks:
+        source._datetime = clock
+        observed.append(float(source.get_last_price(spy)))
+
+    assert observed == expected
+    assert built == []
+
+
+def test_alpaca_stock_daily_last_price_keeps_session_marks_without_building_bars(monkeypatch, tmp_path):
+    """Daily stock marks still follow the session (open during it, close after it)."""
+    import lumibot.backtesting.alpaca_backtesting as alpaca_backtesting
+
+    source = _alpaca_source(monkeypatch, tmp_path, timestep="day")
+    frame = pd.DataFrame(
+        {"open": [90.0, 100.0], "high": [96.0, 111.0], "low": [89.0, 99.0],
+         "close": [95.0, 110.0], "volume": [1000.0, 1000.0]},
+        index=pd.DatetimeIndex([_NY_TZ.localize(datetime(2026, 8, 3)), _NY_TZ.localize(datetime(2026, 8, 4))]),
+    )
+    monkeypatch.setattr(source, "get_historical_prices_between_dates", lambda **kwargs: frame.copy())
+
+    built = []
+    real_bars = alpaca_backtesting.Bars
+
+    def counting_bars(*args, **kwargs):
+        built.append(1)
+        return real_bars(*args, **kwargs)
+
+    monkeypatch.setattr(alpaca_backtesting, "Bars", counting_bars)
+    source._datetime = _NY_TZ.localize(datetime(2026, 8, 4, 10, 0))
+    assert float(source.get_last_price(Asset("SPY"))) == 100.0
+    source._datetime = _NY_TZ.localize(datetime(2026, 8, 4, 16, 30))
+    assert float(source.get_last_price(Asset("SPY"))) == 110.0
+    assert built == []

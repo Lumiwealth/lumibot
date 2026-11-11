@@ -62,6 +62,14 @@ def _normalized_data_error(error):
     }
 
 
+def _greeks_cache_key(asset, asset_price, underlying_price, risk_free_rate, current_time):
+    """Greeks depend on every one of these inputs exactly, so the cache keys on all of them."""
+    return (
+        asset.symbol, asset.strike, asset.right, asset.expiration,
+        float(asset_price), float(underlying_price), float(risk_free_rate), current_time,
+    )
+
+
 class DataSource(ABC):
     SOURCE = ""
     IS_BACKTESTING_DATA_SOURCE = False
@@ -1158,19 +1166,11 @@ class DataSource(ABC):
         if asset_price is None or underlying_price is None or risk_free_rate is None:
             return None
 
-        # Optimization: Cache Greeks calculations based on key parameters
-        # Round prices to 2 decimal places for cache key to handle minor price fluctuations
+        # Cache on the exact inputs and the exact current time. A per-day key with rounded
+        # prices returned greeks computed for an earlier minute (or a nearby price), so a
+        # result depended on what had been asked before it.
         current_date = self.get_datetime()
-        cache_key = (
-            asset.symbol,
-            asset.strike,
-            asset.right,
-            asset.expiration,
-            round(asset_price, 2),
-            round(underlying_price, 2),
-            round(risk_free_rate, 4),
-            current_date.date() if hasattr(current_date, 'date') else current_date  # Cache per day to handle time decay
-        )
+        cache_key = _greeks_cache_key(asset, asset_price, underlying_price, risk_free_rate, current_date)
 
         # Check cache
         if cache_key in self._greeks_cache:
@@ -1237,6 +1237,88 @@ class DataSource(ABC):
         self._greeks_cache[cache_key] = greeks
 
         return greeks
+
+    def calculate_greeks_many(self, assets, asset_prices, underlying_price: float, risk_free_rate: float):
+        """``calculate_greeks`` for many options at the same time and underlying price.
+
+        Returns the list ``[calculate_greeks(a, p, underlying_price, risk_free_rate) ...]`` would
+        return, and leaves the per-day greeks cache exactly as those calls in that order would.
+        The only difference is cost: implied volatilities of the options not yet cached are
+        solved in one array pass (``implied_volatility_bs_many``, bit-identical to the scalar
+        solver). Anything unusual (a missing or non-positive price, a right other than call or
+        put, a price the scalar solver cannot parse) goes through ``calculate_greeks`` itself.
+        """
+        import math
+
+        black_scholes = _black_scholes()
+        current_date = self.get_datetime()
+        results = [None] * len(assets)
+        solve = []  # (index, asset, price, args, is_call, cache_key)
+        if underlying_price is None or risk_free_rate is None:
+            return results
+        interest = risk_free_rate * 100
+        for i, (asset, price) in enumerate(zip(assets, asset_prices)):
+            right = str(getattr(asset, "right", "") or "").upper()
+            try:
+                usable = price is not None and math.isfinite(float(price)) and float(price) > 0
+            except (TypeError, ValueError):
+                usable = False
+            if not usable or right not in ("CALL", "PUT"):
+                solve.append((i, asset, price, None, None, None))
+                continue
+            cache_key = _greeks_cache_key(asset, price, underlying_price, risk_free_rate, current_date)
+            expiration = asset.expiration
+            if isinstance(expiration, datetime):
+                expiration = expiration.date()
+            expiration = self.tzinfo.localize(datetime.combine(expiration, datetime.min.time())).astimezone(self.tzinfo)
+            expiration = expiration.replace(hour=16, minute=0, second=0, microsecond=0)
+            days_to_expiration = (expiration - current_date).total_seconds() / (60 * 60 * 24)
+            args = [underlying_price, float(asset.strike), interest, days_to_expiration]
+            solve.append((i, asset, price, args, right == "CALL", cache_key))
+
+        # Solve every implied volatility a sequential run would need to solve, in one pass.
+        # Duplicates of an earlier key in this batch would be cache hits sequentially.
+        pending, seen = [], set()
+        for item in solve:
+            key = item[5]
+            if key is not None and key not in self._greeks_cache and key not in seen:
+                seen.add(key)
+                pending.append(item)
+        solved = {}
+        if pending:
+            ivs = black_scholes.implied_volatility_bs_many(
+                [p[3][0] for p in pending], [p[3][1] for p in pending], [p[3][2] for p in pending],
+                [p[3][3] for p in pending], [round(float(p[2]), 6) for p in pending], [p[4] for p in pending],
+            )
+            for item, iv in zip(pending, ivs):
+                if not math.isnan(iv):
+                    solved[item[5]] = float(iv)
+
+        for i, asset, price, args, is_call, cache_key in solve:
+            if cache_key is None or (cache_key not in self._greeks_cache and cache_key not in solved):
+                results[i] = self.calculate_greeks(asset, price, underlying_price, risk_free_rate)
+                continue
+            if cache_key in self._greeks_cache:
+                results[i] = self._greeks_cache[cache_key]
+                continue
+            if len(self._greeks_cache) > 10000:
+                for key in list(self._greeks_cache.keys())[:5000]:
+                    del self._greeks_cache[key]
+            iv = solved[cache_key]
+            c = black_scholes.BS(args, volatility=iv)
+            greeks = dict(
+                implied_volatility=iv,
+                delta=c.callDelta if is_call else c.putDelta,
+                option_price=c.callPrice if is_call else c.putPrice,
+                pv_dividend=None,
+                gamma=c.gamma,
+                vega=c.vega,
+                theta=c.callTheta if is_call else c.putTheta,
+                underlying_price=underlying_price,
+            )
+            self._greeks_cache[cache_key] = greeks
+            results[i] = greeks
+        return results
 
     def query_greeks(self, asset):
         """Query for the Greeks as it can be more accurate than calculating locally."""

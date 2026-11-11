@@ -1565,7 +1565,11 @@ def _resolve_model_for_adk(
     )
 
     if managed_gateway_available_for(model):
-        return managed_gateway_model(model, reasoning_effort=reasoning_effort)
+        return managed_gateway_model(
+            model,
+            reasoning_effort=reasoning_effort,
+            model_request_timeout_seconds=_coerce_positive_timeout_seconds(model_request_timeout_seconds),
+        )
     if model in MANAGED_MODEL_FAMILIES:
         raise ManagedAiGatewayError(
             "Model families require BotSpot managed AI without a personal provider key. "

@@ -1,7 +1,12 @@
-import logging
 import queue
 import threading
 from queue import Queue
+
+from lumibot.tools.lumibot_logger import get_logger
+
+# A module logger, not bare ``logging.error``: that configures the root logger and makes every
+# LumiBot record print twice.
+logger = get_logger(__name__)
 
 class CustomStream:
 
@@ -23,13 +28,13 @@ class CustomStream:
             try:
                 self._process_queue_event(event, payload)
             except Exception as e:
-                logging.error(f"Error processing queue event: {e}")
+                logger.error(f"Error processing queue event: {e}")
             return
 
         try:
             self._queue.put((event, payload), block=False)
         except queue.Full:
-            logging.warning(f"Queue full, dropping event {event}")
+            logger.warning(f"Queue full, dropping event {event}")
             return
 
         # If wait_until_complete is True, we handled the inline path above.
@@ -54,7 +59,7 @@ class CustomStream:
                     break
                 continue
             except Exception as e:
-                logging.error(f"Error processing queue event: {e}")
+                logger.error(f"Error processing queue event: {e}")
                 if self._stop_event.is_set():
                     break
 
@@ -120,7 +125,7 @@ class PollingStream(CustomStream):
                 continue
             # Ensure that the Polling thread does not die if an exception is raised in the event processing.
             except Exception as e: # noqa
-                logging.exception(f"An error occurred while processing a queue event. {e}")
+                logger.exception(f"An error occurred while processing a queue event. {e}")
                 if self._stop_event.is_set():
                     break
                 continue
@@ -133,9 +138,9 @@ class PollingStream(CustomStream):
         try:
             self._process_queue_event(self.POLL_EVENT, {})
         except queue.Full:
-            logging.info("Polling action itself has added too many events to the queue. Skipping this polling cycle, "
+            logger.info("Polling action itself has added too many events to the queue. Skipping this polling cycle, "
                          "(it is incomplete) to allow the queue to drain. The next cycle will occur as scheduled.")
             return
         # Ensure that the Polling thread does not die if an exception is raised in the event processing.
         except Exception as e: # noqa
-            logging.exception(f"An error occurred while polling. {e}")
+            logger.exception(f"An error occurred while polling. {e}")

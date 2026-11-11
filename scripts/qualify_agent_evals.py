@@ -3,8 +3,15 @@
 
 The release owner reviews native private artifacts before committing this compact,
 public-safe receipt. Digests bind evidence; they are not proof of inference or a
-substitute for trusted review. CI requires the entire current catalog and SDK tuple,
-without copying a developer's rotating ChatGPT login into a hosted worker.
+substitute for trusted review. Hosted checks never copy a developer's rotating
+ChatGPT login into a hosted worker.
+
+Release scope (2026-11-11): when ``ci/agent-evals/release-scope.json`` exists, ``verify``
+checks only the author-written scope for this package version: the case ids the author
+listed, each with a reason, and current pass evidence for every listed case. An empty
+list is valid when the author states why no case can be affected. This check never
+infers, adds or refreshes cases; the author chooses them. Without the scope file the
+original whole-catalog receipt check runs unchanged.
 """
 
 from __future__ import annotations
@@ -27,6 +34,8 @@ KIND = "lumibot-real-model-qualification"
 VERSION = 3
 DEFAULT_PATH = evals.REPO_ROOT / "ci/agent-evals/qualification.json"
 CALIBRATION_CATALOG_PATH = evals.REPO_ROOT / "tests/fixtures/agent_judge_calibration.json"
+SCOPE_PATH = evals.REPO_ROOT / "ci/agent-evals/release-scope.json"
+SCOPE_VERSION = 1
 
 
 def digest(value):
@@ -155,11 +164,19 @@ def validate_record(record, case, *, runtime_hash, now, required=None):
     return attempts, call_ids
 
 
-def load_calibration_catalog(cases):
+def load_calibration_catalog(cases, *, scoped=False):
+    """The maintained controls; with ``scoped``, only the controls of ``cases``.
+
+    A release scope lists the cases a release can affect. Its receipt calibrates the
+    judge on those cases' own controls only (possibly none); the whole-catalog checks
+    (every control linked, both labels present) apply to the unscoped receipt.
+    """
     controls = json.loads(CALIBRATION_CATALOG_PATH.read_text())
     case_ids = {case["id"] for case in cases}
     if not isinstance(controls, list) or not controls:
         raise ValueError("Maintained judge calibration catalog is required")
+    if scoped:
+        controls = [control for control in controls if isinstance(control, dict) and control.get("case_id") in case_ids]
     seen, labels = set(), set()
     for control in controls:
         if (not isinstance(control, dict) or not isinstance(control.get("id"), str) or not control["id"]
@@ -170,7 +187,7 @@ def load_calibration_catalog(cases):
             raise ValueError("Calibration catalog requires unique linked controls and explicit 3/5 repetitions")
         seen.add(control["id"])
         labels.add(control["expected"])
-    if labels != {True, False}:
+    if not scoped and labels != {True, False}:
         raise ValueError("Calibration requires both positive and negative maintained controls")
     return controls
 
@@ -227,9 +244,12 @@ def validate_calibration_record(record, control, case, *, runtime_hash, now):
     return attempts, call_ids
 
 
-def build_calibration(rows, summary, calls, cases, *, runtime_hash, now):
-    controls = load_calibration_catalog(cases)
+def build_calibration(rows, summary, calls, cases, *, runtime_hash, now, scoped=False):
+    controls = load_calibration_catalog(cases, scoped=scoped)
     total = sum(item["required_repetitions"] for item in controls)
+    if scoped and not controls:
+        return {"catalog_digest": digest(controls), "actor_runs": 0, "external_writes": 0,
+                "creates_case_freshness": False, "controls": {}}
     if (not isinstance(rows, list) or not isinstance(summary, dict) or summary.get("kind") != "judge-calibration"
             or summary.get("runtime_fingerprint") != runtime_hash or summary.get("judge_model") != evals.DEFAULT_JUDGE_MODEL
             or type(summary.get("passed")) is not int or summary["passed"] != total
@@ -571,8 +591,17 @@ def project_case_records(rows, calls, cases, *, runtime_hash, now, required_coun
 
 
 def build_receipt(rows, call_rows, cases, *, runtime_hash, versions, calibration_rows=None,
-                  calibration_summary=None, now=None, established_source=None):
+                  calibration_summary=None, now=None, established_source=None, scope_case_ids=None):
+    """Receipt for the whole catalog, or with ``scope_case_ids`` for the release scope's cases only."""
     now = now or evals.utc_now()
+    scoped = scope_case_ids is not None
+    if scoped:
+        wanted = list(scope_case_ids)
+        cases = [case for case in cases if case["id"] in set(wanted)]
+        if {case["id"] for case in cases} != set(wanted):
+            raise ValueError("A scoped case is not in the case catalog")
+        if not load_calibration_catalog(cases, scoped=True) and (calibration_rows is None or calibration_summary is None):
+            calibration_rows, calibration_summary = [], {}
     if calibration_rows is None or calibration_summary is None:
         raise ValueError("Native judge calibration is a required release qualification")
     if not call_rows or call_rows[0].get("funding") != "chatgpt-plan" or call_rows[0].get("version") != 2:
@@ -598,12 +627,14 @@ def build_receipt(rows, call_rows, cases, *, runtime_hash, versions, calibration
     receipt = {"kind": KIND, "version": VERSION, "funding": "chatgpt-plan", "api_spend_usd": 0,
                "runtime_fingerprint": runtime_hash, "sdk_versions": versions, "cases": records,
                "calibration": build_calibration(calibration_rows, calibration_summary, calls, cases,
-                                                runtime_hash=runtime_hash, now=now),
+                                                runtime_hash=runtime_hash, now=now, scoped=scoped),
                "call_allowance": {"max_calls": cap, "consumed_calls": len(calls)},
                "native_ledger_digests": {"repetitions": digest(rows), "model_calls": digest(call_rows),
                                          "calibration": digest(calibration_rows), "calibration_summary": digest(calibration_summary)}}
     if establishment:
         receipt["establishment"] = establishment
+    if scoped:
+        receipt["scope"] = {"case_ids": sorted(scope_case_ids)}
     verify_receipt(receipt, cases, runtime_hash=runtime_hash, versions=versions, now=now)
     return receipt
 
@@ -612,8 +643,13 @@ def verify_receipt(receipt, cases, *, runtime_hash, versions, now=None):
     now = now or evals.utc_now()
     expected_keys = {"kind", "version", "funding", "api_spend_usd", "runtime_fingerprint", "sdk_versions", "cases",
                      "call_allowance", "native_ledger_digests", "calibration"}
-    if not isinstance(receipt, dict) or set(receipt) not in (expected_keys, expected_keys | {"establishment"}):
+    if not isinstance(receipt, dict) or set(receipt) - {"establishment", "scope"} != expected_keys:
         raise ValueError("Missing or unsupported native qualification receipt")
+    # A scoped receipt (release scope) covers exactly its listed cases and their own controls.
+    scoped = "scope" in receipt
+    if scoped and (not isinstance(receipt["scope"], dict) or set(receipt["scope"]) != {"case_ids"}
+                   or receipt["scope"]["case_ids"] != sorted(case["id"] for case in cases)):
+        raise ValueError("Scoped qualification does not match the listed cases")
     if (receipt["kind"] != KIND or receipt["version"] != VERSION or receipt["funding"] != "chatgpt-plan"
             or receipt["api_spend_usd"] != 0 or receipt["runtime_fingerprint"] != runtime_hash
             or receipt["sdk_versions"] != versions or "missing" in versions.values()):
@@ -654,7 +690,7 @@ def verify_receipt(receipt, cases, *, runtime_hash, versions, now=None):
             raise ValueError("Another case reused a native attempt or model call")
         seen_attempts.update(attempts)
         seen_calls.update(calls)
-    controls = load_calibration_catalog(cases)
+    controls = load_calibration_catalog(cases, scoped=scoped)
     proof = receipt["calibration"]
     if (not isinstance(proof, dict) or set(proof) != {"catalog_digest", "actor_runs", "external_writes", "creates_case_freshness", "controls"}
             or proof["catalog_digest"] != digest(controls) or type(proof["actor_runs"]) is not int or proof["actor_runs"] != 0
@@ -674,6 +710,61 @@ def verify_receipt(receipt, cases, *, runtime_hash, versions, now=None):
     # Original calls remain verified, while the current journal counts only its own work.
     if len(seen_calls - historical_calls) > allowance["consumed_calls"]:
         raise ValueError("Qualified calls exceed the cumulative native ledger")
+
+
+def package_version(root=None):
+    import re
+
+    text = ((root or evals.REPO_ROOT) / "setup.py").read_text()
+    match = re.search(r"""version=["']([^"']+)["']""", text)
+    if not match:
+        raise ValueError("setup.py has no version")
+    return match.group(1)
+
+
+def verify_release_scope(scope, cases, receipt, *, runtime_hash, version, now=None):
+    """Verify the author-written eval scope; return the verified case ids.
+
+    The scope names the package version it was written for, the cases the author judged
+    could be affected (each with a reason), and, when that list is empty, why. Every
+    listed case needs current passing actor/judge evidence in the receipt. Nothing here
+    selects, adds or drops cases.
+    """
+    now = now or evals.utc_now()
+    allowed = {"version", "package_version", "cases", "no_cases_reason"}
+    if not isinstance(scope, dict) or not {"version", "package_version", "cases"} <= set(scope) <= allowed:
+        raise ValueError("Invalid release eval scope; expected version, package_version, cases and optional no_cases_reason")
+    if scope["version"] != SCOPE_VERSION:
+        raise ValueError("Unsupported release eval scope version")
+    if scope["package_version"] != version:
+        raise ValueError(f"Release eval scope was written for {scope['package_version']!r}, not {version!r}; "
+                         "the release author must write the scope for this version")
+    listed = scope["cases"]
+    if not isinstance(listed, list):
+        raise ValueError("Release eval scope cases must be a list")
+    if not listed:
+        reason = scope.get("no_cases_reason")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("An empty release eval scope needs no_cases_reason")
+        return []
+    by_id = {case["id"]: case for case in cases}
+    ids = []
+    for entry in listed:
+        if (not isinstance(entry, dict) or set(entry) != {"id", "reason"}
+                or not isinstance(entry["reason"], str) or not entry["reason"].strip()):
+            raise ValueError("Each scoped case needs an id and a reason")
+        if entry["id"] not in by_id:
+            raise ValueError(f"Scoped case {entry['id']!r} is not in the case catalog")
+        if entry["id"] in ids:
+            raise ValueError(f"Scoped case {entry['id']!r} is listed twice")
+        ids.append(entry["id"])
+    records = receipt.get("cases") if isinstance(receipt, dict) else None
+    for case_id in ids:
+        record = records.get(case_id) if isinstance(records, dict) else None
+        if not isinstance(record, dict):
+            raise ValueError(f"Scoped case {case_id!r} has no pass evidence in the receipt")
+        validate_record(record, by_id[case_id], runtime_hash=runtime_hash, now=now)
+    return ids
 
 
 def read_ledger(path):
@@ -716,7 +807,13 @@ def main():
     args = parser.parse_args()
     cases, runtime_hash, versions = evals.load_cases(), evals.runtime_fingerprint(), evals.sdk_versions()
     if args.mode == "create":
-        if args.output_root is None or args.calibration_output_root is None or args.model_call_ledger is None:
+        scope_ids = None
+        if SCOPE_PATH.exists():
+            scope = json.loads(SCOPE_PATH.read_text())
+            if scope.get("package_version") == package_version() and scope.get("cases"):
+                scope_ids = [entry["id"] for entry in scope["cases"]]
+        if args.output_root is None or args.model_call_ledger is None or (
+                args.calibration_output_root is None and scope_ids is None):
             parser.error("create requires actor/calibration output roots and the shared --model-call-ledger")
         invalidate_receipt(args.receipt, {
             case["id"]: evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash=runtime_hash)
@@ -725,10 +822,19 @@ def main():
         receipt = build_receipt(read_ledger(args.output_root / "ledger.jsonl"),
                                 read_ledger(args.model_call_ledger), cases,
                                 runtime_hash=runtime_hash, versions=versions,
-                                calibration_rows=read_ledger(args.calibration_output_root / "ledger.jsonl"),
-                                calibration_summary=json.loads((args.calibration_output_root / "summary.json").read_text()),
-                                established_source=args.established_source)
+                                calibration_rows=(read_ledger(args.calibration_output_root / "ledger.jsonl")
+                                                  if args.calibration_output_root else None),
+                                calibration_summary=(json.loads((args.calibration_output_root / "summary.json").read_text())
+                                                     if args.calibration_output_root else None),
+                                established_source=args.established_source, scope_case_ids=scope_ids)
         evals.write_json_atomic(args.receipt, receipt)
+    elif SCOPE_PATH.exists():
+        receipt = json.loads(args.receipt.read_text()) if args.receipt.exists() else None
+        ids = verify_release_scope(json.loads(SCOPE_PATH.read_text()), cases, receipt,
+                                   runtime_hash=runtime_hash, version=package_version())
+        print(f"Verified the author-written release eval scope: {len(ids)} listed case(s) with current pass evidence"
+              + ("" if ids else " (none listed; reason recorded in release-scope.json)") + ".")
+        return 0
     else:
         receipt_bytes = args.receipt.read_bytes()
         receipt = json.loads(receipt_bytes)

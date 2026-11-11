@@ -104,9 +104,13 @@ def round_to_tick(*args, **kwargs):
 
 
 def _logging_warning(*args, **kwargs):
-    import logging
+    # Through the LumiBot logger, never the bare ``logging.warning``: on an unconfigured
+    # root logger that calls ``logging.basicConfig()``, which adds a second console handler
+    # and prints every later LumiBot record twice.
+    from lumibot.tools.lumibot_logger import get_logger as _get_logger
 
-    return logging.warning(*args, **kwargs)
+    kwargs.setdefault("stacklevel", 2)
+    return _get_logger(__name__).warning(*args, **kwargs)
 
 
 def _colored(*args, **kwargs):
@@ -3153,8 +3157,9 @@ class Strategy(_Strategy):
         """Return exact Assets mapped to Quote objects (or None when absent).
 
         Schwab batches up to 50 symbols per request, including selected option
-        contracts. Other providers retain their existing get_quote behavior;
-        no batching speed is promised without a native adapter. Option assets
+        contracts; Alpaca batches up to 100 option contracts per request. Other
+        providers retain their existing get_quote behavior; no batching speed is
+        promised without a native adapter. Option assets
         honor the configured option_source just like get_quote. A native batch
         failure raises instead of silently triggering serial retries. Snapshot
         freshness and trading decisions remain the strategy's responsibility.

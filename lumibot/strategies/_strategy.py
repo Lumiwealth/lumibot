@@ -2483,7 +2483,22 @@ class _Strategy:
 
         return self._stats
 
+    def _finalize_agent_artifacts(self):
+        # Agent detail files are written incrementally during the run; this
+        # writes the complete file. Only runs when the strategy used agents, so
+        # strategies without agents never import the agent runtime here.
+        agents = self.__dict__.get("agents")
+        if isinstance(agents, _LazyStrategyComponent):
+            agents = object.__getattribute__(agents, "_instance")
+        finalize = getattr(agents, "finalize_artifacts", None)
+        if callable(finalize):
+            try:
+                finalize()
+            except Exception as exc:
+                self.logger.warning(f"Could not finalize agent artifacts: {exc}")
+
     def _dump_stats(self):
+        self._finalize_agent_artifacts()
         # Don't change logger levels - respect the configured quiet logs setting
         if len(self._stats_list) > 0:
             self._format_stats()

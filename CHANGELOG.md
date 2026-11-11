@@ -1,14 +1,86 @@
 # Changelog
 
-## 4.6.49 - Unreleased
+## 4.6.52 - Unreleased
+
+### Fixed
+- AI model-request timeouts now reach the managed model's HTTP transport. Disabling the request timeout no longer leaves an independent 120-second socket timeout; finite configured timeouts are preserved. Existing injected transports retain their three-argument interface.
+
+## 4.6.51 - 2026-11-11
+
+Deploy marker: cc6310f2cb08c2293652390df3c59a9e48019f9f
+
+### Release tooling
+- `scripts/qualify_agent_evals.py create` with a release scope builds the receipt for the listed cases and their own judge-calibration controls only, instead of requiring calibration of the whole catalog. A scoped receipt verifies only against exactly its listed cases; without a scope the whole catalog is still required.
+
+### Changed
+- **Trades and results change for strategies that pick strikes by delta, in backtests and in live trading.** `OptionsHelper.find_strike_for_delta` now returns the listed strike whose delta is closest to the requested delta. Before, the search tried a few strikes near an estimate and stopped once one was within 0.02 of the target, so it could return a strike up to about 0.12 delta away while a closer strike was listed. Candidates are the listed strikes from $20 below to $30 above the underlying that have a real price. The search starts at the strike nearest a Black-Scholes estimate and walks outward on each side until three priced strikes in a row are past the target and farther from it than the best so far; since delta falls as the strike rises, no strike beyond can be closer. On the week below this gave the same strike as checking every listed strike in all 780 picks. Ties go to the smaller absolute delta (further out of the money), then to the lower strike. Strikes with no price are skipped; no price or delta is ever estimated. Live trading and backtests use the same rule, so the same prices give the same strike. The pick is remembered for the current bar only, not for the rest of the day. Measured on one week of recorded SPY option prices, 780 picks (call 0.16, 0.30, 0.5; put -0.16, -0.30; every 15 minutes), 415 picks changed:
+
+  | Distance from target delta | median | 90th percentile | worst |
+  |---|---|---|---|
+  | Before | 0.0133 | 0.1026 | 0.1180 |
+  | After | 0.0049 | 0.0118 | 0.0252 |
+
+  The new pick was never farther from the target than the old one. With the Black-Scholes speedup below, a delta pick takes about the same time as before (one-week minute run: 9.6 ms per pick before, 8.9 ms now). Example: a 0.30 call request on 2026-10-19 at 09:30 returned the 772 strike (delta 0.370); it now returns 775 (delta 0.275). A one-month SPY iron condor (2026-09-01 to 2026-09-29, 0.16 delta shorts) kept its 124 fills, with 87 of them at a different strike.
+
+  Live calls per pick, measured read-only against Alpaca paper market data (SPY, same-day expiry, 2026-11-11 10:20 ET with the market open, three runs each; times vary with the API):
+
+  | | put -0.16 | call 0.30 |
+  |---|---|---|
+  | Before (probe search) | 19 quote requests, 1.3-2.0 s, strike 748 or 749 (delta about -0.04 to -0.06) | 13 requests, 0.6-0.9 s, strike 758 |
+  | After, data source with bulk quotes (Alpaca, Schwab) | 1 request, 0.38-0.41 s, strike 752 (delta -0.168) | 1 request, 0.04-0.13 s, strike 758 |
+  | After, data source without bulk quotes | 16-20 requests, 1.5-1.8 s, strike 752 | 12-13 requests, 0.6-1.1 s, strike 757 or 758 |
+
+  Strike 752 is the closest listed strike to -0.16 on those quotes (0.008 away; the old pick was about 0.12 away).
+- Greeks are computed for the current minute's inputs instead of reusing a value from the same day, in backtests and in live trading (any data source that computes greeks locally). `DataSource.calculate_greeks` cached per day on prices rounded to cents, so a later minute (or a price within half a cent) got greeks computed for other inputs. On one week of recorded SPY option prices, 67 of 6,948 greeks values change, each to the value for its own inputs.
+
+### Added
+- `AlpacaData.get_quotes(assets)`: latest quotes for many assets, up to 100 option contracts per request, used by `Strategy.get_quotes` and by `OptionsHelper` delta picks in live trading. Each quote is the same `Quote` that `get_quote` builds; a contract with no quote maps to `None`. Request failures raise.
+
+### Fixed
+- A delta pick extends candidates it loaded on an earlier day together (one request per covered day and 100 contracts) instead of one shared-cache read per contract. One-month SPY iron condor, repeat run on a fresh container against a local S3 stand-in: 28.1 to 25.7 s at 50 ms per request (same at 30 ms); trades and portfolio values identical.
+- Long Alpaca option backtests no longer slow down month after month. A delta pick loaded every candidate contract from the start of the backtest and every request ran to its end, so each pick read one shared-cache partition per elapsed month per contract (49 a pick in the first month, 97 by the third). Now option requests stop at the contract's expiry (no prints exist after it), and a pick loads candidates from the start of the month a week before the pick. Earlier prints are loaded for one contract only when a lookup needs them: a last price with no print in the loaded part, or a history request for more bars than the loaded part holds. Partly loaded contracts are never written to the per-window CSV cache. Three-month SPY iron condor (minute bars, local cache): warm simulation 49.4 to 44.3 s, partition decodes 9,945 to 5,963; trades, fills and every portfolio value identical, cold and warm. The saving grows with the run length.
+- Half the S3 requests on a fresh cloud container for option backtests: the shared bar cache no longer looks up a `series.json` manifest for unadjusted series (options), which never write one. A one-month SPY iron condor against a local S3 stand-in (30 ms per request): repeat run 3,421 to 1,754 requests, simulation 24.9 to 22.6 s; cold run 5,106 to 3,439 GETs. Same 124 fills.
+- Faster option chain snapshots and delta picks: `OptionsHelper` builds each option contract `Asset` once and reuses it (a warm 51-strike snapshot built about 115 of them). Warm snapshot 2.90 to 2.44 ms on one week of SPY minute data; results identical.
+- Faster `get_historical_prices` in every backtest: the market input evidence recorder (which keeps every bar a strategy reads) now reads plain numeric columns as lists instead of building a pandas Series per column per call. Recorded rows and observations are identical (checked for numeric, object, bool, float32, nullable, duplicate-column and empty frames, and overlapping windows); nullable and other extension columns keep the old path. One week of SPY minute bars: 20 minute bars 0.59 to 0.43 ms per call, 5 daily bars 0.40 to 0.28 ms.
+- Faster greeks in every backtest and live strategy: Black-Scholes now calls scipy's normal functions directly for single numbers (`ndtr` for the CDF, the same `exp` expression scipy uses for the PDF) instead of `scipy.stats.norm.cdf`/`.pdf`, which spent most of their time checking arguments. Results are bit-identical (22,000 inputs including infinities and NaN, and every greek of 1,600 random options). A greeks call went from 1.17 ms to 0.76 ms; a delta pick, which now prices every candidate strike, from 24 ms to 8.9 ms.
+
+## 4.6.50 - 2026-11-11
+
+Deploy marker: 77f2d47e3a73d9b848627c60fb9fa2d7d2cfef00
+
+### Added
+- `OptionsHelper.get_option_chain_snapshot(underlying_asset, expiry, right, strikes=None, underlying_price=None, chains=None)`: one row per strike with price, bid, ask, implied volatility and delta at the current time. Data sources with `prefetch_option_bars` load all strikes in one batch; each strike uses the same rules as `find_strike_for_delta` (1,992 strike rows on real SPY data matched strike-by-strike deltas exactly). Documented on the Options Helper page.
+- `DataSource.calculate_greeks_many(assets, asset_prices, underlying_price, risk_free_rate)` and `black_scholes.implied_volatility_bs_many(...)`: implied volatility for many options in one array pass, bit-identical to the one-by-one solver (12,000 cases) and leaving the greeks cache exactly as one-by-one calls would. The chain snapshot uses it in backtests (about 20% faster per snapshot on real SPY data; identical rows). `find_strike_for_delta` does not use it: filling the per-day greeks cache for strikes a search never probes could change later cache hits, so the same strike cannot be guaranteed.
+
+### Fixed
+- Shared bar cache uploads no longer all fail once a backtest's main program returns. pandas' `to_parquet` converted columns on a `concurrent.futures` pool, which Python closes at interpreter shutdown ("RuntimeError: cannot schedule new futures after interpreter shutdown"), so every upload still queued at the end of a run failed and the cloud cache never received most of a run's bars. Partitions are now encoded on the uploader's own thread, with byte-identical files. Reproduced against a local S3 stand-in: before, uploads failed from the end of the run on; after, 0 failures and 591 objects stored for a one-week option run.
+- A finished backtest no longer waits minutes for its cache uploads: uploads run on 8 workers (`LUMIBOT_SHARED_BARS_UPLOAD_WORKERS`), with one file's uploads kept in order on one worker. One-week option run against a local S3 stand-in with 50 ms per request: wait after the program ended 59.4 s to 5.9 s, uploads still queued at the end 458 to 22, same 591 objects stored.
+- The first failed shared bar cache upload in a run now logs its traceback (later failures keep one line each), so the failing call is visible from a single log.
+- **Results change for Alpaca option backtests that held contracts to expiry.** Expired options now settle in every backtesting data source, not only pandas-based ones (ThetaData, Polygon). On Alpaca (and IBKR REST) an expired contract used to stay in the portfolio forever at its last trade price, and orders on it stayed open, so a strategy that waits for no open option position never traded again. Now, the same as the pandas path: open orders on the contract are cancelled, an out-of-the-money option expires worthless, an in-the-money one is exercised, assigned or cash-settled from the underlying's real close; if the underlying has no real price the settlement fails loudly instead of guessing. Example (SPY wheel, daily, 2025-10-01 to 2025-12-31): before, one put sold and nothing after, 1% return; after, three puts sold, 2% return. Futures expiry handling is unchanged.
+- Far fewer Alpaca requests in option backtests that pick strikes by delta. `OptionsHelper.find_strike_for_delta` asks the data source for all candidate strikes at once; `AlpacaBacktesting.prefetch_option_bars` loads up to 100 contracts per request and only up to the current backtest day, then loads the rest of a contract's window once, the first time it is read on a later day. Prices, trades and chosen strikes are unchanged (a one-month SPY iron condor: 297 trades and 7,880 stats rows identical). A cold one-week daily iron condor went from 163 to 51 Alpaca requests.
+- Long AI-agent backtests no longer run out of memory. The agent detail recorder kept every row of every past agent call (prompts, tool results, model text) in memory and rewrote the whole `*_agent_detail.parquet` file after each call, so memory and write time grew with every call. A synthetic two-agent backtest of 480 calls grew by about 1,013 MB before and about 49 MB after; per-call time at the end of the run fell from about 362 ms to 92 ms. Each call's rows now go to a small part file, the main file is rebuilt from them at 1, 2, 4, 8, ... calls and when the run ends, and every call is still in the final file.
+- Parquet artifacts are written to a temporary file and then swapped in, so a process killed mid-write keeps the previous complete file instead of leaving a truncated one ("No magic bytes found at end of file").
+
+## 4.6.49 - 2026-11-11
+
+Deploy marker: d4b9de7ecaf5d93cacb3eb680c90ce857c859fbc
 
 ### Added
 - Indicator outputs can say how they look: `line_width`, `line_style` (solid, dashed, dotted), colors with opacity (`#RRGGBBAA`) and theme colors (`chart.fg`, `chart.bg`), a color per bar (`palette` with `color_by`, optionally `gradient`), `offset`, `display`, `precision`, `pane` and `track_price`. New kinds: `step`, `columns`, `circles`, `cross`, `shape` markers (12 shapes, 5 locations, 6 sizes, text), `fill` between outputs or levels, `background`, `bar_color` and `candle`. Levels take `dotted`, `color` and `line_width`. Per-bar values stay numbers; all styling travels in `describe()`. New page "Outputs and Styles" and four example indicators (`momentum_histogram`, `trailing_band`, `oscillator_zones`, `smoothed_candles`).
+- Kalshi account reads can show market titles and the selected outcome's subtitle (one batched lookup), plus last-trade position value and unrealized P&L estimates against the broker cost basis. Markets with no trades or no metadata leave the estimates empty; holdings, outcome, quantity and cost basis stay visible.
 
 ### Fixed
 - Download hourly history from Alpaca as hourly bars instead of sixty times as many minute bars, so a long hourly request can no longer exhaust a live bot's memory. Live data sources can declare native intervals through `supports_native_timestep`, optionally receiving `include_after_hours`. Alpaca intraday windows are sized from the bar length, and dropping the incomplete current bar keeps the hourly and multi-minute bars from today that have already closed.
 - Cap the agent `market_historical_prices` and `market_load_history_table` tools at 5,000 bars per symbol per call. A larger request returns the most recent 5,000 bars and says so in the result instead of failing.
 - Faster minute-level option backtests on Alpaca data: an option's last price is read straight from the stored trade bars instead of building a Bars object on every call, and option expiry text is parsed once instead of on every chain lookup. Prices and trades are unchanged.
+- Faster option greeks and delta strike selection in every backtest: the risk free rate lookup no longer re-converts its date index on each call (about 9 ms saved per greeks call), and Black-Scholes implied volatility prices each bisection step without building an object and stops once the step no longer moves. Results are identical (12,000 cases checked against the original solver). A greeks call went from about 12 ms to 1.3 ms and a delta strike search from about 105 ms to 11 ms.
+- Faster stock and crypto last price in every Alpaca backtest: `get_last_price` reads the current row of the stored bars instead of building a Bars object on every call (about 0.19 ms to 0.05 ms per call on a Mac). Daily session marks and intraday fill prices are unchanged.
+- Every log line is printed once again. The `BACKTESTING_START`/`BACKTESTING_END` override warning and the broker event stream used the bare `logging` module, which on an unconfigured root logger calls `logging.basicConfig()` and adds a second console handler; from then on every LumiBot record also printed as `INFO:lumibot...`. They now log through the LumiBot logger, and the override warning still shows.
+- `OptionsHelper` no longer repeats the same routine lines on every bar. In `find_next_valid_option`, `find_strike_for_delta`, `get_strike_deltas` and `evaluate_option_market`, the search and result lines ("Finding next valid option", "Target strike ... ->", "STRIKE SEARCH", "Search range", "Search strikes", "Trying strike", "BS estimate", "Exact match found", "RESULT: Closest strike", "Computing strike deltas", "Option market evaluation", "Using last-price fallback") are logged at INFO the first time and whenever the outcome changes, and at DEBUG otherwise. Errors, warnings, and evaluations that block a trade (spread too wide, no usable price) are still logged every time. A one-week minute run went from 1,586 to 63 log lines (strike search) and from 9,786 to 238 (delta search).
+- A finished backtest no longer stays alive retrying failed shared bar cache uploads. After 10 failures in a row the remote store is given up for that run (local files are still written, results are unaffected), and the warning now includes the error message instead of only its type.
+
+### Changed
+- Release eval check: `scripts/qualify_agent_evals.py verify` now verifies an author-written scope file, `ci/agent-evals/release-scope.json`, when it exists: the case ids the release author listed (each with a reason) and current pass evidence for each, or an empty list with a stated reason. It no longer demands a fresh run of the whole case catalog whenever any runtime file changes. It still fails when a listed case has no current passing evidence. 4.6.49 lists no cases, with the reason recorded in the file.
 
 ## 4.6.48 - 2026-11-05
 

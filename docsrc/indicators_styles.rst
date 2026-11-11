@@ -2,7 +2,7 @@ Indicator outputs and styles
 ===========================
 
 .. meta::
-   :description: Every way a LumiBot indicator can say how it looks on a chart: line widths and styles, colors with opacity, a color per bar, fills, background zones, candle colors, markers with text, panes, levels and theme colors.
+   :description: How a LumiBot indicator sets its look on a chart: line widths and styles, opacity, colors per bar, fills, background zones, candle colors, markers, panes and levels.
 
 An indicator returns **one number per output on each bar** (or ``None`` for
 "nothing here"). Everything about how that number looks on a chart is declared

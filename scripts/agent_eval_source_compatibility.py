@@ -31,6 +31,12 @@ PROVIDER_ONLY_PATHS = frozenset({
     'lumibot/trading_builtins/ccxt_stream.py',
     'lumibot/brokers/bitunix.py',
     'lumibot/tools/bitunix_helpers.py',
+    # ProductionFixture drives BacktestingBroker synchronously with in-memory
+    # Pandas bars. It never runs Trader or reads the provider bar cache. The
+    # binding contract rejects those calls; this preserves only fixture proof,
+    # never historical-backtest or threaded-runner qualification.
+    'lumibot/tools/shared_bar_cache.py',
+    'lumibot/traders/trader.py',
 })
 NON_PACKAGE_PATHS = (
     'agent_eval_fixtures/research_data.json',

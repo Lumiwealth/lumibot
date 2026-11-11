@@ -58,18 +58,18 @@
     }
   ],
   "qualification_summary": {
-    "attempts": 36,
+    "attempts": 38,
     "states": {
       "fail": 6,
-      "pass": 29,
+      "pass": 31,
       "error": 1
     },
     "first_attempt": "2026-11-11T18:35:20.616263Z",
     "first_model_pass": "2026-11-11T18:49:20.106689Z",
     "settled_calls_by_role": {
-      "acting": 211,
-      "judge": 35,
-      "judge_calibration": 36
+      "acting": 223,
+      "judge": 37,
+      "judge_calibration": 42
     },
     "api_spend_usd": 0.0,
     "current_cases": {
@@ -80,7 +80,7 @@
       "stock_daily_limit_current_execution": 5,
       "stock_price_before_order": 5
     },
-    "current_runtime_fingerprint": "36167b501d19c853c9f0ed1a72d8ab2051ab17d54b3020a854477a17285bed6a",
-    "original_source": "04da13aeb449448a5cbfa47bcf2aca139978649a"
+    "original_source": "04da13aeb449448a5cbfa47bcf2aca139978649a",
+    "qualified_evidence_runtime_fingerprint": "23ae5f7cc35c7fb1be9661aefe3fbe0f6a99cbc8157dd615c1bea448ff114780"
   }
 }

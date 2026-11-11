@@ -1,17 +1,28 @@
 # Changelog
 
-## 4.6.52 - Unreleased
+## 4.6.52 - 2026-11-11
+
+Deploy marker: e2675359fb53fb56c6bcc4e23aac79334e97ac2f
 
 ### Release tooling
 - Reuse the original full repetitions in an immutable published native receipt when establishing later regression evidence. Preserve the original source, calls, usage and timestamps; reject invalidated, failed, funding-mismatched or SDK-mismatched proof. Parallel native fixtures now own separate Parquet export prefixes.
+- Verify original stability together with the author-listed current regressions. Synchronous in-memory model fixtures retain their native evidence across changes to the unused threaded runner and provider cache; this does not qualify those components or historical backtests.
+
+### Added
+- Agent attention watches, quiet polling and event-driven team dispatch support inexpensive monitoring while the trading agent retains decisions and order ownership. Saved watches and pending order identities survive normal strategy state restoration.
+- Slim AI examples for an overnight iron condor, bull call vertical and two-long/one-short call package, with explicit per-contract historical-backtest fees. Shared options guidance covers exact-leg quotes, signed Greeks, package units, liquidity, payoff interpretation, assignment and pending-exit protection.
+- Agent tools expose batch quotes and independent order submissions alongside atomic multi-leg submissions.
 
 ### Changed
 - A filled multi-leg (combo) parent order now ends with a final row in the backtest trade-event files (`*_trade_events.csv/.parquet`, `*_trades.csv/.parquet`), with status `legs_filled` and no filled quantity. Before, the parent's only row was `new`, so views that show each order's last row (progress, order lists) showed every combo as pending forever. The legs keep their `fill` rows. `legs_filled` is not a fill status and the filled quantity is empty, so tools that count trades from these files (downstream counters use fill/filled/partially_filled/partial_fill statuses or a nonzero filled quantity) count the same trades as before; trades.html markers are unchanged (`legs_filled` is not a marker status).
 - Faster trades.html on long minute backtests: the time axis is encoded once and shared by every line, instead of plotly copying a column of timestamps for each line. The file is the same apart from plotly's random element ids. On a 12-month one-minute put spread (98,000 points) building trades.html went from 4.5 s to 1.3 s locally, and the whole end-of-backtest analysis from 6.6 s to 3.3 s.
-
 - First-run Interactive Brokers stock and index intraday downloads start their first page at the last session close when the requested window ends in closed time (usually midnight New York). Before, the first page ended at midnight, reached back only to about 07:20, and split the last session over two pages. The bars are the same; a one-month minute download takes one request fewer (24 to 23 on a local downloader stand-in, about 2 s on production's lane).
+- Backtests log a `[SHARED_BARS][SUMMARY]` line next to `[REMOTE_CACHE][SUMMARY]` with the shared bar cache's own work: provider reads, S3 hits and misses, bytes, uploads and upload errors (again at exit if uploads were still pending). Alpaca, Schwab, Tradier, ccxt and Interactive Brokers live data use this cache, which reads and writes S3 itself, so the older summary showed `misses=0 uploads=0` for Alpaca runs while their repeats were served from S3.
 
 ### Fixed
+- Preserve exact selected option leg quantities through ratio-weighted package pricing, simulated net-limit checks and supported broker submissions. Child cancellation reconciles the package parent without discarding filled exposure or working siblings.
+- A non-trading researcher with a final answer can hand that answer and disclosed optional-tool errors to the trader; missing answers and actual provider failures remain visible failures.
+- Routed (BotSpot Auto) Interactive Brokers stock and index minute and hour backtests load the same five-day buffer before the backtest start as the Interactive Brokers source. The prefetch began at the backtest start, and the lookback count assumes one bar per minute, so a short lookback at the first session open (for example 20 one-minute bars at 09:31) saw only that morning's pre-market prints for a thinly traded stock, and the run was marked failed with insufficient required history. A cold run now asks for a few more one-minute pages (21 to 23 on a one-month local stand-in run).
 - Stock-trading guidance distinguishes quote request time from source observation time, preserves exact authorized limits and avoids treating a prior-session quote as current execution evidence.
 - Daily-cadence stock limit orders use loaded current intraday execution data instead of stale daily quotes. Daily-only limits use the session open while forming and the completed OHLC range only at the known calendar close. Missing observations leave orders pending; cash, positions and fees follow actual fills. A native broker regression and real-model pending-order eval cover the failure.
 - AI model-request timeouts now reach the managed model's HTTP transport. Disabling the request timeout no longer leaves an independent 120-second socket timeout; finite configured timeouts are preserved. Existing injected transports retain their three-argument interface.

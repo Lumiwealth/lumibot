@@ -265,6 +265,12 @@ class Trader:
                     get_backtest_cache().log_summary()
                 except Exception:
                     pass
+                try:
+                    from lumibot.tools.shared_bar_cache import log_run_summary
+
+                    log_run_summary()
+                except Exception:
+                    pass
 
             return result
         finally:

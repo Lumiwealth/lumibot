@@ -8,12 +8,9 @@
   "machineContract": {
     "orderTool": "orders_submit_multileg",
     "exactOrderCount": 3,
-    "requiredAgents": [
-      "researcher",
-      "trader",
-      "trader",
-      "researcher",
-      "trader"
+    "allowedAgentSequences": [
+      ["researcher", "trader", "trader", "researcher", "trader"],
+      ["researcher", "trader", "researcher", "trader", "researcher", "trader"]
     ],
     "requiredTraderTools": [
       "account_positions",

@@ -222,6 +222,30 @@ def test_one_off_research_handoff_does_not_install_a_monitoring_controller(monke
     assert row["transcript"]["attention_state"] == {"watches": [], "pending": []}
 
 
+@pytest.mark.parametrize("roles,expected", [
+    (["researcher", "trader", "trader", "researcher", "trader"], True),
+    (["researcher", "trader", "researcher", "trader", "researcher", "trader"], True),
+    (["trader", "trader", "researcher", "trader"], False),
+    (["researcher", "trader", "researcher", "trader", "trader", "researcher", "trader"], False),
+    (["researcher", "trader", "trader", "trader", "researcher"], False),
+])
+def test_explicit_agent_sequences_allow_research_refresh_without_extra_traders(roles, expected):
+    case = {"machineContract": {"allowedAgentSequences": [
+        ["researcher", "trader", "trader", "researcher", "trader"],
+        ["researcher", "trader", "researcher", "trader", "researcher", "trader"],
+    ]}}
+    transcript = {"fixture_calls": [], "submissions": [], "tool_calls": [],
+                  "agent_runs": [{"role": role} for role in roles]}
+    assert evals.score_machine_contract(case, transcript)["pass"] is expected
+
+
+def test_existing_exact_agent_sequence_still_rejects_extra_research():
+    case = {"machineContract": {"requiredAgents": ["researcher", "trader"]}}
+    transcript = {"fixture_calls": [], "submissions": [], "tool_calls": [],
+                  "agent_runs": [{"role": role} for role in ["researcher", "researcher", "trader"]]}
+    assert evals.score_machine_contract(case, transcript)["pass"] is False
+
+
 def test_trader_account_contract_accepts_only_its_own_complete_current_snapshot():
     context = {"current_datetime": "2026-08-11T14:35:00Z", "positions": [], "open_orders": [],
                "account_snapshot": {"as_of": "2026-08-11T14:35:00Z", "account_complete": True,

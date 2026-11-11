@@ -951,10 +951,11 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
     if contract.get("requireAgentToolAudit") or contract.get("requirePublicOrderReasonReference"):
         failures.extend(_native_journal_failures(contract, transcript))
     required_agents = contract.get("requiredAgents") or []
+    allowed_sequences = contract.get("allowedAgentSequences") or ([required_agents] if required_agents else [])
     agent_runs = transcript.get("agent_runs") or []
     observed_agents = [str(run.get("role") or "") for run in agent_runs]
-    if required_agents and observed_agents != required_agents:
-        failures.append(f"expected agent topology {required_agents}, observed {observed_agents}")
+    if allowed_sequences and observed_agents not in allowed_sequences:
+        failures.append(f"expected agent topology in {allowed_sequences}, observed {observed_agents}")
     required_trader_tools = contract.get("requiredTraderTools") or []
     if required_trader_tools:
         trader_tools = {

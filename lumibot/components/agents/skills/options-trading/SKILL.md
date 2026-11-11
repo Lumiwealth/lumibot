@@ -13,6 +13,10 @@ submitting an option order.
 Before an option submission, make the decision explicit in its order rationale:
 explain the exact package's executable quote quality, signed net exposure from
 the returned Greeks, price and total risk, and any short-option obligation.
+Assess whether the exact legs' bid/ask widths support the chosen package limit
+and holding policy; merely saying that quotes were fetched is not an assessment.
+Use available quote times and sizes, disclose missing evidence, and explain the
+material execution uncertainty. There is no universal acceptable spread width.
 For a short leg, state the actual deliverable quantity and the underlying
 position or cash obligation assignment could create before a long is exercised,
 plus any temporary funding/capacity requirement or unverified capacity. A generic
@@ -84,8 +88,11 @@ Keep expiration payoff separate from profit. Gross expiration payoff is the
 signed sum of the legs' intrinsic values, with their quantities and multipliers.
 Profit subtracts the opening net debit and applicable fees; an opening credit
 is a negative debit. For a one-to-one debit vertical of width W and multiplier
-M, the gross payoff ceiling is W*M per package and maximum profit is W*M minus
-the paid debit and fees. The premium budget is neither of those ceilings.
+M, the gross payoff ceiling is W*M per package. Maximum expiration loss is the
+actual total debit paid plus fees; maximum profit is W*M minus that debit and
+fees. Subtracting the debit from the width calculates profit, not loss. Calculate
+and label these separately before describing a loss watch; a partial loss must
+not be called full-premium loss. The premium budget is neither payoff nor profit.
 Other ratios require their own signed payoff calculation. At an underlying
 price exactly equal to its strike, an option is at the money with zero intrinsic
 value. An out-of-the-money call has underlying below strike; an out-of-the-money

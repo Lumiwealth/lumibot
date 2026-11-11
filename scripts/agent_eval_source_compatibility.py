@@ -30,6 +30,7 @@ PROVIDER_ONLY_PATHS = frozenset({
     # never these live adapters. The fixture/binding contract tests that boundary.
     'lumibot/trading_builtins/ccxt_stream.py',
     'lumibot/brokers/bitunix.py',
+    'lumibot/brokers/schwab.py',
     'lumibot/tools/bitunix_helpers.py',
     # ProductionFixture drives BacktestingBroker synchronously with in-memory
     # Pandas bars. It never runs Trader or reads the provider bar cache. The

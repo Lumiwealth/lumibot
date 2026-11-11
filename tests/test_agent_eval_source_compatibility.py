@@ -37,6 +37,10 @@ def test_alpaca_provider_is_outside_the_native_pandas_fixture():
     scope.check_change('lumibot/backtesting/alpaca_backtesting.py', b'before', b'after')
 
 
+def test_unused_schwab_adapter_keeps_synchronous_fixture_proof():
+    scope.check_change('lumibot/brokers/schwab.py', b'before', b'after')
+
+
 @pytest.mark.parametrize('path', ['lumibot/tools/shared_bar_cache.py', 'lumibot/traders/trader.py'])
 def test_unused_cache_and_threaded_runner_keep_synchronous_fixture_proof(path):
     scope.check_change(path, b'before', b'after')
@@ -121,7 +125,9 @@ def test_native_catalog_bindings_use_pandas_backtesting_not_live_provider_adapte
             side_effect=AssertionError('Native model fixtures cannot construct a live ProjectX stream')), \
             patch('lumibot.traders.Trader.run_all', side_effect=AssertionError('Fixtures run synchronously')), \
             patch('lumibot.tools.shared_bar_cache.read_bars', side_effect=AssertionError('Fixture bars are in memory')), \
-            patch('lumibot.tools.shared_bar_cache.read_bars_many', side_effect=AssertionError('Fixture bars are in memory')):
+            patch('lumibot.tools.shared_bar_cache.read_bars_many', side_effect=AssertionError('Fixture bars are in memory')), \
+            patch('lumibot.brokers.schwab.Schwab._schwab_execution_summary',
+                  side_effect=AssertionError('Fixture fills never use a live Schwab snapshot')):
         for name, case in cases.items():
             fixture = ProductionFixture(evals.build_fixture(name))
             try:

@@ -103,6 +103,24 @@
     "new_real_model_attempts": 0,
     "why_zero": "This follow-up changes only test factory signatures. The execution engine repair has focused native tests, and original AI quote-date disclosure evidence stays bound to its earlier source. No fresh AI behavior or full strategy execution is claimed.",
     "system_prompt_growth_bytes": 0,
-    "skill_growth_bytes": 0
+    "skill_growth_bytes": 0,
+    "history_buffer_contract": {
+      "red": "one failed in 1.35 seconds: the five-day buffer adds its older cold page",
+      "green": "one passed in 1.22 seconds",
+      "assertions": "Exact four initial windows, complete 250 bars on each of 12 reads, no future slice values, no duplicate requests and zero additional requests on warm reads"
+    },
+    "example_fee_contract": {
+      "red": {
+        "failed": 6,
+        "passed": 3,
+        "seconds": 0.76
+      },
+      "green": {
+        "failed": 0,
+        "passed": 8,
+        "seconds": 0.35
+      },
+      "repair": "Recognize only the native TradingFee entity and the exact startup template with symmetric declared contract fees. Preserve unchanged startup control and executable fee-wiring checks."
+    }
   }
 }

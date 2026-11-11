@@ -1859,6 +1859,12 @@ class Schwab(Broker):
         for activity in schwab_order.get("orderActivityCollection") or schwab_order.get("activityCollection") or []:
             if str(activity.get("activityType", "")).upper() not in {"EXECUTION", "ORDER_EXECUTION"}:
                 continue
+            # EXECUTION also describes canceled/replaced quantities that never
+            # traded. Only FILL contributes when the subtype is supplied;
+            # retain older responses that omitted executionType entirely.
+            execution_type = str(activity.get("executionType") or "").upper()
+            if execution_type and execution_type != "FILL":
+                continue
             for execution in activity.get("executionLegs") or []:
                 execution_leg_id = execution.get("legId")
                 if leg_id is not None and execution_leg_id is not None and str(execution_leg_id) != str(leg_id):

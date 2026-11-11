@@ -574,6 +574,71 @@ class Broker(ABC):
 
         self._start_runtime_telemetry()
 
+    def _get_order_health(self):
+        if not hasattr(self, "_order_health"):
+            from lumibot.tools.runtime_telemetry import OrderRuntimeHealth
+            with getattr(self, "_lock", threading.RLock()):
+                if not hasattr(self, "_order_health"):
+                    self._order_health = OrderRuntimeHealth()
+        return self._order_health
+
+    def _record_order_feed(self, connected):
+        try:
+            self._get_order_health().feed(connected)
+            if not connected and self.get_active_tracked_orders():
+                self._order_contradiction("order_feed_disconnected_with_open_orders")
+        except Exception:
+            pass
+
+    def _order_contradiction(self, reason):
+        try:
+            self._get_order_health().contradiction(reason)
+            self.logger.warning("[OrderContradiction] reason=%s", reason)
+        except Exception:
+            pass
+
+    def _record_foreign_callback(self):
+        if not self.IS_BACKTESTING_BROKER:
+            try:
+                self._get_order_health().count("foreign_callback_attempts")
+                self._order_contradiction("unowned_order_callback")
+            except Exception:
+                pass
+
+    def _record_fill_callback_entry(self):
+        if not self.IS_BACKTESTING_BROKER:
+            try:
+                self._get_order_health().count("fill_callback_entries")
+            except Exception:
+                pass
+
+    def _record_fill_proof(self, order, quantity):
+        if self.IS_BACKTESTING_BROKER:
+            return
+        try:
+            cumulative = sum(float(t.quantity) for t in order.transactions)
+            reported = getattr(order, "_broker_reported_filled_quantity", None)
+            source = getattr(order, "_observation_source", "broker_callback")
+            self._get_order_health().count("fill_callbacks_enqueued")
+            self.logger.info(
+                "[OrderFillProof] event_quantity=%s cumulative_quantity=%s broker_filled_quantity=%s source=%s",
+                quantity, cumulative, reported, source,
+            )
+            if cumulative > float(order.quantity):
+                self._order_contradiction("filled_above_order_quantity")
+            if (Order.is_equivalent_status(getattr(order, "raw_order_status", ""), self.CANCELED_ORDER)
+                    and reported is not None and float(reported) == 0 and float(quantity) > 0):
+                self._order_contradiction("canceled_zero_broker_filled_with_execution")
+        except Exception:
+            pass
+
+    def on_order_observation(self, *, order, payload, source):
+        """Optional application observation hook. Override to retain broker evidence.
+
+        Called outside strategy decisions. Consumers own storage and must handle
+        private broker data appropriately. Consumer failures never stop orders.
+        """
+
     def _telemetry_snapshot(self) -> dict:
         """Lightweight, best-effort broker snapshot for runtime telemetry."""
         snap: dict[str, object] = {}
@@ -609,6 +674,8 @@ class Broker(ABC):
             except Exception:
                 continue
 
+        if not self.IS_BACKTESTING_BROKER and hasattr(self, "_order_health"):
+            snap["order_health"] = self._order_health.snapshot()
         return snap
 
     def _start_runtime_telemetry(self) -> None:
@@ -850,6 +917,13 @@ class Broker(ABC):
 
     def cleanup_streams(self):
         """Clean up stream threads properly to prevent segmentation faults"""
+        if hasattr(self, "_order_health") and not getattr(self, "_order_health_summary_logged", False):
+            try:
+                self._order_health.feed(False) if self._order_health.feed_started is not None else None
+                self.logger.info("[OrderRunHealth] %s", _json_dumps(self._order_health.snapshot(), sort_keys=True))
+                self._order_health_summary_logged = True
+            except Exception:
+                pass
         # Set stop event to signal all threads to stop
         if hasattr(self, '_stop_event'):
             self._stop_event.set()
@@ -1511,6 +1585,10 @@ class Broker(ABC):
             changed = True
         return changed
 
+    def _orders_for_strategy_sync(self, orders, strategy):
+        """Adapter boundary for verified strategy history versus account visibility."""
+        return orders
+
     def sync_orders(self, strategy):
         """Sync broker orders into Lumibot without promoting stale terminal history.
 
@@ -1522,7 +1600,7 @@ class Broker(ABC):
             return
 
         strategy_name = self._strategy_name_from_input(strategy)
-        orders_broker = self._pull_all_orders(strategy_name, strategy)
+        orders_broker = self._orders_for_strategy_sync(self._pull_all_orders(strategy_name, strategy), strategy)
         orders_broker = list(self._iter_order_tree(orders_broker))
 
         changed = False
@@ -2865,6 +2943,56 @@ class Broker(ABC):
         self._cache_result(self._tracked_orders_filter_cache, cache_key, result)
         return list(result)
 
+    def _order_checkpoint_account_identity(self):
+        return getattr(self, "account_number", None)
+
+    def export_order_state(self, strategy=None):
+        """Checkpoint locally tracked identities, not broad account history.
+
+        Keep this with the same strategy instance's private restart state.
+        Bind order_ownership_id to a stable instance value for automatic recovery;
+        matching a strategy display name is never recovery authority.
+        """
+        def serialize(order):
+            row = order.to_dict()
+            row.pop("raw_broker_payload", None)
+            row["child_orders"] = [serialize(child) for child in order.child_orders]
+            fills = list(order.transactions)
+            quantity = sum((Decimal(str(t.quantity)) for t in fills), Decimal(0))
+            row["filled_quantity"] = str(quantity)
+            if quantity:
+                row["avg_fill_price"] = float(sum(
+                    (Decimal(str(t.quantity)) * Decimal(str(t.price)) for t in fills), Decimal(0)
+                ) / quantity)
+            return row
+
+        orders = [serialize(order) for order in self.get_tracked_orders(strategy)
+                  if not order.is_filled() or order.child_orders]
+        return {"broker": self.name, "account": self._order_checkpoint_account_identity(),
+                "owner": getattr(self, "order_ownership_id", None), "orders": orders}
+
+    def restore_order_state(self, state, strategy=None):
+        """Restore this instance's saved orders before observing the account.
+
+        This is a deliberate recovery operation. Never feed it an account order
+        list. Historical executions seed the ledger without another callback or
+        cash debit; later broker observations deliver only new executions.
+        """
+        if not isinstance(state, dict) or state.get("broker") != self.name:
+            raise ValueError("Order checkpoint belongs to a different broker")
+        if state.get("account") != self._order_checkpoint_account_identity():
+            raise ValueError("Order checkpoint belongs to a different account")
+        if state.get("owner") != getattr(self, "order_ownership_id", None):
+            raise ValueError("Order checkpoint belongs to a different instance")
+        strategy_name = self._strategy_name_from_input(strategy)
+        orders = list(self._iter_order_tree([Order.from_dict(row) for row in state.get("orders", [])]))
+        if any(strategy_name and order.strategy != strategy_name for order in orders):
+            raise ValueError("Order checkpoint belongs to a different strategy")
+        for order in orders:
+            if self.get_tracked_order(order.identifier, use_placeholders=True) is None:
+                order._local_order_ownership = True
+                self._process_broker_synced_order(order)
+
     def get_active_tracked_orders(self, strategy=None, asset=None) -> list[Order]:
         """Return only active (open) tracked orders for a strategy/asset.
 
@@ -3421,11 +3549,10 @@ class Broker(ABC):
         return bool(symbol) and symbol in allowed
 
     def order_belongs_to_local_strategy(self, order, local_strategy_name: str | None = None) -> bool:
-        """Return True only when this order is owned by the local strategy.
+        """Require a tracked identity and compatible strategy attribution.
 
-        Shared broker accounts can expose other strategies' activity. Broker tags are
-        ground truth and must win over a wrongly attributed ``order.strategy`` so a
-        sole local subscriber never hedges off foreign fills (Titus STM/MOS bug).
+        Adapters must establish ownership before tracking broad account history.
+        Schwab does so at its account-sync boundary; display names alone cannot.
         """
         local_name = local_strategy_name or getattr(self, "_strategy_name", None) or ""
         if not local_name and hasattr(self, "_subscribers") and len(self._subscribers) == 1:
@@ -3436,24 +3563,15 @@ class Broker(ABC):
             # No local identity — cannot safely claim ownership.
             return False
 
+        tracked = self.get_tracked_order(getattr(order, "identifier", None), use_placeholders=True)
         tag = getattr(order, "tag", None)
-        if tag:
-            # Explicit tag always wins: foreign tags must never be claimed locally.
-            return self.strategy_tag_matches(tag, local_name)
-
-        order_strategy = getattr(order, "strategy", None) or ""
-        if order_strategy:
-            return self.strategy_tag_matches(order_strategy, local_name)
-
-        # Untagged with empty strategy: do not claim.
-        return False
+        if (tag and not self.strategy_tag_matches(tag, local_name)
+                and not getattr(tracked, "_local_order_ownership", False)):
+            return False
+        return tracked is not None and tracked.strategy == local_name
 
     def order_is_foreign_to_local_strategy(self, order, local_strategy_name: str | None = None) -> bool:
-        """True only when tag/strategy evidence shows the order belongs to someone else.
-
-        Absence of tag/strategy is not treated as foreign so untagged sole-subscriber
-        fills keep working; explicit foreign tags still block hedge delivery.
-        """
+        """Unknown account identities are not owned, even with a matching tag/name."""
         local_name = local_strategy_name or getattr(self, "_strategy_name", None) or ""
         if not local_name and hasattr(self, "_subscribers") and len(self._subscribers) == 1:
             only = self._subscribers[0]
@@ -3461,15 +3579,7 @@ class Broker(ABC):
         if not local_name:
             return False
 
-        tag = getattr(order, "tag", None)
-        if tag:
-            return not self.strategy_tag_matches(tag, local_name)
-
-        order_strategy = getattr(order, "strategy", None) or ""
-        if order_strategy:
-            return not self.strategy_tag_matches(order_strategy, local_name)
-
-        return False
+        return not self.order_belongs_to_local_strategy(order, local_name)
 
     def _resolve_subscriber(self, strategy_name):
         """Get subscriber by name, falling back to the sole registered subscriber when strategy_name is falsy."""
@@ -3487,6 +3597,9 @@ class Broker(ABC):
 
         payload = dict(order=order)
         subscriber = self._resolve_subscriber(order.strategy)
+        if subscriber and not self.IS_BACKTESTING_BROKER and self.order_is_foreign_to_local_strategy(order, subscriber.name):
+            self._record_foreign_callback()
+            return
         if subscriber:
             # PERF: Many strategies do not override `Strategy.on_new_order()` (base impl is `pass`).
             # Avoid enqueueing/processing a no-op event in high-churn backtests.
@@ -3509,6 +3622,9 @@ class Broker(ABC):
 
         payload = dict(order=order)
         subscriber = self._resolve_subscriber(order.strategy)
+        if subscriber and not self.IS_BACKTESTING_BROKER and self.order_is_foreign_to_local_strategy(order, subscriber.name):
+            self._record_foreign_callback()
+            return
         if subscriber:
             # PERF: Many strategies do not override `Strategy.on_canceled_order()` (base impl is `pass`).
             # Avoid enqueueing/processing a no-op event in high-churn backtests.
@@ -3542,6 +3658,7 @@ class Broker(ABC):
             and not self.IS_BACKTESTING_BROKER
             and self.order_is_foreign_to_local_strategy(order, getattr(subscriber, "name", None))
         ):
+            self._record_foreign_callback()
             if self.logger.isEnabledFor(20):
                 self.logger.info(
                     colored(
@@ -3553,6 +3670,7 @@ class Broker(ABC):
                 )
             return
         if subscriber:
+            self._record_fill_proof(order, quantity)
             subscriber.add_event(subscriber.PARTIALLY_FILLED_ORDER, payload)
         else:
             self.logger.error(colored(f"Subscriber {order.strategy} not found", color="red"))
@@ -3579,6 +3697,7 @@ class Broker(ABC):
             and not self.IS_BACKTESTING_BROKER
             and self.order_is_foreign_to_local_strategy(order, getattr(subscriber, "name", None))
         ):
+            self._record_foreign_callback()
             if self.logger.isEnabledFor(20):
                 self.logger.info(
                     colored(
@@ -3590,6 +3709,7 @@ class Broker(ABC):
                 )
             return
         if subscriber:
+            self._record_fill_proof(order, quantity)
             subscriber.add_event(subscriber.FILLED_ORDER, payload)
         else:
             self.logger.error(colored(f"Subscriber {order.strategy} not found", color="red"))

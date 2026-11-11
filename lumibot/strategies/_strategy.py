@@ -4910,6 +4910,29 @@ class _Strategy:
             return tuple(restored) if isinstance(saved, tuple) else restored
         return saved
 
+    def _checkpoint_order_ownership(self):
+        exporter = getattr(getattr(self, "broker", None), "export_order_state", None)
+        if callable(exporter):
+            state = exporter(self._name)
+            if isinstance(state, dict):
+                # Keep typed order internals separate from user-variable
+                # walkers and legacy dictionary/date coercion.
+                self.vars.set("_lumibot_order_state", _json_dumps(state))
+
+    def _restore_order_ownership(self):
+        state = self.vars.all().get("_lumibot_order_state")
+        restorer = getattr(getattr(self, "broker", None), "restore_order_state", None)
+        if state is not None and callable(restorer):
+            account_identity = getattr(self.broker, "_order_checkpoint_account_identity", lambda: None)()
+            if not getattr(self.broker, "order_ownership_id", None) or account_identity is None:
+                if not getattr(self, "_unbound_order_checkpoint_logged", False):
+                    self.logger.warning("Order checkpoint not restored automatically: no stable instance/account identity")
+                    self._unbound_order_checkpoint_logged = True
+                return
+            if isinstance(state, str):
+                state = _json_loads(state)
+            restorer(state, self._name)
+
     def _load_variables_from_scheduled_state_file(self):
         state_file = os.environ.get("LUMIBOT_SCHEDULED_STATE_FILE")
         if not state_file:
@@ -4940,6 +4963,7 @@ class _Strategy:
         for key, value in data.items():
             self.vars.set(key, value)
 
+        self._restore_order_ownership()
         self._last_backup_state = self._serialize_variables_for_backup(self.vars.all())
         self.logger.info("Variables loaded successfully from scheduled state file")
 
@@ -4979,6 +5003,7 @@ class _Strategy:
 
         if self._scheduled_state_enabled():
             try:
+                self._checkpoint_order_ownership()
                 self._backup_variables_to_scheduled_state_file()
             except Exception as e:
                 self.logger.error(f"Error backing up variables to scheduled state file: {e}", exc_info=True)
@@ -4987,6 +5012,7 @@ class _Strategy:
         if not hasattr(self, "db_connection_str") or self.db_connection_str is None or self.db_connection_str == "" or not self.should_backup_variables_to_database:
             return
 
+        self._checkpoint_order_ownership()
         # Ensure we have a self.db_engine
         if not hasattr(self, 'db_engine') or not self.db_engine:
             self.db_engine = create_engine(self.db_connection_str)
@@ -5145,6 +5171,7 @@ class _Strategy:
             for key, value in data.items():
                 self.vars.set(key, value)
     
+            self._restore_order_ownership()
             current_state = self._serialize_variables_for_backup(self.vars.all())
             self._last_backup_state = current_state
     

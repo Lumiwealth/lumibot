@@ -86,6 +86,15 @@ def test_nonexecution_activity_cannot_contribute_fill_quantity():
     assert Schwab._schwab_execution_summary(payload([row], filled=0))[0] == 0
 
 
+@pytest.mark.parametrize("duration,expected", [("DAY", "day"), ("GOOD_TILL_CANCEL", "gtc")])
+def test_parsed_order_keeps_the_duration_reported_by_schwab(duration, expected):
+    broker = Schwab.__new__(Schwab)
+    raw = payload([], quantity=1, status="NEW")
+    raw["duration"] = duration
+    order = broker._parse_broker_order(raw, "fixture")
+    assert order.time_in_force == expected
+
+
 @pytest.mark.parametrize("path", ["direct", "stream_wakeup"])
 @pytest.mark.parametrize("actual_filled", [0, 40, 100])
 def test_canceled_activity_uses_native_reconciliation_and_callback_queue(path, actual_filled):
@@ -155,3 +164,65 @@ def test_one_contract_executed_before_cancellation_delivers_a_full_fill():
     assert recipient.priority_queue.empty()
     assert order.is_filled()
 
+
+
+def test_direct_refresh_keeps_reported_duration_on_local_order():
+    broker, _ = _TRANSPORT.data_only_schwab_broker(_TRANSPORT.SchwabLifecycleTransport())
+    order = Order("synthetic-scanner", Asset("SYN"), 1, "buy", identifier="duration-order", time_in_force="gtc")
+    broker._unprocessed_orders.append(order)
+    observed = Order.from_dict(order.to_dict())
+    observed.time_in_force = "day"
+    observed.raw_broker_payload = {"duration": "DAY"}
+    observed.status = Order.OrderStatus.NEW
+    broker._apply_direct_order_observation(order, observed)
+    assert order.time_in_force == "day"
+
+
+def test_fill_proof_log_carries_quantity_and_actual_observation_source(caplog):
+    transport = _TRANSPORT.SchwabLifecycleTransport()
+    broker, _ = _TRANSPORT.data_only_schwab_broker(transport)
+    order = Order("fixture", Asset("SYN"), 100, "buy", order_type="limit", limit_price=10)
+    broker.submit_order(order)
+    _TRANSPORT.drain_stream_events(broker)
+    transport.queue_order_reads(order.identifier, {
+        "status": "CANCELED", "filledQuantity": 40,
+        "orderActivityCollection": [activity("FILL", 40, 10), activity("CANCELED", 60, 0)],
+    })
+    with caplog.at_level("INFO"):
+        broker._reconcile_active_schwab_orders()
+    proof = [r.message for r in caplog.records if "OrderFillProof" in r.message]
+    assert len(proof) == 1
+    for expected in ("event_quantity=40", "cumulative_quantity=40", "broker_filled_quantity=40", "source=rest_direct_order"):
+        assert expected in proof[0]
+    assert broker._get_order_health().snapshot()["fill_callbacks_enqueued"] == 1
+
+
+def test_diagnostic_consumer_failure_cannot_interrupt_fill_delivery():
+    transport = _TRANSPORT.SchwabLifecycleTransport()
+    broker, recipient = _TRANSPORT.data_only_schwab_broker(transport)
+    order = Order("fixture", Asset("SYN"), 1, "buy", order_type="limit", limit_price=10)
+    broker.submit_order(order)
+    _TRANSPORT.drain_stream_events(broker)
+    def broken(**kwargs):
+        raise RuntimeError("diagnostic output unavailable")
+    broker.on_order_observation = broken
+    transport.queue_order_reads(order.identifier, {"status": "FILLED", "filledQuantity": 1, "averagePrice": 10})
+    broker._reconcile_active_schwab_orders()
+    assert recipient.priority_queue.get_nowait()[0] == broker.FILLED_ORDER
+
+
+def test_broker_counter_disagreement_is_visible_and_does_not_drop_real_execution(caplog):
+    transport = _TRANSPORT.SchwabLifecycleTransport()
+    broker, recipient = _TRANSPORT.data_only_schwab_broker(transport)
+    order = Order("fixture", Asset("SYN"), 100, "buy", order_type="limit", limit_price=10)
+    broker.submit_order(order)
+    _TRANSPORT.drain_stream_events(broker)
+    transport.queue_order_reads(order.identifier, {
+        "status": "CANCELED", "filledQuantity": 0,
+        "orderActivityCollection": [activity("FILL", 40, 10), activity("CANCELED", 60, 0)],
+    })
+    with caplog.at_level("WARNING"):
+        broker._reconcile_active_schwab_orders()
+    assert sum(t.quantity for t in order.transactions) == 40
+    assert recipient.priority_queue.get_nowait()[1]["quantity"] == 40
+    assert broker._get_order_health().snapshot()["contradictions"] == {"canceled_zero_broker_filled_with_execution": 1}

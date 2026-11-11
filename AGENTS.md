@@ -1,3 +1,10 @@
+# Generic bug fixes and release authority (2026-11-11)
+
+- A generic LumiBot bug fix needs no further approval when a failing test reproduces the bug and the fix adds no new behavior. Fix it, test it, publish it, and report what broke, what changed and the test name.
+- Ask first, in five plain lines, for a new feature, changed default, new tool or any change to existing strategy behavior: the observed failure, proposed change, other beneficiaries, risk and tests.
+- The assigned release captain merges the release PR as admin through the runbook tool, publishes LumiBot, updates Bot Manager and verifies the installed version. Do not wait for another approval or a human merge when the release contains only bug fixes and previously approved changes.
+- This section supersedes older core-change and per-release approval requirements below. Public-library boundaries, focused qualification, cost controls, customer safety and the fixed six-hour backtest limit remain intact.
+
 # Keep entry pages and translations synchronized
 
 - When changing the README or documentation homepage, update every shipped localized counterpart in the same commit. This includes shared positioning, benefits, examples, setup commands, prerequisites, capability claims and destination links. Do not leave a language on an older setup story.
@@ -23,7 +30,7 @@
 # LumiBot is the platform: never put strategy-specific code in it (Rob, 2026-10-17, ABSOLUTE)
 
 - LumiBot is one generic platform for every strategy. Never add strategy-, person-, company- or website-specific logic, text, tools, skills, prompts, eval fixtures or branches to LumiBot core (for example "House Clerk", "Pelosi", or one site's filing format). Strategy-specific knowledge lives only in that strategy's own prompts.
-- Improve LumiBot only with generic capabilities. A generic bug fix needs no approval when a failing test shows the bug and it adds no new behavior. Make it, land it, and tell Rob what broke, what changed and the test name. Ask first for a feature, changed default, new tool or change to existing strategy behavior. The release captain ships bug fixes and already approved changes through `docs/DEPLOYMENT.md` without another approval or asking Rob to merge.
+- Improve LumiBot only with generic capabilities that help every strategy: browser use, file downloads, ZIP, PDF and CSV reading, API calls, and look-ahead safety that works for any source. Generic bug fixes with failing regression tests and no new behavior need no further approval. New features, changed defaults, new tools and changed strategy behavior require approval as described above. The assigned captain carries approved changes and bug fixes through the release runbook.
 - AI strategy examples (LumiBot `example_strategies` and BotSpot AI strategies) use AI and AI only: exactly one agent dedicated to trading, plus any number of research or planning agents, all called every iteration. The Ray Dalio and Citadel examples are the reference pattern; do not change them. Agents hand work to each other only through their answers, and `self.vars` may carry an agent's last answer forward so it does not redo old work. No Python in between that fetches or parses data, filters filings, computes weights, or skips agents with if statements. The whole point is to show how simple LumiBot makes it: agents research, one agent trades.
 - Let the agent find its own way: browse, download, read. A short hint about where to look may go in the prompt. Parsing or availability code may not.
 - If a platform behavior blocks a simple example, report the evidence to Rob and propose a generic platform fix. Never work around it with strategy Python or a strategy-specific platform change.
@@ -80,6 +87,7 @@ machine-specific information in this file or any other tracked repo file.
 - If sensitive data is found in tracked files, remove it immediately, scan for
   nearby leaks, and treat exposed credentials as needing rotation.
 
+<<<<<<< HEAD
 # Generic LumiBot bug fixes proceed without another approval (Rob, 2026-11-11)
 
 - A failing regression, generic scope and no new behavior authorize a bug fix. Fix the layer that owns it; report the change and named proof after landing.
@@ -87,6 +95,14 @@ machine-specific information in this file or any other tracked repo file.
 - When a strategy owned by Rob calls a nonexistent or hallucinated method, fix the owned strategy through the authenticated BotSpot MCP server. Never add the invented method to LumiBot merely to make that strategy run.
 - Never edit another customer's strategy or account as an alternative. Rob-owned strategies may be edited only through the owner-scoped regular, development, or local BotSpot MCP server that Rob selected for the task.
 - This permits demonstrated generic repairs, not speculative shims or customer workarounds. Public/private boundaries and the fixed six-hour backtest limit remain unchanged.
+=======
+# Scope and authority for LumiBot changes
+
+- Generic bug fixes follow the standing regression-first authority above. New features, defaults, tools and changes to existing strategy behavior need explicit approval; incident urgency does not supply it.
+- Fix a hallucinated strategy method in the owned strategy, rather than inventing a compatibility method in LumiBot. Generic platform defects belong in the platform and use neutral regression tests.
+- Never edit another customer's strategy or account as an alternative. Preserve authenticated ownership and the task's selected regular, development or local workflow.
+- Do not add speculative shims or fallback behavior. The assigned release captain owns publication and installed-version verification through `docs/DEPLOYMENT.md`.
+>>>>>>> origin/dev
 
 # BotSpot integration release qualification
 
@@ -186,12 +202,20 @@ This repo is frequently edited by **multiple AI sessions**. To avoid lost work:
     version-branch release PR may be managed by a separately authorized release
     captain; pushing normal commits to the shared branch does not make the
     coding agent the PR or release owner.
+<<<<<<< HEAD
   - **The release captain ships bug fixes and already approved changes.**
     Read `docs/DEPLOYMENT.md`, merge as admin through its maintained merge tool,
     publish, update Bot Manager and confirm the installed version. Do not ask
     Rob to approve again or merge. Preserve one captain and one open release;
     changes after its cutoff go to the next version. This does not make an
     ordinary contributor captain or authorize a competing release.
+=======
+  - **The assigned release captain ships bug fixes and already approved changes.**
+    Follow `docs/DEPLOYMENT.md`, merge through its admin merge tool after the
+    release checks pass, publish, update Bot Manager and verify its installed
+    version. No further human approval or merge click is required. A new feature,
+    changed default, new tool or changed strategy behavior still needs approval.
+>>>>>>> origin/dev
   - **Never push directly to `dev`.** An explicitly authorized release captain
     later moves version-branch work to `dev` through the approved release flow.
     Ordinary coding agents stop after their version-branch commits and tests.

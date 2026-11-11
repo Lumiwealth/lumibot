@@ -391,6 +391,8 @@ def _unchanged_establishment_cases(source_ref, cases):
 
 def _committed_establishment(source_ref, cases, *, versions, now):
     """Read already reviewed native proof, never an editable working receipt."""
+    if not cases:
+        return {}
     from scripts import agent_eval_source_compatibility as source
 
     path = "ci/agent-evals/qualification.json"
@@ -398,8 +400,7 @@ def _committed_establishment(source_ref, cases, *, versions, now):
         return {}
     receipt = json.loads(source._git("show", f"HEAD:{path}", root=evals.REPO_ROOT))
     if (receipt.get("kind") != KIND or receipt.get("version") not in {2, VERSION}
-            or receipt.get("funding") != "chatgpt-plan" or receipt.get("api_spend_usd") != 0
-            or receipt.get("sdk_versions") != versions):
+            or receipt.get("funding") != "chatgpt-plan" or receipt.get("api_spend_usd") != 0):
         return {}
     proof = receipt.get("establishment")
     if isinstance(proof, dict) and "sources" in proof:
@@ -422,6 +423,10 @@ def _committed_establishment(source_ref, cases, *, versions, now):
         proof = {"source_commit": source_ref, "runtime_fingerprint": runtime_hash, "cases": records}
         validate_establishment(proof, cases, versions=versions, now=now)
         return records
+    if receipt.get("sdk_versions") != versions:
+        # Retained proof for another SDK grants no shortcut; fresh native
+        # trials may still establish this release's own complete stability.
+        return {}
     by_id = {case["id"]: case for case in _unchanged_establishment_cases(source_ref, cases)}
     eligible = set(by_id)
     proof = {**proof, "cases": {identity: record for identity, record in proof["cases"].items()

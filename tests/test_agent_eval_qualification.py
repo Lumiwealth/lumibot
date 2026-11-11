@@ -183,6 +183,8 @@ def test_established_cases_keep_original_evidence_and_require_a_current_regressi
     rows, calls, cases, versions, now = deepcopy(native_metadata)
     monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")
     monkeypatch.setattr(qualification, "_unchanged_establishment_cases", lambda ref, cases: cases)
+    # This unit fixture has a synthetic source, not published Git evidence.
+    monkeypatch.setattr(qualification, "_committed_establishment", lambda *args, **kwargs: {})
     proof = qualification.build_establishment(rows, calls, cases, source_ref="a" * 40, versions=versions, now=now)
     assert proof["cases"]["contract"]["repetitions"][0]["run_id"] == rows[0]["run_id"]
     assert qualification.regression_required(cases[0], proof, [], "new-source") == 1

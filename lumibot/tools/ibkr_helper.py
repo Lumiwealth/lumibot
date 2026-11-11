@@ -2210,6 +2210,15 @@ def _fetch_history_between_dates(
 
     cursor_end = _to_utc(end_dt)
     start_dt = _to_utc(start_dt)
+    # A walk that ends in closed time (usually midnight New York, the end of a backtest or
+    # prefetch window) starts its first page at the last session close instead. Only closed
+    # time lies between them, so the bars are the same, but a first page ending at midnight
+    # reached back only to about 07:20 and split the last session over two pages.
+    first_page_close = _previous_equity_session_close_before(
+        asset_type=asset_type, bar=bar, earliest=cursor_end, include_after_hours=include_after_hours,
+    )
+    if first_page_close is not None and start_dt < first_page_close < cursor_end:
+        cursor_end = first_page_close
     chunks: list[pd.DataFrame] = []
     closed_pages_skipped = 0
     futures_empty_open_pages = 0

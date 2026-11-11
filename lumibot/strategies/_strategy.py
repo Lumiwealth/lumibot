@@ -2682,7 +2682,7 @@ class _Strategy:
                 df = bars.df
 
                 # Add returns column
-                if hasattr(df, 'select'):  # Polars DataFrame
+                if isinstance(df, pl.DataFrame):  # Polars DataFrame
                     df = df.with_columns(pl.col("close").pct_change().alias("return"))
                     # Add the symbol_cumprod column for polars
                     df = df.with_columns((1 + pl.col("return")).cum_prod().alias("symbol_cumprod"))
@@ -2991,7 +2991,7 @@ class _Strategy:
                         self._benchmark_returns_df = None
                     return
                 df = df.loc[self._backtesting_start:self._backtesting_end].copy()
-                if hasattr(df, 'select'):  # Polars DataFrame
+                if isinstance(df, pl.DataFrame):  # Polars DataFrame
                     df = df.with_columns(pl.col("close").pct_change().alias("return"))
                     df = df.with_columns((1 + pl.col("return")).cumprod().alias("symbol_cumprod"))
                 else:  # Pandas DataFrame

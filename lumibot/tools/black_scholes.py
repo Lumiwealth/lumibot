@@ -86,6 +86,80 @@ def _implied_volatility_bs(args, callPrice=None, putPrice=None, high=500.0, low=
     return mid
 
 
+def implied_volatility_bs_many(underlying, strike, rate_pct, days, price, is_call, high=500.0, low=0.0):
+    """``_implied_volatility_bs`` for many options at once, with bit-identical results.
+
+    Each element runs the same bisection as the scalar solver: the same early exits, the same
+    arithmetic in the same order (``log``, ``e ** x``, ``x ** 0.5`` and ``ndtr`` evaluate the
+    same way on arrays here), the same rounding test and the same "mid stopped moving" stop.
+    Elements finish independently. A price whose text has no decimal point (for example
+    ``1e-05``) makes the scalar solver raise; those come back as NaN so the caller can use the
+    scalar path and its error. Returns a float numpy array.
+    """
+    und = np.asarray(underlying, dtype=float)
+    k = np.asarray(strike, dtype=float)
+    rate = np.asarray(rate_pct, dtype=float) / 100
+    years = np.asarray(days, dtype=float) / 365
+    target = np.asarray(price, dtype=float)
+    calls = np.asarray(is_call, dtype=bool)
+    n = len(und)
+    out = np.full(n, np.nan)
+    hi = np.full(n, float(high))
+    lo = np.full(n, float(low))
+    sqrt_years = years**0.5
+    with np.errstate(divide="ignore", invalid="ignore"):
+        log_s_k = np.log(und / k)
+    discount = np.power(e, -rate * years)
+
+    def priced(volatility_pct):
+        vol = volatility_pct / 100
+        a = vol * sqrt_years
+        with np.errstate(divide="ignore", invalid="ignore"):
+            d1 = (log_s_k + (rate + (vol**2) / 2) * years) / a
+        d1 = np.where(a == 0, 0.0, d1)
+        d2 = d1 - a
+        call = und * ndtr(d1) - k * discount * ndtr(d2)
+        put = k * discount * ndtr(-d2) - und * ndtr(-d1)
+        return np.where(calls, call, put)
+
+    texts = [str(float(t)) for t in target]
+    unparsable = np.array(["." not in t for t in texts], dtype=bool)
+    decimals = np.array([len(t.split(".")[1]) if "." in t else 0 for t in texts])
+    done = unparsable.copy()
+    capped = ~done & (priced(hi) < target)
+    out[capped] = high
+    done |= capped
+    deep = ~done & np.where(calls, und > k + target, k > und + target)
+    out[deep] = 0.001
+    done |= deep
+    active = ~done
+    groups = np.unique(decimals[active]) if active.any() else []
+    previous = np.full(n, np.nan)
+    mid = np.full(n, np.nan)
+    for _ in range(10000):  # same cap as the scalar loop
+        if not active.any():
+            break
+        m = (hi + lo) / 2
+        m = np.where(m < 0.00001, 0.00001, m)
+        stopped = active & (m == previous)
+        active &= ~stopped
+        previous = np.where(active, m, previous)
+        mid = np.where(active, m, mid)
+        estimate = priced(np.where(active, m, 1.0))
+        rounded = np.empty(n)
+        for places in groups:
+            chosen = decimals == places
+            rounded[chosen] = np.round(estimate[chosen], places)
+        hit = active & (rounded == target)
+        mid = np.where(hit, m, mid)
+        active &= ~hit
+        hi = np.where(active & (estimate > target), m, hi)
+        lo = np.where(active & (estimate < target), m, lo)
+    finished = ~unparsable & ~capped & ~deep
+    out[finished] = mid[finished]
+    return out
+
+
 def impliedVolatility(className, args, callPrice=None, putPrice=None, high=500.0, low=0.0):
     """Returns the estimated implied volatility"""
     if className == "BS" and ndtr is not None:

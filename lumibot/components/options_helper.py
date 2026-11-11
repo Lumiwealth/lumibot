@@ -808,6 +808,8 @@ class OptionsHelper:
         if not strikes:
             return rows
         self._prefetch_option_contracts(underlying_asset, expiry, right, strikes)
+        self._reset_per_bar_caches_if_needed()
+        entries = []
         for strike in strikes:
             option = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry, strike=strike,
                            right=right, underlying_asset=underlying_asset)
@@ -818,6 +820,10 @@ class OptionsHelper:
                     price = float(last) if last is not None and math.isfinite(float(last)) and float(last) > 0 else None
                 except Exception:
                     price = None
+            entries.append((strike, option, price, bid, ask))
+        if underlying_price is not None:
+            self._batch_greeks_for_snapshot(entries, float(underlying_price))
+        for strike, option, price, bid, ask in entries:
             iv = delta = None
             if price is not None and underlying_price is not None:
                 delta = self.get_delta_for_strike(underlying_asset, underlying_price, strike, expiry, right)
@@ -827,6 +833,43 @@ class OptionsHelper:
             rows.append({"strike": strike, "price": price, "bid": bid, "ask": ask,
                          "implied_volatility": iv, "delta": delta})
         return rows
+
+    def _batch_greeks_for_snapshot(self, entries, underlying_price: float) -> None:
+        """Fill the per-bar greeks cache for many strikes in one array pass, when it is exact.
+
+        Only when the strategy and broker use the standard greeks path (backtesting broker,
+        ``Strategy.get_greeks`` -> ``Broker.get_greeks`` -> ``DataSource.calculate_greeks``):
+        ``calculate_greeks_many`` then returns exactly what those calls return, so
+        ``get_delta_for_strike`` reads the same numbers it would compute. Anything else
+        (live brokers that may query greeks, custom ``get_greeks``) keeps the one-by-one path.
+        """
+        from lumibot.brokers.broker import Broker
+        from lumibot.strategies.strategy import Strategy
+
+        broker = getattr(self.strategy, "broker", None)
+        source = getattr(broker, "data_source", None)
+        many = getattr(source, "calculate_greeks_many", None)
+        if (
+            not callable(many)
+            or not getattr(broker, "IS_BACKTESTING_BROKER", False)
+            or getattr(type(self.strategy), "get_greeks", None) is not Strategy.get_greeks
+            or getattr(type(broker), "get_greeks", None) is not Broker.get_greeks
+        ):
+            return
+        todo = [(option, price) for _strike, option, price, _bid, _ask in entries
+                if price is not None
+                and (option, underlying_price) not in self._per_bar_delta_cache
+                and (option, underlying_price, price) not in self._per_bar_greeks_cache]
+        if not todo:
+            return
+        try:
+            rate = self.strategy.risk_free_rate
+            greeks = many([o for o, _p in todo], [p for _o, p in todo], underlying_price, rate)
+        except Exception as exc:  # one-by-one path below still runs and reports its own errors
+            logger.debug("Batched greeks unavailable; computing one strike at a time: %s", exc)
+            return
+        for (option, price), result in zip(todo, greeks):
+            self._per_bar_greeks_cache[(option, underlying_price, price)] = result
 
     def get_strike_deltas(self, underlying_asset: Asset, expiry: date, strikes: List[float],
                           right: str, stop_greater_than: Optional[float] = None,

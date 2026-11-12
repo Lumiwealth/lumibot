@@ -54,6 +54,10 @@ def test_recorded_option_fill_reaches_owned_callback_once(monkeypatch):
     broker.stream = broker._get_stream_object()
     broker._register_stream_events()
     order = broker._parse_broker_order(response, "neutral")
+    # Parsing metadata precedes processing executions. Empty transaction rows
+    # here do not mean the provider reported a zero fill.
+    assert float(response.filled_qty) == 1 and order.is_filled()
+    assert order.transactions == []
     order.status = "new"
     broker._process_new_order(order)
     for _ in range(2):

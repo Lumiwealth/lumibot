@@ -4,6 +4,12 @@
 
 ### Fixed
 - Polygon cached US stock, option and index coverage uses the New York trading date. Previous-evening rows after midnight UTC no longer suppress downloading the next session. Confirmed-empty dates remain checked, so unavailable sessions are not requested repeatedly. Crypto, forex and legacy cache-writer callers retain their existing date convention.
+- Existing portfolio Greek aggregation accepts a single exact option position. Signed contract totals and multiplier-adjusted exposure stay separately labeled; existing multi-leg calculations are unchanged.
+- Shared options guidance completes policy-required profit/loss monitoring in the review that confirms actual fills. Acknowledgements do not establish a cash basis, and a later routine review does not cover an absent required condition.
+- Retain recovered native model proof against its already-qualified immutable source after author-reviewed non-model changes. Qualification summaries count the exported scope rather than the entire catalog. Focused Git-source controls preserve actor-input rejection without requiring fresh inference for logging changes.
+
+### Examples
+- The configurable AI wheel example is 94 Python lines with one researcher, a sole trader and shared attention monitoring. Its Rules specify cash-secured puts, covered calls, calendar expirations, gross-premium review and sparse expiry management. Source documentation separates local diagnostics, controlled settlement, hosted funding and broker execution.
 
 ## 4.6.54 - 2026-11-11
 

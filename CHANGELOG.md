@@ -5,6 +5,12 @@
 ### Release evidence
 - Verify separately published native qualification with its explicit receipt and case scope. Retain the original inference source and original receipt publication as distinct immutable commits; both digests and the reviewed candidate remain checked. This adds no model calls or trading changes.
 
+### Fixed
+- Preserve dividend and stock-split event timestamps when Pandas and Polars backtest data are aligned to a shared index. Inserted rows carry zero actions instead of repeating a prior event.
+- Warn once per data object when alignment omits nonzero dividends or splits inside the retained time window.
+- Reuse complete preloaded dividends in minute backtests and in daily data without split columns; future ex-dates are not lost when the first lookup builds its cache.
+- Attaching observation provenance leaves the caller's original DataFrame unchanged.
+
 ## 4.6.53 - 2026-11-11
 
 Deploy marker: a50c93e74f33bc994ca662744a76b7f49d1e1e01

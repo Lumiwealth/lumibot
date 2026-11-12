@@ -486,18 +486,26 @@ def test_complete_loaded_frame_proves_no_splits_only_with_action_column(monkeypa
     assert result[asset] == (0 if has_split_column else 2)
 
 
-def test_preloaded_future_dividend_is_paid_on_ex_date_without_history_fetch(monkeypatch):
+@pytest.mark.parametrize("timestep", ["day", "minute"])
+@pytest.mark.parametrize("include_split_column", [True, False])
+def test_preloaded_future_dividend_is_paid_on_ex_date_without_history_fetch(
+    monkeypatch, timestep, include_split_column
+):
     _, broker, asset = _strategy_with_position(1)
     source = broker.data_source
     dates = pd.DatetimeIndex([source.datetime_start, source._datetime, source.datetime_end])
-    frame = pd.DataFrame({"close": [100., 100., 100.], "dividend": [0., .75, 0.],
-                          "stock_splits": 0.}, index=dates)
-    monkeypatch.setattr(source, "_get_backtest_daily_corporate_action_frame", lambda *a, **k: frame)
+    frame = pd.DataFrame({"close": [100., 100., 100.], "dividend": [0., .75, 0.]}, index=dates)
+    if include_split_column:
+        frame["stock_splits"] = 0.
+    quote = Asset("USD", Asset.AssetType.FOREX)
+    source._data_store = {(asset, quote): Data(asset, frame, timestep=timestep, quote=quote)}
     monkeypatch.setattr(source, "get_bars", lambda *a, **k: pytest.fail("Complete actions must reuse loaded data"))
     source._datetime = source.datetime_start
     assert source.get_yesterday_dividends([asset])[asset] == 0
     source._datetime = dates[1].to_pydatetime()
     assert source.get_yesterday_dividends([asset])[asset] == .75
+    source._datetime = source.datetime_end
+    assert source.get_yesterday_dividends([asset])[asset] == 0
 
 
 def _pending_split_order(strategy, broker, asset, kind="limit", *, carried=True, side="buy"):

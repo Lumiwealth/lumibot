@@ -562,12 +562,13 @@ class Data:
         if self.timestep != "day":
             source_times = pd.Series(self.df.index, index=self.df.index)
             previous_times = self.df.get("bar_timestamp", source_times)
-            self.df["bar_timestamp"] = previous_times.fillna(source_times.where(observed))
+            source_bar_times = previous_times.fillna(source_times.where(observed))
         _warn_off_grid_actions(self, self.df, idx)
 
         # Reindex the DataFrame with the new index and forward-fill missing values.
         df = self.df.reindex(idx, method="ffill")
         if self.timestep != "day":
+            df["bar_timestamp"] = source_bar_times.reindex(idx, method="ffill")
             df["bar_is_observed"] = observed.reindex(idx, fill_value=False)
 
         # Check if we have a volume column, if not then add it and fill with 0 or NaN.

@@ -2,6 +2,8 @@
 
 ## 4.6.53 - 2026-11-11
 
+Deploy marker: a50c93e74f33bc994ca662744a76b7f49d1e1e01
+
 ### Backtesting and history
 - Preserve original intraday trade timestamps through calendar alignment. Padded OHLC rows remain usable for marking but cannot create simulated fills; actual later observations and genuine bid/ask execution remain supported.
 - Financial summaries retain trading costs and cash flows when several account snapshots share one timestamp. Returns compound in event order, the latest account snapshot survives consolidation, and drawdown includes losses from initial capital.

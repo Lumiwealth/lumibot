@@ -4925,15 +4925,22 @@ class _Strategy:
         state = self.vars.all().get("_lumibot_order_state")
         restorer = getattr(getattr(self, "broker", None), "restore_order_state", None)
         if state is not None and callable(restorer):
+            # The checkpoint lives in this strategy's own variable backup. Without a
+            # launcher-set order_ownership_id it is restored when broker, account and strategy
+            # name match (a plain restart). With an id, the id must match too. Two running
+            # instances with the same name sharing one variable store are not supported.
             account_identity = getattr(self.broker, "_order_checkpoint_account_identity", lambda: None)()
-            if not getattr(self.broker, "order_ownership_id", None) or account_identity is None:
+            if account_identity is None:
                 if not getattr(self, "_unbound_order_checkpoint_logged", False):
-                    self.logger.warning("Order checkpoint not restored automatically: no stable instance/account identity")
+                    self.logger.warning("Order checkpoint not restored automatically: no stable account identity")
                     self._unbound_order_checkpoint_logged = True
                 return
             if isinstance(state, str):
                 state = _json_loads(state)
-            restorer(state, self._name)
+            try:
+                restorer(state, self._name)
+            except ValueError as exc:
+                self.logger.warning("Order checkpoint not restored: %s", exc)
 
     def _load_variables_from_scheduled_state_file(self):
         state_file = os.environ.get("LUMIBOT_SCHEDULED_STATE_FILE")

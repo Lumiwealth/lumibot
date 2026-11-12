@@ -3219,6 +3219,11 @@ class BacktestingBroker(Broker):
                         continue
 
                     dt = df.index[0]
+                    if "bar_is_observed" in df and not bool(df["bar_is_observed"].iloc[0]):
+                        self._handle_unavailable_execution_data(
+                            order, "selected execution row is calendar padding, not an observed bar", strategy=strategy
+                        )
+                        continue
                     if self._requires_current_execution_bar(order, str(timestep), data_source_name):
                         if not self._execution_bar_matches_datetime(dt, self.datetime, str(timestep)):
                             if self._defer_market_order_with_unavailable_execution_data(

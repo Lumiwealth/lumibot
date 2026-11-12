@@ -3,6 +3,7 @@
 ## 4.6.53 - Unreleased
 
 ### Backtesting and history
+- Preserve original intraday trade timestamps through calendar alignment. Padded OHLC rows remain usable for marking but cannot create simulated fills; actual later observations and genuine bid/ask execution remain supported.
 - Financial summaries retain trading costs and cash flows when several account snapshots share one timestamp. Returns compound in event order, the latest account snapshot survives consolidation, and drawdown includes losses from initial capital.
 - Preserve the frequency of user-supplied bars when a daily strategy initializes. Minute observations remain minute observations, so a daily strategy runs once per session instead of once per loaded minute. Explicit provider cadence policies remain unchanged.
 - Crypto backtests on public CCXT exchange candles reuse bars across runs through the shared bar cache (local file plus S3), keyed by exchange, symbol and bar size. Later runs fetch only ranges not yet cached; a repeat of a 3-day Coinbase BTC/USD minute window made 0 exchange requests instead of 15. Still-forming bars are never stored. With `LUMIBOT_SHARED_BARS=false` the local DuckDB cache is used as before.
@@ -11,14 +12,22 @@
 - A profiled backtest's yappi export folds all threads into one row per function and keeps the top 5,000 by total time, so the export no longer grows memory with every thread (160 MB to 2 MB on a 16-thread profile).
 - Outside regular option hours, portfolio valuation reports positions valued at their last real mark in one warning per session instead of one per contract. Valuation only: no bar, trade or fill is created.
 - Split oversized multi-asset history chunks across the data source's existing worker pool. Honor each call's lower worker limit with bounded submission, preserving per-asset results, quote identity and request pacing.
+- Polygon history downloads skip chunks whose dates are all already cached, so warm reruns make far fewer requests (17 to 4 in the regression test).
 
 ### Added
 - Live fill diagnostics include event quantity, cumulative quantity, the broker's reported filled count and the actual observation source. Contradictory counts, unowned callback attempts and feed loss with open orders produce warnings without suppressing trading. Existing runtime telemetry includes a bounded live-order health summary and emits a final summary on cleanup; unmeasured full-basket, hedge and cancellation-deadline fields remain explicitly unknown.
+- Live runs log one `[OrderFillProof]` INFO line per fill, `[OrderContradiction]` warnings for contradictory broker counts and an `[OrderRunHealth]` summary at shutdown.
 - A generic `Broker.on_order_observation` application hook exposes broker evidence without adding storage, credentials or infrastructure to the public library. Schwab invokes it on real REST observations; consumer failures do not stop order processing.
 
 ### Fixed
 - Schwab account-wide order reads no longer import another instance's or a manual order into local strategy state merely because its display name or tag matches. Submitted orders, explicitly checkpointed recovery and children of verified parent orders retain ownership, including arbitrary user order tags. Automatic recovery requires a bound instance and account identity. Normal variable backups preserve those order identities and already delivered fills, without replaying historical fill callbacks. Broad account inspection remains available.
+- Polygon backtests no longer hand placeholder rows (dates the provider had no data for) to the strategy as real bars when every requested date is already cached.
+- A failure while recording Schwab cancel timing no longer hides the broker's actual cancel result or error.
 - Live order callbacks require a locally tracked identity. Schwab order reads preserve returned DAY/GTC/open/close duration metadata instead of replacing it with a default; explicit order durations and other brokers' account-history recovery remain supported.
+
+### Changed
+- Live order checkpoints are saved in strategy variables under `_lumibot_order_state`. After a restart they are restored automatically only when the application sets a stable `broker.order_ownership_id`; otherwise a warning is logged and orders open before the restart are not tracked again (before, Schwab re-tracked its own tagged open orders by name). Schwab accounts configured only by account hash use that hash for checkpoints. See docs/ORDER_OBSERVATIONS.md.
+- Contributor instructions: committed merge-conflict markers removed from AGENTS.md.
 
 ## 4.6.52 - 2026-11-11
 

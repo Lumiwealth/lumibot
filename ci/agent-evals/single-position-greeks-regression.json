@@ -1,0 +1,21 @@
+{
+  "kind": "local code contracts",
+  "genericBug": "One-position portfolio Greeks rejected by a two-leg parser minimum",
+  "preFixEvidence": "Both signed one-position regressions rejected a valid native aggregation request; four order-description tests found the competing 600\u20132,500 recommendation.",
+  "focusedTests": [
+    "tests/test_agent_options_builtins.py::test_single_leg_position_greeks_label_both_unscaled_and_underlying_equivalents",
+    "tests/test_agent_options_builtins.py::test_order_explanation_help_matches_the_existing_concise_skill",
+    "tests/test_agent_options_builtins.py::test_profit_read_accepts_one_short_option_without_a_second_leg",
+    "tests/test_agent_package_greeks.py::test_existing_greek_tool_accepts_exact_packages_and_labels_units",
+    "tests/test_agent_package_greeks.py::test_existing_helper_preserves_legacy_units_and_reports_actual_multipliers"
+  ],
+  "checksPassed": 11,
+  "seconds": 4.05,
+  "newModelAttempts": 0,
+  "systemPromptDeltaBytes": 0,
+  "skillDeltaBytes": 0,
+  "toolHelpChange": "Clarifies already computed units and existing concise explanation guidance; unknown opening basis is not an invented zero.",
+  "apiCostPerRunUsd": 0,
+  "addedMonthlyApiCostUsd": 0,
+  "publicBoundary": "Generic portfolio read wrapper, tool help, neutral code regressions and source-bound qualification metadata only. No customer or strategy policy, credentials, security or infrastructure implementation."
+}

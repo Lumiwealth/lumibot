@@ -1958,7 +1958,7 @@ def _bind_options_get_greeks(strategy: Any, manager: Any) -> BoundTool:
 
             if option_price is not None:
                 raise ValueError("option_price describes one contract; omit it for package Greeks or query contracts individually.")
-            orders = _parse_option_legs(strategy, legs_json)
+            orders = _parse_option_legs(strategy, legs_json, minimum_legs=1)
             raw_legs = json.loads(legs_json)
             groups, indices = {}, {}
             for index, (order, raw) in enumerate(zip(orders, raw_legs)):
@@ -2011,7 +2011,7 @@ def _bind_options_get_greeks(strategy: Any, manager: Any) -> BoundTool:
             "Get Greeks for one exact listed option contract or an exact agent-selected package. "
             "Arguments: symbol, expiration, strike, right, and optional underlying_price, option_price, risk_free_rate, query_greeks. "
             "Use the exact expiration and strike returned by options_get_chain/options_get_strikes. The result proves Greeks only for the exact strike and right named in the result. Never transfer or reuse that delta for a neighboring strike. A null greeks result means the data source cannot value that contract at the current runtime datetime. "
-            "For a package, pass legs_json with the same exact identities, quantities and buy/sell sides used for pricing. legs_json is one JSON array only, ending at its closing bracket; query_greeks, underlying_price and other options are separate tool arguments, never text appended after that array. If this read rejects malformed arguments, correct them and retry the read before finishing; an argument error is not missing market data. This reads all leg Greeks in one tool call and uses OptionsHelper.aggregate_portfolio_greeks for signed totals. The returned legs retain raw Greeks, signed contract quantity and per-contract multiplier; underlying_quantity applies that multiplier once. greeks contains contract-weighted totals; underlying_equivalent_greeks additionally applies each actual multiplier. Unknown fields stay null with complete=false; partial data is not a verified zero. Do not describe a currently offset net Greek as nonzero merely because that risk is common to the structure. Use optional underlying_asset_type, or each leg's underlying_asset_type, for non-stock underlyings. The tool selects no contracts, quantities, risk policy or orders. "
+            "The single-contract form returns raw long-option Greeks, without held quantity or multiplier scaling. For position-sized risk, use legs_json even for one option: its signed quantity and actual multiplier are applied in the separately labeled totals. For stock/ETF options, share-equivalent delta is AFTER applying the multiplier; do not label that value as unscaled or multiply it twice. For a package, pass legs_json with the same exact identities, quantities and buy/sell sides used for pricing. legs_json is one JSON array only, ending at its closing bracket; query_greeks, underlying_price and other options are separate tool arguments, never text appended after that array. If this read rejects malformed arguments, correct them and retry the read before finishing; an argument error is not missing market data. This reads all leg Greeks in one tool call and uses OptionsHelper.aggregate_portfolio_greeks for signed totals. The returned legs retain raw Greeks, signed contract quantity and per-contract multiplier; underlying_quantity applies that multiplier once. greeks contains contract-weighted totals; underlying_equivalent_greeks additionally applies each actual multiplier. Unknown fields stay null with complete=false; partial data is not a verified zero. Do not describe a currently offset net Greek as nonzero merely because that risk is common to the structure. Use optional underlying_asset_type, or each leg's underlying_asset_type, for non-stock underlyings. The tool selects no contracts, quantities, risk policy or orders. "
             "Example: options_get_greeks(symbol='SPY', expiration='2026-09-18', strike=650, right='call')."
         ),
         function=get_greeks,
@@ -2382,7 +2382,7 @@ def _bind_options_check_spread_profit(strategy: Any, manager: Any) -> BoundTool:
             "Arguments: legs_json, initial_cost, optional contract_multiplier override (otherwise each asset multiplier). "
             "Use the original long/short exposure directions and remaining quantities, not opposite closing directions. legs_json must be a JSON array of exact contracts with symbol, expiration, strike, right, quantity, and side. "
             "Quantity is positive: side='sell_to_open', quantity=1 describes one held short contract. Unlike attention basket legs, this order-shaped input never uses a negative quantity. "
-            "For opening-cost accounting, use a positive initial_cost for a net debit paid and a negative initial_cost "
+            "This percentage requires a known, nonzero opening cash basis. If inherited fills or opening cash are unknown, report percentage P&L as unavailable; do not supply an invented zero. Manage from verified current holdings, quotes and obligations instead. For opening-cost accounting, use a positive initial_cost for a net debit paid and a negative initial_cost "
             "for a net credit received. Returns profit_pct relative to abs(initial_cost), or available=false when a leg price is missing. "
             "This is generic multi-leg math; it does not assume an iron condor or any named structure. "
             "Example: options_check_spread_profit(legs_json='[...]', initial_cost=-200)."
@@ -3704,7 +3704,7 @@ def _bind_cancel_order(strategy: Any, manager: Any) -> BoundTool:
         name="orders_cancel_order",
         description=(
             "Cancel an existing tracked order by identifier. "
-            "Arguments: identifier from orders_open_orders and required reason. Explain the cancellation, evidence and risks in at least 200 trimmed characters (usually 600-2,500; maximum 100,000). This is saved privately before execution."
+            "Arguments: identifier from orders_open_orders and required reason. Explain the cancellation, evidence and risks in at least 200 trimmed characters (maximum 100,000); keep it concise. This is saved privately before execution."
         )
         + _PUBLIC_ORDER_REASON_DESCRIPTION,
         function=cancel_order,
@@ -3750,7 +3750,7 @@ def _bind_modify_order(strategy: Any, manager: Any) -> BoundTool:
         name="orders_modify_order",
         description=(
             "Modify an existing tracked order. "
-            "Arguments: identifier, required reason, optional limit_price, optional stop_price, optional quantity (new total including existing fills, when supported by the broker). Explain the new evidence, change and remaining risk in at least 200 trimmed characters (usually 600-2,500; maximum 100,000). The new explanation is linked to the prior action before execution."
+            "Arguments: identifier, required reason, optional limit_price, optional stop_price, optional quantity (new total including existing fills, when supported by the broker). Explain the new evidence, change and remaining risk in at least 200 trimmed characters (maximum 100,000); keep it concise. The new explanation is linked to the prior action before execution."
         )
         + _PUBLIC_ORDER_REASON_DESCRIPTION,
         function=modify_order,
@@ -4953,7 +4953,7 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
         description=(
             "Create and submit a LumiBot order. "
             "Arguments: symbol, quantity, side, required reason, optional asset_type, expiration, strike, right, order_type, limit_price, stop_price, stop_limit_price, trail_price, trail_percent, quote_symbol, exchange, time_in_force. "
-            "Explain the action, evidence, sizing, risks and invalidation in at least 200 trimmed characters (usually 600-2,500; maximum 100,000). This explicit explanation is saved privately before execution; exclude hidden thinking, secrets and credentials. "
+            "Explain the action, evidence, sizing, risks and invalidation in at least 200 trimmed characters (maximum 100,000); keep it concise. This explicit explanation is saved privately before execution; exclude hidden thinking, secrets and credentials. "
             "Valid asset_type values: stock, option, future, cont_future, forex, crypto, index, multileg, us_equity. "
             "Use stock for normal equities. "
             "Before using this tool, inspect the injected account_snapshot plus available market_quote/market_quotes evidence for the asset, or market_last_price/market_last_prices as a current-price fallback. A complete injected account_snapshot satisfies the initial account_portfolio, account_positions, and open-order readiness checks; after any order mutation, refresh account_portfolio and complete unfiltered pagination for both account_positions and orders_open_orders before another order. The current-price check is always required in the same agent run; otherwise the order is rejected with ORDER_READINESS_REQUIRED. "
@@ -5111,7 +5111,7 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
         description=(
             "Create and submit one atomic multi-leg option order from exact contracts selected by the agent. This is generic and does not choose a strategy or its legs. "
             "Arguments: legs_json, required reason, optional price_style='market', 'best', 'mid', or 'fastest', optional signed net_limit_price, optional time_in_force. legs_json must be a JSON array with at least two legs; each leg requires symbol, expiration, strike, right, quantity, and side. "
-            "Explain the package thesis, evidence, net pricing, sizing, risks and invalidation in at least 200 trimmed characters (usually 600-2,500; maximum 100,000). One private decision links all legs before execution. "
+            "Explain the package thesis, evidence, net pricing, sizing, risks and invalidation in at least 200 trimmed characters (maximum 100,000); keep it concise. One private decision links all legs before execution. "
             "Before submitting in the same agent run, inspect the injected account_snapshot, current market_quote/market_quotes or last-price fallback for each underlying symbol, options_get_chain, and a package price reconciled to every exact leg's current quote evidence. A complete injected account_snapshot satisfies the initial account_portfolio, account_positions, and open-order inspection; after any order mutation, refresh account_portfolio, account_positions, and orders_open_orders before another order. Market and option evidence are always required. "
             "Opening sides are buy_to_open and sell_to_open. Use matching quantities when the intended position requires matched contracts. "
             "Before opening a package, call both options_get_greeks and options_evaluate_market for every final leg, including protective buy legs, and verify its package price. Checks for another strike or a replaced candidate do not verify the final contract. A prior preview remains usable when its exact contracts, quantities and prices still match the final fresh checks; Greek checks alone do not invalidate it. Reprice when the structure or relevant quotes change. "

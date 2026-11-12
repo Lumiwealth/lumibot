@@ -1224,3 +1224,27 @@ def test_profit_read_accepts_one_short_option_without_a_second_leg():
     result = tool.function(legs_json=json.dumps([leg]), initial_cost=-300.)
     assert result["available"] is True
     assert result["profit_pct"] == pytest.approx(50.)
+
+
+@pytest.mark.parametrize('method', ['submit', 'cancel', 'modify', 'submit_multileg'])
+def test_order_explanation_help_matches_the_existing_concise_skill(method):
+    strategy = _OptionsStrategy()
+    tool = getattr(BuiltinTools.orders, method)().binder(strategy, AgentManager(strategy))
+    # The native validator still accepts the same 200–100,000 range. An old
+    # competing recommendation made agents expand already recorded facts.
+    assert '200' in tool.description
+    assert 'maximum 100,000' in tool.description
+    assert 'usually 600-2,500' not in tool.description
+
+
+@pytest.mark.parametrize('side,expected', [('buy_to_open', -.16), ('sell_to_open', .16)])
+def test_single_leg_position_greeks_label_both_unscaled_and_underlying_equivalents(side, expected):
+    strategy = _OptionsStrategy()
+    strategy.name = 'neutral-portfolio'
+    tool = BuiltinTools.options.get_greeks().binder(strategy, AgentManager(strategy))
+    leg = {'symbol':'SPY','expiration':'2026-09-18','strike':615,
+           'right':'put','quantity':1,'side':side}
+    result = tool.function(legs_json=json.dumps([leg]))
+    assert result['greeks']['delta'] == pytest.approx(expected)
+    assert result['underlying_equivalent_greeks']['delta'] == pytest.approx(expected*100)
+    assert result['legs'][0]['underlying_quantity'] == (100 if side=='buy_to_open' else -100)

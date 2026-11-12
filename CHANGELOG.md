@@ -13,6 +13,9 @@ Deploy marker: d802adfc087f895e272421f2b06de6cce5df875e
 ### Backtesting and history
 - The shared bar cache can remember a confirmed-empty answer: the provider answered successfully and completely with zero bars for a range that closed at least one day ago, for an instrument the provider lists. Alpaca options use it for listed contracts that never traded, so a warm 3-month iron condor made 0 option-bar requests instead of 63 (simulation 35.2 s to 30.8 s, results identical). Errors, timeouts, rate limits, truncated answers, unlisted contracts and recent days are never remembered. Markers hold no bars and are never returned as data; a marker for a range closed less than 30 days earlier is re-checked once after 7 days so a provider backfill appears. Other providers are unchanged unless they opt in.
 
+### Agents
+- Clearer agent tool descriptions, no tool behaviour change: listing option contracts does not show their Greeks or quotes, so the agent reads the exact contract before declining a listed strike; order-status watches take order identifiers and status names in separate inputs; the order-shaped profit check uses a positive quantity plus a side. Four affected real-model evals passed once each on the 4.6.54 candidate.
+
 ### Release evidence
 - Verify separately published native qualification with its explicit receipt and case scope. Retain the original inference source and original receipt publication as distinct immutable commits; both digests and the reviewed candidate remain checked. This adds no model calls or trading changes.
 

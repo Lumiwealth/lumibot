@@ -401,6 +401,59 @@ class Strategy(_Strategy):
     def sleeptime(self, value):
         self._sleeptime = value
 
+    def wake_when(self, *, at=None, every=None, assets=None, price_above=None, price_below=None,
+                  value_above=None, value_below=None):
+        """Tell a backtest when ``on_trading_iteration`` next needs to run (a speed hint).
+
+        Until the first condition is met, the backtest skips calling ``on_trading_iteration``.
+        Everything else still happens every iteration: orders are processed and filled, the
+        portfolio is valued and stats rows are written. The hint lasts until the next time
+        ``on_trading_iteration`` runs, so set it again there to keep sleeping. Without a hint,
+        every iteration runs as usual. Live trading ignores hints and runs every iteration.
+
+        The engine also wakes the strategy, whatever the hint says, when one of its orders is
+        created, filled, partly filled, canceled or rejected, when its cash or positions change
+        (expiry, settlement, dividends, splits), when a lifecycle method runs (each session's
+        open and close included) and when a watched price cannot be read.
+
+        Only skip what your strategy really ignores: an honest hint gives the same trades and
+        stats as no hint. Waking early is always safe, so set levels a little inside your real
+        thresholds.
+
+        Parameters
+        ----------
+        at : datetime, optional
+            Wake at the first iteration at or after this time (strategy timezone if naive).
+        every : timedelta, int or str, optional
+            Wake once this interval has passed since now. Same formats as ``sleeptime``
+            (an int is minutes, or a string such as ``"30M"`` or ``"2H"``).
+        assets : Asset, str or list, optional
+            The assets that ``price_*`` and ``value_*`` levels watch.
+        price_above, price_below : float or dict, optional
+            Wake when an asset's last price is at or above / at or below this level. A number
+            applies to every asset in ``assets``; a dict gives a level per asset.
+        value_above, value_below : float, optional
+            Wake when the value of this strategy's positions in ``assets`` (quantity x last
+            price x multiplier, short positions negative) is at or above / at or below this.
+
+        Example
+        -------
+        >>> def on_trading_iteration(self):
+        >>>     # ... a position is open with a stop at 95 and a target at 110, and the
+        >>>     # strategy also exits at 15:50. Nothing to do until one of those happens:
+        >>>     self.wake_when(assets=Asset("SPY"), price_below=95.05, price_above=109.95,
+        >>>                    at=self.get_datetime().replace(hour=15, minute=50))
+        """
+        from lumibot.strategies.wake_hints import build_condition, store_wake_condition
+
+        condition = build_condition(self, at=at, every=every, assets=assets, price_above=price_above,
+                                    price_below=price_below, value_above=value_above, value_below=value_below)
+        store_wake_condition(self, condition)
+
+    def clear_wake_condition(self):
+        """Forget a hint set with ``wake_when``: the next iteration runs as usual."""
+        self._wake_condition = None
+
     @property
     def backtesting_start(self):
         return self._backtesting_start
@@ -516,9 +569,15 @@ class Strategy(_Strategy):
         if self._risk_free_rate is not None:
             return self._risk_free_rate
         else:
-            # Use the yahoo data to get the risk free rate, or 0 if None is returned
+            # Use the yahoo data to get the risk free rate, or 0 if None is returned.
+            # PERF: a delta pick prices a dozen strikes at the same time; ask once per time.
             now = self.get_datetime()
-            return get_risk_free_rate(now) or 0.0
+            cached = self.__dict__.get("_risk_free_rate_at")
+            if cached is not None and cached[0] == now:
+                return cached[1]
+            rate = get_risk_free_rate(now) or 0.0
+            self.__dict__["_risk_free_rate_at"] = (now, rate)
+            return rate
 
     # ======= Helper Methods =======================
 
@@ -2965,7 +3024,7 @@ class Strategy(_Strategy):
                     if bars is not None and getattr(bars, "df", None) is not None and not bars.df.empty:
                         result = float(bars.df["close"].iloc[-1])
                         cache[cache_key] = result
-                        self._record_usable_backtest_price(result)
+                        self._record_usable_backtest_price(result, asset)
                         return result
 
                     # Forward-fill retry (v4.5.1): when the length=1 slice comes
@@ -3007,7 +3066,7 @@ class Strategy(_Strategy):
                                 if not pre_sim.empty:
                                     result = float(pre_sim["close"].iloc[-1])
                                     cache[cache_key] = result
-                                    self._record_usable_backtest_price(result)
+                                    self._record_usable_backtest_price(result, asset)
                                     return result
                             except Exception:
                                 pass
@@ -3022,14 +3081,71 @@ class Strategy(_Strategy):
             )
             if is_backtesting_run:
                 cache[cache_key] = result
-                self._record_usable_backtest_price(result)
+                self._record_usable_backtest_price(result, asset)
             return result
         except UnsupportedAsset:
             raise
         except Exception as e:
             self.log_message(f"Could not get last price for {asset}", color="red")
             self.log_message(f"{e}")
+            if is_backtesting_run:
+                self._note_backtest_data(asset, False)
             return None
+
+    def _note_backtest_data(self, asset, found):
+        """Remember, per asset, whether any price or bar request in this backtest returned data.
+
+        At the end of the run, an asset that was asked for and never returned anything is
+        reported in ``data_health.required_failures`` (see ``_report_assets_without_data``).
+        Option contracts are skipped: strike searches probe contracts that never traded.
+        """
+        try:
+            base = asset[0] if isinstance(asset, tuple) else asset
+            if getattr(base, "asset_type", None) == Asset.AssetType.OPTION:
+                return
+            seen = self.__dict__.setdefault("_backtest_data_seen", {})
+            entry = seen.get(base)
+            if entry is None:
+                entry = seen[base] = {"found": False, "requests": 0, "first": None}
+            if entry["found"]:
+                return
+            entry["requests"] += 1
+            if entry["first"] is None:
+                entry["first"] = self.get_datetime()
+            if found:
+                entry["found"] = True
+        except Exception:
+            pass
+
+    def _report_assets_without_data(self):
+        """Add a required failure for each asset that returned no data for the whole backtest."""
+        seen = self.__dict__.get("_backtest_data_seen") or {}
+        missing = [(asset, entry) for asset, entry in seen.items() if not entry["found"] and entry["requests"]]
+        if not missing:
+            return
+        from lumibot.tools.ibkr_history_health import record_required_data_issue
+
+        source = getattr(self.broker, "data_source", None)
+        provider = getattr(source, "SOURCE", None) or type(source).__name__
+        knows = getattr(source, "symbol_not_found", None)
+        for asset, entry in missing:
+            reason = "no_data_for_backtest"
+            try:
+                if callable(knows) and knows(asset):
+                    reason = "symbol_not_found"
+            except Exception:
+                pass
+            when = entry["first"] or self.get_datetime()
+            try:
+                named = getattr(source, "provider_for", None)
+                asset_provider = named(asset) if callable(named) else provider
+            except Exception:
+                asset_provider = provider
+            record_required_data_issue(asset=asset, timestep="backtest", when=when, reason=reason,
+                                       recovery_cause="history_unavailable", retryable=False,
+                                       requested_bars=entry["requests"], returned_bars=0,
+                                       provider=str(asset_provider), occurrences=entry["requests"])
+        self._backtest_data_seen = {}
 
     def _record_backtest_runtime_milestone(self, name):
         try:
@@ -3040,14 +3156,18 @@ class Strategy(_Strategy):
         except Exception:
             pass
 
-    def _record_usable_backtest_price(self, price):
+    def _record_usable_backtest_price(self, price, asset=None):
+        usable = False
         try:
             import math
 
             if price is not None and math.isfinite(float(price)):
+                usable = True
                 self._record_backtest_runtime_milestone("first_usable_price_at")
         except (TypeError, ValueError, OverflowError):
             pass
+        if asset is not None:
+            self._note_backtest_data(asset, usable)
 
     def _supports_daily_last_price_optimization(self) -> bool:
         data_source = getattr(getattr(self, "broker", None), "data_source", None)
@@ -4688,6 +4808,10 @@ class Strategy(_Strategy):
         try:
             from lumibot.tools.ibkr_history_health import ibkr_history_health_snapshot
 
+            try:
+                self._report_assets_without_data()
+            except Exception:
+                pass
             history_health = ibkr_history_health_snapshot()
             sources = (datasource, getattr(self.broker, "option_source", None))
             uses_ibkr = any(
@@ -5124,6 +5248,9 @@ class Strategy(_Strategy):
                     # If resampling fails, log warning and return original data
                     self.logger.warning(f"Failed to resample data from {actual_timestep} to {original_timestep}: {e}")
 
+        if self.is_backtesting:
+            self._note_backtest_data(asset, bars is not None and getattr(bars, "df", None) is not None
+                                     and not bars.df.empty)
         if self.is_backtesting and history_requirement == "required":
             from lumibot.backtesting.market_input_evidence import record_market_input
 

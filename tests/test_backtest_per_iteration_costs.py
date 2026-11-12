@@ -302,3 +302,73 @@ def test_a_pick_logs_one_summary_line_not_one_per_contract(monkeypatch, tmp_path
     lines = [r.getMessage() for r in caplog.records
              if r.name == "lumibot.backtesting.alpaca_backtesting" and r.levelno >= logging.INFO]
     assert len(lines) == 1 and lines[0].startswith("Loaded 20 option contracts"), lines
+
+
+# --------------------------------------------------------------------------- pick-time repeats
+
+
+def test_risk_free_rate_is_looked_up_once_per_time(monkeypatch):
+    """A delta pick prices a dozen strikes at one time; each asked Yahoo's ^IRX series again."""
+    import lumibot.strategies.strategy as strategy_module
+    from lumibot.strategies import Strategy
+
+    asked = []
+    monkeypatch.setattr(strategy_module, "get_risk_free_rate", lambda dt: asked.append(dt) or 0.0425)
+    strategy = Strategy.__new__(Strategy)
+    strategy._risk_free_rate = None
+    now = {"t": datetime(2026, 8, 4, 10, 0)}
+    strategy.get_datetime = lambda: now["t"]
+    assert [strategy.risk_free_rate for _ in range(12)] == [0.0425] * 12
+    now["t"] = datetime(2026, 8, 4, 10, 1)
+    assert strategy.risk_free_rate == 0.0425
+    assert asked == [datetime(2026, 8, 4, 10, 0), datetime(2026, 8, 4, 10, 1)]
+
+
+def _rows_in_reference(parts, start, end_excl):
+    pieces = [p.rows[(p.rows.index >= start) & (p.rows.index < end_excl)] for p in parts if not p.rows.empty]
+    pieces = [p for p in pieces if not p.empty]
+    if not pieces:
+        return sbc._normalize(None)
+    rows = pd.concat(pieces)
+    return rows[~rows.index.duplicated(keep="last")].sort_index()
+
+
+def _normalize_reference(frame):
+    rows = frame.copy()
+    if not isinstance(rows.index, pd.DatetimeIndex):
+        rows.index = pd.to_datetime(rows.index, utc=True)
+    rows.index = rows.index.tz_localize("UTC") if rows.index.tz is None else rows.index.tz_convert("UTC")
+    rows.index.name = "timestamp"
+    rows = rows[~rows.index.duplicated(keep="last")].sort_index()
+    rows.index = pd.DatetimeIndex(rows.index, freq=None, name="timestamp")
+    rows.attrs = {}
+    return rows
+
+
+@pytest.mark.parametrize("shape", ["sorted", "unsorted", "duplicates", "naive", "other_tz"])
+def test_normalize_skips_sorting_sorted_rows_with_the_same_result(shape):
+    index = pd.date_range("2026-08-04 13:30", periods=50, freq="1min", tz="UTC")
+    frame = pd.DataFrame({"open": np.arange(50.0), "close": np.arange(50.0) + 1}, index=index)
+    if shape == "unsorted":
+        frame = frame.iloc[::-1]
+    elif shape == "duplicates":
+        frame = pd.concat([frame, frame.iloc[5:9] + 100])
+    elif shape == "naive":
+        frame.index = frame.index.tz_localize(None)
+    elif shape == "other_tz":
+        frame.index = frame.index.tz_convert("America/New_York")
+    pd.testing.assert_frame_equal(sbc._normalize(frame), _normalize_reference(frame))
+
+
+def test_rows_in_equals_the_concat_dedupe_sort_reference():
+    series = sbc.BarSeries.__new__(sbc.BarSeries) if hasattr(sbc, "BarSeries") else None
+    parts = []
+    for day in ("2026-08-03", "2026-08-04", "2026-08-05"):
+        index = pd.date_range(f"{day} 13:30", periods=30, freq="7min", tz="UTC")
+        rows = sbc._normalize(pd.DataFrame({"open": 1.0, "close": np.arange(30.0)}, index=index))
+        parts.append(type("P", (), {"rows": rows})())
+    parts.append(type("P", (), {"rows": sbc._normalize(None)})())
+    for start, end in (("2026-08-03 14:00", "2026-08-05 15:00"), ("2026-08-04 13:00", "2026-08-04 20:00"),
+                       ("2026-08-06", "2026-08-07")):
+        start, end = pd.Timestamp(start, tz="UTC"), pd.Timestamp(end, tz="UTC")
+        pd.testing.assert_frame_equal(sbc._rows_in(parts, start, end), _rows_in_reference(parts, start, end))

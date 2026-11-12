@@ -14,6 +14,8 @@ Miscellaneous methods are the methods that do not fit into other categories. You
 
         Strategy.log_message
         Strategy.sleep
+        Strategy.wake_when
+        Strategy.clear_wake_condition
         Strategy.set_market
         Strategy.update_parameters
         Strategy.get_parameters

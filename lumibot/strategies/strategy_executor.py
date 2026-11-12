@@ -9,6 +9,7 @@ from threading import Event, Lock, RLock, Thread
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
 _telemetry = LazyModule("lumibot.tools.backtest_telemetry")
+_wake_hints = LazyModule("lumibot.strategies.wake_hints")
 
 logger = LazyLogger(__name__)
 
@@ -1273,6 +1274,8 @@ class StrategyExecutor(Thread):
         def func_output(self, *args, **kwargs):
             if self.should_continue:
                 self._before_lifecycle_method()
+                if func_input.__name__ != "_on_trading_iteration":
+                    self._wake_event = True  # a wake hint never sleeps through a lifecycle method
                 result = func_input(self, *args, **kwargs)
                 self._after_lifecycle_method()
 
@@ -1286,6 +1289,7 @@ class StrategyExecutor(Thread):
         @wraps(func_input)
         def func_output(self, *args, **kwargs):
             if self.should_continue:
+                self._wake_event = True  # order events always wake a strategy that set a wake hint
                 result = func_input(self, *args, **kwargs)
                 return result
 
@@ -1545,6 +1549,13 @@ class StrategyExecutor(Thread):
             if not self._run_once_requested:
                 self.strategy.load_variables_from_db()
             if self.broker.IS_BACKTESTING_BROKER:
+                if _wake_hints.should_skip(self.strategy, self):
+                    # The strategy's wake hint holds: skip only its callback. Orders, valuation
+                    # and the stats row for this iteration still happen as usual.
+                    self._in_trading_iteration = False
+                    self.process_queue()
+                    return
+                self._wake_event = False
                 self._record_backtest_milestone("first_callback_entered_at")
                 iteration_started = _telemetry.iteration_started()
                 try:

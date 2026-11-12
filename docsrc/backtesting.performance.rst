@@ -47,6 +47,56 @@ Quick diagnosis checklist
 
    - If data is downloading, progress may not advance unless a heartbeat is enabled.
 
+Wake hints: skip iterations your strategy ignores
+-------------------------------------------------
+
+Many strategies run every minute but only act at a few moments: an entry time, a stop or
+target level, an exit time. ``self.wake_when(...)`` tells a backtest about that. Until a
+condition is met, the backtest skips calling ``on_trading_iteration``. Orders are still
+processed and filled every iteration, the portfolio is still valued and the stats file still
+gets a row each iteration, so an honest hint gives the same trades and stats, only faster.
+
+.. code-block:: python
+
+    def on_trading_iteration(self):
+        spy = Asset("SPY")
+        position = self.get_position(spy)
+        if position is None:
+            # ... entry logic at 10:00 ...
+            return
+        price = self.get_last_price(spy)
+        if price <= self.vars.stop or price >= self.vars.target:
+            self.sell_all()
+            return
+        # Nothing to do until the stop, the target or 15:50. Wake a cent early on each side.
+        self.wake_when(
+            assets=spy,
+            price_below=self.vars.stop + 0.01,
+            price_above=self.vars.target - 0.01,
+            at=self.get_datetime().replace(hour=15, minute=50),
+        )
+
+What you can wait for:
+
+- ``at``: a time; ``every``: an interval (same formats as ``sleeptime``).
+- ``price_above`` / ``price_below``: the last price of the ``assets`` you name.
+- ``value_above`` / ``value_below``: the value of your positions in those assets
+  (quantity x last price x multiplier; short positions count as negative). Useful for a
+  multi-leg position such as an option spread.
+
+The backtest also wakes your strategy, whatever the hint says, when one of its orders is
+created, filled, partly filled, canceled or rejected, when its cash or positions change for
+any other reason (expiry, settlement, dividends, splits), when a lifecycle method runs (so the
+first iteration of each session always runs) and when a watched price cannot be read. A hint
+lasts until the next time ``on_trading_iteration`` runs; set it again there to keep sleeping.
+
+Rules for an honest hint:
+
+- Only skip time your strategy really does nothing with. If it plots a line every minute or
+  checks a condition you did not put in the hint, the results will differ.
+- Waking early is always safe; waking late is not. Set levels a little inside your thresholds.
+- Live trading ignores hints and runs every iteration, so the same code works in both.
+
 Execution model and realistic parallelism
 -----------------------------------------
 

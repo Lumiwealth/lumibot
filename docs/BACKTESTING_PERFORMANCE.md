@@ -1219,3 +1219,30 @@ This is generic capture infrastructure for every backtest and indicator input,
 independent of a strategy, ticker, customer or grading outcome. Native regression
 coverage includes both former capture ceilings, bounded-cache eviction,
 concurrent duplicate reads, transaction rollback and actual backtest export.
+
+## Wake hints (opt-in iteration skipping, 2026-11-12)
+
+`Strategy.wake_when(...)` (code: `lumibot/strategies/wake_hints.py`, hook in
+`StrategyExecutor._on_trading_iteration`) lets a strategy say when `on_trading_iteration`
+next needs to run: a time (`at`), an interval (`every`), a last-price level on named assets
+(`price_above` / `price_below`) or a level on the value of its positions in named assets
+(`value_above` / `value_below`, quantity x last price x multiplier).
+
+Invariants:
+
+- Only the user callback is skipped. Splits and dividends updates, `process_pending_orders`,
+  `process_queue`, portfolio valuation and the per-iteration stats row run exactly as without
+  a hint, so trades, trade events and stats.csv are unchanged for an honest hint.
+- The engine wakes the strategy at the first iteration where a hint condition holds, any
+  order event method ran (`event_method` sets `_wake_event`), any lifecycle method other than
+  `_on_trading_iteration` ran, cash or tracked positions differ from when the hint was set
+  (expiry, settlement, dividends, splits, financing), or a watched price is `None`.
+- A hint lasts until the next callback; the engine clears it before calling the strategy.
+- Prices are read with the same `get_last_price` the strategy uses. A data source that
+  cannot answer means the iteration runs.
+- Live trading ignores hints (`store_wake_condition` keeps nothing when not backtesting).
+- Waking early is always safe. Strategy authors put levels slightly inside their thresholds,
+  because `mark >= entry + x` and `mark - entry >= x` can differ in the last float bit.
+
+Tests: `tests/test_wake_hints.py` runs stock (time + price levels), crypto (interval + value
+band) and event cases with and without hints and compares trade events and stats rows.

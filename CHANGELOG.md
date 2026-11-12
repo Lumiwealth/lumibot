@@ -2,6 +2,13 @@
 
 ## 4.6.55 - Unreleased
 
+### Added
+- `Strategy.wake_when(...)`: an opt-in backtest speed hint. A strategy can say when `on_trading_iteration` next needs to run (a time, an interval, a last-price level on assets it names, or a level on the value of its positions in them). Until then the backtest skips only that callback; orders, fills, portfolio valuation and stats rows still happen every iteration. Fills, cancels, rejections, cash or position changes (expiry, settlement, dividends, splits), lifecycle methods and an unreadable price always wake the strategy. Without a hint nothing changes. Live trading ignores hints. `Strategy.clear_wake_condition()` drops a hint.
+
+### Backtesting and history
+- Delta strike picks load stored option prices only for the strikes the search can reach (a band around its starting strike, widened before the search steps past it) instead of every candidate. Same strike, same prices. Warm 3-month SPY iron condor: a 10:00 entry went from 461 ms to 174 ms (median), simulation wall 38.1 s to 20.4 s, trades and stats identical.
+- Fewer repeated steps per pick: the risk-free rate is looked up once per time instead of once per strike, stored option timestamps are not converted again, and already sorted shared-cache rows are not sorted again.
+
 ## 4.6.54 - 2026-11-11
 
 Deploy marker: d802adfc087f895e272421f2b06de6cce5df875e

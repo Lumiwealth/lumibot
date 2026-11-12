@@ -1931,6 +1931,7 @@ def _bind_options_get_strikes(strategy: Any, manager: Any) -> BoundTool:
             "Return every listed strike for one exact underlying, expiration, and option right. "
             "Arguments: symbol, expiration in YYYY-MM-DD, right='call' or 'put', optional underlying_asset_type='stock' or 'index'. "
             "First use options_get_chain to choose a listed expiration, then use this result when selecting exact contracts. "
+            "This lists contracts, not their Greeks or quotes. Before declining a listed candidate for unverified delta or price, perform options_get_greeks and options_evaluate_market for that exact contract; an unperformed read is not unavailable data. "
             "Example: options_get_strikes(symbol='SPY', expiration='2026-09-18', right='put')."
         ),
         function=get_strikes,
@@ -2380,6 +2381,7 @@ def _bind_options_check_spread_profit(strategy: Any, manager: Any) -> BoundTool:
             "Estimate current marked P&L percentage from one or more exact option legs and the opening cash cost. "
             "Arguments: legs_json, initial_cost, optional contract_multiplier override (otherwise each asset multiplier). "
             "Use the original long/short exposure directions and remaining quantities, not opposite closing directions. legs_json must be a JSON array of exact contracts with symbol, expiration, strike, right, quantity, and side. "
+            "Quantity is positive: side='sell_to_open', quantity=1 describes one held short contract. Unlike attention basket legs, this order-shaped input never uses a negative quantity. "
             "For opening-cost accounting, use a positive initial_cost for a net debit paid and a negative initial_cost "
             "for a net credit received. Returns profit_pct relative to abs(initial_cost), or available=false when a leg price is missing. "
             "This is generic multi-leg math; it does not assume an iron condor or any named structure. "
@@ -5753,7 +5755,8 @@ def _bind_attention_watch(strategy: Any, manager: Any) -> BoundTool:
         "For full-premium debit loss L=D, use zero, not -D; -D would represent a 2D loss before fees. "
         "Do not substitute P&L or a negative remaining debit for holdings value. Check unchanged and worsening observations "
         "against your proposed threshold before registering it. "
-        "Order status: comparison=in, value_json a JSON status array and exact order_ids. Normal LumiBot/broker status aliases "
+        "Order status: comparison=in; order_ids holds the exact identifiers, while value_json holds status names, never those identifiers. "
+        "For example order_ids=['order-123'], value_json='[\"fill\",\"partial_fill\",\"canceled\",\"error\"]'. Include the transitions that require your next decision. Normal LumiBot/broker status aliases "
         "such as filled/fill and partially_filled/partial_fill are matched consistently. asset_json is an exact asset object "
         "with symbol, optional asset_type, expiration, strike, right, quote_symbol. Use distinct thresholds for meaningful worsening. "
         "An unchanged condition fires once until it clears or you change its definition. Related conditions form one packet. "

@@ -140,3 +140,21 @@ cover final policy checking, collateral/share coverage, settlement, single-contr
 closing and signed-profit use. The carrier's newer concise-account-read guidance
 and all other qualified options instructions are retained. This note records local
 source proof only; no package publication or installed runtime is asserted.
+
+
+Follow-up: exact-read and input-shape guidance
+-----------------------------------------
+Native failures exposed a skipped exact-contract read, an order-status condition
+containing identifiers instead of states, and a signed quantity supplied to an
+order-shaped marked-profit calculation. The existing tool descriptions now name
+their existing contracts explicitly. No tool, default, observer, order action or
+strategy policy changed. The public diff contains only generic descriptions and
+qualification metadata; it adds no private infrastructure, credentials, customer
+or strategy-specific logic.
+
+Focused native checks: single held-option profit, exact bid/ask labels, both
+single-option closing directions, order-status aliases and subsequent status
+transitions: six passes. Preserved model evidence keeps its actual earlier
+source and timestamps; these descriptions do not require replaying unrelated
+successes. Product skill and system-prompt byte growth is zero. Zero new model
+attempts for these code checks; zero API dollars or added monthly cost.

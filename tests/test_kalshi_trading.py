@@ -138,6 +138,10 @@ def test_restart_recovers_only_the_original_strategy_ownership(broker):
     }
     own = broker._parse_broker_order(row, "neutral owner")
     foreign = broker._parse_broker_order(row, "different owner")
+    # Parsing recovers attribution; the normal sync reducer establishes the
+    # tracked identity required before any lifecycle callback is owned.
+    assert not broker.order_belongs_to_local_strategy(own, "neutral owner")
+    broker._process_broker_synced_order(own)
     assert broker.order_belongs_to_local_strategy(own, "neutral owner")
     assert not broker.order_is_foreign_to_local_strategy(own, "neutral owner")
     assert broker.order_is_foreign_to_local_strategy(foreign, "different owner")

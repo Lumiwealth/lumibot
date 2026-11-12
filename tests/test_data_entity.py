@@ -534,3 +534,20 @@ def test_stock_quote_values_are_unchanged_by_keeping_precision():
     data = Data(Asset("SPY"), frame, timestep="minute")
     quote = data.get_quote(tz.localize(datetime(2026, 9, 15, 10, 2)))
     assert (quote["open"], quote["close"], quote["bid"], quote["ask"]) == (650.2, 650.25, 650.24, 650.26)
+
+
+def test_appended_provider_rows_keep_their_own_observation_times():
+    index = pd.date_range("2026-10-22 09:30", periods=3, freq="min", tz="America/New_York")
+    def frame(instant, price):
+        return pd.DataFrame({column: [price] for column in ("open", "high", "low", "close")},
+                            index=pd.DatetimeIndex([instant]))
+    first = Data(Asset("SYN"), frame(index[0], 100.), timestep="minute")
+    first.repair_times_and_fill(index[:2])
+    refreshed = Data(Asset("SYN"), pd.concat([first.df, frame(index[2], 120.)]), timestep="minute")
+    refreshed.repair_times_and_fill(index)
+    assert refreshed.df.loc[index[1], "bar_is_observed"] == False
+    assert refreshed.df.loc[index[1], "bar_timestamp"] == index[0]
+    quote = refreshed.get_quote(index[2])
+    assert quote["bar_is_observed"] == True
+    assert quote["bar_timestamp"] == index[2]
+    assert refreshed.get_last_price(index[2]) == 120.

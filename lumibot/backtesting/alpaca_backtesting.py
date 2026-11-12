@@ -1100,6 +1100,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 with open(cache_file, "r", encoding="utf-8") as handle:
                     chain = json.load(handle)
                 memory[cache_key] = chain
+                self._remember_listed_contracts(chain)
                 return self._copy_chain(chain)
             except (OSError, ValueError) as exc:
                 logger.warning("Ignoring unreadable Alpaca option chain cache %s: %s", cache_file, exc)
@@ -1119,7 +1120,32 @@ class AlpacaBacktesting(DataSourceBacktesting):
         except OSError as exc:
             logger.warning("Could not write Alpaca option chain cache %s: %s", cache_file, exc)
         memory[cache_key] = chain
+        self._remember_listed_contracts(chain)
         return self._copy_chain(chain)
+
+    def _remember_listed_contracts(self, chain: dict) -> None:
+        """Record which contracts Alpaca's own contract listing returned (the chain's source)."""
+        listed = self._state("_listed_option_strikes", dict)
+        underlying = str(chain.get("UnderlyingSymbol") or "").upper()
+        for side, expirations in (chain.get("Chains") or {}).items():
+            for expiry, strikes in (expirations or {}).items():
+                listed.setdefault((underlying, str(expiry)[:10], side), set()).update(float(k) for k in strikes)
+
+    def _listed_occ_symbols(self, assets) -> set:
+        """OCC symbols of ``assets`` that Alpaca listed. Only for these is "no bars" an answer:
+        a zero-row reply for an unlisted symbol may just be a mistyped contract."""
+        listed = self._state("_listed_option_strikes", dict)
+        out = set()
+        for asset in assets:
+            try:
+                expiry = asset.expiration.isoformat() if hasattr(asset.expiration, "isoformat") else str(asset.expiration)
+                side = "CALL" if str(asset.right or "").upper().startswith("C") else "PUT"
+                key = (str(asset.symbol).upper(), expiry[:10], side)
+                if float(asset.strike) in listed.get(key, ()):
+                    out.add(self._occ_symbol(asset))
+            except (AttributeError, TypeError, ValueError):
+                continue
+        return out
 
     # GET /v1beta1/options/bars accepts at most 100 symbols per request (Alpaca docs,
     # checked 2026-11-11 for alpaca-py 0.44.0). The SDK follows page tokens itself.
@@ -1211,11 +1237,12 @@ class AlpacaBacktesting(DataSourceBacktesting):
             )
             request = request.model_copy(update=update)
             what = f"{len(symbols)} option contracts"
+            listed = self._listed_occ_symbols([asset for _key, (asset, _quote) in chunk])
             try:
                 bars = fetch_alpaca_bars(
                     client, request,
                     lambda query: self._alpaca_request(client.get_option_bars, query, what=what),
-                    refresh=getattr(self, "_refresh_cache", False),
+                    refresh=getattr(self, "_refresh_cache", False), empty_ok=listed.__contains__,
                 )
             except Exception as e:
                 raise RuntimeError(f"Failed to fetch data for {what}: {e}")
@@ -1278,11 +1305,12 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 what = f"{len(chunk)} option contracts after {covered_until.date()}"
                 for key, _a, _q in chunk:
                     covered.pop(key, None)
+                listed = self._listed_occ_symbols([a for _k, a, _q in chunk])
                 try:
                     bars = fetch_alpaca_bars(
                         client, request,
                         lambda query: self._alpaca_request(client.get_option_bars, query, what=what),
-                        refresh=getattr(self, "_refresh_cache", False),
+                        refresh=getattr(self, "_refresh_cache", False), empty_ok=listed.__contains__,
                     )
                 except Exception as e:
                     for key, _a, _q in chunk:
@@ -1378,11 +1406,12 @@ class AlpacaBacktesting(DataSourceBacktesting):
             auto_adjust=self._auto_adjust,
         )
         what = f"{self._occ_symbol(asset)} after {covered_until.date()}"
+        listed = self._listed_occ_symbols([asset])
         try:
             bars = fetch_alpaca_bars(
                 client, request,
                 lambda query: self._alpaca_request(client.get_option_bars, query, what=what),
-                refresh=getattr(self, "_refresh_cache", False),
+                refresh=getattr(self, "_refresh_cache", False), empty_ok=listed.__contains__,
             )
         except Exception as e:
             covered[key] = covered_until
@@ -1423,11 +1452,12 @@ class AlpacaBacktesting(DataSourceBacktesting):
             auto_adjust=self._auto_adjust, request_end=loaded_from.to_pydatetime(),
         )
         what = f"{self._occ_symbol(asset)} before {loaded_from.date()}"
+        listed = self._listed_occ_symbols([asset])
         try:
             bars = fetch_alpaca_bars(
                 client, request,
                 lambda query: self._alpaca_request(client.get_option_bars, query, what=what),
-                refresh=getattr(self, "_refresh_cache", False),
+                refresh=getattr(self, "_refresh_cache", False), empty_ok=listed.__contains__,
             )
         except Exception as e:
             self._state("_option_loaded_from", dict)[key] = loaded_from
@@ -1921,10 +1951,11 @@ class AlpacaBacktesting(DataSourceBacktesting):
                     refresh=getattr(self, "_refresh_cache", False),
                 )
             elif isinstance(request_params, OptionBarsRequest):
+                listed = self._listed_occ_symbols([base_asset])
                 bars = fetch_alpaca_bars(
                     client, request_params,
                     lambda query: self._alpaca_request(client.get_option_bars, query, what=key),
-                    refresh=getattr(self, "_refresh_cache", False),
+                    refresh=getattr(self, "_refresh_cache", False), empty_ok=listed.__contains__,
                 )
             else:
                 bars = fetch_alpaca_bars(

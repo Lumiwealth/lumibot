@@ -1504,3 +1504,34 @@ def test_orders_wait_then_account_portfolio_reports_post_fill_cash():
     fill_cost = 36 * float(order.get_fill_price())
     assert float(portfolio["cash"]) == pytest.approx(100000.0 - fill_cost)
     assert float(portfolio["portfolio_value"]) == pytest.approx(100000.0, rel=1e-3)
+
+
+def test_process_pending_orders_pandas_dataframe_with_select_attribute(monkeypatch):
+    """Regression test for issue #1267: pandas 3.1+ adds DataFrame.select().
+
+    Verifies that backtesting broker does not treat pandas DataFrames with
+    a .select attribute as polars DataFrames.
+    """
+    monkeypatch.setattr(pd.DataFrame, "select", lambda self, *args, **kwargs: None, raising=False)
+
+    asset = Asset("AAPL", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    strategy, broker, _ = setup_strategy_with_prices(
+        asset,
+        quote,
+        bars=[(100.0, 101.0, 99.0, 101.0), (101.0, 102.0, 100.0, 102.0)],
+    )
+
+    order = strategy.create_order(
+        asset,
+        10,
+        Order.OrderSide.BUY,
+        order_type=Order.OrderType.MARKET,
+    )
+    submit_and_fill(strategy, broker, order)
+
+    assert order.is_filled()
+    position = broker.get_tracked_position(strategy.name, asset)
+    assert position is not None
+    assert position.quantity == pytest.approx(10.0)
+

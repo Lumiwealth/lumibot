@@ -3090,7 +3090,7 @@ class BacktestingBroker(Broker):
                 df_original = ohlc.df
 
                 # Handle both pandas and polars DataFrames
-                if hasattr(df_original, 'select'):  # Polars DataFrame
+                if isinstance(df_original, pl.DataFrame):  # Polars DataFrame
                     # Find datetime column
                     dt_col = None
                     for col in df_original.columns:

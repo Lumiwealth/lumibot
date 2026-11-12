@@ -521,9 +521,14 @@ class Data:
 
         # Calendar alignment creates valuation rows, not new trade observations.
         # Retain provenance across repeated repairs as well as the first repair.
-        if self.timestep != "day" and "bar_timestamp" not in self.df:
-            self.df["bar_timestamp"] = self.df.index
         observed = self.df.get("bar_is_observed", pd.Series(True, index=self.df.index))
+        # Provider refreshes concatenate raw rows with previously aligned rows.
+        # Missing metadata on those new observations is not calendar padding.
+        observed = observed.where(observed.notna(), True).astype(bool)
+        if self.timestep != "day":
+            source_times = pd.Series(self.df.index, index=self.df.index)
+            previous_times = self.df.get("bar_timestamp", source_times)
+            self.df["bar_timestamp"] = previous_times.fillna(source_times.where(observed))
         # Reindex the DataFrame with the new index and forward-fill missing values.
         df = self.df.reindex(idx, method="ffill")
         if self.timestep != "day":

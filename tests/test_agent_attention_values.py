@@ -28,6 +28,41 @@ class Strategy:
         return self.positions
 
 
+def test_profit_capture_watch_uses_total_cash_units():
+    strategy = Strategy()
+    monitor = AttentionMonitor(strategy)
+    asset = {"symbol": "XYZ"}
+    monitor.watch(owner="decision", watch_id="capture", operation_id="holding",
+        metric="basket_pnl", comparison="gte", value=120, entry_cash=300,
+        legs=[{"asset": asset, "quantity": -2, "multiplier": 100}],
+        reason="Review after capturing forty percent of the total opening credit")
+    # $300 opening cash less the total remaining liability; per-share price is
+    # only an observation input and is never the P&L threshold's unit.
+    assert monitor.poll(observations={observation_key("price", asset): 1.0}) == []
+    event = monitor.poll(observations={observation_key("price", asset): 0.9})[0]
+    assert event["observed"] == 120
+    assert strategy.model_calls == 0
+
+
+@pytest.mark.parametrize("cash,threshold,percent", [(300, 12, 4), (-300, -120, -40), (0, 12, None)])
+def test_pnl_preview_reports_the_selected_currency_threshold_basis(cash, threshold, percent):
+    strategy = Strategy()
+    monitor = AttentionMonitor(strategy)
+    definition = monitor.watch(owner="decision", watch_id="review", operation_id="holding",
+        metric="basket_pnl", comparison="gte", value=threshold, entry_cash=cash,
+        legs=[{"asset": {"symbol": "XYZ"}, "quantity": -2, "multiplier": 100}],
+        reason="Inspect the units of the selected boundary before finishing")
+    before = deepcopy(strategy.vars)
+    # The percentage meaning of the selected threshold remains available even
+    # when the price needed to observe current P&L is unavailable.
+    preview = monitor.preview(definition)
+    assert preview["value_units"] == "currency"
+    assert preview["threshold_percent_of_absolute_entry_cash"] == percent
+    assert strategy.vars == before
+    assert monitor.pending() == []
+    assert strategy.model_calls == 0
+
+
 @pytest.mark.parametrize("cash,quantities,initial,worse,expected", [
     (30, [-1, 1], [0.6, 0.3], [0.9, 0.3], -30),
     (-30, [1, -1], [0.6, 0.3], [0.3, 0.3], -30),
@@ -104,5 +139,7 @@ def test_model_tool_preserves_selected_cash_basis_and_returns_read_only_feedback
     assert result["entry_cash"] == -90
     assert result["registration_observation"]["observed"] == -10
     assert result["registration_observation"]["condition_met"] is False
+    assert result["registration_observation"]["value_units"] == "currency"
+    assert result["registration_observation"]["threshold_percent_of_absolute_entry_cash"] == pytest.approx(-20 / 90 * 100)
     assert manager.attention.pending() == []
     assert manager.attention.snapshot(owner="decision")["watches"][0]["entry_cash"] == -90

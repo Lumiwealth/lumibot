@@ -1,9 +1,14 @@
 # Changelog
 
-## 4.6.55 - Unreleased
+## 4.6.55 - 2026-11-12
 
 ### Fixed
 - Polygon cached US stock, option and index coverage uses the New York trading date. Previous-evening rows after midnight UTC no longer suppress downloading the next session. Confirmed-empty dates remain checked, so unavailable sessions are not requested repeatedly. Crypto, forex and legacy cache-writer callers retain their existing date convention.
+
+### Documentation and evidence
+- Publish audited local option-example backtest notes and an equity comparison.
+- Preserve original native AI qualification without rerunning unrelated model cases for a provider-only repair.
+- Keep public qualification and cost records free of private downstream service names.
 
 ## 4.6.54 - 2026-11-11
 

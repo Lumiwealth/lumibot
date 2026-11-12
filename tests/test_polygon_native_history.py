@@ -109,3 +109,19 @@ def test_storage_limit_counts_aliases_once_and_evicts_all_aliases(market):
     source._enforce_storage_limit(source.pandas_data)
     assert set(source.pandas_data) == {(other, usd), (other, usd, "minute")}
     assert source.pandas_data[(other, usd)] is source.pandas_data[(other, usd, "minute")]
+
+
+def test_quote_after_daily_research_loads_current_minute_once(market):
+    """A daily cache must not supply its eventual close as the current quote."""
+    source, asset, usd, requests, _, minute = market
+    source.get_historical_prices(asset, 200, timestep="day", quote=usd)
+    result = source.get_quote(asset, quote=usd)
+    assert result.price == 120
+    assert result.raw_data["bar_timestep"] == "minute"
+    assert result.raw_data["bar_timestamp"] == source.get_datetime()
+    assert result.bid is None and result.ask is None
+    assert source.get_last_price(asset, quote=usd) == result.price
+    assert requests == ["day", "minute"]
+    requests.clear()
+    assert source.get_quote(asset, quote=usd).price == 120
+    assert requests == []

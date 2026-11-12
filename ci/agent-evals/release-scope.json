@@ -1,14 +1,10 @@
 {
   "version": 1,
-  "package_version": "4.6.54",
+  "package_version": "4.6.55",
   "cases": [
     {
-      "id": "attention_overnight_management_preserves_entry_opportunity",
-      "reason": "Payoff/loss teaching, optional management research, package parent completion and final ordinary model transport must preserve actual overnight exit and next-session re-entry. Five native establishment passes retained at immutable source 4a1fb87468325230d2119791265dc62c145688a2; one current regression."
-    },
-    {
-      "id": "options_unequal_call_ratio_atomic_open",
-      "reason": "Exact two-to-one quantities, quote-quality assessment and package parent completion must remain correct on the final ordinary model transport. Five native establishment passes retained at immutable source 4a1fb87468325230d2119791265dc62c145688a2; one current regression."
+      "id": "attention_confirmed_fill_arms_required_profit_review",
+      "reason": "The only new behavioral guidance completes policy-required monitoring in the fill-confirmation review. This neutral long-option case proves real fill basis, signed position quantity, profit units and persisted watches. New one-position Greek aggregation is a plain parser regression with eleven focused code checks; existing two-plus-leg arithmetic, atomic order tools, session entry/exit mechanics and existing already-correct native passes are unchanged. Public example copies do not run inside these component fixtures. No whole-catalog inference or unrelated model refresh."
     }
   ]
 }

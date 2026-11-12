@@ -1,0 +1,15 @@
+{
+  "version": 3,
+  "source_commit": "b131985383a06f69e60c8b16fce0ef03ea8f60b1",
+  "receipt_sha256": "348979ded0fc98f5a74972e19f478eb8c73fb37919af72e81293b4cfb882ade5",
+  "author_review": {
+    "candidate_runtime_fingerprint": "66046e7bbe65b13e24de29c5b88d110f9fd429c12221e387a069c3526b5c86e1",
+    "case_ids": [
+      "options_single_leg_chain_and_quote",
+      "options_unequal_call_ratio_atomic_open"
+    ],
+    "reason": "Retain the original five single-option actors and ratio regression with their exact SDK tuple, original calls and timestamps. They did not use attention tools, live Schwab synchronization, CCXT or Polygon history, and complete input bars are unchanged by the sparse-padding guard. Ownership predicates still accept their locally submitted native orders. Financial statistics change only after execution. The explicit verifier scope/anchor support is offline metadata verification, not inference. This author decision preserves original proof; it is not fresh hosted or live-broker execution."
+  },
+  "receipt_commit": "7bbd2f607b6ff945a75c07271d3106a0fff7be35",
+  "receipt_path": "ci/agent-evals/single-option-guidance-qualification.json"
+}

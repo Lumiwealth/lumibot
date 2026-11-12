@@ -49,6 +49,52 @@ def test_scope_written_for_another_version_fails(native_metadata):
             scope, _catalog(native_metadata), None, runtime_hash="source", version="9.9.10")
 
 
+def test_verify_uses_the_explicit_receipt_scope_pair(native_metadata, tmp_path, monkeypatch, capsys):  # noqa: F811
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    receipt = make_receipt((rows, calls, cases, versions, now))
+    receipt_path = tmp_path / "component-proof.json"
+    scope_path = tmp_path / "component-scope.json"
+    receipt_path.write_text(json.dumps(receipt))
+    scope_path.write_text(json.dumps(_scope([
+        {"id": "contract", "reason": "This separately qualified component changed."}
+    ])))
+    monkeypatch.setattr(qualification.evals, "load_cases", lambda: cases)
+    monkeypatch.setattr(qualification.evals, "runtime_fingerprint", lambda: "source")
+    monkeypatch.setattr(qualification.evals, "sdk_versions", lambda: versions)
+    monkeypatch.setattr(qualification, "package_version", lambda: "9.9.9")
+    monkeypatch.setattr(sys, "argv", ["qualify_agent_evals.py", "verify", "--receipt",
+        str(receipt_path), "--scope", str(scope_path)])
+    qualification.main()
+    assert "1 listed case(s) with current pass evidence" in capsys.readouterr().out
+
+
+def test_verify_uses_the_explicit_retention_anchor(native_metadata, tmp_path, monkeypatch):  # noqa: F811
+    from scripts import agent_eval_source_compatibility
+
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    receipt = make_receipt((rows, calls, cases, versions, now))
+    receipt_path, scope_path, anchor_path = [tmp_path / name for name in
+        ("component-proof.json", "component-scope.json", "component-anchor.json")]
+    receipt_path.write_text(json.dumps(receipt))
+    scope_path.write_text(json.dumps(_scope([
+        {"id": "contract", "reason": "Retain the original component proof."}
+    ])))
+    anchor_path.write_text(json.dumps({"testAnchor": "explicit component"}))
+    seen = []
+    def compatible(proof, raw, anchor):
+        seen.append((proof, raw, anchor))
+        return "source"
+    monkeypatch.setattr(agent_eval_source_compatibility, "compatible_runtime", compatible)
+    monkeypatch.setattr(qualification.evals, "load_cases", lambda: cases)
+    monkeypatch.setattr(qualification.evals, "runtime_fingerprint", lambda: "changed")
+    monkeypatch.setattr(qualification.evals, "sdk_versions", lambda: versions)
+    monkeypatch.setattr(qualification, "package_version", lambda: "9.9.9")
+    monkeypatch.setattr(sys, "argv", ["qualify_agent_evals.py", "verify", "--receipt",
+        str(receipt_path), "--scope", str(scope_path), "--source-compatibility", str(anchor_path)])
+    qualification.main()
+    assert seen == [(receipt, receipt_path.read_bytes(), {"testAnchor": "explicit component"})]
+
+
 def test_listed_case_without_pass_evidence_fails(native_metadata):
     scope = _scope([{"id": "contract", "reason": "The change edits the tool this case exercises."}])
     with pytest.raises(ValueError, match="no pass evidence"):

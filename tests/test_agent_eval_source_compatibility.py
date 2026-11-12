@@ -42,6 +42,24 @@ def test_author_review_retains_exact_native_source_without_inferring_new_runs(tm
     assert (tmp_path / 'ci/agent-evals/qualification.json').read_bytes() == raw
 
 
+def test_component_receipt_retains_distinct_original_and_publication_commits(tmp_path, monkeypatch):
+    receipt, raw, anchor = _author_retention_source(tmp_path, monkeypatch)
+    path = 'ci/agent-evals/component-qualification.json'
+    (tmp_path / path).write_bytes(raw)
+    scope._git('add', path, 'lumibot/diagnostics.py', root=tmp_path)
+    scope._git('-c', 'user.name=Native Contract', '-c', 'user.email=native@example.invalid',
+               'commit', '-qm', 'Publish component evidence after unrelated diagnostics', root=tmp_path)
+    published = scope._git('rev-parse', 'HEAD', root=tmp_path).decode().strip()
+    anchor.update(version=3, receipt_commit=published, receipt_path=path)
+    assert published != anchor['source_commit']
+    assert scope.compatible_runtime(receipt, raw, anchor, root=tmp_path) == receipt['runtime_fingerprint']
+    # A matching runtime declaration never permits different published receipt bytes.
+    (tmp_path / path).write_bytes(raw + b'\n')
+    anchor['receipt_sha256'] = hashlib.sha256(raw + b'\n').hexdigest()
+    with pytest.raises(ValueError, match='immutable'):
+        scope.compatible_runtime(receipt, raw + b'\n', anchor, root=tmp_path)
+
+
 @pytest.mark.parametrize('field,value', [
     ('candidate_runtime_fingerprint', '0' * 64), ('case_ids', []), ('reason', ''), ('unexpected', True),
 ])

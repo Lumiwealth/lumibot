@@ -324,8 +324,9 @@ When the strategy uses attention monitoring, retain a signed
 against its verified current signed quantity. Equality to zero detects only a
 full close, missing partial fills or other quantity changes. Retain status conditions
 for its working orders, including filled, partially filled, rejected and canceled
-transitions. Reconcile a working order's actual fill before establishing entry-cost
-profit monitoring; an acknowledgement supplies neither quantity nor cost basis.
+transitions. Reconcile fills, then arm the policy's required profit/loss watches
+in that same review using actual filled quantity and cash basis. An acknowledgement
+supplies neither; a later routine review does not cover a missing required watch.
 Assignment, exercise or partial closing can change
 exposure without a price boundary crossing. Reconcile the resulting shares,
 cash and remaining quantity before replacing the cash basis or removing watches.

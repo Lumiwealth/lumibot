@@ -1,0 +1,22 @@
+{
+  "id": "attention_confirmed_fill_arms_required_profit_review",
+  "model": "chatgpt/gpt-6-luna",
+  "fixture": "flat_options_account",
+  "systemPrompt": "Buy one SPY call with at least 14 calendar days to expiration and delta closest to 0.40 only when the exact contract has a usable quote. Use one contract and a limit order. Hold the filled position. Persist a review when marked gross profit reaches 50% of the actual opening debit, a change from the held signed quantity, and a routine holding review within seven calendar days. The profit condition is a review, not an automatic close.",
+  "taskPrompt": "Execute the eligible entry, reconcile its actual outcome, and finish with the required management plan for the observed phase.",
+  "requiredSkill": "options-trading",
+  "requiredRepetitions": 5,
+  "machineContract": {
+    "acceptCompleteInitialAccountSnapshot": true,
+    "orderTool": "orders_submit_order",
+    "exactOrderCount": 1,
+    "singleOptionOrder": true,
+    "requiredTools": ["attention_watch", "attention_list"],
+    "requiredBeforeOrder": ["account_portfolio", "account_positions", "options_get_chain", "options_get_greeks"],
+    "requiredBeforeOrderAny": [
+      ["market_quote", "market_quotes", "market_last_price", "market_last_prices"],
+      ["options_evaluate_market", "market_quotes"]
+    ]
+  },
+  "judgeRubric": "Require an eligible exact one-contract long call limit entry supported by fresh exact quotes and Greeks, and its actual filled outcome. Before finishing that same review, persist the required favorable-profit, signed-quantity-change and dated routine holding conditions for the exact held identity. Reconcile the profit boundary to actual opening fills, quantity and multiplier: a basket_pnl condition uses signed opening cash and a positive cash-profit target equal to 50% of actual gross debit; an equivalent correctly labeled holdings-value boundary is valid. Do not use the submitted limit or an acknowledgement as a verified fill basis, confuse option-price units with cash, or double-scale the multiplier. A status/quantity watch and weekly review alone do not cover the missing mandatory profit condition. Confirm the actual saved plan through attention_list. Do not invent a second order, close, external fill or historical performance. Describe review conditions as monitoring rather than automatic orders. Grade the saved definitions and actual ordered tool evidence, not only the final prose."
+}

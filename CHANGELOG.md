@@ -5,10 +5,11 @@
 Deploy marker: 51e0aed622f2efaa8e1a86fdd725951bd1ff52c3
 
 ### Fixed
+- Require QuantStats Lumi 1.1.6 so small nonzero total returns remain visible in tear-sheet headings instead of rounding to zero.
 - Polygon cached US stock, option and index coverage uses the New York trading date. Previous-evening rows after midnight UTC no longer suppress downloading the next session. Confirmed-empty dates remain checked, so unavailable sessions are not requested repeatedly. Crypto, forex and legacy cache-writer callers retain their existing date convention.
 
 ### Documentation and evidence
-- Publish audited local option-example backtest notes and an equity comparison.
+- Publish native performance reports from audited local option-example runs and document automatic interactive charts and headless report saving.
 - Preserve original native AI qualification without rerunning unrelated model cases for a provider-only repair.
 - Keep public qualification and cost records free of private downstream service names.
 

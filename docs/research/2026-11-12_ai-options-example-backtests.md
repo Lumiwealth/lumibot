@@ -35,7 +35,25 @@ is paid leveraged exposure, not free stock or a zero-cost promise.
 | Bull call spread | $100,000.00 | $99,815.70 | −$184.30 | −0.1843% | $1.30 | 1 / 0 | Open |
 | 2:1 call stock replacement | $200,000.00 | $199,532.05 | −$467.95 | −0.2340% | $1.95 | 1 / 0 | Open |
 
-![Actual account curves from the three local historical backtests](../assets/ai-options-20261112/equity-comparison.png)
+LumiBot's native reports, generated from these saved runs with QuantStats Lumi
+1.1.6: [iron condor](../../docsrc/_extra/tearsheets/ai-options-20261112/condor.html),
+[bull call spread](../../docsrc/_extra/tearsheets/ai-options-20261112/vertical.html),
+and [2:1 call stock replacement](../../docsrc/_extra/tearsheets/ai-options-20261112/replacement.html).
+These GitHub links identify the downloadable HTML files; the documentation site
+serves them as reports after its normal publication.
+
+![Native LumiBot bull call spread performance report](../assets/ai-options-20261112/native-report-spread.png)
+
+The native reports include the SPY price benchmark from the study's existing
+minute observations. They use LumiBot's normal initial-capital anchor, shown as
+October 4; the actual trading sessions remain October 5–16. No dividends were
+supplied. Annualized statistics from ten sessions are descriptive extrapolations,
+not an expected annual return. QuantStats Lumi currently uses a desktop-width
+layout; narrow screens need horizontal scrolling. The reports were formatted without rerunning
+strategy decisions, model calls or market-data requests. Original accounting
+and trades are unchanged. Normal LumiBot backtests already enable interactive
+trade charts and tear sheets; the original private launcher explicitly disabled
+them. See [automatic reports and headless usage](../../docsrc/backtesting.how_to_backtest.rst).
 
 The condor completed seven entries and seven closes, including re-entry after
 closure. The vertical ended long one November 20 SPY $770 call and short one

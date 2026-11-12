@@ -13,6 +13,11 @@ Deploy marker: 51e0aed622f2efaa8e1a86fdd725951bd1ff52c3
 - Preserve original native AI qualification without rerunning unrelated model cases for a provider-only repair.
 - Keep public qualification and cost records free of private downstream service names.
 
+### Backtesting and history
+- A backtest that never got any price or bar for an asset it asked about (the provider does not know the symbol, or returned nothing for the whole run) now lists it in `data_health.required_failures` with the asset, the provider and a reason (`symbol_not_found` when the provider said it has no such symbol, otherwise `no_data_for_backtest`), and sets `required_complete` to false, so a host can mark the run failed instead of "completed with no trades". Option contracts are excluded (strike searches probe contracts that never traded), runs with data for every asset are unchanged, and no data is invented.
+- Delta strike picks load stored option prices only for the strikes the search can reach (a band around its starting strike, widened before the search steps past it) instead of every candidate. Same strike, same prices. Warm 3-month SPY iron condor: a 10:00 entry went from 461 ms to 174 ms (median), simulation wall 38.1 s to 20.4 s, trades and stats identical.
+- Fewer repeated steps per pick: the risk-free rate is looked up once per time instead of once per strike, stored option timestamps are not converted again, and already sorted shared-cache rows are not sorted again.
+
 ## 4.6.54 - 2026-11-11
 
 Deploy marker: d802adfc087f895e272421f2b06de6cce5df875e

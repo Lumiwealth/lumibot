@@ -1,0 +1,55 @@
+{
+  "date": "2026-11-11",
+  "kind": "release-follow-up-code-regressions",
+  "publicBoundary": "Native observation provenance, existing broker recovery, neutral code tests and test-contract corrections only. No private infrastructure, credentials, security implementation or strategy rules.",
+  "timeline": [
+    "CI reproduced ProjectX recovery retaining an incomplete-history hold after history_complete became true; tracked owner remained empty despite the complete native tag matching.",
+    "Local exact reproduction confirmed the same mismatch; native adapter attribution now supplies the matched owner without replacing another owner.",
+    "Frozen futures replay reproduced valid refreshed prices rejected as stale; raw appended rows had empty provenance columns after concatenation with aligned rows.",
+    "The neutral appended-row test failed first; raw new observations now initialize their own provenance and prior padding retains its false observed flag."
+  ],
+  "regressions": [
+    "test_complete_history_can_clear_a_previous_restart_hold",
+    "test_sync_attributes_recovered_history_only_to_its_verified_owner",
+    "test_appended_provider_rows_keep_their_own_observation_times",
+    "test_held_contract_does_not_earn_continuous_series_roll_gap"
+  ],
+  "checks": [
+    {
+      "paths": [
+        "tests/test_projectx_bracket_lifecycle_unit.py",
+        "tests/test_projectx_submission_ownership.py"
+      ],
+      "passed": 172,
+      "seconds": 5.05
+    },
+    {
+      "paths": [
+        "tests/test_data_entity.py",
+        "tests/test_projectx_lifecycle_unit.py",
+        "tests/test_schwab_positions_unit.py",
+        "tests/test_portfolio_valuation_fallbacks.py",
+        "tests/backtest/test_ibkr_frozen_replay.py::test_held_contract_does_not_earn_continuous_series_roll_gap"
+      ],
+      "passed": 182,
+      "seconds": 14.33
+    },
+    {
+      "paths": [
+        "tests/backtest/test_daily_limit_execution.py",
+        "tests/test_data_repair_times_and_fill_daily_quotes.py",
+        "tests/test_backtest_quote_source_times.py",
+        "tests/test_pandas_data.py",
+        "tests/backtest/test_ibkr_frozen_replay.py"
+      ],
+      "passed": 107,
+      "seconds": 40.61
+    }
+  ],
+  "modelAttempts": 0,
+  "failedModelCasesRetried": 0,
+  "systemPromptDeltaBytes": 0,
+  "skillDeltaBytes": 0,
+  "sixHourLimitChanged": false,
+  "retainedProof": "Previously passing model cases do not use provider history refresh or ProjectX. Their original source, calls, dates and prices remain intact. No local strategy trial is relabeled as this release execution."
+}

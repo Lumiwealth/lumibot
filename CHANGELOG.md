@@ -22,6 +22,8 @@ Deploy marker: a50c93e74f33bc994ca662744a76b7f49d1e1e01
 - A generic `Broker.on_order_observation` application hook exposes broker evidence without adding storage, credentials or infrastructure to the public library. Schwab invokes it on real REST observations; consumer failures do not stop order processing.
 
 ### Fixed
+- New provider rows appended to aligned history keep their own source timestamps and observed status; prior calendar padding remains non-executable. This preserves futures marks after weekend history refresh.
+- ProjectX restored order history receives its verified strategy attribution during synchronization, allowing a complete protective-generation ledger to clear an earlier incomplete-history hold without adopting another owner.
 - Polygon quote reads warm current minute data before reading after daily research, so a cached daily close cannot stand in for an available current quote.
 - Shared options guidance uses the ordinary one-order path for a single contract, preserves signed quantity adjustments, and distinguishes cash collateral from option-premium units. Profit-condition readback labels cash amounts and the selected threshold without changing saved conditions or dispatch.
 - Schwab account-wide order reads no longer import another instance's or a manual order into local strategy state merely because its display name or tag matches. Submitted orders, explicitly checkpointed recovery and children of verified parent orders retain ownership, including arbitrary user order tags. Automatic recovery requires a bound instance and account identity. Normal variable backups preserve those order identities and already delivered fills, without replaying historical fill callbacks. Broad account inspection remains available.

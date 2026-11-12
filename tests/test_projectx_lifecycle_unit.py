@@ -131,6 +131,8 @@ def test_generated_tag_delivers_fill_to_its_own_strategy(projectx_broker, mes_as
     projectx_broker._subscribers = [subscriber]
     order = Order(strategy=name, asset=mes_asset, quantity=1, side="buy")
     build_unique_order_tag(order)
+    projectx_broker._process_new_order(order)
+    subscriber.add_event.reset_mock()
     projectx_broker._on_filled_order(Mock(), order, 5000, 1, 5)
     assert subscriber.add_event.call_count == 1
 
@@ -147,6 +149,7 @@ def test_executor_uses_broker_ownership_for_unique_order_tags(projectx_broker, m
     executor.broker = projectx_broker
     order = Order(strategy=name, asset=mes_asset, quantity=2, side='buy')
     build_unique_order_tag(order)
+    projectx_broker._process_new_order(order)
     executor._on_partially_filled_order(None, order, 5000, 1, 5)
     callback.assert_called_once()
     executor.strategy.name = 'SyntheticLifecycleDifferent'

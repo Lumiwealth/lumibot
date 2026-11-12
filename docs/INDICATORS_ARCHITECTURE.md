@@ -1,6 +1,6 @@
 # Indicators Architecture
 
-**Last Updated:** 2026-10-24
+**Last Updated:** 2026-11-11
 **Status:** Active
 **Audience:** Contributors / AI sessions maintaining `lumibot/indicators/indicators.py`
 
@@ -268,3 +268,30 @@ This applies to built-in, custom and streaming indicators. Minute/hour bar
 closes are unavailable until their actual cadence completes; daily and bare
 provider-frame contracts remain unchanged. The provider frame is never mutated.
 A completed final bar remains visible even when no following row exists.
+
+### Per-call cost and backtest input evidence (2026-11-11)
+
+In a backtest every `_dispatch` and `get()` call passes the frame it computed on to
+`record_market_input(purpose="indicator")`. That frame is the whole visible history
+(10,000 prefetched bars, then the store as it grows: 29,560 rows after one month of
+one-minute SPY with extended hours). The recorder used to serialize every row in Python on
+every call, which was 95% of a call (profiled with yappi: 68.6 million row-signature
+iterations for 1,144 calls; production measured 356 to 543 ms per call).
+
+`MarketInputEvidence` now keeps, per stream (asset, timestep, columns, timezone), up to four
+recently recorded frames as compact bytes plus bit patterns of their values. A new frame
+whose leading rows equal a run of stored rows (growing history, or a lookback that moved
+forward) reuses those encoded rows for its digest and serializes only the rest. The recorded
+rows, observations and digests are byte-identical to a full re-read
+(`tests/test_market_input_evidence_growing.py`). State is bounded (32 streams, 1,000,000 rows).
+Count guards: `tests/test_indicators_call_cost.py` (one recompute per new bar, none for a
+same-bar repeat, evidence rows serialized no more than distinct rows).
+
+What a call still costs (measured, 10,000 growing to 30,000 rows, 1,000 calls): about 4.4 ms
+for a built-in and 4.1 ms for a custom call whose own function takes 0.75 ms. That is a copy
+and a vectorized hash of the visible history, the full pandas-ta (or custom) recompute, and
+about 1 ms for the evidence transaction commit. A history that starts with exactly the stored
+rows also continues the stored digest; a lookback that moved forward rehashes the reused bytes
+(C speed). The copy, hash and recompute still grow with the run. Bounding the input window
+would change values for recursive indicators (RSI, EMA) and needs a declared lookback; that is
+not done here.

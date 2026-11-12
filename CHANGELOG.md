@@ -2,6 +2,8 @@
 
 ## 4.6.55 - 2026-11-12
 
+Deploy marker: 51e0aed622f2efaa8e1a86fdd725951bd1ff52c3
+
 ### Fixed
 - Polygon cached US stock, option and index coverage uses the New York trading date. Previous-evening rows after midnight UTC no longer suppress downloading the next session. Confirmed-empty dates remain checked, so unavailable sessions are not requested repeatedly. Crypto, forex and legacy cache-writer callers retain their existing date convention.
 

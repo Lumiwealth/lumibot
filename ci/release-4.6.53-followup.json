@@ -6,7 +6,8 @@
     "CI reproduced ProjectX recovery retaining an incomplete-history hold after history_complete became true; tracked owner remained empty despite the complete native tag matching.",
     "Local exact reproduction confirmed the same mismatch; native adapter attribution now supplies the matched owner without replacing another owner.",
     "Frozen futures replay reproduced valid refreshed prices rejected as stale; raw appended rows had empty provenance columns after concatenation with aligned rows.",
-    "The neutral appended-row test failed first; raw new observations now initialize their own provenance and prior padding retains its false observed flag."
+    "The neutral appended-row test failed first; raw new observations now initialize their own provenance and prior padding retains its false observed flag.",
+    "The release CI identified legacy test doubles that treated a name/tag as sufficient ownership. Executor fixtures now call the real ownership predicate with a tracked identity; recovered Kalshi history passes its existing sync reducer before asserting ownership. Runtime ownership checks are unchanged."
   ],
   "regressions": [
     "test_complete_history_can_clear_a_previous_restart_hold",
@@ -44,6 +45,14 @@
       ],
       "passed": 107,
       "seconds": 40.61
+    },
+    {
+      "paths": [
+        "tests/test_fill_strategy_ownership.py",
+        "tests/test_kalshi_trading.py"
+      ],
+      "passed": 48,
+      "seconds": 2.09
     }
   ],
   "modelAttempts": 0,

@@ -320,7 +320,9 @@ class TestForwardFill:
 
         # Should log a warning about forward-filling
         warning_mock.assert_called()
-        assert "forward-filled" in str(warning_mock.call_args).lower()
+        message = str(warning_mock.call_args).lower()
+        assert "last real mark" in message
+        assert "valuation only, no trade or bar is created" in message
 
     def test_forward_fill_not_used_when_price_available(self):
         """

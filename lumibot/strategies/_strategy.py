@@ -1616,9 +1616,9 @@ class _Strategy:
 
             prices = {}
             if not hasattr(self, "_forward_fill_warning_cache"):
-                # Throttle repetitive backtest forward-fill warnings (asset, day) to keep
-                # valuation logs informative without dominating runtime.
+                # Sessions already reported for last-known valuation marks (one line each).
                 self._forward_fill_warning_cache = set()
+            carried_marks = []
             for position in positions:
                 asset = position.asset
                 if asset != quote_asset:
@@ -1691,19 +1691,11 @@ class _Strategy:
                     # Forward-fill fallback: use last known price when current price is unavailable.
                     # This is critical for illiquid options (LEAPS) that may not trade for days.
                     if asset in self._last_known_prices:
+                        # Valuation only: the last real mark seen for this asset. No bar, trade or
+                        # fill is created. Reported once per session below, not per contract.
                         price = self._last_known_prices[asset]
                         base_asset = asset[0] if isinstance(asset, tuple) else asset
-                        asset_symbol = getattr(base_asset, 'symbol', str(base_asset))
-                        # Throttle noisy forward-fill warnings to once per contract/symbol per run.
-                        # Daily option strategies can otherwise emit thousands of lines that materially
-                        # slow long backtests and bloat logs.
-                        warn_key = str(base_asset)
-                        if warn_key not in self._forward_fill_warning_cache:
-                            self._forward_fill_warning_cache.add(warn_key)
-                            self.logger.warning(
-                                "Using forward-filled price %.4f for %s at %s (no current price available).",
-                                price, asset_symbol, self.broker.datetime,
-                            )
+                        carried_marks.append(str(base_asset))
                     else:
                         # No price history - must skip this position
                         if isinstance(asset, Asset):
@@ -1763,6 +1755,16 @@ class _Strategy:
                     # All other cases (stocks, options, crypto, live trading)
                     position_value = float(quantity) * float(price) * multiplier
                     portfolio_value += position_value
+
+            if carried_marks:
+                session = getattr(option_mark_time_local, "date", lambda: None)() if option_mark_time_local else None
+                if session not in self._forward_fill_warning_cache:
+                    self._forward_fill_warning_cache.add(session)
+                    self.logger.warning(
+                        "Valuing %d position(s) at their last real mark at %s (no current price; valuation only, "
+                        "no trade or bar is created; reported once per session): %s",
+                        len(carried_marks), self.broker.datetime, ", ".join(carried_marks[:10]),
+                    )
 
             self._portfolio_value = portfolio_value
             self._portfolio_value_cache_key = cache_key
@@ -2431,7 +2433,7 @@ class _Strategy:
         self._stats = pd.DataFrame(self._stats_list)
         if "datetime" in self._stats.columns:
             self._stats = self._stats.set_index("datetime")
-            self._stats = self._stats.sort_index()
+            self._stats = self._stats.sort_index(kind="stable")
 
         cumulative_period_columns = (
             ("cash_deposits_total", "cash_deposits_period"),
@@ -4910,6 +4912,29 @@ class _Strategy:
             return tuple(restored) if isinstance(saved, tuple) else restored
         return saved
 
+    def _checkpoint_order_ownership(self):
+        exporter = getattr(getattr(self, "broker", None), "export_order_state", None)
+        if callable(exporter):
+            state = exporter(self._name)
+            if isinstance(state, dict):
+                # Keep typed order internals separate from user-variable
+                # walkers and legacy dictionary/date coercion.
+                self.vars.set("_lumibot_order_state", _json_dumps(state))
+
+    def _restore_order_ownership(self):
+        state = self.vars.all().get("_lumibot_order_state")
+        restorer = getattr(getattr(self, "broker", None), "restore_order_state", None)
+        if state is not None and callable(restorer):
+            account_identity = getattr(self.broker, "_order_checkpoint_account_identity", lambda: None)()
+            if not getattr(self.broker, "order_ownership_id", None) or account_identity is None:
+                if not getattr(self, "_unbound_order_checkpoint_logged", False):
+                    self.logger.warning("Order checkpoint not restored automatically: no stable instance/account identity")
+                    self._unbound_order_checkpoint_logged = True
+                return
+            if isinstance(state, str):
+                state = _json_loads(state)
+            restorer(state, self._name)
+
     def _load_variables_from_scheduled_state_file(self):
         state_file = os.environ.get("LUMIBOT_SCHEDULED_STATE_FILE")
         if not state_file:
@@ -4940,6 +4965,7 @@ class _Strategy:
         for key, value in data.items():
             self.vars.set(key, value)
 
+        self._restore_order_ownership()
         self._last_backup_state = self._serialize_variables_for_backup(self.vars.all())
         self.logger.info("Variables loaded successfully from scheduled state file")
 
@@ -4979,6 +5005,7 @@ class _Strategy:
 
         if self._scheduled_state_enabled():
             try:
+                self._checkpoint_order_ownership()
                 self._backup_variables_to_scheduled_state_file()
             except Exception as e:
                 self.logger.error(f"Error backing up variables to scheduled state file: {e}", exc_info=True)
@@ -4987,6 +5014,7 @@ class _Strategy:
         if not hasattr(self, "db_connection_str") or self.db_connection_str is None or self.db_connection_str == "" or not self.should_backup_variables_to_database:
             return
 
+        self._checkpoint_order_ownership()
         # Ensure we have a self.db_engine
         if not hasattr(self, 'db_engine') or not self.db_engine:
             self.db_engine = create_engine(self.db_connection_str)
@@ -5145,6 +5173,7 @@ class _Strategy:
             for key, value in data.items():
                 self.vars.set(key, value)
     
+            self._restore_order_ownership()
             current_state = self._serialize_variables_for_backup(self.vars.all())
             self._last_backup_state = current_state
     

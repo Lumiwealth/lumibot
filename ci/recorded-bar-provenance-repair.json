@@ -1,0 +1,15 @@
+{
+  "date": "2026-11-11",
+  "genericValue": "Calendar alignment of sparse recorded trade history must not fabricate new execution observations for any strategy.",
+  "publicBoundary": "Data observation metadata, an existing execution-path correction, neutral tests and changelog only. No private infrastructure, security, credentials or strategy policy.",
+  "red": "A three-share limit order filled at 100 from yesterday's forward-filled trade row instead of remaining pending.",
+  "regression": "test_reindexed_missing_intraday_bar_cannot_become_a_current_limit_fill",
+  "green": [
+    {"command": "python -m pytest -oaddopts=-ra tests/backtest/test_daily_limit_execution.py -q", "passed": 19, "seconds": 16.67},
+    {"command": "python -m pytest -oaddopts=-ra tests/test_data_entity.py tests/test_data_repair_times_and_fill_daily_quotes.py tests/test_backtest_quote_source_times.py tests/test_pandas_data.py -q", "passed": 57, "seconds": 3.04}
+  ],
+  "preserved": "Actual later trade observations fill. Buy/sell and market/limit orders keep their normal lifecycle. Genuine quote-based fills, daily quote valuation and historical trade-based marking remain supported.",
+  "modelCalls": 0,
+  "openWorkReview": "Reviewed the open bar-availability and terminal-bounds PR. It does not preserve observations lost during Data calendar alignment. Reuse the existing broker execution path; no second execution module is introduced.",
+  "retentionDecision": "Incoming changes add lazy telemetry imports and optional profiling, unrelated Alpaca and cache work, and release metadata. They do not change these Data/Pandas or synchronous broker controls. Retain the 76 focused passing checks. Earlier model trials on complete minute fixtures retain their original source: every row was observed, so this missing-row guard cannot change their decisions or fills. Sparse-input studies require their own execution audit."
+}

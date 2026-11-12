@@ -1,5 +1,32 @@
 # Persistent attention and signed option accounting
 
+## Next-version pricing and unit clarification
+
+The ordinary single-option limit path is now explicit, alongside the unchanged
+two-or-more-leg atomic preview contract. Quantity-change monitoring compares
+against the verified signed quantity, rather than observing only flattening.
+Collateral explanations compare obligations, policy capacity and cash in the
+same currency. These are existing contracts, not new investment defaults.
+
+P&L registration feedback now labels currency units and reports the chosen
+threshold as a percentage of absolute opening cash. It does not rewrite the
+threshold, select a policy, dispatch an agent or place an order. This diagnostic
+remains available when current price observations are missing; a zero cash basis
+has no defined percentage. Three missing-feedback regressions failed before
+repair. Six focused native checks then passed, including currency observation,
+zero/negative bases and read-only feedback. No model was needed for those checks.
+
+Five single-option actor/judge trials and one unequal-ratio atomic regression
+passed with subscription funding, default tier and the maintained Luna profiles.
+The component scope, native receipt and explicit compatibility review are in
+`ci/agent-evals/single-option-guidance-*.json`. They retain original inference
+source and timestamps. Later P&L diagnostics cannot affect these six actors,
+which never called attention tools; no repeat inference is claimed. This is
+local component proof, not installed-package or live broker qualification.
+Shared system-prompt growth is zero. Concise existing-mechanics guidance grew
+because ambiguous single-leg routing and units caused observed tool/monitor
+failures. No security, credential or private infrastructure implementation is added.
+
 Date: 2026-11-11
 Status: source qualification; not a package release or hosted-runtime claim.
 

@@ -239,6 +239,12 @@ class PolygonDataBacktesting(PandasData):
 
         return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
 
+    def get_quote(self, asset, quote=None, exchange=None):
+        # Quote reads need the same current interval as last-price reads. A prior
+        # daily research load may otherwise supply the session's eventual close.
+        self._update_pandas_data(asset, quote, 1, "minute", self.get_datetime())
+        return super().get_quote(asset=asset, quote=quote, exchange=exchange)
+
     def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
         """
         Integrates the Polygon client library into the LumiBot backtest for Options Data

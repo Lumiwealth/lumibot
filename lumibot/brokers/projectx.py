@@ -1978,6 +1978,23 @@ class ProjectX(Broker):
                 raise ValueError('ProjectX cumulative execution evidence is incomplete')
         return super()._apply_direct_order_observation(order_lumi, matched_order)
 
+    def _orders_for_strategy_sync(self, orders, strategy):
+        # Recovered tags encode the full owner, but cannot be decoded into its
+        # display name until sync supplies that name. Preserve the adapter's
+        # verified-tag recovery contract and never replace another owner.
+        name = self._strategy_name_from_input(strategy)
+        orders = list(orders)
+        for order in orders:
+            if order.strategy or not self.strategy_tag_matches(order.tag, name):
+                continue
+            tracked = self.get_tracked_order(order.identifier)
+            if tracked is not None and tracked.strategy and tracked.strategy != name:
+                continue
+            order.strategy = name
+            if tracked is not None and not tracked.strategy:
+                tracked.strategy = name
+        return orders
+
     def sync_orders(self, strategy):
         strategy_name = self._strategy_name_from_input(strategy)
         with self._order_update_lock:

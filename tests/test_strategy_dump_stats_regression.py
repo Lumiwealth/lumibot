@@ -3,11 +3,13 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
+import pytest
 
 from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting
 from lumibot.entities import Asset
 from lumibot.strategies import _strategy as strategy_module
 from lumibot.strategies.strategy import Strategy
+from lumibot.tools.pandas import day_deduplicate
 
 
 class _StatsOnlyStrategy(Strategy):
@@ -37,6 +39,55 @@ def _stub_stats_flow_math(monkeypatch) -> None:
 
     monkeypatch.setattr(strategy_module, "cumulative_to_period_flows", cumulative_to_period_flows)
     monkeypatch.setattr(strategy_module, "cash_flow_adjusted_returns", cash_flow_adjusted_returns)
+
+
+def test_dump_stats_keeps_same_instant_fill_costs_and_initial_drawdown():
+    """An initial snapshot and a filled-order snapshot can share one clock."""
+    source = PandasDataBacktesting(
+        datetime_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        datetime_end=datetime(2026, 1, 3, tzinfo=timezone.utc),
+    )
+    strat = _StatsOnlyStrategy(broker=BacktestingBroker(data_source=source))
+    strat._benchmark_asset = None
+    strat._stats_file = None
+    start = datetime(2026, 1, 1, 10, tzinfo=timezone.utc)
+    for clock, equity in [(start, 100_000), (start, 99_900),
+                          (start + timedelta(days=1), 99_800),
+                          (start + timedelta(days=1, hours=6), 100_010)]:
+        strat._append_row({"datetime": clock, "portfolio_value": equity})
+    strat._dump_stats()
+    assert strat._analysis["total_return"] == pytest.approx(.0001)
+    assert strat._analysis["max_drawdown"]["drawdown"] == pytest.approx(.002)
+    assert strat._strategy_returns_df["portfolio_value"].iloc[0] == 99_900
+
+
+def test_same_instant_stats_compound_returns_and_preserve_period_cash_flows():
+    clock = pd.Timestamp("2026-01-01", tz="UTC")
+    stats = pd.DataFrame({
+        "return": [float("nan"), -.01, .02, 0.0],
+        "portfolio_value": [100, 99, 100.98, 110.98],
+        "cash_adjustments_net_period": [0, 0, 0, 10],
+        "cash_adjustments_net_total": [0, 0, 0, 10],
+    }, index=[clock, clock, clock, clock + pd.Timedelta(days=1)])
+    actual = day_deduplicate(stats)
+    assert actual.index.is_unique
+    assert actual["return"].tolist() == pytest.approx([.0098, 0.0])
+    assert actual["portfolio_value"].tolist() == [100.98, 110.98]
+    assert actual["cash_adjustments_net_total"].sum() == 10
+    assert actual["cash_adjustments_net_period"].sum() == 10
+    pd.testing.assert_frame_equal(day_deduplicate(actual), actual)
+
+
+def test_same_instant_deposit_period_survives_later_snapshot():
+    clock = pd.Timestamp("2026-01-01", tz="UTC")
+    stats = pd.DataFrame({
+        "return": [0.0, 0.0],
+        "cash_adjustments_net_period": [10, 0],
+        "cash_adjustments_net_total": [10, 10],
+    }, index=[clock, clock])
+    actual = day_deduplicate(stats)
+    assert actual["cash_adjustments_net_period"].iloc[0] == 10
+    assert actual["cash_adjustments_net_total"].iloc[0] == 10
 
 
 def test_dump_stats_end_to_end_regression_for_datetime_indexes():

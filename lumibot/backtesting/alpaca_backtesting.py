@@ -1219,15 +1219,28 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 )
             except Exception as e:
                 raise RuntimeError(f"Failed to fetch data for {what}: {e}")
-            frame = bars.df
-            present = set(frame.index.get_level_values(0)) if not frame.empty else set()
+            by_symbol = self._rows_by_symbol(bars.df)
             for key, (asset, asset_quote) in chunk:
-                occ = self._occ_symbol(asset)
-                rows = frame.xs(occ, level=0).reset_index() if occ in present else None
+                rows = by_symbol.get(self._occ_symbol(asset))
                 self._store_option_rows(key, asset, rows, covered_until=covered_until, loaded_from=loaded_from)
                 if self._refresh_cache:
                     refreshed[key] = True
+        if items:
+            through = f" up to {covered_until.date()}" if covered_until is not None else ""
+            logger.info("Loaded %d option contracts in %d request(s)%s", len(items),
+                        (len(items) + size - 1) // size, through)
         return len(items) + len(extend)
+
+    @staticmethod
+    def _rows_by_symbol(frame: pd.DataFrame) -> dict:
+        """Each symbol's rows of a (symbol, timestamp) frame, as ``frame.xs(symbol).reset_index()`` gives them.
+
+        One groupby pass instead of one full scan per contract (a pick asks for up to 100).
+        """
+        if frame is None or frame.empty:
+            return {}
+        return {symbol: rows.droplevel(0).reset_index()
+                for symbol, rows in frame.groupby(level=0, sort=False)}
 
     def _extend_option_frames(self, contracts: dict, timestep: str) -> None:
         """``_extend_option_frame`` for many contracts: one request per covered day and 100 symbols.
@@ -1275,11 +1288,9 @@ class AlpacaBacktesting(DataSourceBacktesting):
                     for key, _a, _q in chunk:
                         covered[key] = covered_until
                     raise RuntimeError(f"Failed to fetch data for {what}: {e}")
-                frame = bars.df
-                present = set(frame.index.get_level_values(0)) if not frame.empty else set()
+                by_symbol = self._rows_by_symbol(bars.df)
                 for key, asset, quote in chunk:
-                    occ = self._occ_symbol(asset)
-                    later = frame.xs(occ, level=0).reset_index() if occ in present else None
+                    later = by_symbol.get(self._occ_symbol(asset))
                     self._apply_extension(key, asset, quote, timestep, store.get(key), later)
 
     def _store_option_rows(self, key: str, asset: Asset, rows: pd.DataFrame | None,
@@ -1546,6 +1557,32 @@ class AlpacaBacktesting(DataSourceBacktesting):
             raw_data={"source": "alpaca_trade_bars"},
         )
 
+    def _option_mark_arrays(self, frame: pd.DataFrame, timestep: str):
+        """(UTC nanosecond stamps, opens, closes) of a stored option frame, built once per frame.
+
+        A minute strategy marks every held leg on every bar. Reading a pandas column and
+        searching a DatetimeIndex per call cost about 0.1 ms; these arrays give the same row
+        with one searchsorted. Rebuilt whenever the stored frame object changes (an extension
+        or backfill stores a new frame). Only for minute bars on a sorted, tz-aware index;
+        anything else returns None and the caller keeps the pandas path.
+        """
+        if timestep != "minute":
+            return None
+        cache = self._state("_option_mark_cache", dict)
+        entry = cache.get(id(frame))
+        if entry is not None and entry[0] is frame:
+            return entry[1]
+        index = frame.index
+        if not isinstance(index, pd.DatetimeIndex) or index.tz is None or not index.is_monotonic_increasing:
+            return None
+        if "open" not in frame.columns or "close" not in frame.columns:
+            return None
+        marks = (index.asi8, frame["open"].to_numpy(), frame["close"].to_numpy())
+        if len(cache) > 4096:
+            cache.clear()
+        cache[id(frame)] = (frame, marks)
+        return marks
+
     def _get_option_last_price(self, asset: Asset, quote: Asset) -> float | Decimal | None:
         timestep = self.__dict__.get("_timestep") or "minute"
         if timestep != "day":
@@ -1560,11 +1597,25 @@ class AlpacaBacktesting(DataSourceBacktesting):
             finally:
                 self.__dict__["_partial_frame_ok"] = False
             if frame is not None and not frame.empty:
-                position = self._newest_bar_position(frame.index, self._datetime, timestep, False)
+                marks = self._option_mark_arrays(frame, timestep)
+                if marks is not None and getattr(self._datetime, "tzinfo", None) is None:
+                    marks = None  # naive clock: keep the pandas comparison
+                if marks is not None:
+                    stamps, opens, closes = marks
+                    now_ns = pd.Timestamp(self._datetime).value
+                    position = int(stamps.searchsorted(now_ns, side="right")) - 1
+                else:
+                    position = self._newest_bar_position(frame.index, self._datetime, timestep, False)
                 if position >= 0:
-                    bar_ts = pd.Timestamp(frame.index[position])
-                    printed_now = bar_ts.floor("min") == pd.Timestamp(self._datetime).floor("min")
-                    price = frame["open"].iat[position] if printed_now else frame["close"].iat[position]
+                    if marks is not None:
+                        # Same bar, same rule: the open of a bar that printed this minute,
+                        # otherwise the close of the latest earlier print.
+                        printed_now = stamps[position] // 60_000_000_000 == now_ns // 60_000_000_000
+                        price = opens[position] if printed_now else closes[position]
+                    else:
+                        bar_ts = pd.Timestamp(frame.index[position])
+                        printed_now = bar_ts.floor("min") == pd.Timestamp(self._datetime).floor("min")
+                        price = frame["open"].iat[position] if printed_now else frame["close"].iat[position]
                     if price is None or pd.isna(price):
                         return None
                     return quantize_to_num_decimals(price, get_decimals(price))
@@ -1628,6 +1679,32 @@ class AlpacaBacktesting(DataSourceBacktesting):
         str - A unique key string.
         """
 
+        if base_asset is None:
+            raise ValueError("Base asset must be provided.")
+
+        # PERF: held legs ask for their key on every bar. With no overrides the key depends only
+        # on the asset, quote, timestep and this source's fixed settings, so remember it.
+        memo = None
+        if market is None and tzinfo is None and data_datetime_start is None and data_datetime_end is None \
+                and auto_adjust is None:
+            memo = (base_asset, quote_asset, timestep, self.__dict__.get("_timestep"), self.__dict__.get("market"),
+                    self.__dict__.get("_data_datetime_start"), self.__dict__.get("_data_datetime_end"),
+                    self.__dict__.get("_auto_adjust"), str(self.__dict__.get("tzinfo")))
+            known = self._state("_asset_key_memo", dict).get(memo)
+            if known is not None:
+                return known
+        key = self._build_asset_key(base_asset=base_asset, quote_asset=quote_asset, timestep=timestep,
+                                    market=market, tzinfo=tzinfo, data_datetime_start=data_datetime_start,
+                                    data_datetime_end=data_datetime_end, auto_adjust=auto_adjust)
+        if memo is not None:
+            memos = self._state("_asset_key_memo", dict)
+            if len(memos) > 100_000:
+                memos.clear()
+            memos[memo] = key
+        return key
+
+    def _build_asset_key(self, *, base_asset, quote_asset, timestep=None, market=None, tzinfo=None,
+                         data_datetime_start=None, data_datetime_end=None, auto_adjust=None) -> str:
         if base_asset is None:
             raise ValueError("Base asset must be provided.")
 
@@ -1915,14 +1992,15 @@ class AlpacaBacktesting(DataSourceBacktesting):
         invent prices (and back-fill a later trade into the past). Keep only real bars;
         get_last_price/get_historical_prices handle the gaps honestly.
         """
-        df = df.copy()
-        df['timestamp'] = pd.to_datetime(df['timestamp'], utc=df.empty)
-        if df['timestamp'].dt.tz is None:
-            df['timestamp'] = df['timestamp'].dt.tz_localize(tzinfo)
-        else:
-            df['timestamp'] = df['timestamp'].dt.tz_convert(tzinfo)
-        df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
-        df = df.sort_values("timestamp")
+        # PERF: a delta pick stores about 200 contracts. Convert the timestamps once, keep the
+        # six columns, and sort only when needed (the shared cache already returns sorted rows);
+        # the result equals the copy, convert, select, sort, filter sequence it replaces.
+        stamps = pd.to_datetime(df['timestamp'], utc=df.empty)
+        stamps = stamps.dt.tz_localize(tzinfo) if stamps.dt.tz is None else stamps.dt.tz_convert(tzinfo)
+        df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']].copy()
+        df['timestamp'] = stamps
+        if not (df['timestamp'].is_monotonic_increasing and df['timestamp'].is_unique):
+            df = df.sort_values("timestamp")
         df = df[(df['timestamp'] >= data_datetime_start) & (df['timestamp'] <= data_datetime_end)]
         if write_csv:
             cache_dir = os.path.join(LUMIBOT_CACHE_FOLDER, self.CACHE_SUBFOLDER)
@@ -1930,7 +2008,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
             df.to_csv(os.path.join(cache_dir, f"{key}.csv"), index=False)
         df = df.set_index('timestamp')
         self._state("_data_store", dict)[key] = df
-        logger.info(f"Finished fetching and caching data for {key}")
+        # Debug only: a delta pick stores about 200 contracts; prefetch_option_bars logs one summary.
+        logger.debug("Finished fetching and caching data for %s", key)
         return df
 
     @staticmethod

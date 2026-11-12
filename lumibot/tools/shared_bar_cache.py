@@ -249,14 +249,17 @@ def validate_rows(rows: pd.DataFrame) -> bool:
         return False
     try:
         prices = rows[PRICE_FIELDS].to_numpy(dtype=float)
+        # Columns of ``prices``: open, high, low, close. Prices are checked finite before the
+        # high/low comparisons, so numpy minimum/maximum match the pandas row-wise min/max.
+        opens, highs, lows, closes = prices[:, 0], prices[:, 1], prices[:, 2], prices[:, 3]
         ok = (
             isinstance(rows.index, pd.DatetimeIndex)
             and not rows.index.hasnans
             and not rows.index.has_duplicates
             and bool(np.isfinite(prices).all())
             and bool((prices > 0).all())
-            and bool((rows["low"] <= rows[["open", "close", "high"]].min(axis=1)).all())
-            and bool((rows["high"] >= rows[["open", "close", "low"]].max(axis=1)).all())
+            and bool((lows <= np.minimum(np.minimum(opens, closes), highs)).all())
+            and bool((highs >= np.maximum(np.maximum(opens, closes), lows)).all())
         )
         if ok and "volume" in rows.columns:
             volume = rows["volume"].to_numpy(dtype=float)
@@ -483,12 +486,33 @@ def _encode_partition(part: _Partition) -> bytes:
     return buffer.getvalue()
 
 
+def _read_partition_frame(body: bytes) -> pd.DataFrame:
+    """The partition frame and its ``attrs``, as ``pd.read_parquet`` returns them, with less overhead.
+
+    A delta pick decodes about 57 small partitions; ``pd.read_parquet`` spent about 0.9 ms
+    each, mostly fixed overhead. Reading the table with pyarrow and restoring pandas' stored
+    ``attrs`` gives the same frame (pinned by a test) in about 0.7 ms. Anything unexpected
+    falls back to ``pd.read_parquet``.
+    """
+    try:
+        import pyarrow.parquet as pq
+
+        table = pq.read_table(io.BytesIO(body))
+        frame = table.to_pandas()
+        stored = (table.schema.metadata or {}).get(b"PANDAS_ATTRS")
+        if stored:
+            frame.attrs = json.loads(stored)
+        return frame
+    except Exception:
+        return pd.read_parquet(io.BytesIO(body))
+
+
 def _decode_partition(part: _Partition, body: bytes | None) -> _Partition:
     """Fill ``part`` from bytes. Anything unusable becomes an empty partition (a real fetch follows)."""
     if not body:
         return part
     try:
-        rows = pd.read_parquet(io.BytesIO(body))
+        rows = _read_partition_frame(body)
         meta = rows.attrs.get("sharedBars") or {}
         if (
             meta.get("schema") != SCHEMA

@@ -93,3 +93,38 @@ def test_runtime_telemetry_emits_json(monkeypatch):
     decoded = json.loads(encoded)
     assert decoded["process_rss_bytes"] == 2
 
+
+
+def test_order_health_measures_observed_feed_time_without_invented_scan_or_hedges():
+    now = [0.0]
+    health = rt.OrderRuntimeHealth(clock=lambda: now[0])
+    assert health.snapshot()["feed_connected_percent"] is None
+    health.feed(False)
+    now[0] = 2
+    health.feed(True)
+    now[0] = 8
+    health.feed(False)
+    now[0] = 10
+    summary = health.snapshot()
+    assert summary["feed_observed_seconds"] == 10
+    assert summary["feed_connected_percent"] == 60
+    assert summary["hedges"] is None
+    assert summary["full_basket_scan_seconds"] is None
+    assert summary["cancel_deadline_delay_seconds"] is None
+
+
+def test_order_health_keeps_bounded_samples_and_exact_totals():
+    health = rt.OrderRuntimeHealth()
+    for i in range(1100):
+        health.iteration(i)
+    health.count("fill_callbacks_enqueued")
+    health.contradiction("unowned_order_callback")
+    health.cancel_response(0.5)
+    summary = health.snapshot()
+    assert summary["iteration_count"] == 1100
+    assert summary["iteration_sample_count"] == 1024
+    assert summary["iteration_max_seconds"] == 1099
+    assert summary["iteration_window_median_seconds"] == 587.5
+    assert summary["fill_callbacks_enqueued"] == 1
+    assert summary["contradictions"] == {"unowned_order_callback": 1}
+    assert summary["cancel_http_max_seconds"] == 0.5

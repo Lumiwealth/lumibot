@@ -1,0 +1,13 @@
+{
+  "sourceCommit": "b131985383a06f69e60c8b16fce0ef03ea8f60b1",
+  "receiptSha256": "348979ded0fc98f5a74972e19f478eb8c73fb37919af72e81293b4cfb882ade5",
+  "evidenceRuntimeFingerprint": "694d4db202844cc64516bf70668f2d8ae193489a368606baad742f6996d2b26c",
+  "reviewedCandidateRuntimeFingerprint": "048a3ec3457fcd5e5090ce8bec847cc82727bc0b0e9676127e00034aeafa69c8",
+  "reason": "The later basket_pnl preview change only labels the selected currency threshold and its cash-basis percentage. None of these six actors used an attention tool. Single-contract prices/orders and atomic ratio behavior are unchanged. Incoming complete-minute data retains observed timestamps. Preserve original evidence without a new model run. The later current-quote refresh is limited to PolygonDataBacktesting; these native in-memory controls never use it. Original model evidence remains compatible. Release follow-up repairs raw provider rows appended to aligned history: new rows keep their own timestamps while explicit padded rows remain unobserved. The retained in-memory fixtures neither append provider history nor use ProjectX recovery. The other repair restores attributed ProjectX history at its existing sync boundary; it does not change the Pandas/option fixture broker. Test callback source labels and registration now match existing native contracts. Original actor/judge decisions, prices and source remain valid; no new model inference is needed. Reviewed incoming indicator-evidence optimization 982472305: numeric row encoding and content digests are byte-identical to a full re-read, with corrections, dtype, timezone and sliding-window controls. This changes only recording cost, not returned prices, tool payloads, prompts, decisions or orders. Existing native model passes remain compatible with original sources; the new focused evidence/indicator code tests supply the affected proof. No new model run is warranted.",
+  "systemPromptDeltaBytes": 0,
+  "modelAttempts": 6,
+  "failedCasesRetried": 0,
+  "firstPassingSeconds": 73.401,
+  "apiCashCostUsd": 0,
+  "publicBoundary": "Generic tool documentation, read-only unit diagnostics, neutral tests and native qualification metadata only; no security, credentials, private infrastructure or strategy policy."
+}

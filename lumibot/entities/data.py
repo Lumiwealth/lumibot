@@ -519,8 +519,20 @@ class Data:
         if self.df.index.has_duplicates:
             self.df = self.df[~self.df.index.duplicated(keep='first')]
 
+        # Calendar alignment creates valuation rows, not new trade observations.
+        # Retain provenance across repeated repairs as well as the first repair.
+        observed = self.df.get("bar_is_observed", pd.Series(True, index=self.df.index))
+        # Provider refreshes concatenate raw rows with previously aligned rows.
+        # Missing metadata on those new observations is not calendar padding.
+        observed = observed.where(observed.notna(), True).astype(bool)
+        if self.timestep != "day":
+            source_times = pd.Series(self.df.index, index=self.df.index)
+            previous_times = self.df.get("bar_timestamp", source_times)
+            self.df["bar_timestamp"] = previous_times.fillna(source_times.where(observed))
         # Reindex the DataFrame with the new index and forward-fill missing values.
         df = self.df.reindex(idx, method="ffill")
+        if self.timestep != "day":
+            df["bar_is_observed"] = observed.reindex(idx, fill_value=False)
 
         # Check if we have a volume column, if not then add it and fill with 0 or NaN.
         if "volume" in df.columns:
@@ -757,6 +769,7 @@ class Data:
         try:
             # Update cached column list if we added derived columns above.
             bars_cols = ["open", "high", "low", "close", "volume"]
+            bars_cols.extend(c for c in ("bar_timestamp", "bar_is_observed") if c in self.df)
             if "dividend" in self.df.columns:
                 bars_cols.append("dividend")
                 for col in ("price_change", "dividend_yield", "return"):
@@ -936,7 +949,8 @@ class Data:
         try:
             if iter_count < 0:
                 return None
-            raw_timestamp = self.datalines["datetime"].dataline[iter_count]
+            source_column = "bar_timestamp" if "bar_timestamp" in self.datalines else "datetime"
+            raw_timestamp = self.datalines[source_column].dataline[iter_count]
         except Exception:
             return None
         try:
@@ -1286,6 +1300,8 @@ class Data:
         bar_timestamp = self._timestamp_for_iter_count(iter_count)
         quote_dict["bar_timestamp"] = bar_timestamp.to_pydatetime() if bar_timestamp is not None else None
         quote_dict["bar_timestep"] = getattr(self, "timestep", None)
+        if "bar_is_observed" in self.datalines:
+            quote_dict["bar_is_observed"] = bool(self.datalines["bar_is_observed"].dataline[iter_count])
 
         return quote_dict
 

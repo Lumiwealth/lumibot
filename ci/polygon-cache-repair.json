@@ -1,0 +1,54 @@
+{
+  "date": "2026-11-11",
+  "source_base": "eac5d71101e5f937ace49cd504c387cb11bb6547",
+  "scope": "Generic Polygon aggregate cache request selection only. No strategy rules, security code or infrastructure.",
+  "before_requests": 17,
+  "after_requests": 4,
+  "data_contract": "Daily and minute OHLCV frames remain identical when the provider returns the same bars. Request boundaries, aggregate limit, forced/split refresh and missing-date cache records are preserved.",
+  "checks": [
+    "test_cached_middle_chunks_are_not_downloaded[day]",
+    "test_cached_middle_chunks_are_not_downloaded[minute]",
+    "test_missing_chunk_end_and_next_chunk_start_are_both_requested",
+    "test_cold_and_invalidated_caches_keep_all_download_chunks[cold]",
+    "test_cold_and_invalidated_caches_keep_all_download_chunks[forced]",
+    "test_cold_and_invalidated_caches_keep_all_download_chunks[split_invalidated]",
+    "test_fully_cached_history_never_constructs_a_provider_request",
+    "test_get_price_data_from_polygon",
+    "test_polygon_missing_day_caching[True-day]",
+    "test_polygon_missing_day_caching[True-minute]",
+    "test_polygon_missing_day_caching[False-day]",
+    "test_polygon_missing_day_caching[False-minute]",
+    "test_unavailable_dates_stay_checked_without_losing_supported_history"
+  ],
+  "passed": 13,
+  "red_baseline": "test_cached_middle_chunks_are_not_downloaded[day] failed before the fix with 13 redundant requests.",
+  "proof": "local code tests with native cache IO and synthetic provider aggregate responses, not hosted strategy proof",
+  "zero_real_model_attempts": true,
+  "system_prompt_delta_bytes": 0,
+  "skill_delta_bytes": 0,
+  "reuse_decision": "No new model runs: this deterministic request planner changes no agent prompts, tools or model behavior. Existing in-memory actor/judge evidence does not exercise Polygon requests and retains its original source and execution date.",
+  "raw_proof_sha256": {
+    "red.txt": "9f868da799f3c8b6fe9eea0a85dab0f4a457f81b3083f3a37dada576d29d9a49",
+    "junit.xml": "29d3d81b6485c1ae086a0a4125a53c215b88be7c694b6d6c90de611b5ee11ec5",
+    "unavailable-junit.xml": "d3bceacfd6988fce2adbe63ef7dfa6a9bf7668aca337ceb458d4dc71d257a27e"
+  },
+  "warm_cache_follow_up": {
+    "source_base": "fba48313d6d1755ab1b02284bc51327605a5fc04",
+    "red_baseline": "test_fully_cached_reads_exclude_unavailable_rows[partial-day] returned an unavailable date as a price observation.",
+    "fix": "Apply the existing download-path sentinel filter to the fully cached return. Cache files retain the checked dates.",
+    "passed": 6,
+    "tests": [
+      "test_fully_cached_reads_exclude_unavailable_rows[partial-day]",
+      "test_fully_cached_reads_exclude_unavailable_rows[partial-minute]",
+      "test_fully_cached_reads_exclude_unavailable_rows[all-day]",
+      "test_fully_cached_reads_exclude_unavailable_rows[all-minute]",
+      "test_unavailable_dates_stay_checked_without_losing_supported_history",
+      "test_get_price_data_from_polygon"
+    ],
+    "red_sha256": "3b03759228842db11438fc5f688b5ed378681cf61d4927f560b76b6739df9139",
+    "junit_sha256": "a68c4ded281e6a02e937468e500378a8b35fd5d1c42c3a3c1e114c896aaf3123",
+    "model_attempts": 0,
+    "prompt_skill_delta_bytes": 0
+  },
+  "previous_pass_reuse": "Retain the first repair\u2019s original passes. The new filter runs only on the fully cached return and is covered by the six named current checks. Incoming loaded-cadence, broker array-pricing and per-iteration caching changes do not alter Polygon request planning, trading-date discovery, aggregate parsing or cache IO. No model cases are affected; no old proof is relabeled."
+}

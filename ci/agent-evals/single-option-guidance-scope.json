@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "package_version": "4.6.53",
+  "cases": [
+    {
+      "id": "options_single_leg_chain_and_quote",
+      "reason": "Exact quote to ordinary bounded single-option submission after the observed one-leg package-preview failure; five real trials."
+    },
+    {
+      "id": "options_unequal_call_ratio_atomic_open",
+      "reason": "Preserve actual two-to-one atomic package pricing and execution; one current regression plus immutable earlier establishment."
+    }
+  ]
+}

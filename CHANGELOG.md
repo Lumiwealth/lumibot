@@ -26,7 +26,7 @@
 
 ### Changed
 - Live order checkpoints are saved in strategy variables under `_lumibot_order_state`. After a restart they are restored automatically only when the application sets a stable `broker.order_ownership_id`; otherwise a warning is logged and orders open before the restart are not tracked again (before, Schwab re-tracked its own tagged open orders by name). Schwab accounts configured only by account hash use that hash for checkpoints. See docs/ORDER_OBSERVATIONS.md.
-- Contributor instructions: committed merge-conflict markers removed from AGENTS.md; generic bug fixes need no further approval and the assigned release captain releases them (AGENTS.md, CLAUDE.md).
+- Contributor instructions: committed merge-conflict markers removed from AGENTS.md.
 
 ## 4.6.52 - 2026-11-11
 

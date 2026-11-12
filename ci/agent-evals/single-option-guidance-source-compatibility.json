@@ -3,12 +3,12 @@
   "source_commit": "b131985383a06f69e60c8b16fce0ef03ea8f60b1",
   "receipt_sha256": "348979ded0fc98f5a74972e19f478eb8c73fb37919af72e81293b4cfb882ade5",
   "author_review": {
-    "candidate_runtime_fingerprint": "c11079d91eeb937502301ea4243bb644e709f4004e41aae8bf9eacfa7ab95dfe",
+    "candidate_runtime_fingerprint": "b545f378ceec407d819011a4a7c6ce999afbde8c586ef6fc109612fa0ce3dd94",
     "case_ids": [
       "options_single_leg_chain_and_quote",
       "options_unequal_call_ratio_atomic_open"
     ],
-    "reason": "Retain the original five single-option actors and ratio regression with their exact SDK tuple, original calls and timestamps. They did not use attention tools, live Schwab synchronization, CCXT or Polygon history, and complete input bars are unchanged by the sparse-padding guard. Ownership predicates still accept their locally submitted native orders. Financial statistics change only after execution. The explicit verifier scope/anchor support is offline metadata verification, not inference. This author decision preserves original proof; it is not fresh hosted or live-broker execution. The 4.6.54 continuation changes only explicit offline proof selection and preserves separate immutable inference/publication identities. Version metadata changes no actor or trading input; no new inference is justified."
+    "reason": "Retain the original five single-option actors and ratio regression with their exact SDK tuple, original calls and timestamps. They did not use attention tools, live Schwab synchronization, CCXT or Polygon history, and complete input bars are unchanged by the sparse-padding guard. Ownership predicates still accept their locally submitted native orders. Financial statistics change only after execution. The explicit verifier scope/anchor support is offline metadata verification, not inference. This author decision preserves original proof; it is not fresh hosted or live-broker execution. The 4.6.54 continuation changes only explicit offline proof selection and preserves separate immutable inference/publication identities. Version metadata changes no actor or trading input; no new inference is justified. Reviewed the merged released 4.6.53 observation-refresh/ProjectX/recording changes and the next corporate-action correction. These native fixtures use complete in-memory bars without corporate actions and never construct ProjectX or provider history. Recorded values, order decisions, messages and actual model inputs remain unchanged. Event alignment and full-frame dividend caching are qualified separately with focused code tests. Preserve the six original native passes, distinct inference/publication commits and their original SDK/source identities; no new inference is warranted."
   },
   "receipt_commit": "7bbd2f607b6ff945a75c07271d3106a0fff7be35",
   "receipt_path": "ci/agent-evals/single-option-guidance-qualification.json"

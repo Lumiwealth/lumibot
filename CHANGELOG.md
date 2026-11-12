@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.53 - Unreleased
+## 4.6.53 - 2026-11-11
 
 ### Backtesting and history
 - Preserve original intraday trade timestamps through calendar alignment. Padded OHLC rows remain usable for marking but cannot create simulated fills; actual later observations and genuine bid/ask execution remain supported.
@@ -20,6 +20,8 @@
 - A generic `Broker.on_order_observation` application hook exposes broker evidence without adding storage, credentials or infrastructure to the public library. Schwab invokes it on real REST observations; consumer failures do not stop order processing.
 
 ### Fixed
+- Polygon quote reads warm current minute data before reading after daily research, so a cached daily close cannot stand in for an available current quote.
+- Shared options guidance uses the ordinary one-order path for a single contract, preserves signed quantity adjustments, and distinguishes cash collateral from option-premium units. Profit-condition readback labels cash amounts and the selected threshold without changing saved conditions or dispatch.
 - Schwab account-wide order reads no longer import another instance's or a manual order into local strategy state merely because its display name or tag matches. Submitted orders, explicitly checkpointed recovery and children of verified parent orders retain ownership, including arbitrary user order tags. Automatic recovery requires a bound instance and account identity. Normal variable backups preserve those order identities and already delivered fills, without replaying historical fill callbacks. Broad account inspection remains available.
 - Polygon backtests no longer hand placeholder rows (dates the provider had no data for) to the strategy as real bars when every requested date is already cached.
 - A failure while recording Schwab cancel timing no longer hides the broker's actual cancel result or error.

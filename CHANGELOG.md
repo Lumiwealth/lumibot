@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.54 - Unreleased
+## 4.6.54 - 2026-11-11
 
 ### Changed (live trading)
 - Schwab restart without a launcher ownership id (standalone strategies): the strategy restores the open orders it placed from the checkpoint saved with its variables (same broker, account and strategy name), and their fills and cancellations reach its callbacks. In 4.6.53 nothing was restored without `broker.order_ownership_id`. Other open orders on the account (manual orders, other bots) are never adopted; LumiBot names them once in a warning, and they stay live at the broker. In 4.6.52 and earlier every open account order was adopted as the strategy's own, which could fire callbacks for orders it never placed.

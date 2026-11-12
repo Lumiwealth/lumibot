@@ -65,7 +65,7 @@ State the reference for a comparison: premium, distance from the current
 underlying, exposure and risk are different quantities. Check both exact
 candidates on that same basis before saying cheaper, nearer, higher or lower.
 Use `duckdb_query` with a plain `SELECT` calculation for decision-driving
-distance, weighted exposure, payoff and threshold arithmetic. No loaded table
+distance, collateral capacity, weighted exposure, payoff and threshold arithmetic. No loaded table
 is needed for arithmetic. Calculate with the observed inputs, then check that
 the result supports the comparison you report; do not guess the comparison.
 For prices, use the same pricing style and units and prefer returned package
@@ -231,7 +231,12 @@ requirement. A missing eligible candidate never authorizes relaxing a limit.
    needed for the decision, omit it rather than add an unchecked calculation.
    If a configured toolset has no calculator, show the signed calculation and
    units and disclose that it was not independently tool-checked.
-6. Before constructing an opening multi-leg payload, read
+6. For a single option leg, choose a bounded limit from its exact verified
+   bid/ask, or a historical trade basis explicitly marked usable by the tool,
+   and submit through `orders_submit_order`. `options_calculate_multileg_price`
+   requires at least two legs; a one-leg preview error does not invalidate
+   otherwise usable exact-contract quotes or require inventing a second leg.
+   Before constructing an opening multi-leg payload, read
    `references/common-option-structures.md` and verify each buy/sell side,
    strike ordering and ratio against the intended structure. For credit
    verticals, sell the higher-strike put and buy the lower-strike put, or sell
@@ -302,6 +307,9 @@ requirement. A missing eligible candidate never authorizes relaxing a limit.
 For a cash-secured put, reserve strike times deliverable multiplier times all
 held and working short contracts, plus costs, against available cash. Opening
 premium is not permission to reuse that collateral for another obligation.
+Calculate any policy collateral cap in the same currency, then compare the
+obligation plus costs against that cap and available cash separately before
+claiming either is insufficient.
 For a covered call, reserve the corresponding unencumbered deliverable shares;
 reconcile other working calls before counting the same shares again. Obtain the
 actual contract multiplier rather than assuming every contract delivers 100.
@@ -312,7 +320,9 @@ entry policy changes symbol. Premium income alone is not total return: include
 remaining option liabilities, share value and costs.
 
 When the strategy uses attention monitoring, retain a signed
-`position_quantity` change condition for each held option and status conditions
+`position_quantity` change condition for each held option: use `comparison="ne"`
+against its verified current signed quantity. Equality to zero detects only a
+full close, missing partial fills or other quantity changes. Retain status conditions
 for its working orders, including filled, partially filled, rejected and canceled
 transitions. Reconcile a working order's actual fill before establishing entry-cost
 profit monitoring; an acknowledgement supplies neither quantity nor cost basis.

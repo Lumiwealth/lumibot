@@ -40,9 +40,10 @@ Some backtest data sources record option trades but no bid/ask history. There,
 `options_evaluate_market` reports `price_basis: "last_trade"` with
 `usable_for_limit_pricing: true`, and option legs fill from those real trade bars.
 A missing bid/ask alone is then not a reason to skip a trade. Price from the last
-trades, use the net price `options_calculate_multileg_price` returns, and still skip
-a leg that has no recent trade. In live trading, `last_trade` is never usable for
-pricing.
+trades: use the exact contract's usable trade basis for a single-leg limit, or
+the net price `options_calculate_multileg_price` returns for two or more legs.
+Still skip a leg that has no recent trade. In live trading, `last_trade` is never
+usable for pricing.
 
 For a multi-leg structure, compare all leg timestamps and quote-quality flags.
 Skip the package when one leg cannot be priced honestly.

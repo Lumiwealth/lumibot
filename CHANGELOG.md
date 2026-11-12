@@ -3,6 +3,7 @@
 ## 4.6.53 - Unreleased
 
 ### Backtesting and history
+- Preserve original intraday trade timestamps through calendar alignment. Padded OHLC rows remain usable for marking but cannot create simulated fills; actual later observations and genuine bid/ask execution remain supported.
 - Financial summaries retain trading costs and cash flows when several account snapshots share one timestamp. Returns compound in event order, the latest account snapshot survives consolidation, and drawdown includes losses from initial capital.
 - Preserve the frequency of user-supplied bars when a daily strategy initializes. Minute observations remain minute observations, so a daily strategy runs once per session instead of once per loaded minute. Explicit provider cadence policies remain unchanged.
 - Crypto backtests on public CCXT exchange candles reuse bars across runs through the shared bar cache (local file plus S3), keyed by exchange, symbol and bar size. Later runs fetch only ranges not yet cached; a repeat of a 3-day Coinbase BTC/USD minute window made 0 exchange requests instead of 15. Still-forming bars are never stored. With `LUMIBOT_SHARED_BARS=false` the local DuckDB cache is used as before.

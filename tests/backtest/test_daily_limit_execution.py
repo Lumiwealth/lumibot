@@ -9,6 +9,73 @@ from scripts.agent_eval_production_fixture import ProductionFixture
 from scripts.run_agent_evals import build_fixture
 
 
+@pytest.mark.parametrize("gap", [timedelta(days=1), timedelta(minutes=30)])
+@pytest.mark.parametrize("order_type", ["limit", "market"])
+@pytest.mark.parametrize("side", ["buy", "sell"])
+def test_reindexed_missing_intraday_bar_cannot_become_a_current_limit_fill(gap, order_type, side):
+    """Calendar alignment cannot turn an earlier trade into a new observation."""
+    production = ProductionFixture(build_fixture("flat_stock_account"))
+    try:
+        source = production.broker.data_source
+        now = source.get_datetime()
+        asset = Asset("QZP")
+        previous = now - gap
+        later = now + timedelta(minutes=1)
+        frame = pd.DataFrame(
+            {key: [100., 100.5] for key in ("open", "high", "low", "close", "volume")},
+            index=pd.DatetimeIndex([previous, later]),
+        )
+        data = Data(asset, frame, timestep="minute", quote=production.strategy.quote_asset)
+        data.repair_times_and_fill(pd.DatetimeIndex([previous, now, later]))
+        data.repair_times_and_fill(pd.DatetimeIndex([previous, now, later]))
+        source._data_store[(asset, production.strategy.quote_asset)] = data
+        quote = source.get_quote(asset, quote=production.strategy.quote_asset)
+        assert pd.Timestamp(quote.raw_data["bar_timestamp"]) == pd.Timestamp(previous)
+        assert quote.raw_data["bar_is_observed"] is False
+        if side == "sell":
+            production.broker._filled_positions.append(Position(production.strategy.name, asset, 3))
+        starting_cash = float(production.strategy.get_cash())
+        options = {"limit_price": 101 if side == "buy" else 99} if order_type == "limit" else {}
+        order = production.strategy.create_order(asset, 3, side, order_type=order_type, **options)
+        production.strategy.submit_order(order)
+        production.settle()
+        assert not order.is_filled()
+        assert order.is_active()
+        assert float(production.strategy.get_cash()) == starting_cash
+        held = production.strategy.get_position(asset)
+        assert (held.quantity if held else 0) == (3 if side == "sell" else 0)
+        production.broker._update_datetime(later)
+        production.settle()
+        assert order.is_filled()
+        assert order.avg_fill_price == 100.5
+    finally:
+        production.close()
+
+
+def test_reindexed_trade_gap_preserves_existing_genuine_quote_fill_contract():
+    production = ProductionFixture(build_fixture("flat_stock_account"))
+    try:
+        source = production.broker.data_source
+        now = source.get_datetime()
+        asset = Asset("QZQ")
+        previous = now - timedelta(minutes=30)
+        later = now + timedelta(minutes=1)
+        frame = pd.DataFrame({"open": [100., 102.], "high": [100., 102.],
+            "low": [100., 102.], "close": [100., 102.], "volume": [10, 10],
+            "bid": [100.1, 102.1], "ask": [100.2, 102.2]},
+            index=pd.DatetimeIndex([previous, later]))
+        data = Data(asset, frame, timestep="minute", quote=production.strategy.quote_asset)
+        data.repair_times_and_fill(pd.DatetimeIndex([previous, now, later]))
+        source._data_store[(asset, production.strategy.quote_asset)] = data
+        order = production.strategy.create_order(asset, 3, "buy", order_type="limit", limit_price=101)
+        production.strategy.submit_order(order)
+        production.settle()
+        assert order.is_filled()
+        assert order.avg_fill_price == 100.2
+    finally:
+        production.close()
+
+
 @pytest.mark.parametrize("observation", ["previous", "missing", "future"])
 @pytest.mark.parametrize("side,prior,opening,limit", [("buy", 100., 105., 101.), ("sell", 110., 95., 100.)])
 def test_daily_limit_waits_for_current_price_and_reconciles_cash(monkeypatch, observation, side, prior, opening, limit):

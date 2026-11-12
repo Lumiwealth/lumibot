@@ -83,26 +83,28 @@ def validate_call(call, *, row, role, model, now):
         raise ValueError("Native model usage falls outside its attempt")
 
 
-def actor_origin(source_commit, case, completed_at, *, runtime_hash):
+def actor_origin(source_commit, case, completed_at, *, runtime_hash, qualified_source=None):
     """Verify a grading-only recovery against immutable original actor inputs."""
     from scripts import rejudge_agent_eval as recovery
 
     if (not isinstance(source_commit, str) or len(source_commit) != 40
             or any(value not in "0123456789abcdef" for value in source_commit)):
         raise ValueError("Recovered actor needs an immutable full source commit")
-    proof = recovery.source_compatibility(source_commit)
-    original_case, case_proof = recovery.compare_case(evals.REPO_ROOT, source_commit, case)
+    proof = recovery.source_compatibility(source_commit, candidate_ref=qualified_source) if qualified_source else recovery.source_compatibility(source_commit)
+    original_case, case_proof = recovery.compare_case(evals.REPO_ROOT, source_commit, case,
+        **({"candidate_ref": qualified_source} if qualified_source else {}))
     if proof["currentRuntimeFingerprint"] != runtime_hash:
         raise ValueError("Recovered actor comparison does not match the qualified source")
+    recovery_bytes = recovery._git(evals.REPO_ROOT, "show", f"{qualified_source}:scripts/rejudge_agent_eval.py") if qualified_source else Path(recovery.__file__).read_bytes()
     return {"source_commit": source_commit, "runtime_fingerprint": proof["originalRuntimeFingerprint"],
             "fingerprint": evals.case_fingerprint(original_case, judge_model=evals.DEFAULT_JUDGE_MODEL,
                                                    runtime_hash=proof["originalRuntimeFingerprint"]),
             "case_digest": evals.actor_case_digest(original_case), "completed_at": completed_at,
             "compatibility_digest": digest({"source": proof, "case": case_proof,
-                "recovery_tool_sha256": hashlib.sha256(Path(recovery.__file__).read_bytes()).hexdigest()})}
+                "recovery_tool_sha256": hashlib.sha256(recovery_bytes).hexdigest()})}
 
 
-def validate_record(record, case, *, runtime_hash, now, required=None):
+def validate_record(record, case, *, runtime_hash, now, required=None, qualified_source=None):
     acting_model = str(case.get("model") or evals.DEFAULT_ACTING_MODEL)
     judge_model = evals.DEFAULT_JUDGE_MODEL
     fingerprint = evals.case_fingerprint(case, judge_model=judge_model, runtime_hash=runtime_hash)
@@ -134,7 +136,8 @@ def validate_record(record, case, *, runtime_hash, now, required=None):
         origin = row.get("actor_origin")
         if origin is not None:
             if (not isinstance(origin, dict) or actor_origin(origin.get("source_commit"), case,
-                    origin.get("completed_at"), runtime_hash=runtime_hash) != origin):
+                    origin.get("completed_at"), runtime_hash=runtime_hash,
+                    **({"qualified_source": qualified_source} if qualified_source else {})) != origin):
                 raise ValueError("Recovered actor source/mandate compatibility is unproved")
             completed = timestamp(origin["completed_at"], now=now)
             if not timestamp(row["started_at"], now=now) <= completed <= timestamp(row["timestamp"], now=now):
@@ -660,7 +663,7 @@ def build_receipt(rows, call_rows, cases, *, runtime_hash, versions, calibration
     return receipt
 
 
-def verify_receipt(receipt, cases, *, runtime_hash, versions, now=None):
+def verify_receipt(receipt, cases, *, runtime_hash, versions, now=None, qualified_source=None):
     now = now or evals.utc_now()
     expected_keys = {"kind", "version", "funding", "api_spend_usd", "runtime_fingerprint", "sdk_versions", "cases",
                      "call_allowance", "native_ledger_digests", "calibration"}
@@ -706,7 +709,8 @@ def verify_receipt(receipt, cases, *, runtime_hash, versions, now=None):
         if not isinstance(record, dict) or set(record) != {"fingerprint", "repetitions"}:
             raise ValueError("Invalid per-case qualification record")
         attempts, calls = validate_record(record, case, runtime_hash=runtime_hash, now=now,
-            required=1 if establishment and case["id"] in establishment["cases"] else None)
+            required=1 if establishment and case["id"] in establishment["cases"] else None,
+            qualified_source=qualified_source)
         if seen_attempts & attempts or seen_calls & calls:
             raise ValueError("Another case reused a native attempt or model call")
         seen_attempts.update(attempts)
@@ -743,7 +747,7 @@ def package_version(root=None):
     return match.group(1)
 
 
-def verify_release_scope(scope, cases, receipt, *, runtime_hash, version, versions=None, now=None):
+def verify_release_scope(scope, cases, receipt, *, runtime_hash, version, versions=None, now=None, qualified_source=None):
     """Verify the author-written eval scope; return the verified case ids.
 
     The scope names the package version it was written for, the cases the author judged
@@ -784,7 +788,8 @@ def verify_release_scope(scope, cases, receipt, *, runtime_hash, version, versio
         # Use the normal receipt verifier so retained establishment is checked
         # with the current regression, including native calls and SDK identity.
         verify_receipt(receipt, [by_id[case_id] for case_id in ids], runtime_hash=runtime_hash,
-                       versions=evals.sdk_versions() if versions is None else versions, now=now)
+                       versions=evals.sdk_versions() if versions is None else versions, now=now,
+                       qualified_source=qualified_source)
         return ids
     establishment = receipt.get("establishment") if isinstance(receipt, dict) else None
     if establishment is not None:
@@ -794,7 +799,8 @@ def verify_release_scope(scope, cases, receipt, *, runtime_hash, version, versio
         if not isinstance(record, dict):
             raise ValueError(f"Scoped case {case_id!r} has no pass evidence in the receipt")
         required = 1 if establishment and case_id in establishment["cases"] else None
-        validate_record(record, by_id[case_id], runtime_hash=runtime_hash, now=now, required=required)
+        validate_record(record, by_id[case_id], runtime_hash=runtime_hash, now=now, required=required,
+                        qualified_source=qualified_source)
     return ids
 
 
@@ -867,14 +873,17 @@ def main():
     elif args.scope.exists():
         receipt = json.loads(args.receipt.read_text()) if args.receipt.exists() else None
         evidence_hash = runtime_hash
+        qualified_source = None
         anchor = args.source_compatibility
         if isinstance(receipt, dict) and receipt.get("runtime_fingerprint") != runtime_hash and anchor.exists():
             from scripts.agent_eval_source_compatibility import compatible_runtime
 
-            evidence_hash = compatible_runtime(receipt, args.receipt.read_bytes(), json.loads(anchor.read_text()))
+            anchor_data = json.loads(anchor.read_text())
+            evidence_hash = compatible_runtime(receipt, args.receipt.read_bytes(), anchor_data)
+            qualified_source = anchor_data["source_commit"]
             print(f"Preserving author-retained scoped native inference at original source {evidence_hash}; reviewed candidate {runtime_hash}. No new model execution, timestamps or usage are claimed.")
         ids = verify_release_scope(json.loads(args.scope.read_text()), cases, receipt,
-                                   runtime_hash=evidence_hash, version=package_version(), versions=versions)
+                                   runtime_hash=evidence_hash, version=package_version(), versions=versions, qualified_source=qualified_source)
         print(f"Verified the author-written release eval scope: {len(ids)} listed case(s) with current pass evidence"
               + ("" if ids else " (none listed; reason recorded in release-scope.json)") + ".")
         return 0
@@ -882,14 +891,19 @@ def main():
         receipt_bytes = args.receipt.read_bytes()
         receipt = json.loads(receipt_bytes)
         evidence_hash = runtime_hash
+        qualified_source = None
         anchor = evals.REPO_ROOT / "ci/agent-evals/source-compatibility.json"
         if receipt.get("runtime_fingerprint") != runtime_hash and anchor.exists():
             from scripts.agent_eval_source_compatibility import compatible_runtime
 
-            evidence_hash = compatible_runtime(receipt, receipt_bytes, json.loads(anchor.read_text()))
+            anchor_data = json.loads(anchor.read_text())
+            evidence_hash = compatible_runtime(receipt, receipt_bytes, anchor_data)
+            qualified_source = anchor_data["source_commit"]
             print(f"Preserving author-retained native inference at original source {evidence_hash}; reviewed candidate {runtime_hash}. No new model execution, timestamps or usage are claimed.")
-        verify_receipt(receipt, cases, runtime_hash=evidence_hash, versions=versions)
-    print(f"Verified {len(cases)} real-model actor/judge qualifications and complete judge calibration for the candidate and SDKs.")
+        verify_receipt(receipt, cases, runtime_hash=evidence_hash, versions=versions, qualified_source=qualified_source)
+    count = len(receipt["cases"])
+    coverage = "the author-written scope" if receipt.get("scope") else "the complete catalog and judge calibration"
+    print(f"Verified {count} real-model actor/judge qualifications for {coverage} and SDKs.")
     return 0
 
 

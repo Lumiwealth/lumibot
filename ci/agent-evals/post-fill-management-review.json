@@ -1,0 +1,19 @@
+{
+  "kind": "local LumiBot component qualification",
+  "caseId": "attention_confirmed_fill_arms_required_profit_review",
+  "actualUniqueActors": 5,
+  "passingRepetitions": 5,
+  "actorRetries": 0,
+  "judgeOnlyRecoveries": 1,
+  "paidApiCashUsd": 0,
+  "systemPromptDeltaBytes": 0,
+  "skillDeltaBytes": 83,
+  "preFixSourceCommit": "7c4fe0f77fa36d2e99680fd0f4a1fc55ac41a65c",
+  "preFixFailure": "A recorded native fill review confirmed the new position but deferred its required favorable-profit watch until seven days later.",
+  "preFixEvidenceSha256": "f71c1a38abb6542267e63d9d445fbaac4e575d2abe4d55d8878ad016a5f0d41f",
+  "gradingCorrection": "The original generic actor persisted every required watch. Its original failure demanded a redundant final list read. The rubric now grades actual native registration and saved state; actor mandate and machine checks are unchanged. Original failed verdict and actor calls remain preserved.",
+  "retainedPriorPasses": 1,
+  "remainingFourWallSeconds": 111.317,
+  "currentRuntimeFingerprint": "f227e78939c15a99575042b27af41383142d9858a238a078ccedc4035f934616",
+  "publicBoundary": "Generic required-monitor handoff, neutral long-option component case, public authored example and proof metadata only; no customer policy, credentials, security or private infrastructure."
+}

@@ -232,8 +232,9 @@ def test_scoped_verifier_reuses_the_existing_source_compatibility_check(monkeypa
         observed.append(anchor["source_commit"])
         return "original"
     monkeypatch.setattr(source, "compatible_runtime", compatibility)
-    def scoped(scope, cases, receipt, *, runtime_hash, version, versions=None):
+    def scoped(scope, cases, receipt, *, runtime_hash, version, versions=None, qualified_source=None):
         assert runtime_hash == "original"
+        assert qualified_source == "a" * 40
         return ["contract"]
     monkeypatch.setattr(qualification, "verify_release_scope", scoped)
     monkeypatch.setattr(sys, "argv", ["qualify_agent_evals.py", "verify", "--receipt", str(receipt_path)])

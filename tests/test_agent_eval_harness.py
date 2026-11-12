@@ -5241,3 +5241,36 @@ def test_limit_semantics_controls_keep_the_terminal_report_consistent():
     for row in selected:
         transcript = row["transcript"]
         assert transcript["agent_runs"][-1]["final_answer"] == transcript["final_answer"]
+
+
+def test_recovered_source_comparison_uses_its_qualified_git_snapshot(tmp_path):
+    import subprocess
+    from scripts.rejudge_agent_eval import compare_source
+    root = tmp_path / 'native-source'
+    root.mkdir()
+    library = root / 'lumibot/neutral.py'
+    verifier = root / 'scripts/qualify_agent_evals.py'
+    library.parent.mkdir(); verifier.parent.mkdir()
+    library.write_text('PRICE = 10\n')
+    verifier.write_text("print('old qualification count')\n")
+    def git(*args):
+        return subprocess.check_output(['git', '-C', str(root), *args],
+                                       stderr=subprocess.STDOUT).decode().strip()
+    def commit(message):
+        git('add', 'lumibot/neutral.py', 'scripts/qualify_agent_evals.py')
+        git('-c', 'user.name=Native fixture', '-c', 'user.email=fixture@botspot.test',
+            'commit', '-qm', message)
+        return git('rev-parse', 'HEAD')
+    git('init', '-q')
+    actor = commit('Original actor inputs')
+    verifier.write_text("print('qualified proof')\n")
+    qualified = commit('Qualified comparison')
+    paths = [library, verifier]
+    before = compare_source(root, actor, paths)
+    verifier.write_text("print('accurate scoped count')\n")
+    assert compare_source(root, actor, paths) != before
+    assert compare_source(root, actor, paths, candidate_ref=qualified) == before
+    library.write_text('PRICE = 20\n')
+    bad = commit('Different actor inputs cannot be retained')
+    with pytest.raises(ValueError, match='Acting input changed'):
+        compare_source(root, actor, paths, candidate_ref=bad)

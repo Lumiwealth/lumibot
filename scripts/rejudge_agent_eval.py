@@ -32,7 +32,7 @@ def _git(root: Path, *arguments: str) -> bytes:
     return subprocess.check_output(["git", "-C", str(root), *arguments])
 
 
-def compare_source(root: Path, commit: str, paths: list[Path]) -> tuple[dict[str, bytes], dict]:
+def compare_source(root: Path, commit: str, paths: list[Path], *, candidate_ref: str | None = None) -> tuple[dict[str, bytes], dict]:
     if re.fullmatch(r"[0-9a-f]{40}", commit) is None:
         raise ValueError("Original source must be an immutable full Git commit")
     root = root.resolve()
@@ -45,7 +45,7 @@ def compare_source(root: Path, commit: str, paths: list[Path]) -> tuple[dict[str
     originals, hashes, changed = {}, {}, []
     for name in names:
         prior = _git(root, "show", f"{commit}:{name}")
-        current = (root / name).read_bytes()
+        current = _git(root, "show", f"{candidate_ref}:{name}") if candidate_ref else (root / name).read_bytes()
         originals[name] = prior
         hashes[name] = {"original": hashlib.sha256(prior).hexdigest(),
                         "current": hashlib.sha256(current).hexdigest()}
@@ -69,7 +69,7 @@ def compare_source(root: Path, commit: str, paths: list[Path]) -> tuple[dict[str
 
 
 
-def compare_case(root: Path, commit: str, case: dict) -> tuple[dict, dict]:
+def compare_case(root: Path, commit: str, case: dict, *, candidate_ref: str | None = None) -> tuple[dict, dict]:
     """Permit a grading correction; preserve the exact original actor mandate."""
     if re.fullmatch(r"[0-9a-f]{40}", commit) is None:
         raise ValueError("Original source must be an immutable full Git commit")
@@ -81,7 +81,8 @@ def compare_case(root: Path, commit: str, case: dict) -> tuple[dict, dict]:
     prior_bytes = _git(root, "show", f"{commit}:{name}")
     original = json.loads(prior_bytes)
     current = {key: value for key, value in case.items() if not key.startswith("_")}
-    if json.loads(path.read_bytes()) != current:
+    current_bytes = _git(root, "show", f"{candidate_ref}:{name}") if candidate_ref else path.read_bytes()
+    if json.loads(current_bytes) != current:
         raise ValueError("Acting case no longer matches its saved source")
     changed = sorted(key for key in original.keys() | current.keys()
                      if original.get(key) != current.get(key))
@@ -96,15 +97,15 @@ def compare_case(root: Path, commit: str, case: dict) -> tuple[dict, dict]:
             raise ValueError("Acting case changed beyond equivalent grading tool routes")
     return original, {"path": name, "changedFields": changed,
         "originalSourceSha256": hashlib.sha256(prior_bytes).hexdigest(),
-        "currentSourceSha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "currentSourceSha256": hashlib.sha256(current_bytes).hexdigest(),
         "originalCaseDigest": evals.actor_case_digest(original),
         "currentCaseDigest": evals.actor_case_digest(current)}
 
 
-def source_compatibility(commit: str) -> dict:
+def source_compatibility(commit: str, *, candidate_ref: str | None = None) -> dict:
     captured = {}
     def old_source_hash(paths):
-        originals, proof = compare_source(evals.REPO_ROOT, commit, paths)
+        originals, proof = compare_source(evals.REPO_ROOT, commit, paths, candidate_ref=candidate_ref)
         captured.update(proof)
         digest = hashlib.sha256()
         for path in sorted(paths):
@@ -114,8 +115,17 @@ def source_compatibility(commit: str) -> dict:
         return digest.hexdigest()
     original_fingerprint = FunctionType(evals.runtime_fingerprint.__code__,
         {**evals.runtime_fingerprint.__globals__, "sha256_files": old_source_hash})()
+    def candidate_source_hash(paths):
+        digest = hashlib.sha256()
+        for path in sorted(paths):
+            name = path.relative_to(evals.REPO_ROOT).as_posix()
+            digest.update(name.encode()); digest.update(b"\0")
+            digest.update(_git(evals.REPO_ROOT, "show", f"{candidate_ref}:{name}")); digest.update(b"\0")
+        return digest.hexdigest()
+    candidate_fingerprint = FunctionType(evals.runtime_fingerprint.__code__,
+        {**evals.runtime_fingerprint.__globals__, "sha256_files": candidate_source_hash})() if candidate_ref else evals.runtime_fingerprint()
     return {**captured, "originalRuntimeFingerprint": original_fingerprint,
-            "currentRuntimeFingerprint": evals.runtime_fingerprint(),
+            "currentRuntimeFingerprint": candidate_fingerprint,
             "sdkVersions": evals.sdk_versions()}
 
 

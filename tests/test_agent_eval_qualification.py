@@ -11,6 +11,33 @@ from scripts import qualify_agent_evals as qualification
 from scripts import run_agent_evals as evals
 
 
+def test_scoped_create_reports_only_the_verified_receipt_cases(tmp_path, monkeypatch, capsys):
+    import sys
+    scope = tmp_path / 'scope.json'
+    scope.write_text(json.dumps({'package_version': '9.8.7',
+        'cases': [{'id': 'selected', 'reason': 'Only this contract changed.'}]}))
+    ledger = tmp_path / 'ledger.jsonl'
+    ledger.write_text('')
+    calls = tmp_path / 'calls.jsonl'
+    calls.write_text('')
+    monkeypatch.setattr(sys, 'argv', ['qualify', 'create', '--scope', str(scope),
+        '--output-root', str(tmp_path), '--model-call-ledger', str(calls),
+        '--receipt', str(tmp_path / 'receipt.json')])
+    monkeypatch.setattr(evals, 'load_cases', lambda: [{'id': 'selected'}, {'id': 'unselected'}])
+    monkeypatch.setattr(evals, 'runtime_fingerprint', lambda: 'runtime')
+    monkeypatch.setattr(evals, 'sdk_versions', lambda: {})
+    monkeypatch.setattr(qualification, 'package_version', lambda: '9.8.7')
+    def export(*args, **kwargs):
+        assert kwargs['scope_case_ids'] == ['selected']
+        return {'cases': {'selected': {}}, 'scope': {'case_ids': ['selected']}}
+    monkeypatch.setattr(qualification, 'build_receipt', export)
+    assert qualification.main() == 0
+    output = capsys.readouterr().out
+    assert 'Verified 1 ' in output
+    assert 'Verified 2 ' not in output
+    assert 'complete judge calibration' not in output
+
+
 def test_only_expanding_tool_routes_preserves_old_stricter_establishment():
     before = {"id": "neutral", "taskPrompt": "Inspect and act.", "judgeRubric": "Require exact observed effects.",
               "machineContract": {"requiredBeforeOrder": ["quotes_one", "positions"],

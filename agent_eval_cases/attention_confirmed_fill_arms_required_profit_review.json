@@ -11,12 +11,28 @@
     "orderTool": "orders_submit_order",
     "exactOrderCount": 1,
     "singleOptionOrder": true,
-    "requiredTools": ["attention_watch", "attention_list"],
-    "requiredBeforeOrder": ["account_portfolio", "account_positions", "options_get_chain", "options_get_greeks"],
+    "requiredTools": [
+      "attention_watch",
+      "attention_list"
+    ],
+    "requiredBeforeOrder": [
+      "account_portfolio",
+      "account_positions",
+      "options_get_chain",
+      "options_get_greeks"
+    ],
     "requiredBeforeOrderAny": [
-      ["market_quote", "market_quotes", "market_last_price", "market_last_prices"],
-      ["options_evaluate_market", "market_quotes"]
+      [
+        "market_quote",
+        "market_quotes",
+        "market_last_price",
+        "market_last_prices"
+      ],
+      [
+        "options_evaluate_market",
+        "market_quotes"
+      ]
     ]
   },
-  "judgeRubric": "Require an eligible exact one-contract long call limit entry supported by fresh exact quotes and Greeks, and its actual filled outcome. Before finishing that same review, persist the required favorable-profit, signed-quantity-change and dated routine holding conditions for the exact held identity. Reconcile the profit boundary to actual opening fills, quantity and multiplier: a basket_pnl condition uses signed opening cash and a positive cash-profit target equal to 50% of actual gross debit; an equivalent correctly labeled holdings-value boundary is valid. Do not use the submitted limit or an acknowledgement as a verified fill basis, confuse option-price units with cash, or double-scale the multiplier. A status/quantity watch and weekly review alone do not cover the missing mandatory profit condition. Confirm the actual saved plan through attention_list. Do not invent a second order, close, external fill or historical performance. Describe review conditions as monitoring rather than automatic orders. Grade the saved definitions and actual ordered tool evidence, not only the final prose."
+  "judgeRubric": "Require an eligible exact one-contract long call limit entry supported by fresh exact quotes and Greeks, and its actual filled outcome. Before finishing that same review, persist the required favorable-profit, signed-quantity-change and dated routine holding conditions for the exact held identity. Reconcile the profit boundary to actual opening fills, quantity and multiplier: a basket_pnl condition uses signed opening cash and a positive cash-profit target equal to 50% of actual gross debit; an equivalent correctly labeled holdings-value boundary is valid. Do not use the submitted limit or an acknowledgement as a verified fill basis, confuse option-price units with cash, or double-scale the multiplier. A status/quantity watch and weekly review alone do not cover the missing mandatory profit condition. Check the actual persisted plan and tool results for the required conditions. Correct registration results and native saved state can confirm those definitions without an additional redundant list read. Do not invent a second order, close, external fill or historical performance. Describe review conditions as monitoring rather than automatic orders. Grade the saved definitions and actual ordered tool evidence, not only the final prose."
 }

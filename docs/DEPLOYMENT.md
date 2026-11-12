@@ -57,6 +57,23 @@ failed or incomplete original native attempt cannot fall back to an older pass.
 9) Trigger BotManager deploys (dev then prod) only after step 8 is complete — this takes ~30 minutes and should be the last step.
 10) Post-deploy: run an MCP backtest against prod and assert `settings.json.lumibot_version == "X.Y.Z"`. See step 8.
 
+For 4.6.54, the release workflow also verifies the separately qualified option
+component with its explicit receipt/scope/anchor pair. Run the same check locally:
+
+```bash
+python scripts/qualify_agent_evals.py verify \
+  --receipt ci/agent-evals/single-option-guidance-qualification.json \
+  --scope ci/agent-evals/single-option-guidance-scope.json \
+  --source-compatibility ci/agent-evals/single-option-guidance-source-compatibility.json
+```
+
+Version-3 anchors preserve two immutable commits when evidence was published
+after unrelated runtime changes: `source_commit` is the original inference
+source; `receipt_commit` plus `receipt_path` identify its original published
+bytes. Both must be ancestors, the source fingerprint and receipt digest must
+match, and the author still reviews the exact current candidate. This retains
+original evidence rather than calling publication a new model run.
+
 ## The `dev` Branch Is Sacred (CRITICAL)
 
 `dev` is the **single source of truth** for this project. Multiple external engineers (Brett, David, etc.) submit PRs against it, and multiple AI agents work off it concurrently.

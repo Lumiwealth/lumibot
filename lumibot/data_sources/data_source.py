@@ -771,7 +771,8 @@ class DataSource(ABC):
     def _daily_stock_split_frame_from_data(self, data, asset, quote=None):
         if data is None:
             return None
-        if str(getattr(data, "timestep", "") or "").strip().lower() != "day":
+        timestep = str(getattr(data, "timestep", "") or "").strip().lower()
+        if timestep not in {"day", "minute"}:
             return None
         data_asset = getattr(data, "asset", None)
         data_quote = getattr(data, "quote", None)
@@ -784,8 +785,17 @@ class DataSource(ABC):
         if not self._quote_values_match(data_quote, quote):
             return None
         frame = getattr(data, "df", None)
-        if frame is None or not hasattr(frame, "columns") or "stock_splits" not in frame.columns:
+        if frame is None or not hasattr(frame, "columns"):
             return None
+        action_columns = {"dividend": "sum", "stock_splits": "max", "_split_adjusted": "max"}
+        present = {name: reduction for name, reduction in action_columns.items() if name in frame.columns}
+        if "dividend" not in present and "stock_splits" not in present:
+            return None
+        if timestep == "minute":
+            # Corporate actions are dated events, not historical-price slices.
+            # Use the complete preloaded series so the first dividend lookup
+            # cannot cache only events preceding the initial decision.
+            return frame[list(present)].resample("1D").agg(present)
         return frame
 
     @staticmethod

@@ -256,8 +256,12 @@ def _without_alpaca_benchmark_body(source):
 
 def compatible_runtime(receipt, receipt_bytes, anchor, *, root=ROOT):
     base_fields = {'version', 'source_commit', 'receipt_sha256'}
-    if (not isinstance(anchor, dict) or anchor.get('version') not in {1, 2}
-            or set(anchor) != (base_fields | {'author_review'} if anchor['version'] == 2 else base_fields)):
+    if not isinstance(anchor, dict) or anchor.get('version') not in {1, 2, 3}:
+        raise ValueError('Invalid source compatibility anchor')
+    expected = base_fields | ({'author_review'} if anchor['version'] >= 2 else set())
+    if anchor['version'] == 3:
+        expected |= {'receipt_commit', 'receipt_path'}
+    if set(anchor) != expected:
         raise ValueError('Invalid source compatibility anchor')
     if anchor['receipt_sha256'] != hashlib.sha256(receipt_bytes).hexdigest():
         raise ValueError('Native receipt digest differs from its compatibility anchor')
@@ -265,7 +269,16 @@ def compatible_runtime(receipt, receipt_bytes, anchor, *, root=ROOT):
     if not isinstance(ref, str) or not re.fullmatch('[0-9a-f]{40}', ref):
         raise ValueError('Compatibility requires an immutable full Git commit')
     _git('merge-base', '--is-ancestor', ref, 'HEAD', root=root)
-    if _git('show', f'{ref}:ci/agent-evals/qualification.json', root=root) != receipt_bytes:
+    # Component proof may be published after unrelated runtime work. Preserve
+    # BOTH immutable identities instead of relabeling that earlier inference.
+    published = anchor.get('receipt_commit', ref)
+    path = anchor.get('receipt_path', 'ci/agent-evals/qualification.json')
+    if (not isinstance(published, str) or not re.fullmatch('[0-9a-f]{40}', published)
+            or not isinstance(path, str) or not path.startswith('ci/agent-evals/')
+            or '..' in Path(path).parts or '\\' in path or not path.endswith('.json')):
+        raise ValueError('Compatibility requires an immutable receipt commit and repository receipt path')
+    _git('merge-base', '--is-ancestor', published, 'HEAD', root=root)
+    if _git('show', f'{published}:{path}', root=root) != receipt_bytes:
         raise ValueError('Native receipt differs from its immutable original source')
     original = _blobs(ref, runtime_paths(root=root, source_ref=ref), root=root)
     if _fingerprint(original, receipt['sdk_versions']) != receipt['runtime_fingerprint']:

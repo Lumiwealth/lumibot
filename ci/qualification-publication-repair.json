@@ -1,0 +1,27 @@
+{
+  "date": "2026-11-11",
+  "changes": [
+    "Explicit scope/receipt/source-anchor pairing in the existing offline verifier",
+    "Distinct immutable original inference and receipt publication commits; no relabeled model runs",
+    "Release workflow verifies both existing authored scopes"
+  ],
+  "genericValue": "Any separately qualified component can preserve its original source and published evidence without replaying unchanged inference. No trading behavior, security mechanism or private infrastructure is added.",
+  "testedSourceCommit": "cc308b673",
+  "tests": {
+    "red": [
+      "test_verify_uses_the_explicit_receipt_scope_pair: unsupported CLI arguments",
+      "test_verify_uses_the_explicit_retention_anchor: unsupported CLI arguments",
+      "test_component_receipt_retains_distinct_original_and_publication_commits: rejected valid separate publication identity"
+    ],
+    "greenChecks": 22,
+    "greenSeconds": 2.79,
+    "exactPlan": "private task-owned release53-author-test-plan.json; 14 explicit node IDs including parameter expansions"
+  },
+  "compatibleRetention": "The continuation merges only 4.6.53 release marker/notes and prior review metadata, then bumps version/scope metadata to 4.6.54 after the cutoff. Tested native broker, parser, executor and verifier bodies are unchanged. The two real pinned-SDK verifier commands passed against the current 4.6.54 fingerprint; no additional actor or judge inference was dispatched.",
+  "publicBoundary": "Generic source/evidence verification, native contracts and public release metadata only. No customer code/names, keys, account IDs, BotSpot security or private infrastructure.",
+  "systemPromptDeltaBytes": 0,
+  "skillDeltaBytes": 0,
+  "newModelAttempts": 0,
+  "paidAiApiDollars": 0,
+  "costForecast": "ci/release-cost-4.6.54.json"
+}

@@ -339,7 +339,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements_dev.txt -c requirements_agent_evals.txt
       - name: Verify native real-model actor and judge qualification
-        run: python scripts/qualify_agent_evals.py verify
+        run: |
+          set -euo pipefail
+          python scripts/qualify_agent_evals.py verify
+          python scripts/qualify_agent_evals.py verify \
+            --receipt ci/agent-evals/single-option-guidance-qualification.json \
+            --scope ci/agent-evals/single-option-guidance-scope.json \
+            --source-compatibility ci/agent-evals/single-option-guidance-source-compatibility.json
       - name: Upload compact qualification evidence
         if: always()
         uses: actions/upload-artifact@v4

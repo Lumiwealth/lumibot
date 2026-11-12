@@ -834,13 +834,18 @@ def main():
     parser.add_argument("--calibration-output-root", type=Path)
     parser.add_argument("--model-call-ledger", type=Path)
     parser.add_argument("--receipt", type=Path, default=DEFAULT_PATH)
+    parser.add_argument("--scope", type=Path, default=SCOPE_PATH,
+                        help="Author-written case scope paired with this receipt")
+    parser.add_argument("--source-compatibility", type=Path,
+                        default=evals.REPO_ROOT / "ci/agent-evals/source-compatibility.json",
+                        help="Original receipt/source binding and current author retention review")
     parser.add_argument("--established-source", action="append", help="Immutable earlier source with original established native passes; repeat for distinct sources. Every case still needs current regression proof")
     args = parser.parse_args()
     cases, runtime_hash, versions = evals.load_cases(), evals.runtime_fingerprint(), evals.sdk_versions()
     if args.mode == "create":
         scope_ids = None
-        if SCOPE_PATH.exists():
-            scope = json.loads(SCOPE_PATH.read_text())
+        if args.scope.exists():
+            scope = json.loads(args.scope.read_text())
             if scope.get("package_version") == package_version() and scope.get("cases"):
                 scope_ids = [entry["id"] for entry in scope["cases"]]
         if args.output_root is None or args.model_call_ledger is None or (
@@ -859,16 +864,16 @@ def main():
                                                      if args.calibration_output_root else None),
                                 established_source=args.established_source, scope_case_ids=scope_ids)
         evals.write_json_atomic(args.receipt, receipt)
-    elif SCOPE_PATH.exists():
+    elif args.scope.exists():
         receipt = json.loads(args.receipt.read_text()) if args.receipt.exists() else None
         evidence_hash = runtime_hash
-        anchor = evals.REPO_ROOT / "ci/agent-evals/source-compatibility.json"
+        anchor = args.source_compatibility
         if isinstance(receipt, dict) and receipt.get("runtime_fingerprint") != runtime_hash and anchor.exists():
             from scripts.agent_eval_source_compatibility import compatible_runtime
 
             evidence_hash = compatible_runtime(receipt, args.receipt.read_bytes(), json.loads(anchor.read_text()))
             print(f"Preserving author-retained scoped native inference at original source {evidence_hash}; reviewed candidate {runtime_hash}. No new model execution, timestamps or usage are claimed.")
-        ids = verify_release_scope(json.loads(SCOPE_PATH.read_text()), cases, receipt,
+        ids = verify_release_scope(json.loads(args.scope.read_text()), cases, receipt,
                                    runtime_hash=evidence_hash, version=package_version(), versions=versions)
         print(f"Verified the author-written release eval scope: {len(ids)} listed case(s) with current pass evidence"
               + ("" if ids else " (none listed; reason recorded in release-scope.json)") + ".")

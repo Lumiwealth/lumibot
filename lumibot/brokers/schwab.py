@@ -2105,13 +2105,32 @@ class Schwab(Broker):
         # The Schwab endpoint returns the whole account and parsing assigns the
         # requested display name to each row. Only known native identities (or
         # their nested broker-created children) belong in local execution state.
-        owned = []
+        owned, unmanaged = [], []
         for parent in orders:
             tracked_parent = self.get_tracked_order(parent.identifier, use_placeholders=True)
             if tracked_parent is None:
+                if parent.is_active():
+                    unmanaged.append(str(parent.identifier))
                 continue
             owned.append(parent)
+        self._warn_unmanaged_open_orders(unmanaged)
         return owned
+
+    def _warn_unmanaged_open_orders(self, identifiers):
+        """Name, once, open account orders this strategy will not manage."""
+        warned = self.__dict__.setdefault("_unmanaged_open_orders_warned", set())
+        new = [identifier for identifier in identifiers if identifier not in warned]
+        if not new:
+            return
+        warned.update(new)
+        logger.warning(
+            "Not managing %d open order(s) on this broker account that this strategy did not place "
+            "or could not restore from its saved state: %s. They stay live at the broker; LumiBot "
+            "will not track them or call order callbacks for them. Cancel or manage them at the broker. "
+            "Orders a strategy places are restored after a restart from its saved variables "
+            "(variable backup) or, for launcher-managed bots, through broker.order_ownership_id.",
+            len(new), ", ".join(new),
+        )
 
     def _bind_owned_child_orders(self, observed_parent, tracked_parent):
         children = []

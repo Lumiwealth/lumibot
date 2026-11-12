@@ -130,8 +130,9 @@ class _OptionBarsClient:
 
     _api_key = "standin-key"  # a credential scope, as production clients have: the shared cache applies
 
-    def __init__(self):
+    def __init__(self, never_traded=()):
         self.windows = []
+        self.never_traded = set(never_traded)  # OCC symbols with no prints at all
 
     def get_option_bars(self, request):
         symbols = request.symbol_or_symbols
@@ -143,6 +144,8 @@ class _OptionBarsClient:
         days = pd.date_range(start.normalize(), end, freq="1D")
         rows = {}
         for symbol in symbols:
+            if symbol in self.never_traded:
+                continue
             prints = [day + pd.Timedelta(hours=h) for day in days if day.weekday() < 5 for h in (14, 19)]
             prints = [t for t in prints if start <= t <= end]
             rows[symbol] = [dict(t=t.isoformat(), o=1.0, h=1.1, l=0.9, c=1.05, v=3, n=1, vw=1.0) for t in prints]
@@ -161,7 +164,7 @@ def _chain_pages(first_day):
     return {"inactive": [contracts], "active": [[]]}
 
 
-def _run_month_of_picks(monkeypatch, cache_dir):
+def _run_month_of_picks(monkeypatch, cache_dir, never_traded=()):
     from lumibot import constants
     from lumibot.tools import shared_bar_cache
     from tests.test_alpaca_backtesting_multitimeframe_unit import _NY_TZ, _alpaca_source, _FakeTradingClient
@@ -173,7 +176,7 @@ def _run_month_of_picks(monkeypatch, cache_dir):
     # The window starts in June so a read "from the backtest start" differs from the pick month.
     source = _alpaca_source(monkeypatch, cache_dir, start=datetime(2026, 6, 1), end=datetime(2026, 8, 29))
     trading = _FakeTradingClient(_chain_pages(date(2026, 8, 3)))
-    bars = _OptionBarsClient()
+    bars = _OptionBarsClient(never_traded)
     source._trading_client, source._option_client = trading, bars
     days = [d for d in pd.date_range("2026-08-03", "2026-08-28", freq="1D") if d.weekday() < 5]
     picks = []
@@ -225,3 +228,48 @@ def test_month_of_option_picks_makes_no_bar_requests_when_warm(monkeypatch, tmp_
     assert layers["shared_bars"]["hits"] > 0 and layers["shared_bars"]["misses"] == 0
     assert layers["alpaca_option_chains"]["misses"] == 0
 
+
+
+def _far_strikes():
+    """Deep out-of-the-money puts the delta search probes but that never trade."""
+    out = set()
+    for week in range(8):
+        expiration = date(2026, 8, 3) + timedelta(days=4 + 7 * week)
+        for strike in range(600, 630, 5):
+            out.add(_option_symbol(expiration, "P", strike))
+    return out
+
+
+def test_month_of_option_picks_with_never_traded_strikes_makes_no_bar_requests_when_warm(monkeypatch, tmp_path):
+    # Alpaca answered "no bars" for listed contracts over closed past days: that answer is
+    # remembered, so the warm run asks nothing. A cold run asks exactly as before.
+    cache = tmp_path / "cache"
+    _source, _trading, cold_bars, _picks = _run_month_of_picks(monkeypatch, cache, _far_strikes())
+    assert cold_bars.windows
+    _source, warm_trading, warm_bars, _picks = _run_month_of_picks(monkeypatch, cache, _far_strikes())
+    assert warm_bars.windows == [] and warm_trading.requests == []
+    assert _provider(bt.snapshot(), "alpaca", "option")["requests"] == 0
+
+
+def test_an_unlisted_option_symbol_answered_empty_is_asked_again_next_run(monkeypatch, tmp_path):
+    # A contract Alpaca never listed may be mistyped; "no bars" for it is not an answer to keep.
+    from lumibot import constants
+    from lumibot.tools import shared_bar_cache
+    from tests.test_alpaca_backtesting_multitimeframe_unit import _NY_TZ, _alpaca_source, _FakeTradingClient
+
+    unlisted = Asset("SPY", Asset.AssetType.OPTION, expiration=date(2026, 8, 14), strike=999.0, right="PUT")
+    asked = []
+    for _run in range(2):
+        cache = tmp_path / "cache"
+        monkeypatch.setattr(constants, "LUMIBOT_CACHE_FOLDER", str(cache))
+        monkeypatch.setenv("LUMIBOT_SHARED_BARS", "true")
+        shared_bar_cache._reset_process_memory()
+        source = _alpaca_source(monkeypatch, cache, start=datetime(2026, 6, 1), end=datetime(2026, 8, 29))
+        bars = _OptionBarsClient({_option_symbol(date(2026, 8, 14), "P", 999)})
+        source._trading_client, source._option_client = _FakeTradingClient(_chain_pages(date(2026, 8, 3))), bars
+        source._datetime = _NY_TZ.localize(datetime(2026, 8, 5, 10, 0))
+        source.get_chains(Asset("SPY"))
+        source.prefetch_option_bars([unlisted], until=source._datetime)
+        shared_bar_cache.flush_shared_bar_writes(30)
+        asked.append(len(bars.windows))
+    assert asked[0] >= 1 and asked[1] == asked[0]

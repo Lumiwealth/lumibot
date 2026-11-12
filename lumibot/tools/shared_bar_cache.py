@@ -22,7 +22,14 @@ uncovered pieces are fetched from the provider.
   and the old partitions are ignored. A fully cached adjusted read re-checks
   once a day.
 * A provider answer with zero rows never records coverage. An empty answer can
-  be an outage or an entitlement gap, so it is never remembered as "no bars".
+  be an outage or an entitlement gap, so by default it is never remembered.
+  Only when the caller vouches for the answer (``confirmed_empty``: the provider
+  answered successfully and completely, for a contract it lists) is a zero-row
+  answer for a range closed at least ``EMPTY_SETTLE`` ago stored as a
+  "confirmed empty" marker. Markers hold no rows and live apart from coverage, so
+  they never become bars. A marker for a range that closed less than
+  ``EMPTY_RECENT`` before it was recorded is re-checked once after
+  ``EMPTY_RECHECK_AFTER`` (providers backfill recent data); older ones are permanent.
 * Local files are written before the result is returned (milliseconds).
   Remote (S3) uploads run on a background thread. ``flush_shared_bar_writes``
   waits for them; it also runs at interpreter exit.
@@ -446,6 +453,9 @@ class _Partition:
     epoch: int = 0
     # Written by an adapter that rejects inconsistent OHLC (see ``strict_ohlcv``).
     strict: bool = False
+    # Confirmed-empty markers: dicts with start/endExclusive/recordedAt (UTC Timestamps),
+    # provider, symbol, timestep and reason. Never rows, never coverage.
+    empty: list = field(default_factory=list)
 
 
 @dataclass
@@ -467,6 +477,12 @@ def _encode_partition(part: _Partition) -> bytes:
             "strict": bool(part.strict),
         }
     }
+    if part.empty:
+        rows.attrs["sharedBars"]["confirmedEmpty"] = [
+            {**m, "start": m["start"].isoformat(), "endExclusive": m["endExclusive"].isoformat(),
+             "recordedAt": m["recordedAt"].isoformat()}
+            for m in part.empty
+        ]
     # Same bytes as ``rows.to_parquet(buffer)``, but the column conversion runs on this thread
     # (nthreads=1). pandas' to_parquet lets pyarrow convert columns on a concurrent.futures
     # pool; once Python starts shutting down (the main thread returned while this non-daemon
@@ -528,6 +544,14 @@ def _decode_partition(part: _Partition, body: bytes | None) -> _Partition:
             return part
         if any(s < part.start or e > part.stop for s, e in coverage):
             return part
+        empty = []
+        for marker in meta.get("confirmedEmpty") or []:
+            marker = {**marker, "start": _utc(marker["start"]), "endExclusive": _utc(marker["endExclusive"]),
+                      "recordedAt": _utc(marker["recordedAt"])}
+            if marker.get("reason") != EMPTY_REASON or marker["start"] < part.start or marker["endExclusive"] > part.stop:
+                return part
+            empty.append(marker)
+        part.empty = empty
         part.rows = rows
         part.coverage = _union(coverage)
         part.epoch = int(meta.get("epoch") or 0)
@@ -560,9 +584,22 @@ def _merge_partitions(base: _Partition, other: _Partition) -> _Partition:
     base.strict = base.strict or other.strict
     merged = _Partition(
         base.series, base.start, base.stop, base.path, rows, _union(base.coverage + other.coverage), base.epoch,
-        base.strict,
+        base.strict, _merge_markers(base.empty, other.empty, _union(base.coverage + other.coverage)),
     )
     return merged
+
+
+def _merge_markers(first: list, second: list, coverage) -> list:
+    """Both writers' markers, newest record per range, minus ranges that now hold real bars."""
+    newest = {}
+    for marker in list(first) + list(second):
+        key = (marker["start"], marker["endExclusive"])
+        if key not in newest or marker["recordedAt"] > newest[key]["recordedAt"]:
+            newest[key] = marker
+    markers = list(newest.values())
+    for lo, hi in coverage:
+        markers = _trim_markers(markers, lo, hi)
+    return markers
 
 
 # --------------------------------------------------------------------------- background uploads
@@ -858,7 +895,7 @@ class _Store:
             manifests = {s: load_manifest(s) for s in series}
         for part in loaded:
             if part.epoch != manifests[part.series].epoch:
-                part.rows, part.coverage = _normalize(None), []
+                part.rows, part.coverage, part.empty = _normalize(None), [], []
                 part.epoch = manifests[part.series].epoch
         return loaded, manifests
 
@@ -875,7 +912,8 @@ class _Store:
                 return None
         part = entry[1]
         return _Partition(
-            part.series, part.start, part.stop, part.path, part.rows, list(part.coverage), part.epoch, part.strict
+            part.series, part.start, part.stop, part.path, part.rows, list(part.coverage), part.epoch, part.strict,
+            list(part.empty),
         )
 
     def _remember(self, part: _Partition, mtime: float | None) -> None:
@@ -964,6 +1002,33 @@ class _Store:
 
 FetchMany = Callable[[List[BarSeries], pd.Timestamp, pd.Timestamp], Dict[BarSeries, Optional[pd.DataFrame]]]
 
+# Confirmed-empty markers (see module docstring).
+EMPTY_SETTLE = pd.Timedelta(days=1)
+EMPTY_RECENT = pd.Timedelta(days=30)
+EMPTY_RECHECK_AFTER = pd.Timedelta(days=7)
+EMPTY_REASON = "provider_success_zero_rows"
+
+
+def _marker_live(marker: dict, clock: pd.Timestamp) -> bool:
+    """A marker counts as answered unless it is a recent range due for its one re-check."""
+    recorded = marker["recordedAt"]
+    if recorded - marker["endExclusive"] >= EMPTY_RECENT:
+        return True
+    return clock - recorded < EMPTY_RECHECK_AFTER
+
+
+def _live_empty(parts, clock) -> list:
+    return [(m["start"], m["endExclusive"]) for p in parts for m in p.empty if _marker_live(m, clock)]
+
+
+def _trim_markers(markers: list, lo, hi) -> list:
+    """Markers with ``[lo, hi)`` removed (real bars or a fresh answer now own that range)."""
+    out = []
+    for marker in markers:
+        for a, b in _subtract(marker["start"], marker["endExclusive"], [(lo, hi)]):
+            out.append({**marker, "start": a, "endExclusive": b})
+    return out
+
 
 def _settled_cut(series: BarSeries, now: pd.Timestamp) -> pd.Timestamp:
     """Bars starting before this instant are complete (ended a margin ago)."""
@@ -989,6 +1054,7 @@ def read_bars_many(
     refresh: bool = False,
     coverage_from_rows: bool = False,
     strict_ohlcv: bool = False,
+    confirmed_empty: Callable[[BarSeries], bool] | None = None,
 ) -> dict[BarSeries, pd.DataFrame]:
     """Bars with start in ``[start, end]`` for each series, served from the shared cache.
 
@@ -998,6 +1064,13 @@ def read_bars_many(
     ``now - delay`` for delayed feeds). ``coverage_from_rows`` is for providers
     that can silently truncate the start of an answer: coverage then starts at the
     first returned bar instead of the requested start.
+
+    ``confirmed_empty(series)`` returning True is the caller's statement that ``fetch``
+    returns only complete, successful provider answers for that series (errors, rate
+    limits, timeouts and truncated pages raise) and that the provider lists the
+    instrument, so a zero-row answer means it really had no bars. Only then is a
+    zero-row answer for a range closed ``EMPTY_SETTLE`` ago remembered (never together
+    with ``coverage_from_rows``). See the module docstring.
     """
     started = time.perf_counter()
     start, end = _utc(start), _utc(end)
@@ -1022,7 +1095,9 @@ def read_bars_many(
     overlap_checks: dict[BarSeries, bool] = {}
     for item in usable:
         item_parts = by_series[item]
-        covered = [] if refresh else _union(c for p in item_parts for c in p.coverage)
+        covered = [] if refresh else _union(
+            [c for p in item_parts for c in p.coverage] + _live_empty(item_parts, clock)
+        )
         cached_rows = _rows_in(item_parts, start, end_excl)
         item_gaps = _subtract(start, end_excl, covered)
         manifest = manifests[item]
@@ -1098,6 +1173,7 @@ def read_bars_many(
             manifests[item] = _Manifest(manifests[item].epoch + 1, None)
             for part in by_series[item]:
                 part.rows, part.coverage, part.epoch = _normalize(None), [], manifests[item].epoch
+                part.empty = []
             store.save_manifest(item, manifests[item])
         provider_started = time.perf_counter()
         answer = fetch(restarted, start, end_excl) or {}
@@ -1117,10 +1193,27 @@ def read_bars_many(
     for item in usable:
         item_parts = by_series[item]
         cut = _settled_cut(item, clock)
+        empty_cut = clock - item.duration - EMPTY_SETTLE
+        vouched = (confirmed_empty is not None and not coverage_from_rows and item not in restarted
+                   and bool(confirmed_empty(item)))
         changed = set()
         for (gap_start, gap_stop), rows in fetched.get(item, []):
             if rows.empty:
-                continue  # an empty answer is never remembered as "no bars"
+                # An empty answer is remembered only when the caller vouches for it, and only
+                # for the part of the range that closed at least EMPTY_SETTLE ago.
+                stop = min(gap_stop, empty_cut)
+                if not vouched or stop <= gap_start:
+                    continue
+                for part in item_parts:
+                    lo, hi = max(gap_start, part.start), min(stop, part.stop)
+                    if hi <= lo:
+                        continue
+                    part.empty = _trim_markers(part.empty, lo, hi) + [{
+                        "start": lo, "endExclusive": hi, "recordedAt": clock, "provider": item.provider,
+                        "symbol": item.symbol, "timestep": item.timestep, "reason": EMPTY_REASON,
+                    }]
+                    changed.add(id(part))
+                continue
             cov_start = max(gap_start, rows.index[0]) if coverage_from_rows else gap_start
             cov_stop = gap_stop if gap_stop <= cut else min(gap_stop, cut)
             if cov_stop <= cov_start:
@@ -1135,6 +1228,7 @@ def read_bars_many(
                 merged = pd.concat([keep, piece]) if not keep.empty else piece
                 part.rows = merged[~merged.index.duplicated(keep="last")].sort_index()
                 part.coverage = _union(part.coverage + [(lo, hi)])
+                part.empty = _trim_markers(part.empty, lo, hi)
                 part.strict = part.strict or strict_ohlcv
                 changed.add(id(part))
         for part in item_parts:

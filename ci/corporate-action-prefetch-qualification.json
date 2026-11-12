@@ -1,0 +1,27 @@
+{
+  "kind": "generic-corporate-action-code-qualification",
+  "preFix": "Three neutral prefetch configurations failed before the repair: minute with/without split columns and daily without a split column. A recorded-input preparation also exposed repeated event values on padded minutes.",
+  "reuse": "Builds on existing public PR 1212 for Pandas/Polars event alignment; no second event-preservation implementation.",
+  "runtimeChanges": [
+    "Complete preloaded daily/minute corporate actions remain available when the first lookup builds its cache.",
+    "Event alignment preserves actual timestamps, values and caller frames; inserted rows carry no repeated action."
+  ],
+  "checks": [
+    {
+      "passed": 199,
+      "seconds": 93.84,
+      "scope": "Event preservation, dividend/split cash accounting, quote retention, daily-limit execution and release-verifier controls."
+    },
+    {
+      "passed": 54,
+      "seconds": 14.36,
+      "scope": "Incoming shared cache, request-count, tracked ownership and standalone restart controls."
+    }
+  ],
+  "newModelAttempts": 0,
+  "retainedModelEvidence": "Existing native scoped passes retain original source/calls/date. Candidate source review explains unchanged in-memory fixtures.",
+  "systemPromptDeltaBytes": 0,
+  "skillDeltaBytes": 0,
+  "sixHourLimitChanged": false,
+  "publicBoundary": "Generic data/accounting and neutral tests/docs; no private infrastructure, credentials, security implementation or strategy policy."
+}

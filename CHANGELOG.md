@@ -1,5 +1,25 @@
 # Changelog
 
+## 4.6.54 - 2026-11-11
+
+Deploy marker: d802adfc087f895e272421f2b06de6cce5df875e
+
+### Changed (live trading)
+- Schwab restart without a launcher ownership id (standalone strategies): the strategy restores the open orders it placed from the checkpoint saved with its variables (same broker, account and strategy name), and their fills and cancellations reach its callbacks. In 4.6.53 nothing was restored without `broker.order_ownership_id`. Other open orders on the account (manual orders, other bots) are never adopted; LumiBot names them once in a warning, and they stay live at the broker. In 4.6.52 and earlier every open account order was adopted as the strategy's own, which could fire callbacks for orders it never placed.
+- One-time gap when upgrading from 4.6.52 or earlier: orders opened before the upgrade have no checkpoint, so after the first restart they are named in that warning instead of being managed. Manage them at the broker. Two running instances with the same strategy name sharing one variable store remain unsupported.
+
+### Backtesting and history
+- The shared bar cache can remember a confirmed-empty answer: the provider answered successfully and completely with zero bars for a range that closed at least one day ago, for an instrument the provider lists. Alpaca options use it for listed contracts that never traded, so a warm 3-month iron condor made 0 option-bar requests instead of 63 (simulation 35.2 s to 30.8 s, results identical). Errors, timeouts, rate limits, truncated answers, unlisted contracts and recent days are never remembered. Markers hold no bars and are never returned as data; a marker for a range closed less than 30 days earlier is re-checked once after 7 days so a provider backfill appears. Other providers are unchanged unless they opt in.
+
+### Release evidence
+- Verify separately published native qualification with its explicit receipt and case scope. Retain the original inference source and original receipt publication as distinct immutable commits; both digests and the reviewed candidate remain checked. This adds no model calls or trading changes.
+
+### Fixed
+- Preserve dividend and stock-split event timestamps when Pandas and Polars backtest data are aligned to a shared index. Inserted rows carry zero actions instead of repeating a prior event.
+- Warn once per data object when alignment omits nonzero dividends or splits inside the retained time window.
+- Reuse complete preloaded dividends in minute backtests and in daily data without split columns; future ex-dates are not lost when the first lookup builds its cache.
+- Attaching observation provenance leaves the caller's original DataFrame unchanged.
+
 ## 4.6.53 - 2026-11-11
 
 Deploy marker: a50c93e74f33bc994ca662744a76b7f49d1e1e01

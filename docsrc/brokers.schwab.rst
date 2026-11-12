@@ -30,6 +30,35 @@ already-canceled order produces cancellation evidence. Other cancellation
 errors remain visible. Partial fills reported with a cancellation are processed
 before the cancellation callback.
 
+Open orders after a restart
+---------------------------
+
+Schwab reports every order on the account, not only the ones your strategy
+placed, and its order data carries no strategy tag. LumiBot therefore treats an
+order as your strategy's own only if this strategy placed it in this run, or if
+it restores it from the strategy's own saved state after a restart.
+
+* **Restart with variable backup enabled** (``db_connection_str`` or scheduled
+  state): the strategy restores the open orders it placed, from the checkpoint
+  saved with its variables. The checkpoint is restored only for the same broker,
+  the same account and the same strategy name. Fills and cancellations of those
+  orders reach ``on_filled_order`` and ``on_canceled_order`` as before.
+* **Other open orders on the account** (manual orders, other bots, orders the
+  strategy cannot restore) are never adopted. LumiBot logs one warning naming
+  them. They stay live at Schwab and can still fill there; cancel or manage them
+  at the broker.
+* **One-time gap when upgrading from 4.6.52 or earlier:** orders opened before
+  the upgrade have no checkpoint, so after the first restart they are named in
+  that warning instead of being managed. Older versions adopted every open order
+  on the account as the strategy's own, including other bots' and manual orders,
+  which could fire the wrong strategy's callbacks.
+* **Launchers** that run several bots can set ``broker.order_ownership_id`` to a
+  stable value per bot. A checkpoint is then restored only by the instance with
+  the same id.
+* Two running instances with the **same strategy name** sharing one variable
+  store are not supported: they share one checkpoint, just as they share their
+  variables. Give each instance its own name or variable store.
+
 Repeated immediate account-stream disconnects use increasing retry delays,
 capped at 30 seconds. A login alone does not reset the retry delay; a connection
 must remain healthy for at least 60 seconds. This reduces reconnect storms but

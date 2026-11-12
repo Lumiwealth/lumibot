@@ -282,9 +282,13 @@ def test_checkpoint_from_same_named_instance_cannot_reassign_order_ownership():
     assert second.get_all_orders() == []
 
 
-def test_automatic_restore_never_trusts_an_unbound_name_only_checkpoint():
+def test_automatic_restore_never_lets_a_name_alone_claim_an_instance_bound_checkpoint():
+    # Without an ownership id a plain restart restores its own checkpoint
+    # (tests/test_order_restart_without_ownership_id.py); a checkpoint written by an
+    # id-bound instance still needs that id.
     transport = _TRANSPORT.SchwabLifecycleTransport()
     broker, _ = _TRANSPORT.data_only_schwab_broker(transport, name="same-name")
+    broker.order_ownership_id = "instance-one"
     own = submitted(broker)
     second, _ = _TRANSPORT.data_only_schwab_broker(transport, name="same-name")
     strategy = object.__new__(Strategy)

@@ -211,13 +211,19 @@ class AttentionMonitor:
 
     def preview(self, definition: dict[str, Any]) -> dict[str, Any]:
         """Read a condition without changing its warning or acknowledgement state."""
+        units = {}
+        if definition["metric"] == "basket_pnl":
+            basis = abs(float(definition["entry_cash"]))
+            percent = float(definition["value"]) / basis * 100 if basis else None
+            units = {"value_units": "currency", "threshold_percent_of_absolute_entry_cash":
+                     percent if percent is not None and math.isfinite(percent) else None}
         try:
             observed, met = self._condition(definition, {})
             return {"available": True, "observed": observed, "condition_met": met,
-                    "observed_at": self.strategy.get_datetime().isoformat()}
+                    "observed_at": self.strategy.get_datetime().isoformat(), **units}
         except Exception as exc:
             return {"available": False, "error_type": type(exc).__name__,
-                    "observed_at": self.strategy.get_datetime().isoformat()}
+                    "observed_at": self.strategy.get_datetime().isoformat(), **units}
 
     def poll(self, *, observations: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         """Evaluate saved conditions once. An unavailable observation never clears a breach.

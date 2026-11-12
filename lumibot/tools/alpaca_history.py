@@ -50,21 +50,26 @@ def _request_asset_class(request) -> str | None:
     return None
 
 
-def fetch_alpaca_bars(client, request, method, *, now=None, refresh=False):
+def fetch_alpaca_bars(client, request, method, *, now=None, refresh=False, empty_ok=None):
     """Run an Alpaca SDK bars read through the shared bar cache (see ``_fetch_alpaca_bars``)."""
     from lumibot.tools import backtest_telemetry
 
     with backtest_telemetry.provider_scope("alpaca", _request_asset_class(request)):
-        return _fetch_alpaca_bars(client, request, method, now=now, refresh=refresh)
+        return _fetch_alpaca_bars(client, request, method, now=now, refresh=refresh, empty_ok=empty_ok)
 
 
-def _fetch_alpaca_bars(client, request, method, *, now=None, refresh=False):
+def _fetch_alpaca_bars(client, request, method, *, now=None, refresh=False, empty_ok=None):
     """Run an Alpaca SDK bars read through the shared bar cache.
 
     Returns an object with the ``BarSet.df`` contract LumiBot adapters consume.
     Provider exceptions propagate; invalid provider bars raise ``InvalidBars``.
     Explicit limits, sort orders and unknown credential scopes bypass reuse
     because they cannot establish complete coverage.
+
+    ``empty_ok(symbol)`` True lets a zero-row answer for that symbol be remembered as
+    confirmed empty (see ``shared_bar_cache``). Pass it only for symbols Alpaca itself
+    listed: ``method`` raises on HTTP errors and rate limits and the SDK follows every page
+    token, so an answer without the symbol is a complete "no bars" for a real contract.
     """
     raw_symbols = request.symbol_or_symbols
     symbols = [raw_symbols] if isinstance(raw_symbols, str) else list(raw_symbols)
@@ -124,6 +129,7 @@ def _fetch_alpaca_bars(client, request, method, *, now=None, refresh=False):
         results = shared_bar_cache.read_bars_many(
             list(series.values()), request.start, request.end, fetch, now=now, refresh=refresh,
             strict_ohlcv=True,  # Alpaca's existing contract: invalid provider OHLCV is an explicit error
+            confirmed_empty=(lambda item: bool(empty_ok(by_series[item]))) if empty_ok is not None else None,
         )
     except InvalidBars as exc:
         raise InvalidBars("Alpaca returned invalid OHLCV bars; shared cache was not written") from exc

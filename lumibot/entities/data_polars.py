@@ -13,7 +13,7 @@ from lumibot.tools.lumibot_logger import get_logger
 
 from .asset import Asset
 from .dataline import Dataline
-from .data import _repair_quote_source_times
+from .data import _repair_quote_source_times, _warn_off_grid_actions
 
 logger = get_logger(__name__)
 
@@ -315,6 +315,8 @@ class DataPolars:
         """Create datalines and fill missing values.
 
         This converts to pandas for compatibility with the existing dataline system.
+        Dividends and splits match only their recorded timestamps; missing events are zero.
+        Warn once if a nonzero action inside the retained window has no matching row.
         """
         # Get pandas DataFrame
         df = self.df
@@ -328,8 +330,21 @@ class DataPolars:
         if df.index.has_duplicates:
             df = df[~df.index.duplicated(keep='first')]
 
+        _warn_off_grid_actions(self, df, idx)
+
+        # Preserve exact event matches before the mark reindex can copy a prior action.
+        # Do this after duplicate removal so events follow the existing first-row policy.
+        # fill_value keeps integer events exact when new rows are introduced.
+        corporate_actions = {
+            col: df[col].reindex(idx, fill_value=0).fillna(0)
+            for col in ("dividend", "stock_splits")
+            if col in df.columns
+        }
+
         # Reindex the DataFrame with the new index and forward-fill missing values.
         df = df.reindex(idx, method="ffill")
+        for col, events in corporate_actions.items():
+            df[col] = events
 
         # Check if we have a volume column, if not then add it and fill with 0 or NaN.
         if "volume" in df.columns:

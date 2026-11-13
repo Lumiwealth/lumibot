@@ -313,7 +313,9 @@ Positions are reconciled through REST because the
 installed Phemex Pro adapter has no ``watch_positions`` implementation.
 
 Call ``broker.cleanup_streams()`` when finished; normal broker shutdown also
-closes the managed client. ``connect_stream=False`` retains REST operation.
+closes the managed client. ``connect_stream=False`` retains REST operation
+and initializes ``broker.stream`` to ``None``; REST order reads do not require
+a WebSocket connection.
 Phemex requires a symbol for REST open-order discovery, so a stream-disabled
 account-wide refresh scans metadata-discovered active markets.
 

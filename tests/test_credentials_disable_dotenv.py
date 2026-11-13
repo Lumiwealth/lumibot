@@ -171,7 +171,7 @@ def test_eager_credentials_polymarket_respects_connect_stream_env():
                 "print('lower_is_upper=' + str(credentials.broker is broker)); "
                 "print('broker_class=' + broker.__class__.__name__); "
                 "print('broker_name=' + broker.name); "
-                "print('stream_exists=' + str(hasattr(broker, 'stream'))); "
+                "print('stream_none=' + str(broker.stream is None)); "
                 "broker.cleanup_streams()"
             ),
         ],
@@ -185,4 +185,5 @@ def test_eager_credentials_polymarket_respects_connect_stream_env():
     assert "lower_is_upper=True" in result.stdout
     assert "broker_class=Polymarket" in result.stdout
     assert "broker_name=Polymarket" in result.stdout
-    assert "stream_exists=False" in result.stdout
+    # Disabled streaming has explicit None state; it must not connect a worker.
+    assert "stream_none=True" in result.stdout

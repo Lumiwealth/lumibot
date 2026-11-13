@@ -328,6 +328,17 @@ def _load_negative_conid_cache() -> None:
             pass
 
 
+def symbol_not_found(asset: Asset) -> bool:
+    """True when IBKR said it has no contract for this symbol and asset type (any quote or venue)."""
+    _load_negative_conid_cache()
+    key = _conid_key(asset=asset, quote=None, exchange=None)
+    prefix = f"{key.asset_type}|{key.symbol}|"
+    return any(
+        isinstance(name, str) and name.startswith(prefix) and (value or {}).get("reason") == "no_conid"
+        for name, value in list(_NEGATIVE_CONID_CACHE.items())
+    )
+
+
 def _record_negative_conid(*, key: str, reason: str, message: str) -> None:
     """Persist a negative cache marker so we stop hammering IBKR for invalid roots/expirations."""
     if not key:

@@ -1,0 +1,75 @@
+{
+  "scope": "Generic Polygon cache trading-date correction",
+  "date": "2026-11-12T05:10:18.479576+00:00",
+  "baseSource": "8daa1ad75e8e4659e5c45c61552b2667ccb675cb",
+  "redEvidence": {
+    "originalSources": [
+      "929b81fa09df9399c48b937ea3c40530e06bbdbf",
+      "8daa1ad75e8e4659e5c45c61552b2667ccb675cb"
+    ],
+    "failingBehavior": "A cached Jan6 19:59 New York observation has UTC date Jan7. get_missing_dates returned [] for Jan7 and native history called get_aggs zero times; it must request Jan7. Six regression instances fail for that reason.",
+    "separateSetupError": "An initial integration fixture omitted the datetime index name. Corrected before observing both actual zero-download red cases; that setup error is not product evidence."
+  },
+  "checks": [
+    {
+      "test": "tests/test_polygon_trading_date_cache.py",
+      "reason": "Nine neutral cache/session regressions cover the reproduced UTC-day alias, actual missing-day download, confirmed empty caching and compatible callers.",
+      "passed": 9,
+      "seconds": 1.15
+    },
+    {
+      "test": "tests/test_polygon_helper.py::TestPolygonHelpers::test_missing_dates",
+      "reason": "Existing naive/option-expiry missing-date behavior must remain compatible."
+    },
+    {
+      "test": "tests/test_polygon_helper.py::TestPolygonHelpers::test_update_cache",
+      "reason": "Existing cache writer callers omit the new optional asset hint and must retain their behavior."
+    },
+    {
+      "test": "tests/test_polygon_cached_chunks.py::test_cached_middle_chunks_are_not_downloaded",
+      "reason": "Date coverage must retain the existing request-saving partition boundaries."
+    },
+    {
+      "test": "tests/test_polygon_cached_chunks.py::test_missing_chunk_end_and_next_chunk_start_are_both_requested",
+      "reason": "Missing dates at adjacent chunk edges must both be fetched."
+    },
+    {
+      "test": "tests/test_polygon_cached_chunks.py::test_cold_and_invalidated_caches_keep_all_download_chunks",
+      "reason": "Cold, forced and split-invalidated requests must remain complete."
+    },
+    {
+      "test": "tests/test_polygon_cached_chunks.py::test_unavailable_dates_stay_checked_without_losing_supported_history",
+      "reason": "Confirmed empty markers must avoid repeated requests and preserve supported data."
+    },
+    {
+      "test": "tests/test_polygon_cached_chunks.py::test_fully_cached_history_never_constructs_a_provider_request",
+      "reason": "Complete caches must remain network-free."
+    },
+    {
+      "test": "tests/test_polygon_cached_chunks.py::test_fully_cached_reads_exclude_unavailable_rows",
+      "reason": "Missing markers must not appear as actual market data."
+    }
+  ],
+  "result": {
+    "newRegressionPasses": 9,
+    "existingAffectedPasses": 14,
+    "totalPasses": 23,
+    "existingAffectedSeconds": 1.79,
+    "realModelAttempts": 0,
+    "paidAiApiUsd": 0,
+    "playwrightTests": 0
+  },
+  "retainedModelEvidence": {
+    "decision": "Preserve original in-memory agent fixture proof with original source/date; these cases do not call Polygon history or this cache helper. No new model inference is justified for this plain data-cache repair.",
+    "caseIds": [
+      "attention_overnight_management_preserves_entry_opportunity",
+      "options_unequal_call_ratio_atomic_open"
+    ]
+  },
+  "compatibility": "Stock/option/index real aware bars use NYSE dates. Confirmed-empty rows preserve requested date. Crypto/forex, naive helper inputs and update_cache callers without asset keep existing conventions. No strategy policies, tools, defaults, prompts or instruction sizes change.",
+  "platformBoundary": "Only a generic market-data cache helper and neutral synthetic aggregate tests; no person, strategy-specific logic, private code, security or infrastructure. Would fix absent any one strategy.",
+  "sourceHashes": {
+    "helper": "4a6d8043dfcf544a2a110e3a9b371a5cf72a010249b854868acb0047e1ffa60a",
+    "test": "a2a92a8b49f03364041adbab72be24a6bba5fac247d22a0644680241f5df8037"
+  }
+}

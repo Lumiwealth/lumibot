@@ -301,7 +301,9 @@ def _normalize(frame: pd.DataFrame | None) -> pd.DataFrame:
         rows.index = pd.to_datetime(rows.index, utc=True)
     rows.index = rows.index.tz_localize("UTC") if rows.index.tz is None else rows.index.tz_convert("UTC")
     rows.index.name = "timestamp"
-    rows = rows[~rows.index.duplicated(keep="last")].sort_index()
+    # PERF: stored partitions are already sorted and unique; dedupe and sort only when needed.
+    if not (rows.index.is_monotonic_increasing and rows.index.is_unique):
+        rows = rows[~rows.index.duplicated(keep="last")].sort_index()
     rows.index = pd.DatetimeIndex(rows.index, freq=None, name="timestamp")
     rows.attrs = {}
     return rows
@@ -1286,7 +1288,10 @@ def _rows_in(parts: Sequence[_Partition], start, end_excl) -> pd.DataFrame:
     pieces = [p for p in pieces if not p.empty]
     if not pieces:
         return _normalize(None)
-    rows = pd.concat(pieces)
+    rows = pieces[0] if len(pieces) == 1 else pd.concat(pieces)
+    # PERF: partitions hold sorted, unique, non-overlapping rows, so this is usually a no-op.
+    if rows.index.is_monotonic_increasing and rows.index.is_unique:
+        return rows.sort_index()
     return rows[~rows.index.duplicated(keep="last")].sort_index()
 
 

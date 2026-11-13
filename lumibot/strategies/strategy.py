@@ -516,9 +516,15 @@ class Strategy(_Strategy):
         if self._risk_free_rate is not None:
             return self._risk_free_rate
         else:
-            # Use the yahoo data to get the risk free rate, or 0 if None is returned
+            # Use the yahoo data to get the risk free rate, or 0 if None is returned.
+            # PERF: a delta pick prices a dozen strikes at the same time; ask once per time.
             now = self.get_datetime()
-            return get_risk_free_rate(now) or 0.0
+            cached = self.__dict__.get("_risk_free_rate_at")
+            if cached is not None and cached[0] == now:
+                return cached[1]
+            rate = get_risk_free_rate(now) or 0.0
+            self.__dict__["_risk_free_rate_at"] = (now, rate)
+            return rate
 
     # ======= Helper Methods =======================
 
@@ -2965,7 +2971,7 @@ class Strategy(_Strategy):
                     if bars is not None and getattr(bars, "df", None) is not None and not bars.df.empty:
                         result = float(bars.df["close"].iloc[-1])
                         cache[cache_key] = result
-                        self._record_usable_backtest_price(result)
+                        self._record_usable_backtest_price(result, asset)
                         return result
 
                     # Forward-fill retry (v4.5.1): when the length=1 slice comes
@@ -3007,7 +3013,7 @@ class Strategy(_Strategy):
                                 if not pre_sim.empty:
                                     result = float(pre_sim["close"].iloc[-1])
                                     cache[cache_key] = result
-                                    self._record_usable_backtest_price(result)
+                                    self._record_usable_backtest_price(result, asset)
                                     return result
                             except Exception:
                                 pass
@@ -3022,14 +3028,71 @@ class Strategy(_Strategy):
             )
             if is_backtesting_run:
                 cache[cache_key] = result
-                self._record_usable_backtest_price(result)
+                self._record_usable_backtest_price(result, asset)
             return result
         except UnsupportedAsset:
             raise
         except Exception as e:
             self.log_message(f"Could not get last price for {asset}", color="red")
             self.log_message(f"{e}")
+            if is_backtesting_run:
+                self._note_backtest_data(asset, False)
             return None
+
+    def _note_backtest_data(self, asset, found):
+        """Remember, per asset, whether any price or bar request in this backtest returned data.
+
+        At the end of the run, an asset that was asked for and never returned anything is
+        reported in ``data_health.required_failures`` (see ``_report_assets_without_data``).
+        Option contracts are skipped: strike searches probe contracts that never traded.
+        """
+        try:
+            base = asset[0] if isinstance(asset, tuple) else asset
+            if getattr(base, "asset_type", None) == Asset.AssetType.OPTION:
+                return
+            seen = self.__dict__.setdefault("_backtest_data_seen", {})
+            entry = seen.get(base)
+            if entry is None:
+                entry = seen[base] = {"found": False, "requests": 0, "first": None}
+            if entry["found"]:
+                return
+            entry["requests"] += 1
+            if entry["first"] is None:
+                entry["first"] = self.get_datetime()
+            if found:
+                entry["found"] = True
+        except Exception:
+            pass
+
+    def _report_assets_without_data(self):
+        """Add a required failure for each asset that returned no data for the whole backtest."""
+        seen = self.__dict__.get("_backtest_data_seen") or {}
+        missing = [(asset, entry) for asset, entry in seen.items() if not entry["found"] and entry["requests"]]
+        if not missing:
+            return
+        from lumibot.tools.ibkr_history_health import record_required_data_issue
+
+        source = getattr(self.broker, "data_source", None)
+        provider = getattr(source, "SOURCE", None) or type(source).__name__
+        knows = getattr(source, "symbol_not_found", None)
+        for asset, entry in missing:
+            reason = "no_data_for_backtest"
+            try:
+                if callable(knows) and knows(asset):
+                    reason = "symbol_not_found"
+            except Exception:
+                pass
+            when = entry["first"] or self.get_datetime()
+            try:
+                named = getattr(source, "provider_for", None)
+                asset_provider = named(asset) if callable(named) else provider
+            except Exception:
+                asset_provider = provider
+            record_required_data_issue(asset=asset, timestep="backtest", when=when, reason=reason,
+                                       recovery_cause="history_unavailable", retryable=False,
+                                       requested_bars=entry["requests"], returned_bars=0,
+                                       provider=str(asset_provider), occurrences=entry["requests"])
+        self._backtest_data_seen = {}
 
     def _record_backtest_runtime_milestone(self, name):
         try:
@@ -3040,14 +3103,18 @@ class Strategy(_Strategy):
         except Exception:
             pass
 
-    def _record_usable_backtest_price(self, price):
+    def _record_usable_backtest_price(self, price, asset=None):
+        usable = False
         try:
             import math
 
             if price is not None and math.isfinite(float(price)):
+                usable = True
                 self._record_backtest_runtime_milestone("first_usable_price_at")
         except (TypeError, ValueError, OverflowError):
             pass
+        if asset is not None:
+            self._note_backtest_data(asset, usable)
 
     def _supports_daily_last_price_optimization(self) -> bool:
         data_source = getattr(getattr(self, "broker", None), "data_source", None)
@@ -4688,6 +4755,10 @@ class Strategy(_Strategy):
         try:
             from lumibot.tools.ibkr_history_health import ibkr_history_health_snapshot
 
+            try:
+                self._report_assets_without_data()
+            except Exception:
+                pass
             history_health = ibkr_history_health_snapshot()
             sources = (datasource, getattr(self.broker, "option_source", None))
             uses_ibkr = any(
@@ -5124,6 +5195,9 @@ class Strategy(_Strategy):
                     # If resampling fails, log warning and return original data
                     self.logger.warning(f"Failed to resample data from {actual_timestep} to {original_timestep}: {e}")
 
+        if self.is_backtesting:
+            self._note_backtest_data(asset, bars is not None and getattr(bars, "df", None) is not None
+                                     and not bars.df.empty)
         if self.is_backtesting and history_requirement == "required":
             from lumibot.backtesting.market_input_evidence import record_market_input
 

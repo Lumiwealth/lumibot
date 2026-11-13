@@ -4,6 +4,7 @@ from decimal import Decimal
 from enum import Enum
 from threading import Event, Lock
 from typing import TYPE_CHECKING, Union
+from uuid import UUID
 
 if TYPE_CHECKING:
     from lumibot.entities.asset import Asset
@@ -1529,7 +1530,9 @@ class Order:
                 continue
 
             # Convert datetime objects to ISO format for JSON serialization
-            if isinstance(value, datetime.datetime):
+            if isinstance(value, UUID):
+                order_dict[key] = str(value)
+            elif isinstance(value, datetime.datetime):
                 order_dict[key] = value.isoformat()
 
             # If it is a Decimal object, convert it to a float
@@ -1562,7 +1565,7 @@ class Order:
         order_dict['status'] = self.status
         # `identifier` is the canonical order ID that downstream consumers
         # (strategy listener, UI, broker adapters) rely on for dedup and display.
-        order_dict['identifier'] = self._identifier
+        order_dict['identifier'] = str(self._identifier) if isinstance(self._identifier, UUID) else self._identifier
         # `avg_fill_price` is the weighted fill price for filled/partially-filled
         # orders — the single most important field for P&L and trade review.
         order_dict['avg_fill_price'] = (

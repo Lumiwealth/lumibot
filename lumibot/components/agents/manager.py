@@ -2,6 +2,7 @@ import functools
 import hashlib
 import inspect
 import json
+import math
 import os
 import re
 import sys
@@ -195,6 +196,137 @@ def _get_parquet_utils():
             write_parquet_with_logging,
         )
     return _PARQUET_UTILS
+
+
+class _AgentDetailSpool:
+    """Append-only store for one agent detail parquet file.
+
+    Why: a long backtest runs agents on every bar. Keeping every past row in
+    memory and rewriting the whole file after each call made memory and write
+    time grow with every call until the process ran out of memory.
+
+    Invariants:
+    - Each call's rows go to their own small part file next to the detail file
+      (``<stem>.parts/``). Only the current call's rows are in memory.
+    - The combined detail file is rebuilt from the previous combined file plus
+      the new parts, one batch at a time, and replaced atomically. A killed
+      process leaves the last complete combined file and every complete part.
+    - Rebuilds happen when the number of new calls reaches the number already
+      combined (1, 2, 4, 8, ...), so total rebuild work stays linear in the
+      number of calls. ``finalize()`` combines everything and removes the parts.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = Path(path)
+        self.parts_dir = self.path.with_name(f"{self.path.stem}.parts")
+        self._combined_calls = 0
+        self._pending_parts: list[Path] = []
+        self._part_counter = 0
+        # A detail file left by an earlier run at the same path is replaced,
+        # exactly as the old full rewrite did on the first call.
+        if self.path.exists():
+            self.path.unlink()
+        if self.parts_dir.exists():
+            for part in self.parts_dir.glob("*.parquet"):
+                part.unlink()
+
+    def append(self, frame: Any, *, artifact: str, logger: Any) -> None:
+        (
+            coerce_object_columns_to_json_strings,
+            is_parquet_required,
+            write_parquet_with_logging,
+        ) = _get_parquet_utils()
+        self.parts_dir.mkdir(parents=True, exist_ok=True)
+        self._part_counter += 1
+        part_path = self.parts_dir / f"{self._part_counter:08d}.parquet"
+        write_parquet_with_logging(
+            df=frame,
+            path=str(part_path),
+            artifact=artifact,
+            logger=logger,
+            index=False,
+            required=is_parquet_required(),
+            compression="zstd",
+            sanitizer=coerce_object_columns_to_json_strings,
+        )
+        if not part_path.exists():
+            return
+        self._pending_parts.append(part_path)
+        if len(self._pending_parts) >= max(1, self._combined_calls):
+            self.combine()
+
+    def combine(self) -> None:
+        if not self._pending_parts:
+            return
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        sources = ([self.path] if self.path.exists() else []) + list(self._pending_parts)
+        schema = self._combined_schema([pq.read_schema(source) for source in sources])
+        tmp_path = self.path.with_name(f"{self.path.name}.tmp-{os.getpid()}")
+        try:
+            with pq.ParquetWriter(str(tmp_path), schema, compression="zstd") as writer:
+                for source in sources:
+                    parquet_file = pq.ParquetFile(source)
+                    for batch in parquet_file.iter_batches():
+                        table = pa.Table.from_batches([batch])
+                        columns = []
+                        for field in schema:
+                            if field.name in table.column_names:
+                                columns.append(table.column(field.name).cast(field.type))
+                            else:
+                                columns.append(pa.nulls(table.num_rows, type=field.type))
+                        writer.write_table(pa.Table.from_arrays(columns, schema=schema))
+            os.replace(tmp_path, self.path)
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        self._combined_calls += len(self._pending_parts)
+        for part in self._pending_parts:
+            part.unlink(missing_ok=True)
+        self._pending_parts = []
+
+    @staticmethod
+    def _combined_schema(schemas: list[Any]) -> Any:
+        """One schema for every part, field by field, in first-seen order.
+
+        A column can hold a number in one call and text in another (the
+        sanitizer turns mixed object columns into JSON text per call), or be
+        all null in one call. Nulls take the other type, numbers widen to
+        float64, and anything else that disagrees is stored as text, which is
+        what one DataFrame holding every row would have produced.
+        """
+        import pyarrow as pa
+
+        order: list[str] = []
+        types: dict[str, list[Any]] = {}
+        for schema in schemas:
+            for field in schema:
+                if field.name not in types:
+                    order.append(field.name)
+                    types[field.name] = []
+                if not pa.types.is_null(field.type) and field.type not in types[field.name]:
+                    types[field.name].append(field.type)
+        fields = []
+        for name in order:
+            seen = types[name]
+            if not seen:
+                chosen = pa.null()
+            elif len(seen) == 1:
+                chosen = seen[0]
+            elif all(pa.types.is_integer(kind) or pa.types.is_floating(kind) for kind in seen):
+                chosen = pa.float64()
+            elif all(pa.types.is_boolean(kind) for kind in seen):
+                chosen = pa.bool_()
+            else:
+                chosen = pa.string()
+            fields.append(pa.field(name, chosen))
+        return pa.schema(fields)
+
+    def finalize(self) -> None:
+        self.combine()
+        if self.parts_dir.exists() and not any(self.parts_dir.iterdir()):
+            self.parts_dir.rmdir()
 
 
 def _get_builtin_serializers():
@@ -871,7 +1003,7 @@ def _managed_ai_execution_outcome(
 
 
 def _managed_ai_terminal_status(result: AgentRunResult, *, allow_trading: bool) -> str:
-    """Classify a successful ADK run from structural tool events only."""
+    """Classify a successful ADK run from structural role and trace evidence."""
 
     mutating_order_tools = {
         "orders_submit_order",
@@ -893,6 +1025,7 @@ def _managed_ai_terminal_status(result: AgentRunResult, *, allow_trading: bool) 
         return "completed_decision"
     later_successes: set[str] = set()
     has_unrecovered_tool_error = False
+    has_unrecovered_critical_error = False
     for event in reversed(tool_results):
         tool_name = str(event.tool_name or "")
         payload = _unwrap_tool_payload(event.payload)
@@ -904,9 +1037,24 @@ def _managed_ai_terminal_status(result: AgentRunResult, *, allow_trading: bool) 
         if is_error:
             if tool_name not in later_successes:
                 has_unrecovered_tool_error = True
+                outcome = payload.get("execution_outcome")
+                if isinstance(outcome, dict) and outcome.get("requiredness") == "decision_critical":
+                    has_unrecovered_critical_error = True
         else:
             later_successes.add(tool_name)
     if has_unrecovered_tool_error:
+        # A researcher may finish useful evidence with a disclosed optional
+        # gap. Keep its tool errors; the decision agent judges sufficiency.
+        # Earlier narration is not a final answer after a failed tool.
+        answer_after_tools = False
+        for event in reversed(result.events):
+            if event.kind == "tool_result":
+                break
+            if event.kind == "text" and (event.text or "").strip():
+                answer_after_tools = True
+        if (not allow_trading and not has_unrecovered_critical_error
+                and (result.summary or "").strip() and answer_after_tools):
+            return "completed_decision"
         return "tool_error"
     return "completed_no_action" if allow_trading else "completed_decision"
 
@@ -1226,6 +1374,32 @@ class AgentHandle:
     def _runtime_mode(self) -> str:
         return "backtesting" if bool(getattr(self.manager.strategy, "is_backtesting", False)) else "live"
 
+    def _market_clock_context(self, as_of: str | None) -> dict[str, Any]:
+        """Observe the existing broker clock without imposing an entry policy."""
+        broker = getattr(self.manager.strategy, "broker", None)
+        observed = {"as_of": as_of, "source": "broker", "is_open": None,
+                    "seconds_to_open": None, "seconds_to_close": None}
+        for field, method in (("is_open", "is_market_open"),
+                              ("seconds_to_open", "get_time_to_open"),
+                              ("seconds_to_close", "get_time_to_close")):
+            read = getattr(broker, method, None)
+            if not callable(read):
+                continue
+            try:
+                value = read()
+                if field == "is_open":
+                    if isinstance(value, bool):
+                        observed[field] = value
+                elif value is not None and not isinstance(value, bool):
+                    seconds = float(value)
+                    if math.isfinite(seconds):
+                        observed[field] = seconds
+            except Exception:
+                # Unsupported clock data must not abort an otherwise usable
+                # account snapshot or silently mean the market is closed.
+                continue
+        return observed
+
     def _runtime_context(self) -> dict[str, Any]:
         strategy = self.manager.strategy
         current_dt = _current_strategy_datetime(strategy)
@@ -1242,7 +1416,8 @@ class AgentHandle:
             "current_datetime": as_of,
             "timezone": _strategy_timezone_name(strategy, current_dt),
             "strategy_name": getattr(strategy, "name", None) or strategy.__class__.__name__,
-            "market": getattr(strategy, "market", None),
+            "market": getattr(strategy, "market", None) or getattr(getattr(strategy, "broker", None), "market", None),
+            "market_clock": self._market_clock_context(as_of),
             "positions": positions,
             "account": account,
             "open_orders": open_orders,
@@ -1293,11 +1468,13 @@ class AgentHandle:
                 "whole-share quantity within both the cap and available cash; otherwise make a no-trade decision."
             )
         lines = [
-            "You are operating as a trading agent inside LumiBot.",
+            "You are operating as an agent inside LumiBot under your assigned role.",
             "Use the provided runtime context and tool outputs as the ground truth for the current state of the strategy.",
+            "Use market_clock's broker-reported seconds_to_open and seconds_to_close with the current strategy datetime and configured market when assessing a session window. Unknown fields are unavailable observations, not proof of a closed market. A continuous market need not have a daily exchange close. Do not substitute the option's expiration date for the current entry or research date.",
             "Ground claims in tool results or runtime context instead of unsupported prior knowledge or vague market memory. Keep every amount, requested date range and returned timestamp attached to its own source and exact tool call. Before answering, compare each source row with its actual arguments and response; identical errors do not imply identical requested windows. Never transfer a capture time or missing metadata from one source to another, including in summaries or agent handoffs.",
+            "Keep reports to decision-driving facts. A statement about the latest observation does not establish that every observation in a series satisfies the same comparison. Check the complete returned set before saying all, stayed, or remained; otherwise describe only the observations actually verified.",
             "A filtered query result is the work list for that selection. Follow only the exact document keys returned by its eligible rows; do not add adjacent records from raw text, previews or diagnostic queries. If another key matters, run its eligibility query first. Do not describe a failed or empty eligibility selection as permission to fetch the excluded record. This does not restrict live reads or disclosed undated-source approximations.",
-            "If evidence is weak, conflicting, stale, or incomplete, prefer doing nothing and explain why.",
+            "When the mandate delegates whether to trade, weak, conflicting, stale or incomplete required evidence can justify no trade. For an explicit execution mandate, apply its actual account, instrument, price and risk requirements; do not turn optional uncertainty or a missing unrequested forecast into an additional veto.",
             "Complete the user's authorized task in this run. Perform relevant available tool calls before finalizing a plan for later. Keep trading permission, historical cutoffs, evidence requirements and risk limits unchanged.",
             "For a requested portfolio allocation or rebalance, reconcile the entire target inventory against held and pending quantities. Keep a compact worklist of target, held, pending and remaining changes. Complete every feasible authorized change in this run; verifying the first few trades does not complete the basket. An already-correct holding needs no duplicate order. A real missing-data, affordability or broker exception belongs to that constituent; continue other independent feasible changes and report each unresolved exception with its observed cause.",
             "For portfolio caps, first calculate investable capital from the authorized capital basis and investment fraction (or subtract the required reserve). Then multiply that investable amount by each target weight. Verify the arithmetic with an available calculation tool before deriving quantities. Do not divide the full account across names while forgetting the requested reserve. An unavailable constituent retains its own allocation in cash unless redistribution is authorized; it does not replace the separately required reserve or change the original allocation denominator.",
@@ -1313,7 +1490,7 @@ class AgentHandle:
             "Review current exposure, available cash, and recent activity before proposing any new trade.",
             "",
             "DEFAULT INVESTOR POLICY - FOLLOW THIS UNLESS THE USER'S SYSTEM PROMPT OR AUTHORIZED TASK CLEARLY ASKS FOR A DIFFERENT STYLE:",
-            "Within the strategy's configured constraints, an explicit portfolio allocation or rebalance is the mandate for its constituents. Default preferences about conviction, position size or trading frequency do not justify dropping requested names. Apply these discretionary investor preferences only where the user's strategy and task leave the choice open; preserve account, pricing, permission and risk requirements.",
+            "Within the strategy's configured constraints, an explicit instruction to establish or close specified exposure is an execution mandate, including a portfolio allocation, rebalance or recurring schedule. Its standing authorization continues for its eligible opportunities unless the user changes it; one-time, no-repeat and timing limits still govern. Default preferences about conviction, position size or trading frequency do not justify omitting a requested feasible action or demanding new approval. Apply these discretionary investor preferences only where the user's strategy and task leave the choice open; preserve account, pricing, permission and risk requirements.",
             "Your job is to grow the account's value over time, not to maximize trade count.",
             "Do not trade for the sake of activity. Prefer no trade over a weak trade.",
             "Require a real thesis and real conviction before entering or rotating a position.",
@@ -1395,7 +1572,10 @@ class AgentHandle:
                 ]
             )
         else:
-            lines.extend(["", "You cannot place orders. Hand your findings to the trading agent."])
+            lines.extend(["", "You cannot place orders. Return your findings to the caller under your assigned task. "
+                "This is your role restriction, not a user instruction forbidding another role to trade. "
+                "Do not attribute your non-trading assignment to the user or reinterpret the trader's mandate. "
+                "Report the research evidence and limitations; any separate decision role follows its own authorization."])
         if mode == "backtesting":
             lines.extend(
                 [
@@ -1420,7 +1600,7 @@ class AgentHandle:
                     "Correct example: if the current simulated date is 2024-01-22 and a tool accepts end, end_date, time_to, or observation_end, pass 2024-01-22 (or the current simulated datetime) in that field.",
                     "Incorrect example: calling a news, macro, or data tool with only a start parameter and no end parameter, allowing it to return future data by default.",
                     "If a tool response includes records published after the simulated datetime, exclude them before selecting evidence or following their links. Calling out the risk does not make future information usable.",
-                    "Some backtest data sources have option trade bars but no bid/ask history. When a tool result or another agent's research reports price_basis='last_trade', that last traded price is the price this backtest fills at. Missing bid/ask alone is not a reason to pass, and it does not make that price unverified or unexecutable. A recent trade bar for the exact contract is the liquidity evidence.",
+                    "Some backtest data sources have option trade bars but no bid/ask history. When the tools provide usable exact-contract last_trade prices and the mandate permits minute-bar simulation, use them as disclosed pricing approximations instead of declining solely because historical bid/ask is absent. Verify the actual simulation orders, limits and fills; a last-trade anchor or preview is not a fill. Trade bars do not establish simultaneously executable bid/ask, depth, package size or actual market liquidity. Preserve an explicit requirement for historical bid/ask rather than inventing it or silently substituting a proxy.",
                     "If availability is uncertain, use the disclosed-estimate procedure in web-documents. If no reasonable estimate or usable evidence supports a decision, explain the remaining gap and preserve existing supported state; do not fabricate evidence or treat a lookup failure as a liquidation signal.",
                     "Backtesting accuracy is more important than being clever. A cautious no-trade is better than a future-biased trade.",
                 ]
@@ -2588,13 +2768,15 @@ class AgentManager:
         # artifact files, the tool-result cache, and the DuckDB layer, so they
         # take this lock one at a time.
         self._shared_state_lock = threading.RLock()
+        from .attention import AttentionMonitor
+
+        self.attention = AttentionMonitor(strategy, lock=self._shared_state_lock)
         agent_replay_cache_class, _ = _get_replay_imports()
         self.replay_cache = agent_replay_cache_class()
         self.duckdb = _get_duckdb_query_layer_class()(strategy)
         self._observability_totals: dict[str, dict[str, int]] = {}
         self._observability_call_index: dict[str, int] = {}
-        self._observability_rows: dict[str, list[dict[str, Any]]] = {}
-        self._observability_all_rows: list[dict[str, Any]] = []
+        self._detail_spools: dict[str, _AgentDetailSpool] = {}
         self._tool_result_cache: dict[str, Any] = {}
         # Bars where an agent call failed and the strategy continued without a
         # decision. Surfaced in parameters and settings.json "agent_health".
@@ -2977,33 +3159,30 @@ class AgentManager:
                     "call_tool_use_input_tokens": 0,
                 }
             )
-        agent_rows = self._observability_rows.setdefault(handle.name, [])
-        agent_rows.extend(rows)
-        self._observability_all_rows.extend(rows)
-        configured_stats_file = getattr(self.strategy, "stats_file", None) or getattr(
-            self.strategy, "_stats_file", None
-        )
-        if isinstance(configured_stats_file, str) and configured_stats_file:
-            detail_rows = self._observability_all_rows
-        else:
-            detail_rows = agent_rows
-        detail_df = _get_pandas().DataFrame(detail_rows, columns=_AGENT_DETAIL_COLUMNS)
-        (
-            coerce_object_columns_to_json_strings,
-            is_parquet_required,
-            write_parquet_with_logging,
-        ) = _get_parquet_utils()
-        write_parquet_with_logging(
-            df=detail_df,
-            path=str(detail_path),
+        # With a stats file every agent shares one detail path; without one each
+        # agent has its own. One spool per path keeps both layouts. Only this
+        # call's rows are held in memory (see _AgentDetailSpool).
+        spool_key = str(detail_path)
+        spool = self._detail_spools.get(spool_key)
+        if spool is None:
+            spool = _AgentDetailSpool(detail_path)
+            self._detail_spools[spool_key] = spool
+        detail_df = _get_pandas().DataFrame(rows, columns=_AGENT_DETAIL_COLUMNS)
+        spool.append(
+            detail_df,
             artifact=f"agent_detail:{handle.name}",
             logger=getattr(self.strategy, "logger", None) or self,
-            index=False,
-            required=is_parquet_required(),
-            compression="zstd",
-            sanitizer=coerce_object_columns_to_json_strings,
         )
         return detail_path
+
+    def finalize_artifacts(self) -> None:
+        """Write the complete agent detail files. Called when the strategy ends."""
+        with self._shared_state_lock:
+            for spool in list(self._detail_spools.values()):
+                try:
+                    spool.finalize()
+                except Exception as exc:
+                    self._log_warning(f"Could not finalize agent detail file {spool.path}: {exc}")
 
     def _log_warning(self, message: str) -> None:
         try:

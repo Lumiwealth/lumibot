@@ -12,9 +12,22 @@ or the underlying.
 If a candidate changes, discard its verification for the replacement: obtain
 Greeks and quote quality for the final exact identity before pricing or ordering.
 
+Use those observations to evaluate the complete position. Net delta and gamma
+use signed leg quantities and contract multipliers, including unequal ratios.
+Delta describes current directional sensitivity; gamma describes how it changes
+as the underlying moves. A near-expiration position can change exposure rapidly.
+Current offsets can change as price, time and volatility move. Consider theta
+and vega when they matter to the holding or event policy. A bounded loss does
+not make the entry attractive by itself. State the material implication for the
+decision, without demanding a particular Greek target the user did not set or
+turning the final answer into a list of every returned field.
+
 ## Quote quality
 
-Call `options_evaluate_market` for every intended leg. Treat unavailable,
+Inspect current exact-leg bid/ask evidence, using `market_quotes` for a group
+of contracts or `options_evaluate_market` for individual quality analysis.
+Assess every selected leg; a complete usable batch need not be fetched again
+one contract at a time. Treat unavailable,
 non-finite, crossed, or excessively wide quotes as insufficient evidence.
 Pass `max_spread_pct` only when the user or active rules set a spread limit;
 otherwise use the tool's own `usable_for_limit_pricing` verdict. A cheap
@@ -27,9 +40,10 @@ Some backtest data sources record option trades but no bid/ask history. There,
 `options_evaluate_market` reports `price_basis: "last_trade"` with
 `usable_for_limit_pricing: true`, and option legs fill from those real trade bars.
 A missing bid/ask alone is then not a reason to skip a trade. Price from the last
-trades, use the net price `options_calculate_multileg_price` returns, and still skip
-a leg that has no recent trade. In live trading, `last_trade` is never usable for
-pricing.
+trades: use the exact contract's usable trade basis for a single-leg limit, or
+the net price `options_calculate_multileg_price` returns for two or more legs.
+Still skip a leg that has no recent trade. In live trading, `last_trade` is never
+usable for pricing.
 
 For a multi-leg structure, compare all leg timestamps and quote-quality flags.
 Skip the package when one leg cannot be priced honestly.

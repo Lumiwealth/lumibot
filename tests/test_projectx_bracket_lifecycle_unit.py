@@ -1060,6 +1060,18 @@ def test_complete_history_can_clear_a_previous_restart_hold(broker, mes):
     assert broker.client.placed == []
 
 
+@pytest.mark.parametrize('sync_name', ['Strat', 'Unrelated'])
+def test_sync_attributes_recovered_history_only_to_its_verified_owner(broker, mes, sync_name):
+    complete = _generation_history(broker, mes)
+    parent = _restore_generation_history(broker, mes, complete)
+    assert parent.strategy == ''
+    broker._pull_all_orders = Mock(return_value=broker._get_orders_at_broker())
+    broker.sync_orders(sync_name)
+    assert parent.strategy == ('Strat' if sync_name == 'Strat' else '')
+    assert broker.order_belongs_to_local_strategy(parent, sync_name) == (sync_name == 'Strat')
+    assert broker.client.placed == []
+
+
 def test_terminal_only_restart_does_not_invent_permission_for_new_generation(broker, mes):
     rows = _generation_history(broker, mes)[:3]
     parent = _restore_generation_history(broker, mes, rows)

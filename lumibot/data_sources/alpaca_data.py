@@ -51,6 +51,70 @@ def _parse_alpaca_timestep_value(timestep):
     return canonicalize_timestep(timestep)
 
 
+# Alpaca serves Hour bars with an amount of 1 through 23.
+_ALPACA_MAX_HOUR_AMOUNT = 23
+
+
+def _alpaca_hour_amount(timestep):
+    """Return N when ``timestep`` is an N-hour interval Alpaca serves natively, else None.
+
+    Minute forms that are whole hours (``60min``) count as hours, because Alpaca
+    only accepts minute amounts below 60.
+    """
+    from lumibot.tools.helpers import parse_canonical_timestep
+
+    parsed = parse_canonical_timestep(timestep)
+    if parsed is None:
+        return None
+    quantity, unit = parsed
+    if unit == "minute" and quantity >= 60 and quantity % 60 == 0:
+        quantity, unit = quantity // 60, "hour"
+    if unit == "hour" and 1 <= quantity <= _ALPACA_MAX_HOUR_AMOUNT:
+        return quantity
+    return None
+
+
+def _intraday_bar_minutes(timestep):
+    """Minutes covered by one minute- or hour-based bar; None for any other unit."""
+    from lumibot.tools.helpers import parse_canonical_timestep
+
+    parsed = parse_canonical_timestep(timestep)
+    if parsed is None:
+        return None
+    quantity, unit = parsed
+    if unit == "minute":
+        return quantity
+    if unit == "hour":
+        return quantity * 60
+    return None
+
+
+def _history_days_needed(timestep, length, buffer_days):
+    """Trading days of history to request for ``length`` intraday bars.
+
+    Sized from 390 regular-session minutes per trading day, which covers stock
+    sessions and over-covers 24/7 crypto (extra rows are trimmed afterwards).
+    """
+    bar_minutes = _intraday_bar_minutes(timestep) or 1
+    return (length * bar_minutes // 390) + buffer_days
+
+
+def _drop_incomplete_bars(df, timestep, now):
+    """Remove the bar that has not closed yet as of ``now``.
+
+    One-minute and daily behavior is unchanged. Multi-minute and hourly bars keep
+    every bar from today that has already closed.
+    """
+    if timestep == "minute":
+        current_minute = now.replace(second=0, microsecond=0)
+        return df[df.index < current_minute]
+    bar_minutes = _intraday_bar_minutes(timestep)
+    if bar_minutes is not None and bar_minutes > 1:
+        return df[df.index + pd.Timedelta(minutes=bar_minutes) <= now]
+    current_date = now.date()
+    return df[df.index.date < current_date]
+
+
 class AlpacaData(DataSource):
     SOURCE = "ALPACA"
     MIN_TIMESTEP = "minute"
@@ -116,6 +180,9 @@ class AlpacaData(DataSource):
     def _parse_source_timestep(self, timestep, reverse=False):
         parsed = _parse_alpaca_timestep_value(timestep)
         lookup_key = parsed if parsed is not None else timestep
+        hour_amount = _alpaca_hour_amount(timestep) if reverse else None
+        if hour_amount is not None:
+            lookup_key = "hour" if hour_amount == 1 else f"{hour_amount} hours"
 
         if not reverse:
             if parsed is not None:
@@ -167,6 +234,17 @@ class AlpacaData(DataSource):
         if timestep in mapping:
             return mapping[timestep]
         return super()._parse_source_timestep(lookup_key, reverse=True)
+
+    def supports_native_timestep(self, timestep, include_after_hours=True) -> bool:
+        """Return whether Alpaca can serve ``timestep`` bars directly.
+
+        Hourly intervals (1 to 23 hours) are downloaded as hourly bars instead of
+        sixty times as many minute bars. Regular-session-only requests keep the
+        minute path, because Alpaca's hourly bars include extended hours.
+        """
+        if not include_after_hours:
+            return False
+        return _alpaca_hour_amount(timestep) is not None
 
     def _handle_auth_error(self, e, operation="data request"):
         """
@@ -829,8 +907,7 @@ class AlpacaData(DataSource):
         if timestep == "day":
             days_needed = length
         else:
-            minutes_per_day = 390
-            days_needed = (length // minutes_per_day) + 2  # + buffer
+            days_needed = _history_days_needed(timestep, length, buffer_days=2)
         start_date = _date_n_trading_days_from_date(
             n_days=days_needed,
             start_datetime=end_dt,
@@ -867,12 +944,7 @@ class AlpacaData(DataSource):
             if not include_after_hours and timestep == "minute" and _is_new_york_timezone(self.tzinfo):
                 df = df[_regular_market_hours_mask(df.index)]
             if self._remove_incomplete_current_bar:
-                if timestep == "minute":
-                    current_minute = now.replace(second=0, microsecond=0)
-                    df = df[df.index < current_minute]
-                else:
-                    current_date = now.date()
-                    df = df[df.index.date < current_date]
+                df = _drop_incomplete_bars(df, timestep, now)
             if len(df) > length:
                 df = df.iloc[-length:]
             return df
@@ -1122,9 +1194,8 @@ class AlpacaData(DataSource):
         if timestep == 'day':
             days_needed = length
         else:
-            # For minute bars, calculate additional days needed accounting for weekends/holidays
-            minutes_per_day = 390  # ~6.5 hours of trading per day
-            days_needed = (length // minutes_per_day) + 1
+            # Intraday bars: size the window from the bar length, accounting for weekends/holidays
+            days_needed = _history_days_needed(timestep, length, buffer_days=1)
 
         start_date = _date_n_trading_days_from_date(
             n_days=days_needed,
@@ -1213,14 +1284,7 @@ class AlpacaData(DataSource):
 
         # Check for incomplete bars
         if self._remove_incomplete_current_bar:
-            if timestep == "minute":
-                # For minute bars, remove the current minute
-                current_minute = now.replace(second=0, microsecond=0)
-                df = df[df.index < current_minute]
-            else:
-                # For daily bars, remove today's bar if market is open
-                current_date = now.date()
-                df = df[df.index.date < current_date]
+            df = _drop_incomplete_bars(df, timestep, now)
 
         # Ensure df only contains the last N bars
         if len(df) > length:
@@ -1285,50 +1349,12 @@ class AlpacaData(DataSource):
         elif asset.asset_type == Asset.AssetType.OPTION:
             # Note: Alpaca only supports "market" and "limit" as valid order types for multi-leg orders.
             # If you pass "credit" or "debit" as the type, Alpaca will return an "invalid order type" error.
-            strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
-            date = asset.expiration.strftime("%y%m%d")
-            symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
-            
-            
+            symbol = self._latest_quote_option_symbol(asset)
             client = self._get_option_client()
             from alpaca.data.requests import OptionLatestQuoteRequest
             req = OptionLatestQuoteRequest(symbol_or_symbols=symbol)
             trade = client.get_option_latest_quote(req)
-            t = trade[symbol]
-            # Option trades may not have bid/ask, so use price for both
-            # not sure what above comment was trying to say.
-
-            """
-            structure of t:
-            {     
-                'ask_exchange': 'B',
-                'ask_price': 2.86,
-                'ask_size': 10.0,
-                'bid_exchange': 'C',
-                'bid_price': 2.6,
-                'bid_size': 9.0,
-                'conditions': ' ',
-                'symbol': 'PEP251031P00137000',
-                'tape': None,
-                'timestamp': datetime.datetime(2025, 9, 18, 17, 18, 27, 139174, tzinfo=TzInfo(UTC))
-            } """
-
-            return Quote(
-                asset=asset,
-                price= round((t.bid_price + t.ask_price) / 2, 2) if t.bid_price and t.ask_price else None,  #using mid?
-                bid=getattr(t, "bid_price", None),
-                ask=getattr(t, "ask_price", None),
-                bid_size=getattr(t, "bid_size", None),
-                ask_size=getattr(t, "ask_size", None),
-                volume=None, #not in data from alpaca
-                timestamp=getattr(t, "timestamp", None),
-                raw_data={
-                    "exchange": getattr(t, "ask_exchange", None), #using ask_exchange, ignoring bid_exchange
-                    "conditions": getattr(t, "conditions", None),
-                    "symbol": symbol,
-                    "original_response": t
-                }
-            )
+            return self._option_latest_quote(asset, symbol, trade[symbol])
         else:
             # Stocks
             symbol = asset.symbol
@@ -1354,6 +1380,66 @@ class AlpacaData(DataSource):
                     "original_response": q
                 }
             )
+
+    @staticmethod
+    def _latest_quote_option_symbol(asset: Asset) -> str:
+        strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+        date = asset.expiration.strftime("%y%m%d")
+        return f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
+
+    @staticmethod
+    def _option_latest_quote(asset: Asset, symbol: str, t):
+        """The Quote ``get_quote`` returns for one Alpaca latest option quote ``t``."""
+        from lumibot.entities import Quote
+
+        return Quote(
+            asset=asset,
+            price= round((t.bid_price + t.ask_price) / 2, 2) if t.bid_price and t.ask_price else None,  #using mid?
+            bid=getattr(t, "bid_price", None),
+            ask=getattr(t, "ask_price", None),
+            bid_size=getattr(t, "bid_size", None),
+            ask_size=getattr(t, "ask_size", None),
+            volume=None, #not in data from alpaca
+            timestamp=getattr(t, "timestamp", None),
+            raw_data={
+                "exchange": getattr(t, "ask_exchange", None), #using ask_exchange, ignoring bid_exchange
+                "conditions": getattr(t, "conditions", None),
+                "symbol": symbol,
+                "original_response": t
+            }
+        )
+
+    # Alpaca's latest-quote endpoints accept up to 100 symbols per request.
+    LATEST_QUOTE_SYMBOLS_PER_REQUEST = 100
+
+    def get_quotes(self, assets, quote=None, exchange=None):
+        """Latest quotes for many assets; options go out up to 100 contracts per request.
+
+        Returns every requested Asset mapped to the Quote ``get_quote`` would build for it, or
+        None when Alpaca returned no quote for that contract (a single ``get_quote`` fails
+        for it). Other asset types are fetched one at a time with ``get_quote``. Request
+        failures raise, so callers can tell them apart from an empty market.
+        """
+        assets = list(dict.fromkeys(assets))
+        result = {}
+        options = [a for a in assets if a.asset_type == Asset.AssetType.OPTION]
+        if options:
+            from alpaca.data.requests import OptionLatestQuoteRequest
+
+            client = self._get_option_client()
+            symbols = {a: self._latest_quote_option_symbol(a) for a in options}
+            step = self.LATEST_QUOTE_SYMBOLS_PER_REQUEST
+            for offset in range(0, len(options), step):
+                batch = options[offset:offset + step]
+                wanted = list(dict.fromkeys(symbols[a] for a in batch))
+                response = client.get_option_latest_quote(OptionLatestQuoteRequest(symbol_or_symbols=wanted))
+                for a in batch:
+                    t = response.get(symbols[a])
+                    result[a] = self._option_latest_quote(a, symbols[a], t) if t is not None else None
+        for a in assets:
+            if a not in result:
+                result[a] = self.get_quote(a, quote=quote, exchange=exchange)
+        return {a: result[a] for a in assets}
 
     def query_greeks(self, asset: Asset):
         """

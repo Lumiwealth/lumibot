@@ -1,5 +1,13 @@
 {
-  "version": 1,
-  "source_commit": "fc3c86254301d087be0951dbaa5f5d48d44efdf1",
-  "receipt_sha256": "38ad27a58a8b771984df1bb099a0eacf4e5a052ba7282bcd508b737087db6e5a"
+  "version": 2,
+  "source_commit": "68ff48915f68d83a36885767c98567d8e35156ac",
+  "receipt_sha256": "0c79138a02f2f68eefe3b1d97b0e60d2e6fae095674f9d85ab35c08bfacd4075",
+  "author_review": {
+    "candidate_runtime_fingerprint": "9bbc7d53a3d035183044e0ed733162d298301e067210efccff2bc7fda3ba233f",
+    "case_ids": [
+      "attention_overnight_management_preserves_entry_opportunity",
+      "options_unequal_call_ratio_atomic_open"
+    ],
+    "reason": "Author review for this exact candidate: retained in-memory Pandas option/attention fixtures use complete observed prices with no corporate actions, provider history/cache, live Schwab restart or ProjectX recovery. Event-neutral alignment, full-series dividend caching and caller-frame ownership therefore do not change their messages, prices, positions or orders. Statistics consolidate only after execution. The tool-description clarifications codify the already observed passing exact-contract/order shapes without changing tool implementation or schema; separate owners keep their failed-decision proof. The offline publication-verifier correction preserves distinct immutable inference and receipt-publication commits. Preserve all original native sources, dates, calls, SDK tuples and verdicts; no new model inference is claimed. Focused code checks qualify the affected accounting, history and ownership boundaries."
+  }
 }

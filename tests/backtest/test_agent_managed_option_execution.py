@@ -86,9 +86,10 @@ def test_managed_native_tool_chain_reaches_atomic_option_submission_and_price_ap
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setattr(
         "lumibot.components.agents.managed_gateway.managed_gateway_model",
-        lambda model, *, reasoning_effort=None: BotSpotManagedLlm(
+        lambda model, *, reasoning_effort=None, model_request_timeout_seconds=120: BotSpotManagedLlm(
             model=model,
             reasoning_effort=reasoning_effort,
+            model_request_timeout_seconds=model_request_timeout_seconds,
             gateway_url="https://gateway.example.test",
             access_token="synthetic-bound-token",
             post=post,

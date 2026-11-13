@@ -1484,12 +1484,17 @@ def test_schwab_account_activity_reconciliation_reads_only_active_tracked_orders
     observed = _observed_order(Order.OrderStatus.CANCELED, identifier="active-1")
     broker._parse_broker_order = lambda raw, strategy: observed
     broker._processed_snapshots = []
-    broker._process_schwab_order_snapshot = broker._processed_snapshots.append
+    broker._processed_sources = []
+    def capture_snapshot(snapshot, *, source):
+        broker._processed_snapshots.append(snapshot)
+        broker._processed_sources.append(source)
+    broker._process_schwab_order_snapshot = capture_snapshot
 
     broker._reconcile_active_schwab_orders()
 
     assert broker._pull_broker_order_calls == ["active-1"]
     assert broker._processed_snapshots == [observed]
+    assert broker._processed_sources == ["rest_direct_order"]
 
 
 def test_schwab_snapshot_reducer_emits_incremental_partial_and_final_fill_once():

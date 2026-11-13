@@ -90,6 +90,12 @@ class _HedgeStrategy:
         self.broker.IS_BACKTESTING_BROKER = False
         self.broker.name = "dummy"
         self.broker.strategy_tag_matches = Broker.strategy_tag_matches
+        self.broker.order_belongs_to_local_strategy.side_effect = (
+            lambda order, local_name: Broker.order_belongs_to_local_strategy(
+                self.broker, order, local_name
+            )
+        )
+        self.broker.get_tracked_order.return_value = None
         self.broker.order_is_foreign_to_local_strategy.side_effect = (
             lambda order, local_name: Broker.order_is_foreign_to_local_strategy(
                 self.broker, order, local_name
@@ -203,6 +209,7 @@ def test_executor_allows_owned_option_fill_hedge():
     )
     # Ensure strategy field matches executor strategy name
     owned.strategy = strategy.name
+    strategy.broker.get_tracked_order.return_value = owned
     position = MagicMock()
     position.asset = owned.asset
 
@@ -392,10 +399,10 @@ def test_sole_subscriber_does_not_claim_foreign_tag(tradier_broker):
     order.strategy = ""
     # Repair path must refuse to claim MOS as STM
     assert broker.order_belongs_to_local_strategy(order, local_strategy_name="STM Call Strategy") is False
-    assert broker.order_belongs_to_local_strategy(
-        _make_option_order(strategy="STM Call Strategy", underlying="STM", identifier="y"),
-        local_strategy_name="STM Call Strategy",
-    ) is True
+    owned = _make_option_order(strategy="STM Call Strategy", underlying="STM", identifier="y")
+    assert broker.order_belongs_to_local_strategy(owned, local_strategy_name="STM Call Strategy") is False
+    broker._process_new_order(owned)
+    assert broker.order_belongs_to_local_strategy(owned, local_strategy_name="STM Call Strategy") is True
 
 
 def test_schwab_snapshot_does_not_seed_untracked_foreign_new(mocker):

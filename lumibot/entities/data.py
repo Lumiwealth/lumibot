@@ -143,6 +143,36 @@ def _repair_quote_source_times(frame, before_fill, segment_ids=None):
         frame[column] = times.where(frame[side].notna())
 
 
+def _warn_off_grid_actions(owner, frame, index):
+    """Warn once about real actions omitted inside the retained alignment window."""
+    if len(index) == 0 or getattr(owner, "_off_grid_actions_warned", False):
+        return
+
+    omitted_columns = []
+    for column in ("dividend", "stock_splits"):
+        if column not in frame:
+            continue
+        events = frame[column]
+        event_index = events.index[events.notna() & events.ne(0)]
+        # Trimming the requested window and keeping the first duplicate are
+        # established policies. Only inspect surviving events inside that window.
+        event_index = event_index[(event_index >= index[0]) & (event_index <= index[-1])]
+        if len(event_index) and not event_index.isin(index).all():
+            omitted_columns.append(column)
+
+    if omitted_columns:
+        logger.warning(
+            "Corporate-action alignment for %s omitted nonzero %s events between %s and %s "
+            "because their timestamps are absent from the target index. "
+            "Check the action timestamps and alignment index.",
+            owner.asset,
+            ", ".join(omitted_columns),
+            index[0],
+            index[-1],
+        )
+        owner._off_grid_actions_warned = True
+
+
 class Data:
     """Input and manage Pandas dataframes for backtesting.
 
@@ -509,6 +539,10 @@ class Data:
     # To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
 
     def repair_times_and_fill(self, idx):
+        """Align rows and build datalines, keeping actions at their recorded timestamps.
+
+        Warn once if a nonzero action inside the retained window has no matching row.
+        """
         # OPTIMIZATION: Use searchsorted instead of expensive boolean indexing
         # Replace: idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
         start_pos = idx.searchsorted(self.datetime_start, side='left')
@@ -519,8 +553,23 @@ class Data:
         if self.df.index.has_duplicates:
             self.df = self.df[~self.df.index.duplicated(keep='first')]
 
+        # Calendar alignment creates valuation rows, not new trade observations.
+        # Retain provenance across repeated repairs as well as the first repair.
+        observed = self.df.get("bar_is_observed", pd.Series(True, index=self.df.index))
+        # Provider refreshes concatenate raw rows with previously aligned rows.
+        # Missing metadata on those new observations is not calendar padding.
+        observed = observed.where(observed.notna(), True).astype(bool)
+        if self.timestep != "day":
+            source_times = pd.Series(self.df.index, index=self.df.index)
+            previous_times = self.df.get("bar_timestamp", source_times)
+            source_bar_times = previous_times.fillna(source_times.where(observed))
+        _warn_off_grid_actions(self, self.df, idx)
+
         # Reindex the DataFrame with the new index and forward-fill missing values.
         df = self.df.reindex(idx, method="ffill")
+        if self.timestep != "day":
+            df["bar_timestamp"] = source_bar_times.reindex(idx, method="ffill")
+            df["bar_is_observed"] = observed.reindex(idx, fill_value=False)
 
         # Check if we have a volume column, if not then add it and fill with 0 or NaN.
         if "volume" in df.columns:
@@ -582,11 +631,13 @@ class Data:
         if non_ohlc_cols:
             df[non_ohlc_cols] = df[non_ohlc_cols].ffill()
 
-        # Corporate actions are point-in-time events. Forward-filling a split ratio would make
-        # every later bar look like another split and can compound positions incorrectly.
+        # The first reindex also forward-fills events onto newly inserted rows. Restore
+        # exact timestamp matches from the deduplicated input before computing returns.
+        # Zero is the existing neutral value for an absent dividend or split event.
+        # Supply it during reindexing to avoid float promotion rounding integer events.
         for col in corporate_action_cols:
             if col in df.columns:
-                df[col] = df[col].fillna(0)
+                df[col] = self.df[col].reindex(df.index, fill_value=0).fillna(0)
 
         # For quote columns, do segment-wise ffill (don't fill across session boundaries)
         segment_ids = None
@@ -757,6 +808,7 @@ class Data:
         try:
             # Update cached column list if we added derived columns above.
             bars_cols = ["open", "high", "low", "close", "volume"]
+            bars_cols.extend(c for c in ("bar_timestamp", "bar_is_observed") if c in self.df)
             if "dividend" in self.df.columns:
                 bars_cols.append("dividend")
                 for col in ("price_change", "dividend_yield", "return"):
@@ -936,7 +988,8 @@ class Data:
         try:
             if iter_count < 0:
                 return None
-            raw_timestamp = self.datalines["datetime"].dataline[iter_count]
+            source_column = "bar_timestamp" if "bar_timestamp" in self.datalines else "datetime"
+            raw_timestamp = self.datalines[source_column].dataline[iter_count]
         except Exception:
             return None
         try:
@@ -1286,6 +1339,8 @@ class Data:
         bar_timestamp = self._timestamp_for_iter_count(iter_count)
         quote_dict["bar_timestamp"] = bar_timestamp.to_pydatetime() if bar_timestamp is not None else None
         quote_dict["bar_timestep"] = getattr(self, "timestep", None)
+        if "bar_is_observed" in self.datalines:
+            quote_dict["bar_is_observed"] = bool(self.datalines["bar_is_observed"].dataline[iter_count])
 
         return quote_dict
 

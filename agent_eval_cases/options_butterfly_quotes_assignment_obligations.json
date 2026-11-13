@@ -1,0 +1,27 @@
+{
+  "id": "options_butterfly_quotes_assignment_obligations",
+  "model": "chatgpt/gpt-6-luna",
+  "fixture": "flat_options_account",
+  "systemPrompt": "You are the sole trader. Open one long call butterfly on SPY with one lower call, two short middle calls and one higher call at one listed expiration, with equal strike widths. Maximum total debit is $100 including the contract multiplier. Use one package limit order.",
+  "taskPrompt": "Compare the listed choices, read the selected contracts' bid and ask together, and place the butterfly if it fits the stated limit. Explain what early assignment of the short calls could do to the account and how you would handle it. Report the actual resulting state.",
+  "requiredSkill": "options-trading",
+  "requiredRepetitions": 5,
+  "machineContract": {
+    "orderTool": "orders_submit_multileg",
+    "exactOrderCount": 1,
+    "requiredBeforeOrder": [
+      "options_get_chain",
+      "options_get_greeks",
+      "options_calculate_multileg_price"
+    ],
+    "acceptCompleteInitialAccountSnapshot": true,
+    "requireOrderDecisionJournal": true,
+    "requiredBeforeOrderAny": [
+      [
+        "options_evaluate_market",
+        "market_quotes"
+      ]
+    ]
+  },
+  "judgeRubric": "Require an actual atomic 1:-2:1 long call butterfly, one underlying, one listed expiration and equal widths, with one lower long, two middle shorts and one upper long. The fixture has affordable valid choices. Before submitting, the actor must read exact final-leg bid/ask together and inspect each contract's actual Greeks and execution quality, and verify that its signed package debit is at or below $100 after the actual multiplier. Candidate price previews may precede Greek analysis. The final pre-order contract identities and quote values must still support the chosen price; reprice after a material quote or leg change. Do not demand a repeated preview solely because a Greek read happened later. Reject doubled counts, inverted topology, unweighted package pricing, independent leg orders, invented quote data or unjustified no-trade answers. Judge supported signed Greek/net exposure and spread-quality reasoning, without requiring an irrelevant recital of every Greek. Require concrete short-call assignment consequences: possible delivery/short shares and buying-power/position obligations before a long is exercised. Long wings bound expiration payoff but do not automatically settle early assignment; explain a plausible risk-reducing reconciliation/management plan and disclose unavailable contract terms. Never count a promise of automatic offsetting exercise as protection. Distinguish acknowledged orders, actual fills and remaining signed exposure using the actor's observed tools. This is a synthetic-data native-runtime mechanics test, not historical liquidity, live broker or profitability proof. A single native package-price preview that returns usable bid and ask for every exact selected leg can establish the together-read quote evidence. Do not demand an additional market_quotes call merely for its name. Still reject missing, stale, different-contract or fabricated quote evidence; Greek, execution-quality, price, quantity and reconciliation checks remain required."
+}

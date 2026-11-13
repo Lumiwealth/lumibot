@@ -1,6 +1,7 @@
 # This file contains helper functions for getting data from Polygon.io
 import os
 import time
+from bisect import bisect_left
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
@@ -142,6 +143,8 @@ def get_price_data_from_polygon(
     missing_dates = get_missing_dates(df_all, asset, start, end)
     if not missing_dates:
         if df_all is not None:
+            if "missing" in df_all.columns:
+                df_all = df_all[~df_all["missing"].astype(bool)].copy()
             df_all = df_all.dropna(how="all")
             # Filter cached data to requested date range before returning
             if not df_all.empty:
@@ -186,20 +189,20 @@ def get_price_data_from_polygon(
     # Determine overall download range from the earliest to the latest missing date.
     poly_start = missing_dates[0]
     poly_end = missing_dates[-1]
-    total_days = (poly_end - poly_start).days + 1
-    total_queries = (total_days // MAX_POLYGON_DAYS) + 1
 
-    # Build download chunks (each of up to MAX_POLYGON_DAYS days).
+    # Keep existing request boundaries, but skip chunks whose dates are already checked.
     chunks = []
     delta = timedelta(days=MAX_POLYGON_DAYS)
     s_date = poly_start
     while s_date <= poly_end:
         e_date = min(poly_end, s_date + delta)
-        chunks.append((s_date, e_date))
+        missing_index = bisect_left(missing_dates, s_date)
+        if missing_index < len(missing_dates) and missing_dates[missing_index] <= e_date:
+            chunks.append((s_date, e_date))
         s_date = e_date + timedelta(days=1)
 
     # Download data in parallel with a progress bar.
-    pbar = tqdm(total=total_queries,
+    pbar = tqdm(total=len(chunks),
             desc=f"Downloading and caching {asset} / {quote_asset.symbol if quote_asset else ''} '{timespan}'",
             dynamic_ncols=True)
 

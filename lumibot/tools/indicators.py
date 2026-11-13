@@ -20,6 +20,28 @@ qs = LazyModule("quantstats_lumi")
 yh = lazy_class("lumibot.tools.yahoo_helper", "YahooHelper")
 
 
+def _plotly_x_values(index):
+    """Time labels for a plotly trace, encoded once.
+
+    plotly stores a timezone-aware time index as an object array of Timestamps and deep-copies
+    it for every trace, which dominated trades.html on long minute backtests. This returns the
+    exact strings plotly would write, made by plotly's own encoder, as a numpy string array, so
+    the HTML is the same and the copies are cheap. Falls back to the index if plotly changes.
+    """
+    try:
+        import plotly.io as pio
+        from _plotly_utils.basevalidators import copy_to_readonly_numpy_array
+
+        encoded = json.loads(pio.json.to_json_plotly(copy_to_readonly_numpy_array(index)))
+        if not isinstance(encoded, list) or len(encoded) != len(index):
+            return index
+        if not all(isinstance(value, str) for value in encoded):
+            return index
+        return np.array(encoded)
+    except Exception:
+        return index
+
+
 def make_subplots(*args, **kwargs):
     from plotly.subplots import make_subplots as implementation
 
@@ -508,14 +530,16 @@ def max_drawdown(_df):
     The dataframe _df must include a column "return" that
     has the return for that time period (eg. daily)
     """
-    if _df.shape[0] == 1:
-        return {"drawdown": 0, "date": _df.index[0]}
     df = _df.copy()
     df = df.sort_index(ascending=True)
     df["cum_return"] = (1 + df["return"]).cumprod()
-    df["cum_return_max"] = df["cum_return"].cummax()
+    # Initial capital is the first high-water mark even when the first
+    # recorded period is a loss (for example, initial trading costs).
+    df["cum_return_max"] = df["cum_return"].cummax().clip(lower=1.0)
     df["drawdown"] = df["cum_return_max"] - df["cum_return"]
     df["drawdown_pct"] = df["drawdown"] / df["cum_return_max"]
+    if not df["drawdown_pct"].notna().any():
+        return {"drawdown": 0, "date": df.index[0]}
 
     drawdown = df["drawdown_pct"].max()
     if math.isnan(drawdown):
@@ -1307,6 +1331,8 @@ def plot_returns(
     # Converted to DatetimeIndex because index becomes Index type and UTC timezone in pd.concat
     # The x-axis is not displayed correctly in plotly when not converted to DatetimeIndex type
     df_final.index = pd.to_datetime(df_final.index, utc=True).tz_convert(LUMIBOT_DEFAULT_TIMEZONE)
+    # Encoded once and shared by every line trace below (same HTML, far fewer copies).
+    x_values = _plotly_x_values(df_final.index)
 
     # fig = go.Figure()
     fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -1332,7 +1358,7 @@ def plot_returns(
     # Cash-adjusted portfolio line (primary)
     fig.add_trace(
         go.Scatter(
-            x=df_final.index,
+            x=x_values,
             y=df_final[adjusted_value_col],
             mode="lines",
             name=adjusted_line_label,
@@ -1353,7 +1379,7 @@ def plot_returns(
     if raw_value_col in df_final.columns:
         fig.add_trace(
             go.Scatter(
-                x=df_final.index,
+                x=x_values,
                 y=df_final[raw_value_col],
                 mode="lines",
                 name=raw_line_label,
@@ -1371,7 +1397,7 @@ def plot_returns(
     # Benchmark line
     fig.add_trace(
         go.Scatter(
-            x=df_final.index,
+            x=x_values,
             y=df_final[benchmark_name],
             mode="lines",
             name=benchmark_name,
@@ -1383,7 +1409,7 @@ def plot_returns(
     # Cash line
     fig.add_trace(
         go.Scatter(
-            x=df_final.index,
+            x=x_values,
             y=df_final["cash"],
             mode="lines",
             name="cash",

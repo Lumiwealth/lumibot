@@ -33,10 +33,20 @@ def published_cases():
     return cases
 
 
+def test_no_missing_cases_does_not_read_published_evidence(monkeypatch):
+    from scripts import agent_eval_source_compatibility as source
+
+    def unexpected_lookup(*args, **kwargs):
+        raise AssertionError("Complete native proof needs no published fallback")
+
+    monkeypatch.setattr(source, "_git", unexpected_lookup)
+    assert qualification._committed_establishment("a" * 40, [], versions={}, now=None) == {}
+
+
 def test_published_establishment_keeps_original_calls_and_source_without_raw_rows():
     receipt = published()
     proof = qualification.build_establishment(
-        [], [], published_cases(), source_ref=SOURCE, versions=receipt["sdk_versions"],
+        [], [], published_cases(), source_ref=receipt["establishment"]["source_commit"], versions=receipt["sdk_versions"],
     )
     assert proof == receipt["establishment"]
     assert proof["source_commit"] != SOURCE  # Preserve actual historical provenance.
@@ -47,7 +57,7 @@ def test_published_establishment_rejects_a_different_sdk_tuple():
     receipt = published()
     with pytest.raises(ValueError):
         qualification.build_establishment(
-            [], [], published_cases(), source_ref=SOURCE,
+            [], [], published_cases(), source_ref=receipt["establishment"]["source_commit"],
             versions={**receipt["sdk_versions"], "google-adk": "unqualified"},
         )
 
@@ -58,7 +68,8 @@ def test_changed_case_cannot_inherit_published_establishment():
     selected = next(case for case in cases if case["id"] in receipt["establishment"]["cases"])
     selected["taskPrompt"] += "\nA materially different requested outcome."
     proof = qualification.build_establishment(
-        [], [], cases, source_ref=SOURCE, versions=receipt["sdk_versions"],
+        [], [], cases, source_ref=receipt["establishment"]["source_commit"], versions=receipt["sdk_versions"],
     )
     assert selected["id"] not in proof["cases"]
+    assert len(proof["cases"]) == len(receipt["establishment"]["cases"]) - 1
     assert qualification.regression_required(selected, proof, [], "0" * 64) == evals.case_required_passes(selected)

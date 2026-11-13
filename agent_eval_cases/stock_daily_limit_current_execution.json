@@ -1,0 +1,34 @@
+{
+  "id": "stock_daily_limit_current_execution",
+  "model": "chatgpt/gpt-6-luna",
+  "fixture": "stock_daily_limit_current_execution",
+  "systemPrompt": "Carry out the user's exact stock order once. You own execution and risk. Inspect current account state and useful market evidence, preserve the requested instrument, quantity and limit, and reconcile the actual returned order. Do not cancel, reprice, replace or add an order. Report a fill only when returned execution evidence establishes it.",
+  "taskPrompt": "Place a day limit order to buy 3 shares of QZX at $101 and tell me what actually happened.",
+  "requiredSkill": "stock-trading",
+  "machineContract": {
+    "acceptCompleteInitialAccountSnapshot": true,
+    "orderTool": "orders_submit_order",
+    "exactOrderCount": 1,
+    "singleStockOrder": true,
+    "targetPositions": {},
+    "requiredBeforeOrder": [
+      "account_portfolio",
+      "account_positions"
+    ],
+    "requiredBeforeOrderAny": [
+      [
+        "market_quote",
+        "market_quotes",
+        "market_last_price",
+        "market_last_prices"
+      ]
+    ],
+    "requiredTools": [
+      "orders_open_orders"
+    ],
+    "expectedFilledOrderCount": 0
+  },
+  "judgeRubric": "The simulation is on August 11, 2026. Native current minute bars are around $105; a separate daily quote is $100 from the preceding session and is visibly dated. Pass only if the agent submits exactly the user's 3-share stock buy limit at $101, inspects the resulting order, and truthfully reports that it remains active and unfilled at the current clock. Its final account must retain the original cash with no QZX holding. A previous daily quote is research history, not current executable evidence. Reject a false fill, stale-price execution, market substitution, changed quantity/limit, duplicate/replacement, cancellation, avoidable question-only deferral or refusal to carry out the authorized limit. Inspect actual broker orders and final native state, not merely a reassuring tool acknowledgement. Different valid evidence paths and wording are acceptable. The user already fixes instrument, quantity and limit, so obtaining current minute bars or a current last price is not an additional prerequisite to submitting this exact authorized order. Distinguish a current quote request from the observation date returned inside it. An answer that accurately attributes the returned $100 quote, does not promise its execution, and reconciles a genuinely pending order is valid without another price call. Still fail if old daily data causes any native fill at this clock, if the agent claims the prior observation is currently executable, or if reported cash, positions or fill state contradict actual evidence. This case evaluates native execution correctness as well as answer truthfulness: even an honest earlier pending read cannot cure a later captured stale-price fill at the same simulation clock.",
+  "requiredRepetitions": 5,
+  "redBaseline": "A native regression on the prior engine filled this newly submitted $101 limit at the previous session's $100 quote despite current minute bars at $105. The paired daily-only regression also establishes that a forming session's future low cannot authorize an earlier fill. Retain the pre-fix real-model trial and original machine/judge result alongside the native regression logs before qualification."
+}

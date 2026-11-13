@@ -39,6 +39,22 @@ At a minimum, a fill requires **some** actionable price source:
 
 This rule is intentionally **data-driven** and does not assume a calendar is always correct.
 
+### Daily stock market and limit orders
+
+A daily strategy cadence does not make yesterday's quote executable today.
+When matching intraday bars are already loaded, stock market and limit orders
+use that native interval for execution. A missing current observation leaves the
+order pending; it does not change historical research bars or download a finer
+resolution automatically. Source timestamps, rather than quote request times,
+determine whether a quote is current.
+
+With daily-only stock data, a limit can use the current session open while the
+session is forming. The completed high/low range becomes eligible only at the
+known calendar close, including early closes. Before the open, a daily aggregate
+cannot authorize execution. Without a known close, the full range is not assumed
+available. This is an OHLC simulation convention, not proof of an intraday touch
+or an executable live quote. Other order types retain their existing conventions.
+
 ### Rule 3 — Session gaps are modeled as “no data”
 
 For markets that truly close (futures daily maintenance, weekend gaps, holiday early closes):

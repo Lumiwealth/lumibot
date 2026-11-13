@@ -73,10 +73,18 @@ submit or change orders. Ten researchers and one trader are just as valid as
 one researcher and one trader. This is a recommendation, not a framework requirement;
 LumiBot does not impose a fixed team size.
 
-When risk rules must be mechanically fixed, keep execution and limits in
-**deterministic Python** instead. A hybrid can also use agents for research and
-Python for execution. Choose the ownership model deliberately, test it, and do
-not give research-only agents trading permission.
+For an AI-owned hybrid, the trading agent still chooses contracts, quantities,
+prices and order actions. Python can observe prices, positions and working
+orders frequently, then request an agent decision when a meaningful condition
+changes. Quiet observations need no model call. Group related warnings and do
+not rerun research for the same unchanged condition; refresh evidence when the
+decision needs it. Entry opportunities, option expiration, intended holding
+duration and review frequency are separate choices.
+
+When the user explicitly chooses fixed signals and execution in
+**deterministic Python**, keep that ownership. AI research can still inform
+such a strategy. Calling a strategy hybrid does not by itself transfer trading
+from the agent to Python. Do not give research-only agents trading permission.
 
 Verification and historical limits
 ----------------------------------
@@ -298,6 +306,15 @@ handoff. If the portfolio manager receives evidence, bull, and bear handoffs,
 three 32K-token handoffs can already consume roughly 96K tokens before the
 system prompt, tool schemas, runtime context, and the portfolio manager's own
 output.
+
+The runtime snapshot includes the configured market and ``market_clock``:
+the broker's observed open state and seconds until opening and closing.
+Unsupported observations stay unknown. Agents can use these observations to
+interpret the strategy's own session window, including early closes and
+continuous markets, without another calendar lookup. The observation belongs
+to the current strategy datetime; an option's later expiration is a separate
+date. An attention alert requests review under the existing mandate. It
+neither authorizes an unrequested trade nor cancels a standing recurring plan.
 
 Do not add hidden runtime tool-call budgets to trading benchmarks. Blocking
 tools can invalidate results by preventing execution tools, such as order

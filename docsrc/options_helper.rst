@@ -62,7 +62,7 @@ That pattern is a common cause of slow runs because each greek/mark computation 
 
 Instead, use:
 
-- ``OptionsHelper.find_strike_for_delta(...)`` (bounded probing + caching)
+- ``OptionsHelper.find_strike_for_delta(...)`` (returns the listed strike whose delta is closest to the target; data sources that can load many contracts at once are asked once, and backtests solve all greeks in one pass)
 - strategy-level caching: if you retry entry intraday, cache the selected expiry/strike(s) in ``self.vars`` and only recompute when the underlying moved materially.
 
 Validate market data before trading
@@ -163,6 +163,27 @@ Use ``OptionsHelper.find_strike_for_delta(...)`` instead of scanning strikes. Al
        expiry=expiry,
        right="put",
    )
+
+2b) See a whole expiry at once (chain snapshot)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``find_strike_for_delta`` returns the listed strike (within $20 below to $30 above the underlying price) whose delta is closest to the target, skipping strikes with no real price. Ties go to the smaller absolute delta (further out of the money), then to the lower strike. It starts at the strike nearest a Black-Scholes estimate and walks outward on each side until three priced strikes in a row are past the target and farther from it than the best so far; because delta falls as the strike rises, no strike beyond can be closer. Live trading and backtests use the same code, so the same prices give the same strike. In live trading, data sources with a bulk quote call (Alpaca, Schwab) load every candidate's quote in one request; others ask about 10 to 15 strikes one at a time. The pick is remembered for the current bar only.
+
+``get_option_chain_snapshot`` returns one row per strike for one expiry and side, with the price, bid, ask, implied volatility and delta at the current backtest or live time. Data sources that can load many contracts at once (Alpaca backtests) are asked once for all strikes. Each strike uses the same price and greeks rules as ``find_strike_for_delta``, so the numbers match what a search sees. Missing prices stay ``None``.
+
+.. code-block:: python
+
+   rows = self.options_helper.get_option_chain_snapshot(
+       underlying_asset=underlying,
+       expiry=expiry,
+       right="put",
+       underlying_price=float(underlying_price),
+   )
+   for row in rows:
+       if row["delta"] is not None:
+           self.log_message(f"{row['strike']}: delta {row['delta']:.2f}, IV {row['implied_volatility']}")
+
+Pass ``strikes=[...]`` to limit the rows; by default every strike the chain lists for that expiry is included, which costs one greeks calculation per strike.
 
 3) Validate liquidity / data quality before placing orders
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

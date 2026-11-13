@@ -75,6 +75,20 @@ def _working_order(broker, number=1, *, quantity=3):
     return order
 
 
+@pytest.mark.parametrize('signed,expected', [('-1.00',-.60),('1.00',.60),('0.00',.60)])
+def test_ordinary_package_modification_preserves_provider_credit_debit(signed, expected):
+    broker, client, _ = _harness()
+    observed = _response().model_copy(update={'order_class': 'mleg', 'limit_price': signed})
+    client.get_order_by_id.return_value = observed
+    client.replace_order_by_id.return_value = observed
+    order = Order('neutral', Asset('SYN'), 3, 'buy', identifier=observed.id,
+                  order_class='multileg', order_type='limit', limit_price=float(signed))
+    broker._modify_order(order, limit_price=.60)
+    payload = client.replace_order_by_id.call_args.kwargs['order_data']
+    assert float(payload.limit_price) == expected
+    assert payload.qty is None
+
+
 @pytest.mark.parametrize("status,filled,price", [
     (OrderStatus.FILLED, "3", "101"),
     (OrderStatus.CANCELED, "0", None),

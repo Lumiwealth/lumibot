@@ -20,7 +20,7 @@ from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, SmartLimitConfig, TradingFee
 from lumibot.tools.smart_limit_utils import build_price_ladder, compute_final_price, compute_mid, expected_fill_price, infer_tick_size, round_to_tick
 from lumibot.tools.lumibot_logger import get_logger
-from lumibot.tools.helpers import parse_timestep_qty_and_unit
+from lumibot.tools.helpers import get_multileg_quantity_units, parse_timestep_qty_and_unit
 from lumibot.trading_builtins import CustomStream
 
 try:
@@ -1175,6 +1175,16 @@ class BacktestingBroker(Broker):
         """
         super()._process_cash_settlement(order, price, quantity)
 
+    @staticmethod
+    def _multileg_fill_summary(children):
+        """Summarize actual leg fills in the same units as package limits."""
+        quantity, ratios = get_multileg_quantity_units(child.quantity for child in children)
+        price = sum(
+            Decimal(str(child.get_fill_price())) * ratio * (1 if child.is_buy_order() else -1)
+            for child, ratio in zip(children, ratios) if child.get_fill_price() is not None
+        )
+        return quantity, price
+
     def _update_parent_order_status(self, order: Order):
         """Update the status of a parent order based on the status of its child orders."""
         if order is None or not order.is_parent():
@@ -1189,6 +1199,13 @@ class BacktestingBroker(Broker):
             return
 
         if all(cancelled for _, _, cancelled in child_states):
+            self.cancel_order(order)
+            return
+
+        if (order.order_class is Order.OrderClass.MULTILEG
+                and not all(filled for _, filled, _ in child_states)):
+            # Terminal incomplete legs leave residual exposure, not a complete
+            # package fill. Cancellation preserves already-filled children.
             self.cancel_order(order)
             return
 
@@ -1213,15 +1230,24 @@ class BacktestingBroker(Broker):
                         signed *= Decimal("-1")
                     net_price += signed
 
+                if order.order_class is Order.OrderClass.MULTILEG:
+                    aggregated_qty, net_price = self._multileg_fill_summary(filled_children)
                 order.quantity = aggregated_qty
                 order.avg_fill_price = net_price
                 order.trade_cost = 0.0
 
+            was_filled = order.is_filled()
             order.status = Order.OrderStatus.FILLED
             order.set_filled()
             self._new_orders.remove(order.identifier, key="identifier")
             self._unprocessed_orders.remove(order.identifier, key="identifier")
             self._partially_filled_orders.remove(order.identifier, key="identifier")
+            if not was_filled:
+                # The legs carry the fills. Give the parent a final row so readers of the
+                # trade-event log do not show the combo as pending forever. "legs_filled" with no
+                # filled quantity is not a fill to downstream trade counters, which count fill
+                # statuses or a nonzero filled quantity, so trade counts do not change.
+                self._record_trade_event_row(order, order.avg_fill_price, None, 1, status=self.MULTILEG_LEGS_FILLED)
 
             self._track_filled_order(order)
 
@@ -1367,7 +1393,7 @@ class BacktestingBroker(Broker):
                 strategy=orders[0].strategy,
                 order_class=Order.OrderClass.MULTILEG,
                 side=orders[0].side,
-                quantity=orders[0].quantity,
+                quantity=get_multileg_quantity_units(child.quantity for child in orders)[0],
                 order_type=parent_order_type,
                 limit_price=parent_limit_price if parent_order_type == Order.OrderType.LIMIT else None,
                 tag=orders[0].tag,
@@ -1419,6 +1445,17 @@ class BacktestingBroker(Broker):
                 continue
             self.cancel_order(child)
 
+        # Child cancellations (including DAY expiry) must reconcile their
+        # package just as fills do. Keep working siblings and filled exposure;
+        # the existing parent-status owner decides when the package is closed.
+        if order.parent_identifier:
+            parent = self.get_tracked_order(order.parent_identifier, use_placeholders=True)
+            if (parent is not None
+                    and parent.order_class is Order.OrderClass.MULTILEG
+                    and not parent.is_canceled()
+                    and not parent.is_filled()):
+                self._update_parent_order_status(parent)
+
     def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
                       stop_price: Union[float, None] = None):
         """Modify an order. Only limit/stop price is allowed to be modified by most brokers."""
@@ -1434,6 +1471,11 @@ class BacktestingBroker(Broker):
             price=price,
             wait_until_complete=True,
         )
+        if limit_price is not None and hasattr(order, "_package_net_limit"):
+            # The package execution boundary must follow the same modification
+            # as its displayed limit. Preserve the existing debit/credit side.
+            direction = -1 if order._package_net_limit < 0 else 1
+            order._package_net_limit = direction * abs(float(limit_price))
 
     def _infer_underlying_asset_from_strategy(self, strategy, symbol: str) -> Asset | None:
         """Best-effort: reuse the strategy's explicit non-option underlying asset when available."""
@@ -1909,8 +1951,12 @@ class BacktestingBroker(Broker):
         --------
             List of orders
         """
-        if self.data_source.SOURCE != "PANDAS":
-            return
+        # Options settle on every backtesting source: settlement prices off the underlying's
+        # real close, so trade-only option data (Alpaca) does not block it. Before 2026-11-11
+        # this returned unless SOURCE == "PANDAS", so Alpaca backtests kept expired contracts
+        # (and orders on them) forever. Other expiring assets (futures) keep the old scope:
+        # only pandas-based sources auto-close them here.
+        pandas_source = self.data_source.SOURCE == "PANDAS"
 
         # If it's the same day as the expiration, we need to check the time to see if it's after market close
         time_to_close = self.get_time_to_close()
@@ -1924,6 +1970,8 @@ class BacktestingBroker(Broker):
 
         positions = self.get_tracked_positions(strategy.name)
         for position in positions:
+            if not pandas_source and position.asset.asset_type != Asset.AssetType.OPTION:
+                continue
             if position.asset.expiration is not None and position.asset.expiration <= self.datetime.date():
                 # If the contract has expired, we should sell it
                 if position.asset.expiration == self.datetime.date() and time_to_close > seconds_before_closing:
@@ -2383,10 +2431,7 @@ class BacktestingBroker(Broker):
                         self._fill_package_at_net_limit(order, strategy)
                 # If this is the final fill for a multileg order, mark the parent order as filled
                 if all([o.is_filled() for o in order.child_orders]):
-                    parent_qty = sum([abs(o.quantity) for o in order.child_orders])
-                    child_prices = [o.get_fill_price() if o.is_buy_order() else -o.get_fill_price()
-                                    for o in order.child_orders]
-                    parent_price = sum(child_prices)
+                    parent_qty, parent_price = self._multileg_fill_summary(order.child_orders)
                     parent_multiplier = 1
                     if hasattr(order, "asset") and getattr(order.asset, "multiplier", None):
                         parent_multiplier = order.asset.multiplier
@@ -2927,12 +2972,7 @@ class BacktestingBroker(Broker):
                                 # timing out and canceling the entire combo.
                                 filled = self._fill_multileg_children_at_market_open(order, strategy)
                                 if filled:
-                                    parent_qty = sum(abs(o.quantity) for o in order.child_orders)
-                                    child_prices = [
-                                        o.get_fill_price() if o.is_buy_order() else -o.get_fill_price()
-                                        for o in order.child_orders
-                                    ]
-                                    parent_price = sum(child_prices)
+                                    parent_qty, parent_price = self._multileg_fill_summary(order.child_orders)
                                     parent_multiplier = getattr(getattr(order, "asset", None), "multiplier", 1) or 1
 
                                     if audit_enabled:
@@ -2977,12 +3017,7 @@ class BacktestingBroker(Broker):
                                 filled = self._fill_multileg_children_at_market_open(order, strategy)
 
                             if filled:
-                                parent_qty = sum(abs(o.quantity) for o in order.child_orders)
-                                child_prices = [
-                                    o.get_fill_price() if o.is_buy_order() else -o.get_fill_price()
-                                    for o in order.child_orders
-                                ]
-                                parent_price = sum(child_prices)
+                                parent_qty, parent_price = self._multileg_fill_summary(order.child_orders)
                                 parent_multiplier = getattr(getattr(order, "asset", None), "multiplier", 1) or 1
 
                                 if audit_enabled:
@@ -3184,6 +3219,11 @@ class BacktestingBroker(Broker):
                         continue
 
                     dt = df.index[0]
+                    if "bar_is_observed" in df and not bool(df["bar_is_observed"].iloc[0]):
+                        self._handle_unavailable_execution_data(
+                            order, "selected execution row is calendar padding, not an observed bar", strategy=strategy
+                        )
+                        continue
                     if self._requires_current_execution_bar(order, str(timestep), data_source_name):
                         if not self._execution_bar_matches_datetime(dt, self.datetime, str(timestep)):
                             if self._defer_market_order_with_unavailable_execution_data(
@@ -3254,6 +3294,17 @@ class BacktestingBroker(Broker):
                 price = open
 
             elif order.order_type == Order.OrderType.LIMIT:
+                if str(order_fill_timestep) == "day" and self._normalize_asset_type(
+                    getattr(order.asset, "asset_type", "")
+                ) in {"stock", "equity"}:
+                    state = self._daily_stock_execution_state(order, dt)
+                    if state == "unavailable":
+                        continue
+                    # A daily bar supplies its open during the session, not a
+                    # future high/low touch. Full-range execution is a close-time
+                    # OHLC convention when no finer observations are loaded.
+                    if state != "closed":
+                        high = low = open
                 price = self.limit_order(order.limit_price, simple_side, open, high, low)
 
             elif order.order_type == Order.OrderType.STOP:
@@ -3297,12 +3348,7 @@ class BacktestingBroker(Broker):
                         filled = self._fill_multileg_children_at_market_open(order, strategy)
 
                     if filled:
-                        parent_qty = sum(abs(o.quantity) for o in order.child_orders)
-                        child_prices = [
-                            o.get_fill_price() if o.is_buy_order() else -o.get_fill_price()
-                            for o in order.child_orders
-                        ]
-                        parent_price = sum(child_prices)
+                        parent_qty, parent_price = self._multileg_fill_summary(order.child_orders)
                         parent_multiplier = getattr(getattr(order, "asset", None), "multiplier", 1) or 1
 
                         if audit_enabled:
@@ -3558,12 +3604,9 @@ class BacktestingBroker(Broker):
             _, unit = parse_timestep_qty_and_unit(timestep or getattr(getattr(self, "data_source", None), "_timestep", None))
         except Exception:
             unit = str(timestep or "").strip().lower()
-        if str(unit or "").strip().lower() == "day":
-            return False
-
         # Daily strategy cadence can use already loaded intraday stock bars for
-        # market execution. A missing current bar must not become a stale fill.
-        if order is not None and order.order_type == Order.OrderType.MARKET and self._normalize_asset_type(
+        # market and limit execution. A missing current bar must not become a stale fill.
+        if order is not None and order.order_type in (Order.OrderType.MARKET, Order.OrderType.LIMIT) and self._normalize_asset_type(
             getattr(order.asset, "asset_type", "")
         ) in {"stock", "equity"}:
             try:
@@ -3572,6 +3615,9 @@ class BacktestingBroker(Broker):
                     return True
             except (TypeError, ValueError):
                 pass
+
+        if str(unit or "").strip().lower() == "day":
+            return False
 
         source = getattr(self, "data_source", None)
         source_name = data_source_name or str(getattr(source, "SOURCE", "") or "").upper()
@@ -3863,7 +3909,35 @@ class BacktestingBroker(Broker):
         if source_timestamp is None:
             return False
 
+        if (
+            source_timestep == "day"
+            and isinstance(raw, dict)
+            and raw.get("bar_timestep") == "day"
+            and self._normalize_asset_type(getattr(order.asset, "asset_type", "")) in {"stock", "equity"}
+            and order.order_type in (Order.OrderType.MARKET, Order.OrderType.LIMIT)
+            and self._daily_stock_execution_state(order, source_timestamp) != "closed"
+        ):
+            return False
+
         return self._execution_bar_matches_datetime(source_timestamp, self.datetime, timestep)
+
+    def _daily_stock_execution_state(self, order: Order, bar_dt) -> str:
+        """Daily OHLC is open-only until its actual calendar session closes."""
+        bar_ts, now = self._coerce_timestamps_for_execution_check(bar_dt, self.datetime)
+        if bar_ts is None or now is None or bar_ts.date() != now.date():
+            return "unavailable"
+        days = getattr(self, "_trading_days", None)
+        if days is not None and "market_open" in days:
+            for close_time, open_time in zip(days.index, days["market_open"]):
+                opening, clock = self._coerce_timestamps_for_execution_check(open_time, now)
+                closing, _ = self._coerce_timestamps_for_execution_check(close_time, now)
+                if opening is None or closing is None or opening.date() != bar_ts.date():
+                    continue
+                if clock < opening:
+                    return "unavailable"
+                return "closed" if clock >= closing else "forming"
+        # Without a known close, do not infer that the completed range is available.
+        return "forming"
 
     def _fast_get_bid_ask_for_fill(
         self,
@@ -4051,9 +4125,9 @@ class BacktestingBroker(Broker):
     def _resolve_order_fill_timestep(self, order: Optional[Order], default_timestep: Optional[str]) -> str:
         """Resolve the OHLC timestep for pending-order fills.
 
-        Stock market orders under daily cadence use matching intraday data when
+        Stock market/limit orders under daily cadence use matching intraday data when
         already loaded; this selection never requests a new data resolution.
-        Daily-only data and non-market orders retain their existing behavior.
+        Daily-only data and other order types retain their existing behavior.
         The other exception is the
         IBKR stock/index daily-data contract: routed/direct IBKR stock and index
         backtests explicitly prefer native daily bars so a warmed minute frame
@@ -4061,7 +4135,7 @@ class BacktestingBroker(Broker):
         the same asset, preserve the data source's intraday timestep.
         """
         fallback = str(default_timestep or "minute")
-        if order is not None and order.order_type == Order.OrderType.MARKET and self._normalize_asset_type(
+        if order is not None and order.order_type in (Order.OrderType.MARKET, Order.OrderType.LIMIT) and self._normalize_asset_type(
             getattr(order.asset, "asset_type", "")
         ) in {"stock", "equity"}:
             try:
@@ -4696,9 +4770,10 @@ class BacktestingBroker(Broker):
             net_bid = 0.0
             net_ask = 0.0
             order_side = "buy" if order.is_buy_order() else "sell"
+            _, ratios = get_multileg_quantity_units(leg.quantity for leg in order.child_orders)
             if audit_enabled:
                 legs_audit = []
-            for leg in order.child_orders:
+            for leg, ratio in zip(order.child_orders, ratios):
                 try:
                     quote = self.get_quote(leg.asset, quote=leg.quote)
                 except Exception:
@@ -4722,6 +4797,8 @@ class BacktestingBroker(Broker):
                 if leg_bid is None or leg_ask is None:
                     net_bid = net_ask = None
                     break
+                leg_bid *= ratio
+                leg_ask *= ratio
                 if order_side == "buy":
                     if leg.is_buy_order():
                         net_bid += leg_bid
@@ -4859,8 +4936,9 @@ class BacktestingBroker(Broker):
         legs = []
         total_slack = 0.0
         net_mid = 0.0
+        _, leg_ratios = get_multileg_quantity_units(leg.quantity for leg in order.child_orders)
 
-        for leg in order.child_orders:
+        for leg, leg_ratio in zip(order.child_orders, leg_ratios):
             try:
                 quote = self.get_quote(leg.asset, quote=leg.quote)
             except Exception:
@@ -4872,10 +4950,10 @@ class BacktestingBroker(Broker):
 
             leg_mid = round(compute_mid(bid, ask), 6)
             slack = max(0.0, (ask - bid) / 2.0)
-            total_slack += slack
+            total_slack += leg_ratio * slack
 
             sign = 1.0 if (leg.is_buy_order() if side == "buy" else leg.is_sell_order()) else -1.0
-            net_mid += sign * leg_mid
+            net_mid += leg_ratio * sign * leg_mid
 
             legs.append({"order": leg, "bid": bid, "ask": ask, "mid": leg_mid, "slack": slack})
 
@@ -5061,10 +5139,10 @@ class BacktestingBroker(Broker):
             if price is None:
                 return False
             prices.append(price)
-        unit = min(abs(float(leg.quantity)) for leg in legs) or 1.0
+        _, ratios = get_multileg_quantity_units(leg.quantity for leg in legs)
         net = sum(
-            (price if leg.is_buy_order() else -price) * abs(float(leg.quantity)) / unit
-            for leg, price in zip(legs, prices)
+            (price if leg.is_buy_order() else -price) * ratio
+            for leg, price, ratio in zip(legs, prices, ratios)
         )
         if net > float(order._package_net_limit) + 1e-9:
             return False

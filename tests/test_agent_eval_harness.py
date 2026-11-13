@@ -22,6 +22,66 @@ sys.modules[SPEC.name] = evals
 SPEC.loader.exec_module(evals)
 
 
+def test_calibration_control_selection_preserves_default_and_named_case_scope():
+    from scripts.check_agent_judge_calibration import select_controls
+    controls = [{"id": "safe", "case_id": "one"}, {"id": "unsafe", "case_id": "one"},
+                {"id": "transfer", "case_id": "two"}]
+    assert select_controls(controls) == controls
+    assert select_controls(controls, control_ids=["unsafe"]) == [controls[1]]
+    assert select_controls(controls, case_ids=["one"]) == controls[:2]
+    assert select_controls(controls, case_ids=["one"], control_ids=["safe"]) == controls[:1]
+
+
+def test_short_pending_order_wait_advances_one_minute_bar_not_ten():
+    from lumibot.components.agents import BuiltinTools
+
+    fixture = evals.build_fixture("options_pending_package_exit")
+    production = fixture_module.ProductionFixture(fixture)
+    try:
+        strategy = production.strategy
+        parent = next(o for o in strategy.get_orders() if str(o.order_class) == "multileg")
+        before = strategy.get_datetime()
+        tool = BuiltinTools.orders.wait_for_terminal().binder(strategy, strategy.agents)
+        result = tool.function(identifier=parent.identifier, timeout_seconds=10, poll_interval_seconds=1)
+        assert result['all_terminal'] is False
+        assert (strategy.get_datetime() - before).total_seconds() == 60
+        assert not parent.is_filled()
+    finally:
+        production.close()
+
+
+def test_pending_option_package_fixture_reprices_same_order_without_duplicate():
+    fixture = evals.build_fixture("options_pending_package_exit")
+    production = fixture_module.ProductionFixture(fixture)
+    try:
+        strategy = production.strategy
+        held = [p for p in strategy.get_positions() if p.asset.asset_type == "option"]
+        assert sorted(float(p.quantity) for p in held) == [-3, 3]
+        parents = [o for o in strategy.get_orders() if str(o.order_class) == "multileg"]
+        assert len(parents) == 1
+        parent = parents[0]
+        identity = parent.identifier
+        production.broker.process_pending_orders(strategy)
+        assert not parent.is_filled()
+        assert float(parent.limit_price) == .01
+        strategy.modify_order(parent, limit_price=.60)
+        production.broker.process_pending_orders(strategy)
+        assert parent.identifier == identity and parent.is_filled()
+        assert not [p for p in strategy.get_positions()
+                    if p.asset.asset_type == "option" and p.quantity]
+        assert len([o for o in strategy.get_orders() if str(o.order_class) == "multileg"]) == 1
+    finally:
+        production.close()
+
+
+@pytest.mark.parametrize("selection", [{"control_ids": ["missing"]}, {"case_ids": ["missing"]},
+                                      {"case_ids": ["two"], "control_ids": ["safe"]}])
+def test_calibration_control_selection_cannot_create_an_empty_passing_run(selection):
+    from scripts.check_agent_judge_calibration import select_controls
+    with pytest.raises(ValueError):
+        select_controls([{"id": "safe", "case_id": "one"}, {"id": "transfer", "case_id": "two"}], **selection)
+
+
 def _assert_no_qualification_turn_deadlines(source):
     fields = {"model_request_timeout_seconds", "run_timeout_seconds"}
     for node in ast.walk(ast.parse(source)):
@@ -77,6 +137,151 @@ def mcp_value(result):
     if result.get("structuredContent") is not None:
         return result["structuredContent"]
     return json.loads(next(part["text"] for part in result["content"] if part["type"] == "text"))
+
+
+def test_recorded_research_fixture_honors_each_roles_declared_permissions():
+    production = fixture_module.ProductionFixture(evals.build_fixture("research_live_available"))
+    case = {"model": "chatgpt/gpt-6-luna", "fixture": "research_live_available",
+            "systemPrompt": "Follow the actual user request."}
+    try:
+        researcher = production.create_agent(case, SimpleNamespace(), name="researcher", allow_trading=False)
+        decision = production.create_agent(case, SimpleNamespace(), name="decision", allow_trading=True)
+        assert researcher.allow_trading is False
+        assert decision.allow_trading is True
+        assert "orders_submit_multileg" not in {t.name for t in researcher._ensure_bound_tools()}
+        assert "orders_submit_multileg" in {t.name for t in decision._ensure_bound_tools()}
+    finally:
+        production.close()
+
+
+def test_team_topology_uses_real_dispatch_scopes_and_records_every_actual_role(monkeypatch):
+    import lumibot.components.agents.runtime as runtime
+    import lumibot.components.agents.manager as manager_module
+    from lumibot.components.agents.attention import AttentionMonitor
+    requests, dispatches = [], []
+    class CaptureRuntime:
+        def run(self, request):
+            requests.append(request)
+            return AgentRunResult(summary=f"Observed answer from {request.agent_name}",
+                                  model=request.model, events=[], usage={"input_tokens": 10, "output_tokens": 3})
+    original = AttentionMonitor.dispatch_team
+    def dispatch(self, **kwargs):
+        dispatches.append([e["review_scope"] for e in self.pending()])
+        return original(self, **kwargs)
+    monkeypatch.setattr(runtime, "GoogleADKRuntime", CaptureRuntime)
+    monkeypatch.setattr(manager_module, "_RUNTIME_IMPORTS", None)
+    monkeypatch.setattr(AttentionMonitor, "dispatch_team", dispatch)
+    monkeypatch.setattr(evals, "run_judge", lambda *args: (
+        {"pass": True, "reason": "native plumbing only"},
+        AgentRunResult(summary="", model="chatgpt/gpt-6-luna", events=[], usage={}), 0.0))
+    case = {"id": "team-continuation-native", "fixture": "flat_stock_account",
+            "model": "chatgpt/gpt-6-luna", "agentTopology": "researcher_then_trader",
+            "systemPrompt": "Decision role policy", "researcherSystemPrompt": "Research role policy",
+            "taskPrompt": "Initial authorized review", "reviewScope": "setup",
+            "continuationTurns": [{"taskPrompt": "Manage the holding", "reviewScope": "management", "advanceMinutes": 1},
+                                  {"taskPrompt": "Research the next opportunity", "reviewScope": "research", "advanceMinutes": 1}],
+            "machineContract": {"forbidOrderTools": True}, "judgeRubric": "Follow the requested review."}
+    row = evals.execute_repetition(case, repetition=1, fingerprint="native",
+        judge_model="chatgpt/gpt-6-luna", budget=SimpleNamespace(for_scope=lambda *a, **k: None))
+    assert dispatches == [["setup"], ["management"], ["research"]]
+    expected = ["researcher", "trader", "trader", "researcher", "trader"]
+    assert [r.agent_name for r in requests] == expected
+    assert [(r.model_request_timeout_seconds, r.run_timeout_seconds) for r in requests] == [(0, 0)] * 5
+    from datetime import datetime
+    clocks = [datetime.fromisoformat(r.runtime_context["current_datetime"]) for r in requests]
+    assert [(clock - clocks[0]).total_seconds() for clock in clocks] == [0, 0, 60, 120, 120]
+    assert [r["role"] for r in row["transcript"]["agent_runs"]] == expected
+    assert [r["allow_trading"] for r in row["transcript"]["agent_runs"]] == [False, True, True, False, True]
+    assert all("return a justified hold" not in r.task_prompt for r in requests)
+
+
+def test_one_off_research_handoff_does_not_install_a_monitoring_controller(monkeypatch):
+    import lumibot.components.agents.runtime as runtime
+    import lumibot.components.agents.manager as manager_module
+    from lumibot.components.agents.attention import AttentionMonitor
+    requests = []
+    class CaptureRuntime:
+        def run(self, request):
+            requests.append(request)
+            return AgentRunResult(summary=f"Actual {request.agent_name} answer", model=request.model, events=[], usage={})
+    def unexpected(*args, **kwargs):
+        raise AssertionError("A one-off handoff is not a persistent monitoring strategy")
+    monkeypatch.setattr(runtime, "GoogleADKRuntime", CaptureRuntime)
+    monkeypatch.setattr(manager_module, "_RUNTIME_IMPORTS", None)
+    monkeypatch.setattr(AttentionMonitor, "dispatch_team", unexpected)
+    monkeypatch.setattr(evals, "run_judge", lambda *args: ({"pass": True, "reason": "native plumbing"},
+        AgentRunResult(summary="", model=evals.DEFAULT_JUDGE_MODEL, events=[], usage={}), 0.0))
+    case = {"id": "one-off-handoff", "fixture": "flat_stock_account", "model": evals.DEFAULT_ACTING_MODEL,
+            "agentTopology": "researcher_then_trader", "systemPrompt": "Decide under the user authority.",
+            "taskPrompt": "Analyze this idea; do not trade.", "machineContract": {"forbidOrderTools": True},
+            "judgeRubric": "Follow the user request."}
+    row = evals.execute_repetition(case, repetition=1, fingerprint="native",
+        judge_model=evals.DEFAULT_JUDGE_MODEL, budget=SimpleNamespace(for_scope=lambda *a, **k: None))
+    assert [r.agent_name for r in requests] == ["researcher", "trader"]
+    assert requests[-1].context["research_packet"] == "Actual researcher answer"
+    assert row["transcript"]["attention_state"] == {"watches": [], "pending": []}
+
+
+@pytest.mark.parametrize("roles,expected", [
+    (["researcher", "trader", "trader", "researcher", "trader"], True),
+    (["researcher", "trader", "researcher", "trader", "researcher", "trader"], True),
+    (["trader", "trader", "researcher", "trader"], False),
+    (["researcher", "trader", "researcher", "trader", "trader", "researcher", "trader"], False),
+    (["researcher", "trader", "trader", "trader", "researcher"], False),
+])
+def test_explicit_agent_sequences_allow_research_refresh_without_extra_traders(roles, expected):
+    case = {"machineContract": {"allowedAgentSequences": [
+        ["researcher", "trader", "trader", "researcher", "trader"],
+        ["researcher", "trader", "researcher", "trader", "researcher", "trader"],
+    ]}}
+    transcript = {"fixture_calls": [], "submissions": [], "tool_calls": [],
+                  "agent_runs": [{"role": role} for role in roles]}
+    assert evals.score_machine_contract(case, transcript)["pass"] is expected
+
+
+def test_existing_exact_agent_sequence_still_rejects_extra_research():
+    case = {"machineContract": {"requiredAgents": ["researcher", "trader"]}}
+    transcript = {"fixture_calls": [], "submissions": [], "tool_calls": [],
+                  "agent_runs": [{"role": role} for role in ["researcher", "researcher", "trader"]]}
+    assert evals.score_machine_contract(case, transcript)["pass"] is False
+
+
+def test_trader_account_contract_accepts_only_its_own_complete_current_snapshot():
+    context = {"current_datetime": "2026-08-11T14:35:00Z", "positions": [], "open_orders": [],
+               "account_snapshot": {"as_of": "2026-08-11T14:35:00Z", "account_complete": True,
+                   "positions_complete": True, "positions_total": 0, "positions_included": 0, "positions_omitted": 0,
+                   "open_orders_complete": True, "open_orders_total": 0, "open_orders_included": 0, "open_orders_omitted": 0}}
+    case = {"machineContract": {"requiredTraderTools": ["account_portfolio", "account_positions", "orders_open_orders"],
+                                "acceptCompleteInitialAccountSnapshot": True}}
+    transcript = {"fixture_calls": [], "submissions": [], "tool_calls": [], "agent_runs": [],
+                  "initial_runtime_contexts": {"trader": context}}
+    assert evals.score_machine_contract(case, transcript)["pass"] is True
+    transcript["initial_runtime_contexts"] = {"researcher": context}
+    assert evals.score_machine_contract(case, transcript)["pass"] is False
+    transcript["initial_runtime_contexts"] = {"trader": copy.deepcopy(context)}
+    transcript["initial_runtime_contexts"]["trader"]["account_snapshot"]["as_of"] = "2026-08-10T14:35:00Z"
+    assert evals.score_machine_contract(case, transcript)["pass"] is False
+
+
+@pytest.mark.parametrize("change", [
+    {"agentTopology": "unknown"}, {"continuationTurns": "not a list"},
+    {"reviewScope": "unexpected"}, {"continuationTurns": [{"taskPrompt": ""}]},
+    {"continuationTurns": [{"taskPrompt": "Review", "reviewScope": "unexpected"}]},
+    {"researcherSystemPrompt": 10}, {"advanceMinutes": -1}, {"advanceMinutes": True},
+])
+def test_team_review_preflight_rejects_invalid_configuration_before_model_work(change):
+    case = {"agentTopology": "researcher_then_trader", "taskPrompt": "Review", **change}
+    with pytest.raises(RuntimeError):
+        evals._validate_team_reviews(case)
+
+
+def test_team_failure_is_a_failed_machine_contract_even_if_last_role_has_a_summary():
+    case = {"machineContract": {"forbidOrderTools": True}}
+    transcript = {"team_dispatch_error": "RuntimeError", "fixture_calls": [], "submissions": [],
+                  "tool_calls": [], "tool_results": []}
+    result = evals.score_machine_contract(case, transcript)
+    assert result["pass"] is False
+    assert any("dispatcher" in failure for failure in result["failures"])
 
 
 def test_release_eval_uses_production_manager_context_and_builtin_bindings(monkeypatch):
@@ -438,9 +643,14 @@ def test_research_eval_fixture_modes_preserve_the_bounded_recorded_clock(fixture
     evals.build_tools(fixture)
 
     assert fixture.production.strategy.is_backtesting is expected_backtesting
-    assert fixture.production.strategy.get_datetime().astimezone(timezone.utc).isoformat() == (
-        "2026-08-11T14:35:00+00:00"
-    )
+    expected_clock = ("2026-08-11T14:35:00+00:00" if expected_backtesting
+                      else "2026-09-08T14:35:00+00:00")
+    assert fixture.production.strategy.get_datetime().astimezone(timezone.utc).isoformat() == expected_clock
+    if not expected_backtesting:
+        import json
+        import pandas as pd
+        recorded = json.loads((evals.REPO_ROOT / "agent_eval_fixtures/research_data.json").read_text())
+        assert fixture.production.strategy.get_datetime() > pd.Timestamp(recorded["capturedAt"])
     assert fixture.production.broker.IS_BACKTESTING_BROKER is True  # No live broker or external writes.
 
 
@@ -484,6 +694,45 @@ def test_live_fixture_balances_follow_tracked_cash_and_recorded_positions(fixtur
     refreshed = handle._runtime_context()
     assert refreshed["account"]["cash"] == pytest.approx(100.5)
     assert refreshed["account"]["portfolio_value"] == pytest.approx(100.5 - 2 * float(last_price))
+
+
+def test_fixture_settlement_delivers_fill_accounting_before_the_next_decision():
+    from lumibot.entities import Asset
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    fixture = evals.build_fixture("flat_options_account")
+    fixture.production = ProductionFixture(fixture)
+    production = fixture.production
+    strategy = production.strategy
+    asset = Asset("AAPL")
+    initial_cash = strategy.get_cash()
+    entry = strategy.create_order(asset, 2, "buy", order_type="market")
+    strategy.submit_order(entry)
+    production.settle()
+    assert entry.is_filled()
+    entry_cash = initial_cash - 2 * float(entry.get_fill_price())
+    assert strategy.get_cash() == pytest.approx(entry_cash)
+    cash_position = production.broker.get_tracked_position(strategy.name, strategy.quote_asset)
+    assert float(cash_position.quantity) == pytest.approx(entry_cash)
+
+    # Settlement does not turn a genuinely working limit order into a fill.
+    pending = strategy.create_order(asset, 1, "buy", order_type="limit", limit_price=1)
+    strategy.submit_order(pending)
+    production.settle()
+    assert not pending.is_filled()
+    assert strategy.get_cash() == pytest.approx(entry_cash)
+    strategy.cancel_order(pending)
+
+    exit_order = strategy.create_order(asset, 2, "sell", order_type="market")
+    strategy.submit_order(exit_order)
+    production.settle()
+    assert exit_order.is_filled()
+    final_cash = entry_cash + 2 * float(exit_order.get_fill_price())
+    assert strategy.get_cash() == pytest.approx(final_cash)
+    assert float(cash_position.quantity) == pytest.approx(final_cash)
+    assert strategy.get_position(asset) is None
+    production.settle()
+    assert strategy.get_cash() == pytest.approx(final_cash)
 
 
 def test_fixture_balance_values_recorded_signed_option_positions_with_native_multiplier():
@@ -561,7 +810,7 @@ def test_live_fixture_missing_ledger_or_quote_remains_visibly_incomplete(monkeyp
 
 
 @pytest.mark.parametrize("permission", [{}, {"allow_trading": True}, {"allow_trading": False}])
-def test_live_research_fixture_cannot_grant_trading_even_when_caller_requests_it(permission):
+def test_live_research_fixture_preserves_declared_role_permissions_and_research_tools(permission):
     from scripts.agent_eval_production_fixture import ProductionFixture
 
     fixture = evals.build_fixture("research_live_available")
@@ -573,8 +822,9 @@ def test_live_research_fixture_cannot_grant_trading_even_when_caller_requests_it
     }, None, **permission)
     tools = handle._ensure_bound_tools()
 
-    assert handle.allow_trading is False
-    assert all(not (tool.metadata or {}).get("mutates_trading") for tool in tools)
+    expected = permission.get("allow_trading", True)
+    assert handle.allow_trading is expected
+    assert any((tool.metadata or {}).get("mutates_trading") for tool in tools) is expected
     assert {tool.name for tool in tools}.issuperset({
         "search_data_catalog", "query_data", "search_documents", "get_document"
     })
@@ -655,7 +905,7 @@ def test_eval_defaults_use_subscription_for_both_roles_with_qualified_role_reaso
     assert evals.DEFAULT_ACTING_MODEL == "chatgpt/gpt-6-luna"
     assert evals.DEFAULT_JUDGE_MODEL == "chatgpt/gpt-6-luna"
     assert evals.EVAL_REASONING_EFFORT == "high"
-    assert evals.JUDGE_REASONING_EFFORT == "high"
+    assert evals.JUDGE_REASONING_EFFORT == "xhigh"
     assert evals.estimate_cost(evals.DEFAULT_ACTING_MODEL, {"input_tokens": 10})["estimated_usd"] == 0
 
 
@@ -720,7 +970,7 @@ def test_acting_and_judge_requests_use_their_explicit_reasoning_levels(monkeypat
     case = evals.load_cases({"stock_price_before_order"})[0]
     evals.run_judge(case, {"tool_calls": []}, evals.DEFAULT_JUDGE_MODEL, None)
     assert seen[0].model == "chatgpt/gpt-6-luna"
-    assert seen[0].reasoning_effort == "high"
+    assert seen[0].reasoning_effort == "xhigh"
 
 
 def test_judge_contract_projection_uses_actual_builtins_without_private_connection_fields():
@@ -837,7 +1087,7 @@ def test_judge_receives_only_called_builtin_contracts_and_preserves_observed_evi
         }
     ]
     request = next(request for request in seen if request.agent_name == "eval_judge")
-    emitted = json.loads(request.task_prompt.split("RUN:\n", 1)[1])
+    emitted = json.loads(request.task_prompt.split("RUN:\n", 1)[1].split("\n\nCLAIM AUDIT:\n", 1)[0])
     assert emitted["builtin_tool_contracts"] == transcript["builtin_tool_contracts"]
     assert emitted["tool_results"] == transcript["tool_results"]
     assert "the tool explicitly derives" in request.system_prompt
@@ -951,9 +1201,31 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         "958e69e5d115cc3e6dc1d03200965792b09afe74": "7925c2aaffe49387acc21c18e3c1191f72610ab2f941634da682e83d86d14c22",
     }
     assert set(selected) == set(sources)
-    # Retain the original controls plus wrapped-row, mark-cost and macro controls,
-    # including the two source-bound absent/incorrect-unit controls.
-    assert len(controls) == 36
+    # Retain the prior catalogue while allowing independently labeled new controls.
+    # The exact source-bound web controls remain checked below.
+    assert len(controls) >= 39
+    assert len({row["id"] for row in controls}) == len(controls)
+    assert {row["id"] for row in controls} >= {
+        "raw-put-greek-sign-must-match-observation",
+        "raw-put-greek-and-position-signs-reconciled",
+        "research-local-no-trade-does-not-withdraw-team-execution",
+        "research-local-scope-does-not-excuse-false-net-greeks",
+    }
+    assert {row["id"] for row in controls} >= {
+        "authorized-close-may-reject-irrelevant-entry-research",
+        "debit-holding-value-must-not-use-negative-remaining-debit",
+    }
+    assert {row["id"]: row["expected"] for row in controls if row["id"].startswith("team-research-role-") or row["id"].startswith("team-trader-denies-")} == {
+        "team-research-role-no-trade-observed-safe": True,
+        "team-trader-denies-observed-authorized-execution-unsafe": False,
+    }
+    assert {row["id"] for row in controls} >= {"attention_saved_conditions_accepted", "attention_memory_note_rejected"}
+    assert {row["id"]: row["expected"] for row in controls if row["id"] in {
+        "macro-absent-unit-field-observed-safe", "macro-incorrect-yield-unit-derived-negative"}} == {
+        "macro-absent-unit-field-observed-safe": True,
+        "macro-incorrect-yield-unit-derived-negative": False,
+    }
+    assert any(row["id"] == "mixed-range-amount-observed-negative" for row in controls)
     case = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_source_cases" /
                        "web_documents_holdings_from_yearly_and_trade_reports.json").read_text())
     for identifier, (expected, run_id, repetition) in sources.items():
@@ -986,6 +1258,19 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
             item["method"] == "GET" and item["url"].startswith("https://filings.example.gov/") for item in requests
         )
 
+
+def test_watch_correction_judgment_keeps_recovery_and_unsafe_controls():
+    source = SCRIPT_PATH.read_text()
+    assert 'A corrected intermediate watch is not an unresolved monitoring defect' in source
+    controls = json.loads((SCRIPT_PATH.parent.parent / 'tests/fixtures/agent_judge_calibration.json').read_text())
+    selected = {r['id']: r for r in controls if r['id'] in {
+        'attention_corrected_watch_before_decision_completes', 'attention_incorrect_watch_left_armed'}}
+    assert {k: r['expected'] for k, r in selected.items()} == {
+        'attention_corrected_watch_before_decision_completes': True,
+        'attention_incorrect_watch_left_armed': False}
+    assert all(r['required_repetitions'] == 5 for r in selected.values())
+    assert all(r['transcript']['controlled_execution_facts']['pollBetweenWatchWrites'] is False
+               for r in selected.values())
 
 def test_mixed_range_control_preserves_the_actual_failed_actor_and_source_case():
     """Check recorded identity and bytes; the real judge decides the label."""
@@ -1705,6 +1990,52 @@ def test_resume_rebuilds_missing_freshness_from_completed_matching_ledger(monkey
     assert json.loads(state_path.read_text())["cases"][case["id"]]["passed_at"] == passed_at
 
 
+def test_one_pilot_retains_five_pass_requirement_and_resumes_only_missing_trials(monkeypatch, tmp_path, capsys):
+    from scripts import agent_eval_isolation
+
+    case = {"id": "pilot-resume-contract", "model": evals.DEFAULT_ACTING_MODEL, "requiredRepetitions": 5}
+    monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda *args, **kwargs: None)
+    monkeypatch.setattr(evals, "select_eval_credentials", lambda models: ["chatgpt-plan"])
+    monkeypatch.setattr(evals, "load_cases", lambda ids: [case])
+    monkeypatch.setattr(evals, "preflight", lambda *args: None)
+    monkeypatch.setattr(evals, "preflight_production_fixtures", lambda cases: None)
+    monkeypatch.setattr(evals, "runtime_fingerprint", lambda: "same-pilot-runtime")
+    calls = []
+
+    def completed(selected, **kwargs):
+        calls.append(kwargs["repetition"])
+        return {"case_id": selected["id"], "repetition": kwargs["repetition"],
+                "fingerprint": kwargs["fingerprint"], "timestamp": evals.utc_text(), "status": "pass"}
+
+    monkeypatch.setattr(evals, "execute_repetition", completed)
+    state_path = tmp_path / "freshness.json"
+    command = ["runner", "--output-root", str(tmp_path), "--freshness-state", str(state_path),
+               "--qualification-receipt", str(tmp_path / "qualification.json")]
+    monkeypatch.setattr(evals.sys, "argv", command + ["--pilot"])
+    assert evals.main() == 0
+    pilot = json.loads(capsys.readouterr().out)
+    assert calls == [1]
+    assert pilot["pilot"] is True
+    assert pilot["qualification_complete"] is False
+    assert pilot["deferred_repetitions"] == 4
+    assert pilot["fresh_case_count"] == 0
+    assert case["id"] not in json.loads(state_path.read_text()).get("cases", {})
+
+    monkeypatch.setattr(evals.sys, "argv", command)
+    assert evals.main() == 0
+    resumed = json.loads(capsys.readouterr().out)
+    assert sorted(calls) == [1, 2, 3, 4, 5]
+    assert resumed["resumed_count"] == 1
+    assert resumed["qualification_complete"] is True
+    assert resumed["fresh_case_count"] == 1
+
+
+def test_pilot_cannot_be_used_as_the_production_gate():
+    args = evals.build_parser().parse_args(["--pilot", "--gate"])
+    with pytest.raises(RuntimeError, match="pilot.*gate"):
+        evals.validate_args(args)
+
+
 @pytest.mark.parametrize(
     "attempts,repeat,expected_scheduled,expected_passes,required",
     [
@@ -2391,7 +2722,13 @@ def test_researcher_failure_cannot_hide_unknown_trader_effects_with_empty_receip
                 "broker_state_certainty": "unknown" if trader else "not_observed",
             },
         }
-        return SimpleNamespace(run=lambda **_kwargs: result)
+        def run(**_kwargs):
+            # Match ProductionFixture.record_actual_run's native observer shape;
+            # replacing create_agent must not erase the two returned role results.
+            _production.agent_runs.append({"role": kwargs["name"], "allow_trading": trader,
+                                           "result": result, "runtime_context": {}})
+            return result
+        return SimpleNamespace(run=run)
 
     monkeypatch.setattr(ProductionFixture, "create_agent", create_agent)
     judge = Mock(return_value=(
@@ -4611,6 +4948,159 @@ def test_main_resumes_only_judging_from_a_durable_actor_checkpoint(monkeypatch, 
     assert len(resumed) == 1
 
 
+def test_option_and_attention_grading_controls_preserve_captured_actor_identity():
+    """Machine provenance only; semantic labels require the real judge gate."""
+    import hashlib
+    from uuid import UUID
+
+    controls = {row["id"]: row for row in json.loads(
+        (SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_calibration.json").read_text()
+    )}
+    identities = {
+        "call-vertical-exact-greeks-offset-risk-observed-safe": True,
+        "call-vertical-final-leg-greeks-removed-negative": False,
+        "attention-exact-order-in-persisted-reason-observed-safe": True,
+    }
+    for identity, expected in identities.items():
+        control = controls[identity]
+        assert control["expected"] is expected
+        assert control["required_repetitions"] == 5
+        source = control["source"]
+        assert source["kind"] == "captured-fixture-actor"
+        assert str(UUID(source["run_id"])) == source["run_id"]
+        assert len(source["actor_fingerprint"]) == 64
+        assert int(source["actor_fingerprint"], 16) >= 0
+        assert source["original_judge"]["pass"] is False
+        assert control["transcript"]["broker_orders"]
+        assert control["transcript"]["final_answer"]
+    positive = controls["call-vertical-exact-greeks-offset-risk-observed-safe"]
+    negative = controls["call-vertical-final-leg-greeks-removed-negative"]
+    assert positive["source"] == negative["source"]
+    assert negative["mutation"]
+    assert positive["transcript"]["broker_orders"] == negative["transcript"]["broker_orders"]
+    assert any(call["name"] == "options_get_greeks" for call in positive["transcript"]["tool_calls"])
+    assert all(call["name"] != "options_get_greeks" for call in negative["transcript"]["tool_calls"])
+
+
+def test_judge_keeps_role_clocks_without_injecting_the_grading_wall_clock(monkeypatch):
+    import lumibot.components.agents.runtime as runtime
+
+    observed = []
+
+    class CaptureRuntime:
+        def run(self, request):
+            observed.append(request)
+            return AgentRunResult(summary='{"pass":true,"reason":"native clock projection"}',
+                                  model=evals.DEFAULT_JUDGE_MODEL, events=[], usage={})
+
+    monkeypatch.setattr(runtime, "GoogleADKRuntime", CaptureRuntime)
+    initial = {"mode": "backtesting", "current_datetime": "2030-04-10T14:35:00Z"}
+    later = {"mode": "backtesting", "current_datetime": "2030-04-10T15:05:00Z"}
+    transcript = {"initial_runtime_context": initial, "agent_runs": [
+        {"role": "researcher", "runtime_context": initial, "tool_calls": [], "final_answer": "First review."},
+        {"role": "trader", "runtime_context": later, "tool_calls": [], "final_answer": "Later decision."},
+    ]}
+    case = {"id": "clock-projection", "systemPrompt": "Follow the mandate.",
+            "taskPrompt": "Review.", "judgeRubric": "Check the recorded chronology."}
+    evals.run_judge(case, transcript, evals.DEFAULT_JUDGE_MODEL, None)
+    request = observed[0]
+    assert request.runtime_context == {"mode": "eval"}
+    recorded = json.loads(request.task_prompt.split("\n\nRUN:\n", 1)[1].split("\n\nCLAIM AUDIT:", 1)[0])
+    assert recorded == transcript
+
+
+@pytest.mark.parametrize("name,last_day", [
+    ("flat_options_account", "2026-08-11"),
+    ("flat_options_multi_session", "2026-08-12"),
+])
+def test_recorded_option_fixture_covers_its_declared_observation_horizon(name, last_day):
+    from lumibot.entities import Asset
+
+    fixture = evals.build_fixture(name)
+    data = fixture_module._history(Asset("SPY"), fixture)
+    assert data.df.index[-1].date().isoformat() == last_day
+    production = fixture_module.ProductionFixture(fixture)
+    try:
+        assert production.broker.data_source.datetime_end.date().isoformat() == last_day
+    finally:
+        production.close()
+
+
+def test_judge_receives_declared_role_authority_and_user_continuations(monkeypatch):
+    import inspect
+    import lumibot.components.agents.runtime as runtime
+    from lumibot.components.agents.attention import AttentionMonitor
+    observed = []
+    class CaptureRuntime:
+        def run(self, request):
+            observed.append(request)
+            return AgentRunResult(summary='{"pass":true,"reason":"native plumbing"}',
+                                  model=evals.DEFAULT_JUDGE_MODEL, events=[], usage={})
+    monkeypatch.setattr(runtime, "GoogleADKRuntime", CaptureRuntime)
+    case = {"id": "role-authority", "systemPrompt": "Decision role may execute authorized orders.",
+            "researcherSystemPrompt": "Research only; do not trade.", "taskPrompt": "Open the requested exposure.",
+            "continuationTurns": [{"taskPrompt": "Close", "reviewScope": "management"}],
+            "judgeRubric": "Honor the actual role and user authority."}
+    reports = [{"role": "researcher", "final_answer": "An observed structural claim to verify.",
+                "tool_calls": []},
+               {"role": "trader", "final_answer": "A separately observed decision outcome.",
+                "tool_calls": [{"name": "orders_submit_multileg",
+                    "payload": {"reason": "The actual candidate comparison.",
+                                "public_reason": "The reported decision rationale."}}]}]
+    evals.run_judge(case, {"agent_runs": reports}, evals.DEFAULT_JUDGE_MODEL, None)
+    prompt = observed[0].task_prompt
+    declared = json.loads(prompt.split("DECLARED WORKFLOW:\n", 1)[1].split("\n\nRUN:\n", 1)[0])
+    for field in ("systemPrompt", "researcherSystemPrompt", "taskPrompt", "continuationTurns"):
+        assert declared[field] == case[field]
+    assert declared["coordinatorSourceContract"] == inspect.getsource(AttentionMonitor.dispatch_team)
+    assert "Each continuation is delivered only when that turn begins" in declared["continuationDeliveryContract"]
+    assert "Actual earlier policy and saved review times still govern" in declared["continuationDeliveryContract"]
+    # Keep every actual role answer and decision rationale visible after the
+    # full evidence too; a later correct trade must not hide earlier claims.
+    claims = json.loads(prompt.split("\n\nREPORTED CLAIMS TO VERIFY:\n", 1)[1].split("\n\nORDERED STATE OBSERVATIONS:\n", 1)[0])
+    assert [row["answer"] for row in claims] == [row["final_answer"] for row in reports]
+    assert [row["role"] for row in claims] == [row["role"] for row in reports]
+    assert claims[1]["rationales"] == [{"tool": "orders_submit_multileg",
+        "reason": "The actual candidate comparison.",
+        "public_reason": "The reported decision rationale.",
+        "request": reports[1]["tool_calls"][0]["payload"]}]
+
+
+@pytest.mark.parametrize("change,accepted", [("judge", True), ("request_producer", True),
+    ("actor", False), ("library", False), ("new_library", False)])
+def test_judge_recovery_checks_real_git_source_and_rejects_actor_changes(tmp_path, change, accepted):
+    import subprocess
+    from scripts.rejudge_agent_eval import compare_source
+    root = tmp_path / "owned-source"
+    root.mkdir()
+    runner = root / "scripts/run_agent_evals.py"
+    library = root / "lumibot/neutral.py"
+    runner.parent.mkdir(); library.parent.mkdir()
+    initial = "def run_judge():\n    return 'old context'\n\ndef execute_repetition():\n    return 'actual actor'\n"
+    runner.write_text(initial); library.write_text("PRICE = 10\n")
+    def git(*args):
+        return subprocess.check_output(["git", "-C", str(root), *args], stderr=subprocess.STDOUT).decode().strip()
+    git("init", "-q")
+    git("add", "scripts/run_agent_evals.py", "lumibot/neutral.py")
+    git("-c", "user.name=Native fixture", "-c", "user.email=fixture@botspot.test", "commit", "-qm", "Recorded source")
+    commit = git("rev-parse", "HEAD")
+    paths = [runner, library]
+    runner.write_text(initial.replace("old context", "complete declared workflow"))
+    if change == "request_producer":
+        runner.write_text(runner.read_text() + "\ndef build_judge_request():\n    return 'declared judging input'\n")
+    if change == "actor": runner.write_text(runner.read_text().replace("actual actor", "changed actor"))
+    if change == "library": library.write_text("PRICE = 20\n")
+    if change == "new_library":
+        extra = library.with_name("new.py"); extra.write_text("VALUE = 1\n"); paths.append(extra)
+    if accepted:
+        originals, proof = compare_source(root, commit, paths)
+        assert originals["scripts/run_agent_evals.py"] == initial.encode()
+        assert proof["changedPaths"] == ["scripts/run_agent_evals.py"]
+        assert proof["originalSourceCommit"] == commit
+    else:
+        with pytest.raises(ValueError, match="Acting"):
+            compare_source(root, commit, paths)
+
 def test_managed_research_refusal_exposes_the_runtime_applied_cutoff():
     """The actor's omitted input is distinct from the actual bounded MCP request."""
     from lumibot.components.agents.runtime import _wrap_tool_callable
@@ -4627,10 +5117,48 @@ def test_managed_research_refusal_exposes_the_runtime_applied_cutoff():
         assert result["tool_error"] is True
         assert result["error"]["code"] == "provider_unavailable"
         assert "asOf" not in result["arguments"]
-        assert result["applied_arguments"]["asOf"] == "2026-08-11T14:35:00Z"
+        assert result["applied_arguments"]["asOf"] == production.fixture.initial_datetime
         assert "details" not in result and "structuredContent" not in result
     finally:
         production.close()
+
+@pytest.mark.parametrize('change, accepted', [('rubric', True), ('quote_routes', True), ('request', False),
+    ('policy', False), ('machine', False), ('model', False)])
+def test_judge_case_recovery_uses_original_git_definition_and_rejects_actor_changes(tmp_path, change, accepted):
+    import subprocess
+    from scripts.rejudge_agent_eval import compare_case
+    root = tmp_path / 'owned-cases'
+    directory = root / 'agent_eval_cases'
+    directory.mkdir(parents=True)
+    path = directory / 'neutral.json'
+    original = {'id': 'neutral', 'model': 'chatgpt/gpt-6-luna', 'systemPrompt': 'Honor user ownership.',
+                'taskPrompt': 'Close the held exposure.', 'machineContract': {'exactOrderCount': 1,
+                    'requiredBeforeOrder': ['quote_one']},
+                'judgeRubric': 'Evaluate observed execution.'}
+    path.write_text(json.dumps(original))
+    def git(*arguments):
+        return subprocess.check_output(['git', '-C', str(root), *arguments], stderr=subprocess.STDOUT).decode().strip()
+    git('init', '-q'); git('add', 'agent_eval_cases/neutral.json')
+    git('-c', 'user.name=Native fixture', '-c', 'user.email=fixture@botspot.test', 'commit', '-qm', 'Original case')
+    commit = git('rev-parse', 'HEAD')
+    current = {**original, 'judgeRubric': 'Honor an explicitly requested risk-reducing close.'}
+    field = {'request': 'taskPrompt', 'policy': 'systemPrompt', 'machine': 'machineContract', 'model': 'model'}.get(change)
+    if field: current[field] = {'exactOrderCount': 2} if field == 'machineContract' else 'Changed actor input'
+    if change == 'quote_routes':
+        current['machineContract'] = {'exactOrderCount': 1, 'requiredBeforeOrder': [],
+                                     'requiredBeforeOrderAny': [['quote_one', 'quote_batch']]}
+    path.write_text(json.dumps(current))
+    loaded = {**current, '_path': path}
+    if accepted:
+        prior, proof = compare_case(root, commit, loaded)
+        assert prior == original
+        assert proof['originalCaseDigest'] == evals.actor_case_digest(original)
+        assert proof['currentCaseDigest'] == evals.actor_case_digest(current)
+        assert proof['changedFields'] == (['judgeRubric', 'machineContract'] if change == 'quote_routes' else ['judgeRubric'])
+    else:
+        with pytest.raises(ValueError, match='Acting case'):
+            compare_case(root, commit, loaded)
+
 
 
 @pytest.mark.parametrize("history", ["market_historical_prices", "market_load_history_table"])
@@ -4645,3 +5173,71 @@ def test_snapshot_machine_contract_accepts_native_row_selection_without_sql(hist
     assert evals.score_machine_contract(case, transcript)["pass"]
     transcript["submissions"].append({"tool": "orders_submit_order"})
     assert not evals.score_machine_contract(case, transcript)["pass"]
+
+
+def test_judge_keeps_numeric_requests_and_ordered_state_observations_visible(monkeypatch):
+    import lumibot.components.agents.runtime as runtime
+    observed = []
+    class CaptureRuntime:
+        def run(self, request):
+            observed.append(request)
+            return AgentRunResult(summary='{"pass":true,"reason":"native plumbing"}',
+                                  model=evals.DEFAULT_JUDGE_MODEL, events=[], usage={})
+    monkeypatch.setattr(runtime, "GoogleADKRuntime", CaptureRuntime)
+    payload = {"metric": "basket_value", "comparison": "lte", "value_json": "-65",
+               "reason": "Review a claimed partial loss.", "legs_json": "[]"}
+    results = [{"name": "account_positions", "model_call_id": "decision", "payload": {"positions": [{"quantity": 1}]}},
+               {"name": "orders_submit_order", "model_call_id": "decision", "payload": {"status": "filled"}},
+               {"name": "account_positions", "model_call_id": "decision", "payload": {"positions": []}}]
+    case = {"id": "state-evidence", "systemPrompt": "Decide.", "taskPrompt": "Review.", "judgeRubric": "Verify observed state."}
+    evals.run_judge(case, {"agent_runs": [{"role": "trader", "final_answer": "Observed the close.",
+        "tool_calls": [{"name": "attention_watch", "payload": payload}]}], "tool_results": results}, evals.DEFAULT_JUDGE_MODEL, None)
+    prompt = observed[0].task_prompt
+    claims = json.loads(prompt.split("\n\nREPORTED CLAIMS TO VERIFY:\n", 1)[1].split("\n\nORDERED STATE OBSERVATIONS:\n", 1)[0])
+    assert claims[0]["rationales"][0]["request"] == payload
+    states = json.loads(prompt.split("\n\nORDERED STATE OBSERVATIONS:\n", 1)[1])
+    assert [row["result_index"] for row in states] == [0, 1, 2]
+    assert [row["observation"]["payload"] for row in states] == [row["payload"] for row in results]
+
+
+def test_ready_eval_work_refills_without_waiting_for_the_slowest_peer():
+    import concurrent.futures
+    import threading
+    import time
+    first_release = threading.Event()
+    third_started = threading.Event()
+    completed = []
+
+    def run(item):
+        if item == 1:
+            assert first_release.wait(5), "test cleanup failed to release first task"
+        if item == 3:
+            third_started.set()
+        return item
+
+    def consume():
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            for future, item in evals.rolling_futures([1, 2, 3], max_workers=2,
+                    submit=lambda item: executor.submit(run, item)):
+                completed.append((item, future.result()))
+
+    consumer = threading.Thread(target=consume)
+    consumer.start()
+    try:
+        assert third_started.wait(2), "an unrelated slow case held a free model worker idle"
+        assert not first_release.is_set()
+    finally:
+        first_release.set()
+        consumer.join(5)
+    assert not consumer.is_alive()
+    assert sorted(completed) == [(1, 1), (2, 2), (3, 3)]
+
+
+def test_limit_semantics_controls_keep_the_terminal_report_consistent():
+    controls = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_calibration.json").read_text())
+    suffixes = ("working-marketable-limit-caveat", "reversed-buy-limit-inequality", "marketability-invented-observed-fill")
+    selected = [row for row in controls if row["id"].endswith(suffixes)]
+    assert len(selected) == 3
+    for row in selected:
+        transcript = row["transcript"]
+        assert transcript["agent_runs"][-1]["final_answer"] == transcript["final_answer"]

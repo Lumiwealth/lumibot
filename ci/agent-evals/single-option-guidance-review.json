@@ -1,0 +1,13 @@
+{
+  "sourceCommit": "b131985383a06f69e60c8b16fce0ef03ea8f60b1",
+  "receiptSha256": "348979ded0fc98f5a74972e19f478eb8c73fb37919af72e81293b4cfb882ade5",
+  "evidenceRuntimeFingerprint": "694d4db202844cc64516bf70668f2d8ae193489a368606baad742f6996d2b26c",
+  "reviewedCandidateRuntimeFingerprint": "9bbc7d53a3d035183044e0ed733162d298301e067210efccff2bc7fda3ba233f",
+  "reason": "Author review for this exact candidate: retained in-memory Pandas option/attention fixtures use complete observed prices with no corporate actions, provider history/cache, live Schwab restart or ProjectX recovery. Event-neutral alignment, full-series dividend caching and caller-frame ownership therefore do not change their messages, prices, positions or orders. Statistics consolidate only after execution. The tool-description clarifications codify the already observed passing exact-contract/order shapes without changing tool implementation or schema; separate owners keep their failed-decision proof. The offline publication-verifier correction preserves distinct immutable inference and receipt-publication commits. Preserve all original native sources, dates, calls, SDK tuples and verdicts; no new model inference is claimed. Focused code checks qualify the affected accounting, history and ownership boundaries.",
+  "systemPromptDeltaBytes": 0,
+  "modelAttempts": 6,
+  "failedCasesRetried": 0,
+  "firstPassingSeconds": 73.401,
+  "apiCashCostUsd": 0,
+  "publicBoundary": "Generic tool documentation, read-only unit diagnostics, neutral tests and native qualification metadata only; no security, credentials, private infrastructure or strategy policy."
+}

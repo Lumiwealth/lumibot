@@ -13,6 +13,173 @@
 - Protect MetaMask qualification evidence from overwriting wallet recovery files, and check remaining journal budget for the resting-order test, entry and closing leg before signing.
 - Keep qualification receipt I/O failures from bypassing owned residual cleanup or worker/resource settlement, while retaining failed verdicts and mandatory journal/financial guards.
 
+## 4.6.54 - 2026-11-11
+
+Deploy marker: d802adfc087f895e272421f2b06de6cce5df875e
+
+### Changed (live trading)
+- Schwab restart without a launcher ownership id (standalone strategies): the strategy restores the open orders it placed from the checkpoint saved with its variables (same broker, account and strategy name), and their fills and cancellations reach its callbacks. In 4.6.53 nothing was restored without `broker.order_ownership_id`. Other open orders on the account (manual orders, other bots) are never adopted; LumiBot names them once in a warning, and they stay live at the broker. In 4.6.52 and earlier every open account order was adopted as the strategy's own, which could fire callbacks for orders it never placed.
+- One-time gap when upgrading from 4.6.52 or earlier: orders opened before the upgrade have no checkpoint, so after the first restart they are named in that warning instead of being managed. Manage them at the broker. Two running instances with the same strategy name sharing one variable store remain unsupported.
+
+### Backtesting and history
+- The shared bar cache can remember a confirmed-empty answer: the provider answered successfully and completely with zero bars for a range that closed at least one day ago, for an instrument the provider lists. Alpaca options use it for listed contracts that never traded, so a warm 3-month iron condor made 0 option-bar requests instead of 63 (simulation 35.2 s to 30.8 s, results identical). Errors, timeouts, rate limits, truncated answers, unlisted contracts and recent days are never remembered. Markers hold no bars and are never returned as data; a marker for a range closed less than 30 days earlier is re-checked once after 7 days so a provider backfill appears. Other providers are unchanged unless they opt in.
+
+### Release evidence
+- Verify separately published native qualification with its explicit receipt and case scope. Retain the original inference source and original receipt publication as distinct immutable commits; both digests and the reviewed candidate remain checked. This adds no model calls or trading changes.
+
+### Fixed
+- Preserve dividend and stock-split event timestamps when Pandas and Polars backtest data are aligned to a shared index. Inserted rows carry zero actions instead of repeating a prior event.
+- Warn once per data object when alignment omits nonzero dividends or splits inside the retained time window.
+- Reuse complete preloaded dividends in minute backtests and in daily data without split columns; future ex-dates are not lost when the first lookup builds its cache.
+- Attaching observation provenance leaves the caller's original DataFrame unchanged.
+
+## 4.6.53 - 2026-11-11
+
+Deploy marker: a50c93e74f33bc994ca662744a76b7f49d1e1e01
+
+### Backtesting and history
+- Preserve original intraday trade timestamps through calendar alignment. Padded OHLC rows remain usable for marking but cannot create simulated fills; actual later observations and genuine bid/ask execution remain supported.
+- Financial summaries retain trading costs and cash flows when several account snapshots share one timestamp. Returns compound in event order, the latest account snapshot survives consolidation, and drawdown includes losses from initial capital.
+- Preserve the frequency of user-supplied bars when a daily strategy initializes. Minute observations remain minute observations, so a daily strategy runs once per session instead of once per loaded minute. Explicit provider cadence policies remain unchanged.
+- Crypto backtests on public CCXT exchange candles reuse bars across runs through the shared bar cache (local file plus S3), keyed by exchange, symbol and bar size. Later runs fetch only ranges not yet cached; a repeat of a 3-day Coinbase BTC/USD minute window made 0 exchange requests instead of 15. Still-forming bars are never stored. With `LUMIBOT_SHARED_BARS=false` the local DuckDB cache is used as before.
+- `self.indicators` calls in backtests no longer re-record the whole visible history as market-input evidence on every call. Rows a stream already recorded are reused (compared bit for bit first), so only new bars are serialized. A one-month, one-minute SPY/QQQ RSI strategy went from 36.5 to 4.5 ms per indicator call locally (custom indicators 35.5 to 4.1 ms); indicator values, trades, stats and the market-input evidence files are byte-identical.
+- CCXT candle pages are de-duplicated by timestamp only. Two minutes with identical prices and volume are both real candles; one of them was dropped before. Shared-cache reads keep the exchange's full price and volume precision (the local DuckDB cache stores three decimals).
+- Faster options backtests with identical results. Held option legs are priced from in-memory arrays, cache rows are validated with numpy, partitions are read with pyarrow, batched option answers are split in one pass and a prefetch logs one summary line instead of one line per contract. On a warm 3-month iron condor, simulation time fell from 50.8 s to 31.3 s; trades, stats and tearsheets match the previous code for option, stock and crypto strategies.
+- A profiled backtest's yappi export folds all threads into one row per function and keeps the top 5,000 by total time, so the export no longer grows memory with every thread (160 MB to 2 MB on a 16-thread profile).
+- Outside regular option hours, portfolio valuation reports positions valued at their last real mark in one warning per session instead of one per contract. Valuation only: no bar, trade or fill is created.
+- Split oversized multi-asset history chunks across the data source's existing worker pool. Honor each call's lower worker limit with bounded submission, preserving per-asset results, quote identity and request pacing.
+- Polygon history downloads skip chunks whose dates are all already cached, so warm reruns make far fewer requests (17 to 4 in the regression test).
+
+### Added
+- Live fill diagnostics include event quantity, cumulative quantity, the broker's reported filled count and the actual observation source. Contradictory counts, unowned callback attempts and feed loss with open orders produce warnings without suppressing trading. Existing runtime telemetry includes a bounded live-order health summary and emits a final summary on cleanup; unmeasured full-basket, hedge and cancellation-deadline fields remain explicitly unknown.
+- Live runs log one `[OrderFillProof]` INFO line per fill, `[OrderContradiction]` warnings for contradictory broker counts and an `[OrderRunHealth]` summary at shutdown.
+- A generic `Broker.on_order_observation` application hook exposes broker evidence without adding storage, credentials or infrastructure to the public library. Schwab invokes it on real REST observations; consumer failures do not stop order processing.
+
+### Fixed
+- New provider rows appended to aligned history keep their own source timestamps and observed status; prior calendar padding remains non-executable. This preserves futures marks after weekend history refresh.
+- ProjectX restored order history receives its verified strategy attribution during synchronization, allowing a complete protective-generation ledger to clear an earlier incomplete-history hold without adopting another owner.
+- Polygon quote reads warm current minute data before reading after daily research, so a cached daily close cannot stand in for an available current quote.
+- Shared options guidance uses the ordinary one-order path for a single contract, preserves signed quantity adjustments, and distinguishes cash collateral from option-premium units. Profit-condition readback labels cash amounts and the selected threshold without changing saved conditions or dispatch.
+- Schwab account-wide order reads no longer import another instance's or a manual order into local strategy state merely because its display name or tag matches. Submitted orders, explicitly checkpointed recovery and children of verified parent orders retain ownership, including arbitrary user order tags. Automatic recovery requires a bound instance and account identity. Normal variable backups preserve those order identities and already delivered fills, without replaying historical fill callbacks. Broad account inspection remains available.
+- Polygon backtests no longer hand placeholder rows (dates the provider had no data for) to the strategy as real bars when every requested date is already cached.
+- A failure while recording Schwab cancel timing no longer hides the broker's actual cancel result or error.
+- Live order callbacks require a locally tracked identity. Schwab order reads preserve returned DAY/GTC/open/close duration metadata instead of replacing it with a default; explicit order durations and other brokers' account-history recovery remain supported.
+
+### Changed
+- Live order checkpoints are saved in strategy variables under `_lumibot_order_state`. After a restart they are restored automatically only when the application sets a stable `broker.order_ownership_id`; otherwise a warning is logged and orders open before the restart are not tracked again (before, Schwab re-tracked its own tagged open orders by name). Schwab accounts configured only by account hash use that hash for checkpoints. See docs/ORDER_OBSERVATIONS.md.
+- Contributor instructions: committed merge-conflict markers removed from AGENTS.md.
+
+## 4.6.52 - 2026-11-11
+
+Deploy marker: e2675359fb53fb56c6bcc4e23aac79334e97ac2f
+
+### Release tooling
+- Keep historical qualification tests and SDK validation bound to their immutable original evidence when the current release receipt changes. Defer telemetry imports until their first use so class-only startup retains its existing dependency contract.
+- Retain native model proof by an explicit author decision bound to the exact reviewed candidate and case list. The verifier preserves original source, receipt bytes and call evidence without demanding new inference for unrelated files or diagnostic counters.
+- Reuse the original full repetitions in an immutable published native receipt when establishing later regression evidence. Preserve the original source, calls, usage and timestamps; reject invalidated, failed, funding-mismatched or SDK-mismatched proof. Parallel native fixtures now own separate Parquet export prefixes.
+- Verify original stability together with the author-listed current regressions. Synchronous in-memory model fixtures retain their native evidence across changes to the unused threaded runner and provider cache; this does not qualify those components or historical backtests.
+
+### Added
+- Agent attention watches, quiet polling and event-driven team dispatch support inexpensive monitoring while the trading agent retains decisions and order ownership. Saved watches and pending order identities survive normal strategy state restoration.
+- Slim AI examples for an overnight iron condor, bull call vertical and two-long/one-short call package, with explicit per-contract historical-backtest fees. Shared options guidance covers exact-leg quotes, signed Greeks, package units, liquidity, payoff interpretation, assignment and pending-exit protection.
+- Agent tools expose batch quotes and independent order submissions alongside atomic multi-leg submissions.
+
+### Added
+- Backtest stocks and ETFs on the daily price history of your own broker connection: `BACKTESTING_DATA_SOURCE=schwab` or `tradier` (classes `SchwabHistoryBacktesting`, `TradierHistoryBacktesting`, both built on one generic `BrokerHistoryBacktesting` with per-broker adapters in `lumibot.tools.broker_history`). Each stock's daily bars are downloaded once per backtest through the shared bar cache of that connection, stamped at the 16:00 New York close like the Yahoo daily source, and served point-in-time. Limits fail loudly with the limit named: stocks and ETFs only, daily bars only for now (minute requests name the broker's depth), Schwab daily history from 1985, 120 requests per minute per broker with bounded waits on rate-limit refusals. Never switches source and never fills a missing day. Prices are split-adjusted only and cash dividends are not credited. Live parity with Yahoo across the NVDA 2024 split: same dates, closes within 0.39%. See docs/BROKER_HISTORY_BACKTESTING.md.
+
+### Changed
+- A filled multi-leg (combo) parent order now ends with a final row in the backtest trade-event files (`*_trade_events.csv/.parquet`, `*_trades.csv/.parquet`), with status `legs_filled` and no filled quantity. Before, the parent's only row was `new`, so views that show each order's last row (progress, order lists) showed every combo as pending forever. The legs keep their `fill` rows. `legs_filled` is not a fill status and the filled quantity is empty, so tools that count trades from these files (downstream counters use fill/filled/partially_filled/partial_fill statuses or a nonzero filled quantity) count the same trades as before; trades.html markers are unchanged (`legs_filled` is not a marker status).
+- Faster trades.html on long minute backtests: the time axis is encoded once and shared by every line, instead of plotly copying a column of timestamps for each line. The file is the same apart from plotly's random element ids. On a 12-month one-minute put spread (98,000 points) building trades.html went from 4.5 s to 1.3 s locally, and the whole end-of-backtest analysis from 6.6 s to 3.3 s.
+- First-run Interactive Brokers stock and index intraday downloads start their first page at the last session close when the requested window ends in closed time (usually midnight New York). Before, the first page ended at midnight, reached back only to about 07:20, and split the last session over two pages. The bars are the same; a one-month minute download takes one request fewer (24 to 23 on a local downloader stand-in, about 2 s on production's lane).
+- Every backtest writes `<run>_telemetry.json` beside its other output files: wall seconds per phase (data setup, simulation, end-of-run reports, waiting for cache uploads), trading iterations with the slowest one and its simulated time, and per data source and asset class the provider requests, seconds waiting on the provider, rows, retries and rate-limit or backoff waits, plus reads, hits, misses, bytes and uploads for each cache layer (shared bar cache, its S3 side, the S3 backtest cache, Alpaca's files and option chains). Counts and seconds only: no hosts, buckets, keys, symbols or account data. Always on; about 0.4 microseconds per iteration and 0.5 microseconds per provider or cache event (about 40 ms on a 12-month minute run). Field names are stable (`schema: lumibot.backtest_telemetry/1`). See docs/BACKTEST_TELEMETRY.md and the Telemetry JSON page in the backtesting docs.
+- Backtests log a `[SHARED_BARS][SUMMARY]` line next to `[REMOTE_CACHE][SUMMARY]` with the shared bar cache's own work: provider reads, S3 hits and misses, bytes, uploads and upload errors (again at exit if uploads were still pending). Alpaca, Schwab, Tradier, ccxt and Interactive Brokers live data use this cache, which reads and writes S3 itself, so the older summary showed `misses=0 uploads=0` for Alpaca runs while their repeats were served from S3.
+
+### Fixed
+- Schwab canceled/replaced execution activities no longer count their canceled quantities as fills. Genuine fill activities, per-leg fill prices, older responses without an execution subtype and fills preceding cancellation remain supported. A confirmed complete execution arriving with a cancel/error status delivers a full-fill callback instead of a partial-fill callback followed by cancellation.
+- Preserve exact selected option leg quantities through ratio-weighted package pricing, simulated net-limit checks and supported broker submissions. Child cancellation reconciles the package parent without discarding filled exposure or working siblings.
+- A non-trading researcher with a final answer can hand that answer and disclosed optional-tool errors to the trader; missing answers and actual provider failures remain visible failures.
+- Routed (BotSpot Auto) Interactive Brokers stock and index minute and hour backtests load the same five-day buffer before the backtest start as the Interactive Brokers source. The prefetch began at the backtest start, and the lookback count assumes one bar per minute, so a short lookback at the first session open (for example 20 one-minute bars at 09:31) saw only that morning's pre-market prints for a thinly traded stock, and the run was marked failed with insufficient required history. A cold run now asks for a few more one-minute pages (21 to 23 on a one-month local stand-in run).
+- Stock-trading guidance distinguishes quote request time from source observation time, preserves exact authorized limits and avoids treating a prior-session quote as current execution evidence.
+- Daily-cadence stock limit orders use loaded current intraday execution data instead of stale daily quotes. Daily-only limits use the session open while forming and the completed OHLC range only at the known calendar close. Missing observations leave orders pending; cash, positions and fees follow actual fills. A native broker regression and real-model pending-order eval cover the failure.
+- AI model-request timeouts now reach the managed model's HTTP transport. Disabling the request timeout no longer leaves an independent 120-second socket timeout; finite configured timeouts are preserved. Existing injected transports retain their three-argument interface.
+
+## 4.6.51 - 2026-11-11
+
+Deploy marker: cc6310f2cb08c2293652390df3c59a9e48019f9f
+
+### Release tooling
+- `scripts/qualify_agent_evals.py create` with a release scope builds the receipt for the listed cases and their own judge-calibration controls only, instead of requiring calibration of the whole catalog. A scoped receipt verifies only against exactly its listed cases; without a scope the whole catalog is still required.
+
+### Changed
+- **Trades and results change for strategies that pick strikes by delta, in backtests and in live trading.** `OptionsHelper.find_strike_for_delta` now returns the listed strike whose delta is closest to the requested delta. Before, the search tried a few strikes near an estimate and stopped once one was within 0.02 of the target, so it could return a strike up to about 0.12 delta away while a closer strike was listed. Candidates are the listed strikes from $20 below to $30 above the underlying that have a real price. The search starts at the strike nearest a Black-Scholes estimate and walks outward on each side until three priced strikes in a row are past the target and farther from it than the best so far; since delta falls as the strike rises, no strike beyond can be closer. On the week below this gave the same strike as checking every listed strike in all 780 picks. Ties go to the smaller absolute delta (further out of the money), then to the lower strike. Strikes with no price are skipped; no price or delta is ever estimated. Live trading and backtests use the same rule, so the same prices give the same strike. The pick is remembered for the current bar only, not for the rest of the day. Measured on one week of recorded SPY option prices, 780 picks (call 0.16, 0.30, 0.5; put -0.16, -0.30; every 15 minutes), 415 picks changed:
+
+  | Distance from target delta | median | 90th percentile | worst |
+  |---|---|---|---|
+  | Before | 0.0133 | 0.1026 | 0.1180 |
+  | After | 0.0049 | 0.0118 | 0.0252 |
+
+  The new pick was never farther from the target than the old one. With the Black-Scholes speedup below, a delta pick takes about the same time as before (one-week minute run: 9.6 ms per pick before, 8.9 ms now). Example: a 0.30 call request on 2026-10-19 at 09:30 returned the 772 strike (delta 0.370); it now returns 775 (delta 0.275). A one-month SPY iron condor (2026-09-01 to 2026-09-29, 0.16 delta shorts) kept its 124 fills, with 87 of them at a different strike.
+
+  Live calls per pick, measured read-only against Alpaca paper market data (SPY, same-day expiry, 2026-11-11 10:20 ET with the market open, three runs each; times vary with the API):
+
+  | | put -0.16 | call 0.30 |
+  |---|---|---|
+  | Before (probe search) | 19 quote requests, 1.3-2.0 s, strike 748 or 749 (delta about -0.04 to -0.06) | 13 requests, 0.6-0.9 s, strike 758 |
+  | After, data source with bulk quotes (Alpaca, Schwab) | 1 request, 0.38-0.41 s, strike 752 (delta -0.168) | 1 request, 0.04-0.13 s, strike 758 |
+  | After, data source without bulk quotes | 16-20 requests, 1.5-1.8 s, strike 752 | 12-13 requests, 0.6-1.1 s, strike 757 or 758 |
+
+  Strike 752 is the closest listed strike to -0.16 on those quotes (0.008 away; the old pick was about 0.12 away).
+- Greeks are computed for the current minute's inputs instead of reusing a value from the same day, in backtests and in live trading (any data source that computes greeks locally). `DataSource.calculate_greeks` cached per day on prices rounded to cents, so a later minute (or a price within half a cent) got greeks computed for other inputs. On one week of recorded SPY option prices, 67 of 6,948 greeks values change, each to the value for its own inputs.
+
+### Added
+- `AlpacaData.get_quotes(assets)`: latest quotes for many assets, up to 100 option contracts per request, used by `Strategy.get_quotes` and by `OptionsHelper` delta picks in live trading. Each quote is the same `Quote` that `get_quote` builds; a contract with no quote maps to `None`. Request failures raise.
+
+### Fixed
+- A delta pick extends candidates it loaded on an earlier day together (one request per covered day and 100 contracts) instead of one shared-cache read per contract. One-month SPY iron condor, repeat run on a fresh container against a local S3 stand-in: 28.1 to 25.7 s at 50 ms per request (same at 30 ms); trades and portfolio values identical.
+- Long Alpaca option backtests no longer slow down month after month. A delta pick loaded every candidate contract from the start of the backtest and every request ran to its end, so each pick read one shared-cache partition per elapsed month per contract (49 a pick in the first month, 97 by the third). Now option requests stop at the contract's expiry (no prints exist after it), and a pick loads candidates from the start of the month a week before the pick. Earlier prints are loaded for one contract only when a lookup needs them: a last price with no print in the loaded part, or a history request for more bars than the loaded part holds. Partly loaded contracts are never written to the per-window CSV cache. Three-month SPY iron condor (minute bars, local cache): warm simulation 49.4 to 44.3 s, partition decodes 9,945 to 5,963; trades, fills and every portfolio value identical, cold and warm. The saving grows with the run length.
+- Half the S3 requests on a fresh cloud container for option backtests: the shared bar cache no longer looks up a `series.json` manifest for unadjusted series (options), which never write one. A one-month SPY iron condor against a local S3 stand-in (30 ms per request): repeat run 3,421 to 1,754 requests, simulation 24.9 to 22.6 s; cold run 5,106 to 3,439 GETs. Same 124 fills.
+- Faster option chain snapshots and delta picks: `OptionsHelper` builds each option contract `Asset` once and reuses it (a warm 51-strike snapshot built about 115 of them). Warm snapshot 2.90 to 2.44 ms on one week of SPY minute data; results identical.
+- Faster `get_historical_prices` in every backtest: the market input evidence recorder (which keeps every bar a strategy reads) now reads plain numeric columns as lists instead of building a pandas Series per column per call. Recorded rows and observations are identical (checked for numeric, object, bool, float32, nullable, duplicate-column and empty frames, and overlapping windows); nullable and other extension columns keep the old path. One week of SPY minute bars: 20 minute bars 0.59 to 0.43 ms per call, 5 daily bars 0.40 to 0.28 ms.
+- Faster greeks in every backtest and live strategy: Black-Scholes now calls scipy's normal functions directly for single numbers (`ndtr` for the CDF, the same `exp` expression scipy uses for the PDF) instead of `scipy.stats.norm.cdf`/`.pdf`, which spent most of their time checking arguments. Results are bit-identical (22,000 inputs including infinities and NaN, and every greek of 1,600 random options). A greeks call went from 1.17 ms to 0.76 ms; a delta pick, which now prices every candidate strike, from 24 ms to 8.9 ms.
+
+## 4.6.50 - 2026-11-11
+
+Deploy marker: 77f2d47e3a73d9b848627c60fb9fa2d7d2cfef00
+
+### Added
+- `OptionsHelper.get_option_chain_snapshot(underlying_asset, expiry, right, strikes=None, underlying_price=None, chains=None)`: one row per strike with price, bid, ask, implied volatility and delta at the current time. Data sources with `prefetch_option_bars` load all strikes in one batch; each strike uses the same rules as `find_strike_for_delta` (1,992 strike rows on real SPY data matched strike-by-strike deltas exactly). Documented on the Options Helper page.
+- `DataSource.calculate_greeks_many(assets, asset_prices, underlying_price, risk_free_rate)` and `black_scholes.implied_volatility_bs_many(...)`: implied volatility for many options in one array pass, bit-identical to the one-by-one solver (12,000 cases) and leaving the greeks cache exactly as one-by-one calls would. The chain snapshot uses it in backtests (about 20% faster per snapshot on real SPY data; identical rows). `find_strike_for_delta` does not use it: filling the per-day greeks cache for strikes a search never probes could change later cache hits, so the same strike cannot be guaranteed.
+
+### Fixed
+- Shared bar cache uploads no longer all fail once a backtest's main program returns. pandas' `to_parquet` converted columns on a `concurrent.futures` pool, which Python closes at interpreter shutdown ("RuntimeError: cannot schedule new futures after interpreter shutdown"), so every upload still queued at the end of a run failed and the cloud cache never received most of a run's bars. Partitions are now encoded on the uploader's own thread, with byte-identical files. Reproduced against a local S3 stand-in: before, uploads failed from the end of the run on; after, 0 failures and 591 objects stored for a one-week option run.
+- A finished backtest no longer waits minutes for its cache uploads: uploads run on 8 workers (`LUMIBOT_SHARED_BARS_UPLOAD_WORKERS`), with one file's uploads kept in order on one worker. One-week option run against a local S3 stand-in with 50 ms per request: wait after the program ended 59.4 s to 5.9 s, uploads still queued at the end 458 to 22, same 591 objects stored.
+- The first failed shared bar cache upload in a run now logs its traceback (later failures keep one line each), so the failing call is visible from a single log.
+- **Results change for Alpaca option backtests that held contracts to expiry.** Expired options now settle in every backtesting data source, not only pandas-based ones (ThetaData, Polygon). On Alpaca (and IBKR REST) an expired contract used to stay in the portfolio forever at its last trade price, and orders on it stayed open, so a strategy that waits for no open option position never traded again. Now, the same as the pandas path: open orders on the contract are cancelled, an out-of-the-money option expires worthless, an in-the-money one is exercised, assigned or cash-settled from the underlying's real close; if the underlying has no real price the settlement fails loudly instead of guessing. Example (SPY wheel, daily, 2025-10-01 to 2025-12-31): before, one put sold and nothing after, 1% return; after, three puts sold, 2% return. Futures expiry handling is unchanged.
+- Far fewer Alpaca requests in option backtests that pick strikes by delta. `OptionsHelper.find_strike_for_delta` asks the data source for all candidate strikes at once; `AlpacaBacktesting.prefetch_option_bars` loads up to 100 contracts per request and only up to the current backtest day, then loads the rest of a contract's window once, the first time it is read on a later day. Prices, trades and chosen strikes are unchanged (a one-month SPY iron condor: 297 trades and 7,880 stats rows identical). A cold one-week daily iron condor went from 163 to 51 Alpaca requests.
+- Long AI-agent backtests no longer run out of memory. The agent detail recorder kept every row of every past agent call (prompts, tool results, model text) in memory and rewrote the whole `*_agent_detail.parquet` file after each call, so memory and write time grew with every call. A synthetic two-agent backtest of 480 calls grew by about 1,013 MB before and about 49 MB after; per-call time at the end of the run fell from about 362 ms to 92 ms. Each call's rows now go to a small part file, the main file is rebuilt from them at 1, 2, 4, 8, ... calls and when the run ends, and every call is still in the final file.
+- Parquet artifacts are written to a temporary file and then swapped in, so a process killed mid-write keeps the previous complete file instead of leaving a truncated one ("No magic bytes found at end of file").
+
+## 4.6.49 - 2026-11-11
+
+Deploy marker: d4b9de7ecaf5d93cacb3eb680c90ce857c859fbc
+
+### Added
+- Indicator outputs can say how they look: `line_width`, `line_style` (solid, dashed, dotted), colors with opacity (`#RRGGBBAA`) and theme colors (`chart.fg`, `chart.bg`), a color per bar (`palette` with `color_by`, optionally `gradient`), `offset`, `display`, `precision`, `pane` and `track_price`. New kinds: `step`, `columns`, `circles`, `cross`, `shape` markers (12 shapes, 5 locations, 6 sizes, text), `fill` between outputs or levels, `background`, `bar_color` and `candle`. Levels take `dotted`, `color` and `line_width`. Per-bar values stay numbers; all styling travels in `describe()`. New page "Outputs and Styles" and four example indicators (`momentum_histogram`, `trailing_band`, `oscillator_zones`, `smoothed_candles`).
+- Kalshi account reads can show market titles and the selected outcome's subtitle (one batched lookup), plus last-trade position value and unrealized P&L estimates against the broker cost basis. Markets with no trades or no metadata leave the estimates empty; holdings, outcome, quantity and cost basis stay visible.
+
+### Fixed
+- Download hourly history from Alpaca as hourly bars instead of sixty times as many minute bars, so a long hourly request can no longer exhaust a live bot's memory. Live data sources can declare native intervals through `supports_native_timestep`, optionally receiving `include_after_hours`. Alpaca intraday windows are sized from the bar length, and dropping the incomplete current bar keeps the hourly and multi-minute bars from today that have already closed.
+- Cap the agent `market_historical_prices` and `market_load_history_table` tools at 5,000 bars per symbol per call. A larger request returns the most recent 5,000 bars and says so in the result instead of failing.
+- Faster minute-level option backtests on Alpaca data: an option's last price is read straight from the stored trade bars instead of building a Bars object on every call, and option expiry text is parsed once instead of on every chain lookup. Prices and trades are unchanged.
+- Faster option greeks and delta strike selection in every backtest: the risk free rate lookup no longer re-converts its date index on each call (about 9 ms saved per greeks call), and Black-Scholes implied volatility prices each bisection step without building an object and stops once the step no longer moves. Results are identical (12,000 cases checked against the original solver). A greeks call went from about 12 ms to 1.3 ms and a delta strike search from about 105 ms to 11 ms.
+- Faster stock and crypto last price in every Alpaca backtest: `get_last_price` reads the current row of the stored bars instead of building a Bars object on every call (about 0.19 ms to 0.05 ms per call on a Mac). Daily session marks and intraday fill prices are unchanged.
+- Every log line is printed once again. The `BACKTESTING_START`/`BACKTESTING_END` override warning and the broker event stream used the bare `logging` module, which on an unconfigured root logger calls `logging.basicConfig()` and adds a second console handler; from then on every LumiBot record also printed as `INFO:lumibot...`. They now log through the LumiBot logger, and the override warning still shows.
+- `OptionsHelper` no longer repeats the same routine lines on every bar. In `find_next_valid_option`, `find_strike_for_delta`, `get_strike_deltas` and `evaluate_option_market`, the search and result lines ("Finding next valid option", "Target strike ... ->", "STRIKE SEARCH", "Search range", "Search strikes", "Trying strike", "BS estimate", "Exact match found", "RESULT: Closest strike", "Computing strike deltas", "Option market evaluation", "Using last-price fallback") are logged at INFO the first time and whenever the outcome changes, and at DEBUG otherwise. Errors, warnings, and evaluations that block a trade (spread too wide, no usable price) are still logged every time. A one-week minute run went from 1,586 to 63 log lines (strike search) and from 9,786 to 238 (delta search).
+- A finished backtest no longer stays alive retrying failed shared bar cache uploads. After 10 failures in a row the remote store is given up for that run (local files are still written, results are unaffected), and the warning now includes the error message instead of only its type.
+
+### Changed
+- Release eval check: `scripts/qualify_agent_evals.py verify` now verifies an author-written scope file, `ci/agent-evals/release-scope.json`, when it exists: the case ids the release author listed (each with a reason) and current pass evidence for each, or an empty list with a stated reason. It no longer demands a fresh run of the whole case catalog whenever any runtime file changes. It still fails when a listed case has no current passing evidence. 4.6.49 lists no cases, with the reason recorded in the file.
+
 ## 4.6.48 - 2026-11-05
 
 Deploy marker: 698b5b7645611a5d888e1ef869db877ef99afe4e
@@ -39,6 +206,7 @@ Deploy marker: 97d41b56ff42bd0c200c3b2f1f98f395bf1c8dfc
 - Optional total-quantity amendments through the normal broker, strategy and order-agent modification APIs while preserving price-only callers.
 
 ### Fixed
+- Report whether an attention-condition removal actually changed owned state or was already absent, while preserving the existing echoed identifier.
 - Preserve exact fractional Schwab equity quantities through replacements and advanced-order children.
 - Retain deferred futures expiry identity across Asset serialization and saved-strategy recovery, including older saved dictionaries.
 - Reuse the selected MetaMask client for data, and preserve native quote and fill-reconciliation recovery checks.

@@ -1,17 +1,77 @@
 """Broker status observations must not replace processed fill receipts."""
+import json
 from datetime import datetime, timezone
+from pathlib import Path
+from threading import Event
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import UUID
 
 import pytest
-
 from alpaca.trading.client import TradingClient
 from alpaca.trading.models import Order as ProviderOrder
 
 from lumibot.brokers.alpaca import Alpaca
 from lumibot.data_sources.alpaca_data import AlpacaData
 from lumibot.entities import Asset, Order
+from lumibot.strategies.strategy_executor import StrategyExecutor
+
+
+def test_recorded_option_fill_reaches_owned_callback_once(monkeypatch):
+    """Ordinary-paper response captured November 11; opaque IDs replaced only."""
+    def deny_network(*args, **kwargs):
+        raise AssertionError("Recorded option control must not send HTTP")
+
+    monkeypatch.setattr("requests.sessions.Session.send", deny_network)
+    monkeypatch.setattr("httpx.Client.send", deny_network)
+    response = ProviderOrder(**json.loads(
+        (Path(__file__).parent / "fixtures/alpaca_recorded_option_fill.json").read_text()
+    ))
+    client = MagicMock(spec=TradingClient)
+    client.get_orders.return_value = [response]
+    client.get_order_by_id.return_value = response
+    client.get_all_positions.return_value = []
+    broker = Alpaca(
+        {"PAPER": True}, trading_client=client,
+        data_source=AlpacaData({"OAUTH_TOKEN": "synthetic-provider-token"}),
+        connect_stream=False, start_orders_thread=False,
+    )
+    calls = []
+    executor = object.__new__(StrategyExecutor)
+    executor.broker = broker
+    executor.stop_event = Event()
+    executor.strategy = SimpleNamespace(
+        name="neutral", portfolio_value=100000, hide_trades=False,
+        on_filled_order=lambda *args: calls.append(args),
+        send_discord_message=lambda *args, **kwargs: None,
+    )
+    subscriber = SimpleNamespace(
+        name="neutral", FILLED_ORDER=broker.FILLED_ORDER,
+        PARTIALLY_FILLED_ORDER=broker.PARTIALLY_FILLED_ORDER,
+        add_event=lambda kind, payload: executor._on_filled_order(**payload),
+    )
+    broker._add_subscriber(subscriber)
+    broker.stream = broker._get_stream_object()
+    broker._register_stream_events()
+    order = broker._parse_broker_order(response, "neutral")
+    order.status = "new"
+    broker._process_new_order(order)
+    for _ in range(2):
+        broker.do_polling()
+        while not broker.stream._queue.empty():
+            event, payload = broker.stream._queue.get_nowait()
+            broker.stream._process_queue_event(event, payload)
+            broker.stream._queue.task_done()
+    assert len(calls) == 1
+    position, actual_order, price, quantity, multiplier = calls[0]
+    assert actual_order is order
+    assert actual_order.asset.asset_type == Asset.AssetType.OPTION
+    assert actual_order.asset.symbol == "F"
+    assert actual_order.asset.strike == 12
+    assert quantity == 1 and multiplier == 100 and price == .04
+    assert abs(position.quantity) == 1
+    health = broker._get_order_health().snapshot()
+    assert health["fill_callbacks_enqueued"] == health["fill_callback_entries"] == 1
 
 
 @pytest.mark.parametrize("leg_order_class", ["simple", "mleg"])

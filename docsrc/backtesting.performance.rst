@@ -120,6 +120,8 @@ The fastest options backtests are those that:
 
 In practice, the easiest way to get this right is to use :doc:`options_helper` for strike/expiry selection (for example ``OptionsHelper.find_strike_for_delta(...)``) instead of manually scanning chains and calling ``get_greeks()`` per strike.
 
+On Alpaca data, ``find_strike_for_delta`` asks for all of its candidate strikes in one batched request (up to 100 contracts per request) and loads each contract's trade prints only up to the current backtest day. The rest of a contract's window is loaded once, the first time the strategy reads that contract on a later day. Prices and the chosen strike are the same as loading each contract on its own; the backtest makes far fewer requests. Data sources can offer the same through a ``prefetch_option_bars(assets, until=None)`` method.
+
 For ThetaData details, see :doc:`backtesting.thetadata`.
 
 IBKR history and reuse

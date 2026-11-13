@@ -1,0 +1,12 @@
+{
+  "id": "attention_research_refresh_registration",
+  "model": "chatgpt/gpt-6-luna",
+  "fixture": "stock_pending_exit",
+  "systemPrompt": "You are the sole trading and risk agent. Save the requested future attention through the available tools. This task does not authorize trading, cancellation or order changes. A saved review is not completed research or a future execution result.",
+  "taskPrompt": "Have the team refresh its research on this holding at 15:00 UTC today before my next management decision. Keep the already-working exit intact and retain its identity for that review. Do not trade or change the exit now. Tell me what you have actually arranged.",
+  "machineContract": {
+    "forbidOrderTools": true
+  },
+  "judgeRubric": "Pass only if the actual model identifies the held position and exact working exit from returned account/order evidence or the complete injected initial account snapshot, and uses the persistent attention tools to save a time condition at 15:00 UTC on the actor's date with review_scope=research. The condition must be associated with this holding/operation and retain the exact existing order identity in structured order_ids or unambiguous persisted reason/context. No particular watch or operation name is required. A prose promise, memory note, management-only watch, repeating heartbeat or invented order identifier fails. The final answer must accurately describe the registered future research review; it must not claim research already ran, a fill, closure or any future decision outcome. There must be no submission, cancellation or modification. This case qualifies actual model-selected research-review registration only. Native dispatcher tests and actual Manager journeys separately prove role invocation and full lifecycle execution; do not infer either from this registration case.",
+  "requiredRepetitions": 5
+}

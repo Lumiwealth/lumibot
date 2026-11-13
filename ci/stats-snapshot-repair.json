@@ -1,0 +1,11 @@
+{
+  "date": "2026-11-11",
+  "contract": "Consecutive account events at one instant retain compounded returns and period cash flows; drawdown includes initial capital.",
+  "genericValue": "Every strategy can record an inception valuation and a post-fill valuation at the same instant. Reporting must include those costs independently of the trading rules.",
+  "publicBoundary": "Financial calculation helpers, stable event ordering, neutral tests and changelog only. No private infrastructure, credentials, customer or strategy code.",
+  "regression": "test_dump_stats_keeps_same_instant_fill_costs_and_initial_drawdown",
+  "red": {"expectedReturn": 0.0001, "observedReturn": 0.0011011011011010652},
+  "green": {"command": "python -m pytest -oaddopts=-ra tests/test_strategy_dump_stats_regression.py tests/test_indicators_datetime_index.py -q", "passed": 23, "seconds": 1.82},
+  "modelCalls": 0,
+  "retentionDecision": "This change affects deterministic financial summaries after execution. It cannot change model requests, tool results, decisions, broker fills or historical actor evidence. No new model runs are warranted; re-analyse saved financial artifacts."
+}

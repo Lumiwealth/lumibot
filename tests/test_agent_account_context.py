@@ -110,6 +110,21 @@ def _wrapped_tools(strategy, definitions, *, snapshot=None):
     return {tool.name: _wrap_tool_callable(tool, context) for tool in tools}, context
 
 
+def test_order_snapshots_preserve_package_membership_for_a_separately_listed_leg():
+    leg = Order('Test', Asset('XYZ'), 2, 'sell', identifier='child-1')
+    parent = Order('Test', Asset('XYZ', asset_type='multileg'), 2, 'sell',
+                   identifier='package-1', order_class=Order.OrderClass.MULTILEG,
+                   child_orders=[leg])
+    leg.parent_identifier = parent.identifier
+    child_payload = _order_to_dict(leg)
+    parent_payload = _order_to_dict(parent)
+    assert child_payload['parent_identifier'] == parent.identifier
+    assert parent_payload['legs'][0]['identifier'] == child_payload['identifier']
+    assert parent_payload['legs'][0]['parent_identifier'] == parent.identifier
+    standalone = _order_to_dict(Order('Test', Asset('XYZ'), 1, 'buy'))
+    assert 'parent_identifier' not in standalone
+
+
 def test_position_agent_projection_is_compact_and_omits_unknown_or_internal_fields():
     position = _option_position(
         480,

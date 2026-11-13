@@ -21,6 +21,52 @@ class _BacktestProfilingConfig:
         self.output_path = output_path
 
 
+PROFILE_MAX_ROWS = 5000
+PROFILE_COLUMNS = ["full_name", "module", "lineno", "name", "ncall", "nactualcall", "ttot_s", "tsub_s", "tavg_s",
+                   "ctx_name"]
+
+
+def write_yappi_profile_csv(yappi_module, path, max_rows: int = PROFILE_MAX_ROWS) -> int:
+    """Write the yappi function profile as CSV with bounded memory; return the rows written.
+
+    ``yappi.get_func_stats()`` builds a Python object for every function in every thread,
+    each with its callee list. After a long backtest that reached 4 GB and the task was
+    killed before the file was written. Here each stat is folded into one row per function
+    (all threads together, ``ctx_name`` is "all") inside yappi's filter callback, which then
+    returns False so yappi keeps nothing; the top ``max_rows`` functions by total time are
+    written. Callee detail is not exported.
+    """
+    import csv
+
+    totals: dict = {}
+
+    def fold(stat) -> bool:
+        key = getattr(stat, "full_name", "")
+        row = totals.get(key)
+        if row is None:
+            totals[key] = [getattr(stat, "module", ""), getattr(stat, "lineno", ""), getattr(stat, "name", ""),
+                           int(getattr(stat, "ncall", 0) or 0), int(getattr(stat, "nactualcall", 0) or 0),
+                           float(getattr(stat, "ttot", 0.0) or 0.0), float(getattr(stat, "tsub", 0.0) or 0.0)]
+        else:
+            row[3] += int(getattr(stat, "ncall", 0) or 0)
+            row[4] += int(getattr(stat, "nactualcall", 0) or 0)
+            row[5] += float(getattr(stat, "ttot", 0.0) or 0.0)
+            row[6] += float(getattr(stat, "tsub", 0.0) or 0.0)
+        return False  # keep nothing in yappi's own list
+
+    yappi_module.get_func_stats(filter_callback=fold)
+    top = sorted(totals.items(), key=lambda item: -item[1][5])[: max(1, int(max_rows))]
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    # A text CSV so existing backtest artifact download paths can serve it without binary handling.
+    with open(path, "w", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(PROFILE_COLUMNS)
+        for full_name, (module, lineno, name, ncall, nactual, ttot, tsub) in top:
+            writer.writerow([full_name, module, lineno, name, ncall, nactual, ttot, tsub,
+                             ttot / ncall if ncall else 0.0, "all"])
+    return len(top)
+
+
 class Trader:
     def __init__(self, logfile="", backtest=False, debug=False, strategies=None, quiet_logs=False):
         """
@@ -233,6 +279,10 @@ class Trader:
                 self._start_pool()
                 if not async_:
                     self._join_pool()
+            if self.is_backtest_broker:
+                from lumibot.tools import backtest_telemetry
+
+                backtest_telemetry.mark_simulation_end()
             result = self._collect_analysis()
 
             if self.is_backtest_broker:
@@ -240,22 +290,25 @@ class Trader:
                 logger.info("Backtesting finished")
 
                 if strat._analyze_backtest:
-                    strat.backtest_analysis(
-                        logdir=self.logdir,
-                        show_plot=show_plot,
-                        show_tearsheet=show_tearsheet,
-                        save_tearsheet=save_tearsheet,
-                        show_indicators=show_indicators,
-                        plot_file_html=plot_file_html,
-                        trades_file=trades_file,
-                        trade_events_file=trade_events_file,
-                        settings_file=settings_file,
-                        indicators_file=indicators_file,
-                        tearsheet_csv_file=tearsheet_csv_file,
-                        tearsheet_file=tearsheet_file,
-                        tearsheet_metrics_file=tearsheet_metrics_file,
-                        base_filename=base_filename,
-                    )
+                    from lumibot.tools import backtest_telemetry
+
+                    with backtest_telemetry.phase("reports"):
+                        strat.backtest_analysis(
+                            logdir=self.logdir,
+                            show_plot=show_plot,
+                            show_tearsheet=show_tearsheet,
+                            save_tearsheet=save_tearsheet,
+                            show_indicators=show_indicators,
+                            plot_file_html=plot_file_html,
+                            trades_file=trades_file,
+                            trade_events_file=trade_events_file,
+                            settings_file=settings_file,
+                            indicators_file=indicators_file,
+                            tearsheet_csv_file=tearsheet_csv_file,
+                            tearsheet_file=tearsheet_file,
+                            tearsheet_metrics_file=tearsheet_metrics_file,
+                            base_filename=base_filename,
+                        )
 
                 # Emit a single cache summary line so production runs can quantify S3 hydration
                 # cost without guessing or relying solely on profiler artifacts.
@@ -265,52 +318,20 @@ class Trader:
                     get_backtest_cache().log_summary()
                 except Exception:
                     pass
+                try:
+                    from lumibot.tools.shared_bar_cache import log_run_summary
+
+                    log_run_summary()
+                except Exception:
+                    pass
 
             return result
         finally:
             if _yappi is not None and profiling is not None and profiling.enabled:
                 try:
                     _yappi.stop()
-                    stats = _yappi.get_func_stats()
-                    stats.sort("ttot", "desc")
-
-                    profiling.output_path.parent.mkdir(parents=True, exist_ok=True)
-                    import csv
-
-                    # Write a text CSV artifact so existing backtest artifact download paths
-                    # (Bot Manager → BotSpot "View Files") can serve it without binary handling.
-                    with open(profiling.output_path, "w", newline="") as handle:
-                        writer = csv.writer(handle)
-                        writer.writerow(
-                            [
-                                "full_name",
-                                "module",
-                                "lineno",
-                                "name",
-                                "ncall",
-                                "nactualcall",
-                                "ttot_s",
-                                "tsub_s",
-                                "tavg_s",
-                                "ctx_name",
-                            ]
-                        )
-                        for entry in stats:
-                            writer.writerow(
-                                [
-                                    getattr(entry, "full_name", ""),
-                                    getattr(entry, "module", ""),
-                                    getattr(entry, "lineno", ""),
-                                    getattr(entry, "name", ""),
-                                    getattr(entry, "ncall", ""),
-                                    getattr(entry, "nactualcall", ""),
-                                    getattr(entry, "ttot", ""),
-                                    getattr(entry, "tsub", ""),
-                                    getattr(entry, "tavg", ""),
-                                    getattr(entry, "ctx_name", ""),
-                                ]
-                            )
-                    logger.info("Wrote backtest profile artifact: %s", profiling.output_path)
+                    rows = write_yappi_profile_csv(_yappi, profiling.output_path)
+                    logger.info("Wrote backtest profile artifact: %s (%d functions)", profiling.output_path, rows)
                 except Exception as exc:
                     logger.warning("Failed to write yappi profile artifact: %s", exc)
                 finally:

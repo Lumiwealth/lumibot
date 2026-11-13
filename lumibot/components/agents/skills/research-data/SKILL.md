@@ -54,10 +54,12 @@ without turning a disclosed risk into an unsupported benefit.
    Copy each window from that request's arguments and each effective bound from
    its successful response. For a failed query, label its actual arguments as
    requested, not applied. Never borrow another dataset's dates or collapse
-   different windows into a shared period. Before returning the packet, compare
-   every row's requested dates against that exact tool call, including failed
-   calls: two requests can return the same error with different date windows.
-   Missing metadata stays unknown.
+   different windows into a shared period. In the final packet, write each
+   source's requested start and end explicitly, even when periods match; do
+   not replace them with "same window" or inherit another source's dates.
+   Compare every row against that exact tool call, including failed calls:
+   identical errors can come from different requested windows. Missing
+   metadata stays unknown.
    Only report a provider retrieval/capture timestamp when that successful
    response returns it. If it is absent, say retrieval time was not returned.
    State the runtime clock only as context, separately from retrieval. It does
@@ -112,18 +114,22 @@ without turning a disclosed risk into an unsupported benefit.
    availability you can reasonably establish or estimate and disclose, or
    explicitly report missing evidence. Never invent a macro value or
    silently substitute present-day data in a historical run.
-   When evidence is blocked, finish with an explicit **Next evidence needed**
+   When required evidence is blocked, finish with an explicit **Next evidence needed**
    handoff. A limitation or refusal summary alone does not complete this handoff.
    For each missing dataset, state the observations or documents to obtain,
    requested observation period, historical UTC cutoff or live snapshot scope,
-   and decision still blocked. Identify the type of qualified source needed:
+   and any decision actually blocked by that requirement. Identify the type of qualified source needed:
    for historical replay, preferably original-release or versioned records with
    the original value or document version and first public release time; an
    undated source is acceptable with a disclosed estimate of when it became public.
    Name a provider only when configured or returned by tools; never claim its
    qualification without proof. If no source is available, say what must be
-   supplied or qualified next. Keep this brief; missing evidence is not a
-   completed analysis.
+   supplied or qualified next. Keep this brief. Missing required evidence remains unresolved.
+   Distinguish required inputs from optional background using the actual mandate.
+   Disclose unavailable optional context without declaring the whole research
+   handoff incomplete or adding an execution veto the user did not request.
+   Pass useful observed evidence and its limitations to the trader, who still
+   applies every actual account, instrument, price and risk requirement.
 7. A researcher may summarize this evidence for a trader, but the trader must
    independently revalidate current account, price, order, and risk state before
    execution.

@@ -40,6 +40,15 @@ class AlpacaOptionHistoryUnavailable(RuntimeError):
     """Alpaca answered an option bars request successfully but returned no bars."""
 
 
+def _alpaca_asset_class(fn) -> str | None:
+    """Asset class of an Alpaca SDK call, from its method name (run telemetry only)."""
+    name = str(getattr(fn, "__name__", "") or "").lower()
+    for word, asset_class in (("option", "option"), ("crypto", "crypto"), ("stock", "stock"), ("news", "news")):
+        if word in name:
+            return asset_class
+    return None
+
+
 class AlpacaBacktesting(DataSourceBacktesting):
     """Backtest with historical data from your own Alpaca account (stocks, crypto, options).
 
@@ -384,6 +393,35 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         if self._is_option(asset):
             return self._get_option_last_price(asset, quote)
+
+        timestep = self._timestep
+        source_timestep, resample_rule = self._normalize_timestep_for_source(timestep)
+        if resample_rule is None:
+            # PERF: every Alpaca strategy asks this on every iteration. The answer is one row
+            # of the stored frame, the same row get_historical_prices(length=1,
+            # remove_incomplete_current_bar=False, _extend_history=False) would wrap in a Bars
+            # object (about 0.2 ms on a Mac, 1 ms in the cloud per call). Same data, same
+            # row, same errors; resampled steps keep the full path below.
+            try:
+                df = self.get_historical_prices_between_dates(
+                    base_asset=asset,
+                    quote_asset=quote,
+                    timestep=source_timestep,
+                    data_datetime_start=self._data_datetime_start,
+                    data_datetime_end=self._data_datetime_end,
+                    auto_adjust=self._auto_adjust,
+                )
+            except Exception as e:
+                raise RuntimeError(f"Unable to fetch historical prices during backtest: {e}")
+            if len(df) < 1:
+                raise ValueError("Not enough historical data. Requested 1 bars but only 0 available.")
+            position = self._newest_bar_position(df.index, self._datetime, timestep, False)
+            if position < 0:
+                raise ValueError(f"Datetime {self._datetime} not found in the dataset.")
+            if timestep == "day":
+                return self._daily_bar_mark(df.iloc[position:position + 1], asset, quote)
+            price = df["open"].iat[position]
+            return quantize_to_num_decimals(price, get_decimals(price))
 
         bars = self.get_historical_prices(
             asset=asset,
@@ -820,6 +858,9 @@ class AlpacaBacktesting(DataSourceBacktesting):
             if wait > 0:
                 logger.info("Alpaca request budget reached (%d per minute); waiting %.1fs", limit, wait)
                 self._sleep_seconds(wait)
+                from lumibot.tools import backtest_telemetry
+
+                backtest_telemetry.record_wait("rate_limit", wait)
             now = time.monotonic()
             while recent and now - recent[0] >= 60.0:
                 recent.popleft()
@@ -858,16 +899,29 @@ class AlpacaBacktesting(DataSourceBacktesting):
         The SDK already retries a 429 three times after 3 seconds. This adds a longer,
         bounded wait (``Retry-After`` when Alpaca sends it) before failing loudly.
         """
+        from lumibot.tools import backtest_telemetry
+
+        with backtest_telemetry.provider_scope("alpaca", _alpaca_asset_class(fn)):
+            return self._alpaca_request_in_scope(fn, request, what=what)
+
+    def _alpaca_request_in_scope(self, fn, request, *, what: str):
+        from lumibot.tools import backtest_telemetry
+
         retries = 0
         waited = 0.0
         while True:
             self._throttle_alpaca_requests()
+            started = time.perf_counter()
             try:
-                return fn(request)
+                answer = fn(request)
+                backtest_telemetry.record_provider_request(time.perf_counter() - started)
+                return answer
             except Exception as exc:
+                backtest_telemetry.record_provider_request(time.perf_counter() - started)
                 if not self._is_rate_limited(exc):
                     raise
                 retries += 1
+                backtest_telemetry.record_retry()
                 wait = self._rate_limit_wait_seconds(exc, retries)
                 if (
                     retries > self.ALPACA_RATE_LIMIT_MAX_RETRIES
@@ -886,6 +940,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 )
                 waited += wait
                 self._sleep_seconds(wait)
+                backtest_telemetry.record_wait("rate_limit", wait)
 
     @staticmethod
     def _as_date(value) -> Optional[date]:
@@ -1036,11 +1091,16 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         cache_dir = os.path.join(LUMIBOT_CACHE_FOLDER, self.CACHE_SUBFOLDER, "option_chains")
         cache_file = os.path.join(cache_dir, "_".join(cache_key) + ".json")
+        from lumibot.tools import backtest_telemetry
+
+        backtest_telemetry.record_cache("hit" if os.path.exists(cache_file) else "miss", layer="alpaca_option_chains",
+                                        source="alpaca", asset_class="option")
         if os.path.exists(cache_file):
             try:
                 with open(cache_file, "r", encoding="utf-8") as handle:
                     chain = json.load(handle)
                 memory[cache_key] = chain
+                self._remember_listed_contracts(chain)
                 return self._copy_chain(chain)
             except (OSError, ValueError) as exc:
                 logger.warning("Ignoring unreadable Alpaca option chain cache %s: %s", cache_file, exc)
@@ -1060,13 +1120,267 @@ class AlpacaBacktesting(DataSourceBacktesting):
         except OSError as exc:
             logger.warning("Could not write Alpaca option chain cache %s: %s", cache_file, exc)
         memory[cache_key] = chain
+        self._remember_listed_contracts(chain)
         return self._copy_chain(chain)
 
+    def _remember_listed_contracts(self, chain: dict) -> None:
+        """Record which contracts Alpaca's own contract listing returned (the chain's source)."""
+        listed = self._state("_listed_option_strikes", dict)
+        underlying = str(chain.get("UnderlyingSymbol") or "").upper()
+        for side, expirations in (chain.get("Chains") or {}).items():
+            for expiry, strikes in (expirations or {}).items():
+                listed.setdefault((underlying, str(expiry)[:10], side), set()).update(float(k) for k in strikes)
+
+    def _listed_occ_symbols(self, assets) -> set:
+        """OCC symbols of ``assets`` that Alpaca listed. Only for these is "no bars" an answer:
+        a zero-row reply for an unlisted symbol may just be a mistyped contract."""
+        listed = self._state("_listed_option_strikes", dict)
+        out = set()
+        for asset in assets:
+            try:
+                expiry = asset.expiration.isoformat() if hasattr(asset.expiration, "isoformat") else str(asset.expiration)
+                side = "CALL" if str(asset.right or "").upper().startswith("C") else "PUT"
+                key = (str(asset.symbol).upper(), expiry[:10], side)
+                if float(asset.strike) in listed.get(key, ()):
+                    out.add(self._occ_symbol(asset))
+            except (AttributeError, TypeError, ValueError):
+                continue
+        return out
+
+    # GET /v1beta1/options/bars accepts at most 100 symbols per request (Alpaca docs,
+    # checked 2026-11-11 for alpaca-py 0.44.0). The SDK follows page tokens itself.
+    ALPACA_OPTION_SYMBOLS_PER_REQUEST = 100
+
+    # How far before a pick its candidates are loaded from (rounded down to a month start).
+    OPTION_PICK_LOOKBACK_DAYS = 7
+
+    def prefetch_option_bars(self, assets, quote: Asset | None = None, timestep: str | None = None,
+                             until: datetime | None = None) -> int:
+        """Load real trade bars for many option contracts with as few requests as possible.
+
+        A delta or price search probes many strikes. Each probe used to download one
+        contract's whole backtest window in its own request. This asks Alpaca for up to
+        ``ALPACA_OPTION_SYMBOLS_PER_REQUEST`` contracts per request, through the same shared
+        bar cache, and stores each contract exactly as a single download would (real prints
+        only; a contract that never traded is remembered as empty). Later price and
+        history lookups read the stored frames. Returns how many contracts were requested.
+
+        ``until`` (optional) loads prints only up to the end of that day. A probe at time T
+        needs nothing later; the rest of the window is loaded once, the first time a later
+        lookup on that contract needs it (``_get_option_bars_frame``). Partial frames are
+        never written to the per-window CSV cache.
+        """
+        timestep = timestep or self.__dict__.get("_timestep") or "minute"
+        source_timestep, _ = self._normalize_timestep_for_source(timestep)
+        if quote is None:
+            quote = self.LUMIBOT_DEFAULT_QUOTE_ASSET
+        store = self._state("_data_store", dict)
+        refreshed = self._state("_refreshed_keys", dict)
+        covered = self._state("_option_covered_until", dict)
+        wanted = {}
+        extend = {}
+        for asset in assets or []:
+            if not self._is_option(asset):
+                continue
+            asset, asset_quote = self._sanitize_base_and_quote_asset(asset, quote)
+            key = self._get_asset_key(base_asset=asset, quote_asset=asset_quote, timestep=source_timestep)
+            if key in store and key in covered and pd.Timestamp(self._datetime) > covered[key]:
+                extend.setdefault(key, (asset, asset_quote))
+                continue
+            if key in wanted or key in store:
+                continue
+            if self._refresh_cache and key not in refreshed:
+                wanted[key] = (asset, asset_quote)
+                continue
+            if self._load_ohlcv_into_data_store(key):
+                continue
+            wanted[key] = (asset, asset_quote)
+        if extend:
+            self._extend_option_frames(extend, source_timestep)
+        if not wanted:
+            return len(extend)
+        items = list(wanted.items())
+        covered_until = None
+        loaded_from = None
+        if until is not None:
+            day_end = pd.Timestamp(until).tz_convert(self.tzinfo).normalize() + pd.Timedelta(days=1) - pd.Timedelta(microseconds=1)
+            if day_end < pd.Timestamp(self._data_datetime_end):
+                covered_until = day_end
+            # Load from the start of the month a week before the pick (a shared-cache partition),
+            # not the start of the backtest: earlier prints are read only if a lookup needs them
+            # (no print in that stretch, or a history request). A week back keeps picks early in
+            # a month from needing a separate earlier read for most candidates.
+            month = (pd.Timestamp(until) - pd.Timedelta(days=self.OPTION_PICK_LOOKBACK_DAYS)).tz_convert("UTC")
+            month_start = pd.Timestamp(year=month.year, month=month.month, day=1, tz="UTC").tz_convert(self.tzinfo)
+            if month_start > pd.Timestamp(self._data_datetime_start):
+                loaded_from = month_start
+        size = max(1, int(self.ALPACA_OPTION_SYMBOLS_PER_REQUEST))
+        for offset in range(0, len(items), size):
+            chunk = items[offset:offset + size]
+            symbols = sorted(self._occ_symbol(asset) for _key, (asset, _quote) in chunk)
+            first_asset, first_quote = chunk[0][1]
+            client, request = self._history_request(
+                base_asset=first_asset,
+                quote_asset=first_quote,
+                timestep=source_timestep,
+                data_datetime_start=self._data_datetime_start,
+                data_datetime_end=self._data_datetime_end,
+                auto_adjust=self._auto_adjust,
+            )
+            update = {"symbol_or_symbols": symbols}
+            if covered_until is not None:
+                update["end"] = covered_until.to_pydatetime()
+            if loaded_from is not None:
+                update["start"] = loaded_from.to_pydatetime()
+            update["end"] = self._option_request_end(
+                [asset for _key, (asset, _quote) in chunk], request.start, update.get("end", request.end)
+            )
+            request = request.model_copy(update=update)
+            what = f"{len(symbols)} option contracts"
+            listed = self._listed_occ_symbols([asset for _key, (asset, _quote) in chunk])
+            try:
+                bars = fetch_alpaca_bars(
+                    client, request,
+                    lambda query: self._alpaca_request(client.get_option_bars, query, what=what),
+                    refresh=getattr(self, "_refresh_cache", False), empty_ok=listed.__contains__,
+                )
+            except Exception as e:
+                raise RuntimeError(f"Failed to fetch data for {what}: {e}")
+            by_symbol = self._rows_by_symbol(bars.df)
+            for key, (asset, asset_quote) in chunk:
+                rows = by_symbol.get(self._occ_symbol(asset))
+                self._store_option_rows(key, asset, rows, covered_until=covered_until, loaded_from=loaded_from)
+                if self._refresh_cache:
+                    refreshed[key] = True
+        if items:
+            through = f" up to {covered_until.date()}" if covered_until is not None else ""
+            logger.info("Loaded %d option contracts in %d request(s)%s", len(items),
+                        (len(items) + size - 1) // size, through)
+        return len(items) + len(extend)
+
+    @staticmethod
+    def _rows_by_symbol(frame: pd.DataFrame) -> dict:
+        """Each symbol's rows of a (symbol, timestamp) frame, as ``frame.xs(symbol).reset_index()`` gives them.
+
+        One groupby pass instead of one full scan per contract (a pick asks for up to 100).
+        """
+        if frame is None or frame.empty:
+            return {}
+        return {symbol: rows.droplevel(0).reset_index()
+                for symbol, rows in frame.groupby(level=0, sort=False)}
+
+    def _extend_option_frames(self, contracts: dict, timestep: str) -> None:
+        """``_extend_option_frame`` for many contracts: one request per covered day and 100 symbols.
+
+        Each contract gets exactly the rows its own extension would fetch (from its covered
+        day to its expiry, same shared-cache series), merged the same way. On a cloud
+        container each single extension was its own shared-cache read and S3 round trips.
+        """
+        covered = self._state("_option_covered_until", dict)
+        store = self._state("_data_store", dict)
+        groups = {}
+        for key, (asset, quote) in contracts.items():
+            groups.setdefault(covered[key], []).append((key, asset, quote))
+        size = max(1, int(self.ALPACA_OPTION_SYMBOLS_PER_REQUEST))
+        for covered_until, members in sorted(groups.items(), key=lambda kv: kv[0]):
+            for offset in range(0, len(members), size):
+                chunk = members[offset:offset + size]
+                _key, first_asset, first_quote = chunk[0]
+                client, request = self._history_request(
+                    base_asset=first_asset, quote_asset=first_quote, timestep=timestep,
+                    data_datetime_start=covered_until.to_pydatetime(), data_datetime_end=self._data_datetime_end,
+                    auto_adjust=self._auto_adjust,
+                )
+                end = self._option_request_end(
+                    [a for _k, a, _q in chunk], request.start, self._data_datetime_end + timedelta(days=1)
+                )
+                # Same "no later than 16 minutes ago" limit as a single request.
+                latest_allowed = datetime.now(pytz.UTC) - timedelta(minutes=16)
+                if pd.Timestamp(end) > pd.Timestamp(latest_allowed):
+                    end = max(latest_allowed, covered_until.to_pydatetime() + timedelta(minutes=1))
+                request = request.model_copy(update={
+                    "symbol_or_symbols": sorted(self._occ_symbol(a) for _k, a, _q in chunk),
+                    "end": pd.Timestamp(end).to_pydatetime(),
+                })
+                what = f"{len(chunk)} option contracts after {covered_until.date()}"
+                for key, _a, _q in chunk:
+                    covered.pop(key, None)
+                listed = self._listed_occ_symbols([a for _k, a, _q in chunk])
+                try:
+                    bars = fetch_alpaca_bars(
+                        client, request,
+                        lambda query: self._alpaca_request(client.get_option_bars, query, what=what),
+                        refresh=getattr(self, "_refresh_cache", False), empty_ok=listed.__contains__,
+                    )
+                except Exception as e:
+                    for key, _a, _q in chunk:
+                        covered[key] = covered_until
+                    raise RuntimeError(f"Failed to fetch data for {what}: {e}")
+                by_symbol = self._rows_by_symbol(bars.df)
+                for key, asset, quote in chunk:
+                    later = by_symbol.get(self._occ_symbol(asset))
+                    self._apply_extension(key, asset, quote, timestep, store.get(key), later)
+
+    def _store_option_rows(self, key: str, asset: Asset, rows: pd.DataFrame | None,
+                           covered_until: pd.Timestamp | None = None,
+                           loaded_from: pd.Timestamp | None = None) -> None:
+        """Store one contract's prefetched rows the way a single download stores them.
+
+        ``loaded_from`` marks rows loaded only from that time on: earlier prints are loaded
+        by ``_backfill_option_frame`` the first time a lookup needs them.
+        """
+        store = self._state("_data_store", dict)
+        if loaded_from is not None:
+            self._state("_option_loaded_from", dict)[key] = loaded_from
+            if covered_until is None:
+                frame = self._finish_option_frame(
+                    key, rows if rows is not None else pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]),
+                    self.tzinfo, self._data_datetime_start, self._data_datetime_end, write_csv=False,
+                )
+                store[key] = frame
+                return
+        if covered_until is not None:
+            # Prints only up to covered_until: no print yet is not "never traded".
+            self._state("_option_covered_until", dict)[key] = covered_until
+            frame = self._finish_option_frame(
+                key, rows if rows is not None else pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]),
+                self.tzinfo, self._data_datetime_start, covered_until, write_csv=False,
+            )
+            store[key] = frame
+            return
+        if rows is None or rows.empty:
+            logger.error(
+                "%s",
+                AlpacaOptionHistoryUnavailable(
+                    f"Alpaca returned no option bars for {self._occ_symbol(asset)} between "
+                    f"{self._data_datetime_start.date()} and {self._data_datetime_end.date()}. "
+                    f"{self.OPTION_HISTORY_START_HINT}, and a contract that never traded in the window "
+                    "has no bars. Its price is None for this backtest."
+                ),
+            )
+            empty = pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
+            empty.index = pd.DatetimeIndex([], tz=self.tzinfo, name="timestamp")
+            store[key] = empty
+            self._state("_refreshed_keys", dict)[key] = True
+            return
+        store[key] = self._finish_option_frame(key, rows, self.tzinfo, self._data_datetime_start, self._data_datetime_end)
+
     def _get_option_bars_frame(self, asset: Asset, quote: Asset, timestep: str) -> pd.DataFrame:
-        """Real option trade bars for the whole backtest window, or an empty frame."""
+        """Real option trade bars for the whole backtest window, or an empty frame.
+
+        ``_partial_frame_ok`` set (by the last-price fast path): the caller only reads the newest print at or before now and falls
+        back to this method without it when there is none, so rows loaded from the pick month
+        on are enough (earlier prints are older). Everyone else gets the whole window.
+        """
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
         key = self._get_asset_key(base_asset=asset, quote_asset=quote, timestep=timestep)
         store = self._state("_data_store", dict)
+        covered = self._state("_option_covered_until", dict)
+        if key in store and key in covered and pd.Timestamp(self._datetime) > covered[key]:
+            self._extend_option_frame(key, asset, quote, timestep)
+        partial_ok = self.__dict__.get("_partial_frame_ok", False)
+        if not partial_ok and key in store and key in self._state("_option_loaded_from", dict):
+            self._backfill_option_frame(key, asset, quote, timestep)
         if key in store:
             return store[key]
         try:
@@ -1079,6 +1393,97 @@ class AlpacaBacktesting(DataSourceBacktesting):
             store[key] = empty
             self._state("_refreshed_keys", dict)[key] = True
             return empty
+
+    def _extend_option_frame(self, key: str, asset: Asset, quote: Asset, timestep: str) -> None:
+        """Load the rest of the window for a contract prefetched only up to an earlier day."""
+        covered = self._state("_option_covered_until", dict)
+        covered_until = covered.pop(key)
+        store = self._state("_data_store", dict)
+        loaded = store.get(key)
+        client, request = self._history_request(
+            base_asset=asset, quote_asset=quote, timestep=timestep,
+            data_datetime_start=covered_until.to_pydatetime(), data_datetime_end=self._data_datetime_end,
+            auto_adjust=self._auto_adjust,
+        )
+        what = f"{self._occ_symbol(asset)} after {covered_until.date()}"
+        listed = self._listed_occ_symbols([asset])
+        try:
+            bars = fetch_alpaca_bars(
+                client, request,
+                lambda query: self._alpaca_request(client.get_option_bars, query, what=what),
+                refresh=getattr(self, "_refresh_cache", False), empty_ok=listed.__contains__,
+            )
+        except Exception as e:
+            covered[key] = covered_until
+            raise RuntimeError(f"Failed to fetch data for {what}: {e}")
+        frame = bars.df
+        occ = self._occ_symbol(asset)
+        later = frame.xs(occ, level=0).reset_index() if not frame.empty and occ in set(frame.index.get_level_values(0)) else None
+        self._apply_extension(key, asset, quote, timestep, loaded, later)
+
+    def _apply_extension(self, key, asset, quote, timestep, loaded, later) -> None:
+        """Merge a contract's rows after its covered day into its stored frame."""
+        pieces = [loaded.reset_index()] if loaded is not None and not loaded.empty else []
+        if later is not None and not later.empty:
+            pieces.append(later)
+        partial = key in self._state("_option_loaded_from", dict)
+        if not pieces and partial:
+            # Nothing since the pick month: whether it traded earlier decides the answer.
+            self._backfill_option_frame(key, asset, quote, timestep)
+            return
+        if not pieces:
+            self._store_option_rows(key, asset, None)
+            return
+        merged = pd.concat(pieces, ignore_index=True)
+        merged['timestamp'] = pd.to_datetime(merged['timestamp'], utc=True)
+        merged = merged.drop_duplicates(subset="timestamp", keep="last")
+        # Keep any prints from before the window that a history reach-back already added.
+        start = min(pd.Timestamp(self._data_datetime_start), merged['timestamp'].min().tz_convert(self.tzinfo))
+        self._finish_option_frame(key, merged, self.tzinfo, start, self._data_datetime_end, write_csv=not partial)
+
+    def _backfill_option_frame(self, key: str, asset: Asset, quote: Asset, timestep: str) -> None:
+        """Load the prints before the pick month for a contract a pick loaded from that month."""
+        loaded_from = self._state("_option_loaded_from", dict).pop(key)
+        store = self._state("_data_store", dict)
+        loaded = store.get(key)
+        client, request = self._history_request(
+            base_asset=asset, quote_asset=quote, timestep=timestep,
+            data_datetime_start=self._data_datetime_start, data_datetime_end=self._data_datetime_end,
+            auto_adjust=self._auto_adjust, request_end=loaded_from.to_pydatetime(),
+        )
+        what = f"{self._occ_symbol(asset)} before {loaded_from.date()}"
+        listed = self._listed_occ_symbols([asset])
+        try:
+            bars = fetch_alpaca_bars(
+                client, request,
+                lambda query: self._alpaca_request(client.get_option_bars, query, what=what),
+                refresh=getattr(self, "_refresh_cache", False), empty_ok=listed.__contains__,
+            )
+        except Exception as e:
+            self._state("_option_loaded_from", dict)[key] = loaded_from
+            raise RuntimeError(f"Failed to fetch data for {what}: {e}")
+        frame = bars.df
+        occ = self._occ_symbol(asset)
+        earlier = frame.xs(occ, level=0).reset_index() if not frame.empty and occ in set(frame.index.get_level_values(0)) else None
+        pieces = []
+        if earlier is not None and not earlier.empty:
+            pieces.append(earlier)
+        if loaded is not None and not loaded.empty:
+            pieces.append(loaded.reset_index())
+        covered = self._state("_option_covered_until", dict)
+        if not pieces:
+            if key in covered:
+                # No print yet, and the rest of the window is still to be loaded.
+                self._store_option_rows(key, asset, None, covered_until=covered[key])
+            else:
+                self._store_option_rows(key, asset, None)
+            return
+        merged = pd.concat(pieces, ignore_index=True)
+        merged['timestamp'] = pd.to_datetime(merged['timestamp'], utc=True)
+        merged = merged.drop_duplicates(subset="timestamp", keep="last")
+        start = min(pd.Timestamp(self._data_datetime_start), merged['timestamp'].min().tz_convert(self.tzinfo))
+        end = covered.get(key, self._data_datetime_end)
+        self._finish_option_frame(key, merged, self.tzinfo, start, end, write_csv=key not in covered)
 
     def _get_option_historical_prices(
             self,
@@ -1094,8 +1499,27 @@ class AlpacaBacktesting(DataSourceBacktesting):
             remove_incomplete_current_bar: bool,
             extend_history: bool = True,
     ) -> Bars | None:
-        df = self._get_option_bars_frame(asset, quote, source_timestep)
         search_datetime = self._datetime - timeshift if timeshift else self._datetime
+        df = None
+        if resample_rule is None:
+            # A contract a pick loaded only from a recent month: when that part already holds
+            # ``length`` bars at or before now, they are exactly the newest ``length`` bars of
+            # the whole window (earlier prints are older), so the earlier months are not read.
+            self.__dict__["_partial_frame_ok"] = True
+            try:
+                partial = self._get_option_bars_frame(asset, quote, source_timestep)
+            finally:
+                self.__dict__["_partial_frame_ok"] = False
+            sanitized, sanitized_quote = self._sanitize_base_and_quote_asset(asset, quote)
+            key = self._get_asset_key(base_asset=sanitized, quote_asset=sanitized_quote, timestep=source_timestep)
+            if key not in self._state("_option_loaded_from", dict):
+                df = partial
+            elif partial is not None and not partial.empty and self._newest_bar_position(
+                partial.index, search_datetime, timestep, remove_incomplete_current_bar,
+            ) + 1 >= length:
+                df = partial
+        if df is None:
+            df = self._get_option_bars_frame(asset, quote, source_timestep)
         if extend_history and getattr(self, "_history_before_start", False):
             # Prints from before the window (real trades only) when the request needs more
             # finished bars than the window holds at this time.
@@ -1163,8 +1587,68 @@ class AlpacaBacktesting(DataSourceBacktesting):
             raw_data={"source": "alpaca_trade_bars"},
         )
 
+    def _option_mark_arrays(self, frame: pd.DataFrame, timestep: str):
+        """(UTC nanosecond stamps, opens, closes) of a stored option frame, built once per frame.
+
+        A minute strategy marks every held leg on every bar. Reading a pandas column and
+        searching a DatetimeIndex per call cost about 0.1 ms; these arrays give the same row
+        with one searchsorted. Rebuilt whenever the stored frame object changes (an extension
+        or backfill stores a new frame). Only for minute bars on a sorted, tz-aware index;
+        anything else returns None and the caller keeps the pandas path.
+        """
+        if timestep != "minute":
+            return None
+        cache = self._state("_option_mark_cache", dict)
+        entry = cache.get(id(frame))
+        if entry is not None and entry[0] is frame:
+            return entry[1]
+        index = frame.index
+        if not isinstance(index, pd.DatetimeIndex) or index.tz is None or not index.is_monotonic_increasing:
+            return None
+        if "open" not in frame.columns or "close" not in frame.columns:
+            return None
+        marks = (index.asi8, frame["open"].to_numpy(), frame["close"].to_numpy())
+        if len(cache) > 4096:
+            cache.clear()
+        cache[id(frame)] = (frame, marks)
+        return marks
+
     def _get_option_last_price(self, asset: Asset, quote: Asset) -> float | Decimal | None:
         timestep = self.__dict__.get("_timestep") or "minute"
+        if timestep != "day":
+            # PERF: a minute strategy asks this on every bar for every contract it watches.
+            # When a real print exists at or before now, the answer is one row of the stored
+            # frame; building a Bars object per call cost about 1 ms and dominated warm option
+            # backtests. No print yet falls through to the full path below, which may reach
+            # back before the window start.
+            self.__dict__["_partial_frame_ok"] = True
+            try:
+                frame = self._get_option_bars_frame(asset, quote, timestep)
+            finally:
+                self.__dict__["_partial_frame_ok"] = False
+            if frame is not None and not frame.empty:
+                marks = self._option_mark_arrays(frame, timestep)
+                if marks is not None and getattr(self._datetime, "tzinfo", None) is None:
+                    marks = None  # naive clock: keep the pandas comparison
+                if marks is not None:
+                    stamps, opens, closes = marks
+                    now_ns = pd.Timestamp(self._datetime).value
+                    position = int(stamps.searchsorted(now_ns, side="right")) - 1
+                else:
+                    position = self._newest_bar_position(frame.index, self._datetime, timestep, False)
+                if position >= 0:
+                    if marks is not None:
+                        # Same bar, same rule: the open of a bar that printed this minute,
+                        # otherwise the close of the latest earlier print.
+                        printed_now = stamps[position] // 60_000_000_000 == now_ns // 60_000_000_000
+                        price = opens[position] if printed_now else closes[position]
+                    else:
+                        bar_ts = pd.Timestamp(frame.index[position])
+                        printed_now = bar_ts.floor("min") == pd.Timestamp(self._datetime).floor("min")
+                        price = frame["open"].iat[position] if printed_now else frame["close"].iat[position]
+                    if price is None or pd.isna(price):
+                        return None
+                    return quantize_to_num_decimals(price, get_decimals(price))
         # On the first bars of the window the latest real trade can be from before the start.
         bars = self._get_option_historical_prices(
             asset,
@@ -1228,6 +1712,32 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if base_asset is None:
             raise ValueError("Base asset must be provided.")
 
+        # PERF: held legs ask for their key on every bar. With no overrides the key depends only
+        # on the asset, quote, timestep and this source's fixed settings, so remember it.
+        memo = None
+        if market is None and tzinfo is None and data_datetime_start is None and data_datetime_end is None \
+                and auto_adjust is None:
+            memo = (base_asset, quote_asset, timestep, self.__dict__.get("_timestep"), self.__dict__.get("market"),
+                    self.__dict__.get("_data_datetime_start"), self.__dict__.get("_data_datetime_end"),
+                    self.__dict__.get("_auto_adjust"), str(self.__dict__.get("tzinfo")))
+            known = self._state("_asset_key_memo", dict).get(memo)
+            if known is not None:
+                return known
+        key = self._build_asset_key(base_asset=base_asset, quote_asset=quote_asset, timestep=timestep,
+                                    market=market, tzinfo=tzinfo, data_datetime_start=data_datetime_start,
+                                    data_datetime_end=data_datetime_end, auto_adjust=auto_adjust)
+        if memo is not None:
+            memos = self._state("_asset_key_memo", dict)
+            if len(memos) > 100_000:
+                memos.clear()
+            memos[memo] = key
+        return key
+
+    def _build_asset_key(self, *, base_asset, quote_asset, timestep=None, market=None, tzinfo=None,
+                         data_datetime_start=None, data_datetime_end=None, auto_adjust=None) -> str:
+        if base_asset is None:
+            raise ValueError("Base asset must be provided.")
+
         if quote_asset is None:
             quote_asset = self.LUMIBOT_DEFAULT_QUOTE_ASSET
 
@@ -1287,6 +1797,42 @@ class AlpacaBacktesting(DataSourceBacktesting):
         right = str(asset.right or "C")[0].upper()
         return f"{asset.symbol}{date}{right}{strike_formatted}"
 
+    @staticmethod
+    def _option_request_end(assets, start, end):
+        """``end``, but no later than midnight New York after the latest expiry among ``assets``.
+
+        A contract has no prints after it expires. Requests used to run to the end of the
+        backtest, so in a long run every read of a short-dated contract planned shared-cache
+        partitions (S3 reads and provider gaps) for each month after its expiry.
+        """
+        expiries = []
+        for asset in assets:
+            expiration = getattr(asset, "expiration", None)
+            if isinstance(expiration, datetime):
+                expiration = expiration.date()
+            if expiration is None:
+                return end  # unknown expiry: keep the full request
+            expiries.append(expiration)
+        if not expiries or end is None:
+            return end
+        limit = pytz.timezone("America/New_York").localize(
+            datetime.combine(max(expiries) + timedelta(days=1), datetime.min.time())
+        )
+        end_ts = pd.Timestamp(end)
+        end_aware = end_ts.tz_localize("UTC") if end_ts.tzinfo is None else end_ts
+        if end_aware <= pd.Timestamp(limit):
+            return end
+        clamped = limit
+        if start is not None:
+            start_ts = pd.Timestamp(start)
+            start_aware = start_ts.tz_localize("UTC") if start_ts.tzinfo is None else start_ts
+            floor = (start_aware + pd.Timedelta(minutes=1)).to_pydatetime()
+            if pd.Timestamp(clamped) < pd.Timestamp(floor):
+                clamped = floor
+        if end_ts.tzinfo is None:
+            return pd.Timestamp(clamped).tz_convert("UTC").tz_localize(None).to_pydatetime()
+        return clamped
+
     def _history_request(
             self,
             *,
@@ -1325,7 +1871,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 symbol_or_symbols=self._occ_symbol(base_asset),
                 timeframe=timeframe,
                 start=data_datetime_start,
-                end=end,
+                end=self._option_request_end([base_asset], data_datetime_start, end),
             )
             return self._option_client, request
         request = StockBarsRequest(
@@ -1405,10 +1951,11 @@ class AlpacaBacktesting(DataSourceBacktesting):
                     refresh=getattr(self, "_refresh_cache", False),
                 )
             elif isinstance(request_params, OptionBarsRequest):
+                listed = self._listed_occ_symbols([base_asset])
                 bars = fetch_alpaca_bars(
                     client, request_params,
                     lambda query: self._alpaca_request(client.get_option_bars, query, what=key),
-                    refresh=getattr(self, "_refresh_cache", False),
+                    refresh=getattr(self, "_refresh_cache", False), empty_ok=listed.__contains__,
                 )
             else:
                 bars = fetch_alpaca_bars(
@@ -1437,14 +1984,12 @@ class AlpacaBacktesting(DataSourceBacktesting):
         else:
             df['timestamp'] = df['timestamp'].dt.tz_convert(tzinfo)
 
+        if is_option:
+            return self._finish_option_frame(key, df, tzinfo, data_datetime_start, data_datetime_end)
+
         df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
 
-        if is_option:
-            # Option bars are sparse trade prints. Reindexing and forward/back filling them
-            # would invent prices (and back-fill a later trade into the past). Keep only
-            # real bars; get_last_price/get_historical_prices handle the gaps honestly.
-            df = df.sort_values("timestamp")
-        elif timestep in ("day", "minute"):
+        if timestep in ("day", "minute"):
             trading_times = self._get_trading_times_for_timestep(
                 pcal=self._trading_days,
                 timestep=timestep,
@@ -1470,6 +2015,40 @@ class AlpacaBacktesting(DataSourceBacktesting):
         logger.info(f"Finished fetching and caching data for {key}")
         return df
 
+    def _finish_option_frame(self, key, df, tzinfo, data_datetime_start, data_datetime_end,
+                             write_csv: bool = True) -> pd.DataFrame:
+        """Real option trade prints for the window: sort, clip, cache to disk, store.
+
+        Option bars are sparse trade prints. Reindexing and forward/back filling them would
+        invent prices (and back-fill a later trade into the past). Keep only real bars;
+        get_last_price/get_historical_prices handle the gaps honestly.
+        """
+        # PERF: a delta pick stores about 200 contracts. Convert the timestamps once, keep the
+        # six columns, and sort only when needed (the shared cache already returns sorted rows);
+        # the result equals the copy, convert, select, sort, filter sequence it replaces.
+        stamps = pd.to_datetime(df['timestamp'], utc=df.empty)
+        stamps = stamps.dt.tz_localize(tzinfo) if stamps.dt.tz is None else stamps.dt.tz_convert(tzinfo)
+        df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']].copy()
+        df['timestamp'] = stamps
+        if not (df['timestamp'].is_monotonic_increasing and df['timestamp'].is_unique):
+            df = df.sort_values("timestamp")
+        df = df[(df['timestamp'] >= data_datetime_start) & (df['timestamp'] <= data_datetime_end)]
+        if write_csv:
+            cache_dir = os.path.join(LUMIBOT_CACHE_FOLDER, self.CACHE_SUBFOLDER)
+            os.makedirs(cache_dir, exist_ok=True)
+            df.to_csv(os.path.join(cache_dir, f"{key}.csv"), index=False)
+        df = df.set_index('timestamp')
+        self._state("_data_store", dict)[key] = df
+        # Debug only: a delta pick stores about 200 contracts; prefetch_option_bars logs one summary.
+        logger.debug("Finished fetching and caching data for %s", key)
+        return df
+
+    @staticmethod
+    def _key_asset_class(key: str) -> str | None:
+        """Asset class in a data-store key (``<symbol>-<asset_type>_<quote>-...``), for telemetry."""
+        head = str(key).split("_", 1)[0]
+        return head.rsplit("-", 1)[-1] if "-" in head else None
+
     def _load_ohlcv_into_data_store(self, key: str) -> bool:
         """
         Loads OHLCV data from a cached file into the data store. If the loading is successful, returns True;
@@ -1491,8 +2070,18 @@ class AlpacaBacktesting(DataSourceBacktesting):
         filepath = os.path.join(cache_dir, filename)
 
         # Check if the file exists
+        from lumibot.tools import backtest_telemetry
+
+        asset_class = self._key_asset_class(key)
         if not os.path.exists(filepath):
+            backtest_telemetry.record_cache("miss", layer="alpaca_files", source="alpaca", asset_class=asset_class)
             return False
+        try:
+            nbytes = os.path.getsize(filepath)
+        except OSError:
+            nbytes = 0
+        backtest_telemetry.record_cache("hit", layer="alpaca_files", source="alpaca", asset_class=asset_class,
+                                        nbytes=nbytes)
 
         try:
             # Read CSV file with 'timestamp' column parsed as dates

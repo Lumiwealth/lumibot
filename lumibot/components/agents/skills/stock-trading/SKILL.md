@@ -18,6 +18,14 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    `market_last_price` / `market_last_prices`, is a usable disclosed fallback.
    Missing bid/ask alone does not make a priced stock untradeable. Do not
    substitute an old historical close for the execution price.
+   Check the source observation time (such as `bar_timestamp` or native quote
+   time), separately from the request's `datetime` or response `timestamp`.
+   A previous-session daily quote is historical context, even when requested
+   now. Do not call its bid/ask current or use it to predict an immediate fill.
+   If useful, try current `market_last_price` / `market_last_prices` or available
+   finer bars. If no current price is available, disclose that limitation.
+   Preserve an explicitly authorized instrument, quantity and limit; missing
+   fresh pricing alone does not require refusing that exact limit order.
    Keep last (`price`), bid and ask distinct in calculations and reporting.
    Copy the observed field with its correct label; never relabel last or mid as bid.
    Retrieve recent price history for every serious candidate.

@@ -8,6 +8,8 @@ from threading import Event, Lock, RLock, Thread
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
+_telemetry = LazyModule("lumibot.tools.backtest_telemetry")
+
 logger = LazyLogger(__name__)
 
 # Warn when a single on_trading_iteration blocks for longer than this; long
@@ -1162,13 +1164,16 @@ class StrategyExecutor(Thread):
 
                 net_best = 0.0
                 net_fastest = 0.0
-                for leg, leg_bid, leg_ask in quote_data:
+                from lumibot.tools.helpers import get_multileg_quantity_units
+
+                _, ratios = get_multileg_quantity_units(leg.quantity for leg in order.child_orders)
+                for (leg, leg_bid, leg_ask), ratio in zip(quote_data, ratios):
                     if leg.is_buy_order():
-                        net_best += float(leg_bid)
-                        net_fastest += float(leg_ask)
+                        net_best += ratio * float(leg_bid)
+                        net_fastest += ratio * float(leg_ask)
                     else:
-                        net_best -= float(leg_ask)
-                        net_fastest -= float(leg_bid)
+                        net_best -= ratio * float(leg_ask)
+                        net_fastest -= ratio * float(leg_bid)
 
                 tick = infer_tick_size(net_best, net_fastest)
                 mid = compute_mid(net_best, net_fastest)
@@ -1541,7 +1546,11 @@ class StrategyExecutor(Thread):
                 self.strategy.load_variables_from_db()
             if self.broker.IS_BACKTESTING_BROKER:
                 self._record_backtest_milestone("first_callback_entered_at")
-                on_trading_iteration()
+                iteration_started = _telemetry.iteration_started()
+                try:
+                    on_trading_iteration()
+                finally:
+                    _telemetry.iteration_finished(iteration_started, getattr(self.broker, "datetime", None))
             else:
                 # Live: drain fill/hedge events while the user scan runs so a
                 # 100s+ on_trading_iteration cannot gate order management.
@@ -1558,6 +1567,11 @@ class StrategyExecutor(Thread):
 
             end_dt = datetime.now()
             runtime = (end_dt - start_dt).total_seconds()
+            if not self.broker.IS_BACKTESTING_BROKER:
+                try:
+                    self.broker._get_order_health().iteration(runtime)
+                except Exception:
+                    pass
 
             # Variable Backup
             self._in_trading_iteration = False
@@ -1719,22 +1733,30 @@ class StrategyExecutor(Thread):
 
     @event_method
     def _on_new_order(self, order):
+        if not self._owns_order_event(order):
+            return
         self.strategy.on_new_order(order)
 
     @event_method
     def _on_canceled_order(self, order):
+        if not self._owns_order_event(order):
+            return
         self.strategy.on_canceled_order(order)
+
+    def _owns_order_event(self, order):
+        owned = self.broker.IS_BACKTESTING_BROKER or self.broker.order_belongs_to_local_strategy(
+            order, getattr(self.strategy, "name", None) or getattr(self.strategy, "_name", None)
+        )
+        if not owned:
+            self.broker._record_foreign_callback()
+        return owned
 
     @event_method
     def _on_partially_filled_order(self, position, order, price, quantity, multiplier):
-        local_name = getattr(self.strategy, "name", None) or getattr(self.strategy, "_name", None)
-        order_strategy = getattr(order, "strategy", None)
-        order_tag = getattr(order, "tag", None)
-        belongs = True
-        if not self.broker.IS_BACKTESTING_BROKER and local_name and (order_tag or order_strategy):
-            belongs = not self.broker.order_is_foreign_to_local_strategy(order, local_name)
-        if not belongs:
+        if not self._owns_order_event(order):
             return
+        if not self.broker.IS_BACKTESTING_BROKER:
+            self.broker._record_fill_callback_entry()
         self.strategy.on_partially_filled_order(position, order, price, quantity, multiplier)
 
     @event_method
@@ -1744,10 +1766,7 @@ class StrategyExecutor(Thread):
         local_name = getattr(self.strategy, "name", None) or getattr(self.strategy, "_name", None)
         order_strategy = getattr(order, "strategy", None)
         order_tag = getattr(order, "tag", None)
-        belongs = True
-        if not self.broker.IS_BACKTESTING_BROKER and local_name and (order_tag or order_strategy):
-            belongs = not self.broker.order_is_foreign_to_local_strategy(order, local_name)
-        if not belongs:
+        if not self._owns_order_event(order):
             if self.strategy.logger.isEnabledFor(20):
                 self.strategy.logger.info(
                     f"Skipping on_filled_order for foreign order "
@@ -1756,6 +1775,8 @@ class StrategyExecutor(Thread):
                 )
             return
 
+        if not self.broker.IS_BACKTESTING_BROKER:
+            self.broker._record_fill_callback_entry()
         self.strategy.on_filled_order(position, order, price, quantity, multiplier)
 
         # PERF: In backtesting we never send Discord notifications (`Strategy.send_discord_message`

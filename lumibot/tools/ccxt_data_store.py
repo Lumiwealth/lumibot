@@ -243,6 +243,11 @@ class CcxtCacheDB:
             empty.set_index("datetime", inplace=True)
             return empty
 
+        from lumibot.tools import shared_bar_cache
+
+        if shared_bar_cache.enabled():
+            return self._download_ohlcv_shared(symbol, timeframe, start, end, start_dt, end_dt, limit)
+
         download_ranges,overap_range_ids,cache_range = self._calc_download_ranges(symbol, timeframe,start_dt, end_dt)
 
         self.logger.info(f"download ranges :\n{self._table_str(download_ranges,headers=['from','to'])}")
@@ -283,6 +288,80 @@ class CcxtCacheDB:
             )
             df_cache = self.get_data_from_cache(symbol, timeframe, start, end)
         return df_cache
+
+    def shared_series(self, symbol: str, timeframe: str):
+        """Shared bar cache identity of this exchange's public candles for ``symbol``.
+
+        These candles come from the exchange's public market data (no API key),
+        so every run reading the same exchange, symbol and bar size can reuse
+        them. The exchange id is part of the key: two exchanges never share bars.
+        """
+        from lumibot.tools import shared_bar_cache
+
+        unit = {"m": "minute", "h": "hour", "d": "day"}[timeframe[-1]]
+        return shared_bar_cache.BarSeries.make(
+            "ccxt",
+            symbol,
+            shared_bar_cache.normalize_timestep(int(timeframe[:-1] or 1), unit),
+            scope=shared_bar_cache.credential_scope("ccxt", "public", self.exchange_id),
+            # Crypto candles are traded prices; exchanges do not re-adjust them.
+            adjusted=False,
+            exchange=self.exchange_id,
+            market_data="public",
+        )
+
+    def _download_ohlcv_shared(
+        self,
+        symbol: str,
+        timeframe: str,
+        start: datetime,
+        end: datetime,
+        start_dt: datetime,
+        end_dt: datetime,
+        limit: int,
+    ) -> DataFrame:
+        """Serve ``download_ohlcv`` from the shared bar cache (local files plus S3).
+
+        Only ranges the cache has not seen are paged from the exchange. The cache
+        stores only real exchange candles and never stores a bar that has not
+        settled (see ``shared_bar_cache``), so the still-forming bar is always
+        fetched again. Returns the same shape as ``get_data_from_cache``.
+        """
+        from lumibot.tools import shared_bar_cache
+
+        def fetch(gap_start: pd.Timestamp, gap_stop: pd.Timestamp) -> DataFrame | None:
+            first = gap_start.tz_convert("UTC").tz_localize(None).to_pydatetime()
+            last = (gap_stop - pd.Timedelta(microseconds=1)).tz_convert("UTC").tz_localize(None).to_pydatetime()
+            frames = []
+            for chunk_start, chunk_end in self._split_download_range(first, last, timeframe, limit):
+                count = self._count_timeframe_units(chunk_start, chunk_end, timeframe)
+                rows = self._filter_executable_rows(
+                    self._get_barset_from_api(symbol, timeframe, count, chunk_start, chunk_end)
+                )
+                if not rows.empty:
+                    frames.append(rows)
+            if not frames:
+                return None
+            rows = pd.concat(frames).drop_duplicates(subset=["datetime"]).set_index("datetime")
+            rows.index = pd.DatetimeIndex(rows.index).tz_localize("UTC")
+            return rows[["open", "high", "low", "close", "volume"]].astype(float)
+
+        rows = shared_bar_cache.read_bars(
+            self.shared_series(symbol, timeframe),
+            pd.Timestamp(start_dt, tz="UTC"),
+            pd.Timestamp(end_dt, tz="UTC"),
+            fetch,
+            now=pd.Timestamp(self._current_utc_naive(), tz="UTC"),
+            # An exchange answer starting later than asked is not proof that the
+            # earlier bars do not exist; coverage starts at the first real bar.
+            coverage_from_rows=True,
+        )
+        rows = rows[["open", "high", "low", "close", "volume"]].astype(float)
+        rows.index = pd.DatetimeIndex(rows.index).tz_convert("UTC").tz_localize(None)
+        rows.index.name = "datetime"
+        rows["missing"] = 0
+        first, last = self._to_utc_naive(start), self._to_utc_naive(end)
+        return rows[(rows.index >= first) & (rows.index <= last)]
 
     def _download_and_record_coverage(
         self,
@@ -722,7 +801,9 @@ class CcxtCacheDB:
         start_ts = pd.Timestamp(start)
         end_ts = pd.Timestamp(end)
         df_ret = df_ret[(df_ret.index >= start_ts) & (df_ret.index <= end_ts)]
-        df_ret.drop_duplicates(inplace=True)
+        # Drop repeated pages by timestamp only. Two different minutes can carry
+        # identical prices and volume (a quiet market); both are real candles.
+        df_ret = df_ret[~df_ret.index.duplicated(keep="first")]
         df_ret.reset_index(inplace=True)
 
         return df_ret

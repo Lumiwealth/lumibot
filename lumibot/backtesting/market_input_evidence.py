@@ -19,6 +19,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from threading import RLock
 
+import numpy as np
 import pandas as pd
 
 MARKET_COLUMNS = {"open", "high", "low", "close", "volume", "dividend", "dividends",
@@ -47,6 +48,93 @@ def asset_identity(asset, quote=None):
     if quote is not None:
         result["quote"] = asset_identity(quote)
     return result
+
+
+def _frame_rows(frame, columns):
+    """``frame[columns].itertuples(name=None)`` without building a Series per column.
+
+    For plain numpy columns, ``ndarray.tolist()`` gives the same Python scalars that
+    iterating the Series gives (both use ``ndarray.item``), and iterating the index gives the
+    same Timestamps. Duplicate column names and extension dtypes (nullable, categorical,
+    datetime) keep the itertuples path, so every row is exactly what it was.
+    """
+    if not columns or not frame.columns.is_unique:
+        return frame[columns].itertuples(name=None)
+    values = []
+    for column in columns:
+        array = frame[column]._values
+        if not isinstance(array, np.ndarray) or array.dtype.kind not in "biufcO":
+            return frame[columns].itertuples(name=None)
+        values.append(array.tolist())
+    return zip(frame.index, *values)
+
+
+def _plain_arrays(frame, columns):
+    """The numpy arrays ``_frame_rows`` reads directly, or None when it would use itertuples.
+
+    Object columns are excluded too: comparing them element by element is not cheaper than
+    serializing them.
+    """
+    if not columns or not frame.columns.is_unique:
+        return None
+    arrays = []
+    for column in columns:
+        array = frame[column]._values
+        if not isinstance(array, np.ndarray) or array.dtype.kind not in "biuf":
+            return None
+        arrays.append(array)
+    return arrays
+
+
+def _bits(array):
+    """Exact identity view: floats compare by bit pattern, so -0.0, 0.0 and NaN stay distinct."""
+    if array.dtype.kind == "f":
+        return array.view(f"u{array.dtype.itemsize}")
+    return array
+
+
+class _SeenRows:
+    """Rows one stream already serialized and committed, kept as compact bytes.
+
+    ``blob`` is the comma-joined encoded rows exactly as they enter a frame digest;
+    ``starts``/``ends`` locate each row in it. Values are compared by bit pattern before any
+    row is reused, so a reused row is the same row, byte for byte.
+    """
+
+    __slots__ = ("rows", "index_dtype", "index", "dtypes", "arrays", "blob", "starts", "ends", "digest")
+
+    def __init__(self, frame, arrays, blob, starts, ends, digest):
+        self.rows = len(frame)
+        self.index_dtype = frame.index.dtype
+        self.index = frame.index.asi8.copy()
+        self.dtypes = tuple(array.dtype for array in arrays)
+        self.arrays = [_bits(array).copy() for array in arrays]
+        # Frame digest after all of these rows, before it closes; a frame that starts with
+        # exactly these rows (a growing history) continues it instead of rehashing them.
+        self.blob, self.starts, self.ends, self.digest = blob, starts, ends, digest
+
+    def overlap(self, frame, arrays):
+        """``(k, n)``: frame rows ``[0, n)`` equal this stream's rows ``[k, k + n)``, else None.
+
+        The overlap reaches the end of the frame or the end of the stored rows, so every frame
+        row after it is new to this stream.
+        """
+        if frame.index.dtype != self.index_dtype or self.dtypes != tuple(array.dtype for array in arrays):
+            return None
+        index = frame.index.asi8
+        k = int(np.searchsorted(self.index, index[0]))
+        if k >= self.rows or self.index[k] != index[0]:
+            return None
+        n = min(self.rows - k, len(frame))
+        if not np.array_equal(index[:n], self.index[k:k + n]):
+            return None
+        if not all(np.array_equal(_bits(array)[:n], stored[k:k + n]) for array, stored in zip(arrays, self.arrays)):
+            return None
+        return k, n
+
+    def piece(self, k, n):
+        origin = self.starts[k]
+        return self.blob[origin:self.ends[k + n - 1]], self.starts[k:k + n] - origin, self.ends[k:k + n] - origin
 
 
 def _encoded(value):
@@ -117,6 +205,14 @@ class MarketInputEvidence:
     limit the underlying strategy or turn incomplete evidence into a full capture.
     """
 
+    # Indicator inputs hand over the whole visible history on every call, one bar longer (or
+    # one bar later) each time. Rows this stream already serialized and committed are reused
+    # instead of being re-read in Python. Off only for reference tests.
+    incremental = True
+    max_prefix_states = 32
+    max_prefix_states_per_stream = 4
+    max_prefix_rows = 1_000_000
+
     def __init__(self, *, max_rows=None, max_observations=None, max_cache_rows=50_000):
         for name, value in (("max_rows", max_rows), ("max_observations", max_observations),
                             ("max_cache_rows", max_cache_rows)):
@@ -128,6 +224,7 @@ class MarketInputEvidence:
         self.max_observations = max_observations
         self.max_cache_rows = min(max_cache_rows, max_rows) if max_rows is not None else max_cache_rows
         self._serialized_rows = OrderedDict()
+        self._prefix_states = OrderedDict()
         self.incomplete = set()
         self.lock = RLock()
         self._row_count = 0
@@ -193,10 +290,29 @@ class MarketInputEvidence:
             digest = hashlib.sha256(('{"columns":' + context["columns"] + ',"rows":[').encode())
             count, first, last, added_rows = 0, None, None, 0
             sequence = self._observation_count
+            stream = arrays = reused = open_digest = None
+            new_encoded = []
+            if frame is not None and not frame.empty and self.incremental and self.max_rows is None:
+                arrays = _plain_arrays(frame, columns)
+                if arrays is not None:
+                    stream = (identity, str(timestep), tuple(columns), timezone_name)
+                    for state in self._prefix_states.get(stream, ()):
+                        span = state.overlap(frame, arrays)
+                        if span is not None:
+                            reused = (state, *state.piece(*span), sum(span) >= state.rows and len(frame) >= state.rows)
+                            # These rows are already in the committed spool; only the digest needs them.
+                            if span == (0, state.rows):
+                                digest = state.digest.copy()
+                            else:
+                                digest.update(reused[1])
+                            count = span[1]
+                            first, last = frame.index[0].isoformat(), frame.index[count - 1].isoformat()
+                            break
             try:
                 with self._connection:
                     if frame is not None:
-                        for index, *row in frame[columns].itertuples(name=None):
+                        unread = frame.iloc[count:] if count else frame
+                        for index, *row in _frame_rows(unread, columns):
                             signature = (identity, str(timestep), tuple(columns), timezone_name, index.value,
                                          tuple((type(v), v.hex() if isinstance(v, float) else v) for v in row))
                             try:
@@ -214,6 +330,8 @@ class MarketInputEvidence:
                             elif signature is not None:
                                 self._serialized_rows.move_to_end(signature)
                             converted, key, encoded, persisted = cached
+                            if stream is not None:
+                                new_encoded.append(encoded)
                             digest.update(("," if count else "").encode())
                             digest.update(encoded.encode())
                             first = converted[0] if first is None else first
@@ -239,6 +357,8 @@ class MarketInputEvidence:
                             )
                             added_rows += cursor.rowcount
                             cached[3] = True
+                    if stream is not None:
+                        open_digest = digest.copy()
                     digest.update(b"]}")
                     observation = {**context, "purpose": purpose, "observedAt": observed,
                                    "frameSha256": digest.hexdigest(), "returnedRows": count,
@@ -253,6 +373,36 @@ class MarketInputEvidence:
                 raise
             self._row_count += added_rows
             self._observation_count += inserted
+            if stream is not None:
+                self._remember_rows(stream, frame, arrays, reused, new_encoded, open_digest)
+
+    def _remember_rows(self, stream, frame, arrays, reused, new_encoded, open_digest):
+        candidates = self._prefix_states.pop(stream, [])
+        if len(frame) > self.max_prefix_rows:
+            if candidates:
+                self._prefix_states[stream] = candidates
+            return
+        lengths = np.fromiter((len(text) for text in new_encoded), dtype=np.int64, count=len(new_encoded))
+        added = ",".join(new_encoded).encode()  # json.dumps output is ASCII: one byte per character
+        if reused is None:
+            blob, starts, ends = b"", np.empty(0, np.int64), np.empty(0, np.int64)
+        else:
+            state, blob, starts, ends, replaces = reused
+            if replaces:  # the new entry is at least as long and continues past the old one
+                candidates = [entry for entry in candidates if entry is not state]
+        if added:
+            offset = len(blob) + 1 if blob else 0
+            blob = blob + b"," + added if blob else added
+            new_starts = offset + np.concatenate(([0], np.cumsum(lengths[:-1] + 1))).astype(np.int64)
+            starts = np.concatenate((starts, new_starts))
+            ends = np.concatenate((ends, new_starts + lengths))
+        candidates.insert(0, _SeenRows(frame, arrays, blob, starts, ends, open_digest))
+        states = self._prefix_states
+        states[stream] = candidates[: self.max_prefix_states_per_stream]
+        total = sum(state.rows for entries in states.values() for state in entries)
+        while len(states) > self.max_prefix_states or total > self.max_prefix_rows:
+            _, dropped = states.popitem(last=False)
+            total -= sum(state.rows for state in dropped)
 
 
 def record_market_input(*, source, asset, timestep, when, frame, purpose, quote=None):

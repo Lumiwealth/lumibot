@@ -6,7 +6,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from lumibot.tools.indicators import cagr, stats_summary, volatility
+from lumibot.tools.indicators import cagr, max_drawdown, stats_summary, volatility
+
+
+@pytest.mark.parametrize("returns, expected", [([-.1], .1), ([-.1, .05], .1),
+                                               ([0.0, -.1], .1), ([.1], 0.0)])
+def test_max_drawdown_includes_initial_capital(returns, expected):
+    df = _make_returns_df(pd.date_range("2026-01-01", periods=len(returns)), returns)
+    assert max_drawdown(df)["drawdown"] == pytest.approx(expected)
 
 
 def _make_returns_df(index: pd.Index, returns: list[float] | None = None) -> pd.DataFrame:

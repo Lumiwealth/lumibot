@@ -485,6 +485,58 @@ def test_load_history_table_excludes_the_bar_that_starts_at_the_current_time():
     assert pd.Timestamp(last) == pd.Timestamp("2026-08-11T14:34:00Z")
 
 
+AGENT_HISTORY_BAR_CAP = 5_000
+
+
+@pytest.mark.parametrize("batch_api", [True, False], ids=["batch", "per-symbol"])
+def test_market_historical_prices_caps_huge_bar_requests(batch_api):
+    """An agent asking for 10,000+ bars must not make the data source fetch them all.
+
+    Regression: an agent requested 10,000 hourly bars and the live bot ran out of
+    memory downloading the minute bars behind them. The tool trims the request,
+    returns the rows it did fetch and says so; it never fails or invents rows.
+    """
+    strategy = _OptionsStrategy()
+    if not batch_api:
+        strategy.get_historical_prices_for_assets = None
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.historical_prices()])
+
+    batch = tools["market_historical_prices"](symbols=["SPY"], length=10_000, timestep="hour")
+
+    calls = strategy.historical_batch_calls if batch_api else strategy.historical_single_calls
+    assert [call["length"] for call in calls] == [AGENT_HISTORY_BAR_CAP]
+    assert batch["length"] == AGENT_HISTORY_BAR_CAP
+    assert batch["length_requested"] == 10_000
+    assert len(batch["bars_by_symbol"]["SPY"]) == AGENT_HISTORY_BAR_CAP
+    assert "SPY" not in batch["symbols_incomplete"]
+    assert str(AGENT_HISTORY_BAR_CAP) in batch["length_note"]
+    assert "10000" in batch["length_note"]
+
+
+def test_market_historical_prices_leaves_normal_requests_untouched():
+    strategy = _OptionsStrategy()
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.historical_prices()])
+
+    batch = tools["market_historical_prices"](symbols=["SPY"], length=AGENT_HISTORY_BAR_CAP, timestep="day")
+
+    assert strategy.historical_batch_calls[0]["length"] == AGENT_HISTORY_BAR_CAP
+    assert batch["length"] == AGENT_HISTORY_BAR_CAP
+    assert "length_requested" not in batch
+    assert "length_note" not in batch
+
+
+def test_load_history_table_caps_huge_bar_requests():
+    strategy = _OptionsStrategy()
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.load_history_table()])
+
+    info = tools["market_load_history_table"](symbol="SPY", length=10_000, timestep="hour", table_name="spy_hourly")
+
+    assert [call["length"] for call in strategy.historical_single_calls] == [AGENT_HISTORY_BAR_CAP]
+    assert info["length_requested"] == 10_000
+    assert info["length"] == AGENT_HISTORY_BAR_CAP
+    assert str(AGENT_HISTORY_BAR_CAP) in info["length_note"]
+
+
 def test_market_historical_prices_rejects_unsafe_table_name():
     strategy = _OptionsStrategy()
     tool = BuiltinTools.market.historical_prices().binder(strategy, AgentManager(strategy))
@@ -761,6 +813,24 @@ def test_options_check_spread_profit_returns_percentage_for_credit_spread():
 
     assert result["available"] is True
     assert result["profit_pct"] is not None
+
+
+def test_order_modification_returns_replacement_identity_for_next_observation():
+    order = Order('agent-options-test', Asset('SPY'), 1, 'buy',
+                  identifier='original', order_type='limit', limit_price=100)
+
+    class ReplacedStrategy(_OptionsStrategy):
+        def get_order(self, identifier, broker_refresh=True):
+            assert identifier == 'original'
+            return order
+
+        def modify_order(self, existing, **kwargs):
+            existing.identifier = 'replacement'
+
+    strategy = ReplacedStrategy()
+    tool = BuiltinTools.orders.modify().binder(strategy, AgentManager(strategy))
+    result = tool.function(identifier='original', limit_price=101, reason=ORDER_ACTION_REASON)
+    assert result['identifier'] == 'replacement'
 
 
 def test_orders_get_status_reports_missing_and_known_identifiers():
@@ -1125,3 +1195,32 @@ def test_missing_market_index_points_the_agent_to_fred():
     assert "VIXCLS" in tools["market_last_price"](symbol="^VIX", asset_type="index")["fred_hint"]
     assert "VIXCLS" in tools["market_last_prices"](symbols=["VIX"], asset_type="index")["fred_hint"]
     assert "fred_hint" not in tools["market_last_price"](symbol="MSFT")
+
+
+@pytest.mark.parametrize("held,side", [(-2, "buy_to_close"), (2, "sell_to_close")])
+def test_single_option_close_uses_the_single_order_tool(held, side):
+    """One option identity needs no fabricated second leg to close."""
+    from lumibot.entities import Asset, Position
+    strategy = _OptionsStrategy()
+    asset = Asset("SPY", asset_type="option", expiration=date(2026, 9, 18), strike=645, right="call")
+    strategy.get_positions = lambda **kwargs: [Position("neutral", asset, held)]
+    tools = _opening_option_tools(strategy)
+    _checked_account(tools)
+    result = tools["orders_submit_order"](reason=ORDER_ACTION_REASON, symbol="SPY",
+        quantity=abs(held), side=side, asset_type="option", expiration="2026-09-18",
+        strike=645, right="call", order_type="limit", limit_price=1.5, time_in_force="day")
+    assert "tool_error" not in result
+    assert len(strategy.submissions) == 1
+    assert strategy.submissions[0][0].side == side
+    assert float(strategy.submissions[0][0].quantity) == abs(held)
+
+
+def test_profit_read_accepts_one_short_option_without_a_second_leg():
+    """A held single option has meaningful signed P&L without package pricing."""
+    strategy = _OptionsStrategy()
+    tool = BuiltinTools.options.check_spread_profit().binder(strategy, AgentManager(strategy))
+    leg = {"symbol": "SPY", "expiration": "2026-09-18", "strike": 615,
+           "right": "put", "quantity": 1, "side": "sell_to_open"}
+    result = tool.function(legs_json=json.dumps([leg]), initial_cost=-300.)
+    assert result["available"] is True
+    assert result["profit_pct"] == pytest.approx(50.)

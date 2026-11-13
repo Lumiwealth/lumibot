@@ -1,0 +1,28 @@
+{
+  "date": "2026-11-11",
+  "sourceBase": "0f3269d2c",
+  "scope": "Generic Polygon quote freshness after daily history. Existing minute loading and quote conversion only; no strategy rules, security or infrastructure.",
+  "redTest": "test_quote_after_daily_research_loads_current_minute_once",
+  "redResult": "Returned cached daily close 99 instead of available current-minute price 120.",
+  "change": "Warm the existing minute dataset before delegating to the existing native quote reader. Repeated quote/last-price reads reuse the same minute data.",
+  "passed": 7,
+  "tests": [
+    "test_quote_after_daily_research_loads_current_minute_once",
+    "test_daily_research_and_minute_price_coexist[False]",
+    "test_daily_research_and_minute_price_coexist[True]",
+    "test_daily_only_reuses_daily_without_minute_download",
+    "test_intervals_remain_separate_for_each_quote_currency",
+    "test_data_get_quote_handles_missing_bid_ask",
+    "test_quote_at_bar_start_preserves_native_no_lookahead"
+  ],
+  "proof": "Focused local code tests using native provider storage and explicit synthetic external responses; zero model calls.",
+  "retentionDecision": "Prior actor/judge cases use synthetic strategy or Pandas quotes, not Polygon provider loading. No model, prompt, skill or tool declaration changes. Preserve those original passes; do not relabel them as current-candidate native execution. Prior request-planner and sentinel-filter tests touch unchanged paths and remain valid.",
+  "systemPromptDeltaBytes": 0,
+  "skillDeltaBytes": 0,
+  "modelAttempts": 0,
+  "apiCashUsd": 0,
+  "evidenceHashes": {
+    "polygon-quote-red-2026-11-11.txt": "f69125eba8310cf9c5d18ef3005ba0ae56df5a45eaa4e46706475a061ca8bee3",
+    "polygon-quote-green-2026-11-11.xml": "632f36f11c5529097e6a49193f2cd56ff645562b23b62c06453d15b45e18e233"
+  }
+}

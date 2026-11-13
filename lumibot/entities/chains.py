@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+from functools import lru_cache
 from threading import Lock
 from typing import Any, Callable, Dict, Iterable, List, Union
 
@@ -198,6 +199,24 @@ class Chains(dict):
         return bool(self.calls()) or bool(self.puts())
 
 
+@lru_cache(maxsize=4096)
+def _parse_expiry_text(expiry: str) -> date:
+    """Parse ``YYYY-MM-DD`` or ``YYYYMMDD``. Remembered, because option helpers normalise every
+    expiry key of a chain on every call and the answer depends only on the text."""
+    cleaned = expiry.strip()
+    if not cleaned:
+        raise OptionsDataFormatError("Empty option expiry string encountered")
+    digits_only = cleaned.replace("-", "")
+    if len(digits_only) != 8 or not digits_only.isdigit():
+        raise OptionsDataFormatError(f"Unsupported option expiry format: {expiry!r}")
+    try:
+        return datetime.strptime(digits_only, "%Y%m%d").date()
+    except ValueError as exc:
+        raise OptionsDataFormatError(
+            f"Could not parse option expiry value {expiry!r}"
+        ) from exc
+
+
 def _normalise_expiry(expiry: Any) -> date:
     """Convert various expiry representations into a ``datetime.date``."""
 
@@ -206,18 +225,7 @@ def _normalise_expiry(expiry: Any) -> date:
     if isinstance(expiry, date):
         return expiry
     if isinstance(expiry, str):
-        cleaned = expiry.strip()
-        if not cleaned:
-            raise OptionsDataFormatError("Empty option expiry string encountered")
-        digits_only = cleaned.replace("-", "")
-        if len(digits_only) != 8 or not digits_only.isdigit():
-            raise OptionsDataFormatError(f"Unsupported option expiry format: {expiry!r}")
-        try:
-            return datetime.strptime(digits_only, "%Y%m%d").date()
-        except ValueError as exc:
-            raise OptionsDataFormatError(
-                f"Could not parse option expiry value {expiry!r}"
-            ) from exc
+        return _parse_expiry_text(expiry)
     raise OptionsDataFormatError(
         f"Unsupported option expiry type: {type(expiry).__name__}"
     )

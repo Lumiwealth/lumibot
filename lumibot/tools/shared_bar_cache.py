@@ -22,7 +22,14 @@ uncovered pieces are fetched from the provider.
   and the old partitions are ignored. A fully cached adjusted read re-checks
   once a day.
 * A provider answer with zero rows never records coverage. An empty answer can
-  be an outage or an entitlement gap, so it is never remembered as "no bars".
+  be an outage or an entitlement gap, so by default it is never remembered.
+  Only when the caller vouches for the answer (``confirmed_empty``: the provider
+  answered successfully and completely, for a contract it lists) is a zero-row
+  answer for a range closed at least ``EMPTY_SETTLE`` ago stored as a
+  "confirmed empty" marker. Markers hold no rows and live apart from coverage, so
+  they never become bars. A marker for a range that closed less than
+  ``EMPTY_RECENT`` before it was recorded is re-checked once after
+  ``EMPTY_RECHECK_AFTER`` (providers backfill recent data); older ones are permanent.
 * Local files are written before the result is returned (milliseconds).
   Remote (S3) uploads run on a background thread. ``flush_shared_bar_writes``
   waits for them; it also runs at interpreter exit.
@@ -34,6 +41,7 @@ files sit next to the backtest cache under ``<prefix>/<version>/bars/``.
 from __future__ import annotations
 
 import atexit
+import contextvars
 import hashlib
 import io
 import json
@@ -248,14 +256,17 @@ def validate_rows(rows: pd.DataFrame) -> bool:
         return False
     try:
         prices = rows[PRICE_FIELDS].to_numpy(dtype=float)
+        # Columns of ``prices``: open, high, low, close. Prices are checked finite before the
+        # high/low comparisons, so numpy minimum/maximum match the pandas row-wise min/max.
+        opens, highs, lows, closes = prices[:, 0], prices[:, 1], prices[:, 2], prices[:, 3]
         ok = (
             isinstance(rows.index, pd.DatetimeIndex)
             and not rows.index.hasnans
             and not rows.index.has_duplicates
             and bool(np.isfinite(prices).all())
             and bool((prices > 0).all())
-            and bool((rows["low"] <= rows[["open", "close", "high"]].min(axis=1)).all())
-            and bool((rows["high"] >= rows[["open", "close", "low"]].max(axis=1)).all())
+            and bool((lows <= np.minimum(np.minimum(opens, closes), highs)).all())
+            and bool((highs >= np.maximum(np.maximum(opens, closes), lows)).all())
         )
         if ok and "volume" in rows.columns:
             volume = rows["volume"].to_numpy(dtype=float)
@@ -316,23 +327,94 @@ def _remote():
         return None, None
 
 
+# --------------------------------------------------------------------------- run counters
+#
+# This cache reads and writes S3 itself, so BacktestCacheManager's [REMOTE_CACHE][SUMMARY]
+# counters never see it: production Alpaca runs reported downloads=0 misses=0 uploads=0 while
+# their repeats were served from here. These counters are logged as [SHARED_BARS][SUMMARY].
+
+_RUN_STATS_KEYS = (
+    "provider_reads", "provider_ms", "remote_hits", "remote_misses", "download_bytes", "download_ms",
+    "uploads", "upload_bytes", "upload_ms", "upload_errors",
+)
+_RUN_STATS: dict[str, float] = dict.fromkeys(_RUN_STATS_KEYS, 0.0)
+_RUN_STATS_LOCK = threading.Lock()
+
+
+def _count(**values: float) -> None:
+    with _RUN_STATS_LOCK:
+        for name, value in values.items():
+            _RUN_STATS[name] += value
+
+
+def reset_run_stats() -> None:
+    with _RUN_STATS_LOCK:
+        for name in _RUN_STATS_KEYS:
+            _RUN_STATS[name] = 0.0
+
+
+def run_stats_snapshot() -> dict:
+    with _RUN_STATS_LOCK:
+        return {name: (round(value, 3) if name.endswith("_ms") else int(value)) for name, value in _RUN_STATS.items()}
+
+
+def log_run_summary() -> None:
+    """One INFO line with this process's shared bar cache work (numbers only)."""
+    snap = run_stats_snapshot()
+    if not any(snap.values()):
+        return
+    logger.info(
+        "[SHARED_BARS][SUMMARY] provider_reads=%d provider_ms=%.0f remote_hits=%d remote_misses=%d "
+        "download_bytes=%d download_ms=%.0f uploads=%d upload_bytes=%d upload_ms=%.0f upload_errors=%d "
+        "pending_uploads=%d",
+        snap["provider_reads"], snap["provider_ms"], snap["remote_hits"], snap["remote_misses"],
+        snap["download_bytes"], snap["download_ms"], snap["uploads"], snap["upload_bytes"],
+        snap["upload_ms"], snap["upload_errors"], pending_shared_bar_writes(),
+    )
+
+
+def _path_provider(path: Path) -> str | None:
+    """The provider directory in a partition path (``bars/v<schema>/<provider>/...``)."""
+    parts = Path(path).parts
+    for index, part in enumerate(parts[:-2]):
+        if part == "bars" and parts[index + 1] == f"v{SCHEMA}":
+            return parts[index + 2]
+    return None
+
+
+def _telemetry(event: str, layer: str, path: Path, nbytes: int = 0, seconds: float = 0.0) -> None:
+    try:
+        from lumibot.tools import backtest_telemetry
+
+        backtest_telemetry.record_cache(event, layer=layer, source=_path_provider(path), nbytes=nbytes, seconds=seconds)
+    except Exception:
+        pass
+
+
 def _remote_get(client, manager, path: Path) -> bytes | None:
     key = manager.remote_key_for(path)
     if key is None:
         return None
     bucket = manager._settings.bucket
+    started = time.perf_counter()
     try:
         if hasattr(client, "get_object"):
             response = client.get_object(Bucket=bucket, Key=key)
-            return response["Body"].read()
-        with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / "object"
-            client.download_file(bucket, key, str(target))
-            return target.read_bytes()
+            body = response["Body"].read()
+        else:
+            with tempfile.TemporaryDirectory() as tmp:
+                target = Path(tmp) / "object"
+                client.download_file(bucket, key, str(target))
+                body = target.read_bytes()
     except Exception as exc:
         if manager._is_not_found_error(exc) or "AccessDenied" in str(exc) or "403" in str(exc):
+            _count(remote_misses=1, download_ms=(time.perf_counter() - started) * 1000)
+            _telemetry("miss", "shared_bars_s3", path, seconds=time.perf_counter() - started)
             return None
         raise
+    _count(remote_hits=1, download_bytes=len(body or b""), download_ms=(time.perf_counter() - started) * 1000)
+    _telemetry("hit", "shared_bars_s3", path, nbytes=len(body or b""), seconds=time.perf_counter() - started)
+    return body
 
 
 def _remote_put(client, manager, path: Path, body: bytes) -> None:
@@ -340,13 +422,21 @@ def _remote_put(client, manager, path: Path, body: bytes) -> None:
     if key is None:
         return
     bucket = manager._settings.bucket
-    if hasattr(client, "put_object"):
-        client.put_object(Bucket=bucket, Key=key, Body=body)
-        return
-    with tempfile.TemporaryDirectory() as tmp:
-        source = Path(tmp) / path.name
-        source.write_bytes(body)
-        client.upload_file(str(source), bucket, key)
+    started = time.perf_counter()
+    try:
+        if hasattr(client, "put_object"):
+            client.put_object(Bucket=bucket, Key=key, Body=body)
+        else:
+            with tempfile.TemporaryDirectory() as tmp:
+                source = Path(tmp) / path.name
+                source.write_bytes(body)
+                client.upload_file(str(source), bucket, key)
+    except Exception:
+        _count(upload_errors=1)
+        _telemetry("upload_error", "shared_bars_s3", path)
+        raise
+    _count(uploads=1, upload_bytes=len(body), upload_ms=(time.perf_counter() - started) * 1000)
+    _telemetry("upload", "shared_bars_s3", path, nbytes=len(body), seconds=time.perf_counter() - started)
 
 
 # --------------------------------------------------------------------------- partition files
@@ -363,6 +453,9 @@ class _Partition:
     epoch: int = 0
     # Written by an adapter that rejects inconsistent OHLC (see ``strict_ohlcv``).
     strict: bool = False
+    # Confirmed-empty markers: dicts with start/endExclusive/recordedAt (UTC Timestamps),
+    # provider, symbol, timestep and reason. Never rows, never coverage.
+    empty: list = field(default_factory=list)
 
 
 @dataclass
@@ -384,9 +477,50 @@ def _encode_partition(part: _Partition) -> bytes:
             "strict": bool(part.strict),
         }
     }
+    if part.empty:
+        rows.attrs["sharedBars"]["confirmedEmpty"] = [
+            {**m, "start": m["start"].isoformat(), "endExclusive": m["endExclusive"].isoformat(),
+             "recordedAt": m["recordedAt"].isoformat()}
+            for m in part.empty
+        ]
+    # Same bytes as ``rows.to_parquet(buffer)``, but the column conversion runs on this thread
+    # (nthreads=1). pandas' to_parquet lets pyarrow convert columns on a concurrent.futures
+    # pool; once Python starts shutting down (the main thread returned while this non-daemon
+    # uploader still has jobs) that pool raises "cannot schedule new futures after interpreter
+    # shutdown", and every remaining upload of a finished backtest failed (production,
+    # 2026-11-11).
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    table = pa.Table.from_pandas(rows, nthreads=1)
+    if rows.attrs:
+        table = table.replace_schema_metadata(
+            {**(table.schema.metadata or {}), "PANDAS_ATTRS": json.dumps(rows.attrs)}
+        )
     buffer = io.BytesIO()
-    rows.to_parquet(buffer)
+    pq.write_table(table, buffer, compression="snappy")
     return buffer.getvalue()
+
+
+def _read_partition_frame(body: bytes) -> pd.DataFrame:
+    """The partition frame and its ``attrs``, as ``pd.read_parquet`` returns them, with less overhead.
+
+    A delta pick decodes about 57 small partitions; ``pd.read_parquet`` spent about 0.9 ms
+    each, mostly fixed overhead. Reading the table with pyarrow and restoring pandas' stored
+    ``attrs`` gives the same frame (pinned by a test) in about 0.7 ms. Anything unexpected
+    falls back to ``pd.read_parquet``.
+    """
+    try:
+        import pyarrow.parquet as pq
+
+        table = pq.read_table(io.BytesIO(body))
+        frame = table.to_pandas()
+        stored = (table.schema.metadata or {}).get(b"PANDAS_ATTRS")
+        if stored:
+            frame.attrs = json.loads(stored)
+        return frame
+    except Exception:
+        return pd.read_parquet(io.BytesIO(body))
 
 
 def _decode_partition(part: _Partition, body: bytes | None) -> _Partition:
@@ -394,7 +528,7 @@ def _decode_partition(part: _Partition, body: bytes | None) -> _Partition:
     if not body:
         return part
     try:
-        rows = pd.read_parquet(io.BytesIO(body))
+        rows = _read_partition_frame(body)
         meta = rows.attrs.get("sharedBars") or {}
         if (
             meta.get("schema") != SCHEMA
@@ -410,6 +544,14 @@ def _decode_partition(part: _Partition, body: bytes | None) -> _Partition:
             return part
         if any(s < part.start or e > part.stop for s, e in coverage):
             return part
+        empty = []
+        for marker in meta.get("confirmedEmpty") or []:
+            marker = {**marker, "start": _utc(marker["start"]), "endExclusive": _utc(marker["endExclusive"]),
+                      "recordedAt": _utc(marker["recordedAt"])}
+            if marker.get("reason") != EMPTY_REASON or marker["start"] < part.start or marker["endExclusive"] > part.stop:
+                return part
+            empty.append(marker)
+        part.empty = empty
         part.rows = rows
         part.coverage = _union(coverage)
         part.epoch = int(meta.get("epoch") or 0)
@@ -442,49 +584,117 @@ def _merge_partitions(base: _Partition, other: _Partition) -> _Partition:
     base.strict = base.strict or other.strict
     merged = _Partition(
         base.series, base.start, base.stop, base.path, rows, _union(base.coverage + other.coverage), base.epoch,
-        base.strict,
+        base.strict, _merge_markers(base.empty, other.empty, _union(base.coverage + other.coverage)),
     )
     return merged
+
+
+def _merge_markers(first: list, second: list, coverage) -> list:
+    """Both writers' markers, newest record per range, minus ranges that now hold real bars."""
+    newest = {}
+    for marker in list(first) + list(second):
+        key = (marker["start"], marker["endExclusive"])
+        if key not in newest or marker["recordedAt"] > newest[key]["recordedAt"]:
+            newest[key] = marker
+    markers = list(newest.values())
+    for lo, hi in coverage:
+        markers = _trim_markers(markers, lo, hi)
+    return markers
 
 
 # --------------------------------------------------------------------------- background uploads
 
 
+# A remote store that fails this many jobs in a row is given up for the rest of the process.
+# Without a limit a finished backtest stayed alive for 40 minutes failing 962 queued uploads.
+UPLOAD_FAILURES_BEFORE_GIVING_UP = 10
+
+
 class _Uploader:
-    """One background thread that publishes local partition files to S3."""
+    """Background workers that write partition files locally and send them to S3.
+
+    A job takes one argument, ``remote_allowed``. It always does its local write and touches
+    the remote store only when ``remote_allowed`` is true.
+
+    Jobs for one path always go to the same worker, so they run one at a time in the order
+    they were submitted; different paths upload in parallel. A finished backtest waits for
+    its queued uploads before it exits, and one worker made that wait minutes long.
+    ``LUMIBOT_SHARED_BARS_UPLOAD_WORKERS`` sets the number of workers (default 8).
+    """
 
     def __init__(self):
-        self._queue: queue.Queue[tuple[str, Callable[[], None]]] = queue.Queue()
+        try:
+            workers = int(os.environ.get("LUMIBOT_SHARED_BARS_UPLOAD_WORKERS", "8"))
+        except ValueError:
+            workers = 8
+        self._workers = max(1, workers)
+        self._queues = [queue.Queue() for _ in range(self._workers)]
+        self._threads = [None] * self._workers
         self._pending: dict[str, int] = {}
         self._lock = threading.Lock()
         self._idle = threading.Condition(self._lock)
-        self._thread: threading.Thread | None = None
         self.errors: list[str] = []
+        self._failures_in_a_row = 0
+        self._remote_given_up = False
 
-    def submit(self, key: str, job: Callable[[], None]) -> None:
+    def _slot(self, key: str) -> int:
+        return int(hashlib.sha256(key.encode()).hexdigest()[:8], 16) % self._workers
+
+    def submit(self, key: str, job: Callable[[bool], None]) -> None:
+        slot = self._slot(key)
         with self._lock:
             self._pending[key] = self._pending.get(key, 0) + 1
-            if self._thread is None or not self._thread.is_alive():
+            thread = self._threads[slot]
+            if thread is None or not thread.is_alive():
                 # Not a daemon: a process must not exit with unsaved uploads.
-                self._thread = threading.Thread(target=self._run, name="lumibot-shared-bars-upload", daemon=False)
-                self._thread.start()
-        self._queue.put((key, job))
+                thread = threading.Thread(
+                    target=self._run, args=(slot,), name=f"lumibot-shared-bars-upload-{slot}", daemon=False
+                )
+                self._threads[slot] = thread
+                thread.start()
+            # Queue under the lock so an idle worker cannot exit between the liveness
+            # check above and this put.
+            # Run the job in the submitter's context so run telemetry keeps its asset class.
+            context = contextvars.copy_context()
+            self._queues[slot].put((key, lambda remote_allowed, _job=job: context.run(_job, remote_allowed)))
 
-    def _run(self):
+    def _run(self, slot: int):
+        jobs = self._queues[slot]
         while True:
             try:
-                key, job = self._queue.get(timeout=5)
+                key, job = jobs.get(timeout=5)
             except queue.Empty:
                 with self._lock:
-                    if not self._pending:
-                        self._thread = None
+                    if jobs.empty():
+                        self._threads[slot] = None
                         return
                 continue
             try:
-                job()
+                job(not self._remote_given_up)
+                with self._lock:
+                    self._failures_in_a_row = 0
             except Exception as exc:  # never lose the caller's bars to a cache upload problem
-                self.errors.append(type(exc).__name__)
-                logger.warning("Shared bar cache upload failed: %s", type(exc).__name__)
+                with self._lock:
+                    self.errors.append(type(exc).__name__)
+                    self._failures_in_a_row += 1
+                    failures = self._failures_in_a_row
+                    report = not self._remote_given_up
+                    give_up = report and failures >= UPLOAD_FAILURES_BEFORE_GIVING_UP
+                    if give_up:
+                        self._remote_given_up = True
+                if report:
+                    # The first failure carries its traceback, so the failing call is visible in
+                    # one log line instead of only an exception type.
+                    logger.warning(
+                        "Shared bar cache upload failed: %s: %s", type(exc).__name__, exc,
+                        exc_info=failures == 1,
+                    )
+                    if give_up:
+                        logger.warning(
+                            "Shared bar cache: %d uploads failed in a row; giving up on the remote store "
+                            "for this run. Local files are still written and results are not affected.",
+                            failures,
+                        )
             finally:
                 with self._lock:
                     self._pending[key] -= 1
@@ -526,7 +736,18 @@ def pending_shared_bar_writes() -> int:
     return _UPLOADER.pending()
 
 
-atexit.register(lambda: _UPLOADER.flush(120))
+def _flush_at_exit() -> None:
+    had_pending = _UPLOADER.pending() > 0
+    _UPLOADER.flush(120)
+    if had_pending:
+        # The end-of-backtest summary ran before these uploads finished; report the final counts.
+        try:
+            log_run_summary()
+        except Exception:
+            pass
+
+
+atexit.register(_flush_at_exit)
 
 
 _PREWARM_LOCK = threading.Lock()
@@ -635,8 +856,11 @@ class _Store:
             cached = self._memory_get(part.path)
             if cached is not None:
                 cached.series = part.series  # same file, possibly another equal-identity series object
+                _telemetry("hit", "shared_bars", part.path)
                 return cached
-            return _decode_partition(part, self._load_bytes(part.path))
+            body = self._load_bytes(part.path)
+            _telemetry("hit" if body else "miss", "shared_bars", part.path, nbytes=len(body or b""))
+            return _decode_partition(part, body)
 
         def load_manifest(item):
             path = _series_dir(item) / "series.json"
@@ -644,6 +868,11 @@ class _Store:
                 known = self._manifests.get(str(path))
             if known is not None:
                 return known
+            if not item.adjusted:
+                # Only adjusted series ever write a manifest (a re-adjusted history starts a new
+                # epoch), so looking one up for unadjusted bars always misses: on a fresh
+                # container that was one extra S3 request per option contract.
+                return _Manifest()
             body = self._load_bytes(path)
             if not body:
                 return _Manifest()
@@ -657,8 +886,8 @@ class _Store:
         jobs = len(parts) + len(series)
         if self.client is not None and jobs > 1:
             with ThreadPoolExecutor(max_workers=min(32, jobs)) as pool:
-                part_futures = [pool.submit(load_part, p) for p in parts]
-                manifest_futures = {s: pool.submit(load_manifest, s) for s in series}
+                part_futures = [pool.submit(contextvars.copy_context().run, load_part, p) for p in parts]
+                manifest_futures = {s: pool.submit(contextvars.copy_context().run, load_manifest, s) for s in series}
                 loaded = [f.result() for f in part_futures]
                 manifests = {s: f.result() for s, f in manifest_futures.items()}
         else:
@@ -666,7 +895,7 @@ class _Store:
             manifests = {s: load_manifest(s) for s in series}
         for part in loaded:
             if part.epoch != manifests[part.series].epoch:
-                part.rows, part.coverage = _normalize(None), []
+                part.rows, part.coverage, part.empty = _normalize(None), [], []
                 part.epoch = manifests[part.series].epoch
         return loaded, manifests
 
@@ -683,7 +912,8 @@ class _Store:
                 return None
         part = entry[1]
         return _Partition(
-            part.series, part.start, part.stop, part.path, part.rows, list(part.coverage), part.epoch, part.strict
+            part.series, part.start, part.stop, part.path, part.rows, list(part.coverage), part.epoch, part.strict,
+            list(part.empty),
         )
 
     def _remember(self, part: _Partition, mtime: float | None) -> None:
@@ -721,8 +951,10 @@ class _Store:
         self._remember(part, None)
         client, manager, path = self.client, self.manager, part.path
 
-        def write_and_upload():
+        def write_and_upload(remote_allowed: bool = True):
             self._write_merged(part)
+            if not remote_allowed:
+                return
             local = _decode_partition(_Partition(part.series, part.start, part.stop, path), path.read_bytes())
             remote = _decode_partition(
                 _Partition(part.series, part.start, part.stop, path), _remote_get(client, manager, path)
@@ -749,8 +981,10 @@ class _Store:
             return
         client, manager = self.client, self.manager
 
-        def upload():
+        def upload(remote_allowed: bool = True):
             _write_local(path, body)
+            if not remote_allowed:
+                return
             current = _remote_get(client, manager, path)
             if current:
                 try:
@@ -767,6 +1001,33 @@ class _Store:
 
 
 FetchMany = Callable[[List[BarSeries], pd.Timestamp, pd.Timestamp], Dict[BarSeries, Optional[pd.DataFrame]]]
+
+# Confirmed-empty markers (see module docstring).
+EMPTY_SETTLE = pd.Timedelta(days=1)
+EMPTY_RECENT = pd.Timedelta(days=30)
+EMPTY_RECHECK_AFTER = pd.Timedelta(days=7)
+EMPTY_REASON = "provider_success_zero_rows"
+
+
+def _marker_live(marker: dict, clock: pd.Timestamp) -> bool:
+    """A marker counts as answered unless it is a recent range due for its one re-check."""
+    recorded = marker["recordedAt"]
+    if recorded - marker["endExclusive"] >= EMPTY_RECENT:
+        return True
+    return clock - recorded < EMPTY_RECHECK_AFTER
+
+
+def _live_empty(parts, clock) -> list:
+    return [(m["start"], m["endExclusive"]) for p in parts for m in p.empty if _marker_live(m, clock)]
+
+
+def _trim_markers(markers: list, lo, hi) -> list:
+    """Markers with ``[lo, hi)`` removed (real bars or a fresh answer now own that range)."""
+    out = []
+    for marker in markers:
+        for a, b in _subtract(marker["start"], marker["endExclusive"], [(lo, hi)]):
+            out.append({**marker, "start": a, "endExclusive": b})
+    return out
 
 
 def _settled_cut(series: BarSeries, now: pd.Timestamp) -> pd.Timestamp:
@@ -793,6 +1054,7 @@ def read_bars_many(
     refresh: bool = False,
     coverage_from_rows: bool = False,
     strict_ohlcv: bool = False,
+    confirmed_empty: Callable[[BarSeries], bool] | None = None,
 ) -> dict[BarSeries, pd.DataFrame]:
     """Bars with start in ``[start, end]`` for each series, served from the shared cache.
 
@@ -802,6 +1064,13 @@ def read_bars_many(
     ``now - delay`` for delayed feeds). ``coverage_from_rows`` is for providers
     that can silently truncate the start of an answer: coverage then starts at the
     first returned bar instead of the requested start.
+
+    ``confirmed_empty(series)`` returning True is the caller's statement that ``fetch``
+    returns only complete, successful provider answers for that series (errors, rate
+    limits, timeouts and truncated pages raise) and that the provider lists the
+    instrument, so a zero-row answer means it really had no bars. Only then is a
+    zero-row answer for a range closed ``EMPTY_SETTLE`` ago remembered (never together
+    with ``coverage_from_rows``). See the module docstring.
     """
     started = time.perf_counter()
     start, end = _utc(start), _utc(end)
@@ -826,7 +1095,9 @@ def read_bars_many(
     overlap_checks: dict[BarSeries, bool] = {}
     for item in usable:
         item_parts = by_series[item]
-        covered = [] if refresh else _union(c for p in item_parts for c in p.coverage)
+        covered = [] if refresh else _union(
+            [c for p in item_parts for c in p.coverage] + _live_empty(item_parts, clock)
+        )
         cached_rows = _rows_in(item_parts, start, end_excl)
         item_gaps = _subtract(start, end_excl, covered)
         manifest = manifests[item]
@@ -902,6 +1173,7 @@ def read_bars_many(
             manifests[item] = _Manifest(manifests[item].epoch + 1, None)
             for part in by_series[item]:
                 part.rows, part.coverage, part.epoch = _normalize(None), [], manifests[item].epoch
+                part.empty = []
             store.save_manifest(item, manifests[item])
         provider_started = time.perf_counter()
         answer = fetch(restarted, start, end_excl) or {}
@@ -921,10 +1193,27 @@ def read_bars_many(
     for item in usable:
         item_parts = by_series[item]
         cut = _settled_cut(item, clock)
+        empty_cut = clock - item.duration - EMPTY_SETTLE
+        vouched = (confirmed_empty is not None and not coverage_from_rows and item not in restarted
+                   and bool(confirmed_empty(item)))
         changed = set()
         for (gap_start, gap_stop), rows in fetched.get(item, []):
             if rows.empty:
-                continue  # an empty answer is never remembered as "no bars"
+                # An empty answer is remembered only when the caller vouches for it, and only
+                # for the part of the range that closed at least EMPTY_SETTLE ago.
+                stop = min(gap_stop, empty_cut)
+                if not vouched or stop <= gap_start:
+                    continue
+                for part in item_parts:
+                    lo, hi = max(gap_start, part.start), min(stop, part.stop)
+                    if hi <= lo:
+                        continue
+                    part.empty = _trim_markers(part.empty, lo, hi) + [{
+                        "start": lo, "endExclusive": hi, "recordedAt": clock, "provider": item.provider,
+                        "symbol": item.symbol, "timestep": item.timestep, "reason": EMPTY_REASON,
+                    }]
+                    changed.add(id(part))
+                continue
             cov_start = max(gap_start, rows.index[0]) if coverage_from_rows else gap_start
             cov_stop = gap_stop if gap_stop <= cut else min(gap_stop, cut)
             if cov_stop <= cov_start:
@@ -939,6 +1228,7 @@ def read_bars_many(
                 merged = pd.concat([keep, piece]) if not keep.empty else piece
                 part.rows = merged[~merged.index.duplicated(keep="last")].sort_index()
                 part.coverage = _union(part.coverage + [(lo, hi)])
+                part.empty = _trim_markers(part.empty, lo, hi)
                 part.strict = part.strict or strict_ohlcv
                 changed.add(id(part))
         for part in item_parts:
@@ -973,6 +1263,7 @@ def read_bars_many(
         if item not in results:  # no credential scope: never shared, read directly
             frames = fetch([item], start, end_excl) or {}
             results[item] = _normalize(frames.get(item))
+    _count(provider_reads=len(calls), provider_ms=provider_ms)
     stats = {
         "kind": "lumibot_shared_bars",
         "hit": not calls,

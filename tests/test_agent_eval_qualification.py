@@ -11,6 +11,88 @@ from scripts import qualify_agent_evals as qualification
 from scripts import run_agent_evals as evals
 
 
+def test_only_expanding_tool_routes_preserves_old_stricter_establishment():
+    before = {"id": "neutral", "taskPrompt": "Inspect and act.", "judgeRubric": "Require exact observed effects.",
+              "machineContract": {"requiredBeforeOrder": ["quotes_one", "positions"],
+                                  "exactOrderCount": 1, "positionsMustEndFlat": True}}
+    after = deepcopy(before)
+    after["machineContract"]["requiredBeforeOrder"].remove("quotes_one")
+    after["machineContract"]["requiredBeforeOrderAny"] = [["quotes_one", "quotes_batch"]]
+    assert qualification._establishment_case_compatible(before, after)
+    assert before["machineContract"]["requiredBeforeOrder"] == ["quotes_one", "positions"]
+    for field, value in [("taskPrompt", "Different mandate"), ("judgeRubric", "Different semantics")]:
+        changed = deepcopy(after)
+        changed[field] = value
+        assert not qualification._establishment_case_compatible(before, changed)
+    for field, value in [("exactOrderCount", 2), ("positionsMustEndFlat", False)]:
+        changed = deepcopy(after)
+        changed["machineContract"][field] = value
+        assert not qualification._establishment_case_compatible(before, changed)
+    changed = deepcopy(after)
+    changed["machineContract"]["requiredBeforeOrderAny"] = [["quotes_batch", "last_price"]]
+    assert not qualification._establishment_case_compatible(before, changed)
+
+
+def test_a_new_judging_profile_retains_native_calls_across_acting_only_changes(native_metadata):
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    controls, judge_calls, summary = calibration_metadata(cases, now, runtime_hash="source")
+    for row in controls:
+        row["runtime_fingerprint"] = "original-acting-sdk"
+        row["judge_runtime_fingerprint"] = qualification.calibration.judge_runtime_fingerprint()
+    original = deepcopy(controls)
+    receipt = qualification.build_receipt(rows, [*calls, *judge_calls], cases, runtime_hash="source",
+        versions=versions, now=now, calibration_rows=controls, calibration_summary=summary)
+    qualification.verify_receipt(receipt, cases, runtime_hash="source", versions=versions, now=now)
+    assert controls == original
+    exported = receipt["calibration"]["controls"]["accept-control"]["repetitions"][0]
+    assert exported["fingerprint"] == original[0]["fingerprint"]
+    assert exported["timestamp"] == original[0]["timestamp"]
+    assert exported["native_evidence_digest"] == qualification.digest(original[0])
+
+
+@pytest.mark.parametrize("tamper", [None, "actor_scope", "missing_origin", "source", "early_judge", "missing_actor"])
+def test_regraded_actor_binds_original_calls_and_new_judges(native_metadata, monkeypatch, tamper):
+    # Normal receipt contracts only. Immutable-source comparisons are exercised
+    # independently by the real-Git recovery tests, never fabricated as evals.
+    receipt = make_receipt(native_metadata)
+    case = native_metadata[2][0]
+    source_commit = "a" * 40
+    old_fp = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash="old-runtime")
+    def verified_origin(commit, case, completed_at, *, runtime_hash):
+        return {"source_commit": source_commit, "runtime_fingerprint": "old-runtime",
+                "fingerprint": old_fp, "case_digest": "original-case", "completed_at": completed_at,
+                "compatibility_digest": "verified-native-comparison"}
+    monkeypatch.setattr(qualification, "actor_origin", verified_origin)
+    for row in receipt["cases"][case["id"]]["repetitions"]:
+        started = datetime.fromisoformat(row["started_at"])
+        completed_at = (started + timedelta(seconds=10)).isoformat()
+        row["actor_origin"] = verified_origin(source_commit, case, completed_at, runtime_hash="source")
+        for call in row["calls"]:
+            if call["scope"]["role"] == "acting":
+                call["scope"]["fingerprint"] = old_fp
+            else:
+                call["timestamp"] = (started + timedelta(seconds=11)).isoformat()
+                call["settled_at"] = (started + timedelta(seconds=15)).isoformat()
+    row = receipt["cases"][case["id"]]["repetitions"][0]
+    if tamper == "actor_scope":
+        next(c for c in row["calls"] if c["scope"]["role"] == "acting")["scope"]["fingerprint"] = row["fingerprint"]
+    elif tamper == "missing_origin":
+        del row["actor_origin"]
+    elif tamper == "source":
+        row["actor_origin"]["source_commit"] = "b" * 40
+    elif tamper == "early_judge":
+        next(c for c in row["calls"] if c["scope"]["role"] == "judge")["timestamp"] = row["started_at"]
+    elif tamper == "missing_actor":
+        row["calls"] = [c for c in row["calls"] if c["scope"]["role"] != "acting"]
+    if tamper:
+        with pytest.raises(ValueError):
+            qualification.verify_receipt(receipt, native_metadata[2], runtime_hash="source",
+                                         versions=native_metadata[3], now=native_metadata[4])
+    else:
+        qualification.verify_receipt(receipt, native_metadata[2], runtime_hash="source",
+                                     versions=native_metadata[3], now=native_metadata[4])
+
+
 @pytest.fixture(autouse=True)
 def maintained_contract_controls(monkeypatch, tmp_path):
     # Tiny labeled metadata stays in ordinary contracts, never the real eval catalog.
@@ -100,7 +182,9 @@ def make_receipt(metadata):
 def test_established_cases_keep_original_evidence_and_require_a_current_regression(native_metadata, monkeypatch):
     rows, calls, cases, versions, now = deepcopy(native_metadata)
     monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")
-    monkeypatch.setattr(qualification, "unchanged_establishment_cases", lambda ref, cases: cases)
+    monkeypatch.setattr(qualification, "_unchanged_establishment_cases", lambda ref, cases: cases)
+    # This unit fixture has a synthetic source, not published Git evidence.
+    monkeypatch.setattr(qualification, "_committed_establishment", lambda *args, **kwargs: {})
     proof = qualification.build_establishment(rows, calls, cases, source_ref="a" * 40, versions=versions, now=now)
     assert proof["cases"]["contract"]["repetitions"][0]["run_id"] == rows[0]["run_id"]
     assert qualification.regression_required(cases[0], proof, [], "new-source") == 1
@@ -115,7 +199,22 @@ def test_established_cases_keep_original_evidence_and_require_a_current_regressi
         versions=versions, now=now)["cases"] == {}
 
 
-def test_mixed_catalog_preserves_only_unchanged_original_establishment(native_metadata, monkeypatch, tmp_path):
+def test_unusable_historical_regrade_requires_fresh_stability_instead_of_blocking_peers(native_metadata, monkeypatch):
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    monkeypatch.setattr(qualification, 'establishment_runtime', lambda ref, cases, versions: 'source')
+    monkeypatch.setattr(qualification, '_unchanged_establishment_cases', lambda ref, cases: cases)
+    monkeypatch.setattr(qualification, '_committed_establishment', lambda *args, **kwargs: {})
+    rows[0].update(actor_reused=True, source_compatibility={'originalSourceCommit': 'b' * 40})
+    def changed_actor(*args, **kwargs):
+        raise ValueError('Acting input changed: generic order snapshots')
+    monkeypatch.setattr(qualification, 'actor_origin', changed_actor)
+    proof = qualification.build_establishment(rows, calls, cases, source_ref='a' * 40,
+                                              versions=versions, now=now)
+    assert proof['cases'] == {}
+    assert qualification.regression_required(cases[0], proof, [], 'current') == 3
+
+
+def test_mixed_catalog_strict_identity_preserves_original_counts(native_metadata, monkeypatch, tmp_path):
     """Use real Git definitions; changed/new cases must retain full stability."""
     import shutil
     import subprocess
@@ -170,7 +269,7 @@ def test_mixed_catalog_preserves_only_unchanged_original_establishment(native_me
 def test_export_verifies_original_stability_and_one_new_source_regression(native_metadata, monkeypatch):
     rows, calls, cases, versions, now = deepcopy(native_metadata)
     monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")
-    monkeypatch.setattr(qualification, "unchanged_establishment_cases", lambda ref, cases: cases)
+    monkeypatch.setattr(qualification, "_unchanged_establishment_cases", lambda ref, cases: cases)
     current = deepcopy(rows[:1])
     current[0]["run_id"] = str(uuid4())
     current[0]["fingerprint"] = evals.case_fingerprint(cases[0], judge_model=evals.DEFAULT_JUDGE_MODEL,
@@ -211,7 +310,7 @@ def test_explicit_subscription_attempt_can_qualify_with_approved_call_limit(nati
 def test_published_establishment_does_not_require_recreated_historical_journal(native_metadata, monkeypatch):
     rows, calls, cases, versions, now = deepcopy(native_metadata)
     monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")
-    monkeypatch.setattr(qualification, "unchanged_establishment_cases", lambda ref, cases: cases)
+    monkeypatch.setattr(qualification, "_unchanged_establishment_cases", lambda ref, cases: cases)
     original = qualification.build_establishment(
         rows, calls, cases, source_ref="a" * 40, versions=versions, now=now,
     )
@@ -718,3 +817,149 @@ def test_unknown_judge_exception_never_hides_foreign_scope_or_model(native_metad
     calls.append(old)
     with pytest.raises(ValueError):
         build_with_calibration(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
+
+
+@pytest.mark.parametrize("receipt_version", [2, qualification.VERSION])
+def test_mixed_catalog_preserves_only_unchanged_original_establishment(native_metadata, monkeypatch, tmp_path, receipt_version):
+    import json, subprocess
+    from copy import deepcopy
+    from scripts import agent_eval_source_compatibility as source
+    rows, calls, original_cases, versions, now = deepcopy(native_metadata)
+    root = tmp_path / "source"
+    (root / "agent_eval_cases").mkdir(parents=True)
+    (root / "runtime.py").write_text("VALUE = 1\n")
+    contract = dict(original_cases[0], _path=root / "agent_eval_cases/contract.json",
+                    machineContract={"requiredBeforeOrder": ["quotes_one"], "exactOrderCount": 1})
+    changed = dict(contract, id="changed", judgeRubric="Original policy",
+                   _path=root / "agent_eval_cases/changed.json")
+    for case in [contract, changed]:
+        case["_path"].write_text(json.dumps({k:v for k,v in case.items() if not k.startswith("_")}))
+    def git(*args):
+        return subprocess.check_output(["git", *args], cwd=root, text=True).strip()
+    git("init", "-q")
+    git("add", "runtime.py", "agent_eval_cases/contract.json", "agent_eval_cases/changed.json")
+    git("-c", "user.name=Synthetic Fixture", "-c", "user.email=fixture@example.invalid",
+        "commit", "-qm", "Original neutral qualification inputs")
+    ref = git("rev-parse", "HEAD")
+    monkeypatch.setattr(evals, "REPO_ROOT", root)
+    monkeypatch.setattr(source, "runtime_paths", lambda **kwargs: ["runtime.py"])
+    current_hash = qualification.establishment_runtime(ref, [contract], versions)
+    fp = evals.case_fingerprint(contract, judge_model=evals.DEFAULT_JUDGE_MODEL,
+                                     runtime_hash=current_hash)
+    for row in rows: row["fingerprint"] = fp
+    for call in calls:
+        if call.get("scope"): call["scope"]["fingerprint"] = fp
+    contract["machineContract"] = {"requiredBeforeOrder": [], "exactOrderCount": 1,
+                                   "requiredBeforeOrderAny": [["quotes_one", "quotes_batch"]]}
+    contract["_path"].write_text(json.dumps({k:v for k,v in contract.items() if not k.startswith("_")}))
+    changed["judgeRubric"] = "Materially changed policy"
+    new = dict(contract, id="new", _path=root / "agent_eval_cases/new.json")
+    catalog = [contract, changed, new]
+    proof = qualification.build_establishment(rows, calls, catalog,
+        source_ref=ref, versions=versions, now=now)
+    assert set(proof["cases"]) == {"contract"}
+    assert proof["cases"]["contract"]["fingerprint"] == fp
+    qualification.validate_establishment(proof, catalog, versions=versions, now=now)
+    assert qualification.regression_required(contract, proof, [], "current-source") == 1
+    assert qualification.regression_required(changed, proof, [], "current-source") == 3
+    assert qualification.regression_required(new, proof, [], "current-source") == 3
+
+    forged = deepcopy(proof)
+    forged["cases"]["changed"] = deepcopy(proof["cases"]["contract"])
+    with pytest.raises(ValueError, match="new or changed case"):
+        qualification.validate_establishment(forged, catalog, versions=versions, now=now)
+
+    # The canonical compact receipt is the retained native evidence when an
+    # earlier private actor journal is no longer in this release's directory.
+    receipt_path = root / "ci/agent-evals/qualification.json"
+    receipt_path.parent.mkdir(parents=True)
+    receipt_path.write_text(json.dumps({
+        "kind": qualification.KIND, "version": receipt_version,
+        "funding": "chatgpt-plan", "api_spend_usd": 0,
+        "sdk_versions": versions, "establishment": proof,
+    }))
+    git("add", "ci/agent-evals/qualification.json")
+    git("-c", "user.name=Synthetic Fixture", "-c", "user.email=fixture@example.invalid",
+        "commit", "-qm", "Retain reviewed native establishment")
+    reused = qualification.build_establishment([], calls[:1], catalog,
+        source_ref=ref, versions=versions, now=now)
+    assert reused == proof
+    assert qualification.regression_required(contract, reused, [], "current-source") == 1
+    assert qualification.regression_required(changed, reused, [], "current-source") == 3
+    # A working file cannot replace the reviewed, committed source.
+    receipt_path.write_text("{}")
+    assert qualification.build_establishment([], calls[:1], catalog,
+        source_ref=ref, versions=versions, now=now) == proof
+    assert qualification.build_establishment([], calls[:1], catalog,
+        source_ref=ref, versions={"sdk": "2"}, now=now)["cases"] == {}
+    later_failure = dict(rows[0], status="fail", run_id=str(uuid4()),
+                         timestamp=now.isoformat(), started_at=now.isoformat())
+    assert qualification.build_establishment([later_failure], calls[:1], catalog,
+        source_ref=ref, versions=versions, now=now)["cases"] == {}
+    # Expired historical proof selects full current trials instead of blocking
+    # an otherwise valid fresh release.
+    assert qualification.build_establishment([], calls[:1], catalog,
+        source_ref=ref, versions=versions,
+        now=now + timedelta(days=evals.DEFAULT_FRESHNESS_DAYS + 1))["cases"] == {}
+
+
+def test_establishment_composes_immutable_sources_without_relabeling(native_metadata, monkeypatch):
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")
+    monkeypatch.setattr(qualification, "_unchanged_establishment_cases", lambda ref, cases: cases)
+    proof = qualification.build_establishment(rows, calls, cases,
+        source_ref=["a" * 40, "b" * 40], versions=versions, now=now)
+    assert proof["sources"][0]["source_commit"] == "a" * 40
+    assert proof["cases"]["contract"] == proof["sources"][0]["cases"]["contract"]
+    assert proof["cases"]["contract"]["repetitions"][0]["run_id"] == rows[0]["run_id"]
+    qualification.validate_establishment(proof, cases, versions=versions, now=now)
+    forged = deepcopy(proof)
+    forged["cases"]["contract"]["repetitions"][0]["run_id"] = str(uuid4())
+    with pytest.raises(ValueError):
+        qualification.validate_establishment(forged, cases, versions=versions, now=now)
+    duplicate = deepcopy(proof)
+    duplicate["sources"].append(deepcopy(proof["sources"][0]))
+    with pytest.raises(ValueError):
+        qualification.validate_establishment(duplicate, cases, versions=versions, now=now)
+
+def test_published_native_receipt_preserves_original_passes_without_recreated_rows(native_metadata, monkeypatch):
+    from scripts import agent_eval_source_compatibility as source
+
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    published = make_receipt((rows, calls, cases, versions, now))
+    monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")
+    monkeypatch.setattr(qualification, "_unchanged_establishment_cases", lambda ref, cases: cases)
+    monkeypatch.setattr(source, "_git", lambda *args, **kwargs:
+                        b"ci/agent-evals/qualification.json\n" if args[0] == "ls-tree"
+                        else json.dumps(published).encode())
+    proof = qualification.build_establishment([], [], cases, source_ref="a" * 40, versions=versions, now=now)
+    assert proof["cases"] == published["cases"]
+    assert qualification.regression_required(cases[0], proof, [], "new-source") == 1
+    published["cases"][cases[0]["id"]]["repetitions"][0]["machine_pass"] = False
+    with pytest.raises(ValueError):
+        qualification.build_establishment([], [], cases, source_ref="a" * 40, versions=versions, now=now)
+
+
+def test_release_scope_accepts_current_regression_with_verified_original_passes(native_metadata, monkeypatch):
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    published = make_receipt((rows, calls, cases, versions, now))
+    original = {"source_commit": "a" * 40, "runtime_fingerprint": "source", "cases": deepcopy(published["cases"])}
+    record = deepcopy(published["cases"]["contract"])
+    record["fingerprint"] = evals.case_fingerprint(cases[0], judge_model=evals.DEFAULT_JUDGE_MODEL,
+                                                   runtime_hash="new-source")
+    record["repetitions"] = record["repetitions"][:1]
+    row = record["repetitions"][0]
+    row["fingerprint"], row["run_id"] = record["fingerprint"], str(uuid4())
+    for call in row["calls"]:
+        call["id"] = str(uuid4())
+        call["scope"].update(fingerprint=row["fingerprint"], run_id=row["run_id"])
+    receipt = {**published, "runtime_fingerprint": "new-source", "cases": {"contract": record},
+               "establishment": original}
+    monkeypatch.setattr(qualification, "establishment_runtime", lambda ref, cases, versions: "source")
+    monkeypatch.setattr(qualification, "_unchanged_establishment_cases", lambda ref, cases: cases)
+    monkeypatch.setattr(evals, "sdk_versions", lambda: versions)
+    scope = {"version": 1, "package_version": "9.9.9", "cases": [{"id": "contract", "reason": "same case, current regression"}]}
+    assert qualification.verify_release_scope(scope, cases, receipt, runtime_hash="new-source", version="9.9.9", now=now) == ["contract"]
+    original["cases"]["contract"]["repetitions"].pop()
+    with pytest.raises(ValueError, match="required unique repetitions"):
+        qualification.verify_release_scope(scope, cases, receipt, runtime_hash="new-source", version="9.9.9", now=now)

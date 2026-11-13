@@ -612,6 +612,7 @@ def test_router_ibkr_stock_minute_clamped_pre_open_end_does_not_refetch_every_ba
         bars = router.get_historical_prices(asset, length=250, timestep="5minute", quote=quote)
         assert bars is not None and not bars.df.empty
         assert len(bars.df) == 250, "Calendar closures must not underfill the requested lookback"
+        assert bars.df.index[-1] <= router._datetime, "Prefetched future bars must stay outside the research slice"
         if first_call_requests is None:
             first_call_requests = len(requests)
         else:
@@ -620,9 +621,16 @@ def test_router_ibkr_stock_minute_clamped_pre_open_end_does_not_refetch_every_ba
 
     request_keys = [tuple(sorted(r.items())) for r in requests]
     assert len(request_keys) == len(set(request_keys)), f"identical IBKR requests repeated: {requests}"
-    # The old two-probe budget accepted an underfilled 250-bar request. Filling
-    # the full pre-holiday history needs one additional bounded first-call page.
-    assert len(requests) <= 3, f"expected only first-call history/edge probes, got {len(requests)}: {requests}"
+    # The five-day prefetch buffer extends beyond the immediate 250-bar request.
+    # Verify its exact initial history/edge windows, including the empty oldest
+    # page, instead of keeping the shorter window's three-request allowance.
+    # Every subsequent step must still add zero requests (checked above).
+    assert requests == [
+        {"conid": "756733", "period": "5000min", "bar": "5min",
+         "outsideRth": "true", "source": "Trades", "startTime": end}
+        for end in ("20260905-00:05:00", "20260901-12:50:00",
+                    "20260901-00:05:00", "20260915-00:05:00")
+    ]
     # The strategy sees the real session bars, including the 09:30 open.
     assert pd.Timestamp("2026-09-08 09:30", tz="America/New_York") in set(seen_last_bars)
 

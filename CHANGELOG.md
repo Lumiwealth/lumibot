@@ -2,7 +2,7 @@
 
 ## 4.6.55 - 2026-11-13
 
-Deploy marker: 51e0aed622f2efaa8e1a86fdd725951bd1ff52c3
+Deploy marker: 54206e37387695440a5549b551892d0a400cde58
 
 ### Added
 - Indicators can draw boxes, lines and labels anchored to bar times and prices (Pine's `box.new`, `line.new`, `label.new`, their `set_*` and `delete`), through `self.draw` in `step` and `indicator.drawings()`, plus corner tables (Pine's `table.new` and `table.cell`, nine at most). They follow forming-bar rollback, each kind keeps at most 500 objects (oldest dropped first), and `IndicatorRunner.snapshot()` carries them. Existing indicators are unchanged.

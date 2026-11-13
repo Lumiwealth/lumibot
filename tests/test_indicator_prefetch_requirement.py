@@ -45,6 +45,10 @@ def fixture_strategy():
     strategy.get_historical_prices = lambda *a, **kw: Strategy.get_historical_prices(strategy, *a, **kw)
     if hasattr(Strategy, "_prefetch_indicator_history"):
         strategy._prefetch_indicator_history = lambda *a, **kw: Strategy._prefetch_indicator_history(strategy, *a, **kw)
+    # get_historical_prices records per-asset data presence during backtests.
+    # Bind the real method so this stub exercises the same path a Strategy does.
+    if hasattr(Strategy, "_note_backtest_data"):
+        strategy._note_backtest_data = lambda *a, **kw: Strategy._note_backtest_data(strategy, *a, **kw)
     return asset, frame, source, strategy
 
 

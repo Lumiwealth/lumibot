@@ -5,6 +5,7 @@
 Deploy marker: 51e0aed622f2efaa8e1a86fdd725951bd1ff52c3
 
 ### Fixed
+- Restore native AI skill loading when a supported ADK tool has no optional behavior metadata; preserve that metadata when supplied without passing unsupported constructor arguments.
 - Serialize broker-native UUID order IDs as text in saved order dictionaries, including parent IDs. Scheduled checkpoints no longer fail before saving strategy variables; the live order keeps its native ID and restart ownership checks remain intact.
 - Require QuantStats Lumi 1.1.6 so small nonzero total returns remain visible in tear-sheet headings instead of rounding to zero.
 - Polygon cached US stock, option and index coverage uses the New York trading date. Previous-evening rows after midnight UTC no longer suppress downloading the next session. Confirmed-empty dates remain checked, so unavailable sessions are not requested repeatedly. Crypto, forex and legacy cache-writer callers retain their existing date convention.

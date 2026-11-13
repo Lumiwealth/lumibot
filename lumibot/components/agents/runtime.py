@@ -364,9 +364,11 @@ def _agent_toolset_with_purpose(toolset: Any, context: dict[str, Any]) -> Any:
             super().__init__(
                 name=original.name, description=original.description,
                 is_long_running=original.is_long_running, custom_metadata=original.custom_metadata,
-                behavior=original.behavior, response_scheduling=original.response_scheduling,
+                response_scheduling=original.response_scheduling,
             )
             self.original = original
+            if hasattr(original, "behavior"):
+                self.behavior = original.behavior
             self._defers_response = original._defers_response
             declaration = original._get_declaration()
             schema = declaration.parameters_json_schema or (declaration.parameters.model_dump(mode="json", exclude_none=True) if declaration.parameters else {})

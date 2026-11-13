@@ -367,3 +367,68 @@ def test_ibkr_rest_get_last_price_fetches_current_slice_without_full_window_pref
     assert calls[0][0].date().isoformat() == "2026-04-09"
     assert calls[0][1].date().isoformat() == "2026-04-10"
     assert (asset, quote, "minute", "AUTO") not in ds._fully_loaded_series
+
+
+def test_ibkr_rest_explicit_future_first_access_mid_backtest_does_not_fetch_from_backtest_start(monkeypatch):
+    """An explicit contract first used mid-run must not download history back to the run start.
+
+    Regression (2026-11-13, hosted 12-month MES run): after each roll the new contract's first
+    fill read prefetched [backtest start, backtest end] for that contract. The roll-stitched
+    cache already held the contract from its roll window, so the uncovered head (three months
+    of a back-month contract) was walked backwards in 1000-minute IBKR pages for 30+ minutes.
+    The request only needs its own lookback onward; later longer lookbacks still refetch.
+    """
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    ny = ZoneInfo("America/New_York")
+    requested = []
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
+        requested.append((asset.asset_type, start_dt, end_dt))
+        idx = pd.date_range(end=datetime(2025, 12, 10, 10, 0, tzinfo=ny), periods=30, freq="1min")
+        return pd.DataFrame({"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.0, "volume": 1.0}, index=idx)
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+    ds = InteractiveBrokersRESTBacktesting(
+        datetime_start=datetime(2025, 9, 1, tzinfo=ny),
+        datetime_end=datetime(2026, 9, 1, tzinfo=ny),
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    now = datetime(2025, 12, 10, 10, 0, tzinfo=ny)
+    ds._update_datetime(now)
+    contract = Asset("MES", asset_type="future", expiration=datetime(2026, 3, 20).date())
+    ds._pull_source_symbol_bars(asset=contract, length=2, timestep="minute",
+                                quote=Asset("USD", asset_type="forex"), include_after_hours=True)
+
+    assert requested, "the contract's bars must still be fetched"
+    earliest = min(pd.Timestamp(start) for _type, start, _end in requested)
+    assert earliest >= pd.Timestamp(now) - pd.Timedelta(days=8), earliest
+
+
+def test_ibkr_rest_explicit_future_first_access_at_backtest_start_still_prefetches_whole_run(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    ny = ZoneInfo("America/New_York")
+    requested = []
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
+        requested.append((start_dt, end_dt))
+        idx = pd.date_range(end=datetime(2025, 9, 2, 10, 0, tzinfo=ny), periods=30, freq="1min")
+        return pd.DataFrame({"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.0, "volume": 1.0}, index=idx)
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+    ds = InteractiveBrokersRESTBacktesting(
+        datetime_start=datetime(2025, 9, 2, 9, 30, tzinfo=ny),
+        datetime_end=datetime(2026, 9, 1, tzinfo=ny),
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    ds._update_datetime(datetime(2025, 9, 2, 10, 0, tzinfo=ny))
+    contract = Asset("MES", asset_type="future", expiration=datetime(2025, 12, 19).date())
+    ds._pull_source_symbol_bars(asset=contract, length=2, timestep="minute",
+                                quote=Asset("USD", asset_type="forex"), include_after_hours=True)
+
+    start, end = requested[0]
+    assert pd.Timestamp(start) <= pd.Timestamp(datetime(2025, 9, 2, 9, 30, tzinfo=ny))
+    assert pd.Timestamp(end) >= pd.Timestamp(datetime(2026, 8, 31, tzinfo=ny))

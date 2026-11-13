@@ -57,6 +57,8 @@ from typing import Any, Iterable, NamedTuple
 
 import pandas as pd
 
+from lumibot.indicators.drawings import Drawings
+
 INPUT_TYPES = ("int", "float", "bool", "color", "source", "string", "enum")
 OUTPUT_KINDS = (
     "line",
@@ -592,6 +594,9 @@ class Indicator:
         type(self).check_outputs()
         self.inputs = self.resolve_inputs(inputs)
         self._state = self.init_state()
+        self._board = Drawings()
+        self._staged = None
+        self._latest = self._board
         self._last_time = None
         self._bars_seen = 0
 
@@ -623,14 +628,32 @@ class Indicator:
                 f"bar time {bar.time} must be after the last closed bar time {self._last_time}"
             )
         state = _copy_state(self._state)
-        values = self.step(state, bar) or {}
-        result = {spec.id: _clean(values.get(spec.id)) for spec in self.outputs}
+        board = self._board.fork()
+        self._staged = board
+        try:
+            values = self.step(state, bar) or {}
+            result = {spec.id: _clean(values.get(spec.id)) for spec in self.outputs}
+        finally:
+            self._staged = None
+        self._latest = board
         if closed:
             self._state = state
+            self._board = board
             self._bars_seen += 1
             if bar.time is not None:
                 self._last_time = bar.time
         return result
+
+    @property
+    def draw(self) -> Drawings:
+        """Drawing objects (boxes, lines, labels). Inside ``step`` this is the
+        staged set for the bar being processed; see :mod:`lumibot.indicators.drawings`."""
+        return self._staged if self._staged is not None else self._board
+
+    def drawings(self) -> list:
+        """The drawing objects as of the latest ``update`` (forming or closed),
+        oldest first, as JSON-safe dicts. Empty for indicators that draw none."""
+        return self._latest.to_list()
 
     def feed(self, bars) -> dict:
         """Commit many closed bars to this instance and return their outputs as series."""
@@ -652,6 +675,7 @@ class Indicator:
             "version": self.version,
             "inputs": dict(self.inputs),
             "state": copy.deepcopy(self._state),
+            "drawings": self._board.snapshot(),
             "last_time": self._last_time,
             "bars_seen": self._bars_seen,
         }
@@ -666,6 +690,8 @@ class Indicator:
         if self.resolve_inputs(snapshot.get("inputs")) != self.inputs:
             raise ValueError("snapshot inputs differ from this indicator's inputs; reset() first")
         self._state = copy.deepcopy(snapshot["state"])
+        self._board = Drawings.from_snapshot(snapshot.get("drawings"))
+        self._latest = self._board
         self._last_time = snapshot.get("last_time")
         self._bars_seen = int(snapshot.get("bars_seen", 0))
 

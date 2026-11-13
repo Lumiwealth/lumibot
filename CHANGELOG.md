@@ -4,6 +4,9 @@
 
 Deploy marker: 51e0aed622f2efaa8e1a86fdd725951bd1ff52c3
 
+### Added
+- Indicators can draw boxes, lines and labels anchored to bar times and prices (Pine's `box.new`, `line.new`, `label.new`, their `set_*` and `delete`), through `self.draw` in `step` and `indicator.drawings()`. They follow forming-bar rollback, each kind keeps at most 500 objects (oldest dropped first), and `IndicatorRunner.snapshot()` carries them. Existing indicators are unchanged.
+
 ### Fixed
 - Preserve reconciliation and exact cancellation of accepted MetaMask perpetual orders when upgrading a legacy token registry, while retaining strict validation for new trades and token valuation.
 - Deliver complete receipt-backed cash-history windows through existing report batches instead of truncating seven days of hourly funding to 100 events; retain limits for list-only brokers.

@@ -2118,8 +2118,11 @@ def _maybe_augment_crypto_bid_ask(
         return df_cache, False
 
     updated = df_cache.copy()
-    updated.loc[derived.index, "bid"] = derived["bid"]
-    updated.loc[derived.index, "ask"] = derived["ask"]
+    # Quote bars can carry timestamps the trade bars lack (thin markets, hourly bars).
+    # Fill only bars that exist; never add a bar the trade series does not have.
+    shared = derived.index.intersection(updated.index)
+    updated.loc[shared, "bid"] = derived.loc[shared, "bid"]
+    updated.loc[shared, "ask"] = derived.loc[shared, "ask"]
 
     # Any residual NaNs fall back to the trade/mark close.
     if "close" in updated.columns:
@@ -2185,8 +2188,11 @@ def _maybe_augment_futures_bid_ask(
         return df_cache, False
 
     updated = df_cache.copy()
-    updated.loc[derived.index, "bid"] = derived["bid"]
-    updated.loc[derived.index, "ask"] = derived["ask"]
+    # Quote bars can carry timestamps the trade bars lack (thin markets, hourly bars).
+    # Fill only bars that exist; never add a bar the trade series does not have.
+    shared = derived.index.intersection(updated.index)
+    updated.loc[shared, "bid"] = derived.loc[shared, "bid"]
+    updated.loc[shared, "ask"] = derived.loc[shared, "ask"]
 
     if "close" in updated.columns:
         updated["bid"] = pd.to_numeric(updated.get("bid"), errors="coerce").where(

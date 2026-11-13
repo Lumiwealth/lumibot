@@ -291,3 +291,76 @@ class TestRunnerCarriesDrawings:
             runner.on_bar(_bar(i, 100 + i), closed=True)
         assert runner.drawings(instance_id) == runner.instance(instance_id).drawings() != []
         assert runner.snapshot()["indicators"][instance_id]["drawings"] == runner.drawings(instance_id)
+
+
+class TestTables:
+    def test_a_table_holds_cells_and_lists_them_in_row_order(self):
+        board = Drawings()
+        table = board.table("top_right", 2, 2, bg_color="#00000080", frame_color="#FFFFFF", frame_width=1)
+        assert board.cell(table, 1, 0, "Trend", text_color="#26A69A")
+        assert board.cell(table, 0, 0, "Mode", bg_color="#2962FF")
+        assert board.cell(table, 0, 1, "Up")
+        item = board.to_list()[0]
+        assert item["kind"] == "table" and item["position"] == "top_right" and item["columns"] == 2
+        order = [(c["column"], c["row"], c["text"]) for c in item["cells"]]
+        assert order == [(0, 0, "Mode"), (1, 0, "Trend"), (0, 1, "Up")]
+        assert item["cells"][0]["bg_color"] == "#2962FF" and item["cells"][1]["text_color"] == "#26A69A"
+        json.dumps(board.to_list())
+
+    def test_a_cell_can_be_set_again_and_a_table_restyled(self):
+        board = Drawings()
+        table = board.table("bottom_left", 1, 1)
+        board.cell(table, 0, 0, "a")
+        board.cell(table, 0, 0, "b")
+        assert board.update(table, bg_color="#112233", position="top_left") is True
+        item = board.to_list()[0]
+        assert [c["text"] for c in item["cells"]] == ["b"]
+        assert item["bg_color"] == "#112233" and item["position"] == "top_left"
+
+    def test_size_is_fixed_and_cells_must_fit(self):
+        board = Drawings()
+        table = board.table("top_right", 2, 1)
+        with pytest.raises(ValueError):
+            board.update(table, columns=3)
+        with pytest.raises(ValueError):
+            board.cell(table, 2, 0, "x")
+        with pytest.raises(ValueError):
+            board.cell(table, 0, 1, "x")
+        with pytest.raises(ValueError):
+            board.cell(table, 0, 0, "x", text_color="red")
+        with pytest.raises(ValueError):
+            board.table("nowhere", 1, 1)
+        with pytest.raises(ValueError):
+            board.table("top_left", 0, 1)
+        assert board.cell("g99", 0, 0, "x") is False
+
+    def test_at_most_nine_tables_oldest_dropped(self):
+        board = Drawings()
+        ids = [board.table("top_left", 1, 1) for _ in range(11)]
+        kept = [item["id"] for item in board.to_list() if item["kind"] == "table"]
+        assert kept == ids[2:]
+
+    def test_tables_follow_rollback_snapshot_and_fork(self):
+        class Info(Indicator):
+            key = "test_info"
+            outputs = [OutputSpec("v", "V")]
+
+            def init_state(self):
+                return {"table": None}
+
+            def step(self, state, bar):
+                if state["table"] is None:
+                    state["table"] = self.draw.table("top_right", 1, 1)
+                self.draw.cell(state["table"], 0, 0, f"{bar.close:.1f}")
+                return {"v": bar.close}
+
+        indicator = Info()
+        indicator.update(_bar(0, 100), closed=True)
+        indicator.update(_bar(1, 105), closed=False)
+        assert indicator.drawings()[0]["cells"][0]["text"] == "105.0"
+        indicator.update(_bar(1, 101), closed=True)
+        snapshot = pickle.loads(pickle.dumps(indicator.snapshot()))
+        other = Info()
+        other.restore(snapshot)
+        assert other.drawings() == indicator.drawings()
+        assert indicator.drawings()[0]["cells"][0]["text"] == "101.0"

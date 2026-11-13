@@ -26,7 +26,8 @@ Rules:
   bar may create, change or delete objects while it builds, and only the
   closed bar commits them.
 * Each kind (box, line, label) keeps at most :data:`MAX_DRAWINGS_PER_KIND`
-  (500, TradingView's own ceiling) objects. Adding one more drops the oldest of
+  (500, TradingView's own ceiling) objects; tables (a grid of text cells pinned to a
+  corner of the chart, ``table.new`` / ``table.cell``) keep at most nine. Adding one more drops the oldest of
   that kind.
 * ``update`` and ``delete`` of an object that is gone (deleted, or dropped by
   the cap) quietly do nothing, like Pine.
@@ -41,10 +42,25 @@ from typing import Any
 
 import pandas as pd
 
-DRAWING_KINDS = ("box", "line", "label")
+DRAWING_KINDS = ("box", "line", "label", "table")
 #: TradingView's own ceiling for ``max_boxes_count``, ``max_lines_count`` and ``max_labels_count``.
 MAX_DRAWINGS_PER_KIND = 500
 MAX_TEXT_LENGTH = 80
+#: Pine allows at most nine tables, one per screen position.
+MAX_TABLES = 9
+MAX_TABLE_COLUMNS = 20
+MAX_TABLE_ROWS = 40
+TABLE_POSITIONS = (
+    "top_left",
+    "top_center",
+    "top_right",
+    "middle_left",
+    "middle_center",
+    "middle_right",
+    "bottom_left",
+    "bottom_center",
+    "bottom_right",
+)
 DRAWING_LINE_STYLES = ("solid", "dashed", "dotted")
 DRAWING_EXTENDS = ("none", "left", "right", "both")
 DRAWING_ARROWS = ("none", "left", "right", "both")
@@ -53,7 +69,10 @@ DRAWING_TEXT_ALIGNS = ("left", "center", "right")
 #: ``none`` draws the text alone, without a bubble.
 LABEL_STYLES = ("label_up", "label_down", "label_left", "label_right", "label_center", "none")
 _THEME_COLORS = ("chart.fg", "chart.bg")
-_PREFIX = {"box": "b", "line": "l", "label": "t"}
+_PREFIX = {"box": "b", "line": "l", "label": "t", "table": "g"}
+_KIND_CAPS = {"box": MAX_DRAWINGS_PER_KIND, "line": MAX_DRAWINGS_PER_KIND, "label": MAX_DRAWINGS_PER_KIND, "table": MAX_TABLES}
+#: Fields that are fixed when the object is created.
+_LOCKED = {"table": ("columns", "rows")}
 
 #: field name -> (check kind, choices); the defaults for each object kind follow.
 _FIELDS: dict[str, dict[str, tuple]] = {
@@ -83,6 +102,16 @@ _FIELDS: dict[str, dict[str, tuple]] = {
         "arrow": ("choice", DRAWING_ARROWS),
         "extend": ("choice", DRAWING_EXTENDS),
     },
+    "table": {
+        "position": ("choice", TABLE_POSITIONS),
+        "columns": ("count", MAX_TABLE_COLUMNS),
+        "rows": ("count", MAX_TABLE_ROWS),
+        "bg_color": ("color_or_none", None),
+        "frame_color": ("color_or_none", None),
+        "frame_width": ("width0", None),
+        "border_color": ("color_or_none", None),
+        "border_width": ("width0", None),
+    },
     "label": {
         "x": ("time", None),
         "y": ("price", None),
@@ -106,6 +135,14 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
         "extend": "none",
     },
     "line": {"color": "#2962FF", "width": 1, "style": "solid", "arrow": "none", "extend": "none"},
+    "table": {
+        "position": "top_right",
+        "bg_color": None,
+        "frame_color": None,
+        "frame_width": 0,
+        "border_color": None,
+        "border_width": 0,
+    },
     "label": {
         "text": "",
         "style": "label_down",
@@ -162,6 +199,14 @@ def _check(kind: str, name: str, value, how: str, choices):
         if isinstance(value, bool) or not isinstance(value, numbers.Real) or not 0 < float(value) <= 10:
             raise ValueError(f"{what} must be above 0 and at most 10, got {value!r}")
         return float(value) if float(value) != int(value) else int(value)
+    if how == "width0":
+        if isinstance(value, bool) or not isinstance(value, numbers.Real) or not 0 <= float(value) <= 10:
+            raise ValueError(f"{what} must be from 0 to 10, got {value!r}")
+        return float(value) if float(value) != int(value) else int(value)
+    if how == "count":
+        if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= choices:
+            raise ValueError(f"{what} must be a whole number from 1 to {choices}, got {value!r}")
+        return value
     if how in ("color", "color_or_none"):
         if value is None and how == "color_or_none":
             return None
@@ -179,6 +224,20 @@ def _check(kind: str, name: str, value, how: str, choices):
             raise ValueError(f"{what} must be plain text without control characters")
         return value
     raise ValueError(f"unknown check {how}")  # pragma: no cover - table error
+
+
+_CELL_FIELDS = {
+    "text_color": ("color_or_none", None),
+    "bg_color": ("color_or_none", None),
+    "text_size": ("choice", DRAWING_TEXT_SIZES),
+    "text_align": ("choice", DRAWING_TEXT_ALIGNS),
+}
+_CELL_DEFAULTS = {"text_color": None, "bg_color": None, "text_size": "small", "text_align": "center"}
+
+
+def _cell_order(key: str) -> tuple:
+    column, row = key.split(",")
+    return (int(row), int(column))
 
 
 class Drawings:
@@ -199,7 +258,7 @@ class Drawings:
         self._next += 1
         items = self._kinds[kind]
         items[drawing_id] = {"id": drawing_id, "kind": kind, **checked}
-        while len(items) > MAX_DRAWINGS_PER_KIND:
+        while len(items) > _KIND_CAPS[kind]:
             del items[next(iter(items))]
         return drawing_id
 
@@ -228,6 +287,42 @@ class Drawings:
         ``text_color`` and ``size``. Returns the object's id."""
         return self._add("label", {**self._style("label", style), "x": x, "y": y, "text": text})
 
+    def table(self, position="top_right", columns=1, rows=1, **style) -> str:
+        """A grid of text cells pinned to a corner or edge of the chart (Pine's ``table.new``).
+
+        ``position`` is one of ``top_left``, ``top_center``, ``top_right``,
+        ``middle_left``, ``middle_center``, ``middle_right``, ``bottom_left``,
+        ``bottom_center``, ``bottom_right``. Style: ``bg_color``,
+        ``frame_color``, ``frame_width``, ``border_color``, ``border_width``.
+        Fill cells with :meth:`cell`. At most nine tables. Returns the id."""
+        drawing_id = self._add(
+            "table", {**self._style("table", style), "position": position, "columns": columns, "rows": rows}
+        )
+        self._kinds["table"][drawing_id]["cells"] = {}
+        return drawing_id
+
+    def cell(self, table_id, column, row, text="", **style) -> bool:
+        """Set one cell of a table (Pine's ``table.cell``), counted from 0.
+        Style: ``text_color``, ``bg_color``, ``text_size``, ``text_align``.
+        Returns ``False`` when the table no longer exists."""
+        items = self._kinds["table"]
+        item = items.get(table_id)
+        if item is None:
+            return False
+        unknown = sorted(set(style) - set(_CELL_DEFAULTS))
+        if unknown:
+            raise ValueError(f"a table cell has no option(s) {unknown}; valid options: {sorted(_CELL_DEFAULTS)}")
+        for name, value, limit in (("column", column, item["columns"]), ("row", row, item["rows"])):
+            if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < limit:
+                raise ValueError(f"table cell {name} must be a whole number from 0 to {limit - 1}, got {value!r}")
+        cell = {"column": column, "row": row, "text": _check("table cell", "text", text, "text", None)}
+        for name, default in _CELL_DEFAULTS.items():
+            cell[name] = _check("table cell", name, style.get(name, default), *_CELL_FIELDS[name])
+        cells = dict(item["cells"])
+        cells[f"{column},{row}"] = cell
+        items[table_id] = {**item, "cells": cells}
+        return True
+
     @staticmethod
     def _style(kind: str, style: dict) -> dict:
         unknown = sorted(set(style) - set(_DEFAULTS[kind]))
@@ -250,7 +345,8 @@ class Drawings:
         if items is None:
             return False
         item = items[drawing_id]
-        allowed = _FIELDS[item["kind"]]
+        locked = _LOCKED.get(item["kind"], ())
+        allowed = {name: how for name, how in _FIELDS[item["kind"]].items() if name not in locked}
         unknown = sorted(set(fields) - set(allowed))
         if unknown:
             raise ValueError(f"a {item['kind']} has no field(s) {unknown}; valid fields: {sorted(allowed)}")
@@ -268,15 +364,22 @@ class Drawings:
 
     # ---- reading -----------------------------------------------------------
 
+    @staticmethod
+    def _public(item: dict) -> dict:
+        out = dict(item)
+        if "cells" in out:
+            out["cells"] = [out["cells"][key] for key in sorted(out["cells"], key=_cell_order)]
+        return out
+
     def get(self, drawing_id) -> dict | None:
         items = self._find(drawing_id)
-        return dict(items[drawing_id]) if items is not None else None
+        return self._public(items[drawing_id]) if items is not None else None
 
     def to_list(self) -> list[dict]:
         """Every object, oldest first, as JSON-safe dicts."""
         every = [item for items in self._kinds.values() for item in items.values()]
         every.sort(key=lambda item: int(item["id"][1:]))
-        return [dict(item) for item in every]
+        return [self._public(item) for item in every]
 
     def __len__(self) -> int:
         return sum(len(items) for items in self._kinds.values())
@@ -300,7 +403,10 @@ class Drawings:
             return board
         board._next = int(data.get("next", 1))
         for item in data.get("items", []):
-            board._kinds[item["kind"]][item["id"]] = dict(item)
+            restored = dict(item)
+            if restored["kind"] == "table":
+                restored["cells"] = {f"{c['column']},{c['row']}": dict(c) for c in restored.get("cells", [])}
+            board._kinds[restored["kind"]][restored["id"]] = restored
         return board
 
 
@@ -314,5 +420,9 @@ __all__ = [
     "Drawings",
     "LABEL_STYLES",
     "MAX_DRAWINGS_PER_KIND",
+    "MAX_TABLES",
+    "MAX_TABLE_COLUMNS",
+    "MAX_TABLE_ROWS",
     "MAX_TEXT_LENGTH",
+    "TABLE_POSITIONS",
 ]

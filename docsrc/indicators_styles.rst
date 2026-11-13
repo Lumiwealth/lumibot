@@ -379,12 +379,21 @@ theme color.
      - ``x, y``, ``text``, ``style`` (``label_up``, ``label_down``,
        ``label_left``, ``label_right``, ``label_center``, ``none`` for text
        alone), ``color`` (bubble), ``text_color``, ``size``.
+   * - ``table``
+     - A grid of text cells pinned to the chart (Pine's ``table.new`` and
+       ``table.cell``): ``t = self.draw.table("top_right", columns, rows,
+       bg_color=..., frame_color=..., frame_width=..., border_color=...,
+       border_width=...)``, then ``self.draw.cell(t, column, row, "text",
+       text_color=..., bg_color=..., text_size=..., text_align=...)``.
+       Positions: ``top_left``, ``top_center``, ``top_right``, ``middle_*``,
+       ``bottom_*``. Columns and rows count from 0 and are fixed when the
+       table is made. At most nine tables.
 
 Rules:
 
 * They follow the same forming-bar rollback as state. A forming bar may create,
   change or delete objects while it builds; only the closed bar commits them.
-* Each kind keeps at most **500** objects. Adding one more drops the oldest of
+* Each kind keeps at most **500** objects (tables: nine). Adding one more drops the oldest of
   that kind (TradingView's own limit). Changing or deleting an object that is
   already gone does nothing.
 * Text is plain text of at most 80 characters. A time must be a real bar time.

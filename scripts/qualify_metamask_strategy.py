@@ -19,7 +19,13 @@ from lumibot.brokers import MetaMask
 from lumibot.entities import Asset
 from lumibot.example_strategies.metamask_perpetual import MetaMaskPerpetualRoundTrip
 from lumibot.traders import Trader
-from scripts.qualify_metamask_partial import Evidence, cleanup, cleanup_budget_room, validate_authority
+from scripts.qualify_metamask_partial import (
+    Evidence,
+    cleanup,
+    cleanup_budget_room,
+    prepare_evidence_path,
+    validate_authority,
+)
 
 
 def stop_strategy(trader, strategy, broker, iteration_idle, evidence):
@@ -221,14 +227,7 @@ def main():
         raise ValueError("Selected wallet configuration must be an object")
     if config.get("NETWORK") != "testnet" or config.get("MODE", "perp") != "perp":
         raise ValueError("Only explicit testnet perpetual configuration is allowed")
-    protected = {args.config.resolve()}
-    protected.update(
-        Path(config[key]).expanduser().resolve()
-        for key in ("STATE_FILE", "SESSION_FILE", "LEGACY_SESSION_FILE")
-        if config.get(key)
-    )
-    if args.evidence.exists() or args.evidence.is_symlink() or args.evidence.resolve() in protected:
-        raise ValueError("Choose a new evidence path; preserve configuration, sessions, journals and older receipts")
+    args.evidence = prepare_evidence_path(args.evidence, args.config, [config])
     example = Path(__file__).resolve().parents[1] / "lumibot/example_strategies/metamask_perpetual.py"
     evidence = Evidence(args.evidence, args.name)
     evidence.stage("prepared", example_sha256=hashlib.sha256(example.read_bytes()).hexdigest(), run_once=False)

@@ -1510,6 +1510,8 @@ class OptionsHelper:
     # enough. Stale prints at the open can break that order for a strike or two: with 2, two
     # of 780 picks on a week of real SPY prices missed the closest strike; with 3, none did.
     _DELTA_WALK_CONFIRM = 3
+    # Strikes loaded on each side of the walk's start, and per extension when it steps past them.
+    _DELTA_WALK_BAND = 6
 
     def _delta_walk_start(self, underlying_asset: Asset, underlying_price: float, expiry: date,
                           is_call: bool, target_delta: float, strikes: List[float]) -> int:
@@ -1558,9 +1560,8 @@ class OptionsHelper:
         if not strikes:
             return None, None
         is_call = str(right).upper().startswith("C")
-        # One batched load for all candidates where the data source offers it (backtest bars,
-        # live latest quotes); the walk below then reads them from memory.
-        self._prefetch_option_contracts(underlying_asset, expiry, right, strikes)
+        # Live latest quotes: one batched request for all candidates. Backtest bars are loaded
+        # by the walk itself, a band of strikes at a time (see _walk_strikes).
         self._prefetch_option_quotes(underlying_asset, expiry, right, strikes)
         try:
             return self._walk_strikes(underlying_asset, underlying_price, expiry, right, strikes,
@@ -1571,6 +1572,25 @@ class OptionsHelper:
     def _walk_strikes(self, underlying_asset, underlying_price, expiry, right, strikes, target_delta,
                       loud, is_call) -> Tuple[Optional[float], Optional[float]]:
         start = self._delta_walk_start(underlying_asset, underlying_price, expiry, is_call, target_delta, strikes)
+        # Load stored prices only for strikes the walk can reach: a band around the start, then
+        # the next band before the walk steps past it. Loading every candidate decoded about four
+        # times the stored data a pick reads. Same prices either way, so the same strike.
+        band = max(1, int(self._DELTA_WALK_BAND))
+        last = len(strikes) - 1
+        lo, hi = max(0, start - band), min(last, start + band)
+        self._prefetch_option_contracts(underlying_asset, expiry, right, strikes[lo:hi + 1])
+
+        def ensure_loaded(idx: int) -> None:
+            nonlocal lo, hi
+            if idx < lo:
+                new_lo = max(0, idx - band + 1)
+                self._prefetch_option_contracts(underlying_asset, expiry, right, strikes[new_lo:lo])
+                lo = new_lo
+            elif idx > hi:
+                new_hi = min(last, idx + band - 1)
+                self._prefetch_option_contracts(underlying_asset, expiry, right, strikes[hi + 1:new_hi + 1])
+                hi = new_hi
+
         self._detail(loud,
             f"🔍 Trying strikes from {strikes[start]:g} outward ({len(strikes)} listed "
             f"{strikes[0]:g}-{strikes[-1]:g}; the closest delta wins)",
@@ -1581,6 +1601,7 @@ class OptionsHelper:
 
         def visit(idx: int) -> Optional[float]:
             nonlocal best_key, best
+            ensure_loaded(idx)
             strike = strikes[idx]
             delta = self.get_delta_for_strike(underlying_asset, underlying_price, strike, expiry, right)
             try:

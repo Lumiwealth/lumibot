@@ -49,6 +49,12 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         return resolve_order_contract(asset=order.asset, side=order.side, quantity=order.quantity,
                                       positions=positions, when=self.get_datetime())
 
+    def symbol_not_found(self, asset) -> bool:
+        """True when IBKR has no contract for this symbol (used to word a no-data failure)."""
+        from lumibot.tools.ibkr_helper import symbol_not_found
+
+        return symbol_not_found(asset)
+
     def record_missing_valuation(self, asset):
         from lumibot.tools.ibkr_history_health import record_required_history
 

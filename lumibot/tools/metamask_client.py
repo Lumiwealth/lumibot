@@ -111,7 +111,7 @@ class MetaMaskClient:
         agent = identifier(self.config.get("AGENT_ID"), "AGENT_ID")
         wallet = address(self.config.get("WALLET_ADDRESS"))
         row = self.journal.binding(agent)
-        binding = Binding.parse(row)
+        binding = Binding.parse(row, validate_registry=False)
         if binding.wallet != wallet or binding.network != self.network:
             raise MetaMaskAPIError("IDENTITY_MISMATCH", "Journal wallet or network differs from configuration")
         if row.get("projectId") is not None and row["projectId"] != self.provider.credentials().project_id:
@@ -223,6 +223,14 @@ class MetaMaskClient:
     def funding(self, start_time, end_time, symbol=None):
         identity = self.verify()
         return self.venue.funding(identity["wallet"], start_time, end_time, symbol)
+
+    def cash_history(self, start_time, end_time):
+        """Read both ledgers for the verified managed wallet; never submit actions."""
+        identity = self.verify()
+        return {
+            kind: self.venue.ledger(identity["wallet"], kind, start_time, end_time)
+            for kind in ("userFunding", "userNonFundingLedgerUpdates")
+        }
 
     def close(self):
         with self._lock:

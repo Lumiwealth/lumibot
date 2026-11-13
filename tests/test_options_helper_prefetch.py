@@ -91,3 +91,63 @@ def test_option_contracts_are_built_once_and_reused(monkeypatch):
     helper.find_strike_for_delta(Asset("SPY"), 500.0, 0.3, date(2026, 10, 23), "call")
     assert [r["strike"] for r in rows] == [495.0, 500.0, 505.0]
     assert [t for t in built if str(t).lower().endswith("option")] == []
+
+
+# --------------------------------------------------------------------------- banded prefetch
+
+
+class _WideChain(_Strategy):
+    """A $1 SPY chain from 470 to 530 whose delta crosses 0.5 at ``center``."""
+
+    def __init__(self, center=500.0, **kwargs):
+        super().__init__(**kwargs)
+        self.center = center
+        self.priced = []
+
+    def get_chains(self, _asset):
+        strikes = [float(s) for s in range(470, 531)]
+        return {"Multiplier": 100, "Exchange": "SMART",
+                "Chains": {"CALL": {"2026-10-23": strikes}, "PUT": {"2026-10-23": strikes}}}
+
+    def get_greeks(self, asset, asset_price=None, underlying_price=None, **_kwargs):
+        self.priced.append(float(asset.strike))
+        return {"delta": max(0.01, min(0.99, 0.5 - (float(asset.strike) - self.center) / 50.0))}
+
+
+class _RecordingSource(_PrefetchingSource):
+    def __init__(self):
+        super().__init__()
+        self.loaded = set()
+
+    def prefetch_option_bars(self, assets, until=None):
+        self.loaded.update(float(a.strike) for a in assets)
+        return super().prefetch_option_bars(assets, until=until)
+
+
+def _wide_pick(strategy, target=0.3):
+    return OptionsHelper(strategy).find_strike_for_delta(Asset("SPY"), 500.0, target, date(2026, 10, 23), "call")
+
+
+def test_a_delta_pick_loads_only_the_strikes_its_walk_can_reach():
+    """51 candidate strikes; the walk prices about a dozen. Loading all 51 decoded four times
+    the stored partitions a pick needs (about 1.3 s per entry on a warm 12-month condor)."""
+    expected = _wide_pick(_WideChain())
+    strategy = _WideChain()
+    source = _RecordingSource()
+    strategy.broker.data_source = source
+    assert _wide_pick(strategy) == expected
+    assert len(source.calls) == 1  # still one batched read when the estimate is close
+    assert len(source.loaded) <= 21, sorted(source.loaded)
+    assert set(strategy.priced) <= source.loaded  # nothing was priced before it was loaded
+
+
+def test_a_walk_that_travels_past_its_first_band_loads_the_next_band_first():
+    # Deltas centred 15 strikes away from the closed-form estimate: the walk must travel.
+    expected = _wide_pick(_WideChain(center=515.0))
+    strategy = _WideChain(center=515.0)
+    source = _RecordingSource()
+    strategy.broker.data_source = source
+    assert _wide_pick(strategy) == expected
+    assert 1 < len(source.calls) <= 4
+    assert set(strategy.priced) <= source.loaded
+    assert len(source.loaded) < 51

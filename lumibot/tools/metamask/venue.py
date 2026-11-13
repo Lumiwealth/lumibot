@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import time
@@ -22,6 +23,41 @@ from .provider import MetaMaskError, address, json_object
 URLS = {"testnet": "https://api.hyperliquid-testnet.xyz", "mainnet": "https://api.hyperliquid.xyz"}
 _CLIENT_ID = re.compile(r"0x[0-9a-fA-F]{32}\Z")
 _INTERVALS = {"1m": 60_000, "1h": 3_600_000, "1d": 86_400_000}
+
+
+def _ledger_row(raw):
+    row = json_object(raw, "ledger row")
+    delta = dict(json_object(row.get("delta"), "ledger delta"))
+    tx_hash = row.get("hash")
+    if not isinstance(tx_hash, str) or not re.fullmatch(r"0x[0-9a-fA-F]{64}", tx_hash):
+        raise MetaMaskError("INVALID_RESPONSE", "Ledger transaction identity is invalid")
+    for field in ("user", "destination", "vault"):
+        if field in delta:
+            delta[field] = address(delta[field])
+    return {**row, "hash": tx_hash.lower(), "delta": delta}
+
+
+def ledger_identity(row):
+    """A transaction can contain several coins or transfer legs at one time."""
+    row = _ledger_row(row)
+    delta, tx_hash = row["delta"], row["hash"]
+    kind = delta.get("type")
+    if not isinstance(kind, str) or not 1 <= len(kind) <= 80:
+        raise MetaMaskError("INVALID_RESPONSE", "Ledger type is missing")
+    identity = [tx_hash.lower(), row.get("time"), kind]
+    identity.extend(delta.get(key) for key in ("coin", "token", "user", "destination", "vault", "toPerp", "nonce"))
+    if any(not isinstance(value, (str, int, bool, type(None))) for value in identity):
+        raise MetaMaskError("INVALID_RESPONSE", "Ledger identity fields are invalid")
+    return hashlib.sha256(json.dumps(identity, separators=(",", ":")).encode()).hexdigest()
+
+
+def canonical_symbol(symbol, names):
+    if not isinstance(symbol, str) or not 1 <= len(symbol) <= 60:
+        raise ValueError("A venue market symbol is required")
+    matches = [name for name in names if isinstance(name, str) and name.casefold() == symbol.casefold()]
+    if len(matches) != 1:
+        raise MetaMaskError("UNKNOWN_MARKET", "Requested market is absent or ambiguous")
+    return matches[0]
 
 
 def wire_decimal(value: Decimal) -> str:
@@ -124,17 +160,24 @@ class HyperliquidVenue:
             raise ValueError("A venue market symbol is required")
         dex = symbol.split(":", 1)[0] if ":" in symbol else ""
         with self._lock:
-            if symbol in self._markets and time.monotonic() - self._market_times.get(dex, 0) < 60:
-                return self._markets[symbol]
+            if dex.casefold() in self._market_times and time.monotonic() - self._market_times[dex.casefold()] < 60:
+                return self._markets[canonical_symbol(symbol, self._markets)]
             offset = 0
             if dex:
                 dexs = self.info({"type": "perpDexs"})
                 if not isinstance(dexs, list):
                     raise MetaMaskError("INVALID_RESPONSE", "Venue dex inventory is missing")
-                matches = [i for i, item in enumerate(dexs[1:]) if isinstance(item, dict) and item.get("name") == dex]
+                matches = [
+                    i
+                    for i, item in enumerate(dexs[1:])
+                    if isinstance(item, dict)
+                    and isinstance(item.get("name"), str)
+                    and item["name"].casefold() == dex.casefold()
+                ]
                 if len(matches) != 1:
                     raise MetaMaskError("UNKNOWN_MARKET", "Requested perpetual dex was not found")
                 offset = 110_000 + matches[0] * 10_000
+                dex = dexs[matches[0] + 1]["name"]
             meta = json_object(self.info({"type": "meta", **({"dex": dex} if dex else {})}), "market metadata")
             universe = meta.get("universe")
             if not isinstance(universe, list):
@@ -167,14 +210,13 @@ class HyperliquidVenue:
                 if old_dex == dex:
                     del self._markets[old]
             self._markets.update(refreshed)
-            self._market_times[dex] = time.monotonic()
-            if symbol not in self._markets:
-                raise MetaMaskError("UNKNOWN_MARKET", "Requested perpetual market was not found")
-            return self._markets[symbol]
+            self._market_times[dex.casefold()] = time.monotonic()
+            return self._markets[canonical_symbol(symbol, self._markets)]
 
     def price(self, symbol: str) -> Decimal:
         query = {"type": "metaAndAssetCtxs"}
         if ":" in symbol:
+            symbol = self.market(symbol).symbol
             query["dex"] = symbol.split(":", 1)[0]
         result = self.info(query)
         if not isinstance(result, list) or len(result) != 2:
@@ -184,10 +226,8 @@ class HyperliquidVenue:
         if not isinstance(universe, list) or not isinstance(contexts, list) or len(universe) != len(contexts):
             raise MetaMaskError("INVALID_RESPONSE", "Venue mark-price metadata is incomplete")
         names = [json_object(row).get("name") for row in universe]
-        matches = [i for i, name in enumerate(names) if name == symbol]
-        if len(matches) != 1:
-            raise MetaMaskError("UNKNOWN_MARKET", "Requested mark-price market is absent or ambiguous")
-        return decimal(json_object(contexts[matches[0]], "asset context").get("markPx"), positive=True)
+        resolved = canonical_symbol(symbol, names)
+        return decimal(json_object(contexts[names.index(resolved)], "asset context").get("markPx"), positive=True)
 
     @staticmethod
     def normalize_price(price: Decimal, market: Market) -> Decimal:
@@ -347,6 +387,7 @@ class HyperliquidVenue:
             raise MetaMaskError(
                 "CANDLE_HISTORY_INCOMPLETE", "Venue retains at most the latest 5000 candles per interval"
             )
+        symbol = self.market(symbol).symbol
         cutoff = min(end, int(time.time() * 1000))
         rows = self.info(
             {
@@ -440,6 +481,8 @@ class HyperliquidVenue:
         return sorted(result.values(), key=lambda row: (row["time"], row["tid"]))
 
     def funding(self, wallet: str, start: int, end: int, symbol: str | None = None):
+        if symbol is not None:
+            symbol = self.market(symbol).symbol
         rows = self.info({"type": "userFunding", "user": address(wallet), "startTime": start, "endTime": end})
         if not isinstance(rows, list):
             raise MetaMaskError("INVALID_RESPONSE", "Funding ledger is missing")
@@ -447,6 +490,41 @@ class HyperliquidVenue:
             raise MetaMaskError("FUNDING_HISTORY_INCOMPLETE", "Request a smaller funding interval to avoid truncation")
         parsed = [json_object(row, "funding payment") for row in rows]
         return [row for row in parsed if symbol is None or json_object(row.get("delta")).get("coin") == symbol]
+
+    def ledger(self, wallet: str, kind: str, start: int, end: int):
+        """Exhaust an inclusive millisecond window without skipping tied rows."""
+        if (
+            kind not in {"userFunding", "userNonFundingLedgerUpdates"}
+            or type(start) is not int
+            or type(end) is not int
+            or not 0 <= start <= end
+        ):
+            raise ValueError("Ledger history requires a supported type and ordered millisecond bounds")
+        wallet, cursor, result = address(wallet), start, {}
+        while cursor <= end:
+            rows = self.info({"type": kind, "user": wallet, "startTime": cursor, "endTime": end})
+            if not isinstance(rows, list):
+                raise MetaMaskError("INVALID_RESPONSE", "Account ledger is missing")
+            newest = cursor
+            for raw in rows:
+                item = _ledger_row(raw)
+                stamp = item.get("time")
+                if type(stamp) is not int or not cursor <= stamp <= end:
+                    raise MetaMaskError("INVALID_RESPONSE", "Ledger timestamp is outside the requested page")
+                key = ledger_identity(item)
+                if key in result and result[key] != item:
+                    raise MetaMaskError("CASH_HISTORY_INCOMPLETE", "Ledger contains conflicting transaction evidence")
+                result[key] = item
+                newest = max(newest, stamp)
+            if len(result) > 100_000:
+                raise MetaMaskError("CASH_HISTORY_INCOMPLETE", "Request a smaller ledger window")
+            # The endpoint caps both rows and distinct blocks; query the boundary inclusively.
+            if len(rows) < 500:
+                break
+            if newest <= cursor:
+                raise MetaMaskError("CASH_HISTORY_INCOMPLETE", "Ledger page cannot advance without dropping records")
+            cursor = newest
+        return sorted(result.values(), key=lambda item: (item["time"], ledger_identity(item)))
 
     def close(self):
         if self._owns_session:

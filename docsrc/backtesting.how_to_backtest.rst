@@ -355,6 +355,56 @@ A backtest creates a tearsheet HTML report with an equity curve, performance
 metrics, and a benchmark comparison. It also writes a trades file that lists
 every trade and an indicators file with the indicators your strategy recorded.
 
+.. _how-to-backtest-native-reports:
+
+Rich charts are included automatically
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The normal ``YourStrategy.backtest(...)`` and ``run_backtest(...)`` calls
+already enable LumiBot's reporting. You do not need to write a plotting script:
+
+* ``*_trades.html`` is an interactive chart with the portfolio, cash, benchmark
+  and filled-trade markers. Zoom, change the visible range and hover for values.
+* ``*_tearsheet.html`` is the QuantStats Lumi performance report, with returns,
+  drawdowns, distributions and metric explanations. See
+  :ref:`Tearsheet HTML <backtesting.tearsheet_html>`.
+* ``*_indicators.html`` shows the prices, indicator lines and markers the
+  strategy recorded. LumiBot does not invent indicators for a strategy.
+
+Reports normally go to ``logs/``. Set ``plot_file_html`` and ``tearsheet_file``
+when you want specific paths. The HTML files are the reports; a screenshot is
+only a preview and does not preserve interactive chart controls.
+
+Save charts without opening browser windows
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For a notebook batch, command-line job or headless machine, keep chart
+generation enabled and suppress automatic opening instead:
+
+.. code-block:: python
+
+    import os
+
+    os.environ["LUMIBOT_DISABLE_UI"] = "true"
+    results, strategy = YourStrategy.run_backtest(
+        datasource_class=YourDataSource,
+        backtesting_start=start,
+        backtesting_end=end,
+        show_plot=True,
+        save_tearsheet=True,
+        show_tearsheet=False,
+    )
+
+``show_plot=False`` skips the interactive HTML chart; it does not merely stop
+the browser opening. ``save_tearsheet=False`` skips the tear sheet, and
+``analyze_backtest=False`` opts out of the normal analysis/reporting stage.
+Check explicit arguments and ``SHOW_PLOT``/``SHOW_TEARSHEET`` environment
+overrides if reports are unexpectedly absent. Very short or flat return
+series may produce a report explaining that full statistics are unavailable.
+
+The same reporting works for ordinary Python and explicitly AI-powered
+strategies. Generating a chart does not require another AI decision.
+
 Can I backtest Polymarket prediction markets?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

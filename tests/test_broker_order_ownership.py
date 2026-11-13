@@ -7,6 +7,7 @@ from pathlib import Path
 from queue import Empty
 from threading import Event
 from types import SimpleNamespace
+from uuid import UUID
 
 import pytest
 
@@ -36,6 +37,40 @@ def submitted(broker):
     broker.submit_order(order)
     _TRANSPORT.drain_stream_events(broker)
     return order
+
+
+def test_scheduled_checkpoint_serializes_native_uuid_order_identifiers(tmp_path, monkeypatch):
+    transport = _TRANSPORT.SchwabLifecycleTransport()
+    broker, _ = _TRANSPORT.data_only_schwab_broker(transport, name="same-name")
+    own = submitted(broker)
+    native_id = UUID("35c51621-348a-4da9-9eb2-28654920e21a")
+    own.identifier = native_id
+    child = Order("same-name", Asset("SYN"), 1, "sell", identifier=UUID("67ec9fd2-cd15-44d3-a978-9b2e4a74cfd8"))
+    child.parent_identifier = native_id
+    own.child_orders = [child]
+    strategy = object.__new__(Strategy)
+    strategy._name = "same-name"
+    strategy.broker = broker
+    strategy.vars = Vars()
+    strategy.vars.set("iteration", 7)
+    strategy.logger = logging.getLogger("checkpoint-uuid-regression")
+    strategy.is_backtesting = False
+    strategy._last_backup_state = None
+    state_file = tmp_path / "state.json"
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_STATE_FILE", str(state_file))
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_STATE_BACKEND", "s3")
+
+    strategy.backup_variables_to_db()
+
+    assert state_file.exists(), "The complete scheduled state must be saved after a broker returns UUID IDs"
+    checkpoint = json.loads(json.loads(state_file.read_text())["_lumibot_order_state"])
+    assert checkpoint["orders"][0]["identifier"] == str(native_id)
+    assert checkpoint["orders"][0]["child_orders"][0]["parent_identifier"] == str(native_id)
+    assert own.identifier is native_id
+    recovered, _ = _TRANSPORT.data_only_schwab_broker(transport, name="same-name")
+    recovered.restore_order_state(checkpoint, "same-name")
+    assert recovered.get_tracked_order(native_id) is not None
 
 
 @pytest.mark.parametrize("first_iteration", [True, False])

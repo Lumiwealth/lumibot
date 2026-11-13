@@ -183,7 +183,7 @@ def get_price_data_from_polygon(
     if symbol is None:
         # If no valid symbol is found, mark all trading dates as checked.
         trading_dates = get_trading_dates(asset, start, end)
-        df_all = update_cache(cache_file, df_all, trading_dates)
+        df_all = update_cache(cache_file, df_all, trading_dates, asset=asset)
         return df_all
 
     # Determine overall download range from the earliest to the latest missing date.
@@ -233,7 +233,7 @@ def get_price_data_from_polygon(
 
     # Recompute missing dates after downloads and update the cache.
     missing_dates = get_missing_dates(df_all, asset, start, end)
-    df_all = update_cache(cache_file, df_all, missing_dates)
+    df_all = update_cache(cache_file, df_all, missing_dates, asset=asset)
 
     # Reload the full cache from disk and filter out dummy rows (with missing=True).
     df_all_full = load_cache(cache_file)
@@ -501,6 +501,22 @@ def build_cache_filename(asset: Asset, timespan: str, quote_asset: Asset = None)
     return cache_file
 
 
+def _cached_trading_dates(df_all, asset=None):
+    if df_all is None or df_all.empty:
+        return set()
+    index = pd.DatetimeIndex(df_all.index)
+    if index.tz is not None and asset is not None and asset.asset_type in {
+        Asset.AssetType.STOCK, Asset.AssetType.OPTION, Asset.AssetType.INDEX,
+    }:
+        # US evening observations can fall on the following UTC date. They do
+        # not establish coverage for that next NYSE trading date. Empty-query
+        # markers keep their original requested date, including legacy caches.
+        missing = df_all.get("missing", pd.Series(False, index=index)).fillna(False).astype(bool).to_numpy()
+        observed_dates = index[~missing].tz_convert("America/New_York").date
+        return set(observed_dates) | set(index[missing].date)
+    return set(index.date)
+
+
 def get_missing_dates(
     df_all: Optional[pd.DataFrame],
     asset: Asset,
@@ -538,11 +554,8 @@ def get_missing_dates(
     if df_all is None or df_all.empty:
         return trading_dates
 
-    # Optimized: Use pandas built-in date normalization instead of iterating
-    # This is much faster than iterating through the index
-    cached_dates = pd.Index(df_all.index.date).unique()
     trading_dates_set = set(trading_dates)
-    cached_dates_set = set(cached_dates)
+    cached_dates_set = _cached_trading_dates(df_all, asset)
     missing_dates = sorted(trading_dates_set - cached_dates_set)
 
     # Ensure the missing dates fall within the requested range.
@@ -591,7 +604,9 @@ def load_cache(cache_file: Path) -> pd.DataFrame:
 def update_cache(
     cache_file: Path,
     df_all: Optional[pd.DataFrame],
-    missing_dates: Optional[List[datetime.date]] = None
+    missing_dates: Optional[List[datetime.date]] = None,
+    *,
+    asset: Optional[Asset] = None,
 ) -> pd.DataFrame:
     """
     Update the cache file by adding any missing dates as dummy rows.
@@ -609,6 +624,9 @@ def update_cache(
         The existing cached DataFrame (may be None or empty).
     missing_dates : Optional[List[datetime.date]]
         List of date objects for which data is missing.
+    asset : Optional[Asset]
+        Use the asset's existing trading-date convention when checking coverage.
+        Omitted callers retain the legacy index-date convention.
         
     Returns
     -------
@@ -629,7 +647,7 @@ def update_cache(
         df_all = df_all.sort_index()
 
     # Determine dates already present in the cache (from the index).
-    cached_dates = {d.date() for d in df_all.index} if not df_all.empty else set()
+    cached_dates = _cached_trading_dates(df_all, asset)
     dummy_rows = []
     # For every missing date not in the cache, create a dummy row.
     for d in missing_dates or []:

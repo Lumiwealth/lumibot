@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "reviewed_at": "2026-11-13",
+  "component": "MetaMask execution recovery and complete-window cash reporting",
+  "source_pr": "https://github.com/Lumiwealth/lumibot/pull/1262",
+  "reviewed_source": "86784b1d33c8c0850875e2d6e7a189ae5aaccded",
+  "release_parent": "662a8d3c5c9211cf71be28f86723e54fcecb51f3",
+  "release_version": "4.6.55",
+  "combined_runtime_fingerprint": "7a45f244edb0d71fc80c0f955dca948d87d9d17520ba4aa1602be11fba81a9aa",
+  "focused_local_checks": [
+    {
+      "test": "tests/test_metamask_native_client.py::test_upgrade_legacy_registry_retains_exact_order_cancel",
+      "instances": 4,
+      "result": "passed",
+      "reason": "Accepted legacy orders must remain recoverable and exactly cancelable after stricter registry validation."
+    },
+    {
+      "test": "tests/test_metamask_cash_events.py::test_default_seven_day_reporting_delivers_all_hourly_funding_batches",
+      "instances": 1,
+      "result": "passed",
+      "reason": "The ordinary seven-day reporting path must deliver all 168 hourly funding events in receipt batches."
+    },
+    {
+      "test": "tests/test_metamask_broker.py::test_pending_approval_does_not_emit_fill_or_error",
+      "instances": 1,
+      "result": "passed",
+      "reason": "A pending managed approval remains incomplete without a fabricated fill or rejection."
+    },
+    {
+      "test": "tests/test_metamask_broker.py::test_shared_close_position_keeps_reduce_only_on_wire_and_restore",
+      "instances": 1,
+      "result": "passed before and after current dev integration",
+      "reason": "Shared close-position and restored-order paths must preserve reduce-only intent."
+    },
+    {
+      "test": "tests/test_metamask_broker.py::test_real_ioc_partial_execution_cancels_remainder_and_restores_without_callback_replay",
+      "instances": 1,
+      "result": "passed before and after current dev integration",
+      "reason": "Actual executed quantity, remainder cancellation, fees and recovery callbacks must agree. The transport in this local test is synthetic."
+    }
+  ],
+  "source_ci": "https://github.com/Lumiwealth/lumibot/actions/runs/43379881725",
+  "metamask_python_ci": "https://github.com/Lumiwealth/lumibot/actions/runs/43379881793",
+  "source_ci_result": "All required checks passed on the reviewed source, including MetaMask Python 3.10 and 3.12.",
+  "release_integration_checks": [
+    "python scripts/qualify_agent_evals.py verify",
+    "python scripts/qualify_agent_evals.py verify --receipt ci/agent-evals/single-option-guidance-qualification.json --scope ci/agent-evals/single-option-guidance-scope.json --source-compatibility ci/agent-evals/single-option-guidance-source-compatibility.json"
+  ],
+  "release_integration_result": "Both offline verifiers passed; existing release evidence, scope and author reasons were preserved and extended.",
+  "retained_code_proof": "MetaMask runtime, its data source and the shared cash collector are byte-identical to the reviewed source. The release's UUID dictionary serialization preserves the string identifiers used by MetaMask; its other provider/backtest and reporting changes do not alter the reviewed live broker paths. Retain the original focused checks without rerunning an unchanged integration.",
+  "real_model_attempts": 0,
+  "paid_ai_api_spend_usd": 0,
+  "funded_execution": "Not run for this candidate. Fresh managed signing, approvals, orders, cancellation, fills, closing and restart remain unqualified.",
+  "scope": "Generic broker recovery and reporting for every user of the adapter; no private strategy, customer data, hosted infrastructure or security machinery added."
+}

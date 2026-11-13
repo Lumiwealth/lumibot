@@ -18,6 +18,7 @@ from lumibot.indicators.base import (
     Level,
     OutputSpec,
 )
+from lumibot.indicators.drawings import Drawings
 from lumibot.indicators.execution import (
     IndicatorExecutor,
     InProcessExecutor,
@@ -37,6 +38,7 @@ from lumibot.indicators.runner import IndicatorRunner
 
 __all__ = [
     "Bar",
+    "Drawings",
     "Indicator",
     "IndicatorExecutor",
     "IndicatorRegistry",

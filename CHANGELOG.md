@@ -1,5 +1,37 @@
 # Changelog
 
+## 4.6.55 - 2026-11-12
+
+Deploy marker: 51e0aed622f2efaa8e1a86fdd725951bd1ff52c3
+
+### Added
+- Indicators can draw boxes, lines and labels anchored to bar times and prices (Pine's `box.new`, `line.new`, `label.new`, their `set_*` and `delete`), through `self.draw` in `step` and `indicator.drawings()`. They follow forming-bar rollback, each kind keeps at most 500 objects (oldest dropped first), and `IndicatorRunner.snapshot()` carries them. Existing indicators are unchanged.
+
+### Fixed
+- Preserve reconciliation and exact cancellation of accepted MetaMask perpetual orders when upgrading a legacy token registry, while retaining strict validation for new trades and token valuation.
+- Deliver complete receipt-backed cash-history windows through existing report batches instead of truncating seven days of hourly funding to 100 events; retain limits for list-only brokers.
+- Resolve MetaMask perpetual asset casing to unique native market identities across execution and market data, preserving journaled operation identity on retries.
+- Use chain-specific native-token price identities and reject duplicate or unapproved-chain asset registrations before wallet valuation.
+- Let bounded MetaMask allowance prerequisites settle under unchanged owner authority before refreshing the trade quote, retaining fee ceilings and restart replay protection.
+- Project actual MetaMask perpetual fees and maker rebates into cumulative standard order costs without replaying executions or guessing currency conversions.
+- Read MetaMask funding and capital ledgers through standard cash-history receipts, with scoped event identities and explicit incomplete, unavailable and unsupported states.
+- Protect MetaMask qualification evidence from overwriting wallet recovery files, and check remaining journal budget for the resting-order test, entry and closing leg before signing.
+- Keep qualification receipt I/O failures from bypassing owned residual cleanup or worker/resource settlement, while retaining failed verdicts and mandatory journal/financial guards.
+- Restore native AI skill loading when a supported ADK tool has no optional behavior metadata; preserve that metadata when supplied without passing unsupported constructor arguments.
+- Serialize broker-native UUID order IDs as text in saved order dictionaries, including parent IDs. Scheduled checkpoints no longer fail before saving strategy variables; the live order keeps its native ID and restart ownership checks remain intact.
+- Require QuantStats Lumi 1.1.6 so small nonzero total returns remain visible in tear-sheet headings instead of rounding to zero.
+- Polygon cached US stock, option and index coverage uses the New York trading date. Previous-evening rows after midnight UTC no longer suppress downloading the next session. Confirmed-empty dates remain checked, so unavailable sessions are not requested repeatedly. Crypto, forex and legacy cache-writer callers retain their existing date convention.
+
+### Documentation and evidence
+- Publish native performance reports from audited local option-example runs and document automatic interactive charts and headless report saving.
+- Preserve original native AI qualification without rerunning unrelated model cases for a provider-only repair.
+- Keep public qualification and cost records free of private downstream service names.
+
+### Backtesting and history
+- A backtest that never got any price or bar for an asset it asked about (the provider does not know the symbol, or returned nothing for the whole run) now lists it in `data_health.required_failures` with the asset, the provider and a reason (`symbol_not_found` when the provider said it has no such symbol, otherwise `no_data_for_backtest`), and sets `required_complete` to false, so a host can mark the run failed instead of "completed with no trades". Option contracts are excluded (strike searches probe contracts that never traded), runs with data for every asset are unchanged, and no data is invented.
+- Delta strike picks load stored option prices only for the strikes the search can reach (a band around its starting strike, widened before the search steps past it) instead of every candidate. Same strike, same prices. Warm 3-month SPY iron condor: a 10:00 entry went from 461 ms to 174 ms (median), simulation wall 38.1 s to 20.4 s, trades and stats identical.
+- Fewer repeated steps per pick: the risk-free rate is looked up once per time instead of once per strike, stored option timestamps are not converted again, and already sorted shared-cache rows are not sorted again.
+
 ## 4.6.54 - 2026-11-11
 
 Deploy marker: d802adfc087f895e272421f2b06de6cce5df875e
@@ -10,6 +42,9 @@ Deploy marker: d802adfc087f895e272421f2b06de6cce5df875e
 
 ### Backtesting and history
 - The shared bar cache can remember a confirmed-empty answer: the provider answered successfully and completely with zero bars for a range that closed at least one day ago, for an instrument the provider lists. Alpaca options use it for listed contracts that never traded, so a warm 3-month iron condor made 0 option-bar requests instead of 63 (simulation 35.2 s to 30.8 s, results identical). Errors, timeouts, rate limits, truncated answers, unlisted contracts and recent days are never remembered. Markers hold no bars and are never returned as data; a marker for a range closed less than 30 days earlier is re-checked once after 7 days so a provider backfill appears. Other providers are unchanged unless they opt in.
+
+### Agents
+- Clearer agent tool descriptions, no tool behaviour change: listing option contracts does not show their Greeks or quotes, so the agent reads the exact contract before declining a listed strike; order-status watches take order identifiers and status names in separate inputs; the order-shaped profit check uses a positive quantity plus a side. Four affected real-model evals passed once each on the 4.6.54 candidate.
 
 ### Release evidence
 - Verify separately published native qualification with its explicit receipt and case scope. Retain the original inference source and original receipt publication as distinct immutable commits; both digests and the reviewed candidate remain checked. This adds no model calls or trading changes.

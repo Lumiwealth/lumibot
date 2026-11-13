@@ -270,7 +270,8 @@ def record_backtest_availability_requirement(*, asset, timestep, when, history_a
 
 
 
-def record_required_data_issue(*, asset, timestep, when, reason, recovery_cause="unknown", retryable=False):
+def record_required_data_issue(*, asset, timestep, when, reason, recovery_cause="unknown", retryable=False,
+                               requested_bars=None, returned_bars=None, provider=None, occurrences=1):
     """Persist a bounded typed failure without leaking provider payloads."""
     allowed = {"temporary_download_failure", "history_unavailable", "corporate_actions_unverified",
                "data_not_yet_available", "unknown"}
@@ -283,13 +284,21 @@ def record_required_data_issue(*, asset, timestep, when, reason, recovery_cause=
     with _HEALTH_LOCK:
         previous = _REQUIRED_FAILURES.get(key)
         if previous:
-            previous["occurrences"] += 1
+            previous["occurrences"] += int(occurrences)
             previous["last_observed_at"] = when.isoformat()
             previous["retryable"] = previous.get("retryable", False) and retryable is True
         elif len(_REQUIRED_FAILURES) < 500:
-            _REQUIRED_FAILURES[key] = {"symbol": symbol, "asset_type": kind, "timestep": str(timestep),
+            entry = {"symbol": symbol, "asset_type": kind, "timestep": str(timestep),
                 "reason": str(reason)[:200], "recovery_cause": recovery_cause, "retryable": retryable is True,
-                "first_observed_at": when.isoformat(), "last_observed_at": when.isoformat(), "occurrences": 1}
+                "first_observed_at": when.isoformat(), "last_observed_at": when.isoformat(),
+                "occurrences": int(occurrences)}
+            if requested_bars is not None:
+                entry["requested_bars"] = int(requested_bars)
+            if returned_bars is not None:
+                entry["returned_bars"] = int(returned_bars)
+            if provider:
+                entry["provider"] = str(provider)[:64]
+            _REQUIRED_FAILURES[key] = entry
 
 def record_required_history(*, asset, timestep, requested_bars, frame, when, requirement="history") -> None:
     """Record history actually consumed by a strategy, separately from prefetch.

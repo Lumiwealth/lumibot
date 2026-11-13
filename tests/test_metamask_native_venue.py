@@ -36,6 +36,66 @@ def test_price_reads_fixed_testnet_endpoint_without_wallet_credentials(venue):
     assert "Authorization" not in kwargs.get("headers", {})
 
 
+def test_normal_asset_casing_resolves_native_market_for_price_order_and_candles(venue):
+    from lumibot.data_sources import MetaMaskData
+    from lumibot.entities import Asset
+    from lumibot.tools.metamask_client import MetaMaskClient
+
+    meta = {"universe": [{"name": "kPEPE", "szDecimals": 0, "maxLeverage": 10}]}
+    candle = {"s": "kPEPE", "i": "1m", "t": 0, "T": 59999, "o": "1", "h": "3", "l": "1", "c": "2", "v": "4"}
+
+    def read(method, url, **kwargs):
+        payload = kwargs["json"]
+        if payload["type"] == "meta":
+            return reply(meta)
+        if payload["type"] == "candleSnapshot":
+            assert payload["req"]["coin"] == "kPEPE"
+            return reply([candle])
+        assert payload == {"type": "metaAndAssetCtxs"}
+        return reply([meta, [{"markPx": "2"}]])
+
+    venue.session.request.side_effect = read
+    client = MetaMaskClient({"NETWORK": "testnet"})
+    client._venue = venue
+    source = MetaMaskData(client=client)
+    asset = Asset("kPEPE", asset_type="crypto_future")
+    assert asset.symbol == "KPEPE" and source.get_last_price(asset) == 2
+    assert venue.market(asset.symbol).symbol == "kPEPE"
+    action = venue.order_action(asset.symbol, "buy", Decimal(10), "market", None, "ioc", True, "0x" + "1" * 32)
+    assert action["orders"][0]["a"] == 0 and action["orders"][0]["r"] is True
+    assert venue.candles(asset.symbol, "1m", 0, 90000) == [[0, "1", "3", "1", "2", "4"]]
+
+
+def test_case_colliding_native_markets_are_never_guessed(venue):
+    meta = {"universe": [{"name": name, "szDecimals": 0, "maxLeverage": 10} for name in ["coin", "COIN"]]}
+    venue.session.request.return_value = reply(meta)
+    with pytest.raises(MetaMaskError, match="ambiguous"):
+        venue.market("COIN")
+    venue.session.request.return_value = reply([meta, [{"markPx": "1"}, {"markPx": "2"}]])
+    with pytest.raises(MetaMaskError, match="ambiguous"):
+        venue.price("COIN")
+
+
+def test_dex_and_funding_filters_preserve_canonical_names(venue):
+    def read(method, url, **kwargs):
+        query = kwargs["json"]
+        if query["type"] == "perpDexs":
+            return reply([None, {"name": "xyz"}])
+        if query["type"] == "meta":
+            assert query["dex"] == "xyz"
+            return reply({"universe": [{"name": "xyz:COIN", "szDecimals": 0, "maxLeverage": 10}]})
+        if query["type"] == "metaAndAssetCtxs":
+            assert query["dex"] == "xyz"
+            return reply([{"universe": [{"name": "xyz:COIN"}]}, [{"markPx": "2"}]])
+        assert query["type"] == "userFunding"
+        return reply([{"delta": {"coin": "xyz:COIN"}}, {"delta": {"coin": "BTC"}}])
+
+    venue.session.request.side_effect = read
+    assert venue.market("XYZ:COIN").symbol == "xyz:COIN"
+    assert venue.price("XYZ:COIN") == 2
+    assert venue.funding(WALLET, 0, 1, "XYZ:COIN") == [{"delta": {"coin": "xyz:COIN"}}]
+
+
 def test_live_open_order_snapshot_is_read_from_bound_wallet_with_exact_remaining_size(venue):
     rows = [{"coin": "ETH", "oid": 42, "sz": "0.0002", "origSz": "0.0106", "reduceOnly": False}]
     venue.session.request.return_value = reply(rows)
@@ -163,12 +223,15 @@ def test_unknown_account_mode_is_not_valued_as_standard(venue):
 
 
 def test_candles_exclude_open_bar_and_preserve_requested_network(venue):
-    venue.session.request.return_value = reply(
-        [
-            {"s": "BTC", "i": "1m", "t": 0, "T": 59999, "o": "1", "h": "3", "l": "1", "c": "2", "v": "4"},
-            {"s": "BTC", "i": "1m", "t": 60000, "T": 119999, "o": "2", "h": "3", "l": "1", "c": "3", "v": "5"},
-        ]
-    )
+    venue.session.request.side_effect = [
+        reply(META),
+        reply(
+            [
+                {"s": "BTC", "i": "1m", "t": 0, "T": 59999, "o": "1", "h": "3", "l": "1", "c": "2", "v": "4"},
+                {"s": "BTC", "i": "1m", "t": 60000, "T": 119999, "o": "2", "h": "3", "l": "1", "c": "3", "v": "5"},
+            ]
+        ),
+    ]
     assert venue.candles("BTC", "1m", 0, 90000) == [[0, "1", "3", "1", "2", "4"]]
 
 

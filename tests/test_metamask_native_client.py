@@ -6,12 +6,13 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+from eth_account.messages import encode_typed_data
 
 from lumibot.brokers import MetaMask
 from lumibot.tools.metamask.journal import Journal
-from lumibot.tools.metamask.provider import MetaMaskError
+from lumibot.tools.metamask.provider import GuardPolicy, MetaMaskError, SignatureJob
 from lumibot.tools.metamask_client import MetaMaskClient
-from tests.test_metamask_native_engine import WALLET, intent, partial_fill, seed_closed_orders
+from tests.test_metamask_native_engine import SIGNER, WALLET, intent, partial_fill, seed_closed_orders
 from tests.test_metamask_native_engine import engine as engine
 
 
@@ -120,6 +121,86 @@ def test_client_recovers_unknown_venue_order_without_replaying_and_preserves_not
         native_broker.client.get_order("missing")
     engine.venue.submit_action.assert_not_called()
     engine.provider.submit_signature.assert_not_called()
+
+
+@pytest.mark.parametrize("legacy_effects", [False, True])
+@pytest.mark.parametrize("registry", ["duplicate", "unapproved_chain"])
+def test_upgrade_legacy_registry_retains_exact_order_cancel(native_broker, engine, legacy_effects, registry):
+    engine.submit(intent())
+    token = {"symbol": "TOKEN", "chainId": 421614, "address": "0x" + "2" * 40, "decimals": 6}
+    assets = [token, {**token, "symbol": "ALIAS"}] if registry == "duplicate" else [{**token, "chainId": 1}]
+    saved = {**engine.journal.binding("agent"), "assets": assets}
+    engine.journal.bind(saved)
+    venue_status = engine.venue.order_status(WALLET, 42)
+    engine.venue.order_status.side_effect = None
+    engine.venue.order_status.return_value = venue_status
+    if legacy_effects:
+        engine.journal.db.execute("DELETE FROM native_effects WHERE agent='agent' AND operation='one'")
+    client = native_broker.client
+    client._engine = None  # Exercise startup verification, not an already initialized engine.
+    assert client.get_order("one")["state"] == "open"
+    assert client.orders()[0]["providerOrderId"] == "42"
+    before = engine.journal.get("agent", "one")
+    with pytest.raises(MetaMaskError, match="INVALID_BINDING"):
+        client.submit(intent(id="new"))
+    with pytest.raises(MetaMaskError, match="INVALID_BINDING"):
+        client.authorize(saved)
+    from lumibot.tools.metamask.evm import EvmWallet
+
+    with closing(EvmWallet(engine.journal, engine.provider, client.config)) as evm:
+        with pytest.raises(MetaMaskError, match="INVALID_BINDING"):
+            evm.account()
+    assert engine.journal.get("agent", "new") is None
+    engine.provider.submit_signature.side_effect = lambda request_id, wallet, network, data, action: SignatureJob(
+        request_id,
+        wallet,
+        "SIGNED",
+        "0x" + SIGNER.sign_message(encode_typed_data(full_message=data)).signature.hex().removeprefix("0x"),
+    )
+
+    def cancel(action, *args):
+        assert action == {"type": "cancel", "cancels": [{"a": 0, "o": 42}]}
+        venue_status["order"]["status"] = "canceled"
+        return {"status": "ok", "response": {"type": "cancel", "data": {"statuses": ["success"]}}}
+
+    engine.venue.submit_action.side_effect = cancel
+    result = client.cancel("one")
+    assert result["state"] == "canceled" and result["providerOrderId"] == "42"
+    assert result["reservedUsd"] == before["reservedUsd"] and result["filledQuantity"] == "0"
+    assert engine.journal.binding("agent") == saved
+    assert engine.provider.submit_signature.call_count == 3  # Two entry steps, one exact cancellation.
+    assert engine.venue.submit_action.call_count == 3
+
+
+@pytest.mark.parametrize(
+    "changed,error",
+    [
+        ("wallet", "IDENTITY_MISMATCH"),
+        ("network", "IDENTITY_MISMATCH"),
+        ("projectId", "PROJECT_MISMATCH"),
+        ("policy", "POLICY_CHANGED"),
+    ],
+)
+def test_legacy_registry_does_not_bypass_cancel_authority(native_broker, engine, changed, error):
+    engine.submit(intent())
+    token = {"symbol": "TOKEN", "chainId": 421614, "address": "0x" + "2" * 40, "decimals": 6}
+    saved = {**engine.journal.binding("agent"), "assets": [token, {**token, "symbol": "ALIAS"}]}
+    if changed == "policy":
+        engine.provider.policy.return_value = GuardPolicy("policy", "b" * 64)
+    elif changed == "projectId":
+        saved[changed] = "other"
+    elif changed == "wallet":
+        native_broker.client.config["WALLET_ADDRESS"] = "0x" + "3" * 40
+    else:
+        native_broker.client.network = "mainnet"
+    engine.journal.bind(saved)
+    native_broker.client._engine = None
+    engine.provider.submit_signature.reset_mock()
+    engine.venue.submit_action.reset_mock()
+    with pytest.raises(MetaMaskError, match=error):
+        native_broker.client.cancel("one")
+    engine.provider.submit_signature.assert_not_called()
+    engine.venue.submit_action.assert_not_called()
 
 
 def mixed_journal(engine):

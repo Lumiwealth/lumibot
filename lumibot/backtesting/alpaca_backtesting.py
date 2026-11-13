@@ -2026,7 +2026,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
         # PERF: a delta pick stores about 200 contracts. Convert the timestamps once, keep the
         # six columns, and sort only when needed (the shared cache already returns sorted rows);
         # the result equals the copy, convert, select, sort, filter sequence it replaces.
-        stamps = pd.to_datetime(df['timestamp'], utc=df.empty)
+        stamps = df['timestamp']
+        if df.empty or not pd.api.types.is_datetime64_any_dtype(stamps):
+            # Already datetimes (the shared cache returns them): converting again only costs time.
+            stamps = pd.to_datetime(stamps, utc=df.empty)
         stamps = stamps.dt.tz_localize(tzinfo) if stamps.dt.tz is None else stamps.dt.tz_convert(tzinfo)
         df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']].copy()
         df['timestamp'] = stamps

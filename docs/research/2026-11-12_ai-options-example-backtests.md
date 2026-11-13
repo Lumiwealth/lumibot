@@ -116,8 +116,8 @@ running BotSpot bot or a Marketplace listing. As last checked November 11,
 issued connection details. Local login availability does not establish hosted
 availability. No paid API fallback or live-money order was used for this work.
 
-LumiBot 4.6.52 was published and independently installed. Bot Manager's
-qualified fresh no-order bot reported the installed version as 4.6.52. That
+LumiBot 4.6.52 was published and independently installed. A fresh hosted
+no-order bot reported the installed version as 4.6.52. That
 runtime check is separate from execution of these three examples. Marketplace
 links will be added only when actual listings exist; the Marketplace does not
 require a hosted historical backtest.

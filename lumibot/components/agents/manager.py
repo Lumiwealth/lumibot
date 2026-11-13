@@ -267,19 +267,19 @@ class _AgentDetailSpool:
         try:
             with pq.ParquetWriter(str(tmp_path), schema, compression="zstd") as writer:
                 for source in sources:
-                    parquet_file = pq.ParquetFile(source)
                     # Trace rows can contain large prompts and tool responses.
-                    # Arrow's default 65,536-row batch can decode an entire long
-                    # run at once even though the Python row store is bounded.
-                    for batch in parquet_file.iter_batches(batch_size=64):
-                        table = pa.Table.from_batches([batch])
-                        columns = []
-                        for field in schema:
-                            if field.name in table.column_names:
-                                columns.append(table.column(field.name).cast(field.type))
-                            else:
-                                columns.append(pa.nulls(table.num_rows, type=field.type))
-                        writer.write_table(pa.Table.from_arrays(columns, schema=schema))
+                    # Bound native decoding too, and close each reader before
+                    # opening the next part instead of retaining its buffers.
+                    with pq.ParquetFile(source) as parquet_file:
+                        for batch in parquet_file.iter_batches(batch_size=64, use_threads=False):
+                            table = pa.Table.from_batches([batch])
+                            columns = []
+                            for field in schema:
+                                if field.name in table.column_names:
+                                    columns.append(table.column(field.name).cast(field.type))
+                                else:
+                                    columns.append(pa.nulls(table.num_rows, type=field.type))
+                            writer.write_table(pa.Table.from_arrays(columns, schema=schema))
             os.replace(tmp_path, self.path)
         finally:
             if tmp_path.exists():

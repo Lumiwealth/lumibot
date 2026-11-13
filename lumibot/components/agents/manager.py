@@ -268,7 +268,10 @@ class _AgentDetailSpool:
             with pq.ParquetWriter(str(tmp_path), schema, compression="zstd") as writer:
                 for source in sources:
                     parquet_file = pq.ParquetFile(source)
-                    for batch in parquet_file.iter_batches():
+                    # Trace rows can contain large prompts and tool responses.
+                    # Arrow's default 65,536-row batch can decode an entire long
+                    # run at once even though the Python row store is bounded.
+                    for batch in parquet_file.iter_batches(batch_size=64):
                         table = pa.Table.from_batches([batch])
                         columns = []
                         for field in schema:

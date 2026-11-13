@@ -9,6 +9,9 @@ synthetic two-agent strategy with a stub runtime, so no model is called.
 
 import gc
 import tracemalloc
+import json
+import resource
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -167,3 +170,80 @@ def test_detail_spool_combines_calls_whose_column_types_differ(tmp_path):
     assert [None if pd.isna(value) else str(value) for value in frame["latency"]] == ["120", "slow", None]
     assert frame["note"].tolist()[2] == "ok"
     assert not path.with_name(f"{path.stem}.parts").exists()
+
+
+class HourlyTwoAgentStrategy(TwoAgentMemoryStrategy):
+    iterations = 0
+    fills = 0
+
+    def initialize(self):
+        super().initialize()
+        self.sleeptime = "1h"
+        self.set_market("24/7")
+
+    def on_trading_iteration(self):
+        import psutil
+
+        note = self.agents["researcher"].run(context={"symbols": ["AAA", "BBB", "CCC"]})
+        self.agents["trader"].run(context={"research": note.summary})
+        type(self).iterations += 1
+        if type(self).iterations <= 20:
+            self.submit_order(self.create_order("AAA", 1, "buy" if type(self).iterations % 2 else "sell"))
+        type(self).samples.append((LargeResultRuntime.calls, psutil.Process().memory_info().rss))
+
+    def on_filled_order(self, position, order, price, quantity, multiplier):
+        type(self).fills += 1
+        self.agents["trader"].run(context={"filled_order": order.identifier, "price": price, "quantity": quantity})
+
+
+@pytest.mark.usefixtures("disable_datasource_override")
+def test_hourly_two_agent_replay_bounds_process_memory_and_keeps_fill_callbacks(monkeypatch, tmp_path):
+    import pyarrow.parquet as pq
+    import lumibot
+
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    LargeResultRuntime.calls = 0
+    HourlyTwoAgentStrategy.samples = []
+    HourlyTwoAgentStrategy.iterations = HourlyTwoAgentStrategy.fills = 0
+    index = pd.date_range("2026-01-02", "2026-01-16", freq="h", tz="America/New_York")
+    frame = pd.DataFrame({"open": 100., "high": 101., "low": 99., "close": 100.5, "volume": 1000}, index=index)
+    asset = Asset("AAA", Asset.AssetType.STOCK)
+    peak_before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    _, strategy = HourlyTwoAgentStrategy.run_backtest(
+        datasource_class=PandasDataBacktesting, backtesting_start=index[0].to_pydatetime(),
+        backtesting_end=index[-1].to_pydatetime(), pandas_data={asset: Data(asset, frame, timestep="hour")},
+        benchmark_asset=None, analyze_backtest=False, show_plot=False, save_tearsheet=False,
+        show_tearsheet=False, show_indicators=False, save_logfile=False, show_progress_bar=False, quiet_logs=True,
+    )
+    samples = HourlyTwoAgentStrategy.samples
+    assert LargeResultRuntime.calls >= 600
+    assert HourlyTwoAgentStrategy.fills == 20
+    assert LargeResultRuntime.calls == 2 * HourlyTwoAgentStrategy.iterations + HourlyTwoAgentStrategy.fills
+    early_calls, early_rss = samples[20]
+    late_calls, late_rss = samples[-1]
+    assert (late_rss - early_rss) / (late_calls - early_calls) < 250_000
+    peak_after = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    native_unit = 1 if sys.platform == "darwin" else 1024
+    assert (peak_after - peak_before) * native_unit < 512 * 1024 * 1024
+    detail = Path(strategy.parameters["agent_researcher_detail_parquet"])
+    counts = {"researcher": [], "trader": []}
+    tool_rows = 0
+    for batch in pq.ParquetFile(detail).iter_batches(batch_size=64, columns=["agent_name", "call_index", "event_kind", "event_payload_json"]):
+        for row in batch.to_pylist():
+            if row["event_kind"] == "call_summary":
+                counts[row["agent_name"]].append(row["call_index"])
+            elif row["event_kind"] == "tool_result":
+                payload = json.loads(row["event_payload_json"])
+                assert payload["symbol"] in {"AAA", "BBB", "CCC"}
+                assert payload["bars"] == _bars()
+                tool_rows += 1
+    expected = {"researcher": HourlyTwoAgentStrategy.iterations, "trader": HourlyTwoAgentStrategy.iterations + 20}
+    for name, count in expected.items():
+        assert counts[name] == list(range(1, count + 1))
+    assert tool_rows == LargeResultRuntime.calls * 3
+    assert not detail.with_name(f"{detail.stem}.parts").exists()
+    receipt = {"version": lumibot.__version__, "calls": LargeResultRuntime.calls, "iterations": HourlyTwoAgentStrategy.iterations,
+               "fills": HourlyTwoAgentStrategy.fills, "toolRows": tool_rows, "earlyRssBytes": early_rss,
+               "lateRssBytes": late_rss, "peakGrowthBytes": (peak_after - peak_before) * native_unit}
+    (tmp_path / "hourly-recorder-result.json").write_text(json.dumps(receipt))
+    print("HOURLY_RECORDER_RESULT", json.dumps(receipt))

@@ -8,6 +8,7 @@ Deploy marker: 51e0aed622f2efaa8e1a86fdd725951bd1ff52c3
 - Indicators can draw boxes, lines and labels anchored to bar times and prices (Pine's `box.new`, `line.new`, `label.new`, their `set_*` and `delete`), through `self.draw` in `step` and `indicator.drawings()`. They follow forming-bar rollback, each kind keeps at most 500 objects (oldest dropped first), and `IndicatorRunner.snapshot()` carries them. Existing indicators are unchanged.
 
 ### Fixed
+- Bound native Parquet decoding when combining agent trace records and close each part reader promptly. Long two-agent backtests keep every call and fill callback without decoding the complete trace into memory. Atomic replacement still preserves the previous complete file if a writer is killed.
 - Preserve reconciliation and exact cancellation of accepted MetaMask perpetual orders when upgrading a legacy token registry, while retaining strict validation for new trades and token valuation.
 - Deliver complete receipt-backed cash-history windows through existing report batches instead of truncating seven days of hourly funding to 100 events; retain limits for list-only brokers.
 - Resolve MetaMask perpetual asset casing to unique native market identities across execution and market data, preserving journaled operation identity on retries.

@@ -119,6 +119,12 @@ Future results and unfinished bars are withheld; no end-of-test payout is
 invented. Fee rates and balance precision are configurable estimates; explicit
 normal Strategy TradingFee lists override them. Candle data cannot reconstruct
 historical depth, queue priority, all vintage fees or cross-event margin.
+For a working example, run
+``python -m lumibot.example_strategies.kalshi_favorite_backtest``. It finds
+settled markets of one series from public history (no account needed), buys
+whichever side trades between 0.80 and 0.95, holds to settlement and prints
+trades, win rate and account value.
+
 See the repository's ``docs/KALSHI_ACCOUNT_CONNECTION.md`` for configuration,
 settlement, fill assumptions, evidence and remaining qualification.
 

@@ -239,3 +239,36 @@ def test_future_intraday_bar_does_not_fill_at_earlier_sim_timestamp():
     clock["now"] = future_bar
     assert broker._execution_bar_matches_datetime(future_bar, broker.datetime, "minute") is True
     assert broker._try_fill_with_quote(order, strategy=_StrategyStub(), open_=None, high_=None, low_=None) == 101.0
+
+
+def test_order_on_expired_future_is_canceled_not_left_pending():
+    """No bar can ever arrive for a contract past its expiration; waiting would keep the
+    order working for the rest of the run (a CL hourly run left 1,400+ pending checks)."""
+    import datetime as _dt
+
+    now = pytz.timezone("America/New_York").localize(dt(2026, 10, 21, 19, 0))
+    broker = _broker_at(now, time_to_close=3600)
+    contract = Asset("CL", asset_type=Asset.AssetType.FUTURE, expiration=_dt.date(2026, 10, 20))
+    order = _market_order("gtc", created_at=now - timedelta(days=2), asset=contract)
+    strategy = _StrategyStub()
+
+    assert broker._handle_unavailable_execution_data(order, "no current bar", strategy=strategy) is True
+
+    broker.cancel_order.assert_called_once_with(order)
+    assert order.is_canceled()
+    message = strategy.log_message.call_args[0][0]
+    assert "expired" in message and "2026-10-20" in message
+
+
+def test_order_on_live_future_without_bars_keeps_waiting():
+    import datetime as _dt
+
+    now = pytz.timezone("America/New_York").localize(dt(2026, 10, 20, 10, 0))
+    broker = _broker_at(now, time_to_close=3600)
+    contract = Asset("CL", asset_type=Asset.AssetType.FUTURE, expiration=_dt.date(2026, 10, 20))
+    order = _market_order("gtc", created_at=now - timedelta(hours=1), asset=contract)
+
+    assert broker._handle_unavailable_execution_data(order, "no current bar", strategy=_StrategyStub()) is True
+
+    broker.cancel_order.assert_not_called()
+    assert order.is_active()

@@ -349,3 +349,38 @@ def test_cme_fx_futures_use_ibkr_root_symbols(monkeypatch, tmp_path):
     assert conid == 532281583
     assert calls[0]["symbols"] == "EUR"
     assert mapping["future|6E||CME|20261214"] == 532281583
+
+
+def test_ibkr_helper_contract_info_lookup_runs_once_per_contract_even_when_it_fails(monkeypatch, tmp_path):
+    """Contract details are looked up once per contract per run, even when the lookup
+    returns nothing or errors. A failed lookup used to be retried on every price request,
+    which added a downloader round trip to every bar of a long futures backtest."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    monkeypatch.setattr(ibkr_helper, "_CONTRACT_INFO_MEMO", {}, raising=False)
+
+    class _StubCache:
+        def ensure_local_file(self, path, payload=None):
+            return
+
+        def on_local_update(self, path, payload=None):
+            return
+
+    calls = []
+
+    def failing_lookup(conid):
+        calls.append(conid)
+        if len(calls) % 2:
+            return {}
+        raise RuntimeError("IBKR contract info error: transient")
+
+    monkeypatch.setattr(ibkr_helper, "get_backtest_cache", lambda: _StubCache())
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda *, asset, quote, exchange: 4242)
+    monkeypatch.setattr(ibkr_helper, "_fetch_contract_info", failing_lookup)
+
+    asset = Asset(symbol="CL", asset_type=Asset.AssetType.FUTURE, expiration=datetime(2026, 10, 20).date())
+    for _ in range(5):
+        ibkr_helper._maybe_apply_future_contract_metadata(asset=asset, exchange="NYMEX")
+
+    assert calls == [4242]

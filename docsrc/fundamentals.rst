@@ -19,9 +19,9 @@ AI agents get the same data as built-in tools.
 Quick start: a fundamentals scanner
 -----------------------------------
 
-This strategy warms the data for its whole universe once, then each month
-ranks companies by revenue growth, keeps the ones with modest debt, and buys
-the top five. Copy it, change the universe, and backtest it.
+This strategy ranks a universe by revenue growth each month, skips companies
+with heavy debt or a high P/E, and buys the top five. Every number is what was
+public at the backtest date. Copy it, change the universe, and backtest it.
 
 .. code-block:: python
 
@@ -30,8 +30,7 @@ the top five. Copy it, change the universe, and backtest it.
    from lumibot.backtesting import YahooDataBacktesting
    from lumibot.strategies import Strategy
 
-   UNIVERSE = ["AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "JPM", "JNJ", "PG", "XOM"]
-   REVENUE = ["RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"]
+   UNIVERSE = ["AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "JPM", "JNJ", "PG", "COST"]
 
 
    class RevenueGrowthScanner(Strategy):
@@ -42,29 +41,17 @@ the top five. Copy it, change the universe, and backtest it.
        def on_trading_iteration(self):
            now = self.get_datetime()
            if self.vars.month == now.month:
-               return
+               return  # rebalance once a month
            self.vars.month = now.month
-           if not self.vars.get("warmed"):
-               self.fundamentals.preload(UNIVERSE)  # one parallel download for the universe
-               self.vars.warmed = True
 
-           scores = {}
-           for symbol in UNIVERSE:
-               # Annual revenue as known today: every period, each with the value public at `now`.
-               annual = [
-                   row for row in self.fundamentals.get_fact_history(symbol, REVENUE)["values"]
-                   if row.get("fp") == "FY" and row.get("start")
-               ]
-               balance = self.fundamentals.get_balance_sheet(symbol)["values"]
-               debt = balance.get("debt", {}).get("value")
-               equity = balance.get("equity", {}).get("value")
-               if len(annual) < 2 or not debt or not equity:
-                   continue  # missing data is skipped, never filled in
-               growth = annual[-1]["value"] / annual[-2]["value"] - 1
-               if debt / equity < 2:
-                   scores[symbol] = growth
+           # One table for the whole universe: one row per symbol, as of today's bar.
+           table = self.fundamentals.get_metrics_table(
+               UNIVERSE, ["revenue_growth_yoy", "debt_to_equity", "pe_ratio"]
+           )
+           table = table.dropna(subset=["revenue_growth_yoy"])  # missing data is skipped, never filled in
+           table = table[(table["debt_to_equity"].fillna(0) < 2) & (table["pe_ratio"].fillna(0) < 60)]
+           picks = list(table.sort_values("revenue_growth_yoy", ascending=False).index[:5])
 
-           picks = sorted(scores, key=scores.get, reverse=True)[:5]
            for position in self.get_positions():
                if position.asset.symbol not in picks and position.asset != self.quote_asset:
                    self.submit_order(self.create_order(position.asset, position.quantity, "sell"))
@@ -80,12 +67,64 @@ the top five. Copy it, change the universe, and backtest it.
    if __name__ == "__main__":
        RevenueGrowthScanner.backtest(YahooDataBacktesting, datetime(2024, 1, 1), datetime(2024, 12, 31))
 
+Ready-made metrics
+------------------
+
+Ask for a metric in one line. Each is computed from filings public at the
+backtest date (or ``as_of``), and is ``None`` when it cannot be computed:
+
+.. code-block:: python
+
+   self.fundamentals.get_metric("AAPL", "pe_ratio")            # one number or None
+   self.fundamentals.get_metrics("AAPL")                       # all of them, with reasons
+   self.fundamentals.get_metrics_table(["AAPL", "MSFT"])       # pandas table for a scanner
+
+.. list-table::
+   :header-rows: 1
+
+   * - Metric
+     - What it is
+   * - ``ttm_revenue``, ``ttm_net_income``, ``ttm_eps_diluted``
+     - Trailing twelve months: latest annual report plus the latest
+       year-to-date quarter, minus the same quarter a year earlier
+   * - ``revenue_growth_yoy``
+     - TTM revenue versus TTM revenue one year earlier
+   * - ``gross_margin``, ``net_margin``
+     - TTM gross profit (or revenue minus cost of revenue) and TTM net income,
+       over TTM revenue for the same twelve months
+   * - ``ttm_free_cash_flow``
+     - TTM operating cash flow minus TTM capital expenditures
+   * - ``debt_to_equity``
+     - Long-term debt (including the current portion when reported) over
+       stockholders' equity, from the same balance sheet
+   * - ``current_ratio``
+     - Current assets over current liabilities, same balance sheet
+   * - ``shares_outstanding``
+     - Cover-page shares outstanding from the latest filing
+   * - ``book_value_per_share``
+     - Stockholders' equity over shares outstanding
+   * - ``market_cap``, ``pe_ratio``, ``ps_ratio``, ``pb_ratio``
+     - Price times shares outstanding, and price over TTM EPS, TTM revenue per
+       share and book value per share
+
+Price-based metrics use ``price=`` when you pass it (``prices={...}`` for the
+table), otherwise the strategy's last price at the current bar.
+
+When a metric is ``None``, ``get_metrics(...)["reasons"]`` says why, for
+example ``"no long-term debt filed for the balance sheet dated 2024-03-31
+(missing debt is not treated as zero)"`` or ``"TTM diluted EPS is not positive,
+so P/E is not meaningful"``. Nothing is estimated or filled in: a missing input,
+a period the company did not report, or a latest filing more than 18 months old
+gives ``None``, not an old or made-up number. ``get_metrics(...)["periods"]``
+names the period, filing and availability time behind every value.
+
 Methods
 -------
 
 .. code-block:: python
 
    self.fundamentals.preload(["AAPL", "MSFT", ...])        # warm a universe in one call
+   self.fundamentals.get_metrics_table(["AAPL", "MSFT"])   # ratios for a universe (see above)
    self.fundamentals.get_income_statement("AAPL")          # latest statement as of now
    self.fundamentals.get_balance_sheet("AAPL")
    self.fundamentals.get_cash_flow("AAPL")
@@ -175,6 +214,17 @@ Limits
   conservative day-after-filing rule.
 - **No analyst estimates, no price data.** Combine with your strategy's own
   price data.
+- **Price-based ratios assume the price is as traded on that date.** SEC share
+  counts and EPS are as filed. If your backtest prices are adjusted for a later
+  stock split, P/E, P/S, P/B and market cap before that split are off by the
+  split ratio; pass ``price=`` with the unadjusted price around splits.
+- **TTM needs a company that reports year-to-date quarters.** Most US filers
+  do. Banks and insurers often have no gross profit, so ``gross_margin`` is
+  ``None`` for them.
+- **The ticker map is today's.** The SEC ticker list maps each current ticker
+  to today's registrant. A company that changed its registrant (for example a
+  new holding company) or a ticker reused by another company maps to the
+  current one, and older history may be missing for it.
 
 Agent tools
 -----------

@@ -93,6 +93,53 @@ _PRIORITY_COMPANY_FACT_TAGS = tuple(
 )
 
 
+# Inputs for the ready-made metrics (get_metrics). Lists are in priority order: the first tag a
+# company reports for a period supplies its value. "dei:" names the cover-page taxonomy.
+_METRIC_TAGS = {
+    "revenue": [
+        "RevenueFromContractWithCustomerExcludingAssessedTax",
+        "Revenues",
+        "SalesRevenueNet",
+        "RevenueFromContractWithCustomerIncludingAssessedTax",
+    ],
+    "net_income": ["NetIncomeLoss"],
+    "eps_diluted": ["EarningsPerShareDiluted"],
+    "gross_profit": ["GrossProfit"],
+    "cost_of_revenue": ["CostOfRevenue", "CostOfGoodsAndServicesSold"],
+    "operating_cash_flow": ["NetCashProvidedByUsedInOperatingActivities"],
+    "capex": ["PaymentsToAcquirePropertyPlantAndEquipment"],
+    "assets_current": ["AssetsCurrent"],
+    "liabilities_current": ["LiabilitiesCurrent"],
+    "equity": ["StockholdersEquity"],
+    "debt_total": ["LongTermDebt"],
+    "debt_noncurrent": ["LongTermDebtNoncurrent"],
+    "debt_current": ["LongTermDebtCurrent", "DebtCurrent"],
+    "shares": ["dei:EntityCommonStockSharesOutstanding", "CommonStockSharesOutstanding"],
+}
+_METRIC_TAG_SET = tuple(dict.fromkeys(tag for tags in _METRIC_TAGS.values() for tag in tags))
+
+FUNDAMENTAL_METRICS = (
+    "ttm_revenue",
+    "ttm_net_income",
+    "ttm_eps_diluted",
+    "revenue_growth_yoy",
+    "gross_margin",
+    "net_margin",
+    "ttm_free_cash_flow",
+    "debt_to_equity",
+    "current_ratio",
+    "shares_outstanding",
+    "book_value_per_share",
+    "market_cap",
+    "pe_ratio",
+    "ps_ratio",
+    "pb_ratio",
+)
+_PRICE_METRICS = frozenset({"market_cap", "pe_ratio", "ps_ratio", "pb_ratio"})
+# A fact whose latest filed period ended more than this long before the date is too old to use
+# as "current": the metric is None instead of carrying an old number forward.
+_METRIC_STALE_DAYS = 548
+
 def _parse_dt(value: Any) -> datetime | None:
     if isinstance(value, datetime):
         return value
@@ -289,19 +336,27 @@ class _CompanyTimeline:
                 self.filing_ts[key] = ts
                 self.filing_published[key] = filed
         self.fallback_ts = sorted(set(self.filing_ts.values()))
-        self.add_tags(us_gaap, tags)
+        self.add_tags(facts, tags)
 
     @staticmethod
     def filing_key(row: dict[str, Any]) -> str:
         accn = row.get("accn")
         return _intern(str(accn)) if accn else _intern(f"filed:{row.get('filed')}")
 
-    def add_tags(self, us_gaap: dict[str, Any], tags: Iterable[str]) -> None:
+    def add_tags(self, facts: dict[str, Any], tags: Iterable[str]) -> None:
+        """Index ``tags`` from the companyfacts ``facts`` dict.
+
+        A plain tag is us-gaap; ``"dei:EntityCommonStockSharesOutstanding"`` names another
+        taxonomy.
+        """
         for tag in tags:
             if tag in self.loaded_tags:
                 continue
             self.loaded_tags.add(tag)
-            units = (us_gaap.get(tag) or {}).get("units") if isinstance(us_gaap.get(tag), dict) else None
+            taxonomy_name, _, name = tag.rpartition(":")
+            taxonomy = facts.get(taxonomy_name or "us-gaap") if isinstance(facts, dict) else None
+            fact = taxonomy.get(name) if isinstance(taxonomy, dict) else None
+            units = fact.get("units") if isinstance(fact, dict) else None
             if not isinstance(units, dict):
                 continue
             by_unit: dict[str, _Series] = {}
@@ -816,13 +871,12 @@ class SECFundamentals:
                 missing = [tag for tag in extra if tag not in timeline.loaded_tags]
                 if missing:
                     payload = self._load_companyfacts_payload(cik)
-                    us_gaap = (payload.get("facts") or {}).get("us-gaap") or {}
                     with timeline.lock:
-                        timeline.add_tags(us_gaap, missing)
+                        timeline.add_tags(payload.get("facts") or {}, missing)
                 return timeline
             url, cache_path, _remote_relative = self._companyfacts_location(cik)
             payload = self._load_companyfacts_payload(cik)
-            tags = set(_PRIORITY_COMPANY_FACT_TAGS) | set(extra)
+            tags = set(_PRIORITY_COMPANY_FACT_TAGS) | set(_METRIC_TAG_SET) | set(extra)
             if timeline is not None:
                 tags |= timeline.loaded_tags
             rebuilt = _CompanyTimeline(cik, payload, tags, url, self._cache_fetched_at(cache_path))
@@ -1365,6 +1419,139 @@ class SECFundamentals:
                 return False
         return True
 
+    # ------------------------------------------------------------------
+    # Ready-made point-in-time metrics
+    # ------------------------------------------------------------------
+
+    def get_metric(
+        self,
+        symbol: str,
+        name: str,
+        *,
+        as_of: Any | None = None,
+        price: float | None = None,
+    ) -> float | None:
+        """One fundamental metric as of the backtest date, or None when it cannot be computed.
+
+        ``name`` is one of ``FUNDAMENTAL_METRICS``. Use ``get_metrics`` to see why a value is
+        None and which filing each value came from.
+        """
+        if name not in FUNDAMENTAL_METRICS:
+            raise ValueError(f"Unknown fundamental metric {name!r}. Choose from: {', '.join(FUNDAMENTAL_METRICS)}.")
+        return self.get_metrics(symbol, [name], as_of=as_of, price=price)["values"][name]
+
+    def get_metrics(
+        self,
+        symbol: str,
+        metrics: Iterable[str] | None = None,
+        *,
+        as_of: Any | None = None,
+        price: float | None = None,
+    ) -> dict[str, Any]:
+        """Point-in-time fundamentals and ratios for one company.
+
+        Every value uses only filings public at ``as_of`` (the strategy's current time in a
+        backtest). Trailing-twelve-month (TTM) values are built from the latest annual report
+        plus the latest year-to-date quarter minus the same quarter a year earlier, exactly as
+        filed. Balance sheet values are the latest filed. Nothing is estimated, carried past
+        what was filed, or treated as zero when missing: a metric that cannot be computed is
+        None and ``reasons`` says why.
+
+        Price-based metrics (``market_cap``, ``pe_ratio``, ``ps_ratio``, ``pb_ratio``) use
+        ``price`` when given, otherwise the strategy's last price at the current bar.
+
+        Returns ``{"symbol", "as_of", "values", "reasons", "periods", "price"}``. ``periods``
+        names the period end, accession number and availability time behind each value.
+        """
+        requested = list(FUNDAMENTAL_METRICS) if metrics is None else [str(name) for name in metrics]
+        unknown = [name for name in requested if name not in FUNDAMENTAL_METRICS]
+        if unknown:
+            raise ValueError(f"Unknown fundamental metric(s) {unknown}. Choose from: {', '.join(FUNDAMENTAL_METRICS)}.")
+        as_of_dt, as_ts, timeline = self._point_in_time(symbol, as_of)
+        context = _MetricContext(self, timeline, as_of_dt, as_ts)
+        if any(name in _PRICE_METRICS for name in requested):
+            context.price = self._metric_price(symbol, price)
+        values: dict[str, Any] = {}
+        reasons: dict[str, str] = {}
+        periods: dict[str, Any] = {}
+        with timeline.lock:
+            for name in requested:
+                value, reason, period = context.metric(name)
+                values[name] = value
+                if value is None:
+                    reasons[name] = reason or "not available"
+                if period:
+                    periods[name] = period
+        return {
+            "symbol": str(symbol).upper(),
+            "cik": timeline.cik,
+            "as_of": as_of_dt.isoformat(),
+            "price": context.price,
+            "values": values,
+            "reasons": reasons,
+            "periods": periods,
+            **self._provenance(timeline),
+        }
+
+    def get_metrics_table(
+        self,
+        symbols: Iterable[str],
+        metrics: Iterable[str] | None = None,
+        *,
+        as_of: Any | None = None,
+        prices: dict[str, float] | None = None,
+        preload: bool = True,
+    ):
+        """``get_metrics`` for a whole universe, as a pandas DataFrame (one row per symbol).
+
+        Columns are the metrics plus ``reasons`` (a dict of why each missing value is None).
+        Symbols the SEC does not cover get a row of None. ``prices`` maps symbol to price;
+        symbols without one use the strategy's last price.
+        """
+        import pandas as pd
+
+        requested = list(FUNDAMENTAL_METRICS) if metrics is None else [str(name) for name in metrics]
+        symbol_list = list(dict.fromkeys(str(symbol).upper().strip() for symbol in symbols if str(symbol or "").strip()))
+        if preload:
+            self.preload(symbol_list)
+        price_map = {str(key).upper(): value for key, value in (prices or {}).items()}
+        rows: dict[str, dict[str, Any]] = {}
+        for symbol in symbol_list:
+            try:
+                result = self.get_metrics(symbol, requested, as_of=as_of, price=price_map.get(symbol))
+                row = dict(result["values"])
+                row["reasons"] = result["reasons"]
+            except SECTickerNotFoundError:
+                row = {name: None for name in requested}
+                row["reasons"] = {name: "no SEC data for this symbol (not in the SEC ticker map)" for name in requested}
+            except Exception as exc:
+                row = {name: None for name in requested}
+                row["reasons"] = {name: f"SEC data unavailable: {type(exc).__name__}: {exc}" for name in requested}
+            rows[symbol] = row
+        frame = pd.DataFrame.from_dict(rows, orient="index", columns=[*requested, "reasons"], dtype=object)
+        frame.index.name = "symbol"
+        return frame
+
+    def _metric_price(self, symbol: str, price: Any) -> float | None:
+        if price is not None:
+            try:
+                value = float(price)
+            except (TypeError, ValueError):
+                return None
+            return value if value > 0 else None
+        strategy = self.strategy
+        if strategy is None or not hasattr(strategy, "get_last_price"):
+            return None
+        try:
+            value = strategy.get_last_price(str(symbol).upper())
+        except Exception:
+            return None
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return None
+        return value if value > 0 else None
+
     def get_filings(
         self,
         symbol: str,
@@ -1700,3 +1887,315 @@ class SECFundamentals:
         cik_int = str(int(str(cik).lstrip("0") or "0"))
         accession_clean = str(accession_number).replace("-", "")
         return urljoin(SEC_ARCHIVES_BASE_URL, f"{cik_int}/{accession_clean}/{primary_document}")
+
+
+class _MetricContext:
+    """Computes the ready-made metrics for one company at one moment."""
+
+    def __init__(self, owner: "SECFundamentals", timeline: _CompanyTimeline, as_of_dt: datetime, as_ts: float):
+        self.owner = owner
+        self.timeline = timeline
+        self.as_of_date = datetime.fromtimestamp(as_ts, _NEW_YORK).date()
+        self.as_ts = as_ts
+        self.price: float | None = None
+        self._cache: dict[str, Any] = {}
+
+    # -- inputs -------------------------------------------------------------------------
+
+    def _periods(self, key: str) -> list[dict[str, Any]]:
+        """Visible periods of an input, one per (start, end), first listed tag wins."""
+        if key in self._cache:
+            return self._cache[key]
+        chosen: dict[tuple, tuple[int, dict[str, Any]]] = {}
+        for priority, tag in enumerate(_METRIC_TAGS[key]):
+            for unit, row, ts in self.timeline.visible_periods(tag, self.as_ts):
+                end = _to_date(row[_R_END])
+                if end is None or row[_R_VAL] is None:
+                    continue
+                start = _to_date(row[_R_START])
+                period_key = (start, end)
+                if period_key in chosen and chosen[period_key][0] <= priority:
+                    continue
+                chosen[period_key] = (
+                    priority,
+                    {
+                        "start": start,
+                        "end": end,
+                        "days": (end - start).days if start else None,
+                        "value": float(row[_R_VAL]),
+                        "tag": tag,
+                        "unit": unit,
+                        "accession_number": row[_R_ACCN],
+                        "form": row[_R_FORM],
+                        "filed": row[_R_FILED],
+                        "available_at": _iso_from_timestamp(ts),
+                    },
+                )
+        periods = [item for _priority, item in chosen.values()]
+        self._cache[key] = periods
+        return periods
+
+    def _durations(self, key: str) -> list[dict[str, Any]]:
+        return [row for row in self._periods(key) if row["days"] is not None and row["days"] >= 80]
+
+    def _stale(self, end: date) -> bool:
+        return (self.as_of_date - end).days > _METRIC_STALE_DAYS
+
+    @staticmethod
+    def _period_info(*rows: dict[str, Any]) -> dict[str, Any]:
+        rows = [row for row in rows if row]
+        latest = max(rows, key=lambda row: (row["end"], row["available_at"] or ""))
+        return {
+            "end": latest["end"].isoformat(),
+            "accession_number": latest["accession_number"],
+            "form": latest["form"],
+            "filed": latest["filed"],
+            "available_at": latest["available_at"],
+            "inputs": [
+                {key: (value.isoformat() if isinstance(value, date) else value) for key, value in row.items() if key != "days"}
+                for row in rows
+            ],
+        }
+
+    def _ttm_at(self, durations: list[dict[str, Any]], end: date):
+        """(value, rows) for the twelve months ending ``end``, or (None, None)."""
+        same_end = [row for row in durations if row["end"] == end]
+        annual = [row for row in same_end if 350 <= row["days"] <= 380]
+        if annual:
+            return annual[0]["value"], [annual[0]]
+        partial = [row for row in same_end if 80 <= row["days"] < 350]
+        if not partial:
+            return None, None
+        ytd = max(partial, key=lambda row: row["days"])
+        fiscal_year_end = ytd["start"] - timedelta(days=1)
+        prior_year = [
+            row for row in durations
+            if 350 <= row["days"] <= 380 and abs((row["end"] - fiscal_year_end).days) <= 7
+        ]
+        target = ytd["end"] - timedelta(days=364)
+        prior_ytd = [
+            row for row in durations
+            if abs(row["days"] - ytd["days"]) <= 7 and abs((row["end"] - target).days) <= 10
+        ]
+        if not prior_year or not prior_ytd:
+            return None, None
+        return prior_year[0]["value"] + ytd["value"] - prior_ytd[0]["value"], [prior_year[0], ytd, prior_ytd[0]]
+
+    def _ttm(self, key: str, label: str, end: date | None = None):
+        """(value, reason, period_info, end) for a TTM flow, at its latest period or ``end``."""
+        durations = self._durations(key)
+        if not durations:
+            return None, f"no {label} filed as of {self.as_of_date.isoformat()}", None, None
+        if end is None:
+            end = max(row["end"] for row in durations)
+            if self._stale(end):
+                return None, (
+                    f"latest filed {label} period ends {end.isoformat()}, more than 18 months before "
+                    f"{self.as_of_date.isoformat()}"
+                ), None, end
+        value, rows = self._ttm_at(durations, end)
+        if value is None:
+            return None, (
+                f"{label} for the twelve months ending {end.isoformat()} needs the annual report and the "
+                "same year-to-date period a year earlier, and they are not all filed"
+            ), None, end
+        return value, None, self._period_info(*rows), end
+
+    def _instant(self, key: str, end: date | None = None):
+        rows = [row for row in self._periods(key) if row["days"] is None]
+        if end is not None:
+            rows = [row for row in rows if row["end"] == end]
+        if not rows:
+            return None
+        return max(rows, key=lambda row: (row["end"], row["available_at"] or ""))
+
+    # -- metrics ------------------------------------------------------------------------
+
+    def metric(self, name: str):
+        if name in self._cache.get("_metrics", {}):
+            return self._cache["_metrics"][name]
+        result = getattr(self, f"_m_{name}")()
+        self._cache.setdefault("_metrics", {})[name] = result
+        return result
+
+    def _m_ttm_revenue(self):
+        value, reason, period, _end = self._ttm("revenue", "revenue")
+        return value, reason, period
+
+    def _m_ttm_net_income(self):
+        value, reason, period, _end = self._ttm("net_income", "net income")
+        return value, reason, period
+
+    def _m_ttm_eps_diluted(self):
+        value, reason, period, _end = self._ttm("eps_diluted", "diluted EPS")
+        return value, reason, period
+
+    def _revenue_end(self):
+        value, reason, period, end = self._ttm("revenue", "revenue")
+        return value, reason, period, end
+
+    def _m_revenue_growth_yoy(self):
+        revenue, reason, period, end = self._revenue_end()
+        if revenue is None:
+            return None, reason, None
+        target = end - timedelta(days=364)
+        earlier_ends = sorted(
+            {row["end"] for row in self._durations("revenue") if abs((row["end"] - target).days) <= 10}
+        )
+        if not earlier_ends:
+            return None, f"no TTM revenue for the period a year earlier (around {target.isoformat()})", period
+        before, _r, before_period, _e = self._ttm("revenue", "revenue", end=earlier_ends[-1])
+        if before is None:
+            return None, f"no TTM revenue for the period a year earlier (ending {earlier_ends[-1].isoformat()})", period
+        if before <= 0:
+            return None, "revenue a year earlier is not positive", period
+        return revenue / before - 1, None, period
+
+    def _m_gross_margin(self):
+        revenue, reason, period, end = self._revenue_end()
+        if revenue is None:
+            return None, reason, None
+        if revenue <= 0:
+            return None, "TTM revenue is not positive", period
+        gross, _reason, gross_period, _e = self._ttm("gross_profit", "gross profit", end=end)
+        if gross is None:
+            cost, _reason, cost_period, _e = self._ttm("cost_of_revenue", "cost of revenue", end=end)
+            if cost is None:
+                return None, f"no gross profit or cost of revenue filed for the twelve months ending {end.isoformat()}", period
+            gross, gross_period = revenue - cost, cost_period
+        return gross / revenue, None, gross_period
+
+    def _m_net_margin(self):
+        revenue, reason, period, end = self._revenue_end()
+        if revenue is None:
+            return None, reason, None
+        if revenue <= 0:
+            return None, "TTM revenue is not positive", period
+        income, _reason, income_period, _e = self._ttm("net_income", "net income", end=end)
+        if income is None:
+            return None, f"net income not filed for the twelve months ending {end.isoformat()}", period
+        return income / revenue, None, income_period
+
+    def _m_ttm_free_cash_flow(self):
+        cash, reason, period, end = self._ttm("operating_cash_flow", "operating cash flow")
+        if cash is None:
+            return None, reason, None
+        capex, _reason, capex_period, _e = self._ttm("capex", "capital expenditures", end=end)
+        if capex is None:
+            return None, f"capital expenditures not filed for the twelve months ending {end.isoformat()}", period
+        return cash - abs(capex), None, period
+
+    def _balance(self, key: str, label: str):
+        row = self._instant(key)
+        if row is None:
+            return None, f"no {label} filed as of {self.as_of_date.isoformat()}"
+        if self._stale(row["end"]):
+            return None, (
+                f"latest filed {label} is dated {row['end'].isoformat()}, more than 18 months before "
+                f"{self.as_of_date.isoformat()}"
+            )
+        return row, None
+
+    def _m_current_ratio(self):
+        liabilities, reason = self._balance("liabilities_current", "current liabilities")
+        if liabilities is None:
+            return None, reason, None
+        assets = self._instant("assets_current", liabilities["end"])
+        if assets is None:
+            return None, f"current assets not filed for the balance sheet dated {liabilities['end'].isoformat()}", None
+        if liabilities["value"] <= 0:
+            return None, "current liabilities are not positive", None
+        return assets["value"] / liabilities["value"], None, self._period_info(assets, liabilities)
+
+    def _m_debt_to_equity(self):
+        equity, reason = self._balance("equity", "stockholders' equity")
+        if equity is None:
+            return None, reason, None
+        end = equity["end"]
+        total = self._instant("debt_total", end)
+        parts = [total] if total is not None else []
+        debt = total["value"] if total is not None else None
+        if debt is None:
+            noncurrent = self._instant("debt_noncurrent", end)
+            current = self._instant("debt_current", end)
+            if noncurrent is not None:
+                debt = noncurrent["value"] + (current["value"] if current is not None else 0.0)
+                parts = [row for row in (noncurrent, current) if row is not None]
+        if debt is None:
+            return None, (
+                f"no long-term debt filed for the balance sheet dated {end.isoformat()} "
+                "(missing debt is not treated as zero)"
+            ), None
+        if equity["value"] <= 0:
+            return None, "stockholders' equity is not positive", None
+        return debt / equity["value"], None, self._period_info(equity, *parts)
+
+    def _m_shares_outstanding(self):
+        shares, reason = self._balance("shares", "shares outstanding")
+        if shares is None:
+            return None, reason, None
+        return shares["value"], None, self._period_info(shares)
+
+    def _m_book_value_per_share(self):
+        equity, reason = self._balance("equity", "stockholders' equity")
+        if equity is None:
+            return None, reason, None
+        shares, reason = self._balance("shares", "shares outstanding")
+        if shares is None:
+            return None, reason, None
+        if shares["value"] <= 0:
+            return None, "shares outstanding is not positive", None
+        return equity["value"] / shares["value"], None, self._period_info(equity, shares)
+
+    def _price_reason(self):
+        return "no price: pass price= or call from a strategy with a price at the current bar"
+
+    def _m_market_cap(self):
+        if self.price is None:
+            return None, self._price_reason(), None
+        shares, reason, period = self.metric("shares_outstanding")
+        if shares is None:
+            return None, reason, None
+        return self.price * shares, None, period
+
+    def _m_pe_ratio(self):
+        if self.price is None:
+            return None, self._price_reason(), None
+        eps, reason, period = self.metric("ttm_eps_diluted")
+        if eps is None:
+            return None, reason, None
+        if eps <= 0:
+            return None, "TTM diluted EPS is not positive, so P/E is not meaningful", period
+        return self.price / eps, None, period
+
+    def _m_ps_ratio(self):
+        market_cap, reason, _period = self.metric("market_cap")
+        if market_cap is None:
+            return None, reason, None
+        revenue, reason, period = self.metric("ttm_revenue")
+        if revenue is None:
+            return None, reason, None
+        if revenue <= 0:
+            return None, "TTM revenue is not positive", period
+        return market_cap / revenue, None, period
+
+    def _m_pb_ratio(self):
+        market_cap, reason, _period = self.metric("market_cap")
+        if market_cap is None:
+            return None, reason, None
+        equity, reason = self._balance("equity", "stockholders' equity")
+        if equity is None:
+            return None, reason, None
+        if equity["value"] <= 0:
+            return None, "stockholders' equity is not positive", None
+        return market_cap / equity["value"], None, self._period_info(equity)
+
+
+def _to_date(value: Any) -> date | None:
+    text = str(value or "").strip()[:10]
+    if not text:
+        return None
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        return None

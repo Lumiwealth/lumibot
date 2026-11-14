@@ -14,6 +14,9 @@ How `self.fundamentals` (`lumibot/fundamentals/sec.py`) loads, indexes, caches a
 self.fundamentals.preload(symbols)                 # warm a universe in parallel
 self.fundamentals.get_income_statement("AAPL")     # also get_balance_sheet, get_cash_flow
 self.fundamentals.get_fact_history("AAPL", ["RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues"])
+self.fundamentals.get_metric("AAPL", "pe_ratio")  # ready-made metrics (FUNDAMENTAL_METRICS)
+self.fundamentals.get_metrics("AAPL")              # all metrics + reasons + source periods
+self.fundamentals.get_metrics_table(symbols)       # pandas DataFrame for a scanner
 self.fundamentals.get_company_facts("AAPL")        # compact; raw=True for the filtered payload
 self.fundamentals.get_filings("AAPL", form="10-K") # plus search_filing, get_filing_document, sections
 ```
@@ -33,6 +36,17 @@ Agent tools use the same names (see `lumibot/components/agents/builtins.py`).
 - In live mode the table and ticker map are rebuilt after `mutable_cache_ttl_seconds` (default 300).
 
 Measured 2026-11-13 (MacBook, load average 12 to 22 from other jobs): 5 companies x 12 monthly dates x 3 statements = 180 calls. Old code 24.8 s warm (27.1 s cold, 6 requests). New code 0.24 s warm including the one-time parse (1.7 s cold, 8 requests including 2 lazy submissions files). Old and new returned identical values for all 180 statements on that real data.
+
+## Ready-made metrics
+
+`get_metrics` (class `_MetricContext`) computes `FUNDAMENTAL_METRICS` from the same timeline. Inputs and tag priority are in `_METRIC_TAGS` (cover-page shares use the `dei:` taxonomy; `add_tags` accepts `"taxonomy:Tag"`).
+
+- TTM flows: an annual period (350 to 380 days) ending at the latest end, else latest FY + the longest year-to-date period ending there - the same-length period ending about 364 days earlier (7 and 10 day tolerances). Diluted EPS uses the same arithmetic.
+- Margins and growth use revenue's latest end; the numerator must exist for that same twelve months.
+- Balance ratios use one balance sheet date (the denominator's latest). Debt is `LongTermDebt`, else `LongTermDebtNoncurrent` plus the current portion when reported. Missing debt is None, never zero.
+- A latest period ending more than 548 days before `as_of` is stale: None with a reason.
+- Price metrics use `price=` or `strategy.get_last_price(symbol)`. Known limit: split-adjusted backtest prices against as-filed EPS and shares are off by the split ratio before a split (NVDA June 2024 is a live example). Not fixed here.
+- The SEC ticker map is current, not point in time (for example XOM maps to a new 2026 holding-company CIK with no history). Not fixed here.
 
 ## Rate limit
 
@@ -73,5 +87,6 @@ SEC publishes nightly `companyfacts.zip` and `submissions.zip`. A warmer that wa
 ## Tests
 
 - `tests/test_sec_fundamentals.py`: original contracts (gating, caching, filings, sections).
+- `tests/test_sec_fundamental_metrics.py`: TTM arithmetic, margins, balance ratios, valuation, no look-ahead on filing day, restatement isolation, strategy price, None-with-reason cases, bulk table.
 - `tests/test_sec_fundamentals_point_in_time.py`: parse-once, restatements, after-close availability, lazy acceptance, shared cache across two machines, refresh rule, preload and rate limit.
 - SEC tests patch `get_backtest_cache` to a disabled manager: a developer `.env` with a remote cache would otherwise receive the synthetic fixtures.

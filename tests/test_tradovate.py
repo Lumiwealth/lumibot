@@ -236,6 +236,56 @@ class TestTradovateBroker:
             mock_get_account_info.assert_not_called()
             mock_get_user_info.assert_not_called()
 
+    @staticmethod
+    def _token_reply(body):
+        # Tradovate answers /auth/accesstokenrequest with HTTP 200 and puts a
+        # refused login or a login throttle in the JSON body (recorded shape).
+        reply = MagicMock()
+        reply.status_code = 200
+        reply.raise_for_status.return_value = None
+        reply.json.return_value = body
+        reply.text = str(body)
+        return reply
+
+    def _broker_for_token_tests(self):
+        from lumibot.brokers import Tradovate
+
+        config = {
+            "USERNAME": "test_user",
+            "DEDICATED_PASSWORD": "wrong_pass",
+            "CID": "test_cid",
+            "SECRET": "test_secret",
+            "IS_PAPER": True,
+        }
+        return Tradovate(config=config)
+
+    def test_refused_login_reports_unauthorized_status(self):
+        """A refused login carries HTTP 401 so callers can tell a bad credential from a crash."""
+        from lumibot.brokers.tradovate import Tradovate, TradovateAPIError
+
+        broker = self._broker_for_token_tests()
+        reply = self._token_reply({
+            "errorText": "Incorrect username or password. Please try again, noting that passwords are case-sensitive."
+        })
+        with patch.object(Tradovate, "_request", return_value=reply):
+            with pytest.raises(TradovateAPIError) as raised:
+                broker._get_tokens()
+        assert raised.value.status_code == 401
+        assert "Incorrect username or password" in str(raised.value)
+        assert raised.value.response_text == reply.text
+
+    def test_login_throttle_reports_rate_limit_status(self):
+        """A login throttle (captcha) carries HTTP 429, a wait, not a refused credential."""
+        from lumibot.brokers.tradovate import Tradovate, TradovateAPIError
+
+        broker = self._broker_for_token_tests()
+        reply = self._token_reply({"p-captcha": True, "p-time": 15, "p-ticket": "ticket"})
+        with patch.object(Tradovate, "_request", return_value=reply):
+            with pytest.raises(TradovateAPIError) as raised:
+                broker._get_tokens()
+        assert raised.value.status_code == 429
+        assert "rate limiting login attempts" in str(raised.value)
+
     def test_broker_connect_on_init_preserves_eager_connection(self):
         """Test explicit eager connection path for callers that require fail-fast auth."""
         from lumibot.brokers import Tradovate

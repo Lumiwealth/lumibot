@@ -271,10 +271,17 @@ class Tradovate(Broker):
             response.raise_for_status()
             data = response.json()
 
-            # Check for authentication errors first
+            # Check for authentication errors first. Tradovate answers a refused
+            # login with HTTP 200 and an ``errorText`` body, so the transport
+            # status says nothing. Carry 401 (Unauthorized) so callers can tell
+            # a refused credential from a crash without reading message text.
             if "errorText" in data:
                 error_text = data["errorText"]
-                raise TradovateAPIError(f"Tradovate authentication failed: {error_text}")
+                raise TradovateAPIError(
+                    f"Tradovate authentication failed: {error_text}",
+                    status_code=401,
+                    response_text=response.text,
+                )
 
             # Check if CAPTCHA is required
             if data.get("p-captcha"):
@@ -287,8 +294,11 @@ class Tradovate(Broker):
                 # Determine correct web login URL
                 web_url = "https://tradovate.com/"
 
+                # A login throttle is a wait, not a refused credential: carry 429.
                 raise TradovateAPIError(
-                    f"Tradovate API is rate limiting login attempts. "
+                    status_code=429,
+                    response_text=response.text,
+                    message=f"Tradovate API is rate limiting login attempts. "
                     f"Please wait {p_time} {time_unit} before trying again, "
                     f"or log into your Tradovate account through the web interface "
                     f"({web_url}) to clear the restriction immediately."

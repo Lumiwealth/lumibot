@@ -2,6 +2,9 @@
 
 ## 4.6.57 - Unreleased
 
+### Fixed
+- Tradovate login errors now carry an HTTP status on `TradovateAPIError.status_code`. Tradovate answers a refused username or password with HTTP 200 and an `errorText` body, so the error used to have no status and callers could not tell a bad saved credential from a crash without reading message text. A refused login now carries 401 and a login throttle (captcha) carries 429. Message text is unchanged.
+
 ## 4.6.56 - 2026-11-13
 
 Deploy marker: 682904c2fccb666144fd1e29f8cf66c9d95f5f4d

@@ -113,6 +113,7 @@ When you run a backtest, several important files are generated, each prefixed by
    backtesting.thetadata
    backtesting.ibkr
    backtesting.alpaca
+   backtesting.perpetuals
    backtesting.broker_history
    backtesting.tearsheet_html
    backtesting.trades_files

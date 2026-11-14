@@ -189,7 +189,14 @@ class PerpetualAccount:
                                            spec.pnl_currency, spec.settle, asset, price)
                               for lot in lots if lot["mode"] == "cross"), Decimal(0))
             if replacement_margin > available:
-                raise ValueError(f"Insufficient {spec.settle} collateral for perpetual initial margin")
+                message = f"Insufficient {spec.settle} collateral for perpetual initial margin"
+                cash_currency = strategy.quote_asset.symbol
+                if spec.settle != cash_currency and not self.wallet(strategy, spec.settle):
+                    # Collateral is never converted silently; say how to fund the settlement wallet.
+                    message += (f": the backtest budget is in {cash_currency}, but {asset.symbol} settles in "
+                                f"{spec.settle}. Set quote_asset=Asset('{spec.settle}', 'crypto') so the budget "
+                                f"is the {spec.settle} futures wallet")
+                raise ValueError(message)
         # All calculations and conversions succeeded. Margin is reserved, not
         # spent: equity keeps wallet collateral and adds only unrealized P&L.
         self.credit(strategy, spec.settle, realized - fee)

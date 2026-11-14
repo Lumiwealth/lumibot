@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased (next version after 4.6.55)
+
+### Added
+- Routed backtests can read real crypto perpetual data from Bitunix's public market API (no API key): set `"crypto_future": "bitunix"` in `BACKTESTING_DATA_SOURCE`. Perpetual candles, contract terms and settled funding come from the exchange, so perpetual orders fill with leverage and margin and funding is charged at each real settlement. Opt-in only; existing routes are unchanged. Coin-margined (inverse) contracts and missing or unreachable data stop the backtest up front with a plain message instead of a silent zero-trade run. See `docsrc/backtesting.perpetuals.rst`.
+
+### Changed
+- When a perpetual settles in a different coin than the backtest budget (for example a USDT contract with a USD budget), the rejected order now says to set the quote asset to the settlement coin. Results are unchanged.
+
+### Fixed
+- Public docs no longer say spot-proxy perpetual routes use USD pairs or that perpetual backtesting is unfinished.
+
 ## 4.6.55 - 2026-11-13
 
 Deploy marker: 54206e37387695440a5549b551892d0a400cde58

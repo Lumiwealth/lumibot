@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
+from lumibot.data_sources.data_source_backtesting import DataSourceBacktesting
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.credentials import ALPACA_CONFIG, COINBASE_CONFIG, KRAKEN_CONFIG, POLYGON_API_KEY
 from lumibot.entities import Asset, AssetsMapping, Data
@@ -209,6 +210,8 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
     """Base adapter for providers that return a pandas DataFrame and share the router data store."""
 
     _default_start_buffer = timedelta(days=5)
+    # Crypto futures read spot history unless the provider serves real perpetual candles.
+    uses_spot_proxy = True
 
     def __init__(self, router: "RoutedBacktestingPandas"):
         super().__init__(router)
@@ -283,9 +286,12 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
 
         original_asset = asset
         original_quote_asset = quote_asset
-        fetch_asset, fetch_quote_asset, proxy_label = _resolve_crypto_future_spot_proxy(asset, quote_asset)
-        if proxy_label:
-            logger.info(proxy_label)
+        if self.uses_spot_proxy:
+            fetch_asset, fetch_quote_asset, proxy_label = _resolve_crypto_future_spot_proxy(asset, quote_asset)
+            if proxy_label:
+                logger.info(proxy_label)
+        else:
+            fetch_asset, fetch_quote_asset = asset, quote_asset
 
         end_dt = start_dt if isinstance(start_dt, datetime) else self._router.get_datetime()
         ts = timestep or self._router.get_timestep()
@@ -1082,6 +1088,103 @@ class _CcxtRoutingAdapter(_DataFrameRoutingAdapter):
         return df.sort_index()
 
 
+class _BitunixPerpetualRoutingAdapter(_DataFrameRoutingAdapter):
+    """Real Bitunix perpetual candles, contract terms and funding (public data, no key).
+
+    Opt-in only: selected when routing maps ``crypto_future`` to ``bitunix``. It
+    never reads spot history for a perpetual and never serves other asset types.
+    """
+
+    provider_key = "bitunix"
+    _default_start_buffer = timedelta(0)
+    uses_spot_proxy = False
+
+    def __init__(self, router: "RoutedBacktestingPandas"):
+        super().__init__(router)
+        self._client = None
+
+    @property
+    def client(self):
+        if self._client is None:
+            from lumibot.tools.bitunix_market_data import BitunixMarketData
+
+            self._client = BitunixMarketData()
+        return self._client
+
+    def symbol_for(self, asset: Asset, quote_asset: Asset | None = None) -> str:
+        from lumibot.tools.bitunix_market_data import BitunixMarketDataError, resolve_symbol
+
+        if _normalize_asset_type(getattr(asset, "asset_type", "")) != "crypto_future":
+            raise RoutingProviderError(
+                f"Bitunix routing serves crypto perpetuals only; {asset!r} is not a crypto_future asset."
+            )
+        try:
+            return resolve_symbol(asset, quote_asset)
+        except BitunixMarketDataError as exc:
+            raise RoutingProviderError(str(exc)) from exc
+
+    def contract_spec(self, asset: Asset, quote_asset: Asset | None = None):
+        from lumibot.tools.bitunix_market_data import BitunixMarketDataError
+
+        try:
+            return self.client.contract_spec(self.symbol_for(asset, quote_asset))
+        except BitunixMarketDataError as exc:
+            raise RoutingProviderError(str(exc)) from exc
+
+    def funding_events(self, asset: Asset, start, end):
+        symbol = self.symbol_for(asset)
+        # One download per run window; later calls slice it.
+        rows = self.client.funding_history(symbol, self._router.datetime_start, self._router.datetime_end)
+        return [row for row in DataSourceBacktesting._perpetual_rows(rows) if start <= row["timestamp"] <= end]
+
+    def _fetch_df(
+        self,
+        *,
+        asset: Asset,
+        quote_asset: Asset,
+        ts_unit: str,
+        start_datetime: datetime,
+        end_dt: datetime,
+        length: int,
+        canonical_key: Any,
+        provider_spec: ProviderSpec,
+        require_quote_data: bool,
+        require_ohlc_data: bool,
+    ) -> pd.DataFrame | None:
+        from lumibot.tools.bitunix_market_data import BitunixMarketDataError, cached_candles
+
+        if ts_unit not in {"minute", "hour", "day"}:
+            raise RoutingProviderError(f"Bitunix routing supports minute/hour/day bars, got {ts_unit!r}.")
+        symbol = self.symbol_for(asset, quote_asset)
+        # Fail before any simulated order when the contract cannot be modeled
+        # (for example a coin-margined contract); never a silent zero-trade run.
+        self.contract_spec(asset, quote_asset)
+        lookback = timedelta(0)
+        if ts_unit == "day":
+            try:
+                lookback = timedelta(days=max(7, int(length) + 5))
+            except Exception:
+                lookback = timedelta(days=7)
+        try:
+            fetch_start = min(start_datetime, self._router.datetime_start - lookback)
+        except Exception:
+            fetch_start = start_datetime
+        fetch_end = (self._router.datetime_end or end_dt) + timedelta(days=1)
+        try:
+            df = cached_candles(self.client, symbol, ts_unit, fetch_start, fetch_end)
+        except BitunixMarketDataError as exc:
+            raise RoutingProviderError(str(exc)) from exc
+        if df is None or df.empty:
+            raise RoutingProviderError(
+                f"Bitunix has no {symbol} perpetual candles between {fetch_start} and {fetch_end}. "
+                "Perpetual history for this contract is unavailable for that window; spot prices are not substituted."
+            )
+        self._fully_loaded_series.add(canonical_key)
+        df = df.copy()
+        df.index = df.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+        return df.sort_index()
+
+
 class _ProviderRegistry:
     def __init__(self, router: "RoutedBacktestingPandas"):
         self._router = router
@@ -1091,6 +1194,7 @@ class _ProviderRegistry:
             "polygon": _PolygonRoutingAdapter(router),
             "alpaca": _AlpacaRoutingAdapter(router),
             "ccxt": _CcxtRoutingAdapter(router),
+            "bitunix": _BitunixPerpetualRoutingAdapter(router),
         }
 
     def resolve_provider_spec(self, provider: Any) -> ProviderSpec:
@@ -1113,6 +1217,8 @@ class _ProviderRegistry:
             "polygon": "polygon",
             "alpaca": "alpaca",
             "ccxt": "ccxt",
+            # Native adapter (perpetual candles + funding), resolved before any CCXT id.
+            "bitunix": "bitunix",
         }
         if token in aliases:
             if aliases[token] == "ccxt":
@@ -1125,7 +1231,7 @@ class _ProviderRegistry:
 
         raise RoutingProviderError(
             f"Unknown backtesting routing provider {provider!r}. "
-            "Expected one of: thetadata, ibkr, polygon, alpaca, ccxt, or a CCXT exchange id (e.g., binance, kraken)."
+            "Expected one of: thetadata, ibkr, polygon, alpaca, ccxt, bitunix, or a CCXT exchange id (e.g., binance, kraken)."
         )
 
     def adapter_for_spec(self, spec: ProviderSpec) -> _RoutingAdapter:
@@ -1240,6 +1346,32 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
 
         return resolve_order_contract(asset=order.asset, side=order.side, quantity=order.quantity,
                                       positions=positions, when=self.get_datetime())
+
+    def _perpetual_adapter(self, asset):
+        """The adapter serving real perpetual data for ``asset``, or None (spot proxy routes)."""
+        base = asset[0] if isinstance(asset, tuple) else asset
+        if _normalize_asset_type(getattr(base, "asset_type", "")) != "crypto_future":
+            return None
+        adapter = self._registry.adapter_for_spec(self._provider_spec_for_asset(base))
+        return adapter if hasattr(adapter, "contract_spec") else None
+
+    def get_contract_spec(self, asset, quote=None):
+        """Contract terms from a routed perpetual provider.
+
+        Routes that read spot history for perpetuals have no contract terms; they keep
+        the broker's existing "terms unavailable" error unchanged.
+        """
+        adapter = self._perpetual_adapter(asset)
+        if adapter is None:
+            raise ValueError("Derivative contract terms are unavailable; supply Asset.contract_spec or provider metadata")
+        return adapter.contract_spec(asset, quote)
+
+    def get_funding_events(self, asset, start, end):
+        supplied = super().get_funding_events(asset, start, end)
+        if supplied is not None:
+            return supplied
+        adapter = self._perpetual_adapter(asset)
+        return None if adapter is None else adapter.funding_events(asset, start, end)
 
     def provider_for(self, asset) -> str:
         """The provider this router uses for ``asset`` (for data-health reports)."""

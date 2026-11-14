@@ -364,7 +364,9 @@ These env vars are used by the ThetaData chain cache/builder in `lumibot/tools/t
 - Purpose: Control the broker-agnostic shared history cache (`lumibot/tools/shared_bar_cache.py`).
 - `LUMIBOT_SHARED_BARS`: `true` (default) or `false`. The test suite sets `false` in `tests/conftest.py`;
   cache tests turn it back on and isolate their folder and remote store.
-- `LUMIBOT_SHARED_BARS_SCOPE`: `credential` (default, one cache per broker connection) or `provider`.
+- `LUMIBOT_SHARED_BARS_SCOPE`: `credential` (default) or `provider`. Built-in adapters already share one
+  cache per provider (and data tier) for every connection; `provider` additionally merges any custom
+  scope a caller passes.
 - `LUMIBOT_SHARED_BARS_SETTLE_MINUTES`: minutes after a bar ends before it is stored (default 15).
 - `LUMIBOT_SHARED_BARS_UPLOAD_WORKERS`: background upload workers (default 8); one file's uploads stay in order on one worker.
 - Design and invariants: `docs/SHARED_BAR_CACHE.md`.

@@ -1,6 +1,6 @@
 """Chart/backtest history must share provider bars, never filled simulation rows."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -195,12 +195,60 @@ def test_data_contracts_cannot_share_bars(history, change):
     assert len(calls) == 2
 
 
-def test_credential_scope_cannot_cross_entitlements(history):
+def test_different_connections_share_one_alpaca_cache(history):
+    """One Alpaca cache for every connection (2026-11-13).
+
+    Regression: bars were keyed by API key or OAuth account, so a second customer asking for
+    the same bars downloaded them again. What changes the numbers stays in the key (feed,
+    adjustment, bar size: see ``test_data_contracts_cannot_share_bars``); who asked never does.
+    """
     fetch, calls, client, _ = history
     fetch()
     client._api_key = "different-synthetic-key"
     fetch()
+    client._api_key = None
+    client._oauth_token = "synthetic-access-token-1"
+    client._lumibot_cache_identity = lambda: "account:synthetic-account-2"
+    fetch()
+    client._lumibot_cache_identity = lambda: None
+    client._oauth_token = "synthetic-access-token-2"
+    fetch()
+    assert len(calls) == 1
+
+
+def test_feeds_still_never_share_across_connections(history):
+    fetch, calls, client, _ = history
+    fetch(feed=DataFeed.IEX)
+    client._api_key = "different-synthetic-key"
+    fetch(feed=DataFeed.SIP)
+    fetch(feed=DataFeed.IEX)
     assert len(calls) == 2
+
+
+def test_bars_cached_under_the_old_per_connection_key_are_reused_not_downloaded(history, monkeypatch):
+    """Bars written per connection before the cache was shared are read, then written shared."""
+    from lumibot.tools import shared_bar_cache
+
+    fetch, calls, client, root = history
+    shared = shared_bar_cache.shared_scope
+    # The old writer: the same contract keyed by this connection's API key.
+    monkeypatch.setattr(
+        shared_bar_cache, "shared_scope",
+        lambda provider, *tier: shared_bar_cache.credential_scope(provider, "synthetic-key"),
+    )
+    first = fetch()
+    monkeypatch.setattr(shared_bar_cache, "shared_scope", shared)
+    shared_bar_cache._reset_process_memory()
+    before = set(root.rglob("*.parquet"))
+    again = fetch()
+    assert len(calls) == 1, "bars under the old key must be reused"
+    pd.testing.assert_frame_equal(first, again)
+    assert set(root.rglob("*.parquet")) - before, "reused bars are written under the shared key"
+    # Another connection now finds them under the shared key.
+    client._api_key = "different-synthetic-key"
+    shared_bar_cache._reset_process_memory()
+    fetch()
+    assert len(calls) == 1
 
 
 def test_refreshed_oauth_token_for_the_same_account_reuses_bars(history):
@@ -218,29 +266,6 @@ def test_refreshed_oauth_token_for_the_same_account_reuses_bars(history):
     client._oauth_token = "synthetic-access-token-2"
     fetch()
     assert len(calls) == 1
-
-
-def test_oauth_tokens_for_different_accounts_never_share_bars(history):
-    fetch, calls, client, _ = history
-    client._api_key = None
-    client._oauth_token = "synthetic-access-token-1"
-    client._lumibot_cache_identity = lambda: "account:synthetic-account-1"
-    fetch()
-    client._oauth_token = "synthetic-access-token-2"
-    client._lumibot_cache_identity = lambda: "account:synthetic-account-2"
-    fetch()
-    assert len(calls) == 2
-
-
-def test_unknown_account_falls_back_to_the_token_scope(history):
-    fetch, calls, client, _ = history
-    client._api_key = None
-    client._oauth_token = "synthetic-access-token-1"
-    client._lumibot_cache_identity = lambda: None
-    fetch()
-    client._oauth_token = "synthetic-access-token-2"
-    fetch()
-    assert len(calls) == 2
 
 
 @pytest.mark.parametrize("kwargs", [{"refresh": True}, {"limit": 5}])
@@ -632,3 +657,114 @@ def test_api_key_backtest_keeps_its_key_scope(monkeypatch):
         timestep="day",
     )
     assert getattr(source._stock_client, "_lumibot_cache_identity", None) is None
+
+
+def _shared_remote(monkeypatch, root, objects):
+    """A real BacktestCacheManager over an in-memory S3 bucket, with ``root`` as the local folder."""
+    from pathlib import Path
+
+    from lumibot import constants
+    from lumibot.tools import backtest_cache, parquet_series_cache
+    from lumibot.tools.backtest_cache import BacktestCacheManager, BacktestCacheSettings, CacheMode
+
+    class Remote:
+        def download_file(self, bucket, key, path):
+            if key not in objects:
+                raise FileNotFoundError(key)
+            Path(path).write_bytes(objects[key])
+
+        def upload_file(self, path, bucket, key):
+            objects[key] = Path(path).read_bytes()
+
+    monkeypatch.setattr(constants, "LUMIBOT_CACHE_FOLDER", str(root))
+    monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", str(root))
+    monkeypatch.setattr("lumibot.backtesting.alpaca_backtesting.LUMIBOT_CACHE_FOLDER", str(root))
+    manager = BacktestCacheManager(
+        BacktestCacheSettings(backend="s3", mode=CacheMode.S3_READWRITE, bucket="synthetic-cache",
+                              prefix="sandbox/cache", region="us-east-1", version="v44"),
+        client_factory=lambda _: Remote(),
+    )
+    monkeypatch.setattr(parquet_series_cache, "get_backtest_cache", lambda: manager)
+    monkeypatch.setattr(backtest_cache, "get_backtest_cache", lambda: manager)
+    from lumibot.tools import shared_bar_cache
+
+    shared_bar_cache._reset_process_memory()
+    return manager
+
+
+@pytest.mark.parametrize("second", [{"_api_key": "customer-b-key"}, {"_api_key": None, "_oauth_token": "b-token"}])
+def test_second_customer_option_bars_come_from_the_first_customers_download(tmp_path, monkeypatch, second):
+    """Two connections, two containers, one S3 cache: the second makes zero provider requests."""
+    from alpaca.data.requests import OptionBarsRequest
+
+    objects = {}
+    symbol = "SPY250321C00580000"
+    calls = []
+
+    def read(request):
+        calls.append(request)
+        frame = provider_frame("2025-01-01", "2025-04-01", request.symbol_or_symbols)
+        times = frame.index.get_level_values(1)
+        return SimpleNamespace(df=frame[(times >= pd.to_datetime(request.start, utc=True))
+                                        & (times <= pd.to_datetime(request.end, utc=True))])
+
+    def fetch(client):
+        request = OptionBarsRequest(symbol_or_symbols=[symbol], timeframe=TimeFrame.Day,
+                                    start=datetime(2025, 1, 6, tzinfo=timezone.utc),
+                                    end=datetime(2025, 3, 20, tzinfo=timezone.utc))
+        return fetch_alpaca_bars(client, request, read, now="2025-06-10").df
+
+    _shared_remote(monkeypatch, tmp_path / "container-a", objects)
+    first = fetch(SimpleNamespace(_api_key="customer-a-key", _oauth_token=None))
+    assert flush_shared_bar_writes(10)["flushed"]
+    assert len(calls) == 1 and objects
+
+    _shared_remote(monkeypatch, tmp_path / "container-b", objects)
+    other = SimpleNamespace(_api_key=None, _oauth_token=None, _lumibot_cache_identity=lambda: "account:b")
+    for name, value in second.items():
+        setattr(other, name, value)
+    again = fetch(other)
+    assert len(calls) == 1, "the second customer must not ask Alpaca again"
+    pd.testing.assert_frame_equal(first, again)
+    for body in objects.values():
+        assert b"customer-a-key" not in body and b"b-token" not in body
+
+
+def _chain_source(monkeypatch, listed):
+    import pytz
+
+    from lumibot.backtesting.alpaca_backtesting import AlpacaBacktesting
+
+    source = AlpacaBacktesting.__new__(AlpacaBacktesting)
+    source.tzinfo = pytz.timezone("America/New_York")
+    monkeypatch.setattr(source, "get_datetime", lambda: source.tzinfo.localize(datetime(2025, 3, 3, 10)))
+
+    def list_contracts(symbol, first_expiration, last_expiration):
+        listed.append(symbol)
+        return [(date(2025, 3, 21), "CALL", 580.0), (date(2025, 3, 21), "PUT", 570.0)]
+
+    monkeypatch.setattr(source, "_list_option_contracts", list_contracts)
+    return source
+
+
+def test_expired_option_chain_is_shared_with_other_containers(tmp_path, monkeypatch):
+    objects, listed = {}, []
+    _shared_remote(monkeypatch, tmp_path / "container-a", objects)
+    first = _chain_source(monkeypatch, listed).get_chains(Asset("SPY"))
+    assert any("/alpaca/option_chains/" in key for key in objects)
+    _shared_remote(monkeypatch, tmp_path / "container-b", objects)
+    second = _chain_source(monkeypatch, listed).get_chains(Asset("SPY"))
+    assert listed == ["SPY"], "the second container must read the shared chain, not list contracts"
+    assert dict(second) == dict(first)
+
+
+def test_chain_that_can_still_change_is_not_shared(tmp_path, monkeypatch):
+    import pytz
+
+    objects, listed = {}, []
+    _shared_remote(monkeypatch, tmp_path / "container-a", objects)
+    source = _chain_source(monkeypatch, listed)
+    today = datetime.now(pytz.UTC)
+    monkeypatch.setattr(source, "get_datetime", lambda: today)
+    source.get_chains(Asset("SPY"))
+    assert not any("/alpaca/option_chains/" in key for key in objects)

@@ -302,9 +302,16 @@ class CcxtData(DataSource):
             "ccxt",
             symbol,
             shared_bar_cache.normalize_timestep(int(str(freq)[:-1] or 1), unit),
+            # Candles are the exchange's public market data: one cache per exchange and
+            # endpoint, shared by every connection (the API key is never part of the key).
             scope=self.shared_bars_scope
-            or shared_bar_cache.credential_scope(
-                "ccxt", exchange_id, "sandbox" if sandbox else "live", (getattr(self, "config", None) or {}).get("apiKey")
+            or shared_bar_cache.shared_scope("ccxt", exchange_id, "sandbox" if sandbox else "live"),
+            legacy_scopes=(
+                self.shared_bars_legacy_scope,
+                shared_bar_cache.credential_scope(
+                    "ccxt", exchange_id, "sandbox" if sandbox else "live",
+                    (getattr(self, "config", None) or {}).get("apiKey"),
+                ),
             ),
             # Crypto candles are traded prices; exchanges do not re-adjust them.
             adjusted=False,

@@ -64,6 +64,22 @@ def _cache_identity(client) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
+def _legacy_scopes(client) -> tuple:
+    """Per-connection scopes this connection's bars were cached under before the cache was shared.
+
+    Read-only fallback: a bar missing from the shared cache is taken from here (and then written
+    to the shared cache) instead of being downloaded again.
+    """
+    api_key = getattr(client, "_api_key", None)
+    oauth_token = getattr(client, "_oauth_token", None)
+    if isinstance(oauth_token, str) and oauth_token:
+        identity = _cache_identity(client)
+        return (shared_bar_cache.credential_scope("alpaca", identity),) if identity else ()
+    if isinstance(api_key, str) and api_key:
+        return (shared_bar_cache.credential_scope("alpaca", api_key),)
+    return ()
+
+
 def fetch_alpaca_bars(client, request, method, *, now=None, refresh=False, empty_ok=None):
     """Run an Alpaca SDK bars read through the shared bar cache (see ``_fetch_alpaca_bars``)."""
     from lumibot.tools import backtest_telemetry
@@ -77,8 +93,8 @@ def _fetch_alpaca_bars(client, request, method, *, now=None, refresh=False, empt
 
     Returns an object with the ``BarSet.df`` contract LumiBot adapters consume.
     Provider exceptions propagate; invalid provider bars raise ``InvalidBars``.
-    Explicit limits, sort orders and unknown credential scopes bypass reuse
-    because they cannot establish complete coverage.
+    Explicit limits and sort orders bypass reuse because they cannot establish complete
+    coverage. Bars are shared by every Alpaca connection (see ``scope`` below).
 
     ``empty_ok(symbol)`` True lets a zero-row answer for that symbol be remembered as
     confirmed empty (see ``shared_bar_cache``). Pass it only for symbols Alpaca itself
@@ -87,19 +103,11 @@ def _fetch_alpaca_bars(client, request, method, *, now=None, refresh=False, empt
     """
     raw_symbols = request.symbol_or_symbols
     symbols = [raw_symbols] if isinstance(raw_symbols, str) else list(raw_symbols)
-    api_key = getattr(client, "_api_key", None)
-    oauth_token = getattr(client, "_oauth_token", None)
-    credential = oauth_token if isinstance(oauth_token, str) and oauth_token else api_key
-    if credential is oauth_token and credential:
-        # An OAuth access token is refreshed over time but still belongs to one account.
-        # Scoping the cache by the token itself orphaned every cached bar at each refresh,
-        # so prefer the stable account identity when the owner of the client knows it.
-        account_identity = _cache_identity(client)
-        if account_identity:
-            credential = account_identity
+    credentials = (getattr(client, "_api_key", None), getattr(client, "_oauth_token", None))
     if (
-        not isinstance(credential, str)
-        or not credential
+        # Only a real authenticated SDK client is read through the cache. The credential is
+        # never part of the cache key (see ``scope`` below).
+        not any(isinstance(value, str) and value for value in credentials)
         or request.start is None
         or request.end is None
         or getattr(request, "limit", None) is not None
@@ -108,14 +116,17 @@ def _fetch_alpaca_bars(client, request, method, *, now=None, refresh=False, empt
         return method(request)
 
     adjustment = _value(getattr(request, "adjustment", None))
+    legacy_scopes = _legacy_scopes(client)
     series = {
         symbol: shared_bar_cache.BarSeries.make(
             "alpaca",
             symbol,
             _timestep(request.timeframe),
-            # Default feed/entitlement can differ across credentials. Reuse between
-            # chart and backtest with the same connection, never infer entitlements.
-            scope=shared_bar_cache.credential_scope("alpaca", credential),
+            # One Alpaca cache for every connection. What changes the numbers is in the
+            # contract below (feed, adjustment, bar size...), never who asked. Plans differ only
+            # in access to the latest 15 minutes, and the cache never stores unsettled bars.
+            scope=shared_bar_cache.shared_scope("alpaca"),
+            legacy_scopes=legacy_scopes,
             adjusted=adjustment not in (None, "raw"),
             requestType=type(request).__name__,
             timeframe=str(request.timeframe),

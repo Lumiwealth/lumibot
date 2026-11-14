@@ -677,7 +677,10 @@ class SchwabData(DataSource):
                 "schwab",
                 symbol,
                 provider_timestep,
+                # The Schwab broker sets one scope for every Schwab connection (Schwab returns
+                # the same prices to all); a bare data source without it reads directly.
                 scope=self.shared_bars_scope,
+                legacy_scopes=(self.shared_bars_legacy_scope,),
                 adjusted=True,
                 assetType=str(asset.asset_type),
                 extendedHours=bool(include_after_hours),

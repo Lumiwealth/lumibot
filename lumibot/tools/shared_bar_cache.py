@@ -7,7 +7,8 @@ observations. It never fills, carries forward or invents a bar.
 How it works
 ------------
 A series is one provider + symbol + bar size + data contract (adjustment, feed,
-extended hours, ...) + credential scope. Its bars live in period partitions:
+extended hours, ...) + a scope shared by every connection of the provider (see
+shared_scope; never an account or key). Its bars live in period partitions:
 one Parquet file per calendar month for intraday bars, one per calendar year for
 daily and longer bars. Each partition records the exact time ranges the
 provider answered ("coverage"). A request is served from coverage; only the
@@ -109,11 +110,25 @@ def credential_scope(provider, *identity) -> str | None:
 
     ``None`` (do not share) unless at least one identifying value besides the provider name is
     present: a scope built from the provider name alone would merge unrelated connections.
+
+    Kept for reading series written before :func:`shared_scope` (see ``legacy_scopes`` on
+    :meth:`BarSeries.make`). New series should use :func:`shared_scope`.
     """
     values = [str(part) for part in identity if part not in (None, "")]
     if not values:
         return None
     return hashlib.sha256("\x1f".join([str(provider), *values]).encode()).hexdigest()
+
+
+def shared_scope(provider, *tier) -> str:
+    """Scope shared by every connection of ``provider`` that receives the same numbers.
+
+    ``tier`` names only what changes the data a provider returns (for example a sandbox
+    endpoint with different prices). Never pass an account, login, token, user, strategy or
+    bot: two requests that would get the same numbers from the provider share one series.
+    """
+    values = [str(part) for part in tier if part not in (None, "")]
+    return hashlib.sha256("\x1f".join(["shared", str(provider), *values]).encode()).hexdigest()
 
 
 # --------------------------------------------------------------------------- series
@@ -149,11 +164,20 @@ class BarSeries:
     contract: tuple[tuple[str, str], ...] = ()
     scope: str | None = None
     adjusted: bool = True
+    # Older identities of the same data (per-connection scopes written before the cache was
+    # shared). Read-only fallback: a partition missing under this series is adopted from one of
+    # these and written under this series. Not part of the identity.
+    legacy: tuple = field(default=(), compare=False, hash=False, repr=False)
 
     @staticmethod
-    def make(provider, symbol, timestep, *, scope=None, adjusted=True, **contract) -> BarSeries:
+    def make(provider, symbol, timestep, *, scope=None, adjusted=True, legacy_scopes=(), **contract) -> BarSeries:
         items = tuple(sorted((str(k), json.dumps(v, sort_keys=True, default=str)) for k, v in contract.items()))
-        return BarSeries(str(provider), str(symbol), str(timestep), items, scope, bool(adjusted))
+        legacy = tuple(
+            BarSeries(str(provider), str(symbol), str(timestep), items, old, bool(adjusted))
+            for old in dict.fromkeys(legacy_scopes or ())
+            if old and old != scope
+        )
+        return BarSeries(str(provider), str(symbol), str(timestep), items, scope, bool(adjusted), legacy)
 
     @property
     def duration(self) -> pd.Timedelta:
@@ -337,7 +361,7 @@ def _remote():
 
 _RUN_STATS_KEYS = (
     "provider_reads", "provider_ms", "remote_hits", "remote_misses", "download_bytes", "download_ms",
-    "uploads", "upload_bytes", "upload_ms", "upload_errors",
+    "uploads", "upload_bytes", "upload_ms", "upload_errors", "legacy_hits",
 )
 _RUN_STATS: dict[str, float] = dict.fromkeys(_RUN_STATS_KEYS, 0.0)
 _RUN_STATS_LOCK = threading.Lock()
@@ -368,10 +392,10 @@ def log_run_summary() -> None:
     logger.info(
         "[SHARED_BARS][SUMMARY] provider_reads=%d provider_ms=%.0f remote_hits=%d remote_misses=%d "
         "download_bytes=%d download_ms=%.0f uploads=%d upload_bytes=%d upload_ms=%.0f upload_errors=%d "
-        "pending_uploads=%d",
+        "legacy_hits=%d pending_uploads=%d",
         snap["provider_reads"], snap["provider_ms"], snap["remote_hits"], snap["remote_misses"],
         snap["download_bytes"], snap["download_ms"], snap["uploads"], snap["upload_bytes"],
-        snap["upload_ms"], snap["upload_errors"], pending_shared_bar_writes(),
+        snap["upload_ms"], snap["upload_errors"], snap["legacy_hits"], pending_shared_bar_writes(),
     )
 
 
@@ -458,6 +482,9 @@ class _Partition:
     # Confirmed-empty markers: dicts with start/endExclusive/recordedAt (UTC Timestamps),
     # provider, symbol, timestep and reason. Never rows, never coverage.
     empty: list = field(default_factory=list)
+    # Filled from an older identity of the same data (``BarSeries.legacy``); written under the
+    # shared identity once loaded so later readers find it there.
+    adopted: bool = False
 
 
 @dataclass
@@ -862,7 +889,43 @@ class _Store:
                 return cached
             body = self._load_bytes(part.path)
             _telemetry("hit" if body else "miss", "shared_bars", part.path, nbytes=len(body or b""))
+            if not body and part.series.legacy:
+                adopted = adopt_legacy(part)
+                if adopted is not None:
+                    return adopted
             return _decode_partition(part, body)
+
+        adopted_verified: dict = {}
+
+        def adopt_legacy(part):
+            """Fill a missing shared partition from the same data stored under an older identity.
+
+            Cost only on a shared miss: one extra GET per legacy identity (plus its manifest for
+            adjusted series); an adopted partition is then written once under the shared path.
+            """
+            for old in part.series.legacy:
+                old_path = _series_dir(old) / part.path.name
+                old_body = self._load_bytes(old_path)
+                if not old_body:
+                    continue
+                old_part = _decode_partition(_Partition(old, part.start, part.stop, old_path), old_body)
+                if not old_part.coverage and not old_part.empty:
+                    continue
+                if old.adjusted:
+                    old_manifest = load_manifest(old)
+                    if old_part.epoch != old_manifest.epoch:
+                        continue  # an older generation of re-adjusted prices: never reuse
+                    if old_manifest.verified_at is not None:
+                        # Keep the old check time so the daily re-check runs on its usual day.
+                        verified = adopted_verified.get(part.series)
+                        if verified is None or old_manifest.verified_at < verified:
+                            adopted_verified[part.series] = old_manifest.verified_at
+                part.rows, part.coverage, part.empty = old_part.rows, list(old_part.coverage), list(old_part.empty)
+                part.strict, part.adopted = old_part.strict, True
+                _count(legacy_hits=1)
+                _telemetry("hit", "shared_bars_legacy", old_path, nbytes=len(old_body))
+                return part
+            return None
 
         def load_manifest(item):
             path = _series_dir(item) / "series.json"
@@ -895,7 +958,18 @@ class _Store:
         else:
             loaded = [load_part(p) for p in parts]
             manifests = {s: load_manifest(s) for s in series}
+        for item, verified in adopted_verified.items():
+            manifest = manifests[item]
+            if manifest.verified_at is None:
+                manifests[item] = _Manifest(manifest.epoch, verified)
+                self.save_manifest(item, manifests[item])
         for part in loaded:
+            if part.adopted:
+                # Current rows of the older identity become the shared series' current generation.
+                part.epoch = manifests[part.series].epoch
+                part.adopted = False
+                self.save(part)
+                continue
             if part.epoch != manifests[part.series].epoch:
                 part.rows, part.coverage, part.empty = _normalize(None), [], []
                 part.epoch = manifests[part.series].epoch

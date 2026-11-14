@@ -402,8 +402,8 @@ LUMIBOT_SHARED_BARS_SCOPE
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - Purpose: Who may reuse cached bars.
-- Values: ``credential`` (default: each broker connection keeps its own bars) or ``provider``
-  (all connections of one broker share bars).
+- Values: ``credential`` (default) or ``provider``. Built-in brokers already share one cache
+  of market data per provider for every connection; ``provider`` also merges custom scopes.
 
 LUMIBOT_SHARED_BARS_SETTLE_MINUTES
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

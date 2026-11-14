@@ -1,36 +1,92 @@
-# SEC Fundamentals
+# SEC_FUNDAMENTALS.md - SEC EDGAR fundamentals in LumiBot
 
-Lumibot now has native SEC fundamentals through `self.fundamentals`.
+How `self.fundamentals` (`lumibot/fundamentals/sec.py`) loads, indexes, caches and gates SEC data.
 
-Core methods:
+**Last Updated:** 2026-11-13
+**Status:** Active
+**Audience:** Contributors and AI agents working on fundamentals, caching or agent research tools
+
+## Overview
+
+`SECFundamentals` reads public SEC EDGAR JSON (no API key): the ticker map, `companyfacts` (XBRL facts) and `submissions` (filing index with acceptance times), plus filing documents. Public docs: `docsrc/fundamentals.rst`.
 
 ```python
-self.fundamentals.get_income_statement("AAPL")
-self.fundamentals.get_balance_sheet("AAPL")
-self.fundamentals.get_cash_flow("AAPL")
-self.fundamentals.get_company_facts("AAPL")
-self.fundamentals.get_filings("AAPL", form="10-K")
-self.fundamentals.search_filing("AAPL", accession_number="...", query="risk")
-self.fundamentals.get_filing_document("AAPL", accession_number="...")
+self.fundamentals.preload(symbols)                 # warm a universe in parallel
+self.fundamentals.get_income_statement("AAPL")     # also get_balance_sheet, get_cash_flow
+self.fundamentals.get_fact_history("AAPL", ["RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues"])
+self.fundamentals.get_metric("AAPL", "pe_ratio")  # ready-made metrics (FUNDAMENTAL_METRICS)
+self.fundamentals.get_metrics("AAPL")              # all metrics + reasons + source periods
+self.fundamentals.get_metrics_table(symbols)       # pandas DataFrame for a scanner
+self.fundamentals.get_company_facts("AAPL")        # compact; raw=True for the filtered payload
+self.fundamentals.get_filings("AAPL", form="10-K") # plus search_filing, get_filing_document, sections
 ```
 
-`get_company_facts()` returns a compact latest-facts view by default, capped at important fields so agent runs do not flood the model context. Pass `max_facts=None` for the full compact fact set, or `raw=True` for the raw SEC companyfacts payload when you explicitly need it.
+Agent tools use the same names (see `lumibot/components/agents/builtins.py`).
 
-Agent tools use the same names without `self.fundamentals.`:
+## Point-in-time table (parse once)
 
-- `get_income_statement`
-- `get_balance_sheet`
-- `get_cash_flow`
-- `get_company_facts`
-- `get_filings`
-- `search_filing`
-- `get_filing_document`
+`_CompanyTimeline` is built once per process per company from the companyfacts file:
 
-Backtest safety:
+- Every filing (all taxonomies) gets an availability timestamp. Without an acceptance time it is 09:30 New York on the day after `filed`. With one (from `submissions`, UTC), it is the acceptance moment, or the next weekday 09:30 if accepted at/after 16:00 New York or on a weekend.
+- Rows of the statement tags (`_PRIORITY_COMPANY_FACT_TAGS`) plus any tag requested through `get_fact_history` are kept as interned tuples, sorted by availability. Other tags are read from the cached file on demand (compact `get_company_facts` only) so a 500-company universe stays in memory (measured 1.3 MB per company on average, 64 MB for 50 large caps).
+- A lookup is `bisect` on availability plus a scan of the visible rows. Per period `(start, end)` the latest public row wins, so a restatement applies only once its filing is public (issue #1141).
+- Statements anchor on the **newest period** (end date), then availability. Sorting by filing date first let a later 10-K/A for an older year become the "current" statement.
+- Statement and compact results are memoised per *filing state* (`state_index`): the number of filings public at `as_of`. They only change when a new filing becomes public.
+- Acceptance times are loaded lazily: only when `as_of` falls inside a filing's uncertain window (filing day 00:00 to next day 09:30 New York, padded to 36 h). Before that the day-after rule is used; it is never earlier than the acceptance-based time. A failed submissions fetch is not retried in the process (fallback stays).
+- In live mode the table and ticker map are rebuilt after `mutable_cache_ttl_seconds` (default 300).
 
-- Facts are gated by SEC `filed` date.
-- Filings are gated by SEC acceptance datetime when available, with filing date as fallback.
-- The default `as_of` is the current strategy datetime.
-- Responses are cached under `~/.lumibot/cache/sec` unless `LUMIBOT_SEC_CACHE_DIR` is set.
+Measured 2026-11-13 (MacBook, load average 12 to 22 from other jobs): 5 companies x 12 monthly dates x 3 statements = 180 calls. Old code 24.8 s warm (27.1 s cold, 6 requests). New code 0.24 s warm including the one-time parse (1.7 s cold, 8 requests including 2 lazy submissions files). Old and new returned identical values for all 180 statements on that real data.
 
-SEC does not require an API key. Lumibot sends a contact-style user agent by default and supports override with `LUMIBOT_SEC_USER_AGENT`.
+## Ready-made metrics
+
+`get_metrics` (class `_MetricContext`) computes `FUNDAMENTAL_METRICS` from the same timeline. Inputs and tag priority are in `_METRIC_TAGS` (cover-page shares use the `dei:` taxonomy; `add_tags` accepts `"taxonomy:Tag"`).
+
+- TTM flows: an annual period (350 to 380 days) ending at the latest end, else latest FY + the longest year-to-date period ending there - the same-length period ending about 364 days earlier (7 and 10 day tolerances). Diluted EPS uses the same arithmetic.
+- Margins and growth use revenue's latest end; the numerator must exist for that same twelve months.
+- Balance ratios use one balance sheet date (the denominator's latest). Debt is `LongTermDebt`, else `LongTermDebtNoncurrent` plus the current portion when reported. Missing debt is None, never zero.
+- A latest period ending more than 548 days before `as_of` is stale: None with a reason.
+- Price metrics use `price=` or `strategy.get_last_price(symbol)`. Known limit: split-adjusted backtest prices against as-filed EPS and shares are off by the split ratio before a split (NVDA June 2024 is a live example). Not fixed here.
+- The SEC ticker map is current, not point in time (for example XOM maps to a new 2026 holding-company CIK with no history). Not fixed here.
+
+## Rate limit
+
+Request starts are spaced by `min_request_interval_seconds` (default 0.11 s, under SEC's 10 requests per second) across all threads, so `preload()` workers share one limit. `request_count` counts actual SEC requests.
+
+## Local and shared cache
+
+Local files live under `LUMIBOT_SEC_CACHE_DIR` (default `~/.lumibot/cache/sec`) with a `<file>.meta.json` sidecar (`fetched_at`, `etag`, `last_modified`).
+
+In **backtest mode only**, raw files also go through LumiBot's remote backtest cache (`lumibot/tools/backtest_cache.py`, `LUMIBOT_CACHE_BACKEND=s3`). Keys describe the data only, never a user, account or strategy:
+
+| Data | Remote key (after `<LUMIBOT_CACHE_S3_PREFIX>/<LUMIBOT_CACHE_S3_VERSION>/`) |
+|------|------|
+| Ticker map | `sec/company_tickers.json` |
+| Company facts | `sec/companyfacts/CIK<10-digit CIK>.json` |
+| Submissions | `sec/submissions/CIK<10-digit CIK>.json` |
+| Filing document | `sec/filings/<10-digit CIK>/<accession>/<primary document>` |
+
+JSON objects are stored exactly as the SEC serves them, plus one top-level key:
+
+```json
+"_lumibot_cache_meta": {"fetched_at": "2026-11-13T02:00:00+00:00", "etag": "...", "last_modified": "..."}
+```
+
+`fetched_at` (ISO 8601, timezone required) is when the data left the SEC. LumiBot strips the key on read and writes the local sidecar from it.
+
+Freshness in a backtest: a copy with `fetched_at` at or after the backtest end date is used as is; an older copy is used only if it is less than one day old, otherwise it is refetched from the SEC and re-uploaded. With no known end date the cached copy is used. Live mode never touches the remote cache.
+
+### Writing the cache from SEC bulk files (warmer)
+
+SEC publishes nightly `companyfacts.zip` and `submissions.zip`. A warmer that wants LumiBot to get hits must:
+
+1. Write each `CIK##########.json` from `companyfacts.zip` to `sec/companyfacts/CIK##########.json` (same 10-digit, zero-padded name) with `_lumibot_cache_meta.fetched_at` set to when the zip was downloaded.
+2. Write each main `CIK##########.json` from `submissions.zip` to `sec/submissions/CIK##########.json` the same way. The paginated `CIK##########-submissions-NNN.json` files are not read by LumiBot today.
+3. Write `https://www.sec.gov/files/company_tickers.json` to `sec/company_tickers.json` (the zips do not contain it).
+4. Use the same prefix and version as the backtest containers. Without `_lumibot_cache_meta.fetched_at` a downloaded file looks fresh by its local mtime, so always write it. Running nightly keeps every backtest whose end date is before the warm a hit.
+
+## Tests
+
+- `tests/test_sec_fundamentals.py`: original contracts (gating, caching, filings, sections).
+- `tests/test_sec_fundamental_metrics.py`: TTM arithmetic, margins, balance ratios, valuation, no look-ahead on filing day, restatement isolation, strategy price, None-with-reason cases, bulk table.
+- `tests/test_sec_fundamentals_point_in_time.py`: parse-once, restatements, after-close availability, lazy acceptance, shared cache across two machines, refresh rule, preload and rate limit.
+- SEC tests patch `get_backtest_cache` to a disabled manager: a developer `.env` with a remote cache would otherwise receive the synthetic fixtures.

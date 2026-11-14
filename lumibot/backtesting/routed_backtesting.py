@@ -18,6 +18,7 @@ from lumibot.entities import Asset, AssetsMapping, Data
 from lumibot.tools import ibkr_helper, polygon_helper
 from lumibot.tools.helpers import parse_timestep_qty_and_unit
 from lumibot.tools.ibkr_equity_basis import EquityBasisSnapshot, assert_same_basis, equity_basis_from_frame
+from lumibot.tools.frame_metadata import share_frame_attrs
 
 logger = logging.getLogger(__name__)
 
@@ -412,6 +413,8 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
 
         merged = self._merge_fetched_frame(existing_df, df)
 
+        # pandas deep-copies attrs on every slice; share the metadata instead.
+        share_frame_attrs(merged)
         data = Data(original_asset, merged, timestep=ts_unit, quote=original_quote_asset)
         data.strict_end_check = ts_unit != "day"
         self._router._data_store[canonical_key] = data
@@ -630,10 +633,20 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                     self._empty_prefetch_series.add(canonical_key)
                     return None
 
-            try:
-                from lumibot.backtesting.interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting
+            from lumibot.backtesting.interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting
 
-                prev_open = InteractiveBrokersRESTBacktesting._previous_us_futures_session_open(self._router.datetime_start)
+            # Prefetch from the run start, except for a dated contract first used well after
+            # it (typically the new contract after a roll): that one starts a week before now.
+            # Its earlier bars are never read by this request, and a later, longer lookback
+            # misses the fast path above and fetches its own window.
+            anchor = self._router.datetime_start
+            try:
+                if asset_type == "future" and getattr(fetch_asset, "expiration", None) is not None:
+                    anchor = max(anchor, end_dt - timedelta(days=7))
+            except Exception:
+                anchor = self._router.datetime_start
+            try:
+                prev_open = InteractiveBrokersRESTBacktesting._previous_us_futures_session_open(anchor)
             except Exception:
                 prev_open = None
 
@@ -641,7 +654,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 if prev_open is not None:
                     prefetch_start = min(start_datetime, prev_open)
                 else:
-                    prefetch_start = min(start_datetime, self._router.datetime_start - timedelta(days=1))
+                    prefetch_start = min(start_datetime, anchor - timedelta(days=1))
             except Exception:
                 prefetch_start = start_datetime
             # Coverage is judged without the holiday padding: a padded start
@@ -650,11 +663,15 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             if unit in {"minute", "hour"} and futures_counted_start is not None:
                 try:
                     coverage_start = min(futures_counted_start,
-                                         prev_open or (self._router.datetime_start - timedelta(days=1)))
+                                         prev_open or (anchor - timedelta(days=1)))
                 except Exception:
                     coverage_start = prefetch_start
 
-            prefetch_end = self._router.datetime_end or end_dt
+            # History pages backward from the requested end. A dated contract has no bars
+            # after its expiration, so a request ending at the run end loaded nothing and
+            # orders on that contract stayed pending. End at the contract's last trading day.
+            prefetch_end = InteractiveBrokersRESTBacktesting._explicit_future_history_end(
+                fetch_asset, self._router.datetime_end or end_dt)
             df = self._get_price_data(
                 asset=fetch_asset,
                 quote=fetch_quote_asset,
@@ -779,6 +796,9 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         # a separate key (e.g., "60minute") and annotate the instance so `Data.get_bars()` can
         # slice directly without resampling each iteration.
         data_timestep = unit if unit in {"minute", "hour", "day"} else "minute"
+        # pandas deep-copies attrs on every slice, so every price lookup would rebuild the
+        # action ledger. Share the metadata before Data derives its working frames.
+        share_frame_attrs(merged)
         data = Data(original_asset, merged, timestep=data_timestep, quote=original_quote_asset)
         data.strict_end_check = data_timestep != "day"
         data._native_timestep_quantity = int(qty)  # type: ignore[attr-defined]
@@ -796,6 +816,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             frozen_basis = self._equity_basis_snapshots.get(str(fetch_asset.symbol).strip().upper())
             if frozen_basis is not None:
                 data.df.attrs["ibkr_equity_basis"] = frozen_basis.to_dict()
+        share_frame_attrs(data.df)
         self._router._data_store[canonical_key] = data
         if canonical_key in self._fully_loaded_series:
             self._prefetch_start_by_series[canonical_key] = prefetch_start

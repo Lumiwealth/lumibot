@@ -12,6 +12,7 @@ from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.tools.helpers import parse_timestep_qty_and_unit
 from lumibot.tools.data_downloader_queue_client import set_queue_client_id
 from lumibot.tools.ibkr_equity_basis import EquityBasisError, EquityBasisSnapshot, assert_same_basis, equity_basis_from_frame
+from lumibot.tools.frame_metadata import share_frame_attrs
 
 logger = logging.getLogger(__name__)
 
@@ -791,6 +792,9 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         qty, unit = parse_timestep_qty_and_unit(dataset_key)
         unit = str(unit)
         data_timestep = unit if unit in {"minute", "day"} else "minute"
+        # pandas deep-copies attrs on every slice, so every price lookup would rebuild the
+        # action ledger. Share the metadata before Data derives its working frames.
+        share_frame_attrs(merged)
         data = Data(asset, merged, timestep=data_timestep, quote=quote)
         data.strict_end_check = data_timestep != "day"
         data._native_timestep_quantity = int(qty)  # type: ignore[attr-defined]
@@ -817,6 +821,7 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         if stock_symbol and frozen_basis is not None:
             data.df.attrs["ibkr_equity_basis"] = frozen_basis.to_dict()
             self._equity_basis_snapshots[stock_symbol] = frozen_basis
+        share_frame_attrs(data.df)
         self._data_store[canonical_key] = data
         # Only write the legacy key for minute data to avoid collisions with daily bars.
         if dataset_key == "minute":

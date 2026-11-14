@@ -556,6 +556,11 @@ class QueueClient:
             "correlation_id": correlation_id,
             "client_id": self.client_id,
         }
+        # Optional label a downloader can use to group or prioritize requests. Read at submit
+        # time so a process can set it after import. Nothing is sent when it is unset or blank.
+        request_class = (os.environ.get("DATADOWNLOADER_REQUEST_CLASS") or "").strip()
+        if request_class:
+            payload["request_class"] = request_class
 
         start_time = time.time()
         submit_budget = QUEUE_SUBMIT_MAX_WAIT if QUEUE_SUBMIT_MAX_WAIT > 0 else (self.timeout or 900.0)

@@ -577,6 +577,19 @@ pytest tests/test_thetadata_yahoo_parity.py -v -m apitest
 - All 5 mocked tests in `test_thetadata_yahoo_parity.py`: **PASSING**
 - Integration tests (9 tests): Require ThetaData credentials, marked with `@pytest.mark.apitest`
 
+## Running tests when a local dotenv selects a remote data source
+
+If a local `.env` or `.env.local` sets `BACKTESTING_DATA_SOURCE` (or similar) to a remote data
+source, LumiBot loads it at import and unit tests can start making remote data requests and hang.
+Run tests with dotenv loading turned off:
+
+```bash
+PYTHON_DOTENV_DISABLED=1 LUMIBOT_DISABLE_DOTENV=1 python3 -m pytest <tests for the files you changed>
+```
+
+Do not run local tests or backtests against a shared remote data service: stray local runs take
+capacity from real work. Tests that exercise dotenv loading opt in inside their own fixtures.
+
 ## Test Philosophy (CRITICAL - READ THIS)
 
 ### Test Age = Test Authority

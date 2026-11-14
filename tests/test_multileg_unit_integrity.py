@@ -133,7 +133,8 @@ def test_simulation_does_not_fill_a_ratio_package_above_the_ai_debit_limit():
     broker = object.__new__(BacktestingBroker)
     # One generic 3:2 unit costs 3*3 - 2*1 = 7, above the AI's 4 debit cap.
     # Replace only data and execution boundaries; exercise the real limit owner.
-    broker._leg_package_fill_price = lambda leg: 3.0 if leg.asset.strike == 100 else 1.0
+    # _leg_package_fill_price returns (price, price_source) since option fills are marked.
+    broker._leg_package_fill_price = lambda leg: (3.0 if leg.asset.strike == 100 else 1.0, "trade")
     broker._execute_filled_order = Mock()
     assert broker._fill_package_at_net_limit(parent, SimpleNamespace()) is False
     broker._execute_filled_order.assert_not_called()

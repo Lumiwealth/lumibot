@@ -241,6 +241,14 @@ IBeam is an unsupported third-party authentication wrapper and is suitable only 
 - Default: `2.0`
 - Where: `lumibot/data_sources/data_source_backtesting.py`
 
+## Option fills (backtesting)
+
+### `LUMIBOT_BACKTEST_OPTION_ESTIMATE_PENALTY_PCT`
+- Purpose: Optional spread penalty (percent of price, minimum $0.01 when set above 0) applied to estimated option fills: buys pay more, sells receive less.
+- Values: float percent; `0` means no penalty.
+- Default: `0`. Estimates are used as computed and labeled `price_source=estimated`. For reference, a hide-and-estimate study on 2026-11-14 (SPY 1-minute options) measured a median estimate error of about 1% at the money and 2-3% for 5-15 delta wings.
+- Where: `lumibot/backtesting/backtesting_broker.py` (`_option_fill_price_at_bar`, `_penalized_estimate`).
+
 ## Trade audit telemetry (NVDA/SPX accuracy audits)
 
 ### `LUMIBOT_BACKTEST_AUDIT`
@@ -288,6 +296,12 @@ Selection rule (ThetaData):
 ### `DATADOWNLOADER_API_KEY` / `DATADOWNLOADER_API_KEY_HEADER`
 - Purpose: Authentication for the downloader service.
 - Values: **do not document actual values**; they must be supplied by the runtime environment.
+
+### `DATADOWNLOADER_REQUEST_CLASS`
+- Purpose: Optional label sent with every queued downloader request as `"request_class"` in the submit body, so a downloader can group or prioritize requests by kind of caller.
+- Values: any short string (surrounding whitespace is trimmed). Unset or blank sends nothing and the submit body is unchanged.
+- Default: unset.
+- Where: `lumibot/tools/data_downloader_queue_client.py` (`_submit_request`).
 
 ### `DATADOWNLOADER_SKIP_LOCAL_START`
 - Purpose: Prevents any local downloader/ThetaTerminal bootstrap logic from running (backtests must use the remote downloader in production workflows).

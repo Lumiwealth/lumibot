@@ -131,6 +131,33 @@ class TestCorrelationId:
 class TestRequestSubmission:
     """Tests for submitting requests to the queue."""
 
+    @staticmethod
+    def _submitted_body(monkeypatch, request_class):
+        if request_class is None:
+            monkeypatch.delenv("DATADOWNLOADER_REQUEST_CLASS", raising=False)
+        else:
+            monkeypatch.setenv("DATADOWNLOADER_REQUEST_CLASS", request_class)
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"request_id": "req-1", "status": "pending", "queue_position": 1}
+        with patch.object(requests.Session, "post", return_value=mock_response) as mock_post:
+            QueueClient("http://test:8080", "test-key").check_or_submit(
+                method="GET", path="v3/stock/history/ohlc", query_params={"symbol": "AAPL"}
+            )
+        return mock_post.call_args.kwargs["json"]
+
+    def test_submit_body_carries_request_class_when_configured(self, monkeypatch):
+        """DATADOWNLOADER_REQUEST_CLASS labels each queued request for the downloader."""
+        body = self._submitted_body(monkeypatch, "  interactive ")
+        assert body["request_class"] == "interactive"
+
+    @pytest.mark.parametrize("value", [None, "", "   "])
+    def test_submit_body_has_no_request_class_when_unset(self, monkeypatch, value):
+        """Unset or blank: the submit body is exactly what it was before the setting existed."""
+        body = self._submitted_body(monkeypatch, value)
+        assert "request_class" not in body
+        assert set(body) == {"method", "path", "query_params", "headers", "body", "correlation_id", "client_id"}
+
     @patch.object(requests.Session, 'post')
     def test_submit_request_success(self, mock_post):
         """Test successful request submission."""

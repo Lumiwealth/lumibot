@@ -72,6 +72,47 @@ limit or inclusive timestamp cursor:
 
 ---
 
+### Multi-leg option packages fill together (backtesting invariant, 2026-11-14)
+
+Brokers execute a multi-leg option order (spread, condor, straddle) as one package:
+all legs or none. The backtesting broker matches that:
+
+- `submit_order([...], is_multileg=True)` (the default when every leg is an option)
+  creates a MULTILEG parent. Market packages (`_package_atomic_market`) and
+  credit/debit/even packages (`_package_net_limit`) are filled by the parent in
+  `_fill_package_at_net_limit`: every leg on one bar or none. Legs are never
+  processed as independent orders (`_package_limit_managed_by_parent`).
+- Every option fill price belongs to the fill bar (`_option_fill_price_at_bar`, single legs
+  and packages): (1) a quote stamped on that bar (ask for buys, bid for sells); (2) the open
+  of an observed bar starting now (a real trade); (3) a Black-Scholes estimate using the
+  underlying's bar open and the implied volatility from the contract's most recent observed
+  trade (any age within about five sessions of minute bars; if none, the nearest strike with
+  the same expiry and right from `get_chains`). Rate 0, volatility by bisection. Estimates are used as
+  computed (optional penalty `LUMIBOT_BACKTEST_OPTION_ESTIMATE_PENALTY_PCT`, default 0) and are marked
+  `price_source=estimated`; counts go to `data_provenance.json` `optionFillPrices`. Calendar
+  padding rows (`bar_is_observed == False`) are never used. No price at all: the order waits.
+- Why: thin contracts rarely trade in the same minute. Reusing older trades made each leg
+  fill whenever its own contract printed next (legs days apart). Hide-and-estimate on Alpaca
+  SPY 1-minute data (2026-11-14): median error ATM ~1%, 5-15 delta wings 2-3%, deep OTM about
+  1 cent; with the previous trade 15+ minutes old, ATM median 13 to 31 cents.
+- Alpaca's historical option API has bars and trades but no historical quotes, so source (1)
+  never applies to Alpaca option backtests.
+- A credit/debit/even limit is checked against the ratio-weighted net of the leg
+  prices (credit negative). A market package has no limit.
+- If an unfilled leg's time in force ends, the whole package is canceled
+  (`_cancel_package_if_leg_time_in_force_elapsed`); `error_message` on the parent and
+  legs says why. Closing packages follow the same rule.
+- Orders submitted one at a time remain independent and fill whenever their own
+  contract trades. On illiquid options that can leave naked short legs for days, so
+  spreads must be submitted as one multi-leg order.
+- Regression tests: `tests/backtest/test_multileg_atomic_package_fill.py`.
+- Expiry: in-the-money options on one underlying that deliver shares in both directions (both
+  legs of a vertical held to expiry) all settle in cash at intrinsic value. Before, each leg
+  settled alone: when the account could not pay for the long leg's shares it was cash-settled
+  while the short leg was still assigned, leaving a stray 100-share stock position.
+  Single-direction options keep exercise and assignment. Regression test:
+  `tests/test_option_spread_expiry_settlement.py`.
+
 ## Broker notes (public sources, summarized)
 
 ### SmartLimit mutation confirmation

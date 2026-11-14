@@ -283,6 +283,18 @@ BACKTESTING_PROGRESS_HEARTBEAT_SECONDS
 - Values: float seconds (string).
 - Default: ``2.0``
 
+Option fills (backtesting)
+--------------------------
+
+LUMIBOT_BACKTEST_OPTION_ESTIMATE_PENALTY_PCT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Optional spread penalty on option fills that are estimated (no real quote or trade on the fill bar). When set above 0, buys pay more and sells receive less.
+- Values: percent of the estimated price; when above 0 the penalty is at least one cent. ``0`` means no penalty.
+- Default: ``0`` (estimates are used as computed and labeled)
+- Notes:
+  - See "How Orders Fill in a Backtest" for the quote, trade, estimated order. Estimated fills are marked ``price_source=estimated`` in the trades file.
+
 Trade audit telemetry (accuracy investigations)
 -----------------------------------------------
 
@@ -315,6 +327,17 @@ LUMIBOT_CACHE_MISS_DEBUG
 - Values: truthy enables (``1``, ``true``); unset/``0`` disables.
 - Default: disabled. Zero runtime cost when unset — the check is gated before any logging work.
 - When to use: diagnosing unexpected IBKR roundtrips in warm-cache backtests (e.g., when profiling shows time in ``_fetch_history_between_dates`` that you expected to be cached).
+
+Data Downloader requests
+------------------------
+
+DATADOWNLOADER_REQUEST_CLASS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Optional label for requests LumiBot sends to a Data Downloader (``DATADOWNLOADER_BASE_URL``). When set, every queued request carries it as ``"request_class"`` in the submit body, so the downloader can group or prioritize requests by kind of caller.
+- Values: any short string, for example ``DATADOWNLOADER_REQUEST_CLASS=batch``. Surrounding whitespace is trimmed. The downloader decides what, if anything, each value means.
+- Default: unset. Nothing extra is sent and the submit body is unchanged.
+- Limits: this is a label only. It does not change what data is requested, cache keys or results. A downloader that does not know the field ignores it.
 
 ThetaData option-chain building (performance)
 ---------------------------------------------

@@ -507,8 +507,14 @@ def _spy_minute_bars(days):
     return _bars("SPY", rows)
 
 
-def test_alpaca_option_order_fills_on_the_next_real_print_in_a_full_backtest(monkeypatch, tmp_path, disable_datasource_override):
-    """Offline end-to-end: get_chains -> market order -> fill only on a real option print."""
+def test_alpaca_option_order_fills_on_its_own_bar_in_a_full_backtest(monkeypatch, tmp_path, disable_datasource_override):
+    """Offline end-to-end: get_chains -> market order -> fill priced from the fill bar.
+
+    Rule since 4.6.60: an option fill price always belongs to the fill bar. This source has no
+    historical option quotes, and the contract does not trade at 09:35, so the fill is a labeled
+    estimate built from the contract's last real trade (09:31). It never borrows the price of a
+    later print (09:37) and never waits for one.
+    """
     import lumibot.backtesting.alpaca_backtesting as alpaca_backtesting
     from lumibot.strategies import Strategy
 
@@ -518,7 +524,7 @@ def test_alpaca_option_order_fills_on_the_next_real_print_in_a_full_backtest(mon
         "SPY260821C00650000",
         [
             ("2026-08-03T13:31:00Z", 5.00, 5.10, 4.95, 5.05, 3),  # 09:31, before the order
-            ("2026-08-03T13:37:00Z", 5.40, 5.50, 5.35, 5.45, 2),  # 09:37, first print after it
+            ("2026-08-03T13:37:00Z", 5.40, 5.50, 5.35, 5.45, 2),  # 09:37, first print after it (must not be used)
             ("2026-08-03T15:00:00Z", 5.80, 5.90, 5.75, 5.85, 1),
         ],
     )
@@ -549,7 +555,7 @@ def test_alpaca_option_order_fills_on_the_next_real_print_in_a_full_backtest(mon
                 self.vars.submitted_at = now
 
         def on_filled_order(self, position, order, price, quantity, multiplier):
-            self.vars.fills.append((self.get_datetime(), float(price)))
+            self.vars.fills.append((self.get_datetime(), float(price), order.identifier))
 
     _results, strategy = BuyOneCall.run_backtest(
         OfflineAlpacaBacktesting,
@@ -569,10 +575,14 @@ def test_alpaca_option_order_fills_on_the_next_real_print_in_a_full_backtest(mon
 
     assert strategy.vars.submitted_at.strftime("%H:%M") == "09:35"
     assert len(strategy.vars.fills) == 1
-    filled_at, fill_price = strategy.vars.fills[0]
-    # No print at 09:35 or 09:36: the order waits for the 09:37 trade and fills at its open.
-    assert filled_at.strftime("%Y-%m-%d %H:%M") == "2026-08-03 09:37"
-    assert fill_price == 5.40
+    filled_at, fill_price, identifier = strategy.vars.fills[0]
+    # No print at 09:35: the fill is estimated on that bar from the 09:31 trade (5.00 with the
+    # underlying 4 cents lower), used as computed. The later 5.40 print is never the price.
+    assert filled_at.strftime("%Y-%m-%d %H:%M") == "2026-08-03 09:35"
+    assert fill_price == pytest.approx(5.02, abs=0.05)
+    log = strategy.broker._trade_event_log_df
+    fill_rows = log[(log["status"] == "fill") & (log["identifier"] == identifier)]
+    assert list(fill_rows["price_source"]) == ["estimated"]
 
 
 # ---------------------------------------------------------------------------
@@ -919,7 +929,7 @@ def test_env_selected_alpaca_daily_strategy_keeps_daily_bars(monkeypatch, tmp_pa
     assert {str(r.timeframe) for r in _FakeStockHistoricalClient.requests} == {"1Day"}
 
 
-def test_env_selected_alpaca_options_fill_on_real_prints(monkeypatch, tmp_path):
+def test_env_selected_alpaca_options_fill_on_their_own_bar(monkeypatch, tmp_path):
     import alpaca.trading.client as trading_client_module
 
     from lumibot.strategies import Strategy
@@ -959,7 +969,11 @@ def test_env_selected_alpaca_options_fill_on_real_prints(monkeypatch, tmp_path):
 
     _results, strategy = BuyOneCall.run_backtest(**_ENV_RUN_KWARGS)
 
-    assert strategy.vars.fills == [("2026-08-03 09:37", 5.40)]
+    # Rule since 4.6.60: the fill price belongs to the fill bar. No print at 09:35, so the fill is
+    # a labeled estimate from the 09:31 trade (5.00), never the later 09:37 print (5.40).
+    assert [when for when, _price in strategy.vars.fills] == ["2026-08-03 09:35"]
+    assert strategy.vars.fills[0][1] == pytest.approx(5.02, abs=0.05)
+    assert strategy.broker._option_fill_price_counts == {"estimated": 1}
 
 
 def test_env_selected_alpaca_option_history_excludes_the_print_that_is_still_forming(monkeypatch, tmp_path):

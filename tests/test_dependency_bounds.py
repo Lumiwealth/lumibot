@@ -88,3 +88,16 @@ def test_evaluation_jwt_pin_matches_the_patched_public_floor():
     requirements = [Requirement(line) for line in (ROOT / "requirements_agent_evals.txt").read_text().splitlines()
                     if line.strip() and not line.startswith("#")]
     assert str(next(req for req in requirements if req.name == "PyJWT").specifier) == "==2.15.1"
+
+
+def test_quantstats_minimum_preserves_small_signed_total_return_labels():
+    for values in [_install_requires_from_setup_py(), (ROOT / "requirements.txt").read_text().splitlines()]:
+        requirements = {
+            req.name: req for value in values
+            if value.strip() and not value.lstrip().startswith("#")
+            for req in [Requirement(value.split("#", 1)[0].strip())]
+        }
+        specifier = requirements["quantstats-lumi"].specifier
+        assert "1.1.5" not in specifier
+        assert "1.1.6" in specifier
+        assert "1.2.0" not in specifier

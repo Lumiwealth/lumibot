@@ -1,6 +1,7 @@
 """Native Python MetaMask managed-wallet broker."""
 
 from decimal import Context, Decimal
+from math import isfinite
 from threading import Event, RLock, current_thread
 from uuid import uuid4
 
@@ -178,6 +179,7 @@ class MetaMask(Broker):
             reduce_only=request.get("reduceOnly", False),
         )
         order.update_raw(response)
+        self._set_trade_cost(order, response)
         self._set_submission_outcome(order, response)
         order.status = {
             "filled": "fill",
@@ -248,6 +250,19 @@ class MetaMask(Broker):
 
     def get_historical_account_value(self):
         raise NotImplementedError("MetaMask does not expose historical account equity through this adapter")
+
+    def get_cash_event_sync(self, *, since=None, limit=5000):
+        """Read a bounded USDC window with explicit account and coverage evidence."""
+        from lumibot.tools.metamask.activity import cash_event_sync
+
+        return cash_event_sync(self.client, self.mode, since=since, limit=limit)
+
+    def get_cash_events(self, *, since=None, limit=100):
+        """Return complete normalized history, or refuse an ambiguous/truncated list."""
+        result = self.get_cash_event_sync(since=since, limit=limit)
+        if result.state != "complete":
+            raise MetaMaskAPIError("CASH_HISTORY_INCOMPLETE", result.reason_code)
+        return list(result.events)
 
     def get_funding_payments(self, start_time, end_time, symbol=None):
         """Read funding ledger (Unix milliseconds); balances already include these cash flows."""
@@ -376,6 +391,26 @@ class MetaMask(Broker):
         if certainty == "confirmed_not_submitted":
             order.submission_outcome["order_release"] = dict(release)
 
+    @staticmethod
+    def _set_trade_cost(order, response):
+        if "fees" not in response:
+            return
+        fees = response["fees"]
+        if not isinstance(fees, list):
+            raise MetaMaskAPIError("INVALID_FEE", "Order fees must be a list of currency and amount records")
+        money, total, supported = Context(prec=160), Decimal(0), True
+        for fee in fees:
+            if not isinstance(fee, dict) or not isinstance(fee.get("asset"), str) or not fee["asset"]:
+                raise MetaMaskAPIError("INVALID_FEE", "Order fee currency is missing")
+            amount = decimal_value(fee.get("amount"))
+            supported = supported and fee["asset"] == "USDC"
+            if fee["asset"] == "USDC":
+                total = money.add(total, amount)
+        cost = float(total) if supported else None
+        if cost is not None and not isfinite(cost):
+            raise MetaMaskAPIError("INVALID_FEE", "Order fee total exceeds the supported reporting range")
+        order.trade_cost = cost
+
     def _observe(self, order, response):
         with self._event_lock:
             order = self.get_tracked_order(order.identifier) or order
@@ -389,6 +424,7 @@ class MetaMask(Broker):
                 )
             if quantity > decimal_value(order.quantity):
                 raise MetaMaskAPIError("INVALID_FILL", "Cumulative fills exceed the original order quantity")
+            self._set_trade_cost(order, response)
             if previous[2] in ("filled", "canceled", "rejected"):
                 state = previous[2]
                 response = {**response, "state": state}

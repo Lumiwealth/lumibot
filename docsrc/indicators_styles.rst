@@ -323,11 +323,84 @@ Load one and look at its schema::
     from lumibot.example_indicators import oscillator_zones
     oscillator_zones.OscillatorZones.describe()
 
+Drawing objects: boxes, lines and labels
+----------------------------------------
+
+Some things an indicator draws are not one number per bar: a box over a price
+zone that began twenty bars ago, a line between two swing points, a text label
+on one bar. These are **drawing objects**. They are a second channel next to
+the outputs, created inside ``step`` through ``self.draw`` (Pine's ``box.new``,
+``line.new``, ``label.new``, the ``set_*`` functions and ``delete``)::
+
+    class SwingZones(Indicator):
+        key = "swing_zones"
+        title = "Swing zones"
+        overlay = True
+        outputs = [OutputSpec("close", "Close", "line", display="none")]
+
+        def init_state(self):
+            return {"zone": None, "high": None}
+
+        def step(self, state, bar):
+            if state["high"] is None or bar.high > state["high"]:
+                state["high"] = bar.high
+                state["zone"] = self.draw.box(
+                    bar.time, bar.high, bar.time, bar.low,
+                    border_color="#26A69A", bg_color="#26A69A33", text="High",
+                )
+                self.draw.line(bar.time, bar.high, bar.time, bar.high,
+                               color="#EF5350", style="dashed", extend="right")
+                self.draw.label(bar.time, bar.high, "H", style="label_down", color="#EF5350")
+            else:
+                self.draw.update(state["zone"], x2=bar.time)   # grow the box to this bar
+            return {"close": bar.close}
+
+Read the current objects with ``indicator.drawings()``: a list of plain dicts
+(``id``, ``kind``, and the object's fields), oldest first. Times are UTC epoch
+milliseconds, prices are floats, colors are ``#RRGGBB``, ``#RRGGBBAA`` or a
+theme color.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 82
+
+   * - Object
+     - Fields
+   * - ``box``
+     - ``x1, y1, x2, y2`` (time and price of two corners), ``border_color``,
+       ``border_width``, ``border_style``, ``bg_color``, ``text``,
+       ``text_color``, ``text_size``, ``text_align``, ``extend``
+       (``none``, ``left``, ``right``, ``both``).
+   * - ``line``
+     - ``x1, y1, x2, y2``, ``color``, ``width``, ``style`` (``solid``,
+       ``dashed``, ``dotted``), ``arrow`` (``none``, ``left``, ``right``,
+       ``both``), ``extend``.
+   * - ``label``
+     - ``x, y``, ``text``, ``style`` (``label_up``, ``label_down``,
+       ``label_left``, ``label_right``, ``label_center``, ``none`` for text
+       alone), ``color`` (bubble), ``text_color``, ``size``.
+   * - ``table``
+     - A grid of text cells pinned to the chart (Pine's ``table.new`` and
+       ``table.cell``): ``t = self.draw.table("top_right", columns, rows,
+       bg_color=..., frame_color=..., frame_width=..., border_color=...,
+       border_width=...)``, then ``self.draw.cell(t, column, row, "text",
+       text_color=..., bg_color=..., text_size=..., text_align=...)``.
+       Positions: ``top_left``, ``top_center``, ``top_right``, ``middle_*``,
+       ``bottom_*``. Columns and rows count from 0 and are fixed when the
+       table is made. At most nine tables.
+
+Rules:
+
+* They follow the same forming-bar rollback as state. A forming bar may create,
+  change or delete objects while it builds; only the closed bar commits them.
+* Each kind keeps at most **500** objects (tables: nine). Adding one more drops the oldest of
+  that kind (TradingView's own limit). Changing or deleting an object that is
+  already gone does nothing.
+* Text is plain text of at most 80 characters. A time must be a real bar time.
+
 What is not an output
 ---------------------
 
-Some charting tools also let a script create free-standing objects: lines
-between two points, text labels, boxes, tables pinned to a corner of the chart,
-or horizontal bars growing from the side of the chart (volume at each price).
-These are not one number per bar, so they are not outputs. They are not part
-of the indicator contract yet.
+Tables pinned to a corner of the chart and horizontal bars growing from the
+side of the chart (volume at each price) are not part of the indicator
+contract yet.

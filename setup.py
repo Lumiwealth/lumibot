@@ -46,7 +46,7 @@ theta_jar_path = PROJECT_ROOT / "lumibot" / "resources" / "ThetaTerminal.jar"
 
 setuptools.setup(
     name="lumibot",
-    version="4.6.54",
+    version="4.6.55",
     author="Robert Grzesik",
     author_email="rob@botspot.trade",
     description="Python framework for algorithmic trading: backtesting and live deployment for stocks, options, crypto, futures, and forex. Same code for backtest and live trading.",
@@ -82,7 +82,7 @@ setuptools.setup(
         "yappi>=1.6.0",
         # SciPy 1.14.0+ supports NumPy 2.x
         "scipy>=1.14.0",
-        "quantstats-lumi>=1.1.5,<1.2.0",
+        "quantstats-lumi>=1.1.6,<1.2.0",
         "python-dotenv",  # Secret Storage
         "ccxt>=4.5.50",  # 4.5.50+ includes WEEX exchange support
         "termcolor",

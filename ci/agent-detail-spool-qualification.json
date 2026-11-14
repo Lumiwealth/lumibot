@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "baseVersion": "4.6.55",
+  "environment": "local native source checkout",
+  "modelCalls": 0,
+  "paidAiApiUsd": 0,
+  "runtimeSha256": "0aa528b1991ce86d6ec6069e552d9a7933e0094e6374cd6c49b078fc4d6937c3",
+  "checks": [
+    {
+      "test": "test_hourly_two_agent_replay_bounds_process_memory_and_keeps_fill_callbacks",
+      "passed": true,
+      "iterations": 336,
+      "agentCalls": 692,
+      "fillCallbacks": 20,
+      "verifiedToolRows": 2076,
+      "earlyRssBytes": 299827200,
+      "lateRssBytes": 188268544,
+      "peakGrowthBytes": 135200768
+    },
+    {
+      "test": "test_killed_native_spool_write_preserves_complete_file_and_pending_parts",
+      "passed": true,
+      "lastCompleteCalls": [
+        1,
+        2
+      ],
+      "recoverablePendingCalls": [
+        3
+      ]
+    },
+    {
+      "test": "test_detail_spool_combines_calls_whose_column_types_differ",
+      "passed": true
+    }
+  ],
+  "wallSeconds": 72.45,
+  "scope": "Only generic trace storage and neutral synthetic tests; no model, order, strategy, security or infrastructure behavior changes.",
+  "limitations": "Source proof; no claim that a published wheel or hosted runtime contains this repair."
+}

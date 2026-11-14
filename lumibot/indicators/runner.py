@@ -107,6 +107,12 @@ class IndicatorRunner:
     def instance_ids(self) -> list:
         return list(self._instances)
 
+    def drawings(self, instance_id: str) -> list:
+        """Drawing objects (boxes, lines, labels) as of the latest bar, oldest first.
+        Empty when the indicator draws none."""
+        reader = getattr(self._instances[instance_id], "drawings", None)
+        return reader() if callable(reader) else []
+
     def outputs(self, instance_id: str) -> dict:
         """Output series (aligned with the kept bars) for one instance."""
         return {k: list(v) for k, v in self._series[instance_id].items()}
@@ -170,6 +176,7 @@ class IndicatorRunner:
                     "version": instance.version,
                     "meta": instance.describe(instance.inputs),
                     "outputs": self.outputs(instance_id),
+                    "drawings": self.drawings(instance_id),
                 }
                 for instance_id, instance in self._instances.items()
             },

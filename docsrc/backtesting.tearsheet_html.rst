@@ -6,6 +6,12 @@ LumiBot Backtest Tear Sheets and Performance Reports
 .. meta::
    :description: Read LumiBot backtest tear sheets and performance reports, including total return, drawdown, benchmark comparison, trades, and risk metrics.
 
+Reports are enabled by default when a strategy finishes a normal backtest.
+LumiBot writes an interactive trade chart and this performance report; no
+custom plotting code is required. See :ref:`how-to-backtest-native-reports`
+for output paths and a headless recipe that saves charts without opening a
+browser.
+
 .. note::
    The **Tearsheet HTML** is one of the most important files generated and is created using the `quantstats-lumi` library. It includes a variety of metrics such as:
 

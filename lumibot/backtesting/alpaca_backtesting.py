@@ -294,6 +294,11 @@ class AlpacaBacktesting(DataSourceBacktesting):
         }
         self._trading_client = None
         self._option_chain_max_days = int(kwargs.get("option_chain_max_days") or self.OPTION_CHAIN_MAX_DAYS)
+        if oauth_token and not (api_key and api_secret):
+            # OAuth access tokens are refreshed over time. Give the shared bar cache the stable
+            # account behind the token instead, so a refreshed token keeps its cached bars.
+            for data_client in (self._crypto_client, self._stock_client, self._option_client):
+                data_client._lumibot_cache_identity = self._oauth_account_cache_identity
 
         # Create an AlpacaData instance for internal use
         self._alpaca_data = AlpacaData(config)
@@ -824,6 +829,34 @@ class AlpacaBacktesting(DataSourceBacktesting):
             value = factory()
             self.__dict__[name] = value
         return value
+
+    def _oauth_account_cache_identity(self):
+        """``account:<id>`` for the OAuth token's Alpaca account, resolved once; None if unknown.
+
+        Used only as the shared bar cache scope (see ``alpaca_history``). Read-only: one
+        account lookup per backtest. Any failure returns None and the cache falls back to
+        scoping by the token itself (correct, just not reused after a token refresh).
+        """
+        if "_oauth_cache_identity" in self.__dict__:
+            return self.__dict__["_oauth_cache_identity"]
+        identity = None
+        creds = self.__dict__.get("_alpaca_credentials") or {}
+        token = creds.get("oauth_token")
+        if token:
+            from alpaca.trading.client import TradingClient
+
+            # A connection can hold a live token while backtests say paper: try both endpoints.
+            for paper in (bool(creds.get("paper", True)), not bool(creds.get("paper", True))):
+                try:
+                    account_id = getattr(TradingClient(oauth_token=token, paper=paper).get_account(), "id", None)
+                except Exception as exc:
+                    logger.debug("Alpaca account lookup for cache scope failed (%s)", type(exc).__name__)
+                    continue
+                if account_id:
+                    identity = f"account:{account_id}"
+                    break
+        self.__dict__["_oauth_cache_identity"] = identity
+        return identity
 
     def _get_trading_client(self):
         client = self.__dict__.get("_trading_client")
@@ -2026,7 +2059,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
         # PERF: a delta pick stores about 200 contracts. Convert the timestamps once, keep the
         # six columns, and sort only when needed (the shared cache already returns sorted rows);
         # the result equals the copy, convert, select, sort, filter sequence it replaces.
-        stamps = pd.to_datetime(df['timestamp'], utc=df.empty)
+        stamps = df['timestamp']
+        if df.empty or not pd.api.types.is_datetime64_any_dtype(stamps):
+            # Already datetimes (the shared cache returns them): converting again only costs time.
+            stamps = pd.to_datetime(stamps, utc=df.empty)
         stamps = stamps.dt.tz_localize(tzinfo) if stamps.dt.tz is None else stamps.dt.tz_convert(tzinfo)
         df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']].copy()
         df['timestamp'] = stamps

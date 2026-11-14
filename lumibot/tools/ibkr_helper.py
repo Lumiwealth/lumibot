@@ -328,6 +328,17 @@ def _load_negative_conid_cache() -> None:
             pass
 
 
+def symbol_not_found(asset: Asset) -> bool:
+    """True when IBKR said it has no contract for this symbol and asset type (any quote or venue)."""
+    _load_negative_conid_cache()
+    key = _conid_key(asset=asset, quote=None, exchange=None)
+    prefix = f"{key.asset_type}|{key.symbol}|"
+    return any(
+        isinstance(name, str) and name.startswith(prefix) and (value or {}).get("reason") == "no_conid"
+        for name, value in list(_NEGATIVE_CONID_CACHE.items())
+    )
+
+
 def _record_negative_conid(*, key: str, reason: str, message: str) -> None:
     """Persist a negative cache marker so we stop hammering IBKR for invalid roots/expirations."""
     if not key:
@@ -2107,8 +2118,11 @@ def _maybe_augment_crypto_bid_ask(
         return df_cache, False
 
     updated = df_cache.copy()
-    updated.loc[derived.index, "bid"] = derived["bid"]
-    updated.loc[derived.index, "ask"] = derived["ask"]
+    # Quote bars can carry timestamps the trade bars lack (thin markets, hourly bars).
+    # Fill only bars that exist; never add a bar the trade series does not have.
+    shared = derived.index.intersection(updated.index)
+    updated.loc[shared, "bid"] = derived.loc[shared, "bid"]
+    updated.loc[shared, "ask"] = derived.loc[shared, "ask"]
 
     # Any residual NaNs fall back to the trade/mark close.
     if "close" in updated.columns:
@@ -2174,8 +2188,11 @@ def _maybe_augment_futures_bid_ask(
         return df_cache, False
 
     updated = df_cache.copy()
-    updated.loc[derived.index, "bid"] = derived["bid"]
-    updated.loc[derived.index, "ask"] = derived["ask"]
+    # Quote bars can carry timestamps the trade bars lack (thin markets, hourly bars).
+    # Fill only bars that exist; never add a bar the trade series does not have.
+    shared = derived.index.intersection(updated.index)
+    updated.loc[shared, "bid"] = derived.loc[shared, "bid"]
+    updated.loc[shared, "ask"] = derived.loc[shared, "ask"]
 
     if "close" in updated.columns:
         updated["bid"] = pd.to_numeric(updated.get("bid"), errors="coerce").where(

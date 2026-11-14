@@ -15,5 +15,5 @@
     "https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job",
     "https://docs.github.com/en/billing/concepts/product-billing/github-actions"
   ],
-  "note": "LumiBot public standard ubuntu-latest jobs are free compute. Forecast assumes all artifact bytes are billable, retains existing 90-day policy and reuses unchanged dependency caches. Bot Manager build/deployment compute is separate and must be estimated before dispatch."
+  "note": "LumiBot public standard ubuntu-latest jobs are free compute. Forecast assumes all artifact bytes are billable, retains existing 90-day policy and reuses unchanged dependency caches. Downstream service build and deployment compute is separate and must be estimated before dispatch."
 }

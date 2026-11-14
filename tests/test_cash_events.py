@@ -5,6 +5,7 @@ import logging
 from collections import deque
 from datetime import datetime
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import requests
 
@@ -862,6 +863,21 @@ def test_funding_receipt_batches_retry_exact_identity_and_retain_full_history(mo
     assert all(r["sync_id"] == result.sync_id for r in receipts)
     assert all(r["batch"]["count"] == 3 and r["batch"]["total_event_count"] == 121 for r in receipts)
     assert all(r["producer_kind"] == "account_snapshot" for r in receipts)
+
+
+def test_receipt_reads_complete_window_while_legacy_reads_keep_fetch_limit():
+    sync = Mock(return_value=_funding_sync())
+    dummy = _cloud_update_dummy(lambda **kwargs: [])
+    dummy._cash_event_initial_history_loaded = True
+    dummy.broker.get_cash_event_sync = sync
+    assert _Strategy._collect_cash_events_for_cloud(dummy) == []
+    assert sync.call_args.kwargs["limit"] is None
+    assert sync.call_args.kwargs["since"] is not None
+    legacy = Mock(return_value=[])
+    dummy = _cloud_update_dummy(legacy)
+    dummy._cash_event_initial_history_loaded = True
+    assert _Strategy._collect_cash_events_for_cloud(dummy) == []
+    assert legacy.call_args.kwargs["limit"] == 100
 
 
 def test_empty_checked_window_delivers_receipt_once_and_partial_stays_explicit(monkeypatch):

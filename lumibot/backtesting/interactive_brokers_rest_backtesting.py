@@ -49,6 +49,12 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         return resolve_order_contract(asset=order.asset, side=order.side, quantity=order.quantity,
                                       positions=positions, when=self.get_datetime())
 
+    def symbol_not_found(self, asset) -> bool:
+        """True when IBKR has no contract for this symbol (used to word a no-data failure)."""
+        from lumibot.tools.ibkr_helper import symbol_not_found
+
+        return symbol_not_found(asset)
+
     def record_missing_valuation(self, asset):
         from lumibot.tools.ibkr_history_health import record_required_history
 
@@ -896,11 +902,21 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             quote_key = quote_asset if quote_asset is not None else _USD_FOREX
             key = (asset_separated, quote_key, dataset_key, exchange_key)
             if key not in self._fully_loaded_series:
-                prev_open = self._previous_us_futures_session_open(self.datetime_start)
+                # Prefetch from the run start, except for an explicit contract first used
+                # well after it (typically the new contract after a roll): that one starts a
+                # week before now. Its bars before then are never read by this request, and
+                # walking a back-month contract's minute history from the run start took
+                # 30+ minutes per roll on a 12-month MES run (2026-11-13). A later request
+                # with a longer lookback is still served: it misses the fast path above and
+                # fetches its own window.
+                anchor = self.datetime_start
+                if asset_type == "future":
+                    anchor = max(self.datetime_start, end_dt - timedelta(days=7))
+                prev_open = self._previous_us_futures_session_open(anchor)
                 if prev_open is not None:
                     prefetch_start = min(start_dt, prev_open)
                 else:
-                    prefetch_start = min(start_dt, self.datetime_start - timedelta(days=1))
+                    prefetch_start = min(start_dt, anchor - timedelta(days=1))
                 prefetch_end = self.datetime_end
                 self._update_pandas_data(
                     asset_separated,

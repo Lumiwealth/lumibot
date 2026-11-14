@@ -510,6 +510,7 @@ class EvmWallet:
             )
         )
         for index, tx in enumerate(transactions):
+            is_trade = index == len(transactions) - 1
             step = "swap-" + str(index)
             effect = self.journal.effect(self.agent_id, intent.identifier, step)
             if effect is None:
@@ -521,7 +522,7 @@ class EvmWallet:
                     )
                 try:
                     binding, _ = self._binding(execution=True, expected=plan["binding"])
-                    if index == len(transactions) - 1 and plan["approvals"] and execution_plan is None:
+                    if is_trade and plan["approvals"] and execution_plan is None:
                         # Finalized allowances can outlive the original trade quote.
                         refreshed = self._quote(binding, intent)
                         if refreshed["approvals"] or integer(refreshed["minimumOutput"]) < integer(
@@ -534,7 +535,8 @@ class EvmWallet:
                         plan = {**plan, **refreshed, "approvals": plan["approvals"]}
                         self.journal.save_effect(operation, "swap-execution-plan", plan)
                         tx = plan["trade"]
-                    if int(time.time() * 1000) >= integer(plan["expiresAt"]):
+                    # Bounded allowances use the reviewed grant; only the trade depends on its quote deadline.
+                    if is_trade and int(time.time() * 1000) >= integer(plan["expiresAt"]):
                         raise MetaMaskError("QUOTE_EXPIRED", "Swap quote expired before managed submission")
                 except MetaMaskError as error:
                     return self._save(operation, state="rejected", lastErrorCode=error.code, message=str(error))
@@ -594,7 +596,7 @@ class EvmWallet:
                 try:
                     self._binding(execution=True, expected=plan["binding"])
                     with self.journal.submission(self.agent_id, plan["binding"]):
-                        if int(time.time() * 1000) >= integer(plan["expiresAt"]):
+                        if is_trade and int(time.time() * 1000) >= integer(plan["expiresAt"]):
                             raise MetaMaskError("QUOTE_EXPIRED", "Swap quote expired before managed submission")
                         self.journal.save_effect(operation, step, effect)
                         operation = self._save(
@@ -605,10 +607,8 @@ class EvmWallet:
                         job = self.provider.submit_transaction(
                             effect["requestId"],
                             tx,
-                            quote_id=plan["quoteId"] if index == len(transactions) - 1 else None,
-                            intent="Same-chain exact-input swap"
-                            if index == len(transactions) - 1
-                            else "Bounded token allowance",
+                            quote_id=plan["quoteId"] if is_trade else None,
+                            intent="Same-chain exact-input swap" if is_trade else "Bounded token allowance",
                         )
                 except MetaMaskError as error:
                     if self.journal.effect(self.agent_id, intent.identifier, step) is None:

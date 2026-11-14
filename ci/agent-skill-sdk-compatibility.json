@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "change": "Native skill adapter supports optional SDK tool metadata",
+  "base_commit": "efb177a6830f9966326618b752a82af2c87d8450",
+  "generic_contract": "Every AI strategy can load its normal native skills on supported ADK releases; optional metadata remains intact when present.",
+  "before_fix": {
+    "test": "tests/test_agent_skill_sdk_compatibility.py::test_builtin_skill_tools_wrap_with_supported_sdk_metadata",
+    "result": "failed",
+    "reason": "AttributeError: ListSkillsTool has no behavior attribute",
+    "google_adk": "2.9.1"
+  },
+  "after_fix": {
+    "result": "passed",
+    "instances": 7,
+    "google_adk": "2.11.0",
+    "litellm": "1.105.7",
+    "tests": [
+      "tests/test_agent_skill_sdk_compatibility.py::test_builtin_skill_tools_wrap_with_supported_sdk_metadata",
+      "tests/test_agent_skill_sdk_compatibility.py::test_native_skill_adapter_preserves_optional_behavior",
+      "tests/test_agent_tool_permissions.py::test_native_skill_tools_require_purpose_and_audit_before_actual_native_call",
+      "tests/test_agent_tool_permissions.py::test_native_skill_request_processing_and_close_preserve_underlying_owner",
+      "tests/test_agent_tool_permissions.py::test_native_skill_resource_request_processing_preserves_binary_resource_injection"
+    ]
+  },
+  "minimum_sdk_control": {
+    "google_adk": "2.9.1",
+    "new_regressions_passed": 2,
+    "note": "The existing load-skill test uses list_active_skills, introduced after this SDK floor; full affected checks passed with ADK 2.11.0."
+  },
+  "scope": {
+    "new_model_eval_cases": 0,
+    "reason": "Plain SDK metadata/constructor compatibility. The regression and existing native execution/resource controls exercise the failure directly.",
+    "system_prompt_size_delta": 0,
+    "shared_skill_size_delta": 0,
+    "new_behavior": false,
+    "security_or_infrastructure_added": false,
+    "customer_or_strategy_specific_content_added": false
+  },
+  "cost": {
+    "local_checks_paid_ai_api_usd": 0,
+    "new_workflows": 0,
+    "new_services": 0
+  }
+}

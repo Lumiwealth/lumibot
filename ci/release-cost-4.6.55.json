@@ -1,0 +1,20 @@
+{
+  "measuredComparableRelease": "v4.6.52",
+  "standardPublicRunnerComputeUsd": 0,
+  "observedArtifactsBytes": 38330349,
+  "retentionDays": 90,
+  "artifactRateUsdPerGiBMonth": 0.25,
+  "forecastMaximumArtifactsBytes": 50000000,
+  "forecastUsdPerRelease": 0.04,
+  "assumedReleasesPerMonth": 8,
+  "forecastIncrementalUsdPerMonth": 0.32,
+  "paidAiApiUsd": 0,
+  "newAwsServices": 0,
+  "rateSources": [
+    "https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job",
+    "https://docs.github.com/en/billing/concepts/product-billing/github-actions"
+  ],
+  "note": "Existing standard public-runner workflow; $0 compute. Conservative artifact-storage forecast retained from the measured4.6.52 release, without new jobs, retention rules or AWS resources. Downstream builds are estimated separately before dispatch.",
+  "releaseVersion": "4.6.55",
+  "newModelAttemptsForCacheRepair": 0
+}

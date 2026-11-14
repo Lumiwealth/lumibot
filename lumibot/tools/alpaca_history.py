@@ -50,6 +50,20 @@ def _request_asset_class(request) -> str | None:
     return None
 
 
+def _cache_identity(client) -> str | None:
+    """Stable account identity attached to an SDK data client, or None when unknown.
+
+    ``client._lumibot_cache_identity`` is either a string or a zero-argument callable that
+    returns one (resolved lazily, at most once, by the code that created the client).
+    """
+    resolver = getattr(client, "_lumibot_cache_identity", None)
+    try:
+        value = resolver() if callable(resolver) else resolver
+    except Exception:  # pragma: no cover - a resolver must never break a history read
+        return None
+    return value if isinstance(value, str) and value else None
+
+
 def fetch_alpaca_bars(client, request, method, *, now=None, refresh=False, empty_ok=None):
     """Run an Alpaca SDK bars read through the shared bar cache (see ``_fetch_alpaca_bars``)."""
     from lumibot.tools import backtest_telemetry
@@ -76,6 +90,13 @@ def _fetch_alpaca_bars(client, request, method, *, now=None, refresh=False, empt
     api_key = getattr(client, "_api_key", None)
     oauth_token = getattr(client, "_oauth_token", None)
     credential = oauth_token if isinstance(oauth_token, str) and oauth_token else api_key
+    if credential is oauth_token and credential:
+        # An OAuth access token is refreshed over time but still belongs to one account.
+        # Scoping the cache by the token itself orphaned every cached bar at each refresh,
+        # so prefer the stable account identity when the owner of the client knows it.
+        account_identity = _cache_identity(client)
+        if account_identity:
+            credential = account_identity
     if (
         not isinstance(credential, str)
         or not credential

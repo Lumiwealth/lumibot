@@ -128,6 +128,26 @@ def test_checkpoint_before_each_external_mutation_and_duplicate_id_never_resends
         engine.submit(intent(quantity="0.0005"))
 
 
+def test_native_market_casing_is_persisted_and_alias_retry_keeps_original_identity(engine):
+    engine.journal.bind({**engine.journal.binding("agent"), "markets": ["bTc"]})
+    engine.venue.market.return_value = Market("bTc", 0, 5, 40)
+    status = engine.venue.order_status.side_effect
+
+    def native_status(*args):
+        value = status(*args)
+        value["order"]["order"]["coin"] = "bTc"
+        return value
+
+    engine.venue.order_status.side_effect = native_status
+    result = engine.submit(intent(symbol="BTC"))
+    assert result["state"] == "open" and result["request"]["symbol"] == "bTc"
+    assert engine.submit(intent(symbol="BTC"))["id"] == result["id"]
+    assert engine.submit(intent(symbol="bTc"))["id"] == result["id"]
+    assert engine.provider.submit_signature.call_count == 2 and engine.venue.submit_action.call_count == 2
+    with pytest.raises(MetaMaskError, match="ID_CONFLICT"):
+        engine.submit(intent(symbol="BTC", quantity="0.0005"))
+
+
 @pytest.mark.parametrize("engine", ["testnet", "mainnet"], indirect=True)
 @pytest.mark.parametrize("failure", ["ACCOUNT_MODE_UNSUPPORTED", "INVALID_RESPONSE", "VENUE_UNAVAILABLE"])
 def test_unusable_account_never_reserves_or_signs_a_new_intent(engine, failure):

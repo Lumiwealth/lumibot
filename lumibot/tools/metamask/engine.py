@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import time
+from dataclasses import replace
 from decimal import ROUND_CEILING, Context, Decimal, localcontext
 from uuid import uuid4
 
@@ -23,7 +24,7 @@ class ExecutionEngine:
 
     def _authority(self, expected=None, *, cancellation=False) -> tuple[Binding, dict[str, object]]:
         record = self.journal.binding(self.agent_id)
-        binding = Binding.parse(record)
+        binding = Binding.parse(record, validate_registry=not cancellation)
         if record.get("projectId") is not None and record["projectId"] != self.provider.credentials().project_id:
             raise MetaMaskError("PROJECT_MISMATCH", "Journal belongs to a different provider project")
         if binding.network != self.venue.network:
@@ -60,6 +61,9 @@ class ExecutionEngine:
         canonical = intent.record()
         prior = self.journal.get(self.agent_id, intent.identifier)
         if prior is not None:
+            stored_symbol = json_object(prior["request"]).get("symbol")
+            if isinstance(stored_symbol, str) and stored_symbol.casefold() == intent.symbol.casefold():
+                canonical = replace(intent, symbol=stored_symbol).record()
             if prior.get("request") != canonical:
                 raise MetaMaskError("ID_CONFLICT", "Order ID already belongs to different intent")
             return self.order(intent.identifier)
@@ -72,9 +76,16 @@ class ExecutionEngine:
                 raise MetaMaskError(
                     "DEX_EXECUTION_UNQUALIFIED", "HIP3 collateral and effective fee metadata need native qualification"
                 )
-            if intent.symbol not in binding.markets or intent.leverage > binding.max_leverage:
+            if (
+                intent.symbol.casefold() not in {name.casefold() for name in binding.markets}
+                or intent.leverage > binding.max_leverage
+            ):
                 raise MetaMaskError("MARKET_DENIED", "Market or leverage is outside the agent binding")
             market = self.venue.market(intent.symbol)
+            if market.symbol.casefold() != intent.symbol.casefold():
+                raise MetaMaskError("UNKNOWN_MARKET", "Venue market differs from the requested symbol")
+            intent = replace(intent, symbol=market.symbol)
+            canonical = intent.record()
             if intent.leverage > market.max_leverage:
                 raise MetaMaskError("LEVERAGE_LIMIT", "Leverage exceeds the venue market limit")
             client_id = self._cloid(binding, intent.identifier)
@@ -488,7 +499,7 @@ class ExecutionEngine:
             )
 
     def _read_order(self, operation, plan, *, observation=None):
-        binding = Binding.parse(self.journal.binding(self.agent_id))
+        binding = Binding.parse(self.journal.binding(self.agent_id), validate_registry=False)
         if observation is not None and observation["wallet"] != binding.wallet:
             observation = None
         reference = operation.get("providerOrderId")
@@ -645,7 +656,7 @@ class ExecutionEngine:
         return self.journal.replace_if_unchanged(operation, after)
 
     def _reconcile_legacy(self, operation, *, observation=None):
-        binding = Binding.parse(self.journal.binding(self.agent_id))
+        binding = Binding.parse(self.journal.binding(self.agent_id), validate_registry=False)
         if operation.get("signatureOnly") and isinstance(operation.get("approvalId"), str):
             job = self.provider.signature(
                 str(operation["approvalId"]), binding.wallet, binding.network, origin="metamask"
@@ -665,8 +676,8 @@ class ExecutionEngine:
         try:
             if not isinstance(plan, dict) or plan.get("origin") != "lumibot":
                 return False
-            binding = Binding.parse(json_object(plan["binding"]))
-            current = Binding.parse(self.journal.binding(self.agent_id))
+            binding = Binding.parse(json_object(plan["binding"]), validate_registry=False)
+            current = Binding.parse(self.journal.binding(self.agent_id), validate_registry=False)
             intent = PerpIntent.parse(json_object(operation["request"]))
             action = json_object(plan["action"])
             orders = action.get("orders")
@@ -889,7 +900,7 @@ class ExecutionEngine:
             return [self.order(str(row["id"])) for row in operations]
         closed = {identifier: row for identifier, row in existing.items() if row["state"] in _TERMINAL}
         try:
-            wallet = Binding.parse(self.journal.binding(self.agent_id)).wallet
+            wallet = Binding.parse(self.journal.binding(self.agent_id), validate_registry=False).wallet
             live = self.venue.frontend_open_orders(wallet) if len(existing) > len(closed) else None
             start = max(0, min(int(row["createdAt"]) for row in existing.values()) - 5000)
             recent = self.venue.fills(wallet, start, int(time.time() * 1000))

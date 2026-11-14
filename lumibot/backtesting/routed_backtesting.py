@@ -1241,6 +1241,19 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         return resolve_order_contract(asset=order.asset, side=order.side, quantity=order.quantity,
                                       positions=positions, when=self.get_datetime())
 
+    def provider_for(self, asset) -> str:
+        """The provider this router uses for ``asset`` (for data-health reports)."""
+        base = asset[0] if isinstance(asset, tuple) else asset
+        return str(self._provider_spec_for_asset(base).provider)
+
+    def symbol_not_found(self, asset) -> bool:
+        """True when the provider routed for ``asset`` says it has no such symbol."""
+        if self.provider_for(asset) != "ibkr":
+            return False
+        from lumibot.tools.ibkr_helper import symbol_not_found
+
+        return symbol_not_found(asset)
+
     def record_missing_valuation(self, asset):
         base = asset[0] if isinstance(asset, tuple) else asset
         if self._provider_spec_for_asset(base).provider != "ibkr":

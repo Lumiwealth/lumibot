@@ -203,6 +203,46 @@ def test_credential_scope_cannot_cross_entitlements(history):
     assert len(calls) == 2
 
 
+def test_refreshed_oauth_token_for_the_same_account_reuses_bars(history):
+    """A refreshed OAuth access token is the same connection: cached bars must stay usable.
+
+    Regression (2026-11-13): the cache scope was a hash of the OAuth access token itself, so
+    every token refresh moved the whole connection to a new, empty cache and the next
+    backtest downloaded and re-uploaded everything (27,833 hits one day, 951 the next).
+    """
+    fetch, calls, client, _ = history
+    client._api_key = None
+    client._oauth_token = "synthetic-access-token-1"
+    client._lumibot_cache_identity = lambda: "account:synthetic-account-1"
+    fetch()
+    client._oauth_token = "synthetic-access-token-2"
+    fetch()
+    assert len(calls) == 1
+
+
+def test_oauth_tokens_for_different_accounts_never_share_bars(history):
+    fetch, calls, client, _ = history
+    client._api_key = None
+    client._oauth_token = "synthetic-access-token-1"
+    client._lumibot_cache_identity = lambda: "account:synthetic-account-1"
+    fetch()
+    client._oauth_token = "synthetic-access-token-2"
+    client._lumibot_cache_identity = lambda: "account:synthetic-account-2"
+    fetch()
+    assert len(calls) == 2
+
+
+def test_unknown_account_falls_back_to_the_token_scope(history):
+    fetch, calls, client, _ = history
+    client._api_key = None
+    client._oauth_token = "synthetic-access-token-1"
+    client._lumibot_cache_identity = lambda: None
+    fetch()
+    client._oauth_token = "synthetic-access-token-2"
+    fetch()
+    assert len(calls) == 2
+
+
 @pytest.mark.parametrize("kwargs", [{"refresh": True}, {"limit": 5}])
 def test_explicit_refresh_and_limits_fetch_provider(history, kwargs):
     fetch, calls, _, _ = history
@@ -517,3 +557,78 @@ def test_option_contract_and_crypto_quote_have_distinct_cache_paths(history, req
     pd.testing.assert_frame_equal(expected, actual)
     assert read.call_count == 1
     assert len(list(root.rglob("*.parquet"))) == 1
+
+
+def _oauth_backtesting():
+    import pytz
+
+    from lumibot.backtesting.alpaca_backtesting import AlpacaBacktesting
+
+    tz = pytz.timezone("America/New_York")
+    return AlpacaBacktesting(
+        datetime_start=tz.localize(datetime(2025, 1, 2)),
+        datetime_end=tz.localize(datetime(2025, 1, 31)),
+        config={"OAUTH_TOKEN": "synthetic-access-token", "PAPER": True},
+        timestep="day",
+    )
+
+
+def test_oauth_backtest_scopes_cache_by_account_and_looks_it_up_once(monkeypatch):
+    import alpaca.trading.client as trading
+
+    lookups = []
+
+    class FakeTradingClient:
+        def __init__(self, oauth_token=None, paper=True, **kwargs):
+            self.paper = paper
+
+        def get_account(self):
+            lookups.append(self.paper)
+            if not self.paper:
+                raise AssertionError("paper endpoint answered; live must not be tried")
+            return SimpleNamespace(id="synthetic-account-id")
+
+    monkeypatch.setattr(trading, "TradingClient", FakeTradingClient)
+    source = _oauth_backtesting()
+    from lumibot.tools.alpaca_history import _cache_identity
+
+    for client in (source._stock_client, source._option_client, source._crypto_client):
+        assert _cache_identity(client) == "account:synthetic-account-id"
+    assert lookups == [True]
+
+
+def test_oauth_backtest_tries_the_other_endpoint_then_falls_back_to_token_scope(monkeypatch):
+    import alpaca.trading.client as trading
+
+    lookups = []
+
+    class RejectingTradingClient:
+        def __init__(self, oauth_token=None, paper=True, **kwargs):
+            self.paper = paper
+
+        def get_account(self):
+            lookups.append(self.paper)
+            raise RuntimeError("401 unauthorized")
+
+    monkeypatch.setattr(trading, "TradingClient", RejectingTradingClient)
+    source = _oauth_backtesting()
+    from lumibot.tools.alpaca_history import _cache_identity
+
+    assert _cache_identity(source._stock_client) is None
+    assert _cache_identity(source._option_client) is None
+    assert lookups == [True, False]
+
+
+def test_api_key_backtest_keeps_its_key_scope(monkeypatch):
+    import pytz
+
+    from lumibot.backtesting.alpaca_backtesting import AlpacaBacktesting
+
+    tz = pytz.timezone("America/New_York")
+    source = AlpacaBacktesting(
+        datetime_start=tz.localize(datetime(2025, 1, 2)),
+        datetime_end=tz.localize(datetime(2025, 1, 31)),
+        config={"API_KEY": "synthetic-key", "API_SECRET": "synthetic-secret", "PAPER": True},
+        timestep="day",
+    )
+    assert getattr(source._stock_client, "_lumibot_cache_identity", None) is None

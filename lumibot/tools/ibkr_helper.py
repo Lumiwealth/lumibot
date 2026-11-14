@@ -6134,6 +6134,10 @@ def _write_cache_frame(path: Path, df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+# Process-wide memo of contract details by conid (includes empty results from failed lookups).
+_CONTRACT_INFO_MEMO: Dict[int, Dict[str, Any]] = {}
+
+
 def _contract_info_cache_file(conid: int) -> Path:
     provider_root = Path(LUMIBOT_CACHE_FOLDER) / CACHE_SUBFOLDER
     return provider_root / "future" / "contracts" / f"CONID_{int(conid)}.json"
@@ -6181,21 +6185,28 @@ def _maybe_apply_future_contract_metadata(*, asset: Asset, exchange: Optional[st
     except Exception:
         return
 
-    cache_file = _contract_info_cache_file(int(conid))
-    cache = get_backtest_cache()
-    try:
-        cache.ensure_local_file(cache_file, payload={"provider": "ibkr", "type": "contract_info", "conid": int(conid)})
-    except Exception:
-        pass
-
-    info = _read_json(cache_file)
-    if not info:
+    # One lookup per contract per process. Contract details do not change during a run, and
+    # a lookup that returned nothing or failed must not be retried on every price request.
+    memo_key = int(conid)
+    if memo_key in _CONTRACT_INFO_MEMO:
+        info = _CONTRACT_INFO_MEMO[memo_key]
+    else:
+        cache_file = _contract_info_cache_file(memo_key)
+        cache = get_backtest_cache()
         try:
-            info = _fetch_contract_info(int(conid))
+            cache.ensure_local_file(cache_file, payload={"provider": "ibkr", "type": "contract_info", "conid": memo_key})
         except Exception:
-            info = {}
-        if info:
-            _write_json(cache_file, info)
+            pass
+
+        info = _read_json(cache_file)
+        if not info:
+            try:
+                info = _fetch_contract_info(memo_key)
+            except Exception:
+                info = {}
+            if info:
+                _write_json(cache_file, info)
+        _CONTRACT_INFO_MEMO[memo_key] = info
 
     if not info:
         return

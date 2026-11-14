@@ -171,6 +171,13 @@ A root-symbol closing order targets the single matching held contract. Multiple 
 expiries, or a reversal spanning different expiries, require explicit contracts.
 Normal fills, fees and price availability apply to both legs.
 
+A dated contract's history is loaded up to its last trading day, even when the backtest
+runs past it, so orders on that contract fill on its real bars until it expires. An order
+still working after its contract's expiration date can never fill: the backtest cancels it
+and logs ``[FILL][CANCEL] ... contract CL 2026-10-20 expired on 2026-10-20``. It shows as
+canceled in the trades file. Contract details (multiplier, tick size) are looked up once
+per contract per run.
+
 Futures Exchange Routing (auto + override)
 ------------------------------------------
 

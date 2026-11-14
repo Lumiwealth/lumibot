@@ -16,6 +16,7 @@ import polars as pl
 import pytz
 
 from lumibot.brokers import Broker
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, SmartLimitConfig, TradingFee
 from lumibot.tools.smart_limit_utils import build_price_ladder, compute_final_price, compute_mid, expected_fill_price, infer_tick_size, round_to_tick
@@ -3842,6 +3843,9 @@ class BacktestingBroker(Broker):
         if self._cancel_order_if_time_in_force_elapsed(order, strategy=strategy):
             return True
 
+        if self._cancel_order_on_expired_contract(order, reason, strategy=strategy):
+            return True
+
         symbol = getattr(getattr(order, "asset", None), "symbol", getattr(order, "asset", "<unknown>"))
         identifier = getattr(order, "identifier", getattr(order, "id", "<unknown>"))
         logger.warning(
@@ -3859,6 +3863,43 @@ class BacktestingBroker(Broker):
                 )
             except Exception:
                 pass
+        return True
+
+    def _cancel_order_on_expired_contract(self, order: Order, reason: str, strategy=None) -> bool:
+        """Cancel a working order whose dated futures contract has expired.
+
+        No bar can arrive for a contract after its last trading day, so the order could never
+        fill; leaving it working kept it pending for the rest of the run.
+        """
+        asset = getattr(order, "asset", None)
+        if self._normalize_asset_type(getattr(asset, "asset_type", "")) != "future":
+            return False
+        expiration = getattr(asset, "expiration", None)
+        if expiration is None:
+            return False
+        if isinstance(expiration, datetime):
+            expiration = expiration.date()
+        now = self.datetime
+        try:
+            now = now.astimezone(LUMIBOT_DEFAULT_PYTZ)
+        except Exception:
+            pass
+        if now.date() <= expiration:
+            return False
+
+        symbol = getattr(asset, "symbol", asset)
+        identifier = getattr(order, "identifier", getattr(order, "id", "<unknown>"))
+        message = (
+            f"Order {identifier} for {symbol} canceled: contract {symbol} {expiration.isoformat()} "
+            f"expired on {expiration.isoformat()} and has no bars after that ({reason})"
+        )
+        logger.warning("[FILL][CANCEL] %s", message)
+        if strategy is not None:
+            try:
+                strategy.log_message(f"[FILL][CANCEL] {message}", color="yellow")
+            except Exception:
+                pass
+        self.cancel_order(order)
         return True
 
     def _cancel_unfilled_immediate_time_in_force(

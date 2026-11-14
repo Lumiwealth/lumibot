@@ -8,6 +8,7 @@ import pandas as pd
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 import lumibot.tools.ibkr_helper as ibkr_helper
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.tools.helpers import parse_timestep_qty_and_unit
 from lumibot.tools.data_downloader_queue_client import set_queue_client_id
 from lumibot.tools.ibkr_equity_basis import EquityBasisError, EquityBasisSnapshot, assert_same_basis, equity_basis_from_frame
@@ -821,6 +822,26 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         if dataset_key == "minute":
             self._data_store[legacy_key] = data
 
+    @staticmethod
+    def _explicit_future_history_end(asset, end_dt: datetime) -> datetime:
+        """Clamp a history request for a dated futures contract to its last trading day.
+
+        IBKR pages history backward from the requested end. A request that starts after a
+        contract's expiration returns an empty page, so asking for the full run window loaded
+        none of the contract's final weeks and left orders on it pending until the run ended.
+        """
+        if InteractiveBrokersRESTBacktesting._normalize_asset_type(getattr(asset, "asset_type", "")) != "future":
+            return end_dt
+        expiration = getattr(asset, "expiration", None)
+        if expiration is None:
+            return end_dt
+        if isinstance(expiration, datetime):
+            expiration = expiration.date()
+        tz = end_dt.tzinfo or LUMIBOT_DEFAULT_PYTZ
+        last_day_end = datetime.combine(expiration + timedelta(days=1), datetime.min.time())
+        last_day_end = tz.localize(last_day_end) if hasattr(tz, "localize") else last_day_end.replace(tzinfo=tz)
+        return min(end_dt, last_day_end)
+
     def _pull_source_symbol_bars(
         self,
         asset,
@@ -930,7 +951,7 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                 coverage_start = prefetch_start
                 if ts_unit in {"minute", "hour"}:
                     coverage_start = min(counted_start, prev_open or (anchor - timedelta(days=1)))
-                prefetch_end = self.datetime_end
+                prefetch_end = self._explicit_future_history_end(asset_separated, self.datetime_end)
                 self._update_pandas_data(
                     asset_separated,
                     quote_asset,

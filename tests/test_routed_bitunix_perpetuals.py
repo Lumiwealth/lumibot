@@ -138,6 +138,42 @@ def test_short_pages_mid_history_keep_paging_back():
     assert len(session.calls) >= 3
 
 
+def test_empty_page_mid_history_does_not_truncate_the_series():
+    # Seen on 2026-11-13: a year of 1-minute paging stopped after 106,000 bars on an empty
+    # page although Bitunix serves the older bars. A gap must never cut the series short.
+    recorded = FIXTURE["kline_1h_page"]["response"]["data"]
+    newest = max(int(row["time"]) for row in recorded)
+
+    class _GapThenOlder(_RecordedSession):
+        empty_once = True
+
+        def get(self, url, params=None, timeout=None):
+            self.calls.append(("kline", dict(params)))
+            end = int(params["endTime"])
+            if end > newest:  # newest page: only the newest bar
+                data = [row for row in recorded if int(row["time"]) == newest]
+            elif end == newest and self.empty_once:  # a transient empty answer mid-history
+                self.empty_once, data = False, []
+            else:
+                data = [row for row in recorded if int(row["time"]) < end]
+            return _Response({"code": 0, "data": data, "msg": "Success"})
+
+    frame = _client(_GapThenOlder()).candles("BTCUSDT", "hour", "2026-08-02T00:00Z", "2026-08-03T08:00Z")
+    assert len(frame) == len(recorded)
+
+
+def test_same_series_downloads_once_per_process():
+    # A year of minute bars is ~2,600 requests; asking again under another quote spelling
+    # must not download it a second time.
+    session = _RecordedSession()
+    client = _client(session)
+    first = client.candles("BTCUSDT", "hour", "2026-08-03T03:00Z", "2026-08-03T08:00Z")
+    calls = len(session.calls)
+    second = client.candles("BTCUSDT", "hour", "2026-08-03T03:00Z", "2026-08-03T08:00Z")
+    assert len(session.calls) == calls
+    pd.testing.assert_frame_equal(first, second)
+
+
 def test_blocked_location_reports_unavailable_instead_of_empty():
     with pytest.raises(BitunixMarketDataError, match="HTTP 451"):
         _client(_RecordedSession(status=451)).candles("BTCUSDT", "hour", "2026-08-03T03:00Z", "2026-08-03T08:00Z")
@@ -165,6 +201,35 @@ def test_bitunix_route_refuses_coin_margined_before_any_order(monkeypatch):
     router = _router({"crypto_future": "bitunix", "default": "ibkr"}, monkeypatch)
     with pytest.raises(RoutingProviderError, match="coin-margined"):
         router._update_pandas_data(Asset("BTCUSD", "crypto_future"), None, 2, "hour")
+
+
+def _marker_payload(exc):
+    line = next(line for line in str(exc).splitlines() if line.startswith("PERPETUAL_DATA_UNAVAILABLE "))
+    return json.loads(line.split(" ", 1)[1])
+
+
+def test_failure_carries_machine_readable_reason_and_alternatives(monkeypatch):
+    from lumibot.backtesting.routed_backtesting import PerpetualDataUnavailable
+
+    router = _router({"crypto_future": "bitunix", "default": "ibkr"}, monkeypatch)
+    with pytest.raises(PerpetualDataUnavailable) as caught:
+        router._update_pandas_data(Asset("BTCUSD", "crypto_future"), None, 2, "hour")
+    payload = _marker_payload(caught.value)
+    assert payload["reason"] == caught.value.reason == "coin_margined_unsupported"
+    assert payload["source"] == "bitunix" and payload["asset_class"] == "crypto_future"
+    assert payload["symbol"] == "BTCUSD"
+    assert {item["routing"] for item in payload["alternatives"]} == {"coinbase", "ibkr"}
+    assert "Other crypto_future data sources" in str(caught.value)
+
+
+def test_unreachable_source_fails_before_trading_with_reason(monkeypatch):
+    from lumibot.backtesting.routed_backtesting import PerpetualDataUnavailable
+
+    router = _router({"crypto_future": "bitunix", "default": "ibkr"}, monkeypatch,
+                     session=_RecordedSession(status=451))
+    with pytest.raises(PerpetualDataUnavailable) as caught:
+        router._update_pandas_data(PERP, Asset("USDT", "crypto"), 2, "hour")
+    assert _marker_payload(caught.value)["reason"] == "source_unreachable"
 
 
 def test_bitunix_route_never_serves_spot_assets(monkeypatch):

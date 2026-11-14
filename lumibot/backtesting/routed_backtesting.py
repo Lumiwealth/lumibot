@@ -27,6 +27,57 @@ class RoutingProviderError(ValueError):
     pass
 
 
+# Stable reason codes for PerpetualDataUnavailable. Callers (people, agents, services)
+# switch data source on these; do not rename them.
+PERPETUAL_DATA_REASONS = (
+    "source_unreachable",         # HTTP error / blocked location / no answer
+    "source_error",               # the source answered with an error code
+    "no_data_for_window",         # reachable, but no perpetual candles for the window
+    "contract_not_listed",        # the source does not list this contract
+    "coin_margined_unsupported",  # inverse contract; payoff cannot be modeled from this source
+    "ambiguous_symbol",           # the asset does not name one contract
+    "asset_class_not_served",     # the source does not serve this asset type
+)
+
+# Routing values that serve crypto_future, with what each provides. Spot-proxy routes are
+# listed honestly: they load prices but cannot fill perpetual orders.
+CRYPTO_FUTURE_ROUTE_ALTERNATIVES = (
+    {"routing": "bitunix", "kind": "perpetual",
+     "provides": "Bitunix perpetual candles, contract terms and funding (public, no key)"},
+    {"routing": "coinbase", "kind": "spot_proxy",
+     "provides": "spot candles only; perpetual orders cannot fill (no contract terms or funding)"},
+    {"routing": "ibkr", "kind": "spot_proxy",
+     "provides": "spot candles only; perpetual orders cannot fill (no contract terms or funding)"},
+)
+
+
+class PerpetualDataUnavailable(RoutingProviderError):
+    """A perpetual data source cannot serve this backtest; raised before any simulated trade.
+
+    The message is plain words for a person, followed by one machine-readable line:
+    ``PERPETUAL_DATA_UNAVAILABLE {"reason": ..., "source": ..., "asset_class": "crypto_future",
+    "symbol": ..., "alternatives": [...]}``. The same values are attributes.
+    """
+
+    MARKER = "PERPETUAL_DATA_UNAVAILABLE"
+
+    def __init__(self, message: str, *, reason: str, source: str, symbol: str | None = None):
+        import json
+
+        self.reason = reason if reason in PERPETUAL_DATA_REASONS else "source_error"
+        self.source = source
+        self.symbol = symbol
+        self.asset_class = "crypto_future"
+        self.alternatives = [dict(item) for item in CRYPTO_FUTURE_ROUTE_ALTERNATIVES if item["routing"] != source]
+        payload = {"reason": self.reason, "source": source, "asset_class": self.asset_class,
+                   "symbol": symbol, "alternatives": self.alternatives}
+        others = ", ".join(f"{item['routing']} ({item['kind']})" for item in self.alternatives)
+        super().__init__(
+            f"{message} Data source: {source}. Other crypto_future data sources: {others}.\n"
+            f"{self.MARKER} {json.dumps(payload, sort_keys=True)}"
+        )
+
+
 @dataclass(frozen=True)
 class ProviderSpec:
     provider: str
@@ -1111,30 +1162,43 @@ class _BitunixPerpetualRoutingAdapter(_DataFrameRoutingAdapter):
             self._client = BitunixMarketData()
         return self._client
 
+    def _unavailable(self, exc, symbol=None):
+        return PerpetualDataUnavailable(str(exc), reason=getattr(exc, "reason", "source_error"),
+                                        source="bitunix", symbol=symbol)
+
     def symbol_for(self, asset: Asset, quote_asset: Asset | None = None) -> str:
         from lumibot.tools.bitunix_market_data import BitunixMarketDataError, resolve_symbol
 
         if _normalize_asset_type(getattr(asset, "asset_type", "")) != "crypto_future":
-            raise RoutingProviderError(
-                f"Bitunix routing serves crypto perpetuals only; {asset!r} is not a crypto_future asset."
+            raise PerpetualDataUnavailable(
+                f"Bitunix routing serves crypto perpetuals only; {asset!r} is not a crypto_future asset.",
+                reason="asset_class_not_served", source="bitunix", symbol=getattr(asset, "symbol", None),
             )
         try:
             return resolve_symbol(asset, quote_asset)
         except BitunixMarketDataError as exc:
-            raise RoutingProviderError(str(exc)) from exc
+            raise self._unavailable(exc, getattr(asset, "symbol", None)) from exc
 
     def contract_spec(self, asset: Asset, quote_asset: Asset | None = None):
         from lumibot.tools.bitunix_market_data import BitunixMarketDataError
 
+        symbol = self.symbol_for(asset, quote_asset)
         try:
-            return self.client.contract_spec(self.symbol_for(asset, quote_asset))
+            return self.client.contract_spec(symbol)
         except BitunixMarketDataError as exc:
-            raise RoutingProviderError(str(exc)) from exc
+            raise self._unavailable(exc, symbol) from exc
+
+    def _funding_rows(self, symbol: str):
+        from lumibot.tools.bitunix_market_data import BitunixMarketDataError
+
+        try:
+            # One download per run window (cached by the client); later calls slice it.
+            return self.client.funding_history(symbol, self._router.datetime_start, self._router.datetime_end)
+        except BitunixMarketDataError as exc:
+            raise self._unavailable(exc, symbol) from exc
 
     def funding_events(self, asset: Asset, start, end):
-        symbol = self.symbol_for(asset)
-        # One download per run window; later calls slice it.
-        rows = self.client.funding_history(symbol, self._router.datetime_start, self._router.datetime_end)
+        rows = self._funding_rows(self.symbol_for(asset))
         return [row for row in DataSourceBacktesting._perpetual_rows(rows) if start <= row["timestamp"] <= end]
 
     def _fetch_df(
@@ -1156,9 +1220,10 @@ class _BitunixPerpetualRoutingAdapter(_DataFrameRoutingAdapter):
         if ts_unit not in {"minute", "hour", "day"}:
             raise RoutingProviderError(f"Bitunix routing supports minute/hour/day bars, got {ts_unit!r}.")
         symbol = self.symbol_for(asset, quote_asset)
-        # Fail before any simulated order when the contract cannot be modeled
-        # (for example a coin-margined contract); never a silent zero-trade run.
+        # Fail before any simulated order when the contract cannot be modeled (for example a
+        # coin-margined contract) or funding cannot be read; never a silent zero-trade run.
         self.contract_spec(asset, quote_asset)
+        self._funding_rows(symbol)
         lookback = timedelta(0)
         if ts_unit == "day":
             try:
@@ -1173,11 +1238,12 @@ class _BitunixPerpetualRoutingAdapter(_DataFrameRoutingAdapter):
         try:
             df = cached_candles(self.client, symbol, ts_unit, fetch_start, fetch_end)
         except BitunixMarketDataError as exc:
-            raise RoutingProviderError(str(exc)) from exc
+            raise self._unavailable(exc, symbol) from exc
         if df is None or df.empty:
-            raise RoutingProviderError(
-                f"Bitunix has no {symbol} perpetual candles between {fetch_start} and {fetch_end}. "
-                "Perpetual history for this contract is unavailable for that window; spot prices are not substituted."
+            raise PerpetualDataUnavailable(
+                f"Bitunix has no {symbol} perpetual candles between {fetch_start} and {fetch_end}; "
+                "spot prices are not substituted.",
+                reason="no_data_for_window", source="bitunix", symbol=symbol,
             )
         self._fully_loaded_series.add(canonical_key)
         df = df.copy()

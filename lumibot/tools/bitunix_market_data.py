@@ -32,7 +32,15 @@ _LINEAR_QUOTES = ("USDT", "USDC")
 
 
 class BitunixMarketDataError(ValueError):
-    """Bitunix public market data cannot answer this backtest request."""
+    """Bitunix public market data cannot answer this backtest request.
+
+    ``reason`` is a stable machine-readable code (see ``PERPETUAL_DATA_REASONS`` in
+    ``lumibot.backtesting.routed_backtesting``).
+    """
+
+    def __init__(self, message: str, reason: str = "source_error"):
+        super().__init__(message)
+        self.reason = reason
 
 
 def _ms(value) -> int:
@@ -60,7 +68,8 @@ def resolve_symbol(asset, quote=None) -> str:
         return symbol + quote_symbol
     raise BitunixMarketDataError(
         f"Cannot tell which Bitunix perpetual {symbol!r} means. Name the contract in the asset, "
-        f"for example Asset('{symbol}USDT', asset_type='crypto_future')."
+        f"for example Asset('{symbol}USDT', asset_type='crypto_future').",
+        reason="ambiguous_symbol",
     )
 
 
@@ -78,6 +87,7 @@ class BitunixMarketData:
         self._pause = pause_seconds  # documented rate limit: 10 requests per second per IP
         self._pairs: dict[str, dict] = {}
         self._funding: dict[str, list[dict]] = {}
+        self._candles: dict[tuple, pd.DataFrame] = {}
 
     # -- transport -------------------------------------------------------------------
     def _get(self, path: str, params: dict) -> list | dict:
@@ -93,7 +103,8 @@ class BitunixMarketData:
                 if response.status_code != 200:
                     raise BitunixMarketDataError(
                         f"Bitunix market data {path} answered HTTP {response.status_code}; "
-                        "perpetual history is unavailable from this location."
+                        "perpetual history is unavailable from this location.",
+                        reason="source_unreachable",
                     )
                 body = response.json()
             except BitunixMarketDataError:
@@ -104,11 +115,12 @@ class BitunixMarketData:
                 continue
             if str(body.get("code")) != "0":
                 raise BitunixMarketDataError(f"Bitunix market data {path} returned code {body.get('code')}: "
-                                             f"{body.get('msg')}")
+                                             f"{body.get('msg')}", reason="source_error")
             if self._pause:
                 time.sleep(self._pause)
             return body.get("data")
-        raise BitunixMarketDataError(f"Bitunix market data {path} did not answer ({last_error}).")
+        raise BitunixMarketDataError(f"Bitunix market data {path} did not answer ({last_error}).",
+                                     reason="source_unreachable")
 
     # -- contract terms --------------------------------------------------------------
     def trading_pair(self, symbol: str) -> dict:
@@ -116,7 +128,8 @@ class BitunixMarketData:
             data = self._get("trading_pairs", {"symbols": symbol}) or []
             match = next((row for row in data if row.get("symbol") == symbol), None)
             if match is None:
-                raise BitunixMarketDataError(f"Bitunix does not list a perpetual named {symbol}.")
+                raise BitunixMarketDataError(f"Bitunix does not list a perpetual named {symbol}.",
+                                             reason="contract_not_listed")
             self._pairs[symbol] = match
         return self._pairs[symbol]
 
@@ -136,7 +149,8 @@ class BitunixMarketData:
             raise BitunixMarketDataError(
                 f"{symbol} is a Bitunix coin-margined (inverse) perpetual. Backtests of coin-margined "
                 "perpetuals are not supported yet because Bitunix does not publish their contract size "
-                f"and margin coin. Use the USDT-margined contract instead, for example {pair.get('base')}USDT."
+                f"and margin coin. Use the USDT-margined contract instead, for example {pair.get('base')}USDT.",
+                reason="coin_margined_unsupported",
             )
         settle = str(pair.get("marginCoin") or quote).upper()
         return ContractSpec(pair["base"], quote, settle, quantity_unit="base")
@@ -146,27 +160,40 @@ class BitunixMarketData:
         """Closed candles whose open time is in ``[start, end)``, indexed by UTC open time."""
         interval, step = _INTERVALS[timestep]
         start_ms, end_ms = _ms(start), _ms(end)
+        memo_key = (symbol, timestep, start_ms, end_ms, price_type)
+        if memo_key in self._candles:
+            # The same series is often asked for under several quote spellings in one run;
+            # download it once per process.
+            return self._candles[memo_key].copy()
         rows: dict[int, dict] = {}
+        window_ms = PAGE_LIMIT * int(step.total_seconds() * 1000)
         cursor = end_ms
         while cursor > start_ms:
-            page = self._get("kline", {"symbol": symbol, "interval": interval, "endTime": cursor,
-                                       "limit": PAGE_LIMIT, "type": price_type}) or []
+            params = {"symbol": symbol, "interval": interval, "endTime": cursor,
+                      "limit": PAGE_LIMIT, "type": price_type}
+            page = self._get("kline", params) or []
+            if not page:
+                # Bitunix occasionally answers an empty page mid-history; ask once more.
+                logger.info("Bitunix %s %s candles: empty page before %s; retrying once", symbol, interval, cursor)
+                time.sleep(1 if self._pause else 0)
+                page = self._get("kline", params) or []
             times = [int(item["time"]) for item in page]
             for item, opened in zip(page, times):
                 if start_ms <= opened < end_ms:
                     rows[opened] = item
-            # A short page is not the end of history (Bitunix can return fewer rows than the
-            # limit mid-history); stop only on an empty page or when paging stops moving back.
-            if not times or min(times) >= cursor:
-                break
-            cursor = min(times)
+            # Short or empty pages are not the end of history (a short page can come mid-history,
+            # an empty one covers a gap or the time before listing). Keep stepping back one
+            # window at a time until the requested start, so a gap never truncates the series.
+            cursor = min(times) if times and min(times) < cursor else cursor - window_ms
         if not rows:
             return pd.DataFrame(columns=["open", "high", "low", "close", "volume"],
                                 index=pd.DatetimeIndex([], tz="UTC"))
         frame = pd.DataFrame.from_dict(rows, orient="index").sort_index()
         frame.index = pd.to_datetime(frame.index, unit="ms", utc=True)
         frame = frame.rename(columns={"baseVol": "volume"})
-        return frame[["open", "high", "low", "close", "volume"]].astype(float)
+        frame = frame[["open", "high", "low", "close", "volume"]].astype(float)
+        self._candles[memo_key] = frame
+        return frame.copy()
 
     # -- funding -------------------------------------------------------------------------
     def funding_history(self, symbol: str, start, end) -> list[dict]:

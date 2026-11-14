@@ -79,6 +79,17 @@ Things to know:
 - **Missing data stays missing.** If Bitunix has no candles for the window (for
   example before a contract was listed) or cannot be reached, the backtest stops
   with that reason. Spot prices are never substituted on this route.
+- **Failures are machine-readable.** When the perpetual source cannot serve the
+  backtest, the error ends with one line that tools can parse::
+
+     PERPETUAL_DATA_UNAVAILABLE {"alternatives": [{"kind": "spot_proxy", "provides": "...", "routing": "coinbase"}, ...], "asset_class": "crypto_future", "reason": "source_unreachable", "source": "bitunix", "symbol": "BTCUSDT"}
+
+  ``reason`` is one of ``source_unreachable``, ``source_error``,
+  ``no_data_for_window``, ``contract_not_listed``, ``coin_margined_unsupported``,
+  ``ambiguous_symbol`` or ``asset_class_not_served``. ``alternatives`` lists the
+  other ``crypto_future`` routing values and what each provides. The exception is
+  ``lumibot.backtesting.routed_backtesting.PerpetualDataUnavailable`` with the same
+  values as attributes.
 - **Limits.** Maintenance-margin tiers and liquidation fees are not published by
   this source, so liquidation happens when collateral runs out and is checked on
   closed candles (intrabar liquidation is not modeled). The backtest lists these

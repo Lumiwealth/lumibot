@@ -2,6 +2,9 @@
 
 ## 4.6.58 - Unreleased
 
+### Fixed
+- Multi-column indicator rows (`IndicatorRow`, for example from `self.indicators.bbands`) accept both column spellings, `BBL_20_2.0` and `BBL_20_2_0`, through attribute, brackets, the new `get()` and `as_dict()` (whose keys are unchanged). Before, `as_dict().get("BBL_20_2_0")` returned `None` silently, so a strategy reading that spelling never traded. A key that really is missing now raises with the list of available keys, or for `get()` without a default returns `None` and logs that list.
+
 ## 4.6.57 - 2026-11-13
 
 Deploy marker: 7e46462269dff3742078c6c73a42b37be9137350

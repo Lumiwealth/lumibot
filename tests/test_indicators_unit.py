@@ -220,3 +220,39 @@ def test_time_before_first_bar_returns_nan():
     ind = Indicators(strategy)
     val = ind.sma(strategy.asset, length=20)
     assert val is None or (isinstance(val, float) and np.isnan(val))
+
+
+# -- IndicatorRow key spellings ------------------------------------------------------------
+# pandas-ta names columns like "BBL_20_2.0"; Python attributes cannot hold a dot, so the
+# attribute spelling is "BBL_20_2_0". A strategy that reads the other spelling through any
+# access path must get the same value, and a key that truly is missing must not read as None.
+def _bb_row():
+    return IndicatorRow(pd.Series({"BBL_20_2.0": 1.0, "BBM_20_2.0": 2.0, "BBU_20_2.0": 3.0}))
+
+
+@pytest.mark.parametrize("key", ["BBL_20_2.0", "BBL_20_2_0"])
+def test_indicator_row_both_spellings_resolve_on_every_path(key):
+    row = _bb_row()
+    assert row[key] == 1.0
+    assert row.get(key) == 1.0
+    assert key in row
+    assert row.as_dict()[key] == 1.0
+    assert row.as_dict().get(key) == 1.0
+    assert row.BBL_20_2_0 == 1.0
+
+
+def test_indicator_row_as_dict_keeps_source_keys():
+    assert list(_bb_row().as_dict()) == ["BBL_20_2.0", "BBM_20_2.0", "BBU_20_2.0"]
+
+
+def test_indicator_row_missing_key_is_loud(caplog):
+    row = _bb_row()
+    with pytest.raises(KeyError, match="BBL_20_2.0"):  # the message lists what exists
+        row["BBX_20_2_0"]
+    with pytest.raises(AttributeError, match="BBL_20_2.0"):
+        row.BBX_20_2_0
+    with caplog.at_level("WARNING"):
+        assert row.get("BBX_20_2_0") is None
+        assert row.as_dict().get("BBX_20_2_0") is None
+    assert sum("BBX_20_2_0" in r.message for r in caplog.records) == 2
+    assert row.get("BBX_20_2_0", 0.0) == 0.0  # an explicit default is the caller's choice

@@ -2,6 +2,8 @@
 
 ## 4.6.64 - 2026-11-14
 
+Deploy marker: 666e9485281a89f4ea032684bd21a824cc252f80
+
 ### Notes
 - First published release of the 4.6.63 changes below. The `v4.6.63` tag exists but was never published to PyPI: the release workflow stopped on a test that depended on test order (see Fixed), so the version moved forward. Runtime code is identical to the `v4.6.63` tag.
 

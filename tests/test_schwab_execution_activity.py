@@ -189,28 +189,25 @@ def test_fill_proof_log_carries_quantity_and_actual_observation_source(caplog):
         "status": "CANCELED", "filledQuantity": 40,
         "orderActivityCollection": [activity("FILL", 40, 10), activity("CANCELED", 60, 0)],
     })
-    # Capture from the broker's own logger. Other tests in the same process can
-    # turn off propagation or raise levels on LumiBot loggers, which made a
-    # root-only caplog miss this record depending on test order.
-    import logging
-
+    # Capture the call the broker makes on its own logger object. Handler-based
+    # capture still missed it in CI depending on test order (quiet-log settings
+    # and a lazily loaded strategy logger can drop INFO before any handler).
     records = []
+    real_logger = broker.logger
 
-    class _Collect(logging.Handler):
-        def emit(self, record):
-            records.append(record.getMessage())
+    class _Recorder:
+        def info(self, message, *args, **kwargs):
+            records.append(message % args if args else message)
+            real_logger.info(message, *args, **kwargs)
 
-    target = logging.getLogger("lumibot.brokers.broker")
-    handler, previous_level, previous_disabled = _Collect(level=logging.INFO), target.level, target.disabled
-    target.addHandler(handler)
-    target.setLevel(logging.INFO)
-    target.disabled = False  # dictConfig elsewhere may disable existing loggers
+        def __getattr__(self, name):
+            return getattr(real_logger, name)
+
+    broker.logger = _Recorder()
     try:
         broker._reconcile_active_schwab_orders()
     finally:
-        target.removeHandler(handler)
-        target.setLevel(previous_level)
-        target.disabled = previous_disabled
+        broker.logger = real_logger
     proof = [m for m in records if "OrderFillProof" in m]
     assert len(proof) == 1
     for expected in ("event_quantity=40", "cumulative_quantity=40", "broker_filled_quantity=40", "source=rest_direct_order"):

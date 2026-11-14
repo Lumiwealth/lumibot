@@ -601,3 +601,104 @@ def test_run_counters_report_remote_misses_uploads_and_hits(monkeypatch, isolate
         sbc.log_run_summary()
     line = next(r.getMessage() for r in caplog.records if "[SHARED_BARS][SUMMARY]" in r.getMessage())
     assert "provider_reads=0" in line and "remote_hits=" in line
+
+
+# --------------------------------------------------------------------------- local disk before S3
+#
+# Hosted Alpaca options backtests made 2,000 to 4,100 S3 GETs for 35 to 80 contracts: every
+# read asked S3 first even when this process had already downloaded the same partition to
+# local disk, so each file was downloaded 10 to 25 times (2026-11-13 cold-start breakdown).
+
+
+def _option_series(index):
+    # Same identity shape the Alpaca history path builds (one provider-wide shared scope).
+    return sbc.BarSeries.make(
+        "alpaca", f"SYN260320C{index:08d}", "1minute", scope=sbc.shared_scope("alpaca"), adjusted=False,
+        requestType="OptionBarsRequest", timeframe="1Min",
+    )
+
+
+def _use_local_folder(monkeypatch, folder):
+    from lumibot import constants
+    from lumibot.tools import backtest_cache
+
+    monkeypatch.setattr(constants, "LUMIBOT_CACHE_FOLDER", str(folder))
+    monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", str(folder))
+
+
+def _warm_remote_then_new_process(monkeypatch, isolated, contracts):
+    """Fill S3 from one process, then start a second process with an empty disk and memory."""
+    remote = CountingRemote()
+    remote_manager(monkeypatch, remote)
+    fetch, calls, _ = provider()
+
+    def fetch_many(members, start, stop):
+        return {item: fetch(start, stop) for item in members}
+
+    sbc.read_bars_many(contracts, "2026-03-02", "2026-03-03", fetch_many, now=NOW)
+    assert sbc.flush_shared_bar_writes(30)["pending"] == 0
+    _use_local_folder(monkeypatch, isolated / "fresh-container")
+    sbc._reset_process_memory()
+    remote.gets.clear()
+    calls.clear()
+    return remote, fetch_many, calls
+
+
+def test_partition_already_downloaded_is_read_from_disk_not_downloaded_again(monkeypatch, isolated):
+    from collections import Counter
+
+    contracts = [_option_series(i) for i in range(40)]
+    remote, fetch_many, calls = _warm_remote_then_new_process(monkeypatch, isolated, contracts)
+    first = {}
+    for _ in range(20):
+        for item in contracts:
+            frame = sbc.read_bars_many([item], "2026-03-02", "2026-03-03", fetch_many, now=NOW)[item]
+            assert not frame.empty
+            if item in first:
+                pd.testing.assert_frame_equal(frame, first[item], check_freq=False)
+            first[item] = frame
+    per_key = Counter(remote.gets)
+    assert calls == []  # every answer came from the cache, never the provider
+    assert len(per_key) == 40
+    assert max(per_key.values()) == 1, (
+        f"{len(remote.gets)} S3 GETs for 40 partitions; worst file downloaded {max(per_key.values())} times"
+    )
+
+
+def test_local_copy_that_lacks_the_requested_range_still_asks_s3(monkeypatch, isolated):
+    """Disk first never hides newer coverage another process published to S3."""
+    contracts = [_option_series(0)]
+    remote, fetch_many, calls = _warm_remote_then_new_process(monkeypatch, isolated, contracts)
+    sbc.read_bars_many(contracts, "2026-03-02", "2026-03-03", fetch_many, now=NOW)
+    assert len(remote.gets) == 1
+    # Another process extends the same S3 partition (same month, later days).
+    _use_local_folder(monkeypatch, isolated / "other-process")
+    sbc.read_bars_many(contracts, "2026-03-02", "2026-03-06", fetch_many, now=NOW)
+    assert sbc.flush_shared_bar_writes(30)["pending"] == 0
+    provider_calls = len(calls)
+    assert provider_calls >= 1
+    # Back in this process: its disk copy covers only Mar 2-3, so it must ask S3 again
+    # and get the newer coverage there instead of calling the provider.
+    _use_local_folder(monkeypatch, isolated / "fresh-container")
+    remote.gets.clear()
+    frame = sbc.read_bars_many(contracts, "2026-03-02", "2026-03-06", fetch_many, now=NOW)[contracts[0]]
+    assert len(remote.gets) == 1
+    assert len(calls) == provider_calls
+    assert frame.index.max() >= pd.Timestamp("2026-03-05T23:00:00Z")
+
+
+def test_memory_layer_is_bounded_by_bytes_not_a_count_of_64(monkeypatch, isolated):
+    fetch, _, _ = provider()
+    items = [sbc.BarSeries.make("synthetic", f"SYM{i}", "1minute", scope="c", adjusted=False) for i in range(100)]
+    for item in items:
+        sbc.read_bars(item, "2026-03-02", "2026-03-02 01:00", fetch, now=NOW)
+    # 100 small partitions fit the default byte budget: none is dropped by a fixed count.
+    assert len(sbc._Store._memory) == 100
+
+    sbc._reset_process_memory()
+    monkeypatch.setenv("LUMIBOT_SHARED_BARS_MEMORY_MB", "0.05")
+    items = [sbc.BarSeries.make("synthetic", f"NEW{i}", "1minute", scope="c", adjusted=False) for i in range(100)]
+    for item in items:
+        sbc.read_bars(item, "2026-03-02", "2026-03-02 01:00", fetch, now=NOW)
+    assert 0 < len(sbc._Store._memory) < 100
+    assert sbc._Store._memory_bytes <= 0.05 * 1024 * 1024

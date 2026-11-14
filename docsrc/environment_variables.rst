@@ -417,6 +417,12 @@ LUMIBOT_SHARED_BARS_UPLOAD_WORKERS
 - Purpose: How many background workers upload cached bars to S3. Uploads for one file always run in order on one worker. A finished backtest waits for its uploads, so more workers mean a shorter wait.
 - Default: ``8``.
 
+LUMIBOT_SHARED_BARS_MEMORY_MB
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: How much recently written bar data (in megabytes, estimated) the shared bar cache keeps in memory. Older entries are dropped first; they are still on local disk.
+- Default: ``256``.
+
 LUMIBOT_CACHE_S3_BUCKET / LUMIBOT_CACHE_S3_PREFIX / LUMIBOT_CACHE_S3_REGION
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

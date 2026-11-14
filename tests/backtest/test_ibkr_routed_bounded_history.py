@@ -189,3 +189,67 @@ def test_stock_intraday_mark_does_not_treat_missing_session_tail_as_closed():
                          index=pd.DatetimeIndex(["2026-10-02 19:45"], tz="America/New_York"))
     assert InteractiveBrokersRESTBacktesting._intraday_mark_from_series(
         SimpleNamespace(df=frame), pd.Timestamp("2026-10-02 23:59", tz="America/New_York"), 1) is None
+
+
+def _made_up_futures_session(calendar_name, day):
+    """Made-up one-minute bars for every minute the exchange calendar says the session traded."""
+    session = mcal.get_calendar(calendar_name).schedule(day, day).iloc[0]
+    index = pd.date_range(session.market_open, session.market_close, freq="min", inclusive="left")
+    index = index.tz_convert("America/New_York")
+    values = pd.Series(range(len(index)), index=index, dtype=float) + 100
+    return pd.DataFrame({"open": values, "high": values + 1, "low": values - 1, "close": values + .5,
+                         "volume": 1000.}, index=index)
+
+
+@pytest.mark.parametrize("symbol,calendar_name,day,when,marked", [
+    ("MNQ", "CME Globex Equity", "2026-07-03", "2026-07-03 13:05", True),
+    ("MNQ", "CME Globex Equity", "2026-07-03", "2026-07-03 15:55", True),
+    ("MES", "CME Globex Equity", "2026-09-07", "2026-09-07 13:05", True),
+    ("MNQ", "CME Globex Equity", "2026-07-03", "2026-07-05 18:00", False),
+    ("MGC", "CMEGlobex_Metals", "2026-07-03", "2026-07-03 14:35", True),
+    ("MGC", "CMEGlobex_Metals", "2026-07-03", "2026-07-03 13:05", False),
+    ("ZZZ", "CME Globex Equity", "2026-07-03", "2026-07-03 13:05", False),
+], ids=["index-early-close", "index-early-close-late", "index-labor-day", "index-reopened",
+        "metals-early-close", "metals-still-open-gap", "unknown-product"])
+def test_futures_position_is_valued_at_last_close_after_exchange_early_close(symbol, calendar_name, day, when, marked):
+    """An exchange holiday halt is a closure: the last real close values the position (no bar is made)."""
+    from lumibot.tools.ibkr_helper import closed_futures_mark
+
+    frame = _made_up_futures_session(calendar_name, day)
+    if not marked and symbol == "MGC":
+        frame = frame.loc[frame.index < pd.Timestamp("2026-07-03 13:00", tz="America/New_York")]
+    mark = closed_futures_mark(frame, timestep="minute", when=pd.Timestamp(when, tz="America/New_York"), symbol=symbol)
+    assert mark == (float(frame.close.iloc[-1]) if marked else None)
+
+
+def test_futures_gap_inside_a_normal_session_is_still_missing():
+    from lumibot.tools.ibkr_helper import closed_futures_mark
+
+    frame = _made_up_futures_session("CME Globex Equity", "2026-07-02")
+    frame = frame.loc[frame.index < pd.Timestamp("2026-07-02 13:00", tz="America/New_York")]
+    assert closed_futures_mark(frame, timestep="minute", symbol="MNQ",
+                               when=pd.Timestamp("2026-07-02 13:05", tz="America/New_York")) is None
+
+
+def test_open_futures_position_on_early_close_day_does_not_fail_the_backtest(monkeypatch):
+    from lumibot.backtesting import InteractiveBrokersRESTBacktesting
+    from lumibot.tools import ibkr_helper
+    from lumibot.tools.ibkr_history_health import ibkr_history_health_snapshot, reset_ibkr_history_health_for_testing
+
+    reset_ibkr_history_health_for_testing()
+    frame = _made_up_futures_session("CME Globex Equity", "2026-07-03")
+    now = pd.Timestamp("2026-07-03 13:05", tz="America/New_York")
+    asset, quote = Asset("MNQ", "future", expiration=datetime(2026, 9, 18).date()), Asset("USD", "forex")
+    source = InteractiveBrokersRESTBacktesting(now.to_pydatetime(), (now + pd.Timedelta(hours=3)).to_pydatetime())
+    source._update_datetime(now.to_pydatetime())
+    monkeypatch.setattr(ibkr_helper, "get_price_data", lambda **kwargs: frame.loc[
+        (frame.index >= kwargs["start_dt"]) & (frame.index <= kwargs["end_dt"])].copy())
+    source._update_pandas_data(asset, quote, "minute", start_dt=frame.index[-30], end_dt=frame.index[-1],
+                               exchange=None, include_after_hours=True)
+    price = source.get_last_price(asset, quote=quote)
+    if price is None:  # what portfolio valuation does when no price comes back for an open position
+        source.record_missing_valuation(asset)
+    failures = ibkr_history_health_snapshot()
+    reset_ibkr_history_health_for_testing()
+    assert price == float(frame.close.iloc[-1])
+    assert "missing_valuation_price" not in str(failures)

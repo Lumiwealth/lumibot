@@ -381,7 +381,8 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             except Exception:
                 pass
             if asset_type in {"future", "cont_future"}:
-                closed_mark = ibkr_helper.closed_futures_mark(data.df, timestep="minute", when=now)
+                closed_mark = ibkr_helper.closed_futures_mark(
+                    data.df, timestep="minute", when=now, symbol=getattr(base_asset, "symbol", None))
                 if closed_mark is not None:
                     return closed_mark
 
@@ -405,7 +406,8 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             except Exception:
                 pass
             if asset_type in {"future", "cont_future"}:
-                return ibkr_helper.closed_futures_mark(data.df, timestep="minute", when=now)
+                return ibkr_helper.closed_futures_mark(
+                    data.df, timestep="minute", when=now, symbol=getattr(base_asset, "symbol", None))
         return None
 
     def _refresh_stale_minute_series_for_valuation(self, asset, quote_asset, exchange, now) -> bool:

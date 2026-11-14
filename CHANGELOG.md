@@ -3,6 +3,7 @@
 ## 4.6.66 - Unreleased
 
 ### Fixed
+- Futures backtests (Interactive Brokers route): a run was marked failed ("valuation bars, asked for 1 and got 0") when a position was still open after an exchange holiday halt or early close, for example the 1:00 PM ET equity index halt on Jul 3 and Labor Day. The closure check knew only weekends and the daily 5 to 6 PM ET break. Equity index, metals and energy futures now also use the exchange calendar, so the open position is valued at its last real close until the market reopens (valuation only: no bar, trade or fill is made). A gap inside a normal session is still reported as missing. Other products keep the old rule.
 - Futures: continuous silver (`SI`) used January as a front month and stayed in a contract until mid delivery month, after first notice. It now uses Mar, May, Jul, Sep, Dec and rolls 7 business days before first notice, like gold. Backtests of continuous `SI` change (more accurate contract).
 
 ### Added

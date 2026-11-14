@@ -497,12 +497,60 @@ def _us_futures_closed_interval(
         return False
 
 
-def closed_futures_mark(frame: pd.DataFrame, *, timestep: str, when: datetime) -> Optional[float]:
+# Exchange calendars that publish holiday halts and early closes, by product root.
+# Only these groups are covered; any other root keeps the weekend/maintenance rule alone.
+_FUTURES_HOLIDAY_CALENDAR_BY_ROOT = {
+    **dict.fromkeys(("ES", "MES", "NQ", "MNQ", "RTY", "M2K", "YM", "MYM", "EMD"), "CME Globex Equity"),
+    **dict.fromkeys(("GC", "MGC", "SI", "SIL", "HG", "MHG", "PL", "PA"), "CMEGlobex_Metals"),
+    **dict.fromkeys(("CL", "MCL", "QM", "NG", "MNG", "RB", "HO"), "CMEGlobex_Energy"),
+}
+
+
+@lru_cache(maxsize=64)
+def _futures_holiday_session_bounds(calendar_name: str, year: int) -> tuple[np.ndarray, np.ndarray]:
+    """Sorted (open, close) session bounds from an exchange calendar as UTC nanoseconds."""
+    import pandas_market_calendars as mcal
+
+    schedule = mcal.get_calendar(calendar_name).schedule(
+        start_date=f"{int(year) - 1}-12-20", end_date=f"{int(year) + 1}-01-10")
+    opens = pd.DatetimeIndex(pd.to_datetime(schedule["market_open"], utc=True)).as_unit("ns").asi8
+    closes = pd.DatetimeIndex(pd.to_datetime(schedule["market_close"], utc=True)).as_unit("ns").asi8
+    order = np.argsort(opens)
+    return opens[order], closes[order]
+
+
+def _futures_exchange_holiday_closed_interval(symbol: Optional[str], start: datetime, end: datetime) -> bool:
+    """True when the product's exchange calendar has no session in [start, end).
+
+    Covers holiday halts and early closes (for example the 13:00 ET equity index halt
+    before Independence Day) that the weekend/maintenance rule does not know. An unknown
+    product or any calendar error returns False, so the gap stays missing.
+    """
+    calendar_name = _FUTURES_HOLIDAY_CALENDAR_BY_ROOT.get(str(symbol or "").strip().upper())
+    if calendar_name is None:
+        return False
+    try:
+        start_ts, end_ts = pd.Timestamp(start), pd.Timestamp(end)
+        if start_ts.tzinfo is None or end_ts.tzinfo is None:
+            return False
+        start_ns = start_ts.tz_convert("UTC").as_unit("ns").value
+        end_ns = end_ts.tz_convert("UTC").as_unit("ns").value
+        if end_ns <= start_ns or end_ts - start_ts > pd.Timedelta(days=7):
+            return False
+        opens, closes = _futures_holiday_session_bounds(calendar_name, start_ts.tz_convert("UTC").year)
+        return not bool(np.any((opens < end_ns) & (closes > start_ns)))
+    except Exception:
+        return False
+
+
+def closed_futures_mark(frame: pd.DataFrame, *, timestep: str, when: datetime,
+                        symbol: Optional[str] = None) -> Optional[float]:
     """Use a completed trade close only when every later instant was closed.
 
     This is a valuation fallback, never an executable bar or a gap repair. An
-    absent bar after the next opening remains missing, including holiday gaps
-    not represented by the conservative maintenance/weekend calendar.
+    absent bar after the next opening remains missing. With ``symbol``, a holiday
+    halt or early close on that product's exchange calendar also counts as closed;
+    without it only the conservative maintenance/weekend calendar applies.
     """
     if frame is None or frame.empty or "close" not in frame:
         return None
@@ -520,7 +568,9 @@ def closed_futures_mark(frame: pd.DataFrame, *, timestep: str, when: datetime) -
         end = completed.index[-1] + pd.Timedelta(seconds=seconds)
         # Include the valuation instant itself: [last close, reopening) is
         # closed, but at reopening a new executable price may already exist.
-        if not _us_futures_closed_interval(end.to_pydatetime(), (now + pd.Timedelta(microseconds=1)).to_pydatetime()):
+        closed_until = (now + pd.Timedelta(microseconds=1)).to_pydatetime()
+        if not (_us_futures_closed_interval(end.to_pydatetime(), closed_until)
+                or _futures_exchange_holiday_closed_interval(symbol, end.to_pydatetime(), closed_until)):
             return None
         price = float(row["close"])
         return price if math.isfinite(price) else None

@@ -1,6 +1,8 @@
 Order Types by Broker
 =====================
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Which brokers can hold which orders, especially the protective ones (stops, trailing
 stops, brackets and OCO exits), and what happens to them when your strategy is not
 running.

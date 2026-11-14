@@ -121,7 +121,8 @@ def build_backtest_data_provenance(data_source: Any, fill_price_counts: Dict[str
     if notices:
         provenance["notices"] = notices
     # How option fills were priced: "quote" and "trade" are real prices in the fill bar,
-    # "estimated" is a Black-Scholes model price, used as computed and labeled.
+    # "estimated" is a model price (volatility from the expiration's recent trades when they
+    # are loaded, otherwise from the contract's own last trade), used as computed and labeled.
     if fill_price_counts:
         provenance["optionFillPrices"] = {
             str(key): int(value) for key, value in fill_price_counts.items() if isinstance(value, int)

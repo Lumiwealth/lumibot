@@ -691,7 +691,10 @@ df = df[~all_zero]
 4. Option fill prices belong to the fill bar (`_option_fill_price_at_bar`): a real trade that
    printed in the current minute/day when there is one, otherwise a Black-Scholes estimate
    from the contract's most recent real trade (or the nearest strike's when it never traded),
-   used as computed and marked `price_source=estimated`. A later print is never used as an
+   used as computed and marked `price_source=estimated`. When minute trade bars of at least
+   five other contracts of the expiration are already in memory, the estimate uses a
+   volatility smile fitted across them instead
+   (`docs/investigations/2026-11-14_OPTION_ESTIMATE_CHAIN_SMILE.md`). A later print is never used as an
    earlier bar's price. Alpaca has no historical option quotes, so the quote source never
    applies here. See `docs/BROKER_ORDER_SEMANTICS.md`.
 5. Environment mode (no `config`, which is how `BACKTESTING_DATA_SOURCE=alpaca` builds it in

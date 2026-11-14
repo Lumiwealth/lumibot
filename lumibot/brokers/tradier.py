@@ -874,6 +874,18 @@ class Tradier(Broker):
             Updated order with broker identifier filled in
         """
 
+        # Tradier's order types are market, limit, stop and stop_limit; it has no
+        # trailing stop. Refuse instead of sending a stop without its trail.
+        if order.order_type == Order.OrderType.TRAIL or any(
+            child.order_type == Order.OrderType.TRAIL for child in (order.child_orders or [])
+        ):
+            error = LumibotBrokerAPIError(
+                "Trailing stop orders are not supported by Tradier. Use a stop or stop-limit order instead."
+            )
+            order.set_error(error)
+            self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=str(error))
+            return order
+
         tag = order.tag if order.tag else order.strategy
         # Replace non-alphanumeric characters with '-', underscore "_" is not allowed by Tradier
         tag = re.sub(r'[^a-zA-Z0-9-]', '-', tag)

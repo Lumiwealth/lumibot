@@ -8,6 +8,8 @@ Options methods are meant for managing options, including getting option chains,
 
 For high-level option selection (expirations/strikes/deltas) and multi-leg spread helpers, see :doc:`options_helper`.
 
+Backtesting options without option data: see :doc:`backtesting.synthetic_options` (computed prices, always labeled as synthetic).
+
 .. currentmodule:: lumibot.strategies.strategy
 
 

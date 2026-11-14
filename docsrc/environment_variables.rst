@@ -295,6 +295,54 @@ LUMIBOT_BACKTEST_OPTION_ESTIMATE_PENALTY_PCT
 - Notes:
   - See "How Orders Fill in a Backtest" for the quote, trade, estimated order. Estimated fills are marked ``price_source=estimated`` in the trades file.
 
+Synthetic option data (backtesting)
+-----------------------------------
+
+These apply only when options are routed to ``synthetic``
+(see :doc:`backtesting.synthetic_options`). Synthetic prices are model estimates.
+
+LUMIBOT_SYNTHETIC_OPTION_VOL_INPUT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Which volatility input the model uses.
+- Values: ``auto`` (a volatility index for the underlying when the data source has one, otherwise realized volatility), ``index``, ``realized``.
+- Default: ``auto``
+
+LUMIBOT_SYNTHETIC_OPTION_VOL_RISK_PREMIUM
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Ratio of implied to realized volatility used with the realized input.
+- Values: float.
+- Default: ``1.15``
+
+LUMIBOT_SYNTHETIC_OPTION_RATE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Constant interest rate used for option pricing.
+- Values: decimal (``0.04`` is 4%).
+- Default: ``0.04``
+
+LUMIBOT_SYNTHETIC_OPTION_DIVIDEND_YIELD
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Constant dividend yield used for option pricing.
+- Values: decimal.
+- Default: ``0``
+
+LUMIBOT_SYNTHETIC_OPTION_PARAMS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Path of a JSON file with model shape parameters (skew, term structure, volatility ratios, spread scale) for all underlyings, a class, or single symbols. Parameters only, never prices.
+- Values: file path. An unreadable file is ignored.
+- Default: unset (built-in neutral parameters)
+
+LUMIBOT_SYNTHETIC_OPTION_SPREAD_ON_REAL_TRADES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: When a real option route is named as ``option_real`` and a bar has a real trade but no real quote, put a synthetic bid and ask around the real trade so limit and smart-limit orders have a quote to work against. Those fills are marked ``trade_synthetic_spread``.
+- Values: ``true`` / ``false``.
+- Default: ``false`` (it changes fill prices)
+
 Trade audit telemetry (accuracy investigations)
 -----------------------------------------------
 

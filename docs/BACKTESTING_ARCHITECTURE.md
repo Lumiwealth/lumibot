@@ -2,6 +2,13 @@
 
 ## 🚨🚨🚨 RULE #1: NEVER FABRICATE DATA. MISSING > FAKE. 🚨🚨🚨
 
+> **One labeled exception: the `synthetic` option route.** The project owner approved option
+> data computed from the underlying for backtests that have no option data. It runs only when
+> the routing says `"option": "synthetic"`, every bar and fill is labeled `synthetic`, a notice
+> is logged, and `data_provenance.json` reports it. It never makes up underlying bars and it
+> is never a silent fallback inside another provider. See `docs/SYNTHETIC_OPTION_DATA.md`.
+> Everything else in this rule is unchanged.
+
 **Fabricated / synthesized / "placeholder-filled" price or volume data is STRICTLY FORBIDDEN in every backtesting code path.**
 
 - If real data is unavailable, **return empty / skip the day / fail loud**. Never invent bars, never carry-forward a previous value, never return a constant "default" (e.g. VIX=14.2) to keep the strategy running.

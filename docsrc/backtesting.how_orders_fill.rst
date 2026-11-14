@@ -111,6 +111,8 @@ it uses, in this order:
 
 Every option fill is marked in the trades file (``price_source`` is ``quote``, ``trade``
 or ``estimated``), and ``data_provenance.json`` counts them under ``optionFillPrices``.
+Backtests that route options to synthetic data mark those fills ``synthetic``: see
+:doc:`backtesting.synthetic_options`.
 If no price can be found (for example nothing has traded yet in that expiry), the order
 keeps waiting.
 

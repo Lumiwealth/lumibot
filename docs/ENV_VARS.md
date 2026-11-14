@@ -249,6 +249,18 @@ IBeam is an unsupported third-party authentication wrapper and is suitable only 
 - Default: `0`. Estimates are used as computed and labeled `price_source=estimated`. For reference, a hide-and-estimate study on 2026-11-14 (SPY 1-minute options) measured a median estimate error of about 1% at the money and 2-3% for 5-15 delta wings.
 - Where: `lumibot/backtesting/backtesting_broker.py` (`_option_fill_price_at_bar`, `_penalized_estimate`).
 
+## Synthetic option data (backtesting)
+
+Only used when options are routed to `synthetic`. Design, accuracy and limits: `docs/SYNTHETIC_OPTION_DATA.md`.
+
+- `LUMIBOT_SYNTHETIC_OPTION_VOL_INPUT`: `auto` (default), `index`, `realized`.
+- `LUMIBOT_SYNTHETIC_OPTION_VOL_RISK_PREMIUM`: implied / realized ratio, default `1.15`.
+- `LUMIBOT_SYNTHETIC_OPTION_RATE`: constant rate, default `0.04`.
+- `LUMIBOT_SYNTHETIC_OPTION_DIVIDEND_YIELD`: constant yield, default `0`.
+- `LUMIBOT_SYNTHETIC_OPTION_PARAMS`: path of a JSON parameter file (per-underlying shape parameters; numbers only).
+- `LUMIBOT_SYNTHETIC_OPTION_SPREAD_ON_REAL_TRADES`: default off. Synthetic bid/ask around real trades that have no quote (with `option_real`).
+- Where: `lumibot/tools/synthetic_options.py`, `lumibot/backtesting/synthetic_option_routing.py`.
+
 ## Trade audit telemetry (NVDA/SPX accuracy audits)
 
 ### `LUMIBOT_BACKTEST_AUDIT`

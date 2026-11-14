@@ -2,6 +2,9 @@
 
 ## 4.6.63 - Unreleased
 
+### Added
+- Synthetic option data for backtests. Routing options to `synthetic` (`config={"backtesting_data_routing": {"default": "...", "option": "synthetic"}}`) gives option chains, prices, bid/ask and greeks computed from the underlying's own bars: rule-based expirations and strikes, Black-Scholes family prices with a volatility level from a volatility index or the underlying's realized volatility, a fixed skew and term structure, and a bid/ask model. It is always labeled: a notice in the log, `price_source=synthetic` on every fill, and counts, shares and the volatility input in `data_provenance.json`. An optional `option_real` route overrides synthetic bars with real quotes or trades where they exist. Synthetic prices are estimates: measured against real option trades the median error was about 22% of the price on calm days and about 30% on stressed days, larger for far out-of-the-money contracts (`docs/SYNTHETIC_OPTION_DATA.md`, docs page "Synthetic Option Data for Backtests"). Nothing changes unless a backtest routes options to `synthetic`.
+
 ## 4.6.62 - 2026-11-14
 
 Deploy marker: 52b0f8f80f4e970356b8aed5a1fe2a5d43802493

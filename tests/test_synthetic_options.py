@@ -233,3 +233,102 @@ def test_parameter_file_replaces_defaults_per_symbol(tmp_path, monkeypatch):
     assert float(wide) == pytest.approx(2 * float(model.half_spread(3.0, 0.27, 7 / 365, 0.15, 6000.0, "stock")))
     monkeypatch.setenv(model.PARAMS_ENV, str(tmp_path / "missing.json"))
     assert model.parameters_for("ABCD").version == "default"  # an unreadable file changes nothing
+
+
+# ----------------------------------------------------------------------------------------
+# Multi-leg structures: the package price must be arbitrage-consistent
+# ----------------------------------------------------------------------------------------
+NEAR, FAR = date(2025, 1, 17), date(2025, 2, 21)
+
+
+def _quotes(strikes, expiration=NEAR, level=590.0, stressed=False):
+    """{(strike, 'call'|'put'): (bid, mid, ask)} at the first bar, plus the discount factor."""
+    daily = _daily(level=level)
+    if stressed:  # a violent last month: realized volatility far above its long-run level
+        tail = np.exp(np.cumsum(np.random.default_rng(11).normal(0, 0.035, 20)))
+        daily.iloc[-20:] = daily.iloc[-21] * tail
+        daily = daily * level / daily.iloc[-1]
+    surface = model.build_surface(_bars(level=level), daily, symbol="SPY", mode="realized")
+    strikes = np.asarray(strikes, dtype=float)
+    both = np.concatenate([strikes, strikes])
+    is_call = np.concatenate([np.ones(len(strikes), bool), np.zeros(len(strikes), bool)])
+    priced = model.price_contracts(surface, both, is_call, expiration)
+    out = {}
+    for i, (strike, call) in enumerate(zip(both, is_call)):
+        out[(float(strike), "call" if call else "put")] = (priced["bid"][0, i], priced["open"][0, i], priced["ask"][0, i])
+    years = model.years_to_expiry(surface.index[:1], expiration)[0]
+    return out, float(np.exp(-surface.rate * years)), float(surface.open[0] * np.exp(surface.rate * years))
+
+
+def _package(quotes, legs):
+    """(bid, mid, ask) of a package: legs are (quantity, strike, right); buy at ask, sell at bid."""
+    mid = sum(q * quotes[(k, r)][1] for q, k, r in legs)
+    ask = sum(q * quotes[(k, r)][2 if q > 0 else 0] for q, k, r in legs)
+    bid = sum(q * quotes[(k, r)][0 if q > 0 else 2] for q, k, r in legs)
+    assert bid <= mid <= ask
+    return bid, mid, ask
+
+
+@pytest.mark.parametrize("stressed", [False, True])
+def test_vertical_spreads_and_box(stressed):
+    quotes, discount, _forward = _quotes([580, 585, 590, 595, 600], stressed=stressed)
+    for low, high in ((580.0, 585.0), (585.0, 595.0), (590.0, 600.0)):
+        width = (high - low) * discount
+        call_debit = _package(quotes, [(1, low, "call"), (-1, high, "call")])[1]
+        put_debit = _package(quotes, [(1, high, "put"), (-1, low, "put")])[1]
+        assert 0 < call_debit < width and 0 < put_debit < width
+        # credit spreads are the same packages sold
+        assert _package(quotes, [(-1, low, "call"), (1, high, "call")])[1] == pytest.approx(-call_debit)
+        # a call debit spread plus a put debit spread on the same strikes is a box: worth the width
+        assert call_debit + put_debit == pytest.approx(width, abs=1e-8)
+
+
+@pytest.mark.parametrize("stressed", [False, True])
+def test_iron_condor_and_butterfly(stressed):
+    quotes, discount, _forward = _quotes([570, 575, 585, 590, 595, 605, 610], stressed=stressed)
+    condor = [(1, 570.0, "put"), (-1, 575.0, "put"), (-1, 605.0, "call"), (1, 610.0, "call")]
+    bid, mid, ask = _package(quotes, condor)
+    credit = -mid
+    assert 0 < credit < 5.0 * discount  # never more than the wing width
+    assert -bid > credit > -ask  # selling it at the bid/ask collects less than the mid credit
+    for right in ("call", "put"):
+        fly = _package(quotes, [(1, 585.0, right), (-2, 590.0, right), (1, 595.0, right)])[1]
+        assert 0 <= fly <= 5.0 * discount  # convex in strike, worth at most the wing width
+    iron_fly = -_package(quotes, [(1, 585.0, "put"), (-1, 590.0, "put"), (-1, 590.0, "call"), (1, 595.0, "call")])[1]
+    assert 0 < iron_fly < 5.0 * discount
+
+
+@pytest.mark.parametrize("stressed", [False, True])
+def test_straddle_and_strangle(stressed):
+    quotes, discount, forward = _quotes([580, 590, 600], stressed=stressed)
+    straddle = _package(quotes, [(1, 590.0, "call"), (1, 590.0, "put")])[1]
+    strangle = _package(quotes, [(1, 600.0, "call"), (1, 580.0, "put")])[1]
+    assert straddle > strangle > 0
+    assert straddle >= abs(forward - 590.0) * discount  # at least its intrinsic value
+    assert straddle - strangle < 10.0 * discount  # the gap is bounded by the strike distance
+
+
+@pytest.mark.parametrize("stressed", [False, True])
+def test_calendar_spread_is_worth_something(stressed):
+    near, _d, _f = _quotes([580, 590, 600], NEAR, stressed=stressed)
+    far, _d, _f = _quotes([580, 590, 600], FAR, stressed=stressed)
+    for strike in (580.0, 590.0, 600.0):
+        # the later expiration is worth more: total variance grows with time on this surface
+        assert far[(strike, "call")][1] > near[(strike, "call")][1]
+    assert far[(590.0, "put")][1] > near[(590.0, "put")][1]
+    if stressed:
+        # stressed markets: short-dated volatility is above long-dated volatility (term structure matters)
+        near_vol = model.surface_volatility(0.45, 0.20, 590.0, 590.0, 4 / 365, "index")
+        far_vol = model.surface_volatility(0.45, 0.20, 590.0, 590.0, 39 / 365, "index")
+        assert near_vol > far_vol
+
+
+@pytest.mark.parametrize("stressed", [False, True])
+def test_ratio_spread_bounds(stressed):
+    quotes, discount, _forward = _quotes([580, 590], stressed=stressed)
+    # sell 1 deeper in the money, buy 2 at the money (calls); mirror image with puts
+    calls = _package(quotes, [(-1, 580.0, "call"), (2, 590.0, "call")])[1]
+    assert -10.0 * discount <= calls <= quotes[(590.0, "call")][1]
+    quotes_put, discount, _forward = _quotes([590, 600], stressed=stressed)
+    puts = _package(quotes_put, [(-1, 600.0, "put"), (2, 590.0, "put")])[1]
+    assert -10.0 * discount <= puts <= quotes_put[(590.0, "put")][1]

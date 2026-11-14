@@ -87,6 +87,44 @@ day and a half day, every session minute, 5 and 15-minute; fallback cases; no-tr
 What it does not speed up: a strategy that asks for more bars than today's session holds
 (for example 20 five-minute bars at 10:00) still downloads the provider series once.
 
+## Routed backtests on the Interactive Brokers route (stocks and ETFs)
+
+Measured on local cache files only (no provider calls): SPY, AMD and NVDA, bars whose every
+minute is in the cached minute file.
+
+| Bar size | Session | Bars compared | OHLC identical | Volume identical |
+|---|---|---|---|---|
+| 5-minute | Regular (09:30 to 16:00) | 379 | 379 | 379 |
+| 15-minute | Regular | 33 | 33 | 33 |
+| 5-minute | Pre-market and after hours | 625 | 553 | 625 |
+| 15-minute | Pre-market and after hours | 66 | 61 | 66 |
+
+Regular-session bars are identical. Extended-hours bars are not (about 1 in 9 differs in
+open, high, low or close), so a whole series cannot be rebuilt from minutes without changing
+results. Not in the local cache, so not measured: 10 and 30-minute and hourly stock bars.
+
+What shipped: `RoutedBacktestingPandas.get_historical_prices` answers a 5, 10, 15 or
+30-minute stock request from the loaded 1-minute series when every requested bar, and the bar
+before the oldest one (its close feeds the oldest bar's `return`), is a finished bar of
+today's regular session and every minute in those bars is a loaded, traded minute. Anything
+else loads the provider series as before, and once loaded it is always used. Same switch as
+above (`BACKTESTING_INTRADAY_BARS_FROM_MINUTES=false` turns it off). Telemetry cache layer:
+`ibkr_bars_from_minutes`.
+
+Check through the real code path with the same cached files fed in locally (not committed):
+every answer from minutes equalled the provider-series answer in every column, 5-minute over
+8 symbol-days (10,582 returned bars, 0 different requests) and 15-minute over 3 symbol-days
+(1,530 returned bars, 0 different).
+
+Tests: `tests/test_routed_backtesting_unit.py` (`test_house_source_intraday_bars_*`, made-up
+bars in the provider's shape, 5, 10, 15 and 30-minute, whole output frame compared).
+
+Limits, plainly: this saves the separate download only for strategies whose multi-minute
+requests stay inside the session (a few bars, after the first bar of the day). A lookback
+that reaches before the open (20 five-minute bars at 10:00), the first bar of the day, and
+hourly bars still download the provider series, because pre-market bars differ. It also
+needs the 1-minute series to be loaded in the run already (first price lookup or fill).
+
 ## Original proposal (superseded)
 
 

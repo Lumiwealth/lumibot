@@ -1657,6 +1657,153 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         self._registry.validate_routing(self._routing)
         self._observed_data_routes: Dict[tuple, Dict[str, str]] = {}
 
+    # ------------------------------------------------------------------
+    # 5, 10, 15 and 30-minute stock bars from the loaded 1-minute series
+    # ------------------------------------------------------------------
+    MINUTE_REBUILD_BAR_MINUTES = (5, 10, 15, 30)
+    _REGULAR_SESSION_OPEN_MINUTE = 9 * 60 + 30
+    _REGULAR_SESSION_CLOSE_MINUTE = 16 * 60
+
+    def _intraday_bars_from_minutes_enabled(self) -> bool:
+        configured = self.__dict__.get("_intraday_bars_from_minutes")
+        if configured is not None:
+            return bool(configured)
+        value = os.environ.get("BACKTESTING_INTRADAY_BARS_FROM_MINUTES", "true")
+        return str(value).strip().lower() not in ("0", "false", "no", "off")
+
+    def get_historical_prices(self, asset, length, timestep="minute", timeshift=None, quote=None,
+                              exchange=None, include_after_hours=True, return_polars=False):
+        if not return_polars and not timeshift:
+            try:
+                rebuilt = self._bars_from_loaded_minutes(asset, length, timestep, quote)
+            except Exception:
+                logger.debug("bars from loaded minutes skipped", exc_info=True)
+                rebuilt = None
+            if rebuilt is not None:
+                return rebuilt
+        return super().get_historical_prices(
+            asset, length, timestep=timestep, timeshift=timeshift, quote=quote, exchange=exchange,
+            include_after_hours=include_after_hours, return_polars=return_polars,
+        )
+
+    def _bars_from_loaded_minutes(self, asset, length, timestep, quote):
+        """Answer a 5, 10, 15 or 30-minute stock request from the loaded 1-minute series.
+
+        Only for the house (IBKR) route, and only when the answer equals the provider's own
+        series: every requested bar, and the bar before the oldest one, is a finished bar of
+        today's regular session (09:30 to 16:00 New York) and every minute of those bars is a
+        real traded minute in the loaded series. Outside the regular session the provider's bars are not equal to a rebuild
+        (see docs/investigations/2026-11-14_INTRADAY_BARS_FROM_MINUTE_BARS.md), so any other
+        request returns None and the provider series is loaded as before. Once that series is
+        loaded it is always used.
+        """
+        if isinstance(asset, tuple) or not timestep or not self._intraday_bars_from_minutes_enabled():
+            return None
+        quantity, unit = parse_timestep_qty_and_unit(timestep)
+        quantity = int(quantity)
+        if str(unit) != "minute" or quantity not in self.MINUTE_REBUILD_BAR_MINUTES:
+            return None
+        asset_obj = Asset(symbol=asset) if isinstance(asset, str) else asset
+        if _normalize_asset_type(getattr(asset_obj, "asset_type", "")) != "stock":
+            return None
+        provider_spec = self._provider_spec_for_asset(asset_obj)
+        if not isinstance(self._registry.adapter_for_spec(provider_spec), _IbkrRoutingAdapter):
+            return None
+        quote_asset = quote if quote is not None else _DEFAULT_QUOTE_ASSET
+
+        store = self._data_store
+        native_key, _ = self._build_dataset_keys(asset_obj, quote_asset, f"{quantity}minute")
+        if native_key in store:
+            return None
+        minute_key, _ = self._build_dataset_keys(asset_obj, quote_asset, "minute")
+        minute_data = store.get(minute_key)
+        minute_df = getattr(minute_data, "df", None)
+        if minute_df is None or minute_df.empty:
+            return None
+
+        now = pd.Timestamp(self.get_datetime())
+        if now.tzinfo is None:
+            return None
+        now = now.tz_convert("America/New_York")
+        delta = pd.Timedelta(minutes=quantity)
+        newest = now.floor(f"{quantity}min") - delta  # the newest finished bar
+        oldest = newest - delta * (int(length) - 1)
+        if int(length) < 1 or oldest.date() != now.date():
+            return None
+        if oldest.hour * 60 + oldest.minute < self._REGULAR_SESSION_OPEN_MINUTE \
+                or newest.hour * 60 + newest.minute + quantity > self._REGULAR_SESSION_CLOSE_MINUTE:
+            return None
+
+        cache = self.__dict__.setdefault("_minute_rebuilt_series", {})
+        known = cache.get((minute_key, quantity))
+        if known is None or known[0] is not minute_data:
+            known = (minute_data, self._build_minute_rebuilt_series(asset_obj, quote_asset, minute_df, quantity))
+            cache[(minute_key, quantity)] = known
+        rebuilt_data = known[1]
+        if rebuilt_data is None:
+            return None
+
+        # Each bar's return uses the close of the bar before it. Before the session's first bar
+        # that is a pre-market bar only the provider series has, so the bar before the oldest
+        # requested one must itself be a rebuilt bar of today's session.
+        before_oldest = (oldest - delta).tz_convert(rebuilt_data.df.index.tz)
+        if before_oldest.tz_convert("America/New_York").date() != now.date() \
+                or before_oldest not in rebuilt_data.df.index:
+            return None
+
+        response = rebuilt_data.get_bars(self.get_datetime(), length=length, timestep=timestep, timeshift=0)
+        if response is None or len(response) != int(length):
+            return None
+        labels = pd.DatetimeIndex(response.index).tz_convert("America/New_York")
+        if labels[0] != oldest or labels[-1] != newest or (len(labels) > 1 and (labels[1:] - labels[:-1] != delta).any()):
+            return None  # a bar is missing (no trades, or minutes not loaded): let the provider answer
+
+        bars = self._parse_source_symbol_bars(response, asset_obj, quote=quote, length=length, return_polars=False)
+        if bars is None:
+            return None
+        self._record_observed_route(asset_obj, provider_spec, timestep=timestep, feed_type="ohlc",
+                                    quote_asset=quote_asset)
+        from lumibot.tools import backtest_telemetry
+
+        backtest_telemetry.record_cache("hit", layer="ibkr_bars_from_minutes", source="ibkr", asset_class="stock")
+        return bars
+
+    def _build_minute_rebuilt_series(self, asset, quote_asset, minute_df, quantity):
+        """Regular-session bars of ``quantity`` minutes from complete, traded minutes only."""
+        local = pd.DatetimeIndex(minute_df.index).tz_convert("America/New_York")
+        minute_of_day = local.hour * 60 + local.minute
+        in_session = (minute_of_day >= self._REGULAR_SESSION_OPEN_MINUTE) & \
+                     (minute_of_day < self._REGULAR_SESSION_CLOSE_MINUTE)
+        session = minute_df[in_session]
+        if session.empty or not {"open", "high", "low", "close", "volume"}.issubset(session.columns):
+            return None
+        how = {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
+        for column in ("bid", "ask"):
+            if column in session.columns:
+                how[column] = "last"
+        ordered = {column: how[column] for column in session.columns if column in how}
+        grouped = session.groupby(pd.DatetimeIndex(session.index).floor(f"{quantity}min"))
+        frame = grouped.agg(ordered)
+        # A bar is kept only when every one of its minutes is loaded and traded. Anything else
+        # (a placeholder row, a minute that is not loaded) is left to the provider series.
+        complete = grouped["volume"].agg(lambda values: len(values) == quantity and bool((values > 0).all()))
+        if "missing" in session.columns:
+            complete &= ~grouped["missing"].agg(lambda values: bool(values.astype(bool).any()))
+        frame = frame[complete.to_numpy()]
+        if frame.empty:
+            return None
+        if "missing" in session.columns:
+            frame["missing"] = False
+            frame = frame[[column for column in session.columns if column in frame.columns]]
+        frame.index.name = minute_df.index.name
+        frame.attrs = dict(getattr(minute_df, "attrs", {}) or {})
+        share_frame_attrs(frame)
+        data = Data(asset, frame, timestep="minute", quote=quote_asset)
+        data.strict_end_check = True
+        data._native_timestep_quantity = int(quantity)  # type: ignore[attr-defined]
+        data._native_timestep_unit = "minute"  # type: ignore[attr-defined]
+        return data
+
     def _record_observed_route(
         self,
         asset: Asset,

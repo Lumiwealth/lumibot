@@ -2,6 +2,8 @@
 
 ## 4.6.65 - 2026-11-14
 
+Deploy marker: 0ccb9dfbe80568fec6a2e7b8953de406c8ca0fe0
+
 ### Fixed
 - Alpaca backtests: `get_historical_prices_for_assets` downloaded stock history one symbol per request. Stock bars not cached yet are now requested up to 100 symbols per request (the backtest window and history before the window), written to the same per-symbol cache files. 250 symbols: 250 requests down to 3. Bars, cache keys and errors are unchanged; a refused grouped request falls back to one request per symbol. Docs: `docsrc/backtesting.performance.rst` ("Faster scanners").
 - Backtests: a grouped history call over hundreds of symbols re-serialized every history row for the market input evidence on every scan, because only 32 symbol streams were remembered (500 stocks x 200 daily bars: about 2.5 s per scan, down to about 0.24 s). Up to 4096 streams are remembered now (total remembered rows still capped) and a grouped call commits its records once. The recorded evidence is unchanged.

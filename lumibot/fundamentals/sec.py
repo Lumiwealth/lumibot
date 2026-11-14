@@ -934,6 +934,28 @@ class SECFundamentals:
         self._ensure_acceptance(symbol, timeline, as_ts)
         return as_of_dt, as_ts, timeline
 
+    def _no_history_reason(self, symbol: str, timeline: _CompanyTimeline, as_ts: float) -> str | None:
+        """Why a ticker has no SEC history at ``as_ts``, when its registrant had filed nothing yet.
+
+        The SEC ticker map is today's: after a reorganization a ticker points at the new
+        registrant, whose filings start at the reorganization. SEC data does not link it to
+        its predecessor registrant, so LumiBot does not guess one.
+        """
+        if timeline.state_index(as_ts) > 0:
+            return None
+        filed = sorted(value for value in timeline.filing_filed.values() if value)
+        first = (
+            f"whose first filing with financial data is dated {filed[0]}"
+            if filed
+            else "which has no financial data in SEC filings"
+        )
+        return (
+            f"no SEC filings for {str(symbol).upper()} before {_iso_from_timestamp(as_ts)[:10]}: the SEC ticker map "
+            f"(today's) points {str(symbol).upper()} to CIK {timeline.cik}, {first}. If the company changed "
+            "registrant (for example a new holding company), its earlier history is under the predecessor's "
+            "CIK, which SEC data does not link to this ticker"
+        )
+
     def _provenance(self, timeline: _CompanyTimeline) -> dict[str, Any]:
         return {
             "id": f"sec-companyfacts-{timeline.cik}",
@@ -1323,6 +1345,9 @@ class SECFundamentals:
                 cached = self._compute_statement(timeline, tag_map, as_ts)
                 timeline.memo[memo_key] = cached
         values, anchor, warnings = cached
+        no_history = self._no_history_reason(symbol, timeline, as_ts)
+        if no_history:
+            warnings = [*warnings, {"field": None, "message": no_history}]
         return {
             "symbol": str(symbol).upper(),
             "cik": timeline.cik,
@@ -1508,8 +1533,12 @@ class SECFundamentals:
         values: dict[str, Any] = {}
         reasons: dict[str, str] = {}
         periods: dict[str, Any] = {}
+        no_history = self._no_history_reason(symbol, timeline, as_ts)
         with timeline.lock:
             for name in requested:
+                if no_history:
+                    values[name], reasons[name] = None, no_history
+                    continue
                 value, reason, period = context.metric(name)
                 values[name] = value
                 if value is None:

@@ -240,7 +240,11 @@ Limits
 - **The ticker map is today's.** The SEC ticker list maps each current ticker
   to today's registrant. A company that changed its registrant (for example a
   new holding company) or a ticker reused by another company maps to the
-  current one, and older history may be missing for it.
+  current one, and older history may be missing for it. When the current
+  registrant had filed nothing yet on the date you ask about, every metric is
+  ``None`` and the reason says so (and statements carry the same warning).
+  SEC data does not link a new registrant to its predecessor, so LumiBot does
+  not guess one; look the predecessor up yourself if you need that history.
 
 Agent tools
 -----------

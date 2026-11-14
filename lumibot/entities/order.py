@@ -5,6 +5,7 @@ from enum import Enum
 from threading import Event, Lock
 from typing import TYPE_CHECKING, Union
 from uuid import UUID
+from contextvars import ContextVar
 
 if TYPE_CHECKING:
     from lumibot.entities.asset import Asset
@@ -168,6 +169,9 @@ STATUS_ALIAS_MAP = {
 }
 
 NONE_TYPE = type(None)  # Order is shadowing 'type' parameter, this is a workaround to still access type(None)
+
+# Orders currently being serialized by Order.to_dict on this thread/context.
+_SERIALIZING_ORDERS: ContextVar[frozenset] = ContextVar("lumibot_serializing_orders", default=frozenset())
 
 class Order:
     Transaction = namedtuple("Transaction", ["quantity", "price"])
@@ -1504,6 +1508,24 @@ class Order:
         return result
 
     def to_dict(self):
+        # Linked orders (bracket/OCO siblings via `dependent_order`, or any other
+        # order reference) are written as identifiers. Nesting their full dicts
+        # recursed forever on mutually linked stop/target orders. `child_orders`
+        # stays nested; an order already being serialized higher up the tree is
+        # also written as its identifier, so any order graph is finite.
+        active = _SERIALIZING_ORDERS.get()
+        if id(self) in active:
+            return self._identifier_text()
+        token = _SERIALIZING_ORDERS.set(active | {id(self)})
+        try:
+            return self._to_dict_body()
+        finally:
+            _SERIALIZING_ORDERS.reset(token)
+
+    def _identifier_text(self):
+        return str(self._identifier) if isinstance(self._identifier, UUID) else self._identifier
+
+    def _to_dict_body(self):
         # Initialize an empty dictionary for serializable attributes
         order_dict = {}
 
@@ -1538,6 +1560,10 @@ class Order:
             # If it is a Decimal object, convert it to a float
             elif isinstance(value, Decimal):
                 order_dict[key] = float(value)
+
+            # A reference to another order (e.g. dependent_order) is its identifier.
+            elif isinstance(value, Order):
+                order_dict[key] = value._identifier_text()
 
             # Recursively handle objects that have their own to_dict method (like asset, quote, etc.)
             elif hasattr(value, "to_dict"):
@@ -1632,4 +1658,19 @@ class Order:
                 else:
                     setattr(obj, key, value)
 
+        cls._relink_dependent_orders([obj, *(obj.child_orders or [])])
         return obj
+
+    @staticmethod
+    def _relink_dependent_orders(orders):
+        """Point ``dependent_order`` identifiers back at the order objects.
+
+        ``to_dict`` writes linked orders (bracket/OCO stop and target) by
+        identifier. After restoring a set of orders, this rebuilds the links
+        among them. Identifiers with no restored order stay as they are."""
+        orders = [order for order in orders if isinstance(order, Order)]
+        by_id = {str(order.identifier): order for order in orders if order.identifier is not None}
+        for order in orders:
+            linked = getattr(order, "dependent_order", None)
+            if linked is not None and not isinstance(linked, Order) and str(linked) in by_id:
+                order.dependent_order = by_id[str(linked)]

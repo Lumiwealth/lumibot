@@ -15,6 +15,7 @@
 - Crude oil (CL, MCL) last trade dates are counted in CME business days, so months whose window holds Memorial Day, Juneteenth, Thanksgiving, MLK or Presidents Day no longer ask IBKR for a contract one day late (CLM26 now resolves to 2026-05-19). Checked against every recorded IBKR CL and MCL last trade date. When the contract registry holds two same-month entries, the one that is a real last trade date for a contract month is chosen; truly ambiguous entries still refuse.
 - When the stock split lookup fails, IBKR stock bars are no longer written to the shared cache under a one-day "splits unknown" name that no later run reads. Those prices stay private to the run (still reused within it), and the data-health warning now says `split_actions_verified: false`.
 - Hourly IBKR bars use one cache name however the timestep is written ("1 hour", "60 minutes"). Files cached earlier under the old `60minute` name are still read, and new writes go to the unified name.
+- `Order.to_dict()` no longer recurses forever on bracket and OCO orders (the stop and target reference each other). Linked orders are written by identifier, any order graph serializes finitely, and restoring a live order checkpoint relinks the stop and target. Before this, a live bot holding a bracket could crash or skip its order checkpoint at every variable backup.
 - Public docs no longer say spot-proxy perpetual routes use USD pairs or that perpetual backtesting is unfinished.
 
 ## 4.6.55 - 2026-11-13

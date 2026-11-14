@@ -81,16 +81,22 @@ ROLL_RULES.update(
             contract_months=(2, 4, 6, 8, 10, 12),
             roll_anchor="metal_first_notice",
         ),
-        # COMEX silver (SI) and micro silver (SIL): front months are Mar, May, Jul, Sep, Dec;
-        # last trade on the third last business day of the contract month; first notice is the
-        # last business day of the month before.
+        # COMEX silver (SI) and micro silver (SIL): last trade on the third last business day of
+        # the contract month; first notice is the last business day of the month before.
+        # CME lists "any Jan, Mar, May, July, Sep and Dec" plus three serial months; the front
+        # months used here are Mar, May, Jul, Sep, Dec (January is listed but carries little
+        # volume, so it is skipped like the serial months).
+        # Checked 2026-11-14: https://www.cmegroup.com/markets/metals/precious/1000-oz-silver.contractSpecs.html
         **_rules("SI SIL", offset_business_days=7, anchor="third_last_business_day",
                  contract_months=(3, 5, 7, 9, 12), roll_anchor="first_notice"),
-        # COMEX copper (HG): same month cycle and notice rule as silver.
+        # COMEX copper (HG): "any Mar, May, Jul, Sep, and Dec"; last trade on the third last
+        # business day of the contract month.
+        # Checked 2026-11-14: https://www.cmegroup.com/markets/metals/base/copper.contractSpecs.html
         "HG": RollRule(offset_business_days=7, anchor="third_last_business_day",
                        contract_months=(3, 5, 7, 9, 12), roll_anchor="first_notice"),
-        # COMEX micro copper (MHG): cash settled, last trade on the third last business day of
-        # the month BEFORE the contract month.
+        # COMEX micro copper (MHG): "any Mar, May, Jul, Sep, and Dec"; financially settled, last
+        # trade on the third last business day of the month BEFORE the contract month.
+        # Checked 2026-11-14: https://www.cmegroup.com/markets/metals/base/micro-copper.contractSpecs.html
         "MHG": RollRule(offset_business_days=5, anchor="third_last_business_day_prior_month",
                         contract_months=(3, 5, 7, 9, 12)),
         # NYMEX platinum (PL): front months are Jan, Apr, Jul, Oct; last trade on the third
@@ -167,8 +173,10 @@ ROLL_RULES.update(
         # CME Globex symbols for the same bitcoin and ether contracts.
         **_rules("BTC ETH", offset_business_days=8, anchor="last_friday",
                  contract_months=_MONTHLY_CONTRACT_MONTHS),
-        # NYMEX micro Henry Hub gas (MNG): monthly, last trade on the fourth last business day
-        # of the month before the contract month (one day before NG).
+        # NYMEX micro Henry Hub gas (MNG): monthly contracts; "Trading terminates on the 4th last
+        # business day of the month prior to the contract month" (one day before NG).
+        # Checked 2026-11-14:
+        # https://www.cmegroup.com/markets/energy/natural-gas/micro-henry-hub-natural-gas.contractSpecs.html
         "MNG": RollRule(offset_business_days=5, anchor="fourth_last_business_day_prior_month",
                         contract_months=_MONTHLY_CONTRACT_MONTHS),
         # NYMEX RBOB gasoline (RB) and NY Harbor ULSD (HO): monthly, last trade on the last

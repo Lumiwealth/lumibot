@@ -81,7 +81,7 @@ move. On by default. Off: `intraday_bars_from_minutes=False` in the config, or
 `BACKTESTING_INTRADAY_BARS_FROM_MINUTES=false`. Each answer is counted in the telemetry
 cache layer `alpaca_bars_from_minutes`.
 
-Tests: `tests/test_alpaca_backtesting_multitimeframe_unit.py` (recorded XOM bars for a full
+Tests: `tests/test_alpaca_backtesting_multitimeframe_unit.py` (made-up bars shaped like provider bars, a full
 day and a half day, every session minute, 5 and 15-minute; fallback cases; no-trade periods).
 
 What it does not speed up: a strategy that asks for more bars than today's session holds

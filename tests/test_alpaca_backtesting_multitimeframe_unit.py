@@ -1326,20 +1326,70 @@ def test_alpaca_stock_daily_last_price_keeps_session_marks_without_building_bars
 
 # ---------------------------------------------------------------------------
 # 5, 10, 15 and 30-minute stock bars built from the cached 1-minute series.
-# Fixture: recorded XOM bars for 2025-11-26 (full day) and 2025-11-28 (half day).
+# Bars are made up (seeded), in the shape the provider returns: a full day (2025-11-26) and a
+# half day (2025-11-28), provider bars labeled by start time with pre-market and after-hours
+# bars that the 1-minute cache does not hold. No market data is stored in this repository.
 # ---------------------------------------------------------------------------
-import os
-
+import numpy as np
 import pytest
 
 _NY = pytz.timezone("America/New_York")
-_FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures", "alpaca_minute_rebuild")
+_MADE_UP_SESSIONS = (((2025, 11, 26), 390), ((2025, 11, 28), 210))  # minutes in the session
+
+
+def _made_up_minutes():
+    """Session minutes as the backtest's minute cache holds them (one row per session minute)."""
+    rng = np.random.default_rng(20251126)
+    frames = []
+    price = 100.0
+    for day, count in _MADE_UP_SESSIONS:
+        index = pd.date_range(_NY.localize(datetime(*day, 9, 30)), periods=count, freq="1min")
+        close = np.round(price + np.cumsum(rng.normal(0, 0.05, count)), 2)
+        open_ = np.round(np.concatenate([[price], close[:-1]]) + rng.normal(0, 0.01, count), 2)
+        high = np.round(np.maximum(open_, close) + np.abs(rng.normal(0, 0.03, count)), 2)
+        low = np.round(np.minimum(open_, close) - np.abs(rng.normal(0, 0.03, count)), 2)
+        volume = rng.integers(100, 50_000, count).astype(float)
+        frames.append(pd.DataFrame({"open": open_, "high": high, "low": low, "close": close, "volume": volume},
+                                   index=index))
+        price = float(close[-1])
+    frame = pd.concat(frames)
+    frame.index.name = "timestamp"
+    return frame
+
+
+def _made_up_provider(minute_df, minutes):
+    """The provider's own series: session bars (plain arithmetic, no shared code) plus extended hours."""
+    rng = np.random.default_rng(minutes)
+    rows = {}
+    position = 0
+    for day, count in _MADE_UP_SESSIONS:
+        session = minute_df.iloc[position: position + count]
+        position += count
+        for start in range(0, count, minutes):
+            chunk = session.iloc[start: start + minutes]
+            rows[chunk.index[0]] = (chunk["open"].iloc[0], chunk["high"].max(), chunk["low"].min(),
+                                    chunk["close"].iloc[-1], chunk["volume"].sum())
+        close_at = session.index[-1] + timedelta(minutes=1)
+        extended = list(pd.date_range(_NY.localize(datetime(*day, 4, 0)), session.index[0], freq=f"{minutes}min",
+                                      inclusive="left"))
+        extended += list(pd.date_range(close_at, _NY.localize(datetime(*day, 20, 0)), freq=f"{minutes}min",
+                                       inclusive="left"))
+        for stamp in extended:
+            if rng.random() < 0.6:  # extended-hours bars exist only where something traded
+                value = round(100 + rng.normal(0, 1), 2)
+                rows[stamp] = (value, value + 0.05, value - 0.05, value, float(rng.integers(1, 900)))
+    frame = pd.DataFrame.from_dict(rows, orient="index", columns=["open", "high", "low", "close", "volume"])
+    frame = frame.sort_index()
+    frame.index.name = "timestamp"
+    return frame
 
 
 def _recorded(name):
-    df = pd.read_csv(os.path.join(_FIXTURES, name))
-    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True).dt.tz_convert(_NY)
-    return df.set_index("timestamp")
+    """Kept name for the helpers below: returns the made-up series for a file-style name."""
+    minute_df = _made_up_minutes()
+    if "_minute_" in name:
+        return minute_df
+    return _made_up_provider(minute_df, int(name.split("_")[1].replace("minute", "")))
 
 
 def _minute_rebuild_source(tmp_path, monkeypatch, *, minute_df, provider=None, now=None):
@@ -1376,8 +1426,8 @@ def _provider_answer(provider, source, now, length, timestep):
     return provider.iloc[max(0, position - length + 1): position + 1]
 
 
-@pytest.mark.parametrize("minutes", [5, 15])
-def test_intraday_bars_built_from_cached_minutes_equal_recorded_provider_bars(tmp_path, monkeypatch, minutes):
+@pytest.mark.parametrize("minutes", [5, 10, 15, 30])
+def test_intraday_bars_built_from_cached_minutes_equal_provider_bars(tmp_path, monkeypatch, minutes):
     minute_df = _recorded("xom_minute_session_2025-11-26_2025-11-28.csv")
     provider = _recorded(f"xom_{minutes}minute_provider_2025-11-26_2025-11-28.csv")
     source, asset = _minute_rebuild_source(tmp_path, monkeypatch, minute_df=minute_df)
@@ -1401,7 +1451,7 @@ def test_intraday_bars_built_from_cached_minutes_equal_recorded_provider_bars(tm
                 compared += len(got)
             now += timedelta(minutes=1)
 
-    assert compared > 1000
+    assert compared > 300
     assert source.native_requests == []  # nothing was fetched
 
 

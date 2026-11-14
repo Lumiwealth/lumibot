@@ -273,3 +273,60 @@ def test_bulk_table_for_a_scanner_universe(monkeypatch, tmp_path):
         for name in ["ttm_revenue", "gross_margin", "pe_ratio"]
     )
     assert "sec" in table.loc["NOSUCH", "reasons"]["ttm_revenue"].lower()
+
+
+# ---- rank(): one call to screen a universe as of a date ----
+
+def _rank_universe(monkeypatch, tmp_path):
+    """EXM (growth, debt 0.5x), OTH (same filings), NOD (no debt filed)."""
+    return _sec(
+        monkeypatch,
+        tmp_path,
+        extra_tickers={
+            "1": {"ticker": "OTH", "cik_str": 333333, "title": "Other"},
+            "2": {"ticker": "NOD", "cik_str": 444444, "title": "No Debt Filed"},
+        },
+        extra_facts={"0000333333": _facts(), "0000444444": _facts(debt=False)},
+    )
+
+
+def test_rank_orders_a_universe_by_market_cap_as_of_a_date(monkeypatch, tmp_path):
+    sec = _rank_universe(monkeypatch, tmp_path)
+
+    table = sec.rank(
+        ["EXM", "OTH", "NOD", "NOSUCH"], "market_cap", top=2, as_of=AFTER_Q1,
+        prices={"EXM": 20.0, "OTH": 50.0, "NOD": 30.0, "NOSUCH": 999.0},
+    )
+
+    assert list(table.index) == ["OTH", "NOD"]  # 10 shares each: 500, 300 (EXM 200 cut by top=2)
+    assert list(table["rank"]) == [1, 2]
+    assert table.loc["OTH", "market_cap"] == pytest.approx(500)
+
+
+def test_rank_uses_only_shares_filed_before_the_date(monkeypatch, tmp_path):
+    facts = _facts()
+    facts["facts"]["dei"]["EntityCommonStockSharesOutstanding"]["units"]["shares"].append(_r("q224", "2024-07-25", 40))
+    sec = _sec(monkeypatch, tmp_path, facts)
+
+    before = sec.rank(["EXM"], "market_cap", as_of=datetime(2024, 8, 2, 15, 0, tzinfo=NY), prices={"EXM": 10.0})
+    after = sec.rank(["EXM"], "market_cap", as_of=datetime(2024, 8, 5, 10, 0, tzinfo=NY), prices={"EXM": 10.0})
+
+    assert before.loc["EXM", "market_cap"] == pytest.approx(100)  # filing day: still the old count
+    assert after.loc["EXM", "market_cap"] == pytest.approx(400)
+
+
+def test_rank_filters_and_never_treats_a_missing_value_as_passing(monkeypatch, tmp_path):
+    sec = _rank_universe(monkeypatch, tmp_path)
+
+    table = sec.rank(
+        ["EXM", "OTH", "NOD"], "revenue_growth_yoy", as_of=AFTER_Q1,
+        filters={"revenue_growth_yoy": (0.10, None), "debt_to_equity": (None, 0.5)},
+    )
+
+    assert sorted(table.index) == ["EXM", "OTH"]  # NOD filed no debt: not assumed to be zero
+    assert list(table.columns) == ["rank", "revenue_growth_yoy", "debt_to_equity"]
+    assert sec.rank(["EXM"], "revenue_growth_yoy", as_of=AFTER_Q1, filters={"debt_to_equity": (None, 0.4)}).empty
+    lowest_first = sec.rank(["EXM", "OTH"], "market_cap", ascending=True, as_of=AFTER_Q1, prices={"EXM": 9.0, "OTH": 5.0})
+    assert list(lowest_first.index) == ["OTH", "EXM"]
+    with pytest.raises(ValueError):
+        sec.rank(["EXM"], "not_a_metric", as_of=AFTER_Q1)

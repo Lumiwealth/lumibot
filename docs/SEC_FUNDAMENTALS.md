@@ -17,6 +17,7 @@ self.fundamentals.get_fact_history("AAPL", ["RevenueFromContractWithCustomerExcl
 self.fundamentals.get_metric("AAPL", "pe_ratio")  # ready-made metrics (FUNDAMENTAL_METRICS)
 self.fundamentals.get_metrics("AAPL")              # all metrics + reasons + source periods
 self.fundamentals.get_metrics_table(symbols)       # pandas DataFrame for a scanner
+self.fundamentals.rank(symbols, "market_cap", top=5) # screen + rank as of a date (filters={metric: (min, max)})
 self.fundamentals.get_company_facts("AAPL")        # compact; raw=True for the filtered payload
 self.fundamentals.get_filings("AAPL", form="10-K") # plus search_filing, get_filing_document, sections
 ```
@@ -48,6 +49,10 @@ Measured 2026-11-13 (MacBook, load average 12 to 22 from other jobs): 5 companie
 - Price metrics use `price=` (as traded on `as_of`) or `strategy.get_last_price(symbol)`.
 - Splits (`_SplitBasis`, `_sec_split_events`): every diluted EPS input and share count is converted from the share basis on its filing date to the basis at `as_of`, row by row, so a TTM built from a pre-split 10-K and a post-split 10-Q is not mixed. SEC split windows come from one period's EPS differing by a clean ratio between two filings, confirmed by the weighted diluted share count moving by the inverse (or two periods / large values); an EPS change without a share change is a restatement, not a split. Windows use the whole companyfacts file only to decide whether a basis is known, never to supply a value. A split inside a window, or after the company's latest filing, is dated from the backtest price data's `stock_splits` (cheap, always consulted) or `split_history` (Yahoo by default, called only when needed). A split-adjusted backtest price is converted back to the traded price using the price data's own splits after `as_of`; adjustment is proven by a split inside the data (closes jump or not) or the data source's `should_apply_stock_splits_to_positions`. Anything undatable is None with a reason. Real check: NVDA 2024-06-07 P/E 70.7, 2024-06-12 P/E 73.3 (before the fix 7.3). Tests: `tests/test_sec_fundamental_metrics_splits.py`.
 - The SEC ticker map is current, not point in time (for example XOM maps to a new 2026 holding-company CIK, 0002115436, with no history). Submissions JSON has `formerNames` (old names of the same CIK) but no predecessor-CIK field, so there is nothing reliable to follow. `_no_history_reason`: when the mapped CIK has no filing public at `as_of`, every metric is None with one reason naming the CIK and its first filing date, and statements get the same warning. Test: `tests/test_sec_fundamentals_ticker_history.py`.
+
+## Screeners (`rank`)
+
+`rank` is `get_metrics_table` plus filter, sort and `top`. Rows missing the ranking metric or a filtered metric are dropped (never zero). Market cap as of a date = cover-page shares from the latest filing public then (split-basis corrected) x the strategy's price at the bar, so a backtest screener needs companyfacts for the universe (`preload`, shared cache) and daily bars for the universe from the price source. No index membership data ships with LumiBot: a current-member list in a backtest has survivorship bias (documented in `docsrc/fundamentals.rst`). Examples: `lumibot/example_strategies/stock_top_market_cap.py`, `stock_revenue_growth_low_debt.py`; tests `tests/test_example_fundamental_screeners.py`.
 
 ## Rate limit
 

@@ -1595,6 +1595,51 @@ class SECFundamentals:
         frame.index.name = "symbol"
         return frame
 
+    def rank(
+        self,
+        symbols: Iterable[str],
+        by: str = "market_cap",
+        *,
+        top: int | None = None,
+        ascending: bool = False,
+        filters: dict[str, tuple[float | None, float | None]] | None = None,
+        as_of: Any | None = None,
+        prices: dict[str, float] | None = None,
+        preload: bool = True,
+    ):
+        """Screen and rank a universe by one metric as of a date, in one call.
+
+        ``by`` is one of ``FUNDAMENTAL_METRICS`` (largest first unless ``ascending``).
+        ``filters`` maps a metric to ``(minimum, maximum)``, either side None for no bound,
+        for example ``{"revenue_growth_yoy": (0.20, None), "debt_to_equity": (None, 0.5)}``.
+        A symbol whose ``by`` value or any filtered value is missing is left out: a missing
+        number is never treated as zero or as passing. ``top`` keeps the first N rows.
+
+        Returns a pandas DataFrame indexed by symbol with ``rank`` (1 is first), ``by`` and
+        each filtered metric. Uses the same point-in-time rules as ``get_metrics``: only
+        filings public at ``as_of`` (the strategy's current time in a backtest), and
+        ``prices`` or the strategy's last price for price-based metrics.
+        """
+        bounds = dict(filters or {})
+        columns = list(dict.fromkeys([str(by), *(str(name) for name in bounds)]))
+        unknown = [name for name in columns if name not in FUNDAMENTAL_METRICS]
+        if unknown:
+            raise ValueError(f"Unknown fundamental metric(s) {unknown}. Choose from: {', '.join(FUNDAMENTAL_METRICS)}.")
+        table = self.get_metrics_table(symbols, columns, as_of=as_of, prices=prices, preload=preload)[columns]
+        table = table.apply(lambda column: column.astype(float))
+        keep = table[by].notna()
+        for name, (low, high) in bounds.items():
+            keep &= table[name].notna()
+            if low is not None:
+                keep &= table[name] >= float(low)
+            if high is not None:
+                keep &= table[name] <= float(high)
+        table = table[keep].sort_values(by, ascending=ascending, kind="stable")
+        if top is not None:
+            table = table.head(int(top))
+        table.insert(0, "rank", range(1, len(table) + 1))
+        return table
+
     def _price_source_splits(self, symbol: str):
         """Loader for the backtest price data's split history.
 

@@ -20,6 +20,8 @@ lifecycle; no model API key is needed. Start with the
 
 * `Buy and hold <https://github.com/Lumiwealth/lumibot/blob/version/4.6.3/lumibot/example_strategies/stock_buy_and_hold.py>`_: a simple stock strategy.
 * `Momentum <https://github.com/Lumiwealth/lumibot/blob/version/4.6.3/lumibot/example_strategies/stock_momentum.py>`_: rank stocks by historical price changes.
+* `Top companies by market cap <https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/stock_top_market_cap.py>`_: a monthly stock screener using free point-in-time SEC data (see :doc:`fundamentals`).
+* `Revenue growth with low debt <https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/stock_revenue_growth_low_debt.py>`_: screen on revenue growth and debt to equity.
 * `Bracket orders <https://github.com/Lumiwealth/lumibot/blob/version/4.6.3/lumibot/example_strategies/stock_bracket.py>`_: order-entry and exit structure.
 
 These source examples have their own runner and provider requirements; start

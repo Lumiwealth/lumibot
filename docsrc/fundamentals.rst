@@ -132,6 +132,50 @@ a period the company did not report, or a latest filing more than 18 months old
 gives ``None``, not an old or made-up number. ``get_metrics(...)["periods"]``
 names the period, filing and availability time behind every value.
 
+Stock screener: rank by market cap, revenue growth or debt
+---------------------------------------------------------
+
+``rank`` screens and ranks a whole universe as of the backtest date in one
+call. It returns a pandas table, best first, with a ``rank`` column.
+
+Top 5 companies by market cap, rebalanced monthly:
+
+.. code-block:: python
+
+   top = self.fundamentals.rank(UNIVERSE, "market_cap", top=5)
+   targets = list(top.index)        # for example ["AAPL", "MSFT", ...]
+
+Revenue growth over 20% and debt to equity under 0.5, fastest growers first:
+
+.. code-block:: python
+
+   picks = self.fundamentals.rank(
+       UNIVERSE,
+       "revenue_growth_yoy",
+       top=5,
+       filters={"revenue_growth_yoy": (0.20, None), "debt_to_equity": (None, 0.5)},
+   )
+
+Each filter is ``(minimum, maximum)``; use ``None`` for no bound. Pass
+``ascending=True`` to rank smallest first (for example the lowest P/E).
+
+- **Market cap on a past date** is shares outstanding from the latest filing
+  that was public on that date, times the price that day. In a backtest the
+  price is the strategy's own price at the current bar, so the only market data
+  a screener needs is daily bars for its universe. ``prices={...}`` and
+  ``as_of=`` let you ask about any date outside a strategy.
+- **Missing numbers never pass.** A company with no value for the ranking
+  metric or for a filtered metric is left out, not treated as zero.
+- **You choose the universe.** LumiBot does not ship index membership lists.
+  If you pass today's members of an index to a backtest, the result has
+  survivorship bias: companies that were dropped from the index (often after
+  falling) are missing, and companies are included before they joined.
+
+Two complete strategies are in ``lumibot/example_strategies``:
+`stock_top_market_cap.py <https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/stock_top_market_cap.py>`_
+and
+`stock_revenue_growth_low_debt.py <https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/stock_revenue_growth_low_debt.py>`_.
+
 Methods
 -------
 
@@ -139,6 +183,7 @@ Methods
 
    self.fundamentals.preload(["AAPL", "MSFT", ...])        # warm a universe in one call
    self.fundamentals.get_metrics_table(["AAPL", "MSFT"])   # ratios for a universe (see above)
+   self.fundamentals.rank(["AAPL", "MSFT"], "market_cap")  # screen and rank a universe (see above)
    self.fundamentals.get_income_statement("AAPL")          # latest statement as of now
    self.fundamentals.get_balance_sheet("AAPL")
    self.fundamentals.get_cash_flow("AAPL")

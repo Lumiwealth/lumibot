@@ -170,6 +170,60 @@ TRADE_EVENT_LOG_COLUMNS = (
 class LumibotBrokerAPIError(Exception):
     pass
 
+
+# How a broker holds an order. One declaration per broker class (Broker.ORDER_SUPPORT)
+# answers supports_order(), drives the refusal in submit_order(), and is checked
+# against the real request builders by tests/test_broker_order_type_contract.py.
+ORDER_NATIVE = "native"            # sent to the broker; it holds the order even if LumiBot stops
+ORDER_SIMULATED = "simulated"      # LumiBot watches and acts; only works while the strategy runs
+ORDER_UNSUPPORTED = "unsupported"  # refused with a plain error, nothing is sent
+ORDER_UNKNOWN = "unknown"          # this broker has not declared it; LumiBot sends it as asked
+
+_ORDER_SUPPORT_LABELS = {
+    "market": "market orders",
+    "limit": "limit orders",
+    "stop": "stop orders",
+    "stop_limit": "stop-limit orders",
+    "trailing_stop": "trailing stop orders",
+    "smart_limit": "smart limit orders",
+    "bracket": "bracket orders",
+    "oto": "OTO orders",
+    "oco": "OCO orders",
+    "trailing_leg": "trailing stop legs on bracket, OTO or OCO orders",
+    "stop_limit_leg": "stop-limit legs on bracket or OTO orders",
+}
+
+
+class OrderSupport(tuple):
+    """Answer from Broker.supports_order: ``mode`` and a plain ``reason``.
+
+    ``supported`` is True for native or simulated orders, False when the broker
+    refuses them and None when the broker has not declared the case.
+    """
+
+    __slots__ = ()
+
+    def __new__(cls, mode, reason):
+        return super().__new__(cls, (mode, reason))
+
+    mode = property(lambda self: self[0])
+    reason = property(lambda self: self[1])
+
+    @property
+    def supported(self):
+        return {ORDER_NATIVE: True, ORDER_SIMULATED: True, ORDER_UNSUPPORTED: False}.get(self.mode)
+
+    @property
+    def native(self):
+        return self.mode == ORDER_NATIVE
+
+    @property
+    def simulated(self):
+        return self.mode == ORDER_SIMULATED
+
+    def __repr__(self):
+        return f"OrderSupport(mode={self.mode!r}, reason={self.reason!r})"
+
 class Broker(ABC):
     # Metainfo
     IS_BACKTESTING_BROKER = False
@@ -3151,10 +3205,129 @@ class Broker(ABC):
             changes["quantity"] = quantity
         return self._modify_order(order, **changes)
 
+    # Broker-declared order capabilities. Keys: market, limit, stop, stop_limit,
+    # trailing_stop, bracket, oto, oco, trailing_leg, stop_limit_leg. Values: ORDER_NATIVE,
+    # ORDER_SIMULATED, ORDER_UNSUPPORTED, or (mode, reason). Optional
+    # "advanced_entry_types" limits the entry type of bracket/OTO orders.
+    # ORDER_SUPPORT_BY_ASSET maps an asset type to overrides of the same keys.
+    # None means undeclared: supports_order answers "unknown" and nothing is refused.
+    ORDER_SUPPORT = None
+    ORDER_SUPPORT_BY_ASSET = None
+
+    def _declared_order_support(self, feature, asset_type=None):
+        """Return (mode, reason or None) for one feature from this broker's declaration."""
+        declaration = dict(self.ORDER_SUPPORT or {})
+        overrides = (self.ORDER_SUPPORT_BY_ASSET or {}).get(str(asset_type).lower()) if asset_type else None
+        if overrides:
+            declaration.update(overrides)
+        value = declaration.get(feature, ORDER_UNKNOWN)
+        if isinstance(value, tuple):
+            return value[0], value[1]
+        return value, None
+
+    def supports_order(self, order=None, *, order_type=None, order_class=None, asset_type=None,
+                       trailing_leg=None, stop_limit_leg=None) -> OrderSupport:
+        """Say whether this broker can place an order, and how.
+
+        Pass an Order, or describe one with ``order_type`` / ``order_class`` /
+        ``asset_type`` / ``trailing_leg``. The answer's ``mode`` is ``"native"``
+        (the broker holds it, even while your strategy is not running),
+        ``"simulated"`` (LumiBot watches price and acts, so it only works while the
+        strategy is running), ``"unsupported"`` (submit_order refuses it with this
+        reason and sends nothing) or ``"unknown"`` (not declared by this broker).
+        """
+        name = getattr(self, "name", None) or type(self).__name__
+        if order is not None:
+            order_type = order.order_type
+            order_class = order.order_class
+            asset = getattr(order, "asset", None)
+            asset_type = getattr(asset, "asset_type", None) if asset is not None else asset_type
+            trailing_leg = (
+                order.secondary_trail_price is not None
+                or order.secondary_trail_percent is not None
+                or any(child.order_type == Order.OrderType.TRAIL for child in (order.child_orders or []))
+            )
+            stop_limit_leg = (
+                order.secondary_stop_limit_price is not None
+                or any(child.order_type == Order.OrderType.STOP_LIMIT for child in (order.child_orders or []))
+            )
+        order_type = str(order_type or Order.OrderType.MARKET).lower()
+        order_class = str(order_class or Order.OrderClass.SIMPLE).lower()
+
+        if order_type == Order.OrderType.SMART_LIMIT:
+            # The broker only ever sees limit orders; LumiBot re-prices them.
+            base = self.supports_order(order_type=Order.OrderType.LIMIT, order_class=order_class,
+                                       asset_type=asset_type, trailing_leg=trailing_leg,
+                                       stop_limit_leg=stop_limit_leg)
+            if base.mode in (ORDER_UNSUPPORTED, ORDER_UNKNOWN):
+                return base
+            return OrderSupport(ORDER_SIMULATED, "LumiBot re-prices smart limit orders only while the strategy "
+                                "is running; the last limit price stays at the broker when it stops.")
+
+        features = []
+        if order_class != Order.OrderClass.OCO:
+            features.append(order_type)
+        if order_class not in (Order.OrderClass.SIMPLE, Order.OrderClass.MULTILEG):
+            features.append(order_class)
+        if trailing_leg and order_class != Order.OrderClass.SIMPLE:
+            features.append("trailing_leg")
+        if stop_limit_leg and order_class in (Order.OrderClass.BRACKET, Order.OrderClass.OTO):
+            features.append("stop_limit_leg")
+
+        results = []
+        for feature in features:
+            mode, reason = self._declared_order_support(feature, asset_type)
+            label = _ORDER_SUPPORT_LABELS.get(feature, feature)
+            if reason is None:
+                reason = {
+                    ORDER_NATIVE: f"{label} are held by {name}.",
+                    ORDER_SIMULATED: f"LumiBot simulates {label} on {name}; they only work while the strategy is running.",
+                    ORDER_UNSUPPORTED: f"{label[0].upper() + label[1:]} are not supported by {name}.",
+                    ORDER_UNKNOWN: f"{name} has not declared whether it supports {label}; LumiBot sends them as asked.",
+                }[mode]
+            results.append((mode, reason))
+
+        if order_class in (Order.OrderClass.BRACKET, Order.OrderClass.OTO):
+            allowed = (self.ORDER_SUPPORT or {}).get("advanced_entry_types")
+            if allowed is not None and order_type not in allowed:
+                results.append((ORDER_UNSUPPORTED, f"A {order_type} entry on a {order_class} order is not supported "
+                                f"by {name}; use a {' or '.join(sorted(allowed))} entry."))
+
+        for wanted in (ORDER_UNSUPPORTED, ORDER_UNKNOWN, ORDER_SIMULATED):
+            matching = [reason for mode, reason in results if mode == wanted]
+            if matching:
+                return OrderSupport(wanted, " ".join(matching))
+        return OrderSupport(ORDER_NATIVE, " ".join(reason for _, reason in results) or f"Held by {name}.")
+
+    def _refuse_unsupported_order(self, order) -> bool:
+        """Mark an order the broker declares unsupported as an error; True if refused."""
+        if self.ORDER_SUPPORT is None and type(self).supports_order is Broker.supports_order:
+            return False  # undeclared (including the backtester): nothing to check, no hot-path cost
+        try:
+            support = self.supports_order(order)
+        except Exception:  # a broken declaration must never block a supported order
+            return False
+        if support.mode != ORDER_UNSUPPORTED:
+            return False
+        error = LumibotBrokerAPIError(support.reason)
+        logger.error(f"Order refused, nothing was sent: {support.reason}")
+        order.set_error(error)
+        try:
+            self._process_trade_event(order, self.ERROR_ORDER, error=error)
+        except Exception:
+            pass
+        return True
+
     def submit_order(self, order) -> Order:
-        """Conform an order for an asset to broker constraints and submit it."""
+        """Conform an order for an asset to broker constraints and submit it.
+
+        An order this broker declares unsupported (see ``supports_order``) is
+        refused with a plain error and never sent.
+        """
         if order is None:
             raise ValueError("Cannot submit a null order")
+        if self._refuse_unsupported_order(order):
+            return order
         self.resolve_option_order_intent(order)
         self._conform_order(order)
         return self._submit_order(order)
@@ -3266,6 +3439,13 @@ class Broker(ABC):
         for order in orders:
             if order is None:
                 raise ValueError("Cannot submit a null order")
+        if not kwargs.get('is_multileg'):
+            # Independent orders: refuse only the ones this broker cannot hold.
+            refused = [order for order in orders if self._refuse_unsupported_order(order)]
+            orders = [order for order in orders if all(order is not other for other in refused)]
+            if not orders:
+                return refused
+        for order in orders:
             self.resolve_option_order_intent(order, additional_active_orders=resolved_orders)
             resolved_orders.append(order)
         if hasattr(self, '_submit_orders'):

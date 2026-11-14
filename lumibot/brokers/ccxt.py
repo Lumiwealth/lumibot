@@ -8,7 +8,8 @@ from threading import Lock
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
-from .broker import Broker
+from .broker import Broker, LumibotBrokerAPIError
+from lumibot.brokers.broker import ORDER_NATIVE, ORDER_SIMULATED, ORDER_UNSUPPORTED, OrderSupport  # noqa: F401
 
 logger = LazyLogger(__name__)
 TYPE_CHECKING = False
@@ -38,6 +39,22 @@ class Ccxt(Broker):
     """
     Crypto broker using CCXT.
     """
+
+    # Trailing stops depend on the exchange (see supports_order); compound orders
+    # use the exchange's own attached-order parameters through custom_params.
+    ORDER_SUPPORT = {
+        "market": ORDER_NATIVE, "limit": ORDER_NATIVE, "stop": ORDER_NATIVE, "stop_limit": ORDER_NATIVE,
+        "trailing_stop": ORDER_NATIVE,
+        "bracket": (ORDER_UNSUPPORTED, "Bracket orders are not supported by CCXT in LumiBot; use the exchange's "
+                    "native attached-order parameters through custom_params."),
+        "oto": (ORDER_UNSUPPORTED, "OTO orders are not supported by CCXT in LumiBot; use the exchange's native "
+                "attached-order parameters through custom_params."),
+        "oco": (ORDER_UNSUPPORTED, "OCO orders are not supported by CCXT in LumiBot; use the exchange's native "
+                "attached-order parameters through custom_params."),
+        "trailing_leg": ORDER_UNSUPPORTED,
+        "stop_limit_leg": ORDER_UNSUPPORTED,
+    }
+
 
     def __init__(self, config, data_source: CcxtData = None, max_workers=20, chunk_size=100, **kwargs):
         from lumibot.data_sources import CcxtData
@@ -626,14 +643,51 @@ class Ccxt(Broker):
         # optional submission worker gets here. Do not enqueue it a second time.
         return [] if order._new_event.is_set() or order._closed_event.is_set() else [order]
 
+    def supports_order(self, order=None, *, order_type=None, order_class=None, asset_type=None,
+                       trailing_leg=None, stop_limit_leg=None):
+        """Trailing stops follow the exchange's own CCXT capability flags."""
+        support = super().supports_order(order, order_type=order_type, order_class=order_class,
+                                         asset_type=asset_type, trailing_leg=trailing_leg,
+                                         stop_limit_leg=stop_limit_leg)
+        kind = str(order.order_type if order is not None else order_type or "").lower()
+        if kind != Order.OrderType.TRAIL or support.mode != ORDER_NATIVE:
+            return support
+        has = getattr(getattr(self, "api", None), "has", {}) or {}
+        exchange = getattr(getattr(self, "api", None), "id", "this exchange")
+        if order is None:
+            percent = amount = True
+        else:
+            percent, amount = order.trail_percent is not None, order.trail_price is not None
+        if (percent and has.get("createTrailingPercentOrder")) or (amount and has.get("createTrailingAmountOrder")):
+            return support
+        return OrderSupport(ORDER_UNSUPPORTED,
+                            f"Trailing stop orders of this kind are not supported by {exchange} through CCXT.")
+
     def _submit_order(self, order):
         """Submit through CCXT's unified order API, preserving native parameters."""
         if order.order_class not in (None, "simple"):
-            order.set_error("CCXT compound order lifecycle is not implemented; use native attached-order parameters")
+            order.set_error(LumibotBrokerAPIError(
+                f"{order.order_class} orders are not supported by CCXT in LumiBot; use the exchange's native "
+                "attached-order parameters through custom_params"
+            ))
             return order
         if order.quantity is None or order.quantity <= 0:
             order.set_error("Order quantity must be greater than zero")
             return order
+        trailing_params = None
+        if order.order_type == Order.OrderType.TRAIL:
+            # CCXT's unified trailing fields; only send them where the exchange
+            # declares support, otherwise refuse instead of sending a plain order.
+            has = getattr(self.api, "has", {}) or {}
+            if order.trail_percent is not None and has.get("createTrailingPercentOrder"):
+                trailing_params = {"trailingPercent": str(order.trail_percent)}
+            elif order.trail_price is not None and has.get("createTrailingAmountOrder"):
+                trailing_params = {"trailingAmount": str(order.trail_price)}
+            else:
+                order.set_error(LumibotBrokerAPIError(
+                    f"Trailing stop orders of this kind are not supported by {self.api.id} through CCXT."
+                ))
+                return order
         self._ensure_markets_loaded()
         try:
             market = self.get_market(order.pair or order.asset, order.quote)
@@ -667,6 +721,8 @@ class Ccxt(Broker):
                 params["tradeType"] = "MARGIN_TRADE"
             if order.stop_price is not None:
                 params["triggerPrice"] = str(order.stop_price)
+            if trailing_params:
+                params.update(trailing_params)
             if order.time_in_force and order.time_in_force.lower() != "day":
                 params["timeInForce"] = order.time_in_force.upper()
             if getattr(order, "reduce_only", False):
@@ -754,7 +810,7 @@ class Ccxt(Broker):
 
     def create_order_args(self, order):
         """Build the unified symbol, type, side, coin quantity and optional price."""
-        order_type = {"stop": "market", "stop_limit": "limit"}.get(order.order_type, order.order_type)
+        order_type = {"stop": "market", "stop_limit": "limit", "trailing_stop": "market"}.get(order.order_type, order.order_type)
         price = str(order.limit_price) if order.limit_price is not None else None
         if order_type == "market" and order.side == "buy" and self.api.options.get("createMarketBuyOrderRequiresPrice"):
             price = self.data_source.get_last_price(order.asset, quote=order.quote)

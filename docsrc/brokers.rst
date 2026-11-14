@@ -176,6 +176,7 @@ Broker setup is easier on `BotSpot <https://botspot.trade/sales?showLogin=1&utm_
    Prediction markets <brokers.prediction_markets>
    Backtesting data sources <brokers.data_sources>
    All brokers A to Z <brokers.all>
+   Order types by broker <brokers.order_support>
 
 Brokers by type
 ---------------
@@ -188,6 +189,7 @@ Brokers by type
 * **Prediction markets:** Kalshi and :doc:`Polymarket <brokers.polymarket>`. See :doc:`brokers.prediction_markets`.
 * **Backtesting data sources:** you do not need a broker to backtest. See :doc:`brokers.data_sources` for Yahoo, Polygon, ThetaData, Databento, Interactive Brokers, Alpaca and your own CSV data.
 * **Every broker and exchange:** :doc:`brokers.all` lists all of them in one table you can filter.
+* **Stops, trailing stops, brackets and OCO:** :doc:`brokers.order_support` shows which broker can hold which order.
 
 Frequently asked questions
 --------------------------

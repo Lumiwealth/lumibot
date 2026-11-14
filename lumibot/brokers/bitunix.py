@@ -6,6 +6,7 @@ import time
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
 from .broker import Broker, LumibotBrokerAPIError
+from lumibot.brokers.broker import ORDER_NATIVE, ORDER_SIMULATED, ORDER_UNSUPPORTED  # noqa: F401
 
 logger = LazyLogger(__name__)
 TYPE_CHECKING = False
@@ -65,6 +66,25 @@ class Bitunix(Broker):
     - All asset symbols should be the full Bitunix symbol (e.g., "BTCUSDT").
     - Leverage and margin settings are managed per-symbol as needed.
     """
+
+    # The futures order endpoint accepts only MARKET and LIMIT; protective exits ride
+    # on the entry as take-profit / stop-loss (bracket or OTO).
+    ORDER_SUPPORT = {
+        "market": ORDER_NATIVE, "limit": ORDER_NATIVE,
+        "stop": (ORDER_UNSUPPORTED, "Stop orders are not supported by Bitunix: its order endpoint accepts only "
+                 "MARKET and LIMIT. Attach a stop loss to the entry instead (secondary_stop_price)."),
+        "stop_limit": (ORDER_UNSUPPORTED, "Stop-limit orders are not supported by Bitunix: its order endpoint "
+                       "accepts only MARKET and LIMIT. Attach a stop loss to the entry instead."),
+        "trailing_stop": (ORDER_UNSUPPORTED, "Trailing stop orders are not supported by Bitunix: the exchange API "
+                          "has no trailing field. Use a fixed secondary_stop_price instead."),
+        "bracket": ORDER_NATIVE, "oto": ORDER_NATIVE,
+        "oco": (ORDER_UNSUPPORTED, "OCO orders are not supported by Bitunix. Use a bracket or OTO entry with "
+                "secondary_limit_price / secondary_stop_price instead."),
+        "trailing_leg": (ORDER_UNSUPPORTED, "Trailing stop orders are not supported by Bitunix: the exchange API "
+                         "has no trailing field. Use a fixed secondary_stop_price instead."),
+        "stop_limit_leg": ORDER_NATIVE,
+    }
+
 
     ASSET_TYPE_MAP = dict(
         stock=[],
@@ -284,12 +304,61 @@ class Bitunix(Broker):
             return "LIMIT"
         elif order_type == Order.OrderType.MARKET:
             return "MARKET"
-        elif order_type == Order.OrderType.STOP:
-            return "STOP"
-        elif order_type == Order.OrderType.STOP_LIMIT:
-            return "STOP_LIMIT"
-        else:
-            return "MARKET"  # Default to MARKET for unknown types
+        # The order endpoint documents only MARKET and LIMIT. Never fall back to
+        # MARKET: an unknown type sent as MARKET executes something nobody asked for.
+        raise LumibotBrokerAPIError(
+            f"{order_type} orders are not supported by Bitunix: its order endpoint accepts only "
+            "MARKET and LIMIT. Attach a stop loss to the entry instead (secondary_stop_price)."
+        )
+
+    def _attached_exits(self, order: Order):
+        """Return the (take profit, stop loss, stop loss limit) this entry carries.
+
+        Bitunix holds protective exits only as tpPrice/slPrice on the entry request
+        (optional slOrderType=LIMIT with slOrderPrice). Every other shape is refused
+        here, before any request is sent, so nothing is silently changed or dropped.
+        """
+        order_type = order.order_type
+        if order_type not in (Order.OrderType.MARKET, Order.OrderType.LIMIT):
+            self._map_type_to_bitunix(order_type)  # raises the plain error
+        if order.order_class in (Order.OrderClass.OCO, Order.OrderClass.MULTILEG):
+            raise LumibotBrokerAPIError(
+                f"{order.order_class} orders are not supported by Bitunix. Use a bracket or OTO entry "
+                "with secondary_limit_price / secondary_stop_price instead."
+            )
+
+        tp = order.secondary_limit_price if order.secondary_limit_price is not None else getattr(order, "take_profit_price", None)
+        sl = order.secondary_stop_price if order.secondary_stop_price is not None else getattr(order, "stop_loss_price", None)
+        sl_limit = order.secondary_stop_limit_price
+        if sl_limit is None:
+            sl_limit = getattr(order, "stop_loss_limit_price", None)
+        trailing = order.secondary_trail_price is not None or order.secondary_trail_percent is not None
+
+        if order.order_class in (Order.OrderClass.BRACKET, Order.OrderClass.OTO):
+            # A caller may hand over child orders instead of secondary prices; read them
+            # so a child is never dropped.
+            for child in order.child_orders or []:
+                if child.order_type == Order.OrderType.LIMIT:
+                    tp = child.limit_price if tp is None else tp
+                elif child.order_type == Order.OrderType.STOP:
+                    sl = child.stop_price if sl is None else sl
+                elif child.order_type == Order.OrderType.STOP_LIMIT:
+                    sl = child.stop_price if sl is None else sl
+                    sl_limit = child.stop_limit_price if sl_limit is None else sl_limit
+                elif child.order_type == Order.OrderType.TRAIL:
+                    trailing = True
+                else:
+                    raise LumibotBrokerAPIError(
+                        f"A {child.order_type} child order is not supported by Bitunix."
+                    )
+        if trailing:
+            raise LumibotBrokerAPIError(
+                "Trailing stop orders are not supported by Bitunix: the exchange API has no trailing "
+                "field. Use a fixed secondary_stop_price instead."
+            )
+        if sl_limit is not None and sl is None:
+            raise LumibotBrokerAPIError("A stop-limit exit needs a stop trigger price on Bitunix.")
+        return tp, sl, sl_limit
 
     def _read_position_mode(self):
         """Account mode belongs to the caller; order submission only reads it."""
@@ -402,6 +471,9 @@ class Bitunix(Broker):
         try:
             from decimal import ROUND_DOWN
 
+            # Refuse unsupported shapes before any account or leverage request.
+            tp, sl, sl_limit = self._attached_exits(order)
+
             quantity_step, price_step, minimum = self._get_trading_pair_rules(symbol)
             quantity = abs(Decimal(str(order.quantity))).quantize(quantity_step, rounding=ROUND_DOWN)
             if not quantity.is_finite() or quantity <= 0 or quantity < minimum:
@@ -476,11 +548,8 @@ class Bitunix(Broker):
             if price is not None:
                 params["price"] = format(price, "f")
 
-            # TP/SL
-            tp = getattr(order, "secondary_limit_price", None) or getattr(order, "take_profit_price", None)
-            sl = getattr(order, "secondary_stop_price", None) or getattr(order, "stop_loss_price", None)
-
-            for field, value in (("take_profit_price", tp), ("stop_loss_price", sl)):
+            # TP/SL ride on the entry request (documented tpPrice/slPrice fields).
+            for field, value in (("take_profit_price", tp), ("stop_loss_price", sl), ("slOrderPrice", sl_limit)):
                 if value is not None:
                     trigger = Decimal(str(value)).quantize(price_step, rounding=ROUND_DOWN)
                     if not trigger.is_finite() or trigger <= 0:
@@ -488,6 +557,8 @@ class Bitunix(Broker):
                             f"Bitunix {symbol} {field} must be positive after precision rounding"
                         )
                     params[field] = format(trigger, "f")
+            if sl_limit is not None:
+                params["slOrderType"] = "LIMIT"
 
             # Fill tracking must use the executable size, not the unrounded strategy request.
             order.quantity = quantity

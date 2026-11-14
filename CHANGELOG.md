@@ -6,11 +6,26 @@
 - `self.fundamentals.preload(symbols)` warms SEC fundamentals for a whole scanner universe in one call, downloading in parallel under the SEC's 10 requests per second limit and reporting symbols the SEC does not cover.
 - Ready-made point-in-time fundamentals: `self.fundamentals.get_metric(symbol, name)`, `get_metrics(symbol)` and `get_metrics_table(symbols)` (a pandas table for scanners). TTM revenue, net income and diluted EPS, revenue growth year over year, gross and net margin, TTM free cash flow, debt to equity, current ratio, shares outstanding, book value per share, market cap, P/E, P/S and P/B, all from filings public at the backtest date. Missing inputs give None with a reason; nothing is estimated or carried forward. Price ratios use `price=` or the strategy's last price.
 - `self.fundamentals.get_fact_history(symbol, tags)` returns every reported period of a fact with the value known at the backtest date, for growth and trailing-twelve-month calculations.
+- `broker.supports_order(order)` (or `supports_order(order_type=..., order_class=..., asset_type=..., trailing_leg=..., stop_limit_leg=...)`) says whether a broker can place an order and how: `native` (the broker holds it, even while the strategy is stopped), `simulated` (LumiBot acts for you, only while the strategy runs), `unsupported` (refused, with the plain reason) or `unknown` (not declared). Each broker answers from one `ORDER_SUPPORT` declaration, which `submit_order`/`submit_orders` also use to refuse unsupported orders before anything is sent. A contract test checks every declaration against the broker's real request builder, and another checks the docs table against the declarations.
+- `docsrc/brokers.order_support.rst` explains what simulated orders do when a strategy is not running continuously (ProjectX bracket exits and smart limit re-pricing), with tests for each restart case.
+- A trailing stop can be the stop leg of a bracket or OTO order on its own: pass `secondary_trail_percent` or `secondary_trail_price` (a fixed `secondary_stop_price` is optional). Before, an OTO raised an error and a bracket silently built only its target. Backtests fill the trailing leg; brokers that cannot hold it refuse it.
+- `docsrc/brokers.order_support.rst`: which broker can hold which order (stops, trailing stops, brackets, OTO, OCO), checked by `tests/test_broker_order_type_contract.py`.
+- `docsrc/backtesting.how_orders_fill.rst`: how stops, gaps and bars that touch both exits are filled.
 
 ### Changed
 - SEC statement calls are now in-memory lookups: each company's facts are parsed once per process into a table keyed by when each value became public. 180 statement calls (5 companies, 12 dates) went from about 25 s to 0.24 s on a warm cache.
 - In backtests, raw SEC files are shared through LumiBot's remote backtest cache under provider keys (`sec/companyfacts/CIK...json`, `sec/submissions/...`, `sec/company_tickers.json`), so another backtest machine downloads nothing already fetched. A shared copy fetched before the backtest's end date is refreshed at most once a day.
 - Default SEC request spacing is 0.11 s (was 0.2 s) and is shared across threads.
+- ⚠️ Orders a broker cannot hold are now refused with a plain "not supported" error and nothing is sent, instead of being changed into a different order. Strategies that relied on the old behavior will see an error order:
+  - Bitunix: standalone stop, stop-limit and trailing orders (were sent with no trigger price, or as market), and OCO. Use a bracket/OTO entry with `secondary_stop_price`.
+  - Tradovate: trailing stops (were sent as market), and bracket, OTO and OCO orders (were sent as the bare entry with no exits).
+  - Alpaca: a trailing leg on a bracket/OTO/OCO (was sent as a fixed stop) and a stop or stop-limit bracket entry (was sent as market).
+  - Tradier: trailing stops and trailing legs (were sent without the trail).
+  - CCXT: trailing stops on exchanges without CCXT trailing support (were sent without the trail).
+  - Schwab: any order its builder cannot express (for example trailing stops) is now an error order with an error event, instead of staying unprocessed with only a log line.
+  - Interactive Brokers (Client Portal): bracket, OTO and OCO orders (were sent as the bare entry with no exits).
+  - ProjectX: OTO and OCO orders (the exit was dropped or merged into the entry), stop-limit legs on brackets (sent as a plain stop), and stop-limit or trailing orders now say "not supported" instead of "Unsupported order type".
+- ⚠️ Backtests: when one bar reaches both a bracket/OCO target and its stop, the stop now fills (the target used to win, even when the bar opened below the stop). If the bar opens beyond the target, the target fills at the open. Results for tight brackets on coarse bars may be lower and more realistic.
 
 ### Fixed
 - A filing made after the close was visible at that morning's open in backtests. Facts now become usable at the SEC acceptance time (next session's open if accepted after 4:00 PM New York), or at 9:30 AM the day after the filing date when no acceptance time is published.
@@ -20,6 +35,13 @@
 - A ticker the SEC now maps to a new registrant (for example a new holding company) with no filings before the date asked for gives one plain reason on every metric and a statement warning, naming the CIK and its first filing date, instead of a list of "not filed" reasons. SEC data does not link a new registrant to its predecessor, so none is guessed.
 - The shared bar cache no longer downloads the same file from the remote cache (S3) again and again. It asked S3 before the local disk on every read and kept only 64 files in memory, so a cloud options backtest re-downloaded each contract's file 10 to 25 times (2,000 to 4,100 S3 requests for 35 to 80 contracts). A file this process already downloaded or wrote is now read from local disk whenever it covers the requested range; when it does not (for example today's still-open bars, which are never cached), S3 is asked exactly as before, so newer data from other processes is still found. In a 40-file, 20-read test the S3 requests dropped from 800 to 40. Every provider that uses the shared bar cache benefits.
 - The shared bar cache's in-memory layer is limited by size instead of a count of 64 files. New `LUMIBOT_SHARED_BARS_MEMORY_MB` (default 256).
+- Alpaca bracket and OTO limit entries are sent as limit orders (they were always sent as market).
+- Bitunix stop-limit exits send `slOrderType=LIMIT` with `slOrderPrice`, and caller-built bracket/OTO child orders are read instead of dropped.
+- Tradovate stop-limit orders send their limit price (`price`) along with `stopPrice`.
+- A stop-limit written with `stop_limit_price` never filled in backtests and reached CCXT without its limit; one written with `limit_price` reached Alpaca, Tradier and Schwab without it. Both names now carry the value.
+- Schwab stock brackets and OTO orders were never sent (their `sell_to_close` exit legs had no stock template). Exit legs now map to SELL / BUY_TO_COVER.
+- CCXT sends trailing stops with CCXT's unified `trailingPercent`/`trailingAmount` where the exchange supports them.
+- Interactive Brokers (Client Portal) limit and stop prices are rounded to the tick in decimal arithmetic. Float floor division moved exact prices down a tick (a 101.50 limit was sent as 101.49).
 
 ## 4.6.56 - 2026-11-13
 

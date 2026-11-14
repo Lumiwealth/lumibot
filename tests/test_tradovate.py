@@ -1346,3 +1346,60 @@ class TestTradovateTokenRenewal:
 if __name__ == "__main__":
     # Run all tests when file is executed directly
     pytest.main([__file__, "-v"])
+
+
+class TestTradovateOrderShapes:
+    """Placed as asked, or refused with a plain error; never silently changed.
+
+    Request shape from Tradovate's documented order fields: "a Limit or Stop order
+    must use the price parameter, but a Stop-Limit will require a price and a
+    stopPrice" (partner.tradovate.com, orders/place-oco and placeorder).
+    """
+
+    def _broker(self):
+        from lumibot.brokers import Tradovate
+
+        broker = Tradovate.__new__(Tradovate)
+        broker.account_spec = "TEST"
+        broker.account_id = 123
+        broker.trading_token = "token"
+        broker.trading_api_url = "https://example.invalid/v1"
+        broker._ensure_connected = MagicMock()
+        broker._get_headers = MagicMock(return_value={})
+        broker._process_trade_event = MagicMock()
+        response = MagicMock()
+        response.json.return_value = {"orderId": 77}
+        response.raise_for_status.return_value = None
+        broker._request = MagicMock(return_value=response)
+        return broker
+
+    def _order(self, **kwargs):
+        from lumibot.entities import Asset, Order
+
+        return Order("Strategy", Asset("MESZ5", asset_type=Asset.AssetType.FUTURE), 1, side="sell", **kwargs)
+
+    def test_stop_limit_sends_limit_as_price(self):
+        broker = self._broker()
+        broker._submit_order(self._order(stop_price=5000.25, stop_limit_price=4999.75))
+        payload = broker._request.call_args.kwargs["json"]
+        assert payload["orderType"] == "StopLimit"
+        assert payload["stopPrice"] == 5000.25
+        assert payload["price"] == 4999.75
+
+    @pytest.mark.parametrize("kwargs", [{"trail_percent": 1.5}, {"trail_price": 4.0}])
+    def test_trailing_stop_is_refused_not_sent_as_market(self, kwargs):
+        broker = self._broker()
+        order = broker._submit_order(self._order(**kwargs))
+        broker._request.assert_not_called()
+        assert order.status == "error"
+        assert "not supported by tradovate" in order.error_message.lower()
+
+    @pytest.mark.parametrize("order_class", ["bracket", "oto"])
+    def test_bracket_and_oto_are_refused_not_sent_without_exits(self, order_class):
+        broker = self._broker()
+        order = self._order(order_class=order_class, secondary_stop_price=4990.0)
+        order.side = "buy"
+        order = broker._submit_order(order)
+        broker._request.assert_not_called()
+        assert order.status == "error"
+        assert "not supported by tradovate" in order.error_message.lower()

@@ -106,6 +106,12 @@ all legs or none. The backtesting broker matches that:
   contract trades. On illiquid options that can leave naked short legs for days, so
   spreads must be submitted as one multi-leg order.
 - Regression tests: `tests/backtest/test_multileg_atomic_package_fill.py`.
+- Expiry: in-the-money options on one underlying that deliver shares in both directions (both
+  legs of a vertical held to expiry) all settle in cash at intrinsic value. Before, each leg
+  settled alone: when the account could not pay for the long leg's shares it was cash-settled
+  while the short leg was still assigned, leaving a stray 100-share stock position.
+  Single-direction options keep exercise and assignment. Regression test:
+  `tests/test_option_spread_expiry_settlement.py`.
 
 ## Broker notes (public sources, summarized)
 

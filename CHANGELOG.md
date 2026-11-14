@@ -1,9 +1,16 @@
 # Changelog
 
-## 4.6.60 - Unreleased
+## 4.6.60 - 2026-11-14
+
+### Added
+- `DATADOWNLOADER_REQUEST_CLASS`: optional label for Data Downloader requests. When set, every queued request carries it as `"request_class"` in the submit body so a downloader can group or prioritize requests by kind of caller. Unset or blank sends nothing and the submit body is unchanged. See `docsrc/environment_variables.rst`.
+
+### Changed
+- Contributor docs (`AGENTS.md`, `CLAUDE.md`): run tests with `PYTHON_DOTENV_DISABLED=1 LUMIBOT_DISABLE_DOTENV=1` when a local dotenv selects a remote data source.
 
 ### Fixed
 - ⚠️ Backtests: a multi-leg option order (`submit_order([...], is_multileg=True)`, the default when every leg is an option) with market legs now fills as one package: every leg on the same bar, at the first bar where every leg has a price for that bar, or not at all. Before, each leg filled whenever its own contract next printed, so a sparse-option iron condor could open its legs days apart and hold naked short options in between. Closing packages follow the same rule. If a leg's time in force ends first, the whole package is canceled with the reason in `error_message`. Every option fill price in a backtest (single legs and packages) now belongs to the fill bar: a real quote on that bar, else a real trade on that bar, else a Black-Scholes estimate (underlying price on the bar, implied volatility from the contract's last real trade, or the nearest strike's). Estimated fills are used as computed (no penalty by default; the optional `LUMIBOT_BACKTEST_OPTION_ESTIMATE_PENALTY_PCT` setting, default 0, makes buys pay more and sells receive less), are marked `price_source=estimated` in the trades file and are counted in `data_provenance.json` under `optionFillPrices`. Before, single-leg option market orders could fill at an earlier bar's price. **This changes results for existing options backtests that submit market multi-leg orders on thinly traded contracts.** Orders submitted one at a time are unchanged; the `submit_order` docs now say to submit spreads as one multi-leg order, and the `strangle.py` example does.
+- Backtests: an option spread held to expiry with both legs in the money no longer leaves a stray stock position. Each leg used to settle alone: when the account could not pay for the long call's shares, the long leg was cash-settled while the short leg was still assigned, leaving 100 short shares per contract. In-the-money options on one underlying that deliver shares in both directions now all settle in cash at intrinsic value; options that deliver in one direction only keep exercise and assignment. See "Spreads held to expiry" in `docsrc/backtesting.how_orders_fill.rst`.
 
 ## 4.6.59 - 2026-11-14
 

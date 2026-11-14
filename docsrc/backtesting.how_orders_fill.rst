@@ -113,3 +113,18 @@ error was about 1% of the price for at-the-money contracts, about 2 to 3% for 5 
 delta wings, and larger in percent for deep out-of-the-money contracts worth a few cents
 (about 1 cent in dollars). When the previous trade was 15 minutes or more old, errors grew
 (at-the-money median about 13 to 31 cents). Treat estimated fills as approximations.
+
+Spreads held to expiry
+~~~~~~~~~~~~~~~~~~~~~~
+
+When options on the same underlying expire in the money and deliver shares in both
+directions (for example both legs of a call debit spread, where the long call would
+buy shares and the short call would sell them), every one of those options settles in
+cash at its intrinsic value. No stock position is left behind.
+
+Example: long the 100 call and short the 105 call, underlying at 110 at expiry. The long
+call settles for +10.00 and the short call for -5.00, so the spread pays 5.00 per share
+(500 per contract) in cash.
+
+Options that deliver in one direction only (a single long call, a covered call, a
+cash-secured put) keep the normal exercise and assignment behavior.

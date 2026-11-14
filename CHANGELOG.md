@@ -2,6 +2,8 @@
 
 ## 4.6.57 - 2026-11-13
 
+Deploy marker: 7e46462269dff3742078c6c73a42b37be9137350
+
 ### Added
 - `self.fundamentals.preload(symbols)` warms SEC fundamentals for a whole scanner universe in one call, downloading in parallel under the SEC's 10 requests per second limit and reporting symbols the SEC does not cover.
 - Ready-made point-in-time fundamentals: `self.fundamentals.get_metric(symbol, name)`, `get_metrics(symbol)` and `get_metrics_table(symbols)` (a pandas table for scanners). TTM revenue, net income and diluted EPS, revenue growth year over year, gross and net margin, TTM free cash flow, debt to equity, current ratio, shares outstanding, book value per share, market cap, P/E, P/S and P/B, all from filings public at the backtest date. Missing inputs give None with a reason; nothing is estimated or carried forward. Price ratios use `price=` or the strategy's last price.

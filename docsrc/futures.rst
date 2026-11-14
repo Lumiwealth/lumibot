@@ -470,3 +470,112 @@ Different data providers have varying levels of futures support:
 - **Yahoo**: Limited futures data (mostly indices)
 
 For comprehensive futures backtesting, DataBento is recommended due to its clean data and extensive contract coverage.
+
+How Continuous Futures Roll (Supported Products)
+================================================
+
+A continuous future (``Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)``) always points
+at one real contract. LumiBot picks that contract from a roll rule per product: which
+delivery months become the front contract, and how many business days before the last trade
+day (or before delivery notices start) the series moves to the next one. The same rule is
+used in backtests and when a live broker needs the current contract.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 22 28
+
+   * - Products
+     - Symbols
+     - Front contract months
+     - Roll
+   * - Equity index
+     - ES, MES, NQ, MNQ, RTY, M2K, YM, MYM
+     - Mar, Jun, Sep, Dec
+     - 8 business days before the third Friday
+   * - Gold
+     - GC, MGC
+     - Feb, Apr, Jun, Aug, Oct, Dec
+     - 7 business days before first notice (end of the month before)
+   * - Silver, copper
+     - SI, SIL, HG
+     - Mar, May, Jul, Sep, Dec
+     - 7 business days before first notice
+   * - Micro copper
+     - MHG
+     - Mar, May, Jul, Sep, Dec
+     - 5 business days before last trade (third last business day of the month before)
+   * - Platinum
+     - PL
+     - Jan, Apr, Jul, Oct
+     - 7 business days before first notice
+   * - Crude oil
+     - CL, MCL
+     - Every month
+     - 5 business days before last trade
+   * - Natural gas, gasoline, heating oil
+     - NG, MNG, RB, HO
+     - Every month
+     - 5 business days before last trade (end of the month before)
+   * - Treasuries
+     - ZT, ZF, ZN, TN, ZB, UB
+     - Mar, Jun, Sep, Dec
+     - 5 business days before delivery notices start
+   * - FX
+     - 6E, 6J, 6B, 6A, 6C, 6S, 6N, M6E, M6A, M6B
+     - Mar, Jun, Sep, Dec
+     - 5 business days before last trade (Monday before the third Wednesday)
+   * - Corn, wheat
+     - ZC, ZW
+     - Mar, May, Jul, Sep, Dec
+     - 5 business days before delivery notices start
+   * - Soybeans
+     - ZS
+     - Jan, Mar, May, Jul, Aug, Sep, Nov
+     - 5 business days before delivery notices start
+   * - Soybean oil, soybean meal
+     - ZL, ZM
+     - Jan, Mar, May, Jul, Aug, Sep, Oct, Dec
+     - 5 business days before delivery notices start
+   * - Live cattle
+     - LE
+     - Feb, Apr, Jun, Aug, Oct, Dec
+     - 5 business days before the contract month
+   * - Lean hogs
+     - HE
+     - Feb, Apr, May, Jun, Jul, Aug, Oct, Dec
+     - 5 business days before last trade (tenth business day of the month)
+   * - Bitcoin, ether
+     - BTC, MBT, ETH, MET
+     - Every month
+     - 8 business days before the last Friday
+   * - VIX
+     - VX
+     - Every month
+     - 5 business days before final settlement
+
+Months and last trade days follow the exchange contract specifications (CME Group, Cboe).
+The number of days before is LumiBot's own convention, chosen to be close to when trading
+volume moves to the next contract.
+
+A symbol that is not in the table still works: it uses the default rule (March, June,
+September and December contracts, rolling on the 15th of the contract month) and LumiBot
+logs one warning naming the symbol. That default is right for most quarterly financial
+futures and wrong for products that trade other months, so add the product if you need it:
+
+.. code-block:: python
+
+    from lumibot.tools import futures_roll
+
+    futures_roll.ROLL_RULES["KE"] = futures_roll.RollRule(
+        offset_business_days=5,
+        anchor="business_day_before_15th",   # last trade day rule
+        contract_months=(3, 5, 7, 9, 12),
+        roll_anchor="first_notice",          # roll before delivery notices
+    )
+
+    futures_roll.determine_contract_year_month("SIL", some_datetime)   # (2026, 3)
+    futures_roll.contract_last_trade_date("SIL", 2026, 3)
+
+Limits: rolls are by calendar rule, not by measured volume or open interest, so the roll day
+can differ by a few days from a data vendor's own continuous series. Prices are not
+back-adjusted across a roll.

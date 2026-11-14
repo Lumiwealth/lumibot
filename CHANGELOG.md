@@ -3,6 +3,7 @@
 ## 4.6.65 - Unreleased
 
 ### Fixed
+- Futures: continuous silver (`SI`) used January as a front month and stayed in a contract until mid delivery month, after first notice. It now uses Mar, May, Jul, Sep, Dec and rolls 7 business days before first notice, like gold. Backtests of continuous `SI` change (more accurate contract).
 - Alpaca backtests: `get_historical_prices_for_assets` downloaded stock history one symbol per request. Stock bars not cached yet are now requested up to 100 symbols per request (the backtest window and history before the window), written to the same per-symbol cache files. 250 symbols: 250 requests down to 3. Bars, cache keys and errors are unchanged; a refused grouped request falls back to one request per symbol. Docs: `docsrc/backtesting.performance.rst` ("Faster scanners").
 - Backtests: a grouped history call over hundreds of symbols re-serialized every history row for the market input evidence on every scan, because only 32 symbol streams were remembered (500 stocks x 200 daily bars: about 2.5 s per scan, down to about 0.24 s). Up to 4096 streams are remembered now (total remembered rows still capped) and a grouped call commits its records once. The recorded evidence is unchanged.
 - Fundamentals: `shares_outstanding` and `market_cap` were `None` for companies with several share classes (for example Meta, Mastercard, Comcast, Nike), which file no single cover-page share count. Their basic weighted average share count of the latest filed period is now used; `periods` names the tag. Measured on 503 current S&P 500 members as of 2024-06-03: market cap for 481, up from 444.
@@ -12,6 +13,7 @@
 - Fundamentals: companies that file share counts only per class and no weighted average (Berkshire Hathaway, Visa, Constellation Brands) had no market cap. The per-class cover-page counts of the latest report are now added up into a whole-company count (Berkshire Class A counted as 1,500 Class B; other classes one for one). `get_metrics_table` gained a `cik` column so two tickers of one company (GOOGL and GOOG) can be de-duplicated.
 
 ### Added
+- Futures: roll rules for every commonly traded product. New: RTY, M2K, SIL, HG, MHG, PL, MNG, RB, HO, ZT, ZF, ZN, TN, ZB, UB, 6E, 6J, 6B, 6A, 6C, 6S, 6N, M6E, M6A, M6B, ZC, ZW, ZS, ZL, ZM, LE, HE, BTC, ETH, VX (months and last trade days from the exchange contract specifications, cited in `lumibot/tools/futures_roll.py`). Before, these fell to the default rule (Mar/Jun/Sep/Dec, roll on the 15th), which picked a thin or wrong contract month for metals, energy, grains, livestock and VIX, and could hold an FX contract past its last trade day. `futures_roll.contract_last_trade_date()` is new. An unknown symbol still uses the default and now logs one warning. Docs: `docsrc/futures.rst` ("How Continuous Futures Roll").
 - Examples: `stock_top_market_cap.py` and `stock_revenue_growth_low_debt.py`, each covered by a full backtest on synthetic data (`tests/test_example_fundamental_screeners.py`). They use the existing `get_metrics_table` and plain pandas; docs: `docsrc/fundamentals.rst` ("Stock screener"). No library behavior changed.
 
 ## 4.6.64 - 2026-11-14

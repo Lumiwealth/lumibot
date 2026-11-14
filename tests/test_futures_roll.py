@@ -208,3 +208,104 @@ def test_calendar_failure_is_not_cached(monkeypatch):
         assert futures_roll._ng_last_trade_date(2026, 11) == _dt(2026, 10, 28)
     finally:
         futures_roll._ng_last_trade_date.cache_clear()
+
+
+# ---------------------------------------------------------------------------
+# Every commonly traded product has its own roll rule (active months and timing
+# follow the exchange contract specifications cited in futures_roll.ROLL_RULES).
+# ---------------------------------------------------------------------------
+_COMMON_FUTURES = (
+    "ES MES NQ MNQ RTY M2K YM MYM GC MGC SI SIL HG MHG PL CL MCL NG MNG RB HO "
+    "ZN ZF ZT ZB UB 6E 6J 6B 6A 6C M6E ZC ZS ZW ZL ZM LE HE BTC MBT ETH MET VX"
+).split()
+
+_H, _K, _N, _U, _Z = 3, 5, 7, 9, 12
+_ACTIVE_CONTRACT_CASES = [
+    # Equity index: quarterly, roll 8 business days before the third Friday.
+    ("RTY", (2026, 3, 9), (2026, 3)), ("RTY", (2026, 3, 11), (2026, 6)),
+    ("M2K", (2026, 7, 15), (2026, 9)), ("M2K", (2026, 12, 15), (2027, 3)),
+    # Silver and copper: Mar, May, Jul, Sep, Dec; out before first notice.
+    ("SI", (2026, 1, 15), (2026, _H)), ("SI", (2026, 2, 25), (2026, _K)),
+    ("SIL", (2026, 1, 15), (2026, _H)), ("SIL", (2026, 4, 25), (2026, _N)),
+    ("SIL", (2026, 6, 26), (2026, _U)), ("SIL", (2026, 8, 27), (2026, _Z)),
+    ("SIL", (2026, 11, 25), (2027, _H)),
+    ("HG", (2026, 1, 15), (2026, _H)), ("HG", (2026, 3, 15), (2026, _K)),
+    ("HG", (2026, 6, 26), (2026, _U)), ("HG", (2026, 10, 15), (2026, _Z)),
+    ("MHG", (2026, 1, 15), (2026, _H)), ("MHG", (2026, 2, 20), (2026, _K)),
+    # Platinum: Jan, Apr, Jul, Oct.
+    ("PL", (2026, 2, 10), (2026, 4)), ("PL", (2026, 3, 25), (2026, 7)),
+    ("PL", (2026, 8, 15), (2026, 10)), ("PL", (2026, 9, 25), (2027, 1)),
+    # Refined products and micro gas: every month, expiring before the contract month.
+    ("RB", (2026, 2, 10), (2026, 3)), ("RB", (2026, 2, 23), (2026, 4)),
+    ("HO", (2026, 6, 15), (2026, 7)), ("HO", (2026, 12, 28), (2027, 2)),
+    ("MNG", (2026, 2, 10), (2026, 3)), ("MNG", (2026, 2, 20), (2026, 4)),
+    # Treasuries: quarterly, out before delivery notices.
+    ("ZN", (2026, 2, 10), (2026, 3)), ("ZN", (2026, 2, 24), (2026, 6)),
+    ("ZF", (2026, 5, 27), (2026, 9)), ("ZT", (2026, 8, 27), (2026, 12)),
+    ("ZB", (2026, 4, 15), (2026, 6)), ("UB", (2026, 11, 27), (2027, 3)),
+    # FX: quarterly, roll the week before the Monday expiry.
+    ("6E", (2026, 3, 6), (2026, 3)), ("6E", (2026, 3, 10), (2026, 6)),
+    ("6J", (2026, 6, 9), (2026, 9)), ("6B", (2026, 9, 4), (2026, 9)),
+    ("6A", (2026, 9, 8), (2026, 12)), ("6C", (2026, 12, 8), (2027, 3)),
+    ("M6E", (2026, 3, 10), (2026, 6)),
+    # Grains and oilseeds.
+    ("ZC", (2026, 2, 10), (2026, _H)), ("ZC", (2026, 2, 24), (2026, _K)),
+    ("ZW", (2026, 6, 25), (2026, _U)), ("ZW", (2026, 10, 15), (2026, _Z)),
+    ("ZS", (2026, 7, 15), (2026, 8)), ("ZS", (2026, 8, 26), (2026, 11)),
+    ("ZS", (2026, 10, 27), (2027, 1)),
+    ("ZL", (2026, 9, 10), (2026, 10)), ("ZM", (2026, 9, 25), (2026, 12)),
+    # Livestock.
+    ("LE", (2026, 1, 10), (2026, 2)), ("LE", (2026, 1, 27), (2026, 4)),
+    ("HE", (2026, 2, 5), (2026, 2)), ("HE", (2026, 2, 9), (2026, 4)),
+    ("HE", (2026, 5, 8), (2026, 6)), ("HE", (2026, 12, 20), (2027, 2)),
+    # Crypto (Globex roots) and VIX: every month.
+    ("BTC", (2026, 3, 16), (2026, 3)), ("ETH", (2026, 3, 18), (2026, 4)),
+    ("VX", (2026, 3, 10), (2026, 3)), ("VX", (2026, 3, 12), (2026, 4)),
+    ("VX", (2026, 12, 10), (2027, 1)),
+]
+
+
+@pytest.mark.parametrize("symbol,day,expected", _ACTIVE_CONTRACT_CASES)
+def test_common_futures_pick_the_active_contract_month(symbol, day, expected):
+    assert futures_roll.determine_contract_year_month(symbol, _dt(*day, 12)) == expected
+
+
+@pytest.mark.parametrize("symbol,contract,expected", [
+    ("ES", (2026, 3), (2026, 3, 20)), ("RTY", (2026, 3), (2026, 3, 20)),
+    ("6E", (2026, 3), (2026, 3, 16)), ("6C", (2026, 3), (2026, 3, 17)),
+    ("ZN", (2026, 3), (2026, 3, 20)), ("ZF", (2026, 3), (2026, 3, 31)),
+    ("ZC", (2026, 3), (2026, 3, 13)), ("HE", (2026, 2), (2026, 2, 13)),
+    ("RB", (2026, 3), (2026, 2, 27)), ("HG", (2026, 3), (2026, 3, 27)),
+    ("MHG", (2026, 3), (2026, 2, 25)), ("VX", (2026, 3), (2026, 3, 18)),
+])
+def test_common_futures_last_trade_dates(symbol, contract, expected):
+    assert futures_roll.contract_last_trade_date(symbol, *contract).date() == datetime.date(*expected)
+
+
+@pytest.mark.parametrize("symbol", _COMMON_FUTURES)
+def test_every_common_future_has_a_rule_and_never_holds_an_expired_contract(symbol):
+    rule = futures_roll.ROLL_RULES.get(symbol)
+    assert rule is not None, f"{symbol} has no roll rule"
+    day = datetime.date(2026, 1, 1)
+    previous = None
+    while day.year == 2026:
+        chosen = futures_roll.determine_contract_year_month(symbol, _dt(day.year, day.month, day.day, 12))
+        assert chosen[1] in rule.contract_months
+        assert futures_roll.contract_last_trade_date(symbol, *chosen).date() > day
+        if previous is not None:
+            assert chosen >= previous
+            if chosen != previous:
+                months = sorted(rule.contract_months)
+                step = (months.index(chosen[1]) - months.index(previous[1])) % len(months)
+                assert step == 1, f"{symbol} skipped a contract on {day}"
+        previous = chosen
+        day += datetime.timedelta(days=1)
+
+
+def test_unknown_symbol_says_once_that_the_default_rule_is_used(monkeypatch):
+    messages = []
+    monkeypatch.setattr(futures_roll, "_DEFAULT_RULE_NOTED", set(), raising=False)
+    monkeypatch.setattr(futures_roll.logger, "warning", lambda *args, **kwargs: messages.append(args), raising=False)
+    for _ in range(3):
+        assert futures_roll.determine_contract_year_month("QQZ", _dt(2026, 3, 16)) == (2026, 6)
+    assert len(messages) == 1 and "QQZ" in messages[0]

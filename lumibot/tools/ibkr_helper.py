@@ -1979,8 +1979,10 @@ def _contract_expiration_date(root_symbol: str, *, year: int, month: int):
         elif anchor == "ng_last_trade":
             expiry = futures_roll._ng_last_trade_date(year, month)
         else:
-            # Default anchor for CME equity index futures is third Friday.
-            expiry = futures_roll._third_friday(year, month)
+            # Other products resolve through the shared anchor table; the default anchor
+            # (CME equity index futures) is the third Friday.
+            resolve = getattr(futures_roll, "_EXPIRY_ANCHORS", {}).get(anchor) or futures_roll._third_friday
+            expiry = resolve(year, month)
         return expiry.date()
     except Exception:
         # Safe fallback: third Friday.

@@ -1,11 +1,19 @@
 # Changelog
 
+## 4.6.66 - Unreleased
+
+### Fixed
+- Futures: continuous silver (`SI`) used January as a front month and stayed in a contract until mid delivery month, after first notice. It now uses Mar, May, Jul, Sep, Dec and rolls 7 business days before first notice, like gold. Backtests of continuous `SI` change (more accurate contract).
+
+### Added
+- Futures: roll rules for every commonly traded product. New: RTY, M2K, SIL, HG, MHG, PL, MNG, RB, HO, ZT, ZF, ZN, TN, ZB, UB, 6E, 6J, 6B, 6A, 6C, 6S, 6N, M6E, M6A, M6B, ZC, ZW, ZS, ZL, ZM, LE, HE, BTC, ETH, VX (months and last trade days from the exchange contract specifications, cited in `lumibot/tools/futures_roll.py`). Before, these fell to the default rule (Mar/Jun/Sep/Dec, roll on the 15th), which picked a thin or wrong contract month for metals, energy, grains, livestock and VIX, and could hold an FX contract past its last trade day. `futures_roll.contract_last_trade_date()` is new. An unknown symbol still uses the default and now logs one warning. Docs: `docsrc/futures.rst` ("How Continuous Futures Roll").
+- Alpaca backtests: 5, 10, 15 and 30-minute stock bars are built from the cached 1-minute series instead of downloaded, when every requested bar is inside today's regular session (the bars are identical to Alpaca's: 8,448 of 8,448 measured, including a half day and a stressed week). Any other request downloads Alpaca's series as before, so results do not change. On by default; off with `intraday_bars_from_minutes=False` or `BACKTESTING_INTRADAY_BARS_FROM_MINUTES=false`. Futures are unchanged (single contracts measured identical, continuous futures not yet). Docs: `docsrc/backtesting.alpaca.rst`, `docs/investigations/2026-11-14_INTRADAY_BARS_FROM_MINUTE_BARS.md`.
+
 ## 4.6.65 - 2026-11-14
 
 Deploy marker: 0ccb9dfbe80568fec6a2e7b8953de406c8ca0fe0
 
 ### Fixed
-- Futures: continuous silver (`SI`) used January as a front month and stayed in a contract until mid delivery month, after first notice. It now uses Mar, May, Jul, Sep, Dec and rolls 7 business days before first notice, like gold. Backtests of continuous `SI` change (more accurate contract).
 - Alpaca backtests: `get_historical_prices_for_assets` downloaded stock history one symbol per request. Stock bars not cached yet are now requested up to 100 symbols per request (the backtest window and history before the window), written to the same per-symbol cache files. 250 symbols: 250 requests down to 3. Bars, cache keys and errors are unchanged; a refused grouped request falls back to one request per symbol. Docs: `docsrc/backtesting.performance.rst` ("Faster scanners").
 - Backtests: a grouped history call over hundreds of symbols re-serialized every history row for the market input evidence on every scan, because only 32 symbol streams were remembered (500 stocks x 200 daily bars: about 2.5 s per scan, down to about 0.24 s). Up to 4096 streams are remembered now (total remembered rows still capped) and a grouped call commits its records once. The recorded evidence is unchanged.
 - Fundamentals: `shares_outstanding` and `market_cap` were `None` for companies with several share classes (for example Meta, Mastercard, Comcast, Nike), which file no single cover-page share count. Their basic weighted average share count of the latest filed period is now used; `periods` names the tag. Measured on 503 current S&P 500 members as of 2024-06-03: market cap for 481, up from 444.
@@ -18,8 +26,6 @@ Deploy marker: 0ccb9dfbe80568fec6a2e7b8953de406c8ca0fe0
 - Fundamentals: screens over many companies load much less data. Each company's facts are also saved as a compact file (only the facts the statements and metrics read, with filing dates) in the same local and remote cache (`sec/companyfacts_compact/`), and later runs read that first; the full SEC file is opened only for a fact outside that set. Values are unchanged (tested: identical tables from both paths). Measured for 503 companies: 1,655 MB and 14 s from full files on disk, 16 MB and 5 s from compact files; a new backtest machine with a remote cache reads 14 MB instead of 1,655 MB. Docs: "Fast screens over many companies" in `docsrc/fundamentals.rst`.
 
 ### Added
-- Futures: roll rules for every commonly traded product. New: RTY, M2K, SIL, HG, MHG, PL, MNG, RB, HO, ZT, ZF, ZN, TN, ZB, UB, 6E, 6J, 6B, 6A, 6C, 6S, 6N, M6E, M6A, M6B, ZC, ZW, ZS, ZL, ZM, LE, HE, BTC, ETH, VX (months and last trade days from the exchange contract specifications, cited in `lumibot/tools/futures_roll.py`). Before, these fell to the default rule (Mar/Jun/Sep/Dec, roll on the 15th), which picked a thin or wrong contract month for metals, energy, grains, livestock and VIX, and could hold an FX contract past its last trade day. `futures_roll.contract_last_trade_date()` is new. An unknown symbol still uses the default and now logs one warning. Docs: `docsrc/futures.rst` ("How Continuous Futures Roll").
-- Alpaca backtests: 5, 10, 15 and 30-minute stock bars are built from the cached 1-minute series instead of downloaded, when every requested bar is inside today's regular session (the bars are identical to Alpaca's: 8,448 of 8,448 measured, including a half day and a stressed week). Any other request downloads Alpaca's series as before, so results do not change. On by default; off with `intraday_bars_from_minutes=False` or `BACKTESTING_INTRADAY_BARS_FROM_MINUTES=false`. Futures are unchanged (single contracts measured identical, continuous futures not yet). Docs: `docsrc/backtesting.alpaca.rst`, `docs/investigations/2026-11-14_INTRADAY_BARS_FROM_MINUTE_BARS.md`.
 - Examples: `stock_top_market_cap.py` and `stock_revenue_growth_low_debt.py`, each covered by a full backtest on synthetic data (`tests/test_example_fundamental_screeners.py`). They use the existing `get_metrics_table` and plain pandas; docs: `docsrc/fundamentals.rst` ("Stock screener"). No library behavior changed.
 
 ## 4.6.64 - 2026-11-14

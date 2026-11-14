@@ -6,7 +6,7 @@ import time
 from collections import deque
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
-from .broker import Broker
+from .broker import Broker, LumibotBrokerAPIError
 
 # Set up module-specific logger for enhanced logging
 
@@ -1296,6 +1296,32 @@ class Tradovate(Broker):
         is updated to 'submitted' and the raw response is attached to the order. Otherwise, 
         the order is marked with an error.
         """
+        # Placed as asked, or refused with a plain error. Never silently send a
+        # different order: a trailing stop sent as Market, or a bracket sent
+        # without its exits, leaves the position unprotected.
+        if order.order_class in (
+            Order.OrderClass.BRACKET, Order.OrderClass.OTO, Order.OrderClass.OCO, Order.OrderClass.MULTILEG
+        ) or order.child_orders:
+            order.set_error(LumibotBrokerAPIError(
+                f"{order.order_class} orders are not supported by Tradovate in LumiBot yet. Submit the "
+                "entry, then submit the stop and target as separate orders."
+            ))
+            return order
+        if order.order_type == Order.OrderType.MARKET:
+            order_type = "Market"
+        elif order.order_type == Order.OrderType.LIMIT:
+            order_type = "Limit"
+        elif order.order_type == Order.OrderType.STOP:
+            order_type = "Stop"
+        elif order.order_type == Order.OrderType.STOP_LIMIT:
+            order_type = "StopLimit"
+        else:
+            order.set_error(LumibotBrokerAPIError(
+                f"{order.order_type} orders are not supported by Tradovate in LumiBot. Use a stop or "
+                "stop-limit order instead."
+            ))
+            return order
+
         self._ensure_connected()
 
         # Pre-submission validation
@@ -1323,20 +1349,6 @@ class Tradovate(Broker):
         else:
             symbol = order.asset.symbol
 
-        # Determine the order type string based on the order type.
-        if order.order_type == Order.OrderType.MARKET:
-            order_type = "Market"
-        elif order.order_type == Order.OrderType.LIMIT:
-            order_type = "Limit"
-        elif order.order_type == Order.OrderType.STOP:
-            order_type = "Stop"
-        elif order.order_type == Order.OrderType.STOP_LIMIT:
-            order_type = "StopLimit"
-        else:
-            logger.warning(
-                f"Order type '{order.order_type}' is not fully supported. Defaulting to Market order."
-            )
-            order_type = "Market"
 
         # Build the payload with numeric values sent as numbers and booleans as True/False.
         payload = {
@@ -1352,6 +1364,11 @@ class Tradovate(Broker):
         # If a limit price is specified for limit orders, include it.
         if order.limit_price is not None:
             payload["price"] = float(order.limit_price)
+        # Tradovate's StopLimit carries its limit in `price` (documented: "a
+        # Stop-Limit will require a price and a stopPrice"); LumiBot keeps it in
+        # stop_limit_price.
+        if order_type == "StopLimit" and order.stop_limit_price is not None:
+            payload["price"] = float(order.stop_limit_price)
         # Similarly, include stop price if specified.
         if order.stop_price is not None:
             payload["stopPrice"] = float(order.stop_price)

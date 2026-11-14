@@ -991,7 +991,11 @@ class BacktestingBroker(Broker):
         callback is processed on the following bar, as it would be for a strategy that runs
         on every bar.
         """
-        if strategy is None or not self._check_resting_orders_between_runs:
+        if (
+            strategy is None
+            or not self._check_resting_orders_between_runs
+            or not self._between_run_pending_orders(strategy.name)
+        ):
             return self._update_datetime(update_dt, **progress)
 
         now = self.datetime
@@ -1009,10 +1013,12 @@ class BacktestingBroker(Broker):
             return self._update_datetime(update_dt, **progress)
 
         forced_orders = ()
+        moved = False
         while True:
             event_dt = self._next_between_run_event(strategy, target, forced_orders)
             if event_dt is None or not (self.datetime < event_dt < target):
                 break
+            moved = True
             known = {id(order) for order in self._between_run_pending_orders(strategy.name)}
             self._update_datetime(event_dt)
             if not self.is_market_open():
@@ -1025,7 +1031,8 @@ class BacktestingBroker(Broker):
             forced_orders = [
                 order for order in self._between_run_pending_orders(strategy.name) if id(order) not in known
             ]
-        return self._update_datetime(target, **progress)
+        # Untouched clock: advance exactly as before. Otherwise land on the same target.
+        return self._update_datetime(target if moved else update_dt, **progress)
 
     # =========Positions functions==================
     def _pull_broker_position(self, asset):

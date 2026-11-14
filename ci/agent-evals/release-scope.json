@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "package_version": "4.6.58",
+  "package_version": "4.6.59",
   "cases": [],
-  "no_cases_reason": "Author-reviewed 4.6.58 delta: opt-in public crypto backtest routes (Coinbase public candles, Binance bulk spot and USD-M perpetual files with funding), CCXT pacing fix, immediate DownloaderNotConfigured when no Data Downloader is configured, IndicatorRow accepting both column spellings, and price/funding sources plus notices in the saved data_provenance.json. No agent prompt, skill, tool schema or model runtime changes. Retained native fixtures run in-memory Pandas option/attention scenarios that never use these routes, the downloader client or IndicatorRow. Each change is proven by focused code tests. Zero new model runs; preserve earlier native actor/judge receipts with their original sources and SDKs."
+  "no_cases_reason": "Author-reviewed 4.6.59 delta (bug fixes only): get_orders accepts documented status strings, IBKR futures orders no longer hang after a dated contract's history ends, bounded retry of a failed older IBKR history page, and one clear error when an Alpaca data plan lacks options history. No agent prompt, skill, tool schema or model runtime changes. Retained native fixtures run in-memory Pandas option/attention scenarios that never call get_orders with strings, trade dated futures or construct IBKR or Alpaca sources. Each change is proven by focused code tests. Zero new model runs; preserve earlier native actor/judge receipts with their original sources and SDKs."
 }

@@ -171,6 +171,21 @@ A root-symbol closing order targets the single matching held contract. Multiple 
 expiries, or a reversal spanning different expiries, require explicit contracts.
 Normal fills, fees and price availability apply to both legs.
 
+A dated contract's history is loaded up to its last trading day, even when the backtest
+runs past it, so orders on that contract fill on its real bars until it expires. An order
+still working after its contract's expiration date can never fill: the backtest cancels it
+and logs ``[FILL][CANCEL] ... contract CL 2026-10-20 expired on 2026-10-20``. It shows as
+canceled in the trades file. Contract details (multiplier, tick size) are looked up once
+per contract per run.
+
+History is downloaded in pages, newest first. If an older page fails for a temporary
+reason, LumiBot asks for that same page again up to two more times, waiting a few seconds
+between tries. If it still fails, the newer bars are kept, the missing range is listed in
+the run's ``settings.json`` history health (reason ``older_history_page_unavailable``),
+and the range is not requested again for the rest of the run. No bars are invented for it:
+an order that needs a bar in that range waits for the next real bar (or expires by its
+time in force), as with any other missing data.
+
 Futures Exchange Routing (auto + override)
 ------------------------------------------
 

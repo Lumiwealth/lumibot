@@ -138,3 +138,22 @@ def test_trader_quiet_logs_integration():
             # With quiet_logs=True and backtesting broker, log level should be ERROR
             root_logger = logging.getLogger("lumibot")
             assert root_logger.level == logging.ERROR
+
+
+def test_log_level_left_quiet_by_one_test():
+    """First half of a pair: leave every LumiBot logger at ERROR, as quiet-log tests do."""
+    lumibot_logger.get_logger("lumibot.tests.level_isolation")
+    lumibot_logger.set_log_level("ERROR")
+    assert logging.getLogger("lumibot").level == logging.ERROR
+
+
+def test_log_level_does_not_leak_into_the_next_test(caplog):
+    """Second half: a warning must still reach caplog after an earlier test quieted the loggers.
+
+    Without per-test restoration, tests that assert on warnings pass alone and fail when a
+    quiet-log test happens to run before them in the same worker.
+    """
+    logger = lumibot_logger.get_logger("lumibot.tests.level_isolation")
+    with caplog.at_level(logging.WARNING):
+        logger.warning("level isolation probe")
+    assert any("level isolation probe" in record.getMessage() for record in caplog.records)

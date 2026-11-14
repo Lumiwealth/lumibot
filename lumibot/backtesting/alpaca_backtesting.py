@@ -41,6 +41,14 @@ class AlpacaOptionHistoryUnavailable(RuntimeError):
     """Alpaca answered an option bars request successfully but returned no bars."""
 
 
+class AlpacaOptionsDataPlanError(RuntimeError):
+    """Alpaca refused option bars with HTTP 403: the account's data plan has no options history.
+
+    Raised unchanged through every option price path so a backtest stops with this one
+    message instead of a generic fetch failure repeated for each contract.
+    """
+
+
 def _alpaca_asset_class(fn) -> str | None:
     """Asset class of an Alpaca SDK call, from its method name (run telemetry only)."""
     name = str(getattr(fn, "__name__", "") or "").lower()
@@ -90,6 +98,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
       Use minute bars when fill timing matters.
     - Free keys allow about 200 requests per minute. Requests are throttled below that
       and HTTP 429 answers wait (``Retry-After`` when present) with a bounded retry.
+    - Option history needs an Alpaca data plan that includes options. When Alpaca answers
+      an option bars request with HTTP 403, the backtest stops with
+      ``AlpacaOptionsDataPlanError`` ("Your Alpaca data plan does not include options
+      history") and Alpaca's own reason; nothing is retried or substituted.
     - Stock bars use Alpaca's default feed. Checked 2026-09-23 on a free key: history comes
       back as SIP (all US exchanges, SPY about 60M shares a day versus about 2M on IEX), but
       the latest 15 minutes of SIP are refused ("subscription does not permit querying
@@ -927,6 +939,20 @@ class AlpacaBacktesting(DataSourceBacktesting):
             pass
         return float(min(5.0 * (2 ** max(attempt - 1, 0)), 60.0))
 
+    @staticmethod
+    def _is_option_data_plan_refusal(fn, exc: Exception) -> bool:
+        """HTTP 403 on the option bars endpoint only: the key works, the plan lacks the feed.
+
+        Contract listing (trading API) keeps its own 401/403 handling, and a 403 on stock or
+        crypto bars says nothing about options.
+        """
+        if getattr(fn, "__name__", "") != "get_option_bars":
+            return False
+        status = getattr(exc, "status_code", None)
+        if status is None:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+        return status == 403
+
     def _alpaca_request(self, fn, request, *, what: str):
         """Call one Alpaca SDK method politely: client-side throttle plus bounded 429 retry.
 
@@ -952,6 +978,12 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 return answer
             except Exception as exc:
                 backtest_telemetry.record_provider_request(time.perf_counter() - started)
+                if self._is_option_data_plan_refusal(fn, exc):
+                    raise AlpacaOptionsDataPlanError(
+                        "Your Alpaca data plan does not include options history. Alpaca answered "
+                        f"HTTP 403 for option bars ({what}): {exc}. Enable options market data on "
+                        "this Alpaca account, or backtest options with another data source."
+                    ) from exc
                 if not self._is_rate_limited(exc):
                     raise
                 retries += 1
@@ -1297,6 +1329,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
                     lambda query: self._alpaca_request(client.get_option_bars, query, what=what),
                     refresh=getattr(self, "_refresh_cache", False), empty_ok=listed.__contains__,
                 )
+            except AlpacaOptionsDataPlanError:
+                raise
             except Exception as e:
                 raise RuntimeError(f"Failed to fetch data for {what}: {e}")
             by_symbol = self._rows_by_symbol(bars.df)
@@ -1368,6 +1402,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 except Exception as e:
                     for key, _a, _q in chunk:
                         covered[key] = covered_until
+                    if isinstance(e, AlpacaOptionsDataPlanError):
+                        raise
                     raise RuntimeError(f"Failed to fetch data for {what}: {e}")
                 by_symbol = self._rows_by_symbol(bars.df)
                 for key, asset, quote in chunk:
@@ -1468,6 +1504,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
             )
         except Exception as e:
             covered[key] = covered_until
+            if isinstance(e, AlpacaOptionsDataPlanError):
+                raise
             raise RuntimeError(f"Failed to fetch data for {what}: {e}")
         frame = bars.df
         occ = self._occ_symbol(asset)
@@ -1514,6 +1552,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
             )
         except Exception as e:
             self._state("_option_loaded_from", dict)[key] = loaded_from
+            if isinstance(e, AlpacaOptionsDataPlanError):
+                raise
             raise RuntimeError(f"Failed to fetch data for {what}: {e}")
         frame = bars.df
         occ = self._occ_symbol(asset)
@@ -2016,6 +2056,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
                     lambda query: self._alpaca_request(client.get_stock_bars, query, what=key),
                     refresh=getattr(self, "_refresh_cache", False),
                 )
+        except AlpacaOptionsDataPlanError:
+            raise
         except Exception as e:
             raise RuntimeError(f"Failed to fetch data for {key}: {e}")
 
@@ -2283,6 +2325,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 client, request, lambda query: self._alpaca_request(fetch, query, what=key),
                 refresh=refresh,
             )
+        except AlpacaOptionsDataPlanError:
+            raise
         except Exception as exc:
             raise RuntimeError(f"Failed to fetch history before the backtest window for {key}: {exc}")
 

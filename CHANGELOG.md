@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.6.59 - 2026-11-14
+
+Deploy marker: 37ce5bf80599cbbe8998ab9724f968071e2dce1b
+
+### Fixed
+- `get_orders(statuses=...)` accepts status strings, case-insensitively. `"open"`, `"active"` and `"working"` mean every still-working order (same as `Order.ACTIVE_STATUSES`); any `OrderStatus` value or name and common broker spellings (`"filled"`, `"cancelled"`, `"partially_filled"`, `"rejected"`) match that status. Unknown strings raise `ValueError` listing the valid ones. Before, any string raised `TypeError` and crashed the strategy.
+- IBKR futures backtests no longer leave orders on a dated contract pending for the rest of the run. History for a dated contract was requested up to the run end; past the contract's expiration IBKR returns an empty page, so the contract's final weeks were never loaded and every fill check saw a stale bar (a CL hourly run across the October roll left 7 orders working with 1,419 pending checks). History now stops at the contract's last trading day. An order still working after its contract expires is canceled with a clear reason instead of waiting forever. Contract details are looked up once per contract per run, including failed lookups.
+- IBKR history paging retries an older page that failed for a temporary reason (two more tries for that exact page, a few seconds apart) instead of stopping at once and leaving a gap for the whole run. If it still fails, the missing range is reported in `settings.json` history health as `older_history_page_unavailable` and is not requested again that run. One gap costs at most 3 provider requests.
+- Alpaca options backtests on an account whose data plan lacks options history now stop with one clear message: "Your Alpaca data plan does not include options history", followed by Alpaca's own reason (new `AlpacaOptionsDataPlanError`). Before, the HTTP 403 surfaced as a generic "Failed to fetch data for <long cache key>" error. Only a 403 on the option bars request is treated this way; other errors, contract listing, stocks and crypto are unchanged. See `docsrc/backtesting.alpaca.rst`.
+
 ## 4.6.58 - 2026-11-13
 
 Deploy marker: 5ff70f5e5057ea8f7ee32d62854291a64b7e92fc

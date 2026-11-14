@@ -2068,3 +2068,87 @@ def test_futures_closed_edge_uses_next_requested_bar_without_hiding_available_ba
     valid_start = pd.Timestamp("2026-10-02 17:00", tz="America/New_York") - step
     assert not helper._us_futures_closed_interval(valid_start, end, bar_step=step)
     assert not helper._us_futures_closed_interval(partial_start, end + step, bar_step=step)
+
+
+def _two_page_fixture():
+    first_page = [
+        {"t": int(ts.timestamp() * 1000), "o": 50.0, "h": 50.2, "l": 49.9, "c": 50.1, "v": 300.0}
+        for ts in pd.date_range("2026-09-18 13:30", "2026-09-18 19:59", freq="1min", tz="UTC")
+    ]
+    second_page = [
+        {"t": int(ts.timestamp() * 1000), "o": 49.0, "h": 49.2, "l": 48.9, "c": 49.1, "v": 200.0}
+        for ts in pd.date_range("2026-09-17 13:30", "2026-09-17 19:59", freq="1min", tz="UTC")
+    ]
+    return first_page, second_page
+
+
+def _fetch_two_page_window(ibkr_helper):
+    return ibkr_helper._fetch_history_between_dates(
+        asset=Asset("XSW", asset_type=Asset.AssetType.STOCK),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="minute",
+        start_dt=datetime(2026, 9, 17, 8, 0, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 9, 19, 3, 59, tzinfo=timezone.utc),
+        exchange=None,
+        include_after_hours=True,
+        source="Trades",
+        source_was_explicit=True,
+    )
+
+
+def test_ibkr_transient_older_page_failure_is_retried_for_the_same_page(monkeypatch):
+    """A hosted MNQ backtest lost a day of minute bars when one older page failed once
+    (transient) and paging stopped there, leaving a gap the run never refilled.
+    The same page is now asked again, briefly, before giving up."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **_: 95346641)
+    monkeypatch.setattr(ibkr_helper.time, "sleep", lambda _s: None)
+    first_page, second_page = _two_page_fixture()
+    requested_pages = []
+
+    def fake_history_request(**kwargs):
+        requested_pages.append(kwargs["start_time"])
+        if len(requested_pages) == 1:
+            return {"volumeFactor": 1, "data": first_page}
+        if len(requested_pages) == 2:
+            raise TimeoutError("Downloader request timed out after 300s")
+        if len(requested_pages) == 3:
+            return {"volumeFactor": 1, "data": second_page}
+        return {"volumeFactor": 1, "data": []}
+
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_request", fake_history_request)
+
+    result = _fetch_two_page_window(ibkr_helper)
+
+    assert len(result) >= len(first_page) + len(second_page)
+    assert requested_pages[1] == requested_pages[2]  # the retry asks for exactly the missing page
+
+
+def test_ibkr_older_page_that_keeps_failing_uses_bounded_requests_and_is_reported(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **_: 95346641)
+    monkeypatch.setattr(ibkr_helper.time, "sleep", lambda _s: None)
+    first_page, _second = _two_page_fixture()
+    calls = {"count": 0}
+    reports = []
+
+    def fake_history_request(**_kwargs):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return {"volumeFactor": 1, "data": first_page}
+        raise TimeoutError("Downloader request timed out after 300s")
+
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_request", fake_history_request)
+    monkeypatch.setattr(ibkr_helper, "record_history_health", lambda **kw: reports.append(kw))
+
+    result = _fetch_two_page_window(ibkr_helper)
+
+    assert len(result) == len(first_page)  # real bars only, nothing invented
+    # One gap: the original page plus the bounded retries, never one request per bar.
+    assert calls["count"] == 2 + ibkr_helper._OLDER_PAGE_RETRY_ATTEMPTS
+    gap = [r for r in reports if r.get("reason") == "older_history_page_unavailable"]
+    assert len(gap) == 1
+    assert gap[0]["requested_start"] == datetime(2026, 9, 17, 8, 0, tzinfo=timezone.utc)
+    assert gap[0]["requested_end"] <= datetime(2026, 9, 18, 13, 30, tzinfo=timezone.utc)

@@ -1732,6 +1732,29 @@ class Strategy(_Strategy):
             if hasattr(self, "_positions_cache"):
                 self._positions_cache.clear()
 
+    # Plain-word status filters that mean "every order still working at the broker".
+    _ACTIVE_STATUS_WORDS = frozenset({"open", "active", "working"})
+
+    @staticmethod
+    def _resolve_status_string(text: str):
+        """Map a documented status string (case-insensitive) to OrderStatus values."""
+        from lumibot.entities.order import STATUS_ALIAS_MAP
+
+        key = text.strip().lower()
+        if key in Strategy._ACTIVE_STATUS_WORDS:
+            return set(Order.ACTIVE_STATUSES)
+        key = STATUS_ALIAS_MAP.get(key, key)
+        for status in Order.OrderStatus:
+            if key == status.value or key == status.name.lower():
+                return {status}
+        valid = sorted(
+            set(Strategy._ACTIVE_STATUS_WORDS)
+            | {s.value for s in Order.OrderStatus}
+            | {s.name.lower() for s in Order.OrderStatus}
+            | set(STATUS_ALIAS_MAP)
+        )
+        raise ValueError(f"Unknown order status '{text}'. Valid status strings: {', '.join(valid)}")
+
     @staticmethod
     def _normalize_order_statuses(statuses):
         if statuses is None:
@@ -1741,16 +1764,25 @@ class Strategy(_Strategy):
             return {statuses}
 
         if isinstance(statuses, str):
-            raise TypeError("statuses must use Order.OrderStatus enum values, not raw strings")
+            return Strategy._resolve_status_string(statuses)
 
         try:
-            normalized_statuses = set(statuses)
+            items = list(statuses)
         except TypeError as exc:
-            raise TypeError("statuses must be an Order.OrderStatus or an iterable of Order.OrderStatus values") from exc
+            raise TypeError(
+                "statuses must be an Order.OrderStatus, a status string, or an iterable of those"
+            ) from exc
 
-        for status in normalized_statuses:
-            if not isinstance(status, Order.OrderStatus):
-                raise TypeError("statuses must use Order.OrderStatus enum values, not raw strings")
+        normalized_statuses = set()
+        for status in items:
+            if isinstance(status, Order.OrderStatus):
+                normalized_statuses.add(status)
+            elif isinstance(status, str):
+                normalized_statuses |= Strategy._resolve_status_string(status)
+            else:
+                raise TypeError(
+                    f"statuses must be Order.OrderStatus values or status strings, got {type(status).__name__}"
+                )
 
         return normalized_statuses
 
@@ -1804,8 +1836,12 @@ class Strategy(_Strategy):
         """Get tracked orders, optionally filtered by identifiers and OrderStatus values.
 
         In live trading this refreshes broker order state before returning by default. For
-        currently active/open orders, use `statuses=Order.ACTIVE_STATUSES`; raw string status
-        filters are rejected to avoid typos and broker-specific wording.
+        currently active/open orders, use `statuses=Order.ACTIVE_STATUSES` or the string "open".
+        Status strings are accepted case-insensitively: "open", "active" and "working" mean every
+        still-working order (same as Order.ACTIVE_STATUSES); any OrderStatus value or name
+        ("filled", "fill", "canceled", "partial_fill", "error") and common broker spellings
+        ("cancelled", "partially_filled", "rejected") match that status. Unknown strings raise
+        ValueError listing the valid ones.
 
         If you need to verify the exact order immediately after `submit_order(order)`, prefer
         `self.get_order(order.identifier)`. Broad broker order-list endpoints used by
@@ -1816,8 +1852,8 @@ class Strategy(_Strategy):
         ----------
         identifiers : list of str
             A list of order identifiers to filter the orders by. If None, returns all tracked orders for the strategy.
-        statuses : Order.OrderStatus or iterable of Order.OrderStatus
-            Optional enum status filter. Use Order.ACTIVE_STATUSES for currently active/open orders.
+        statuses : Order.OrderStatus, str, or iterable of those
+            Optional status filter. Use Order.ACTIVE_STATUSES or "open" for currently active orders.
 
         Returns
         -------

@@ -293,6 +293,33 @@ def global_cleanup():
 
 
 @pytest.fixture(autouse=True)
+def _restore_lumibot_log_levels():
+    """Put LumiBot logger levels back after each test.
+
+    Quiet-log tests set every ``lumibot`` logger to ERROR. Left in place, a later test in the
+    same worker that asserts on a warning sees no records: it passes alone and fails only for
+    some shard orders. Loggers created during the test go back to inheriting their level.
+    """
+    import logging
+
+    def lumibot_loggers():
+        names = [name for name in logging.root.manager.loggerDict if name == "lumibot" or name.startswith("lumibot.")]
+        found = [logging.getLogger(name) for name in names]
+        return [logger for logger in found if isinstance(logger, logging.Logger)]
+
+    root = logging.getLogger("lumibot")
+    before = {logger: (logger.level, logger.propagate, logger.disabled) for logger in [root, *lumibot_loggers()]}
+    disabled_below = logging.root.manager.disable
+    yield
+    logging.disable(disabled_below)
+    for logger in [root, *lumibot_loggers()]:
+        level, propagate, disabled = before.get(logger, (logging.NOTSET, True, False))
+        logger.setLevel(level)
+        logger.propagate = propagate
+        logger.disabled = disabled
+
+
+@pytest.fixture(autouse=True)
 def test_cleanup():
     """Per-test cleanup to prevent scheduler leaks between tests"""
     yield

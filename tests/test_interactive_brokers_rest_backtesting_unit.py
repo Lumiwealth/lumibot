@@ -431,4 +431,55 @@ def test_ibkr_rest_explicit_future_first_access_at_backtest_start_still_prefetch
 
     start, end = requested[0]
     assert pd.Timestamp(start) <= pd.Timestamp(datetime(2025, 9, 2, 9, 30, tzinfo=ny))
-    assert pd.Timestamp(end) >= pd.Timestamp(datetime(2026, 8, 31, tzinfo=ny))
+    # The prefetch runs to the contract's last trading day (or the run end, if earlier); a
+    # dated contract has no bars after it expires.
+    assert pd.Timestamp(end) >= pd.Timestamp(datetime(2025, 12, 19, 16, 0, tzinfo=ny))
+    assert pd.Timestamp(end) <= pd.Timestamp(datetime(2025, 12, 20, 0, 0, tzinfo=ny))
+
+
+def test_explicit_future_prefetch_stops_at_contract_expiration(monkeypatch):
+    """A run that ends after a contract expires must still load that contract's last weeks.
+
+    IBKR history pages backward from the requested end. Asking an expired contract for bars
+    after its expiration returns an empty page, which left the series stuck at the last cached
+    bar: orders on that contract then stayed pending for the rest of the run.
+    """
+    import datetime as _dt
+
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    ny = ZoneInfo("America/New_York")
+    expiration = _dt.date(2026, 10, 20)
+    after_last_trading_day = datetime(2026, 10, 21, 0, 0, tzinfo=ny)
+    requested_ends = []
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None,
+                            include_after_hours=True, source=None, history_as_of=None, **_kw):
+        requested_ends.append(end_dt)
+        if end_dt > after_last_trading_day:
+            return pd.DataFrame()  # what IBKR returns when paging from past the expiry
+        idx = pd.date_range(start_dt.astimezone(ny).replace(second=0, microsecond=0),
+                            end_dt.astimezone(ny), freq="1min")
+        idx = idx[(idx.hour >= 9) & (idx.hour < 16) & (idx.dayofweek < 5)]
+        n = len(idx)
+        return pd.DataFrame({"open": [1.0] * n, "high": [1.0] * n, "low": [1.0] * n,
+                             "close": [1.0] * n, "volume": [1] * n}, index=idx)
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+
+    ds = InteractiveBrokersRESTBacktesting(
+        datetime_start=datetime(2026, 10, 9, 9, 0, tzinfo=ny),
+        datetime_end=datetime(2026, 10, 24, tzinfo=ny),
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    contract = Asset("CL", asset_type=Asset.AssetType.FUTURE, expiration=expiration)
+
+    now = datetime(2026, 10, 15, 10, 30, tzinfo=ny)
+    ds._update_datetime(now)
+    bars = ds._pull_source_symbol_bars(asset=contract, length=2, timestep="minute", timeshift=-1)
+
+    frame = getattr(bars, "df", bars)
+    assert frame is not None and not frame.empty
+    assert frame.index[-1].astimezone(ny) >= datetime(2026, 10, 15, 10, 29, tzinfo=ny)
+    assert requested_ends and all(end <= after_last_trading_day for end in requested_ends)

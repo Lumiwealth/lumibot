@@ -1,6 +1,14 @@
 # Changelog
 
-## 4.6.62 - Unreleased
+## 4.6.62 - 2026-11-14
+
+### Fixed
+- Backtests are faster when bars carry metadata. pandas deep-copies `DataFrame.attrs` every time a column, row or slice is taken, and the routed and direct IBKR stock loaders keep the corporate-action ledger there (one entry per dividend or split), so every `get_historical_prices` and `get_last_price` call rebuilt that ledger many times (about 70% of simulation time in a profiled 12-month run). The loaders now share that metadata through read-only containers that are never copied (`lumibot.tools.frame_metadata.share_frame_attrs`). Content, equality and JSON output of `bars.df.attrs` are unchanged; the nested values are read-only (assign a new value to `df.attrs[key]` to replace one). Synthetic benchmark, 12 months of 5-minute stock bars with a 127-event ledger, 1,340 trades, identical trades and final value: 98.6 s before, 29.8 s after (`tests/backtest/test_routed_intraday_metadata_speed.py`).
+- Routed backtests (`RoutedBacktestingPandas`) fill futures orders on contracts that expire inside the backtest window. A continuous future resolves to a dated contract for fills; the routed loader asked that contract for bars up to the end of the backtest, the provider pages history backward from the requested end, and a contract that had already expired by then returned nothing. The entry stayed pending and a 12-month ES 15-minute bracket strategy made zero trades. Requests for a dated contract now end at its last trading day (the rule the direct IBKR source already had), and a contract first used after a roll is loaded from a week before that moment, not from the start of the run. Covered for ES, MES, NQ, MNQ, GC, MGC and CL: bracket entry, stop and target fill on each contract across a roll (`tests/backtest/test_routed_future_bracket_fill_across_roll.py`).
+- A backtest with no indicator data no longer builds an empty indicators chart. It used to import the charting library, build an empty figure and write a 4 MB page (about 7 s per hosted backtest). It now writes a small static `*_indicators.html` with the same title ("... (no indicator data)") plus the same empty `*_indicators.csv` and parquet. Backtests with any marker, line or OHLC series are unchanged.
+
+### Notes
+- Profile notes and what was left for later (cold-start imports, the per-request evidence recorder): `docs/investigations/2026-11-14_BAR_METADATA_DEEPCOPY_AND_STARTUP.md`.
 
 ## 4.6.61 - 2026-11-14
 

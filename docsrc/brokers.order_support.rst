@@ -136,3 +136,49 @@ brackets and OTO orders. Backtests run continuously, so simulated orders always 
 there; check ``supports_order`` before relying on the same orders live. See
 :doc:`backtesting.how_orders_fill` for exactly how stops, gaps and "both exits touched in
 one bar" are filled.
+
+Frequently asked questions
+--------------------------
+
+What happens when I send an order my broker cannot hold?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Nothing is sent. The order's ``status`` becomes ``error``, ``error_message`` explains
+which part is not supported, and ``on_error_order`` is called. LumiBot never changes it
+into a different order, such as a market order instead of a trailing stop.
+
+How do I check whether a broker supports an order before sending it?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Call ``self.broker.supports_order(order)``, or describe the order with
+``supports_order(order_type=..., order_class=..., trailing_leg=...)``. Check
+``support.supported`` and read ``support.reason`` when it is not.
+
+What is the difference between native and simulated orders?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A native order rests at the broker and keeps protecting your position even when your
+strategy is stopped. A simulated order is handled by LumiBot and only works while your
+strategy is running.
+
+Can I put a trailing stop on a bracket order?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In backtests, yes: pass ``secondary_trail_percent`` or ``secondary_trail_price``. Live,
+no broker in the table above holds a trailing leg on a bracket yet, so it is refused.
+Submit a separate trailing stop after the entry fills where the broker supports trailing
+stops.
+
+How do I protect a Bitunix position with a stop?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Attach it to the entry: use ``order_class=Order.OrderClass.BRACKET`` (or ``OTO``) with
+``secondary_stop_price`` and, for a target, ``secondary_limit_price``. Bitunix holds them
+as its stop-loss and take-profit. Standalone stop orders are refused on Bitunix.
+
+Is it safe to run my strategy on a schedule instead of all the time?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For native orders, yes: they keep working at the broker while the strategy is stopped.
+Simulated orders, such as ProjectX bracket exits and smart limit re-pricing, stop while
+the strategy is not running. See the restart table above.

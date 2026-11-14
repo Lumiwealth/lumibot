@@ -21,7 +21,7 @@
 
 1. On the first request for a stock, the source downloads its daily bars for the whole backtest window. The window runs from the backtest start, minus the lookback and a 7-day buffer, to the backtest end. That is one request per stock.
    - A longer lookback later in the run downloads only the earlier stretch it is missing.
-2. Reads go through the shared bar cache (`shared_bar_cache.read_bars`), scoped to the broker connection. The scope is the same `credential_scope` the live data sources use, so repeat backtests on one connection reuse the bars.
+2. Reads go through the shared bar cache (`shared_bar_cache.read_bars`), shared by every connection of the broker (`shared_scope`; Tradier sandbox and live are separate because sandbox data is delayed). The live data sources use the same scope, so any backtest or chart on that broker reuses the bars. Bars cached per connection before this are still read.
    - The series is regular-session daily bars. Charts default to extended hours, so a backtest series is a separate series from the default chart series.
 3. Daily bars are stamped at the 16:00 New York close, as the Yahoo daily source does.
    - A strategy running during day D sees bars through D−1. The day's bar appears after its close.

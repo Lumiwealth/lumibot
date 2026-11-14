@@ -241,7 +241,10 @@ def record_optional_corporate_action_issue(*, symbol, when):
             _OPTIONAL_ISSUES[key] = {
                 "symbol": key[0], "reason": key[1], "required": False,
                 "price_provider": "ibkr", "corporate_actions_status": "unavailable",
-                "cash_dividends_verified": False, "observed_at": when.isoformat(), "occurrences": 1,
+                # Split-adjusted provider prices are used, but the split list
+                # behind them is unknown for this run; say so explicitly.
+                "cash_dividends_verified": False, "split_actions_verified": False,
+                "observed_at": when.isoformat(), "occurrences": 1,
             }
 
 

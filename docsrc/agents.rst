@@ -384,8 +384,8 @@ Can I backtest an AI crypto trading agent?
 Yes. An agent runs inside a normal LumiBot ``Strategy``, so it uses the same
 backtesting data sources as any other strategy. For spot crypto, use
 ``CcxtBacktesting``. :doc:`brokers.ccxt` documents CCXT backtesting examples for
-exchanges such as Kraken, Binance and Bybit. Backtesting perpetual futures with
-margin, funding and liquidation is not finished yet. Call
+exchanges such as Kraken, Binance and Bybit. Perpetual futures backtest with
+margin, funding and liquidation; see :doc:`backtesting.perpetuals`. Call
 ``self.set_market("24/7")`` in ``initialize()`` so the strategy also runs on
 weekends.
 

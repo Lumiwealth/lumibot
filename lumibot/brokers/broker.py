@@ -2986,6 +2986,9 @@ class Broker(ABC):
             raise ValueError("Order checkpoint belongs to a different instance")
         strategy_name = self._strategy_name_from_input(strategy)
         orders = list(self._iter_order_tree([Order.from_dict(row) for row in state.get("orders", [])]))
+        # Bracket/OCO stop and target are saved by identifier; relink them so a
+        # restarted bot still treats them as one cancel-the-other pair.
+        Order._relink_dependent_orders(orders)
         if any(strategy_name and order.strategy != strategy_name for order in orders):
             raise ValueError("Order checkpoint belongs to a different strategy")
         for order in orders:

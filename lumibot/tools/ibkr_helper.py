@@ -590,6 +590,69 @@ def _equity_history_start_for_bars(end_dt: datetime, length: int, timestep: str,
     return end.to_pydatetime()
 
 
+def _futures_history_start_for_bars(end_dt: datetime, length: int, timestep: str, *,
+                                    holiday_sessions: bool = True) -> datetime:
+    """Return a fetch start that can hold ``length`` completed intraday futures bars.
+
+    A lookback of N bars is N *trading* bars. Sizing it as N x bar-length of wall
+    clock time came back short whenever the window crossed the daily maintenance
+    hour (17:00-18:00 ET), a weekend, or a holiday, and the shortfall was then
+    reported as missing data (2026-11-13: 63 x 15-minute MNQ bars returned 59).
+
+    Sessions follow the same rule calendar as ``_us_futures_closed_interval``:
+    the session for weekday D opens D-1 18:00 ET and closes D 17:00 ET. Exchange
+    holidays and early closes are not in that rule calendar, so the window also
+    reaches back one extra session, plus one per week spanned. This only widens
+    the request; it never creates bars, and a genuinely absent stretch still
+    comes back short and is reported. ``holiday_sessions=False`` returns the
+    rule-calendar start alone, for coverage checks: a holiday has no bars, so a
+    padded start would make complete data look incomplete.
+    """
+    import pytz
+
+    ny = pytz.timezone("America/New_York")
+    end = pd.Timestamp(end_dt)
+    if end.tzinfo is None:
+        end = end.tz_localize(LUMIBOT_DEFAULT_PYTZ)
+    end = end.tz_convert(ny)
+    _, seconds, _ = _timestep_to_ibkr_bar(timestep)
+    step = pd.Timedelta(seconds=int(seconds))
+    if step <= pd.Timedelta(0) or step >= pd.Timedelta(days=1):
+        raise ValueError("futures session lookback needs an intraday timestep")
+
+    def session_bounds(day):
+        opened = pd.Timestamp(ny.localize(datetime.combine(day - timedelta(days=1), datetime.min.time())
+                                          .replace(hour=18)))
+        closed = pd.Timestamp(ny.localize(datetime.combine(day, datetime.min.time()).replace(hour=17)))
+        return opened, closed
+
+    remaining = int(length)
+    day = end.date() + timedelta(days=1)
+    start = None
+    for _ in range(366 * 50):
+        if day.weekday() < 5:
+            opened, closed = session_bounds(day)
+            if opened < end:
+                available = max(0, int((min(closed, end) - opened) // step))
+                if available >= remaining:
+                    start = opened + (available - remaining) * step
+                    break
+                remaining -= available
+        day -= timedelta(days=1)
+    if start is None:
+        raise ValueError("IBKR futures lookback exceeds supported session calendar")
+
+    if not holiday_sessions:
+        return start.tz_convert("UTC").to_pydatetime()
+    extra_sessions = 1 + max(0, (end - start).days) // 7
+    while extra_sessions > 0:
+        day -= timedelta(days=1)
+        if day.weekday() < 5:
+            extra_sessions -= 1
+    start = min(start, session_bounds(day)[0])
+    return start.tz_convert("UTC").to_pydatetime()
+
+
 def _us_equity_closed_interval(start_local: datetime, end_local: datetime, *, include_after_hours: bool) -> bool:
     """Return True if a US equity cannot trade anywhere in ``[start_local, end_local)``.
 
@@ -994,6 +1057,8 @@ def get_price_data(
         _bar, _bar_seconds, timestep_component = _timestep_to_ibkr_bar(timestep)
     except Exception:
         timestep_component = _timestep_component(timestep)
+    else:
+        _require_legal_ibkr_bar(timestep)
 
     # Shared IBKR historical feeds can lag current time, including futures.
     # Asking through "now" makes a valid delayed page fail strict stale-tail
@@ -1178,6 +1243,8 @@ def get_price_data(
     cache_manager = get_backtest_cache()
 
     try:
+        if not _is_shared_cache_path(cache_file):
+            raise LookupError("private run-local cache file")
         cache_manager.ensure_local_file(
             cache_file,
             payload=_remote_payload(
@@ -1192,7 +1259,7 @@ def get_price_data(
     except Exception:
         pass
 
-    df_cache = _read_cache_frame(cache_file)
+    df_cache = _read_cache_frame_with_legacy_name(cache_file, timestep)
     if equity_basis is not None:
         df_cache = _verified_equity_cache(df_cache, equity_basis)
     # If this series came from a cached parquet (e.g., prefilled via TWS), it may not include the
@@ -1455,6 +1522,10 @@ def get_price_data(
                     _page_checkpoint=_checkpoint_pages,
                 )
             except Exception as exc:
+                if _is_permanent_history_request_error(exc):
+                    # The request itself is invalid; retrying or returning no bars
+                    # would hide it. Surface it to the strategy and the run report.
+                    raise
                 df_cache = checkpoint_state["frame"]
                 # Avoid crashing the entire backtest on entitlement/session issues. Return an empty
                 # frame so strategies can continue with a loud error in logs.
@@ -1967,6 +2038,8 @@ def _get_cached_bars_for_source(
     )
     cache_manager = get_backtest_cache()
     try:
+        if not _is_shared_cache_path(cache_file):
+            raise LookupError("private run-local cache file")
         cache_manager.ensure_local_file(
             cache_file,
             payload=_remote_payload(
@@ -1981,7 +2054,7 @@ def _get_cached_bars_for_source(
     except Exception:
         pass
 
-    df_cache = _read_cache_frame(cache_file)
+    df_cache = _read_cache_frame_with_legacy_name(cache_file, timestep)
     if equity_basis is not None:
         df_cache = _verified_equity_cache(df_cache, equity_basis)
     if not df_cache.empty:
@@ -4122,6 +4195,8 @@ def _record_missing_window(
     )
     cache_manager = get_backtest_cache()
     try:
+        if not _is_shared_cache_path(cache_file):
+            raise LookupError("private run-local cache file")
         cache_manager.ensure_local_file(
             cache_file,
             payload=_remote_payload(
@@ -5278,6 +5353,21 @@ def _lookup_same_month_future_conid_from_mapping(
         if conid > 0:
             matches.setdefault(conid, expiration)
 
+    if len(matches) > 1:
+        # A same-month registry can hold one contract under its last trade date
+        # and an older one under its delivery month (crude: CLK26 keyed in May
+        # beside CLM26, which last trades in May). Keep only entries that are a
+        # real last trade date of some contract month in the root's calendar.
+        year, month = int(target[:4]), int(target[4:6])
+        calendar_dates = set()
+        for offset in range(3):
+            contract_year, contract_month = year + (month - 1 + offset) // 12, (month - 1 + offset) % 12 + 1
+            try:
+                calendar_dates.add(_contract_expiration_date(key.symbol, year=contract_year,
+                                                             month=contract_month).strftime("%Y%m%d"))
+            except Exception:
+                continue
+        matches = {conid: expiration for conid, expiration in matches.items() if expiration in calendar_dates}
     if len(matches) == 1:
         conid, expiration = next(iter(matches.items()))
         return conid, expiration
@@ -5511,6 +5601,33 @@ def _lookup_conid_future(
     return int(chosen["conid"])
 
 
+# Split-adjusted stock prices whose split ledger could not be verified are kept
+# out of the shared cache. Their cache identity is dated per outage day, so a
+# file written under it is never read by a later run (2026-11-13: 14 orphan
+# daily names in three weeks). Within one process they still reuse a private
+# file, so a run does not download the same window twice.
+_UNVERIFIED_SPLIT_BASES: set[str] = set()
+_PRIVATE_CACHE_ROOTS: Dict[str, Path] = {}
+
+
+def _private_cache_root() -> Path:
+    # One private folder per shared cache root, created on first use.
+    key = str(LUMIBOT_CACHE_FOLDER)
+    if key not in _PRIVATE_CACHE_ROOTS:
+        import tempfile
+
+        _PRIVATE_CACHE_ROOTS[key] = Path(tempfile.mkdtemp(prefix="lumibot-ibkr-unverified-"))
+    return _PRIVATE_CACHE_ROOTS[key]
+
+
+def _is_shared_cache_path(path: Path) -> bool:
+    try:
+        Path(path).resolve().relative_to(Path(LUMIBOT_CACHE_FOLDER).resolve())
+        return True
+    except ValueError:
+        return False
+
+
 def _cache_file_for(
     *,
     asset: Asset,
@@ -5522,6 +5639,8 @@ def _cache_file_for(
     equity_basis: str | None = None,
 ) -> Path:
     provider_root = Path(LUMIBOT_CACHE_FOLDER) / CACHE_SUBFOLDER
+    if equity_basis and equity_basis in _UNVERIFIED_SPLIT_BASES:
+        provider_root = _private_cache_root() / CACHE_SUBFOLDER
     asset_folder = _asset_folder(asset)
     _bar, _bar_seconds, timestep_component = _timestep_to_ibkr_bar(timestep)
     exch = (exchange or "").strip().upper() or "AUTO"
@@ -5598,6 +5717,10 @@ def _timestep_to_ibkr_bar(timestep: str) -> Tuple[str, int, str]:
     if raw.endswith("minute"):
         qty = raw.removesuffix("minute") or "1"
         minutes = int(qty)
+        hours, extra = divmod(minutes, 60)
+        if not extra and hours in IBKR_LEGAL_HOUR_BARS:
+            # IBKR has no "60min" bar; it is "1h". One name also keeps one cache file.
+            return f"{hours}h", minutes * 60, "hour" if hours == 1 else f"{hours}hour"
         return f"{minutes}min", minutes * 60, f"{minutes}minute"
 
     if raw in {"hour", "1hour", "h", "1h"}:
@@ -5615,10 +5738,41 @@ def _timestep_to_ibkr_bar(timestep: str) -> Tuple[str, int, str]:
         return f"{days}d", days * 24 * 60 * 60, f"{days}day"
 
     if raw.endswith("min"):
-        minutes = int(raw.removesuffix("min") or "1")
-        return f"{minutes}min", minutes * 60, f"{minutes}minute"
+        return _timestep_to_ibkr_bar(f"{int(raw.removesuffix('min') or '1')}minute")
 
     raise ValueError(f"Unsupported IBKR timestep: {timestep}")
+
+
+# Bar sizes IBKR's historical data endpoint accepts (minutes and hours).
+IBKR_LEGAL_MINUTE_BARS = frozenset({1, 2, 3, 5, 10, 15, 20, 30})
+IBKR_LEGAL_HOUR_BARS = frozenset({1, 2, 3, 4, 8})
+_IBKR_PERMANENT_REQUEST_ERRORS = ("bar size setting is invalid",)
+
+
+def _require_legal_ibkr_bar(timestep: str) -> None:
+    """Refuse an intraday bar size IBKR would reject, before asking it.
+
+    IBKR answers an illegal size with a permanent error; treating that as a gap
+    left strategies running silently on zero bars.
+    """
+    bar, _, component = _timestep_to_ibkr_bar(timestep)
+    if bar.endswith("min"):
+        legal = int(bar.removesuffix("min")) in IBKR_LEGAL_MINUTE_BARS
+    elif bar.endswith("h"):
+        legal = int(bar.removesuffix("h")) in IBKR_LEGAL_HOUR_BARS
+    else:
+        return
+    if not legal:
+        raise ValueError(
+            f"IBKR has no {component} bar size (requested timestep {timestep!r}). Legal intraday sizes: "
+            + ", ".join(f"{m} minute" for m in sorted(IBKR_LEGAL_MINUTE_BARS)) + ", "
+            + ", ".join(f"{h} hour" for h in sorted(IBKR_LEGAL_HOUR_BARS)) + "."
+        )
+
+
+def _is_permanent_history_request_error(exc: BaseException) -> bool:
+    message = str(exc).lower()
+    return any(token in message for token in _IBKR_PERMANENT_REQUEST_ERRORS)
 
 
 def _normalize_history_source(source: Optional[str]) -> str:
@@ -5734,6 +5888,7 @@ def _get_current_equity_basis(symbol: str):
         logger.warning("IBKR %s corporate-action metadata unavailable; using native split-adjusted "
                        "prices. Cash dividends are unverified for this run.", symbol)
         snapshot = EquityBasisSnapshot.from_provider_adjusted_prices(as_of=now)
+        _UNVERIFIED_SPLIT_BASES.add(snapshot.split_fingerprint)
     _IBKR_EQUITY_BASIS_CACHE[symbol] = (bucket, snapshot)
     return snapshot
 
@@ -5886,6 +6041,44 @@ def _max_period_for_bar(bar: str) -> str:
     return f"{IBKR_HISTORY_MAX_POINTS}min"
 
 
+def _legacy_cache_file(cache_file: Path, timestep: str) -> Optional[Path]:
+    """Where an hourly series was cached before hour-sized names were unified.
+
+    "60 minutes" used to be cached under ``60minute`` and "1 hour" under
+    ``hour``. Both now share the hour name; older files keep their old name.
+    """
+    try:
+        bar, _, component = _timestep_to_ibkr_bar(timestep)
+    except Exception:
+        return None
+    if not bar.endswith("h"):
+        return None
+    legacy = f"{int(bar.removesuffix('h')) * 60}minute"
+    if cache_file.parent.parent.name != component or f"_{component}_" not in cache_file.name:
+        return None
+    return (cache_file.parent.parent.parent / legacy / cache_file.parent.name
+            / cache_file.name.replace(f"_{component}_", f"_{legacy}_", 1))
+
+
+def _read_cache_frame_with_legacy_name(cache_file: Path, timestep: str) -> pd.DataFrame:
+    """Read the unified cache file, falling back to a legacy-named one.
+
+    Writes always go to the unified name, so the legacy file is only read until
+    the series is next updated."""
+    frame = _read_cache_frame(cache_file)
+    if not frame.empty:
+        return frame
+    legacy = _legacy_cache_file(cache_file, timestep)
+    if legacy is None:
+        return frame
+    if _is_shared_cache_path(legacy):
+        try:
+            get_backtest_cache().ensure_local_file(legacy, payload=_remote_payload_from_path(legacy))
+        except Exception:
+            pass
+    return _read_cache_frame(legacy)
+
+
 def _read_cache_frame(path: Path) -> pd.DataFrame:
     if not path.exists():
         return pd.DataFrame()
@@ -5923,6 +6116,8 @@ def _write_cache_frame(path: Path, df: pd.DataFrame) -> pd.DataFrame:
         return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
 
     written = identity()
+    if not _is_shared_cache_path(path):
+        return df
     try:
         get_backtest_cache().on_local_update(path, payload=_remote_payload_from_path(path))
     except Exception:

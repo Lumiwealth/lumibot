@@ -5,6 +5,7 @@ import time
 from collections import deque
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import Optional
 
 import pandas as pd
@@ -295,8 +296,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
         self._trading_client = None
         self._option_chain_max_days = int(kwargs.get("option_chain_max_days") or self.OPTION_CHAIN_MAX_DAYS)
         if oauth_token and not (api_key and api_secret):
-            # OAuth access tokens are refreshed over time. Give the shared bar cache the stable
-            # account behind the token instead, so a refreshed token keeps its cached bars.
+            # Bars are cached once for every Alpaca connection. Bars cached before that under
+            # this OAuth account are still found through the account identity (read-only).
             for data_client in (self._crypto_client, self._stock_client, self._option_client):
                 data_client._lumibot_cache_identity = self._oauth_account_cache_identity
 
@@ -833,9 +834,9 @@ class AlpacaBacktesting(DataSourceBacktesting):
     def _oauth_account_cache_identity(self):
         """``account:<id>`` for the OAuth token's Alpaca account, resolved once; None if unknown.
 
-        Used only as the shared bar cache scope (see ``alpaca_history``). Read-only: one
-        account lookup per backtest. Any failure returns None and the cache falls back to
-        scoping by the token itself (correct, just not reused after a token refresh).
+        Used only to find bars cached per account before the cache was shared by every
+        connection (see ``alpaca_history._legacy_scopes``). Read-only: one account lookup per
+        backtest. Any failure returns None and only the shared cache is read.
         """
         if "_oauth_cache_identity" in self.__dict__:
             return self.__dict__["_oauth_cache_identity"]
@@ -1126,6 +1127,18 @@ class AlpacaBacktesting(DataSourceBacktesting):
         cache_file = os.path.join(cache_dir, "_".join(cache_key) + ".json")
         from lumibot.tools import backtest_telemetry
 
+        # Option chains are the same for every Alpaca connection, so they are shared through the
+        # remote cache (one GET on a local miss). Only final chains are ever uploaded: see below.
+        remote_cache = None
+        try:
+            from lumibot.tools.backtest_cache import get_backtest_cache
+
+            remote_cache = get_backtest_cache()
+            if remote_cache is not None and remote_cache.enabled and not os.path.exists(cache_file):
+                remote_cache.ensure_local_file(Path(cache_file))
+        except Exception as exc:  # the remote cache must never break a chain lookup
+            logger.debug("Alpaca option chain remote cache unavailable (%s)", type(exc).__name__)
+
         backtest_telemetry.record_cache("hit" if os.path.exists(cache_file) else "miss", layer="alpaca_option_chains",
                                         source="alpaca", asset_class="option")
         if os.path.exists(cache_file):
@@ -1150,8 +1163,15 @@ class AlpacaBacktesting(DataSourceBacktesting):
             os.makedirs(cache_dir, exist_ok=True)
             with open(cache_file, "w", encoding="utf-8") as handle:
                 json.dump(chain, handle, separators=(",", ":"))
+            # Alpaca's contract listing is not point-in-time: a window that reaches today or later
+            # can still gain contracts. Share a chain only once every expiration in it has passed,
+            # so the shared file is the same answer anyone would get later.
+            if remote_cache is not None and remote_cache.enabled and last_expiration < datetime.now(pytz.UTC).date() - timedelta(days=1):
+                remote_cache.on_local_update(Path(cache_file))
         except OSError as exc:
             logger.warning("Could not write Alpaca option chain cache %s: %s", cache_file, exc)
+        except Exception as exc:  # an upload failure must never break a chain lookup
+            logger.debug("Alpaca option chain upload skipped (%s)", type(exc).__name__)
         memory[cache_key] = chain
         self._remember_listed_contracts(chain)
         return self._copy_chain(chain)

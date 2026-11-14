@@ -382,6 +382,14 @@ def test_prewarm_is_safe_to_call_repeatedly():
     sbc.prewarm()
 
 
+def test_shared_scope_names_only_the_provider_and_its_data_tier():
+    assert sbc.shared_scope("schwab") == sbc.shared_scope("schwab", None, "")
+    assert sbc.shared_scope("tradier", "paper") != sbc.shared_scope("tradier", "live")
+    assert sbc.shared_scope("alpaca") != sbc.shared_scope("schwab")
+    # Never collides with a per-connection scope of the same words.
+    assert sbc.shared_scope("ccxt", "kraken") != sbc.credential_scope("ccxt", "kraken")
+
+
 def test_scope_needs_an_identity_beyond_the_provider_name():
     assert sbc.credential_scope("ibkr", None) is None
     assert sbc.credential_scope("ibkr", "") is None

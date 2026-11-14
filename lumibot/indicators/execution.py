@@ -20,6 +20,12 @@ forwards those calls to another process works. Results must match the
 in-process numbers exactly; LumiBot's own tests check a process-backed
 executor against in-process runs.
 
+Optionally the returned object may also have
+``compute_history(bars_df) -> {output_id: sequence}`` with one causal value
+per row. In backtests ``self.indicators.get`` then calls it once per stream
+over the full stored series instead of feeding bars one by one, and reads the
+value at the current bar. Live trading keeps using ``update``.
+
 ::
 
     from lumibot.indicators import IndicatorExecutor, use_indicator_executor

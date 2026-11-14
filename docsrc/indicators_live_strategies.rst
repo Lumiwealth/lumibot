@@ -72,6 +72,31 @@ single runner. Indicator authors change nothing. LumiBot's tests run
 indicators in a child process this way and check the numbers match an
 in-process run exactly.
 
+Whole-history computation in backtests (optional)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Feeding bars one at a time is the right shape for live trading, but in a
+backtest every bar is already stored. If the object ``prepare`` returns also
+has a ``compute_history`` method, ``self.indicators.get`` uses it in
+backtests::
+
+    def compute_history(self, bars_df):
+        # bars_df: the full stored bar series for this stream
+        # (open, high, low, close, volume; DatetimeIndex)
+        return {"rsi": [None, None, ..., 55.1]}  # one value per row, per output
+
+The rules:
+
+- One value per row for every output, in row order. Row ``i`` may use only
+  rows ``0`` to ``i`` (no looking ahead). LumiBot raises a ``ValueError`` if a
+  sequence has the wrong length.
+- LumiBot calls it once per stream (asset, timestep, indicator, inputs) and
+  caches the result. ``get`` at bar N returns row N, the same value the
+  per-bar path would give. It calls again only when the stored series changes
+  (more bars loaded, or the last bar corrected).
+- Live trading ignores it and keeps calling ``update`` as bars arrive.
+- Objects without the method work exactly as before.
+
 .. currentmodule:: lumibot.indicators
 
 .. autoclass:: IndicatorExecutor

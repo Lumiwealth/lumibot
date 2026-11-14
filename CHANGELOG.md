@@ -1,5 +1,26 @@
 # Changelog
 
+## 4.6.56 - 2026-11-13
+
+Deploy marker: 682904c2fccb666144fd1e29f8cf66c9d95f5f4d
+
+### Added
+- Indicator executors can offer whole-history computation. If the object an `IndicatorExecutor` prepares has `compute_history(bars_df)` returning one value per row per output, `self.indicators.get` calls it once per stream in backtests, caches it, reads the value at the current bar and recomputes only when the stored series changes. Live trading keeps feeding bars one at a time; objects without the method are unchanged.
+- Routed backtests can read real crypto perpetual data from Bitunix's public market API (no API key): set `"crypto_future": "bitunix"` in `BACKTESTING_DATA_SOURCE`. Perpetual candles, contract terms and settled funding come from the exchange, so perpetual orders fill with leverage and margin and funding is charged at each real settlement. Opt-in only; existing routes are unchanged. Coin-margined (inverse) contracts and missing or unreachable data stop the backtest up front with a plain message instead of a silent zero-trade run. The message ends with a machine-readable `PERPETUAL_DATA_UNAVAILABLE {...}` line (reason code, source, symbol and the other `crypto_future` data sources) so tools can switch source and rerun. Paging keeps going past transient empty pages, so long minute-bar windows are not cut short. See `docsrc/backtesting.perpetuals.rst`.
+
+### Changed
+- Market data is cached once per provider for every connection. Alpaca, Schwab, Tradier and CCXT bars were cached per API key, OAuth account or broker account, so a second customer asking for the same bars downloaded them again. The cache key now holds only what changes the numbers (feed, adjustment, bar size, asset type, exchange, sandbox vs live), never who asked. Bars cached per connection before this are still read and copied to the shared key, so nothing is downloaded again. Alpaca option chains whose expirations have all passed are shared through the remote cache too.
+- When a perpetual settles in a different coin than the backtest budget (for example a USDT contract with a USD budget), the rejected order now says to set the quote asset to the settlement coin. Results are unchanged.
+
+### Fixed
+- Intraday futures lookbacks in IBKR backtests now count trading bars, not wall-clock time. Asking for 63 fifteen-minute bars across the daily maintenance hour, a weekend or a holiday returns 63 real bars instead of 59 and is no longer reported as missing required data. A genuine provider shortfall is still reported.
+- IBKR history requests for "60 minutes" (and 120, 180, 240 or 480 minutes) now ask IBKR for its legal hour bar sizes instead of "60min", which IBKR rejects permanently. Hourly strategies were silently getting zero bars. Hourly bars share one cache file however the timestep is written. A size IBKR has no bar for (for example 45 minutes) now fails with a clear error before any request, and a permanent bar-size rejection from IBKR is raised instead of being treated as missing data.
+- Crude oil (CL, MCL) last trade dates are counted in CME business days, so months whose window holds Memorial Day, Juneteenth, Thanksgiving, MLK or Presidents Day no longer ask IBKR for a contract one day late (CLM26 now resolves to 2026-05-19). Checked against every recorded IBKR CL and MCL last trade date. When the contract registry holds two same-month entries, the one that is a real last trade date for a contract month is chosen; truly ambiguous entries still refuse.
+- When the stock split lookup fails, IBKR stock bars are no longer written to the shared cache under a one-day "splits unknown" name that no later run reads. Those prices stay private to the run (still reused within it), and the data-health warning now says `split_actions_verified: false`.
+- Hourly IBKR bars use one cache name however the timestep is written ("1 hour", "60 minutes"). Files cached earlier under the old `60minute` name are still read, and new writes go to the unified name.
+- `Order.to_dict()` no longer recurses forever on bracket and OCO orders (the stop and target reference each other). Linked orders are written by identifier, any order graph serializes finitely, and restoring a live order checkpoint relinks the stop and target. Before this, a live bot holding a bracket could crash or skip its order checkpoint at every variable backup.
+- Public docs no longer say spot-proxy perpetual routes use USD pairs or that perpetual backtesting is unfinished.
+
 ## 4.6.55 - 2026-11-13
 
 Deploy marker: 54206e37387695440a5549b551892d0a400cde58

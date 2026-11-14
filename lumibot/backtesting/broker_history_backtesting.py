@@ -96,6 +96,7 @@ class BrokerHistoryBacktesting(PandasData):
         symbol = str(asset.symbol)
         series = shared_bar_cache.BarSeries.make(
             self.adapter.name, symbol, "1day", scope=self.adapter.scope, adjusted=True,
+            legacy_scopes=(getattr(self.adapter, "legacy_scope", None),),
             assetType="stock", history="daily", session="regular",
         )
 

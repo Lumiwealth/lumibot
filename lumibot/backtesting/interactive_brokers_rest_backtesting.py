@@ -892,6 +892,14 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             start_dt = session_start if ts_unit == "day" else min(start_dt, session_start)
         if asset_type in {"future", "cont_future"} and ts_unit == "day":
             start_dt -= timedelta(days=5)
+        elif asset_type in {"future", "cont_future"} and ts_unit in {"minute", "hour"}:
+            # Count trading bars back through maintenance hours, weekends and
+            # holidays; a wall-clock window comes back short across any of them.
+            session_start = ibkr_helper._futures_history_start_for_bars(end_dt, length, dataset_key)
+            counted_start = ibkr_helper._futures_history_start_for_bars(
+                end_dt, length, dataset_key, holiday_sessions=False)
+            counted_start = min(start_dt, counted_start.astimezone(start_dt.tzinfo))
+            start_dt = min(start_dt, session_start.astimezone(start_dt.tzinfo))
         if asset_type in {"future", "cont_future"} and ts_unit in {"minute", "hour", "day"}:
             # Futures strategies frequently request very small slices (e.g., `length=2`) at the
             # beginning of the backtest window. If we only fetch the tiny requested slice, IBKR's
@@ -917,6 +925,11 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                     prefetch_start = min(start_dt, prev_open)
                 else:
                     prefetch_start = min(start_dt, anchor - timedelta(days=1))
+                # Coverage is judged without the holiday padding: a padded start
+                # that lands on a closed holiday has no bars to return.
+                coverage_start = prefetch_start
+                if ts_unit in {"minute", "hour"}:
+                    coverage_start = min(counted_start, prev_open or (anchor - timedelta(days=1)))
                 prefetch_end = self.datetime_end
                 self._update_pandas_data(
                     asset_separated,
@@ -933,7 +946,7 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                     df_prefetched,
                     asset=asset_separated,
                     timestep=dataset_key,
-                    start_dt=prefetch_start,
+                    start_dt=coverage_start,
                     end_dt=prefetch_end,
                 ):
                     self._fully_loaded_series.add(key)

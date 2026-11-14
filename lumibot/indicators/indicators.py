@@ -168,6 +168,11 @@ class Indicators:
         streaming state between calls, so each new bar costs one ``update``
         instead of a full-history recompute. If time moves backwards or the
         last bar it saw has changed, it rebuilds from the observed history.
+
+        In backtests, if the prepared indicator object exposes
+        ``compute_history(bars_df)`` (see ``lumibot.indicators.execution``),
+        it is called once per stream over the stored series and the value at
+        the current bar is returned instead.
         """
         from lumibot.indicators.base import iter_bars
         from lumibot.indicators.indicator_registry import registry
@@ -196,6 +201,8 @@ class Indicators:
             return None
 
         entry = self._streams.get(stream_key)
+        if entry is not None and entry.get("history") is not None:
+            return self._whole_history_values(entry, df, end)
         if entry is not None:
             count = entry["count"]
             last_seen = next(iter(iter_bars(observed.iloc[count - 1 : count]))) if 0 < count <= end else None
@@ -206,6 +213,10 @@ class Indicators:
 
             entry = {"indicator": prepare_indicator(cls(**resolved)), "count": 0, "last_bar": None, "values": None}
             self._streams[stream_key] = entry
+            if getattr(self._strategy, "is_backtesting", False) and callable(
+                    getattr(entry["indicator"], "compute_history", None)):
+                entry["history"] = {}
+                return self._whole_history_values(entry, df, end)
         if entry["count"] < end:
             indicator = entry["indicator"]
             bar = None
@@ -213,6 +224,34 @@ class Indicators:
                 entry["values"] = indicator.update(bar, closed=True)
             entry["count"], entry["last_bar"] = end, bar
         return dict(entry["values"])
+
+    @staticmethod
+    def _whole_history_values(entry, df: pd.DataFrame, end: int) -> dict:
+        """Backtest path for prepared indicators that expose ``compute_history``.
+
+        ``compute_history(bars_df)`` returns ``{output_id: sequence}`` with one
+        value per row, where row ``i`` depends only on rows ``0..i``. It runs
+        once per stream over the full stored series, and again only when that
+        series changes (length, bounds or last bar). ``get`` at bar N reads row
+        N, so strategies see exactly what the per-bar path would give them.
+        """
+        history = entry["history"]
+        last = df.iloc[-1]
+        fingerprint = (len(df), df.index[0], df.index[-1],
+                       tuple(last.get(name) for name in ("open", "high", "low", "close", "volume")))
+        if history.get("fingerprint") != fingerprint:
+            computed = entry["indicator"].compute_history(df)
+            columns = {}
+            for spec in entry["indicator"].outputs:
+                values = list((computed or {}).get(spec.id, ()))
+                if len(values) != len(df):
+                    raise ValueError(
+                        f"compute_history must return one value per row for output {spec.id!r}: "
+                        f"got {len(values)} for {len(df)} bars"
+                    )
+                columns[spec.id] = values
+            history.update(fingerprint=fingerprint, columns=columns)
+        return {output_id: values[end - 1] for output_id, values in history["columns"].items()}
 
     def invalidate(self, asset=None) -> None:
         """Drop memoized indicator results.

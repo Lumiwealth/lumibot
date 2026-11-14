@@ -54,9 +54,12 @@ connection, so their bars are never mixed with broker-connection bars.
   adjusted series is re-checked once a day.
 - **Truncating providers.** Providers that can drop the start of an answer (IBKR Client Portal
   `period` reads) use `coverage_from_rows=True`, so coverage starts at the first returned bar.
-- **Connection scope.** By default bars are shared only within one broker connection (scope is a
-  one-way hash of the account/key, never the raw credential). `LUMIBOT_SHARED_BARS_SCOPE=provider`
-  shares across connections of one broker. A series without a scope is never cached.
+- **One cache per provider.** Built-in adapters use `shared_scope(provider, *tier)`: every connection
+  of a provider reads and writes the same files. The key holds only what changes the numbers (feed,
+  adjustment, bar size, asset type, sandbox vs live endpoint), never an account, key, token, user,
+  strategy or bot. `legacy_scopes` on `BarSeries.make` names the old per-connection scopes: a partition
+  missing from the shared series is adopted from one of them (one extra GET on a miss, one write) so
+  nothing is downloaded again. A series without a scope is never cached.
 - **Errors propagate.** A provider error raises and writes nothing.
 - **Provider bars are returned as the provider sent them.** Brokers sometimes publish internally
   inconsistent bars (Tradier SPY 2024-12-19: close below low); they are cached and returned like

@@ -881,6 +881,10 @@ otherwise closed-interval checks can skip valid market hours on pandas 3.
 
 For `Asset.AssetType.CRYPTO_FUTURE`, routed backtesting fetches spot crypto history as the price source while storing bars against the original futures asset. Quote assets are preserved exactly. USDT contracts such as `BTCUSDT`, `ETHUSDT`, and `SOLUSDT` use `BTC/USDT`, `ETH/USDT`, and `SOL/USDT`; if the exact pair has no provider data, LumiBot treats that as missing data instead of silently falling back to USD.
 
+Spot-proxy routes have no contract terms or funding history. Since perpetual accounting (4.6.31) every order on them is rejected with "Derivative contract terms are unavailable", so such a backtest completes with zero trades. That default is intentionally unchanged.
+
+**Real perpetual route (opt-in): `{"crypto_future":"bitunix"}`.** `_BitunixPerpetualRoutingAdapter` (`uses_spot_proxy = False`) reads Bitunix public futures market data through `lumibot/tools/bitunix_market_data.py`: perpetual candles (`/kline`, shared bar cache provider `bitunix`), contract terms (`/trading_pairs`, quantities in base coin) and settled funding with its settlement mark price (`/get_funding_rate_history`). The router exposes `get_contract_spec` and `get_funding_events` only for adapters that define them, so `PerpetualAccount` charges real funding. Invariants: no spot substitution, empty or blocked answers raise `PerpetualDataUnavailable` (a `RoutingProviderError` whose message ends with a `PERPETUAL_DATA_UNAVAILABLE {json}` line: `reason`, `source`, `asset_class`, `symbol`, `alternatives`) before trading, transient empty kline pages are retried and stepped past rather than ending the series (seen mid-2026 on 1-minute history), coin-margined (inverse) symbols raise before trading because Bitunix does not publish face value or margin coin, and a USD budget is never converted into USDT collateral (the order error says to set a USDT quote asset). Tests: `tests/test_routed_bitunix_perpetuals.py` (recorded responses in `tests/fixtures/bitunix_public_perpetual_market.json`). Reachability from US cloud (2026-11-13): Bitunix, OKX, Kraken Futures, Bitget, KuCoin Futures, Deribit, Hyperliquid and Binance bulk files answer; Binance futures REST returns 451 and Bybit returns 403.
+
 #### Crypto daily bars (important semantics)
 
 CCXT OHLCV timestamps mark candle opens. Default research history and last-price
@@ -1023,10 +1027,11 @@ filled rows.
 
 Only complete calendar-month provider requests older than one day are persisted.
 A second overlapping request downloads only missing partitions. Sparse provider
-bars remain sparse. Explicit limits/sort orders and requests without a known
-credential scope use the provider directly. Feed, adjustment, currency, cadence,
-asset class, as-of symbol mapping and credential scope are part of identity. No
-credentials are stored in paths or metadata. Historical partitions expire after
+bars remain sparse. Explicit limits/sort orders and unauthenticated clients use the
+provider directly. Feed, adjustment, currency, cadence, asset class and as-of symbol
+mapping are part of identity; who asked is not: every Alpaca connection shares one
+cache. Bars cached per connection before that are still read (and then written
+shared). No credentials are stored in paths or metadata. Historical partitions expire after
 24 hours so corporate-action changes and provider corrections can be refreshed;
 current months always read the provider. Explicit backtest refresh bypasses reuse.
 

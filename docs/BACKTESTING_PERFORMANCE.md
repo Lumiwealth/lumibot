@@ -1223,3 +1223,14 @@ This is generic capture infrastructure for every backtest and indicator input,
 independent of a strategy, ticker, customer or grading outcome. Native regression
 coverage includes both former capture ceilings, bounded-cache eviction,
 concurrent duplicate reads, transaction rollback and actual backtest export.
+
+
+## Resting orders between runs (4.6.63)
+
+Checking resting orders on every bar between two strategy runs is event-indexed, not a
+per-bar loop: array comparisons find the bars where an order can fill, and only those bars
+run `process_pending_orders`. Guard: `tests/backtest/test_resting_orders_between_runs_speed.py`
+asserts operation counts (zero extra broker passes for a market-order strategy, at most two
+per fill for a bracket strategy) and records seconds as diagnostics. Full-year run:
+`LUMIBOT_SPEED_BENCH_MONTHS=12`. Measured 2026-11-14 (12 months, 5-minute runs on minute
+bars): market-only 36.5 s without and 34.5 s with the check; brackets 71.0 s and 66.7 s.

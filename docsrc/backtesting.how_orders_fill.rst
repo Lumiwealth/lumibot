@@ -65,22 +65,67 @@ All of this is guesswork forced by bar data. Running the backtest on minute bars
 (instead of daily bars) makes these "both touched" bars much rarer and the results
 closer to live trading.
 
-Resting orders are checked when your strategy runs
---------------------------------------------------
+Resting orders are checked on every bar
+---------------------------------------
 
-In a backtest, waiting stop, limit and bracket orders are checked each time the strategy
-runs (once per ``sleeptime``) and around the market open and close, against the bar at
-that moment. Bars between two runs are not checked one by one.
+A stop or limit rests at the broker. It can fill at any moment, not only when your
+strategy runs. In a backtest, waiting stop, limit, stop-limit and trailing stop orders
+(including the target and stop of a bracket, OTO or OCO order) are checked on **every
+bar the backtest has loaded for that asset**, also the bars between two runs of your
+strategy.
 
-* With daily bars and a daily strategy, each check sees the whole day's range, so a stop
-  touched during the day fills at the stop price.
-* With minute bars and a strategy that runs less often (for example ``sleeptime = "1D"``
-  or ``"15M"``), a stop that is crossed between two runs is only seen at the next run,
-  and only if the price is still past the stop then. A dip that recovers before the next
-  run does not fill the stop. Live, a stop resting at the broker would have filled.
+Example: a strategy runs once a day (``sleeptime = "1D"``) on minute bars and holds a
+stop at 90. At 11:01 the price dips to 85, and by 11:05 it is back at 100.
 
-If your strategy relies on resting stops or limits, run it with a ``sleeptime`` as short
-as your bars (``"1M"`` on minute data), or use daily bars for a daily strategy.
+=====================================  ==========================================
+Bar                                    What happens
+=====================================  ==========================================
+11:00, low 92                          Nothing. The stop is not reached.
+11:01, opens 93, low 85                The stop fills at 90, at 11:01.
+11:01, opens 88 (a gap under 90)       The stop fills at 88, the open.
+=====================================  ==========================================
+
+The fill rules are the ones above, bar by bar:
+
+* A stop fills at the stop price when the bar's range crosses it, or at the bar's open
+  when the bar opens past it.
+* A limit fills at the limit price, or at the open when the open is better.
+* A trailing stop follows every bar's high (for a sell) or low (for a buy), then fills
+  like a stop.
+* For a bracket or OCO, the exit that is touched first wins. If one bar touches both,
+  the stop fills.
+
+Your strategy's ``on_filled_order`` runs at the time of the fill. An order it places
+there is processed on the next bar.
+
+What bars are used:
+
+* The bars the backtest already fills that order from. Nothing extra is downloaded.
+* With daily bars only, each bar is the whole day, so nothing changes: a stop touched
+  during the day fills at the stop price, as before.
+* Bars outside the market session (pre-market, overnight) do not fill resting orders.
+
+What is not covered yet: Alpaca, CCXT and Yahoo backtests, ``SMART_LIMIT`` orders,
+multi-leg packages with a net limit, and time skipped with ``self.sleep()`` still check
+resting orders only when the strategy runs.
+
+What changed in 4.6.63
+~~~~~~~~~~~~~~~~~~~~~~
+
+Before 4.6.63, resting orders were only checked when the strategy ran (once per
+``sleeptime``). A stop crossed between two runs was missed unless the price was still
+past the stop at the next run, so a dip that recovered never filled the stop. A limit
+touched between two runs was missed the same way.
+
+If your strategy runs less often than its bars (for example ``"1D"`` or ``"15M"`` on
+minute bars) and uses stops, limits, trailing stops or brackets, **its backtest results
+will change**. Stops now fill when the price first crosses them, so results are more
+realistic and often worse than before. Strategies that run on every bar, strategies on
+daily bars, and strategies that only use market orders are unchanged.
+
+4.6.63 also fixes percent trailing stops (``trail_percent``): a sell trailing stop no
+longer moves down when the price falls, and a buy trailing stop now moves down with
+the price. Trailing stops set with ``trail_price`` already worked this way.
 
 Options: every fill price belongs to the fill bar
 -------------------------------------------------

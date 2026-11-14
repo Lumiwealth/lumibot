@@ -354,6 +354,36 @@ from an older bar or daily quote. Daily-only sources retain their daily fill
 model; limit/stop orders, other asset classes and live brokers retain their
 existing selection rules.
 
+### Resting orders between strategy runs (4.6.63)
+
+`StrategyExecutor.safe_sleep` (and `BacktestingBroker._await_market_to_close`) advance the
+clock through `BacktestingBroker._advance_checking_resting_orders`. When the jump passes
+loaded intraday bars and the strategy has resting orders (limit, stop, stop-limit, trail,
+including bracket/OTO/OCO children):
+
+1. `_next_between_run_event` finds, per order, the first bar strictly between "now" and
+   the target on which the order can fill. This is array work on the `Data` object the
+   engine fills that order from (`find_asset_in_data_store` with the order fill timestep):
+   two `searchsorted` calls and one comparison per order. No data is requested.
+2. The clock moves to the earliest such bar and `process_pending_orders` runs there. All
+   fill rules (gap opens, both-touched bars, quotes, option fill-bar pricing) stay in that
+   one function; the vector conditions only decide where to look and may flag a bar the
+   full rules decline.
+3. The executor drains its queue (`on_filled_order` sees the fill at fill time). Orders
+   that appeared during that pass are processed once on the next bar.
+4. Repeat until no bar is left, then land on the target as before.
+
+Invariants: the bar at "now" belongs to the run that just finished and the bar at the
+target to the next run, so a strategy that runs on every bar sees no extra pass. Trailing
+stops are ratcheted over skipped bars. Bars outside the session and calendar padding rows
+(`bar_is_observed` false) never fill. Sources without a pandas `Data` store (Alpaca, CCXT,
+Yahoo), day-timestep fills, `SMART_LIMIT`, net-limit packages and `Strategy.sleep()` keep
+the old run-time-only check. `_check_resting_orders_between_runs = False` on the broker
+restores the old behavior for A/B measurements (tests use it; it is not a user setting).
+
+Tests: `tests/test_backtesting_resting_orders_between_runs.py`; operation-count benchmark:
+`tests/backtest/test_resting_orders_between_runs_speed.py`.
+
 ### SMART_LIMIT Backtest Fills
 
 - SMART_LIMIT fills use **mid ± slippage** when bid/ask is available (mid + slippage for buys, mid - slippage for sells).

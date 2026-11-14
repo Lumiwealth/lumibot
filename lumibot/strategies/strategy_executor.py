@@ -549,7 +549,12 @@ class StrategyExecutor(Thread):
         if self.broker.IS_BACKTESTING_BROKER:
             self.process_queue()
             update_payload = self._build_backtest_progress_payload()
-            self.broker._update_datetime(sleeptime, **update_payload)
+            advance = getattr(self.broker, "_advance_checking_resting_orders", None)
+            if callable(advance):
+                # Resting stops and limits are checked on every loaded bar the clock passes.
+                advance(sleeptime, self.strategy, after_event=self.process_queue, **update_payload)
+            else:
+                self.broker._update_datetime(sleeptime, **update_payload)
         else:
             # live: actually sleep
             time.sleep(sleeptime)

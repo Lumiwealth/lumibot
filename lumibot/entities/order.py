@@ -837,7 +837,7 @@ class Order:
                 return
 
             # Ratchet down the trail stop price for a buy order if the price has decreased.
-            if self.is_sell_order() and potential_trail_stop_price < self._trail_stop_price:
+            if self.is_buy_order() and potential_trail_stop_price < self._trail_stop_price:
                 # Update the trail stop price
                 self._trail_stop_price = potential_trail_stop_price
 

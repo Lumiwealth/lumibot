@@ -169,6 +169,10 @@ This is the dominant cost for many option strategies on cold caches:
 
 **Primary levers**
 - reduce per-bar overhead (memoization, avoid repeated chain rebuilds)
+- keep `DataFrame.attrs` on preloaded bar frames empty or shared: pandas deep-copies `attrs` on every
+  column, row and slice (`__finalize__`), so a nested dict there is rebuilt on every price lookup.
+  Loaders call `lumibot.tools.frame_metadata.share_frame_attrs(frame)` before building `Data`
+  (see `docs/investigations/2026-11-14_BAR_METADATA_DEEPCOPY_AND_STARTUP.md`)
 - reduce expensive option pricing computations
 - prefer vectorized transforms where safe
 

@@ -369,7 +369,9 @@ already enable LumiBot's reporting. You do not need to write a plotting script:
   drawdowns, distributions and metric explanations. See
   :ref:`Tearsheet HTML <backtesting.tearsheet_html>`.
 * ``*_indicators.html`` shows the prices, indicator lines and markers the
-  strategy recorded. LumiBot does not invent indicators for a strategy.
+  strategy recorded. LumiBot does not invent indicators for a strategy. When a
+  strategy recorded none, the page is a small note saying there is no indicator
+  data and no chart is built.
 
 Reports normally go to ``logs/``. Set ``plot_file_html`` and ``tearsheet_file``
 when you want specific paths. The HTML files are the reports; a screenshot is

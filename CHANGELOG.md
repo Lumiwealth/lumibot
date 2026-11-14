@@ -1,6 +1,13 @@
 # Changelog
 
-## 4.6.63 - Unreleased
+## 4.6.63 - 2026-11-14
+
+### Fixed
+- ⚠️ Backtests: resting orders are checked on every loaded bar, also between two runs of the strategy. Stop, limit, stop-limit and trailing stop orders (including bracket, OTO and OCO exits) used to be checked only when the strategy ran (once per `sleeptime`), so a strategy that runs once a day or every 15 minutes on minute bars missed any stop or limit crossed between two runs unless the price was still past it at the next run (reproduced: daily strategy, stop at 90, a dip to 85 that recovered, the stop never filled). The fill rules are unchanged and now apply bar by bar: a stop fills at the stop price when the bar's range crosses it or at the open when the bar gaps through it, a limit fills at the limit or better, a trailing stop follows every bar's high or low, and for brackets and OCO the first exit touched wins (the stop when one bar touches both). `on_filled_order` runs at the time of the fill; an order placed from it is processed on the next bar. Only bars the backtest already loaded for that order are used; nothing extra is downloaded, and bars outside the market session do not fill resting orders. **Backtests of strategies that run less often than their bars and use stops, limits, trailing stops or brackets will change, and will usually look worse (more realistic).** Strategies that run on every bar, daily-bar strategies and market-order-only strategies are unchanged. Not covered yet (still checked only when the strategy runs): Alpaca, CCXT and Yahoo backtests, `SMART_LIMIT` orders, multi-leg packages with a net limit, and time skipped with `self.sleep()`. See "Resting orders are checked on every bar" in `docsrc/backtesting.how_orders_fill.rst`.
+- ⚠️ Backtests: percent trailing stops (`trail_percent`) now only move in the favorable direction. A sell trailing stop used to follow the price down as well as up (so it almost never triggered), and a buy trailing stop never moved after it was first set. Trailing stops set with `trail_price` were already correct.
+
+### Notes
+- Speed: the between-run check finds the bars where an order can fill with array comparisons on the loaded bars and only then runs the ordinary fill code, so quiet bars cost nothing per bar. Engine benchmark, 12 months of 5-minute runs on minute bars (`tests/backtest/test_resting_orders_between_runs_speed.py`, same machine, back to back): market-order strategy 36.5 s without the check and 34.5 s with it (identical trades, zero extra broker passes); bracket strategy 71.0 s and 66.7 s (19,392 sleeps, 580 extra broker passes for 1,417 fills). The differences are run-to-run noise.
 
 ## 4.6.62 - 2026-11-14
 

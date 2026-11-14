@@ -11,7 +11,7 @@ Reproduced scenario this file starts from: a position with a stop at 90, the pri
 See docsrc/backtesting.how_orders_fill.rst ("Resting orders are checked on every bar").
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 import numpy as np
 import pandas as pd

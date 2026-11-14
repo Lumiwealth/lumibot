@@ -25,6 +25,7 @@ import pytest
 from lumibot.backtesting import BacktestingBroker
 from lumibot.entities import Asset, Order
 from lumibot.strategies import Strategy
+from lumibot.tools.ibkr_equity_basis import decorate_adjusted_frame
 from tests.backtest.test_routed_intraday_metadata_speed import (
     END,
     MONTHS,
@@ -32,7 +33,6 @@ from tests.backtest.test_routed_intraday_metadata_speed import (
     _FiveMinuteAverage,
     _synthetic_stock,
 )
-from lumibot.tools.ibkr_equity_basis import decorate_adjusted_frame
 
 
 def _with_real_minute_bars(frames):
@@ -62,7 +62,7 @@ class _FiveMinuteBracket(Strategy):
 
     def on_trading_iteration(self):
         asset = Asset("SPY")
-        bars = self.get_historical_prices(asset, 21, "5 minutes")
+        self.get_historical_prices(asset, 21, "5 minutes")  # the usual per-run data work
         if self.get_position(asset) is not None or any(order.is_active() for order in self.get_orders()):
             return
         price = self.get_last_price(asset)

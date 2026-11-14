@@ -183,3 +183,82 @@ def test_next_day_pick_extends_its_candidates_in_one_request(monkeypatch, tmp_pa
     assert batched._option_client.requests[1] == sorted(_ROWS)
     assert _prices(batched, clocks, STRIKES) == expected
     assert len(batched._option_client.requests) == 2  # nothing extended one contract at a time
+
+
+class _RefusingClient:
+    """Answers every bars request with one HTTP error, like an account whose data plan lacks a feed."""
+
+    def __init__(self, status, message):
+        self.status = status
+        self.message = message
+        self.calls = 0
+
+    def get_option_bars(self, request):
+        self._refuse()
+
+    def get_stock_bars(self, request):
+        self._refuse()
+
+    def _refuse(self):
+        from types import SimpleNamespace
+
+        from alpaca.common.exceptions import APIError
+
+        self.calls += 1
+        response = SimpleNamespace(status_code=self.status, text=self.message)
+        raise APIError(self.message, SimpleNamespace(response=response, request=None))
+
+
+_PLAN_MESSAGE = "Your Alpaca data plan does not include options history"
+
+
+def test_option_history_refused_by_the_data_plan_stops_with_one_clear_message(monkeypatch, tmp_path):
+    import pytest
+
+    from lumibot.backtesting.alpaca_backtesting import AlpacaOptionsDataPlanError
+
+    refusal = '{"message": "subscription does not permit querying OPRA data"}'
+    source = _alpaca_source(monkeypatch, tmp_path / "price")
+    source._option_client = _RefusingClient(403, refusal)
+    source._datetime = _NY_TZ.localize(CLOCKS[1])
+    with pytest.raises(AlpacaOptionsDataPlanError) as caught:
+        source.get_last_price(_call(640))
+    text = str(caught.value)
+    assert text.startswith(_PLAN_MESSAGE)  # not buried under "Failed to fetch data for ..."
+    assert "HTTP 403" in text and "subscription does not permit querying OPRA data" in text
+    assert source._option_client.calls == 1  # a refusal is not retried
+
+    with pytest.raises(AlpacaOptionsDataPlanError) as caught:
+        source.get_historical_prices(_call(640), 2, timestep="minute")
+    assert str(caught.value).startswith(_PLAN_MESSAGE)
+
+    batched = _alpaca_source(monkeypatch, tmp_path / "prefetch")
+    batched._option_client = _RefusingClient(403, refusal)
+    batched._datetime = _NY_TZ.localize(CLOCKS[0])
+    with pytest.raises(AlpacaOptionsDataPlanError) as caught:
+        batched.prefetch_option_bars([_call(k) for k in STRIKES])
+    assert str(caught.value).startswith(_PLAN_MESSAGE)
+
+
+def test_other_alpaca_errors_are_not_called_a_data_plan_problem(monkeypatch, tmp_path):
+    import pytest
+
+    from lumibot.backtesting.alpaca_backtesting import AlpacaOptionsDataPlanError
+
+    # A server error on option bars is not a plan problem.
+    source = _alpaca_source(monkeypatch, tmp_path / "server")
+    source._option_client = _RefusingClient(500, '{"message": "internal server error"}')
+    source._datetime = _NY_TZ.localize(CLOCKS[1])
+    with pytest.raises(RuntimeError) as caught:
+        source.get_last_price(_call(640))
+    assert not isinstance(caught.value, AlpacaOptionsDataPlanError)
+    assert _PLAN_MESSAGE not in str(caught.value)
+
+    # A 403 on stock bars says nothing about options.
+    stocks = _alpaca_source(monkeypatch, tmp_path / "stock")
+    stocks._stock_client = _RefusingClient(403, '{"message": "forbidden"}')
+    stocks._datetime = _NY_TZ.localize(CLOCKS[1])
+    with pytest.raises(RuntimeError) as caught:
+        stocks.get_last_price(Asset("SPY"))
+    assert not isinstance(caught.value, AlpacaOptionsDataPlanError)
+    assert _PLAN_MESSAGE not in str(caught.value)

@@ -1,7 +1,7 @@
 # Generic bug fixes and release authority (2026-11-11)
 
 - A generic LumiBot bug fix needs no further approval when a failing test reproduces the bug and the fix adds no new behavior. Fix it, test it, publish it, and report what broke, what changed and the test name.
-- Ask first, in five plain lines, for a new feature, changed default, new tool or any change to existing strategy behavior: the observed failure, proposed change, other beneficiaries, risk and tests.
+- Get the project owner's approval first, asking in five plain lines, for a new feature, changed default, new tool or any change to existing strategy behavior: the observed failure, proposed change, other beneficiaries, risk and tests.
 - The assigned release captain merges the release PR as admin through the runbook tool, publishes LumiBot, updates downstream deployments and verifies the installed version. Do not wait for another approval or a human merge when the release contains only bug fixes and previously approved changes.
 - This section supersedes older core-change and per-release approval requirements below. Public-library boundaries, focused qualification, cost controls, customer safety and the fixed six-hour backtest limit remain intact.
 

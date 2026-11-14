@@ -217,6 +217,11 @@ Why can't my Alpaca backtest end today?
 
 On the free plan, Alpaca does not serve the latest 15 minutes of stock history (see `Alpaca's market data plans <https://docs.alpaca.markets/docs/about-market-data-api>`__). End your backtest at least one full day before today.
 
+Why did my Alpaca options backtest stop with "Your Alpaca data plan does not include options history"?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Alpaca answered the option history request with HTTP 403, which means the key works but the account's market data plan does not cover options history (see `Alpaca's market data plans <https://docs.alpaca.markets/docs/about-market-data-api>`__). The backtest stops at once with ``AlpacaOptionsDataPlanError`` and Alpaca's own reason; LumiBot does not retry or substitute other prices. Enable options market data on that Alpaca account, or backtest options with another data source. Stock and crypto backtests on the same key are not affected.
+
 What is the Alpaca rate limit for backtests?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -87,20 +87,28 @@ def perpetual_symbol(asset, quote=None) -> str:
     )
 
 
-def spot_symbol(asset, quote=None) -> tuple[str, str | None]:
-    """Binance spot pair and, when the request was for USD, a plain note saying so.
+FIAT_QUOTES = ("USD", "EUR", "GBP")
 
-    Binance spot has no USD pairs. A USD request is served from the USDT pair, and the
-    returned note records that substitution so the backtest result can show it.
+
+def spot_symbol(asset, quote=None) -> str:
+    """Binance spot pair for the exact quote asked for, e.g. ``BTCUSDT`` for BTC/USDT.
+
+    Binance spot has no USD pairs, and USDT trades slightly below USD, so a USD request is
+    refused rather than served from the USDT pair.
     """
     base = str(getattr(asset, "symbol", asset) or "").strip().upper()
     base = base.split(":")[0]
     if "/" in base:
         base, quote = base.split("/", 1)
     quote_symbol = str(getattr(quote, "symbol", quote) or "USD").strip().upper()
-    if quote_symbol == "USD":
-        return f"{base}USDT", f"{base}/USD served from Binance {base}USDT (Binance spot has no USD pairs)"
-    return f"{base}{quote_symbol}", None
+    if quote_symbol in FIAT_QUOTES:
+        raise BinanceBulkDataError(
+            f"Binance spot has no {base}/{quote_symbol} pair, and {base}{'USDT'} is not substituted (USDT does not "
+            f"trade at exactly one {quote_symbol}). Ask for {base}/USDT with quote=Asset('USDT', 'crypto'), or route "
+            f"crypto to 'public' to read {base}/{quote_symbol} from Coinbase public data.",
+            reason="ambiguous_symbol",
+        )
+    return f"{base}{quote_symbol}"
 
 
 def _months(start: pd.Timestamp, end: pd.Timestamp):

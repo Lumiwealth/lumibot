@@ -1333,30 +1333,27 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
                                             source="binance", symbol=symbol)
         return RoutingProviderError(f"{exc} Data source: binance (spot bulk files).")
 
-    def resolve(self, asset: Asset, quote_asset: Asset | None = None) -> tuple[str, str, str | None]:
-        """(market, Binance symbol, note about a USD -> USDT substitution or None)."""
+    def resolve(self, asset: Asset, quote_asset: Asset | None = None) -> tuple[str, str, None]:
+        """(market, Binance symbol, None). The quote is served exactly; USD is refused."""
         from lumibot.tools.binance_bulk_data import BinanceBulkDataError, perpetual_symbol, spot_symbol
 
         market = self._market(asset)
         try:
             if market == "um":
                 return market, perpetual_symbol(asset, quote_asset), None
-            symbol, note = spot_symbol(asset, quote_asset)
-            return market, symbol, note
+            return market, spot_symbol(asset, quote_asset), None
         except BinanceBulkDataError as exc:
             raise self._unavailable(exc, getattr(asset, "symbol", None), market) from exc
 
     def route_details(self, asset: Asset, quote_asset: Asset | None = None) -> dict:
         try:
-            market, symbol, note = self.resolve(asset, quote_asset)
+            market, symbol, _ = self.resolve(asset, quote_asset)
         except RoutingProviderError:
             return {}
         details = {"priceSource": self._SOURCES[market], "servedSymbol": symbol}
         if market == "um":
             details["fundingSource"] = self._SOURCES[market]
             details["markSource"] = self._SOURCES[market]
-        if note:
-            details["note"] = note
         return details
 
     def contract_spec(self, asset: Asset, quote_asset: Asset | None = None):
@@ -1485,6 +1482,64 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
         return df.sort_index()
 
 
+class _PublicCryptoRoutingAdapter(_RoutingAdapter):
+    """Keyless public crypto data, chosen by the quote the strategy asked for.
+
+    Route value ``public``. Fiat pairs (BTC/USD) read Coinbase public candles; stablecoin
+    and coin-quoted pairs (BTC/USDT, BTC/USDC, BTC/FDUSD) read Binance bulk spot files;
+    perpetuals read Binance USD-M bulk files. No API key and no broker account. A USD
+    request is never served from a USDT pair.
+    """
+
+    provider_key = "public"
+    _COINBASE = ProviderSpec(provider="ccxt", ccxt_exchange_id="coinbase", raw="public")
+
+    def __init__(self, router: "RoutedBacktestingPandas", registry: "_ProviderRegistry"):
+        super().__init__(router)
+        self._registry = registry
+
+    @property
+    def _binance(self) -> "_BinanceBulkRoutingAdapter":
+        return self._registry._adapters["binance"]
+
+    @staticmethod
+    def _quote_symbol(asset, quote_asset) -> str:
+        raw = str(getattr(asset, "symbol", "") or "")
+        if "/" in raw:
+            return raw.split("/", 1)[1].split(":")[0].upper()
+        return str(getattr(quote_asset, "symbol", quote_asset) or "USD").upper()
+
+    def _uses_coinbase(self, asset, quote_asset) -> bool:
+        from lumibot.tools.binance_bulk_data import FIAT_QUOTES
+
+        if _normalize_asset_type(getattr(asset, "asset_type", "")) != "crypto":
+            return False
+        return self._quote_symbol(asset, quote_asset) in FIAT_QUOTES
+
+    def update_pandas_data(self, *, asset, quote_asset, provider_spec, **kwargs):
+        if self._uses_coinbase(asset, quote_asset):
+            return self._registry._adapters["ccxt"].update_pandas_data(
+                asset=asset, quote_asset=quote_asset, provider_spec=self._COINBASE, **kwargs)
+        return self._binance.update_pandas_data(asset=asset, quote_asset=quote_asset,
+                                                provider_spec=provider_spec, **kwargs)
+
+    def route_details(self, asset, quote_asset=None) -> dict:
+        if self._uses_coinbase(asset, quote_asset):
+            base = str(getattr(asset, "symbol", "")).split("/")[0].upper()
+            return {"priceSource": "coinbase_public", "exchange": "coinbase",
+                    "servedSymbol": f"{base}/{self._quote_symbol(asset, quote_asset)}"}
+        return self._binance.route_details(asset, quote_asset)
+
+    def contract_spec(self, asset, quote_asset=None):
+        return self._binance.contract_spec(asset, quote_asset)
+
+    def funding_events(self, asset, start, end):
+        return self._binance.funding_events(asset, start, end)
+
+    def mark_at(self, asset, at):
+        return self._binance.mark_at(asset, at)
+
+
 class _ProviderRegistry:
     def __init__(self, router: "RoutedBacktestingPandas"):
         self._router = router
@@ -1497,6 +1552,7 @@ class _ProviderRegistry:
             "bitunix": _BitunixPerpetualRoutingAdapter(router),
             "binance": _BinanceBulkRoutingAdapter(router),
         }
+        self._adapters["public"] = _PublicCryptoRoutingAdapter(router, self)
 
     def resolve_provider_spec(self, provider: Any) -> ProviderSpec:
         raw = "" if provider is None else str(provider).strip()
@@ -1524,6 +1580,9 @@ class _ProviderRegistry:
             # the live Binance API that CCXT calls refuses some cloud regions.
             "binance": "binance",
             "binanceusdm": "binance",
+            # Keyless public crypto split by quote: fiat pairs Coinbase, stablecoin pairs and
+            # USD-M perpetuals Binance bulk files.
+            "public": "public",
         }
         if token in aliases:
             if aliases[token] == "ccxt":
@@ -1536,7 +1595,7 @@ class _ProviderRegistry:
 
         raise RoutingProviderError(
             f"Unknown backtesting routing provider {provider!r}. "
-            "Expected one of: thetadata, ibkr, polygon, alpaca, ccxt, bitunix, "
+            "Expected one of: thetadata, ibkr, polygon, alpaca, ccxt, bitunix, binance, public, "
             "or a CCXT exchange id (e.g., binance, kraken)."
         )
 

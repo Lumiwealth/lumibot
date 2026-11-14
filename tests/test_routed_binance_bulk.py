@@ -163,11 +163,13 @@ def test_bare_coin_with_usd_quote_is_not_guessed_for_perpetuals():
     assert caught.value.reason == "ambiguous_symbol"
 
 
-def test_spot_usd_maps_to_usdt_with_a_note_and_stablecoin_quotes_are_exact():
-    symbol, note = spot_symbol(Asset("BTC", "crypto"), Asset("USD", "forex"))
-    assert symbol == "BTCUSDT" and "BTC/USD served from Binance BTCUSDT" in note
-    assert spot_symbol(Asset("ETH", "crypto"), Asset("USDC", "crypto")) == ("ETHUSDC", None)
-    assert spot_symbol(Asset("SOL", "crypto"), USDT) == ("SOLUSDT", None)
+def test_spot_usd_is_never_served_from_the_usdt_pair():
+    # USDT trades about 0.12% below USD; serving BTC/USD from BTCUSDT would shift every price.
+    with pytest.raises(BinanceBulkDataError, match="BTCUSDT"):
+        spot_symbol(Asset("BTC", "crypto"), Asset("USD", "forex"))
+    assert spot_symbol(Asset("ETH", "crypto"), Asset("USDC", "crypto")) == "ETHUSDC"
+    assert spot_symbol(Asset("SOL", "crypto"), USDT) == "SOLUSDT"
+    assert spot_symbol(Asset("BTC", "crypto"), Asset("FDUSD", "crypto")) == "BTCFDUSD"
 
 
 # -- files ---------------------------------------------------------------------------------
@@ -321,17 +323,63 @@ def test_perpetual_order_fills_and_pays_funding_at_binance_mark(monkeypatch):
         broker.cleanup_streams()
 
 
-def test_binance_route_serves_spot_with_recorded_usd_mapping(monkeypatch):
+def _spot_archive():
     archive = _Archive()
     archive.add("spot/daily/klines/BTCUSDT/1h/BTCUSDT-1h-2026-08-03.zip",
                 _kline_rows("2026-08-03", 24, pd.Timedelta(hours=1), 50000, unit="us"))
-    router = _router({"crypto": "binance", "default": "ibkr"}, monkeypatch, archive)
+    return archive
+
+
+def test_binance_route_serves_spot_stablecoin_pairs_exactly(monkeypatch):
+    router = _router({"crypto": "binance", "default": "ibkr"}, monkeypatch, _spot_archive())
     router._datetime = pd.Timestamp("2026-08-03 08:00", tz="UTC").to_pydatetime()
-    bars = router.get_historical_prices(Asset("BTC", "crypto"), 2, timestep="hour", quote=Asset("USD", "forex"))
+    bars = router.get_historical_prices(Asset("BTC", "crypto"), 2, timestep="hour", quote=USDT)
     assert bars is not None and set(bars.df["close"]) <= {50000.0 + i + 1 for i in range(24)}
     route = next(r for r in router.get_data_provenance()["observedRoutes"] if r["assetClass"] == "crypto")
     assert route["priceSource"] == "binance_spot_bulk" and route["servedSymbol"] == "BTCUSDT"
-    assert "BTC/USD served from Binance BTCUSDT" in route["note"]
+
+
+def test_explicit_binance_route_refuses_usd_and_names_the_usdt_pair(monkeypatch):
+    router = _router({"crypto": "binance", "default": "ibkr"}, monkeypatch, _spot_archive())
+    with pytest.raises(RoutingProviderError, match="BTCUSDT") as caught:
+        router._update_pandas_data(Asset("BTC", "crypto"), Asset("USD", "forex"), 2, "hour")
+    assert "public" in str(caught.value)  # says which route serves USD pairs
+
+
+def _record_ccxt(router):
+    calls = []
+
+    def update_pandas_data(**kwargs):
+        calls.append(kwargs)
+        return None
+
+    router._registry._adapters["ccxt"].update_pandas_data = update_pandas_data
+    return calls
+
+
+def test_public_route_serves_usd_pairs_from_coinbase(monkeypatch):
+    router = _router({"crypto": "public", "crypto_future": "public", "default": "ibkr"}, monkeypatch, _spot_archive())
+    calls = _record_ccxt(router)
+    router._update_pandas_data(Asset("BTC", "crypto"), Asset("USD", "forex"), 2, "hour")
+    assert len(calls) == 1 and calls[0]["provider_spec"].ccxt_exchange_id == "coinbase"
+    route = next(r for r in router.get_data_provenance()["observedRoutes"] if r["assetClass"] == "crypto")
+    assert route["priceSource"] == "coinbase_public" and route["servedSymbol"] == "BTC/USD"
+
+
+def test_public_route_serves_stablecoin_pairs_and_perpetuals_from_binance(monkeypatch):
+    archive = _perp_archive()
+    archive.files.update(_spot_archive().files)
+    router = _router({"crypto": "public", "crypto_future": "public", "default": "ibkr"}, monkeypatch, archive)
+    calls = _record_ccxt(router)
+    router._datetime = pd.Timestamp("2026-08-03 08:00", tz="UTC").to_pydatetime()
+    spot = router.get_historical_prices(Asset("BTC", "crypto"), 2, timestep="hour", quote=USDT)
+    perp = router.get_historical_prices(PERP, 2, timestep="hour", quote=USDT)
+    assert calls == []
+    assert spot is not None and set(spot.df["close"]) <= {50000.0 + i + 1 for i in range(24)}
+    assert perp is not None and set(perp.df["close"]) <= {62000.0 + i + 1 for i in range(24)}
+    assert router.get_contract_spec(PERP).quote == "USDT"
+    sources = {r["assetClass"]: r["priceSource"] for r in router.get_data_provenance()["observedRoutes"]}
+    assert sources == {"crypto": "binance_spot_bulk", "crypto_future": "binance_usdm_bulk"}
 
 
 def test_binance_route_refuses_non_crypto_assets(monkeypatch):

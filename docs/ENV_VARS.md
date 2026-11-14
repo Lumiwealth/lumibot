@@ -297,6 +297,12 @@ Selection rule (ThetaData):
 - Purpose: Authentication for the downloader service.
 - Values: **do not document actual values**; they must be supplied by the runtime environment.
 
+### `DATADOWNLOADER_REQUEST_CLASS`
+- Purpose: Optional label sent with every queued downloader request as `"request_class"` in the submit body, so a downloader can group or prioritize requests by kind of caller.
+- Values: any short string (surrounding whitespace is trimmed). Unset or blank sends nothing and the submit body is unchanged.
+- Default: unset.
+- Where: `lumibot/tools/data_downloader_queue_client.py` (`_submit_request`).
+
 ### `DATADOWNLOADER_SKIP_LOCAL_START`
 - Purpose: Prevents any local downloader/ThetaTerminal bootstrap logic from running (backtests must use the remote downloader in production workflows).
 

@@ -328,6 +328,17 @@ LUMIBOT_CACHE_MISS_DEBUG
 - Default: disabled. Zero runtime cost when unset — the check is gated before any logging work.
 - When to use: diagnosing unexpected IBKR roundtrips in warm-cache backtests (e.g., when profiling shows time in ``_fetch_history_between_dates`` that you expected to be cached).
 
+Data Downloader requests
+------------------------
+
+DATADOWNLOADER_REQUEST_CLASS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Optional label for requests LumiBot sends to a Data Downloader (``DATADOWNLOADER_BASE_URL``). When set, every queued request carries it as ``"request_class"`` in the submit body, so the downloader can group or prioritize requests by kind of caller.
+- Values: any short string, for example ``DATADOWNLOADER_REQUEST_CLASS=batch``. Surrounding whitespace is trimmed. The downloader decides what, if anything, each value means.
+- Default: unset. Nothing extra is sent and the submit body is unchanged.
+- Limits: this is a label only. It does not change what data is requested, cache keys or results. A downloader that does not know the field ignores it.
+
 ThetaData option-chain building (performance)
 ---------------------------------------------
 

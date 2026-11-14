@@ -4,6 +4,10 @@
 
 ### Added
 - Indicator executors can offer whole-history computation. If the object an `IndicatorExecutor` prepares has `compute_history(bars_df)` returning one value per row per output, `self.indicators.get` calls it once per stream in backtests, caches it, reads the value at the current bar and recomputes only when the stored series changes. Live trading keeps feeding bars one at a time; objects without the method are unchanged.
+- Routed backtests can read real crypto perpetual data from Bitunix's public market API (no API key): set `"crypto_future": "bitunix"` in `BACKTESTING_DATA_SOURCE`. Perpetual candles, contract terms and settled funding come from the exchange, so perpetual orders fill with leverage and margin and funding is charged at each real settlement. Opt-in only; existing routes are unchanged. Coin-margined (inverse) contracts and missing or unreachable data stop the backtest up front with a plain message instead of a silent zero-trade run. The message ends with a machine-readable `PERPETUAL_DATA_UNAVAILABLE {...}` line (reason code, source, symbol and the other `crypto_future` data sources) so tools can switch source and rerun. Paging keeps going past transient empty pages, so long minute-bar windows are not cut short. See `docsrc/backtesting.perpetuals.rst`.
+
+### Changed
+- When a perpetual settles in a different coin than the backtest budget (for example a USDT contract with a USD budget), the rejected order now says to set the quote asset to the settlement coin. Results are unchanged.
 
 ### Fixed
 - Intraday futures lookbacks in IBKR backtests now count trading bars, not wall-clock time. Asking for 63 fifteen-minute bars across the daily maintenance hour, a weekend or a holiday returns 63 real bars instead of 59 and is no longer reported as missing required data. A genuine provider shortfall is still reported.
@@ -11,6 +15,7 @@
 - Crude oil (CL, MCL) last trade dates are counted in CME business days, so months whose window holds Memorial Day, Juneteenth, Thanksgiving, MLK or Presidents Day no longer ask IBKR for a contract one day late (CLM26 now resolves to 2026-05-19). Checked against every recorded IBKR CL and MCL last trade date. When the contract registry holds two same-month entries, the one that is a real last trade date for a contract month is chosen; truly ambiguous entries still refuse.
 - When the stock split lookup fails, IBKR stock bars are no longer written to the shared cache under a one-day "splits unknown" name that no later run reads. Those prices stay private to the run (still reused within it), and the data-health warning now says `split_actions_verified: false`.
 - Hourly IBKR bars use one cache name however the timestep is written ("1 hour", "60 minutes"). Files cached earlier under the old `60minute` name are still read, and new writes go to the unified name.
+- Public docs no longer say spot-proxy perpetual routes use USD pairs or that perpetual backtesting is unfinished.
 
 ## 4.6.55 - 2026-11-13
 

@@ -259,7 +259,7 @@ Routing values are case/whitespace/_/- insensitive. For crypto, you may also rou
 Crypto futures and perpetuals
 -----------------------------
 
-For ``Asset.AssetType.CRYPTO_FUTURE`` backtests, LumiBot can load spot crypto history as a price proxy while preserving the strategy-facing futures asset for orders and positions. USDT contracts such as ``BTCUSDT``, ``ETHUSDT``, and ``SOLUSDT`` resolve to the corresponding USD spot proxy (``BTC/USD``, ``ETH/USD``, ``SOL/USD``) because common crypto perpetual venues keep the futures price close to spot. The log will state when a USD spot proxy is used.
+For ``Asset.AssetType.CRYPTO_FUTURE`` backtests routed to a spot provider (for example ``ibkr`` or ``coinbase``), LumiBot loads spot history of the same pair as a price proxy (``BTCUSDT`` reads ``BTC/USDT``). The log states when a spot proxy is used. A spot proxy has no contract terms and no funding history, so perpetual orders on these routes are rejected. To trade perpetuals with leverage, margin and funding, route ``crypto_future`` to ``bitunix`` or use ``CcxtBacktesting``; see :doc:`backtesting.perpetuals`.
 
 Market Data Subscriptions (IBKR)
 --------------------------------

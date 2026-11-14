@@ -1,0 +1,155 @@
+{
+ "recorded_at": "2026-11-13",
+ "source": "https://fapi.bitunix.com public market endpoints, no API key",
+ "trading_pairs": {
+  "request": "/api/v1/futures/market/trading_pairs?symbols=BTCUSDT,BTCUSD",
+  "response": {
+   "code": 0,
+   "data": [
+    {
+     "symbol": "BTCUSDT",
+     "base": "BTC",
+     "quote": "USDT",
+     "minTradeVolume": "0.0001",
+     "minBuyPriceOffset": "-0.5",
+     "maxSellPriceOffset": "100",
+     "maxLimitOrderVolume": "1200",
+     "maxMarketOrderVolume": "120",
+     "basePrecision": 4,
+     "quotePrecision": 1,
+     "maxLeverage": 200,
+     "minLeverage": 1,
+     "defaultLeverage": 10,
+     "defaultMarginMode": "2",
+     "priceProtectScope": "0.01",
+     "symbolStatus": "OPEN",
+     "isApiSupported": true,
+     "maxFundingRate": "0.3",
+     "minFundingRate": "-0.3",
+     "launchTime": "1719403200000"
+    },
+    {
+     "symbol": "BTCUSD",
+     "base": "BTC",
+     "quote": "USD",
+     "minTradeVolume": "100",
+     "minBuyPriceOffset": "-0.95",
+     "maxSellPriceOffset": "100",
+     "maxLimitOrderVolume": "100000000",
+     "maxMarketOrderVolume": "10000000",
+     "basePrecision": 4,
+     "quotePrecision": 1,
+     "maxLeverage": 125,
+     "minLeverage": 1,
+     "defaultLeverage": 10,
+     "defaultMarginMode": "2",
+     "priceProtectScope": "0.05",
+     "symbolStatus": "OPEN",
+     "isApiSupported": true,
+     "maxFundingRate": "0.3",
+     "minFundingRate": "-0.3",
+     "launchTime": "1756184400000"
+    }
+   ],
+   "msg": "Success"
+  }
+ },
+ "kline_1h_page": {
+  "request": "/api/v1/futures/market/kline?symbol=BTCUSDT&interval=1h&endTime=1785744000000&limit=5",
+  "response": {
+   "code": 0,
+   "data": [
+    {
+     "open": "62594.9",
+     "high": "62671.6",
+     "low": "62520",
+     "close": "62591.1",
+     "quoteVol": "60648008.20623",
+     "baseVol": "968.7932",
+     "time": "1785740400000"
+    },
+    {
+     "open": "62800",
+     "high": "62850",
+     "low": "62578.6",
+     "close": "62594.9",
+     "quoteVol": "79405811.66759",
+     "baseVol": "1266.5023",
+     "time": "1785736800000"
+    },
+    {
+     "open": "62765.2",
+     "high": "62848",
+     "low": "62713.4",
+     "close": "62800",
+     "quoteVol": "65708837.79431",
+     "baseVol": "1046.657",
+     "time": "1785733200000"
+    },
+    {
+     "open": "62839.7",
+     "high": "62976.8",
+     "low": "62745.4",
+     "close": "62765.2",
+     "quoteVol": "65713518.04813",
+     "baseVol": "1045.0894",
+     "time": "1785729600000"
+    },
+    {
+     "open": "63118.3",
+     "high": "63152.7",
+     "low": "62748.8",
+     "close": "62839.7",
+     "quoteVol": "82383678.09733",
+     "baseVol": "1309.1295",
+     "time": "1785726000000"
+    }
+   ],
+   "msg": "Success"
+  }
+ },
+ "funding_history": {
+  "request": "/api/v1/futures/market/get_funding_rate_history?symbol=BTCUSDT&startTime=1785628800000&endTime=1785830400000&limit=200",
+  "response": {
+   "code": 0,
+   "data": [
+    {
+     "fundingRate": "-0.00002927",
+     "fundingTime": "1785801600000",
+     "markPrice": "63497.2"
+    },
+    {
+     "fundingRate": "-0.00002571",
+     "fundingTime": "1785772800000",
+     "markPrice": "63663.4"
+    },
+    {
+     "fundingRate": "0.00006673",
+     "fundingTime": "1785744000000",
+     "markPrice": "62591.1"
+    },
+    {
+     "fundingRate": "0.00002079",
+     "fundingTime": "1785715200000",
+     "markPrice": "63550"
+    },
+    {
+     "fundingRate": "0.00007998",
+     "fundingTime": "1785686400000",
+     "markPrice": "63087.9"
+    },
+    {
+     "fundingRate": "0.0000908",
+     "fundingTime": "1785657600000",
+     "markPrice": "63468"
+    },
+    {
+     "fundingRate": "0.00004569",
+     "fundingTime": "1785628800000",
+     "markPrice": "62792.3"
+    }
+   ],
+   "msg": "Success"
+  }
+ }
+}

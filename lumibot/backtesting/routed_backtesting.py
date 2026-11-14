@@ -1218,6 +1218,21 @@ class _BitunixPerpetualRoutingAdapter(_DataFrameRoutingAdapter):
         rows = self._funding_rows(self.symbol_for(asset))
         return [row for row in DataSourceBacktesting._perpetual_rows(rows) if start <= row["timestamp"] <= end]
 
+    def funding_coverage(self, asset: Asset) -> dict:
+        """First and last settlement Bitunix publishes in the run window, and the usual spacing.
+
+        Bitunix funding history starts on 2024-03-04, so a window before that has no rows.
+        """
+        rows = DataSourceBacktesting._perpetual_rows(self._funding_rows(self.symbol_for(asset))) or []
+        times = sorted(row["timestamp"] for row in rows)
+        steps = sorted(later - earlier for earlier, later in zip(times, times[1:]) if later > earlier)
+        return {
+            "source": "bitunix",
+            "first": times[0] if times else None,
+            "last": times[-1] if times else None,
+            "interval": steps[len(steps) // 2] if steps else None,
+        }
+
     def _fetch_df(
         self,
         *,
@@ -1458,6 +1473,12 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
             return supplied
         adapter = self._perpetual_adapter(asset)
         return None if adapter is None else adapter.funding_events(asset, start, end)
+
+    def get_funding_coverage(self, asset):
+        """Funding coverage from the routed perpetual provider, or None when it does not report one."""
+        adapter = self._perpetual_adapter(asset)
+        getter = getattr(adapter, "funding_coverage", None)
+        return getter(asset) if callable(getter) else None
 
     def provider_for(self, asset) -> str:
         """The provider this router uses for ``asset`` (for data-health reports)."""

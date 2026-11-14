@@ -42,6 +42,7 @@
 - Schwab stock brackets and OTO orders were never sent (their `sell_to_close` exit legs had no stock template). Exit legs now map to SELL / BUY_TO_COVER.
 - CCXT sends trailing stops with CCXT's unified `trailingPercent`/`trailingAmount` where the exchange supports them.
 - Interactive Brokers (Client Portal) limit and stop prices are rounded to the tick in decimal arithmetic. Float floor division moved exact prices down a tick (a 101.50 limit was sent as 101.49).
+- Perpetual backtests no longer present missing funding history as zero funding. Where the source has no funding settlements for a held period (Bitunix history starts on 2024-03-04), the run logs it with a machine-readable `PERPETUAL_FUNDING_UNAVAILABLE {...}` line naming the dates covered and not covered, and the backtest analysis carries `perpetual_funding_unavailable` plus `perpetual_data_sources` (which source supplied prices and which supplied funding).
 - Tradovate login errors now carry an HTTP status on `TradovateAPIError.status_code`. Tradovate answers a refused username or password with HTTP 200 and an `errorText` body, so the error used to have no status and callers could not tell a bad saved credential from a crash without reading message text. A refused login now carries 401 and a login throttle (captcha) carries 429. Message text is unchanged.
 
 ## 4.6.56 - 2026-11-13

@@ -2,6 +2,9 @@
 
 ## 4.6.56 - Unreleased
 
+### Fixed
+- Intraday futures lookbacks in IBKR backtests now count trading bars, not wall-clock time. Asking for 63 fifteen-minute bars across the daily maintenance hour, a weekend or a holiday returns 63 real bars instead of 59 and is no longer reported as missing required data. A genuine provider shortfall is still reported.
+
 ## 4.6.55 - 2026-11-13
 
 Deploy marker: 54206e37387695440a5549b551892d0a400cde58

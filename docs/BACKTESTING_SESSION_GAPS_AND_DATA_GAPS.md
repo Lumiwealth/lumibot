@@ -64,6 +64,22 @@ For markets that truly close (futures daily maintenance, weekend gaps, holiday e
 
 If a broker accepts order submission during a closed session, the order is still “working”, but it cannot fill until the market reopens (i.e., until data resumes).
 
+### Rule 4 — A lookback of N bars is N trading bars
+
+`get_historical_prices(asset, N, "15minute")` asks for N real bars, not N x 15
+minutes of wall clock. The IBKR backtesting sources size intraday futures fetch
+windows with `ibkr_helper._futures_history_start_for_bars`, which walks back
+through the CME rule calendar (daily 17:00-18:00 ET maintenance, Friday 17:00
+to Sunday 18:00 weekend) and adds one spare session plus one per week spanned
+for exchange holidays. Coverage checks use the unpadded start, so a padded start
+that lands on a holiday does not cause repeated refetches. Equities already use
+`_equity_history_start_for_bars` (NYSE sessions, holidays included).
+
+The padding only widens the request. If the provider truly has fewer bars, the
+result stays short and is still reported as `insufficient_required_history`.
+Regression: `tests/test_ibkr_futures_session_gap_lookback.py` (recorded MNQ
+15-minute bars; the 2026-11-13 report was 63 requested, 59 returned).
+
 ---
 
 ## Concrete example: CME equity futures early close (Labor Day)

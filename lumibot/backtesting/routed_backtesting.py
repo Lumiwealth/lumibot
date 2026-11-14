@@ -462,6 +462,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
 
         asset_type = _normalize_asset_type(getattr(fetch_asset, "asset_type", ""))
         include_after_hours = _ibkr_include_after_hours(asset_type, unit)
+        futures_counted_start = None
         if asset_type in {"stock", "index"} and unit in {"day", "minute", "hour"}:
             session_start = ibkr_helper._equity_history_start_for_bars(
                 end_dt, length, dataset_key, include_after_hours=include_after_hours and asset_type == "stock",
@@ -472,6 +473,13 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             start_datetime = session_start if unit == "day" else min(start_datetime, session_start)
         elif asset_type in {"future", "cont_future"} and unit == "day":
             start_datetime -= timedelta(days=5)
+        elif asset_type in {"future", "cont_future"} and unit in {"minute", "hour"}:
+            # Count trading bars back through maintenance hours, weekends and
+            # holidays; a wall-clock window comes back short across any of them.
+            session_start = ibkr_helper._futures_history_start_for_bars(end_dt, length, dataset_key)
+            futures_counted_start = min(start_datetime, ibkr_helper._futures_history_start_for_bars(
+                end_dt, length, dataset_key, holiday_sessions=False).astimezone(start_datetime.tzinfo))
+            start_datetime = min(start_datetime, session_start.astimezone(start_datetime.tzinfo))
 
         canonical_key, legacy_key = self._router._build_dataset_keys(original_asset, original_quote_asset, dataset_key)
         if canonical_key in self._fully_loaded_series and canonical_key in self._router._data_store:
@@ -576,6 +584,15 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                     prefetch_start = min(start_datetime, self._router.datetime_start - timedelta(days=1))
             except Exception:
                 prefetch_start = start_datetime
+            # Coverage is judged without the holiday padding: a padded start
+            # that lands on a closed holiday has no bars to return.
+            coverage_start = prefetch_start
+            if unit in {"minute", "hour"} and futures_counted_start is not None:
+                try:
+                    coverage_start = min(futures_counted_start,
+                                         prev_open or (self._router.datetime_start - timedelta(days=1)))
+                except Exception:
+                    coverage_start = prefetch_start
 
             prefetch_end = self._router.datetime_end or end_dt
             df = self._get_price_data(
@@ -594,7 +611,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 df,
                 asset=fetch_asset,
                 timestep=dataset_key,
-                start_dt=prefetch_start,
+                start_dt=coverage_start,
                 end_dt=prefetch_end,
             ):
                 self._fully_loaded_series.add(canonical_key)

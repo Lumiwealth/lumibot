@@ -590,6 +590,69 @@ def _equity_history_start_for_bars(end_dt: datetime, length: int, timestep: str,
     return end.to_pydatetime()
 
 
+def _futures_history_start_for_bars(end_dt: datetime, length: int, timestep: str, *,
+                                    holiday_sessions: bool = True) -> datetime:
+    """Return a fetch start that can hold ``length`` completed intraday futures bars.
+
+    A lookback of N bars is N *trading* bars. Sizing it as N x bar-length of wall
+    clock time came back short whenever the window crossed the daily maintenance
+    hour (17:00-18:00 ET), a weekend, or a holiday, and the shortfall was then
+    reported as missing data (2026-11-13: 63 x 15-minute MNQ bars returned 59).
+
+    Sessions follow the same rule calendar as ``_us_futures_closed_interval``:
+    the session for weekday D opens D-1 18:00 ET and closes D 17:00 ET. Exchange
+    holidays and early closes are not in that rule calendar, so the window also
+    reaches back one extra session, plus one per week spanned. This only widens
+    the request; it never creates bars, and a genuinely absent stretch still
+    comes back short and is reported. ``holiday_sessions=False`` returns the
+    rule-calendar start alone, for coverage checks: a holiday has no bars, so a
+    padded start would make complete data look incomplete.
+    """
+    import pytz
+
+    ny = pytz.timezone("America/New_York")
+    end = pd.Timestamp(end_dt)
+    if end.tzinfo is None:
+        end = end.tz_localize(LUMIBOT_DEFAULT_PYTZ)
+    end = end.tz_convert(ny)
+    _, seconds, _ = _timestep_to_ibkr_bar(timestep)
+    step = pd.Timedelta(seconds=int(seconds))
+    if step <= pd.Timedelta(0) or step >= pd.Timedelta(days=1):
+        raise ValueError("futures session lookback needs an intraday timestep")
+
+    def session_bounds(day):
+        opened = pd.Timestamp(ny.localize(datetime.combine(day - timedelta(days=1), datetime.min.time())
+                                          .replace(hour=18)))
+        closed = pd.Timestamp(ny.localize(datetime.combine(day, datetime.min.time()).replace(hour=17)))
+        return opened, closed
+
+    remaining = int(length)
+    day = end.date() + timedelta(days=1)
+    start = None
+    for _ in range(366 * 50):
+        if day.weekday() < 5:
+            opened, closed = session_bounds(day)
+            if opened < end:
+                available = max(0, int((min(closed, end) - opened) // step))
+                if available >= remaining:
+                    start = opened + (available - remaining) * step
+                    break
+                remaining -= available
+        day -= timedelta(days=1)
+    if start is None:
+        raise ValueError("IBKR futures lookback exceeds supported session calendar")
+
+    if not holiday_sessions:
+        return start.tz_convert("UTC").to_pydatetime()
+    extra_sessions = 1 + max(0, (end - start).days) // 7
+    while extra_sessions > 0:
+        day -= timedelta(days=1)
+        if day.weekday() < 5:
+            extra_sessions -= 1
+    start = min(start, session_bounds(day)[0])
+    return start.tz_convert("UTC").to_pydatetime()
+
+
 def _us_equity_closed_interval(start_local: datetime, end_local: datetime, *, include_after_hours: bool) -> bool:
     """Return True if a US equity cannot trade anywhere in ``[start_local, end_local)``.
 

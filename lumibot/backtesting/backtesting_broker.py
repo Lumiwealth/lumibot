@@ -2057,6 +2057,7 @@ class BacktestingBroker(Broker):
         filled_quantity: Decimal,
         strategy,
     ) -> None:
+        self._mark_synthetic_fill(order)
         is_perpetual = getattr(order.asset, "asset_type", None) == Asset.AssetType.CRYPTO_FUTURE
         capped_perpetual = False
         if is_perpetual:
@@ -5681,14 +5682,37 @@ class BacktestingBroker(Broker):
         """
         price = self._quote_price_now(order)
         if price is not None:
-            return price, "quote"
+            return price, self._synthetic_option_label(order) or "quote"
         price = self._leg_bar_open_now(order)
         if price is not None:
-            return price, "trade"
+            return price, self._synthetic_option_label(order) or "trade"
         estimate = self._estimate_option_price_now(order)
         if estimate is None:
             return None, None
         return self._penalized_estimate(estimate, order.is_buy_order()), "estimated"
+
+    def _synthetic_option_label(self, order) -> Optional[str]:
+        """Label of the option's current bar when its data route labels bars, else None.
+
+        The synthetic option route labels each bar: "synthetic" (computed from the underlying),
+        or "quote"/"trade"/"trade_synthetic_spread" where a real route supplied the bar.
+        """
+        getter = getattr(self.data_source, "option_price_source", None)
+        if not callable(getter) or not self._is_option_asset(getattr(order, "asset", None)):
+            return None
+        try:
+            return getter(order.asset, getattr(order, "quote", None))
+        except Exception:
+            return None
+
+    def _mark_synthetic_fill(self, order) -> None:
+        """Label and count a fill priced from a synthetic bar, on every order path."""
+        label = self._synthetic_option_label(order)
+        if label not in {"synthetic", "trade_synthetic_spread"}:
+            return
+        if getattr(order, "_price_source", None) != label:
+            setattr(order, "_price_source", label)
+            self._record_fill_price_source(label)
 
     def _leg_package_fill_price(self, leg) -> tuple:
         """(price, source) for one package leg at the current bar."""

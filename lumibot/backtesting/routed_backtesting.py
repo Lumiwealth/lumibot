@@ -1574,6 +1574,10 @@ class _ProviderRegistry:
             "binance": _BinanceBulkRoutingAdapter(router),
         }
         self._adapters["public"] = _PublicCryptoRoutingAdapter(router, self)
+        # Option data computed from the underlying's bars; every row is labeled synthetic.
+        from lumibot.backtesting.synthetic_option_routing import make_adapter
+
+        self._adapters["synthetic"] = make_adapter(router, self, _DataFrameRoutingAdapter)
 
     def resolve_provider_spec(self, provider: Any) -> ProviderSpec:
         raw = "" if provider is None else str(provider).strip()
@@ -1604,6 +1608,9 @@ class _ProviderRegistry:
             # Keyless public crypto split by quote: fiat pairs Coinbase, stablecoin pairs and
             # USD-M perpetuals Binance bulk files.
             "public": "public",
+            # Option chains, prices and bid/ask computed from the underlying (labeled synthetic).
+            "synthetic": "synthetic",
+            "syntheticoptions": "synthetic",
         }
         if token in aliases:
             if aliases[token] == "ccxt":
@@ -1616,7 +1623,7 @@ class _ProviderRegistry:
 
         raise RoutingProviderError(
             f"Unknown backtesting routing provider {provider!r}. "
-            "Expected one of: thetadata, ibkr, polygon, alpaca, ccxt, bitunix, binance, public, "
+            "Expected one of: thetadata, ibkr, polygon, alpaca, ccxt, bitunix, binance, public, synthetic (options only), "
             "or a CCXT exchange id (e.g., binance, kraken)."
         )
 
@@ -1707,7 +1714,66 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                    for notice in getattr(adapter, "notices", []) or []]
         if notices:
             provenance["notices"] = notices
+        synthetic = self._synthetic_option_engine()
+        if synthetic is not None and synthetic.notices:
+            from lumibot.tools import synthetic_options
+
+            provenance["syntheticOptions"] = {
+                "priceSource": synthetic_options.PRICE_SOURCE_SYNTHETIC,
+                "modelVersion": synthetic_options.MODEL_VERSION,
+                "volatilityInput": sorted(synthetic.volatility_sources),
+                "realOptionRoute": self._routing.get("option_real") or "",
+                "notice": synthetic_options.NOTICE,
+            }
         return provenance
+
+    # ------------------------------------------------------------------
+    # Synthetic option data (routing value "synthetic" for asset type "option")
+    # ------------------------------------------------------------------
+    def _synthetic_option_engine(self):
+        registry = getattr(self, "_registry", None)
+        adapter = getattr(registry, "_adapters", {}).get("synthetic") if registry is not None else None
+        return getattr(adapter, "engine", None)
+
+    def _options_are_synthetic(self, symbol: str = "") -> bool:
+        routing = getattr(self, "_routing", None) or {}
+        try:
+            raw = routing.get("option") or routing.get("default")
+            return self._registry.resolve_provider_spec(raw).provider == "synthetic"
+        except Exception:
+            return False
+
+    def option_price_source(self, asset, quote=None) -> Optional[str]:
+        """Label of the current bar of an option ("synthetic", "trade", "quote", ...), or None.
+
+        None means the option's bars carry no label (a real data route).
+        """
+        base = asset[0] if isinstance(asset, tuple) else asset
+        if _normalize_asset_type(getattr(base, "asset_type", "")) != "option" or not self._options_are_synthetic():
+            return None
+        from lumibot.backtesting.synthetic_option_routing import row_label
+
+        quote_asset = quote if quote is not None else _DEFAULT_QUOTE_ASSET
+        for ts_unit in ("minute", "hour", "day"):
+            key, _legacy = self._build_dataset_keys(base, quote_asset, ts_unit)
+            data = self._data_store.get(key)
+            if data is not None:
+                label = row_label(data, self.get_datetime())
+                if label:
+                    return label
+        return None
+
+    def get_chains(self, asset, *args, **kwargs):
+        if not self._options_are_synthetic():
+            return super().get_chains(asset, *args, **kwargs)
+        from lumibot.entities import Chains
+
+        constraints = getattr(self, "_chain_constraints", None) or {}
+        max_date = constraints.get("max_expiration_date") if isinstance(constraints, dict) else None
+        if isinstance(max_date, datetime):
+            max_date = max_date.date()
+        chain = self._synthetic_option_engine().chains(asset, _DEFAULT_QUOTE_ASSET, self.get_datetime(), max_date)
+        return Chains(chain) if chain is not None else None
 
     def record_history_requirement(self, *, asset, timestep, requested_bars, bars, timeshift=None):
         RoutedBacktestingPandas._record_consumed_history(self, asset=asset, timestep=timestep,
@@ -2172,6 +2238,10 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
             spec = self._provider_spec_for_asset(asset if not isinstance(asset, tuple) else asset[0])
         except Exception:
             spec = ProviderSpec(provider="thetadata")
+
+        if spec.provider == "synthetic":
+            # Synthetic quotes are rows of the contract's own frame; there is no snapshot service.
+            kwargs.pop("snapshot_only", None)
 
         if spec.provider != "thetadata" and timestep == "minute":
             asset_obj = asset if not isinstance(asset, tuple) else asset[0]

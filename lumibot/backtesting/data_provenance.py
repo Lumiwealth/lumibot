@@ -94,6 +94,7 @@ def _safe_notices(notices: Iterable[Any]) -> List[Dict[str, Any]]:
 
 def build_backtest_data_provenance(data_source: Any, fill_price_counts: Dict[str, int] | None = None) -> Dict[str, Any]:
     observed = None
+    synthetic = None
     notices: List[Dict[str, Any]] = []
     getter = getattr(data_source, "get_data_provenance", None)
     if callable(getter):
@@ -101,6 +102,7 @@ def build_backtest_data_provenance(data_source: Any, fill_price_counts: Dict[str
             candidate = getter()
             if isinstance(candidate, dict):
                 observed = candidate.get("observedRoutes")
+                synthetic = candidate.get("syntheticOptions")
                 raw_notices = candidate.get("notices")
                 if isinstance(raw_notices, list):
                     notices = _safe_notices(raw_notices)
@@ -123,9 +125,20 @@ def build_backtest_data_provenance(data_source: Any, fill_price_counts: Dict[str
     # How option fills were priced: "quote" and "trade" are real prices in the fill bar,
     # "estimated" is a model price (volatility from the expiration's recent trades when they
     # are loaded, otherwise from the contract's own last trade), used as computed and labeled.
+    # "synthetic" is a price computed from the underlying only (the synthetic option route).
     if fill_price_counts:
-        provenance["optionFillPrices"] = {
-            str(key): int(value) for key, value in fill_price_counts.items() if isinstance(value, int)
+        counts = {str(key): int(value) for key, value in fill_price_counts.items() if isinstance(value, int)}
+        provenance["optionFillPrices"] = counts
+        total = sum(counts.values())
+        if total > 0:
+            provenance["optionFillPriceShares"] = {key: round(value / total, 4) for key, value in counts.items()}
+    if isinstance(synthetic, dict):
+        # Says plainly that option prices were computed, and from which volatility input.
+        provenance["syntheticOptions"] = {
+            str(key): value
+            for key, value in synthetic.items()
+            if isinstance(value, (str, int, float, bool))
+            or (isinstance(value, list) and all(isinstance(item, str) for item in value))
         }
     return provenance
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+from contextlib import contextmanager
 import json
 import math
 import os
@@ -209,7 +210,10 @@ class MarketInputEvidence:
     # one bar later) each time. Rows this stream already serialized and committed are reused
     # instead of being re-read in Python. Off only for reference tests.
     incremental = True
-    max_prefix_states = 32
+    # Streams remembered (asset, timestep, columns). A scan over hundreds of symbols is one
+    # stream per symbol: at 32, every scan re-read every row of every symbol's window.
+    # Memory stays bounded by max_prefix_rows (total rows remembered), which is unchanged.
+    max_prefix_states = 4096
     max_prefix_states_per_stream = 4
     max_prefix_rows = 1_000_000
 
@@ -229,6 +233,7 @@ class MarketInputEvidence:
         self.lock = RLock()
         self._row_count = 0
         self._observation_count = 0
+        self._batch_depth = 0
         self._directory = tempfile.TemporaryDirectory(prefix="lumibot-market-input-")
         self.spool_directory = Path(self._directory.name)
         try:
@@ -254,6 +259,47 @@ class MarketInputEvidence:
         with self.lock:
             self._finalizer()
             self._serialized_rows.clear()
+
+    @contextmanager
+    def _transaction(self):
+        """One record's writes: its own commit, or a savepoint inside an open ``batch()``."""
+        if not self._batch_depth:
+            with self._connection:
+                yield
+            return
+        self._connection.execute("SAVEPOINT market_input_record")
+        try:
+            yield
+        except BaseException:
+            self._connection.execute("ROLLBACK TO market_input_record")
+            self._connection.execute("RELEASE market_input_record")
+            raise
+        self._connection.execute("RELEASE market_input_record")
+
+    @contextmanager
+    def batch(self):
+        """Commit many ``record`` calls once.
+
+        A grouped history call records one observation per asset. One commit per asset was
+        most of a 500-stock scan's time; the records and their order are unchanged.
+        """
+        with self.lock:
+            if not self._batch_depth and not self._connection.in_transaction:
+                self._connection.execute("BEGIN")
+            self._batch_depth += 1
+            try:
+                yield
+            finally:
+                self._batch_depth -= 1
+                if not self._batch_depth:
+                    try:
+                        self._connection.commit()
+                    except Exception:
+                        # Nothing uncommitted may survive as "already in the spool".
+                        self._connection.rollback()
+                        self._serialized_rows.clear()
+                        self._prefix_states.clear()
+                        self.incomplete.add("capture_error")
 
     def _read_records(self, table):
         # Table names are internal constants, never caller input.
@@ -309,7 +355,7 @@ class MarketInputEvidence:
                             first, last = frame.index[0].isoformat(), frame.index[count - 1].isoformat()
                             break
             try:
-                with self._connection:
+                with self._transaction():
                     if frame is not None:
                         unread = frame.iloc[count:] if count else frame
                         for index, *row in _frame_rows(unread, columns):
@@ -403,6 +449,29 @@ class MarketInputEvidence:
         while len(states) > self.max_prefix_states or total > self.max_prefix_rows:
             _, dropped = states.popitem(last=False)
             total -= sum(state.rows for state in dropped)
+
+
+@contextmanager
+def market_input_batch(source):
+    """Group the ``record_market_input`` calls of one grouped history request into one commit."""
+    recorder = getattr(source, "_market_input_evidence", None)
+    try:
+        if recorder is None:
+            recorder = MarketInputEvidence()
+            source._market_input_evidence = recorder
+        batch = recorder.batch()
+        batch.__enter__()
+    except Exception:
+        yield
+        return
+    try:
+        yield
+    finally:
+        try:
+            batch.__exit__(None, None, None)
+        except Exception:
+            with recorder.lock:
+                recorder.incomplete.add("capture_error")
 
 
 def record_market_input(*, source, asset, timestep, when, frame, purpose, quote=None):

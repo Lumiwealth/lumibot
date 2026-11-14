@@ -131,3 +131,48 @@ def test_incremental_state_memory_is_bounded():
     rows = sum(state.rows for entries in recorder._prefix_states.values() for state in entries)
     assert rows <= recorder.max_prefix_rows
     recorder.close()
+
+
+def _scan_frames(symbols, bars, shift):
+    idx = pd.date_range(START, periods=bars + shift, freq="D")[shift:]
+    return {s: pd.DataFrame({"close": 10.0 + n + np.arange(shift, shift + bars) * 0.5, "volume": 100 + n}, index=idx)
+            for n, s in enumerate(symbols)}
+
+
+def _scan(recorder, symbols, bars, shift, *, batched):
+    from contextlib import nullcontext
+
+    with (recorder.batch() if batched else nullcontext()):
+        for symbol, frame in _scan_frames(symbols, bars, shift).items():
+            recorder.record(asset=Asset(symbol), timestep="day", when=START + pd.Timedelta(days=shift),
+                            frame=frame, purpose="history-batch")
+
+
+def test_a_scan_over_many_symbols_serializes_only_the_new_bars(monkeypatch):
+    """A daily scan hands over one sliding window per symbol. Only 32 symbols were remembered,
+    so a 300-symbol scan re-read every row of every window in Python on each scan (measured
+    2.5 s per scan at 500 symbols x 200 bars, most of the scan's time)."""
+    symbols = [f"SYM{i:03d}" for i in range(300)]
+    read = []
+    real = mie._frame_rows
+    monkeypatch.setattr(mie, "_frame_rows", lambda frame, columns: (read.append(len(frame)), real(frame, columns))[1])
+    recorder = MarketInputEvidence(max_cache_rows=0)
+    _scan(recorder, symbols, 200, 0, batched=False)
+    assert sum(read) == 300 * 200
+    read.clear()
+    _scan(recorder, symbols, 200, 1, batched=False)
+    assert sum(read) == 300  # one new bar per symbol
+    recorder.close()
+
+
+def test_one_commit_per_scan_records_exactly_what_per_asset_commits_record():
+    symbols = [f"SYM{i:03d}" for i in range(40)]
+    captured = []
+    for batched in (False, True):
+        recorder = MarketInputEvidence()
+        for shift in range(3):
+            _scan(recorder, symbols, 30, shift, batched=batched)
+        captured.append((list(recorder.rows.values()), list(recorder.observations), set(recorder.incomplete)))
+        assert not recorder._connection.in_transaction
+        recorder.close()
+    assert captured[0] == captured[1] and len(captured[0][1]) == 120

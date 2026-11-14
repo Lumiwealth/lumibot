@@ -1201,12 +1201,25 @@ class Alpaca(Broker):
         else:
             trade_symbol = self._normalize_symbol_for_broker(order.asset.symbol, asset_type=order.asset.asset_type)
 
-        # If order class is OCO, set to type limit (Alpaca wants this for OCO), Bracket becomes 'market'
+        # OCO is an exit pair and Alpaca requires type "limit" for it. A bracket/OTO
+        # entry is sent as the type the strategy asked for (market or limit); any
+        # other entry is refused rather than silently turned into a market order.
         alpaca_type = order.order_type
         if order.order_class == Order.OrderClass.OCO:
             alpaca_type = Order.OrderType.LIMIT
         elif order.order_class in [Order.OrderClass.BRACKET, Order.OrderClass.OTO]:
-            alpaca_type = Order.OrderType.MARKET
+            if order.order_type not in (Order.OrderType.MARKET, Order.OrderType.LIMIT):
+                raise ValueError(
+                    f"A {order.order_type} entry for a {order.order_class} order is not supported by Alpaca "
+                    "in LumiBot. Use a market or limit entry."
+                )
+        if order.order_class in [Order.OrderClass.OCO, Order.OrderClass.OTO, Order.OrderClass.BRACKET]:
+            if any(child.order_type == Order.OrderType.TRAIL for child in order.child_orders):
+                raise ValueError(
+                    "A trailing stop leg on a bracket, OTO or OCO order is not supported by Alpaca: its "
+                    "stop_loss leg takes only a fixed stop_price. Submit the trailing stop as its own order "
+                    "after the entry fills."
+                )
 
         # Validate stop-limit orders must have both stop and limit prices
         if order.order_type == Order.OrderType.STOP_LIMIT and (order.stop_price is None or order.stop_limit_price is None):

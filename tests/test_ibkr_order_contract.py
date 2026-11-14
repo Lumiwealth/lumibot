@@ -111,3 +111,17 @@ def test_known_held_close_does_not_require_current_chart_contract(monkeypatch, p
     assert resolve(side=side, positions=[position]) is position.asset
     with pytest.raises(ValueError, match='current chart calendar unavailable'):
         resolve(side='buy_to_open')
+
+
+@pytest.mark.parametrize("symbol,when,expected", [
+    ("MNQ", datetime(2026, 5, 1, 14, tzinfo=timezone.utc), date(2026, 6, 18)),
+    ("ES", datetime(2026, 4, 15, 14, tzinfo=timezone.utc), date(2026, 6, 18)),
+    ("MNQ", datetime(2026, 7, 1, 14, tzinfo=timezone.utc), date(2026, 9, 18)),
+], ids=["third-friday-is-exchange-holiday", "another-index-product", "ordinary-third-friday"])
+def test_order_contract_never_expires_on_an_exchange_holiday(symbol, when, expected):
+    """A third Friday that is an exchange holiday moves the last trade day to the prior business day.
+
+    An order bound to the holiday date names a contract with no bars, so it could never fill.
+    """
+    asset = Asset(symbol, asset_type='cont_future')
+    assert resolve(asset=asset, when=when).expiration == expected

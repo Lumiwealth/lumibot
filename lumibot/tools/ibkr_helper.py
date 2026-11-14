@@ -2033,7 +2033,10 @@ def _contract_expiration_date(root_symbol: str, *, year: int, month: int):
             # (CME equity index futures) is the third Friday.
             resolve = getattr(futures_roll, "_EXPIRY_ANCHORS", {}).get(anchor) or futures_roll._third_friday
             expiry = resolve(year, month)
-        return expiry.date()
+        # A contract cannot stop trading on an exchange holiday: when the rule day is one
+        # (for example a third Friday that is Juneteenth), the last trade day is the prior
+        # business day. An order bound to the holiday date would name a contract with no bars.
+        return futures_roll._business_day_on_or_before(expiry.date())
     except Exception:
         # Safe fallback: third Friday.
         from datetime import date, timedelta

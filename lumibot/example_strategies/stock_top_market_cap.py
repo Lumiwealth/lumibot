@@ -30,8 +30,10 @@ class TopMarketCap(Strategy):
             return  # rebalance once a month
         self.vars.month = (now.year, now.month)
 
-        ranked = self.fundamentals.rank(self.parameters["universe"], "market_cap", top=self.parameters["top_n"])
-        targets = list(ranked.index)
+        # One row per company: shares outstanding from the latest filing public today x today's price.
+        table = self.fundamentals.get_metrics_table(self.parameters["universe"], ["market_cap"])
+        market_caps = table["market_cap"].astype(float).dropna()  # no filing or no price yet: left out
+        targets = list(market_caps.nlargest(self.parameters["top_n"]).index)
         if not targets:
             self.log_message("No company has a market cap yet (no filing or no price). Holding.")
             return

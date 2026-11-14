@@ -32,16 +32,14 @@ class RevenueGrowthLowDebt(Strategy):
             return  # rebalance once a month
         self.vars.month = (now.year, now.month)
 
-        ranked = self.fundamentals.rank(
-            self.parameters["universe"],
-            "revenue_growth_yoy",
-            top=self.parameters["top_n"],
-            filters={
-                "revenue_growth_yoy": (self.parameters["min_revenue_growth"], None),
-                "debt_to_equity": (None, self.parameters["max_debt_to_equity"]),
-            },
-        )
-        targets = list(ranked.index)
+        columns = ["revenue_growth_yoy", "debt_to_equity"]
+        table = self.fundamentals.get_metrics_table(self.parameters["universe"], columns)
+        table = table[columns].astype(float).dropna()  # a missing number is left out, never counted as zero
+        passing = table[
+            (table["revenue_growth_yoy"] > self.parameters["min_revenue_growth"])
+            & (table["debt_to_equity"] < self.parameters["max_debt_to_equity"])
+        ]
+        targets = list(passing["revenue_growth_yoy"].nlargest(self.parameters["top_n"]).index)
         if not targets:
             self.log_message("No company passes the screen this month. Moving to cash.")
             self.sell_all()

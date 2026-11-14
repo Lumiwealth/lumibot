@@ -3,8 +3,7 @@
 ## Unreleased
 
 ### Added
-- Fundamentals: `self.fundamentals.rank(symbols, by, top=, filters=, ascending=, as_of=, prices=)` screens and ranks a universe by any ready-made metric as of a date in one call (for example top 5 by market cap, or revenue growth over 20% with debt to equity under 0.5). Missing values never pass a filter. Docs: `docsrc/fundamentals.rst` ("Stock screener").
-- Examples: `stock_top_market_cap.py` and `stock_revenue_growth_low_debt.py`, each covered by a full backtest on synthetic data (`tests/test_example_fundamental_screeners.py`).
+- Examples: `stock_top_market_cap.py` and `stock_revenue_growth_low_debt.py`, each covered by a full backtest on synthetic data (`tests/test_example_fundamental_screeners.py`). They use the existing `get_metrics_table` and plain pandas; docs: `docsrc/fundamentals.rst` ("Stock screener"). No library behavior changed.
 
 ## 4.6.64 - 2026-11-14
 

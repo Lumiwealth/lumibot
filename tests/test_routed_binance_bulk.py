@@ -287,6 +287,14 @@ def test_funding_after_last_published_month_is_recorded_not_invented(monkeypatch
                and n["through"].startswith("2026-07-31") for n in notices)
 
 
+def test_window_ending_at_a_published_month_end_has_no_funding_notice(monkeypatch):
+    # A backtest ending at midnight Aug 1 is fully covered by July's funding file.
+    router = _router({"crypto_future": "binance", "default": "ibkr"}, monkeypatch, _perp_archive(),
+                     start="2026-07-31 12:00", end="2026-08-01 00:00")
+    router.get_funding_events(PERP, pd.Timestamp("2026-07-31", tz="UTC"), pd.Timestamp("2026-08-01", tz="UTC"))
+    assert "notices" not in router.get_data_provenance()
+
+
 def test_perpetual_order_fills_and_pays_funding_at_binance_mark(monkeypatch):
     archive = _perp_archive()
     archive.add("futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-07.zip",

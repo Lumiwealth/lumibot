@@ -5,6 +5,7 @@ import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Any, Dict, Optional
 
 import pandas as pd
@@ -44,6 +45,8 @@ PERPETUAL_DATA_REASONS = (
 CRYPTO_FUTURE_ROUTE_ALTERNATIVES = (
     {"routing": "bitunix", "kind": "perpetual",
      "provides": "Bitunix perpetual candles, contract terms and funding (public, no key)"},
+    {"routing": "binance", "kind": "perpetual",
+     "provides": "Binance USD-M perpetual candles, mark prices and funding from public bulk files (no key)"},
     {"routing": "coinbase", "kind": "spot_proxy",
      "provides": "spot candles only; perpetual orders cannot fill (no contract terms or funding)"},
     {"routing": "ibkr", "kind": "spot_proxy",
@@ -1283,6 +1286,260 @@ class _BitunixPerpetualRoutingAdapter(_DataFrameRoutingAdapter):
         return df.sort_index()
 
 
+class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
+    """Binance public bulk files (data.binance.vision): USD-M perpetuals and spot.
+
+    Opt-in only, selected by routing ``crypto_future`` and/or ``crypto`` to ``binance``.
+    Bulk files only (the live Binance API refuses some cloud regions). Daily files are
+    published about a day late and funding only monthly: a window past the published
+    candles fails up front, and unpublished funding is recorded as a notice, never invented.
+    """
+
+    provider_key = "binance"
+    _default_start_buffer = timedelta(0)
+    uses_spot_proxy = False
+    _SOURCES = {"um": "binance_usdm_bulk", "spot": "binance_spot_bulk"}
+
+    def __init__(self, router: "RoutedBacktestingPandas"):
+        super().__init__(router)
+        self._client = None
+        self._funding: dict[str, list] = {}
+        self._marks: dict[str, pd.DataFrame] = {}
+        self.notices: list[dict] = []
+
+    @property
+    def client(self):
+        if self._client is None:
+            from lumibot.tools.binance_bulk_data import BinanceBulkData
+
+            self._client = BinanceBulkData()
+        return self._client
+
+    @staticmethod
+    def _market(asset: Asset) -> str:
+        asset_type = _normalize_asset_type(getattr(asset, "asset_type", ""))
+        if asset_type == "crypto_future":
+            return "um"
+        if asset_type == "crypto":
+            return "spot"
+        raise RoutingProviderError(
+            f"Binance routing serves crypto (spot) and crypto_future (USD-M perpetuals) only; "
+            f"{asset!r} is a {asset_type or 'unknown'} asset."
+        )
+
+    def _unavailable(self, exc, symbol=None, market="um"):
+        if market == "um":
+            return PerpetualDataUnavailable(str(exc), reason=getattr(exc, "reason", "source_error"),
+                                            source="binance", symbol=symbol)
+        return RoutingProviderError(f"{exc} Data source: binance (spot bulk files).")
+
+    def resolve(self, asset: Asset, quote_asset: Asset | None = None) -> tuple[str, str, None]:
+        """(market, Binance symbol, None). The quote is served exactly; USD is refused."""
+        from lumibot.tools.binance_bulk_data import BinanceBulkDataError, perpetual_symbol, spot_symbol
+
+        market = self._market(asset)
+        try:
+            if market == "um":
+                return market, perpetual_symbol(asset, quote_asset), None
+            return market, spot_symbol(asset, quote_asset), None
+        except BinanceBulkDataError as exc:
+            raise self._unavailable(exc, getattr(asset, "symbol", None), market) from exc
+
+    def route_details(self, asset: Asset, quote_asset: Asset | None = None) -> dict:
+        try:
+            market, symbol, _ = self.resolve(asset, quote_asset)
+        except RoutingProviderError:
+            return {}
+        details = {"priceSource": self._SOURCES[market], "servedSymbol": symbol}
+        if market == "um":
+            details["fundingSource"] = self._SOURCES[market]
+            details["markSource"] = self._SOURCES[market]
+        return details
+
+    def contract_spec(self, asset: Asset, quote_asset: Asset | None = None):
+        from lumibot.entities import ContractSpec
+
+        market, symbol, _ = self.resolve(asset, quote_asset)
+        if market != "um":
+            raise ValueError("Derivative contract terms are unavailable; supply Asset.contract_spec or provider metadata")
+        quote = "USDT" if symbol.endswith("USDT") else "USDC"
+        # USD-M linear perpetual: quantity in the base coin (1000PEPE for 1000PEPEUSDT), settled in the quote.
+        return ContractSpec(symbol[: -len(quote)], quote, quote, quantity_unit="base")
+
+    def _funding_rows(self, symbol: str) -> list:
+        from lumibot.tools.binance_bulk_data import BinanceBulkDataError
+
+        if symbol not in self._funding:
+            start, end = self._router.datetime_start, self._router.datetime_end
+            try:
+                rows, covered = self.client.funding_history(symbol, start, end)
+            except BinanceBulkDataError as exc:
+                raise self._unavailable(exc, symbol) from exc
+            end_ts = pd.Timestamp(end).tz_convert("UTC") if pd.Timestamp(end).tzinfo else pd.Timestamp(end, tz="UTC")
+            if covered is None or covered < end_ts:
+                through = None if covered is None else covered.isoformat()
+                notice = {"kind": "funding_not_published", "source": "binance_usdm_bulk", "symbol": symbol,
+                          "through": through,
+                          "message": (f"Binance publishes funding history monthly; {symbol} funding after "
+                                      f"{through or 'the start of the window'} is not published yet and was not "
+                                      "charged. Prices are unaffected.")}
+                self.notices.append(notice)
+                logger.warning("%s %s", PerpetualDataUnavailable.MARKER, notice["message"])
+            self._funding[symbol] = rows
+        return self._funding[symbol]
+
+    def funding_events(self, asset: Asset, start, end):
+        _, symbol, _ = self.resolve(asset)
+        rows = self._funding_rows(symbol)
+        return [row for row in DataSourceBacktesting._perpetual_rows(rows) if start <= row["timestamp"] <= end]
+
+    def mark_at(self, asset: Asset, at):
+        """Binance mark price from hourly mark-price klines: the open of the hour at or before ``at``.
+
+        Returns (mark, exact). ``exact`` is True only when ``at`` is the hour boundary itself.
+        """
+        from lumibot.tools.binance_bulk_data import BinanceBulkDataError, cached_candles
+
+        _, symbol, _ = self.resolve(asset)
+        if symbol not in self._marks:
+            try:
+                self._marks[symbol] = cached_candles(
+                    self.client, "um", symbol, "hour", pd.Timestamp(self._router.datetime_start).floor("h"),
+                    pd.Timestamp(self._router.datetime_end) + timedelta(hours=1), kind="markPriceKlines")
+            except BinanceBulkDataError as exc:
+                raise self._unavailable(exc, symbol) from exc
+        marks = self._marks[symbol]
+        at_ts = pd.Timestamp(at)
+        at_ts = at_ts.tz_localize("UTC") if at_ts.tzinfo is None else at_ts.tz_convert("UTC")
+        visible = marks[marks.index <= at_ts]
+        if visible.empty:
+            return None, False
+        stamp = visible.index[-1]
+        return Decimal(str(visible.iloc[-1]["open"])), stamp == at_ts
+
+    def _fetch_df(
+        self,
+        *,
+        asset: Asset,
+        quote_asset: Asset,
+        ts_unit: str,
+        start_datetime: datetime,
+        end_dt: datetime,
+        length: int,
+        canonical_key: Any,
+        provider_spec: ProviderSpec,
+        require_quote_data: bool,
+        require_ohlc_data: bool,
+    ) -> pd.DataFrame | None:
+        from lumibot.tools.binance_bulk_data import BinanceBulkDataError, cached_candles
+
+        if ts_unit not in {"minute", "hour", "day"}:
+            raise RoutingProviderError(f"Binance routing supports minute/hour/day bars, got {ts_unit!r}.")
+        market, symbol, _ = self.resolve(asset, quote_asset)
+        if market == "um":
+            # Fail before any simulated order when the contract cannot be modeled.
+            self.contract_spec(asset, quote_asset)
+        step = {"minute": timedelta(minutes=1), "hour": timedelta(hours=1), "day": timedelta(days=1)}[ts_unit]
+        lookback = timedelta(0)
+        if ts_unit == "day":
+            try:
+                lookback = timedelta(days=max(7, int(length) + 5))
+            except Exception:
+                lookback = timedelta(days=7)
+        try:
+            fetch_start = min(start_datetime, self._router.datetime_start - lookback)
+        except Exception:
+            fetch_start = start_datetime
+        window_end = self._router.datetime_end or end_dt
+        try:
+            df = cached_candles(self.client, market, symbol, ts_unit, fetch_start, window_end + step)
+        except BinanceBulkDataError as exc:
+            raise self._unavailable(exc, symbol, market) from exc
+        if df is None or df.empty:
+            hint = "" if symbol[:1].isdigit() else (
+                f" Binance lists some low-priced coins per 1000 units (for example 1000{symbol}); "
+                "check the contract name, and note delisted or renamed contracts have no newer files.")
+            exc = BinanceBulkDataError(
+                f"Binance publishes no {'USD-M perpetual' if market == 'um' else 'spot'} {symbol} files between "
+                f"{fetch_start} and {window_end}; spot prices are not substituted.{hint}",
+                reason="contract_not_listed")
+            raise self._unavailable(exc, symbol, market)
+        last_open = df.index[-1]
+        window_end_ts = pd.Timestamp(window_end)
+        window_end_ts = window_end_ts.tz_localize("UTC") if window_end_ts.tzinfo is None else window_end_ts
+        if last_open + 2 * step < window_end_ts:
+            exc = BinanceBulkDataError(
+                f"Binance bulk files for {symbol} end at {last_open:%Y-%m-%d %H:%M} UTC, before the backtest end "
+                f"{window_end_ts.tz_convert('UTC'):%Y-%m-%d %H:%M} UTC. Binance publishes each day's file about one "
+                "day later; end the backtest on or before the last published day. Nothing is filled in.",
+                reason="no_data_for_window")
+            raise self._unavailable(exc, symbol, market)
+        if market == "um":
+            self._funding_rows(symbol)
+        self._fully_loaded_series.add(canonical_key)
+        df = df.copy()
+        df.index = df.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+        return df.sort_index()
+
+
+class _PublicCryptoRoutingAdapter(_RoutingAdapter):
+    """Keyless public crypto data, chosen by the quote the strategy asked for.
+
+    Route value ``public``. Fiat pairs (BTC/USD) read Coinbase public candles; stablecoin
+    and coin-quoted pairs (BTC/USDT, BTC/USDC, BTC/FDUSD) read Binance bulk spot files;
+    perpetuals read Binance USD-M bulk files. No API key and no broker account. A USD
+    request is never served from a USDT pair.
+    """
+
+    provider_key = "public"
+    _COINBASE = ProviderSpec(provider="ccxt", ccxt_exchange_id="coinbase", raw="public")
+
+    def __init__(self, router: "RoutedBacktestingPandas", registry: "_ProviderRegistry"):
+        super().__init__(router)
+        self._registry = registry
+
+    @property
+    def _binance(self) -> "_BinanceBulkRoutingAdapter":
+        return self._registry._adapters["binance"]
+
+    @staticmethod
+    def _quote_symbol(asset, quote_asset) -> str:
+        raw = str(getattr(asset, "symbol", "") or "")
+        if "/" in raw:
+            return raw.split("/", 1)[1].split(":")[0].upper()
+        return str(getattr(quote_asset, "symbol", quote_asset) or "USD").upper()
+
+    def _uses_coinbase(self, asset, quote_asset) -> bool:
+        from lumibot.tools.binance_bulk_data import FIAT_QUOTES
+
+        if _normalize_asset_type(getattr(asset, "asset_type", "")) != "crypto":
+            return False
+        return self._quote_symbol(asset, quote_asset) in FIAT_QUOTES
+
+    def update_pandas_data(self, *, asset, quote_asset, provider_spec, **kwargs):
+        if self._uses_coinbase(asset, quote_asset):
+            return self._registry._adapters["ccxt"].update_pandas_data(
+                asset=asset, quote_asset=quote_asset, provider_spec=self._COINBASE, **kwargs)
+        return self._binance.update_pandas_data(asset=asset, quote_asset=quote_asset,
+                                                provider_spec=provider_spec, **kwargs)
+
+    def route_details(self, asset, quote_asset=None) -> dict:
+        if self._uses_coinbase(asset, quote_asset):
+            base = str(getattr(asset, "symbol", "")).split("/")[0].upper()
+            return {"priceSource": "coinbase_public", "exchange": "coinbase",
+                    "servedSymbol": f"{base}/{self._quote_symbol(asset, quote_asset)}"}
+        return self._binance.route_details(asset, quote_asset)
+
+    def contract_spec(self, asset, quote_asset=None):
+        return self._binance.contract_spec(asset, quote_asset)
+
+    def funding_events(self, asset, start, end):
+        return self._binance.funding_events(asset, start, end)
+
+    def mark_at(self, asset, at):
+        return self._binance.mark_at(asset, at)
+
+
 class _ProviderRegistry:
     def __init__(self, router: "RoutedBacktestingPandas"):
         self._router = router
@@ -1293,7 +1550,9 @@ class _ProviderRegistry:
             "alpaca": _AlpacaRoutingAdapter(router),
             "ccxt": _CcxtRoutingAdapter(router),
             "bitunix": _BitunixPerpetualRoutingAdapter(router),
+            "binance": _BinanceBulkRoutingAdapter(router),
         }
+        self._adapters["public"] = _PublicCryptoRoutingAdapter(router, self)
 
     def resolve_provider_spec(self, provider: Any) -> ProviderSpec:
         raw = "" if provider is None else str(provider).strip()
@@ -1317,6 +1576,13 @@ class _ProviderRegistry:
             "ccxt": "ccxt",
             # Native adapter (perpetual candles + funding), resolved before any CCXT id.
             "bitunix": "bitunix",
+            # Native Binance bulk-file adapter (spot and USD-M perpetuals), resolved before CCXT:
+            # the live Binance API that CCXT calls refuses some cloud regions.
+            "binance": "binance",
+            "binanceusdm": "binance",
+            # Keyless public crypto split by quote: fiat pairs Coinbase, stablecoin pairs and
+            # USD-M perpetuals Binance bulk files.
+            "public": "public",
         }
         if token in aliases:
             if aliases[token] == "ccxt":
@@ -1329,7 +1595,7 @@ class _ProviderRegistry:
 
         raise RoutingProviderError(
             f"Unknown backtesting routing provider {provider!r}. "
-            "Expected one of: thetadata, ibkr, polygon, alpaca, ccxt, bitunix, "
+            "Expected one of: thetadata, ibkr, polygon, alpaca, ccxt, bitunix, binance, public, "
             "or a CCXT exchange id (e.g., binance, kraken)."
         )
 
@@ -1377,6 +1643,7 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         *,
         timestep: Optional[str] = None,
         feed_type: Optional[str] = None,
+        quote_asset: Optional[Asset] = None,
     ) -> None:
         asset_type = _normalize_asset_type(getattr(asset, "asset_type", "")) or "unknown"
         symbol = str(getattr(asset, "symbol", "") or "").strip()
@@ -1389,6 +1656,9 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         }
         if provider_spec.ccxt_exchange_id:
             route["exchange"] = provider_spec.ccxt_exchange_id
+        details = getattr(self._registry.adapter_for_spec(provider_spec), "route_details", None)
+        if details is not None:
+            route.update(details(asset, quote_asset))
         if feed_type:
             route["feedType"] = feed_type
         if timestep:
@@ -1410,7 +1680,13 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
 
     def get_data_provenance(self) -> Dict[str, Any]:
         observed = getattr(self, "_observed_data_routes", {})
-        return {"observedRoutes": list(observed.values()) if isinstance(observed, dict) else []}
+        provenance = {"observedRoutes": list(observed.values()) if isinstance(observed, dict) else []}
+        registry = getattr(self, "_registry", None)
+        notices = [notice for adapter in getattr(registry, "_adapters", {}).values()
+                   for notice in getattr(adapter, "notices", []) or []]
+        if notices:
+            provenance["notices"] = notices
+        return provenance
 
     def record_history_requirement(self, *, asset, timestep, requested_bars, bars, timeshift=None):
         RoutedBacktestingPandas._record_consumed_history(self, asset=asset, timestep=timestep,
@@ -1466,6 +1742,15 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                 "Derivative contract terms are unavailable; supply Asset.contract_spec or provider metadata"
             )
         return adapter.contract_spec(asset, quote)
+
+    def get_perpetual_mark(self, asset, at):
+        """Historical mark from a routed perpetual provider that publishes marks, else the base rule."""
+        adapter = self._perpetual_adapter(asset)
+        if adapter is not None and hasattr(adapter, "mark_at"):
+            mark, exact = adapter.mark_at(asset[0] if isinstance(asset, tuple) else asset, at)
+            if mark is not None:
+                return mark, exact
+        return super().get_perpetual_mark(asset, at)
 
     def get_funding_events(self, asset, start, end):
         supplied = super().get_funding_events(asset, start, end)
@@ -1756,6 +2041,7 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
             provider_spec,
             timestep=timestep,
             feed_type="quote" if require_quote_data and not require_ohlc_data else "ohlc",
+            quote_asset=quote_asset,
         )
         return adapter.update_pandas_data(
             asset=asset_separated,

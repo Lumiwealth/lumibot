@@ -48,13 +48,63 @@ def _get_ta_module():
     return _TA_MODULE
 
 
+_MISSING = object()
+
+
+def _key_spelling(key) -> str:
+    """One spelling for an indicator column: ``BBL_20_2.0`` and ``BBL_20_2_0`` are the same key."""
+    return str(key).replace(".", "_").replace("-", "_").replace(" ", "_")
+
+
+def _resolve_key(keys, key):
+    """The stored key matching ``key`` in either spelling, or ``_MISSING``."""
+    if key in keys:
+        return key
+    wanted = _key_spelling(key)
+    for stored in keys:
+        if _key_spelling(stored) == wanted:
+            return stored
+    return _MISSING
+
+
+def _missing_message(key, keys) -> str:
+    return (f"Indicator value {key!r} does not exist. Available: {', '.join(map(str, keys))}. "
+            "Either spelling works (for example 'BBL_20_2.0' or 'BBL_20_2_0').")
+
+
+class IndicatorValues(dict):
+    """``IndicatorRow.as_dict()``: a plain dict with the source keys that also accepts the
+    attribute spelling, and says so when a key is missing instead of quietly returning None."""
+
+    def __missing__(self, key):
+        stored = _resolve_key(list(self.keys()), key)
+        if stored is _MISSING:
+            raise KeyError(_missing_message(key, list(self.keys())))
+        return dict.__getitem__(self, stored)
+
+    def __contains__(self, key):
+        return _resolve_key(list(self.keys()), key) is not _MISSING
+
+    def get(self, key, default=_MISSING):
+        stored = _resolve_key(list(self.keys()), key)
+        if stored is not _MISSING:
+            return dict.__getitem__(self, stored)
+        if default is _MISSING:
+            logger.warning(_missing_message(key, list(self.keys())))
+            return None
+        return default
+
+
 class IndicatorRow:
     """Attribute-style read-only view over a single pandas Series (one row of
     a multi-column indicator output).
 
     Given a DataFrame indicator result like pandas-ta's ``bbands``
     (columns ``BBL_20_2.0``, ``BBM_20_2.0``, ``BBU_20_2.0`` …), this wrapper
-    lets the strategy write ``bb.BBL_20_2_0`` or ``bb["BBL_20_2.0"]``.
+    lets the strategy write ``bb.BBL_20_2_0``, ``bb["BBL_20_2.0"]``,
+    ``bb["BBL_20_2_0"]`` or ``bb.get(...)``: dots, dashes and spaces in a column
+    name match underscores. A missing key raises (or, for ``get`` without a
+    default, logs a warning listing the available keys).
     """
 
     __slots__ = ("_data",)
@@ -62,23 +112,32 @@ class IndicatorRow:
     def __init__(self, data: pd.Series):
         self._data = data
 
-    def __getattr__(self, name: str):
+    def _lookup(self, key):
         data = object.__getattribute__(self, "_data")
-        if name in data.index:
-            return data[name]
-        normalized = {str(col).replace(".", "_").replace("-", "_"): col for col in data.index}
-        if name in normalized:
-            return data[normalized[name]]
-        raise AttributeError(name)
+        return data, _resolve_key(list(data.index), key)
+
+    def __getattr__(self, name: str):
+        if name.startswith("__"):
+            raise AttributeError(name)
+        data, stored = self._lookup(name)
+        if stored is _MISSING:
+            raise AttributeError(_missing_message(name, list(data.index)))
+        return data[stored]
 
     def __getitem__(self, key):
-        return self._data[key]
+        data, stored = self._lookup(key)
+        if stored is _MISSING:
+            raise KeyError(_missing_message(key, list(data.index)))
+        return data[stored]
+
+    def get(self, key, default=_MISSING):
+        return self.as_dict().get(key) if default is _MISSING else self.as_dict().get(key, default)
 
     def __contains__(self, key):
-        return key in self._data.index
+        return self._lookup(key)[1] is not _MISSING
 
     def as_dict(self) -> dict:
-        return dict(self._data)
+        return IndicatorValues(self._data)
 
     def __repr__(self) -> str:
         return f"IndicatorRow({dict(self._data)!r})"

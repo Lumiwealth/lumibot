@@ -201,3 +201,48 @@ def test_fake_queue_clock_does_not_replace_unrelated_process_time(monkeypatch):
     assert clock == [0.0], "Unrelated background sleeps must not consume the queue deadline"
     assert time.monotonic is real_monotonic
     assert time.sleep is real_sleep
+
+
+def test_unconfigured_downloader_fails_fast_when_nothing_listens(monkeypatch):
+    # No DATADOWNLOADER_BASE_URL and nothing on the default local address: a backtest that
+    # touches a downloader-backed route (for example the default SPY benchmark at the end of
+    # a crypto backtest) used to retry for 15 minutes and look hung. It must fail at once.
+    import requests
+
+    clock = _isolated_queue_clock(monkeypatch)
+    monkeypatch.delenv("DATADOWNLOADER_BASE_URL", raising=False)
+    monkeypatch.setattr(queue, "_queue_client", None)
+    client = queue.get_queue_client()
+    calls = []
+
+    def post(*a, **kwargs):
+        calls.append(kwargs)
+        raise requests.exceptions.ConnectionError("[Errno 61] Connection refused")
+
+    monkeypatch.setattr(client, "_get_session", lambda: SimpleNamespace(post=post))
+    with pytest.raises(queue.DownloaderNotConfigured, match="DATADOWNLOADER_BASE_URL"):
+        client.execute_request(method="GET", path="ibkr/tws/secdef/contracts", query_params={},
+                               max_timeout_attempts=1)
+    assert len(calls) == 1 and clock[0] == 0
+    monkeypatch.setattr(queue, "_queue_client", None)
+
+
+def test_configured_downloader_still_retries_a_refused_connection(monkeypatch):
+    import requests
+
+    clock = _isolated_queue_clock(monkeypatch)
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://127.0.0.1:8080")
+    monkeypatch.setattr(queue, "_queue_client", None)
+    client = queue.get_queue_client()
+    calls = []
+
+    def post(*a, **kwargs):
+        calls.append(kwargs)
+        raise requests.exceptions.ConnectionError("[Errno 61] Connection refused")
+
+    monkeypatch.setattr(client, "_get_session", lambda: SimpleNamespace(post=post))
+    with pytest.raises(TimeoutError):
+        client.execute_request(method="GET", path="ibkr/tws/secdef/contracts", query_params={},
+                               timeout=60, max_timeout_attempts=1)
+    assert len(calls) > 1 and clock[0] > 0
+    monkeypatch.setattr(queue, "_queue_client", None)

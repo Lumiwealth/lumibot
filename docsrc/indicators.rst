@@ -53,11 +53,25 @@ view over the current-bar row::
     bb = self.indicators.bbands(asset, length=20, std=2)
     lower = bb.BBL_20_2_0
     upper = bb.BBU_20_2_0
-    # Dots in column names are normalized to underscores; bracket access also works.
+    # Both spellings work everywhere: attribute, brackets, get() and as_dict().
     lower_alt = bb["BBL_20_2.0"]
+    lower_alt = bb["BBL_20_2_0"]
+    lower_alt = bb.get("BBL_20_2_0")
+    lower_alt = bb.as_dict()["BBL_20_2_0"]
 
     if "BBL_20_2.0" in bb:
         ...
+
+**Accepted spellings.** pandas-ta names columns like ``BBL_20_2.0``. Dots,
+dashes and spaces in a column name match underscores, so ``BBL_20_2.0`` and
+``BBL_20_2_0`` are the same key through every access path. ``as_dict()``
+keeps the original column names as its keys.
+
+**Missing keys are never silent.** ``bb.BBX_20_2_0`` raises ``AttributeError``
+and ``bb["BBX_20_2_0"]`` raises ``KeyError``; both messages list the keys that
+exist. ``bb.get("BBX_20_2_0")`` and ``bb.as_dict().get("BBX_20_2_0")`` return
+``None`` and log a warning listing the keys; pass a default
+(``bb.get(key, 0.0)``) to choose the value yourself without a warning.
 
 If the indicator has not yet accumulated enough bars to produce a value, the
 return is ``NaN`` (scalar) or a row containing ``NaN`` (multi-column). If the

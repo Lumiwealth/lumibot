@@ -1,5 +1,19 @@
 # Changelog
 
+## 4.6.58 - 2026-11-13
+
+Deploy marker: 5ff70f5e5057ea8f7ee32d62854291a64b7e92fc
+
+### Added
+- Routed backtests can read Binance's public bulk files (`data.binance.vision`, no API key) for crypto: set `"crypto_future": "binance"` and/or `"crypto": "binance"` in `BACKTESTING_DATA_SOURCE`. Perpetuals get USD-M candles, hourly mark prices and settled funding charged at the mark; spot gets Binance spot candles. Every zip is checked against its SHA-256 checksum. Complete months use monthly files and the current month daily files, downloaded in parallel through the shared bar cache (one cache for every user). A window past the last published day stops up front with `PERPETUAL_DATA_UNAVAILABLE` (`no_data_for_window`); funding not yet published (current month) is not charged and is listed under `notices` in the data provenance. Spot quotes are served exactly; a USD request under `binance` stops with a message naming the USDT pair instead of substituting it (USDT trades about 0.12% below USD). New route value `public` splits by quote with no API key or broker account: USD/EUR/GBP pairs from Coinbase public candles, USDT/USDC/FDUSD pairs and USD-M perpetuals from Binance bulk files. Data provenance names `priceSource`, `fundingSource` and the served symbol. Opt-in; no default route changes. The routing value `binance` previously reached Binance's live API through CCXT, which is blocked in some regions; it now uses the bulk files. See `docsrc/backtesting.perpetuals.rst`.
+
+### Fixed
+- In backtests, the stop or target of a bracket/OTO order now appears in the trade event log as `new` when it starts resting (the moment the entry fills). Before, it went to the order book with no event, so the trade log showed an entry with no protection until the stop filled or was canceled. Order behavior is unchanged.
+- The saved `data_provenance.json` now keeps each route's `priceSource`, `servedSymbol`, `fundingSource` and `markSource`, and the `notices` list (for example funding not published yet). Before, the file writer kept a fixed list of fields and dropped them, so the saved file could not tell Coinbase USD candles from Binance USDT candles.
+- Multi-column indicator rows (`IndicatorRow`, for example from `self.indicators.bbands`) accept both column spellings, `BBL_20_2.0` and `BBL_20_2_0`, through attribute, brackets, the new `get()` and `as_dict()` (whose keys are unchanged). Before, `as_dict().get("BBL_20_2_0")` returned `None` silently, so a strategy reading that spelling never traded. A key that really is missing now raises with the list of available keys, or for `get()` without a default returns `None` and logs that list.
+- CCXT history downloads no longer pause an extra second every ten pages when CCXT's own rate limiter is on. A cold year of Coinbase 1-minute BTC/USD took 365 s and now takes about 200 s (the exchange's public limit); later runs read the shared bar cache in about 0.1 s.
+- A local backtest no longer looks hung for minutes after the strategy ends when no Data Downloader is configured. With `DATADOWNLOADER_BASE_URL` unset and nothing on the default local address, a refused connection (for example the default SPY benchmark at the end of a crypto backtest) was retried for up to 15 minutes per request; it now fails at once with `DownloaderNotConfigured`. A configured downloader still retries through outages.
+
 ## 4.6.57 - 2026-11-13
 
 Deploy marker: 7e46462269dff3742078c6c73a42b37be9137350

@@ -27,6 +27,10 @@ Ways to get perpetual data
        exchange that lists the contract and supports ``fetchFundingRateHistory``
      - ``datasource_class=CcxtBacktesting`` with ``exchange_id``, and an asset such
        as ``Asset("BTC/USDT:USDT", "crypto_future")``
+   * - Binance public bulk files (routed backtests)
+     - Binance USD-M perpetual candles, hourly mark prices and settled funding,
+       from the public file archive. No API key
+     - ``BACKTESTING_DATA_SOURCE='{"crypto_future":"binance", ...}'``
    * - Bitunix public market data (routed backtests)
      - Bitunix perpetual candles, contract terms and settled funding (rate and
        mark price at settlement). Public endpoints, no API key
@@ -36,6 +40,81 @@ Ways to get perpetual data
        perpetual orders are rejected with "Derivative contract terms are
        unavailable"
      - Any other ``crypto_future`` route, for example ``"coinbase"`` or ``"ibkr"``
+
+Data sources
+------------
+
+**Binance bulk files** (``"binance"``) read the public archive at
+``data.binance.vision``, the same files anyone can download. Every file is checked
+against its published SHA-256 checksum before it is used.
+
+- **Covered:** USD-M perpetuals (USDT and USDC margined) from each contract's
+  listing on Binance (BTCUSDT 1-minute bars from September 2019): 1-minute, hourly
+  and daily candles, hourly mark prices and every funding settlement. The same route
+  also serves spot crypto when ``crypto`` is routed to ``binance``.
+- **One-day lag:** Binance publishes each day's file the next day. A backtest that
+  ends after the last published day stops up front and names that day; nothing is
+  filled in. End the backtest on or before yesterday (UTC).
+- **Funding is published monthly.** Funding is the exchange's own historical rate,
+  charged at Binance's mark price at each settlement. Settlements in the current
+  month are not published yet, so they are not charged; the log and the data
+  provenance say so (``funding_not_published``, with the last covered time).
+- **Spot quotes are served exactly.** USDT, USDC and FDUSD pairs come from the
+  matching Binance pair. Binance spot has no USD pairs, and USDT does not trade at
+  exactly one dollar (about 0.12% below USD in October 2026), so under ``"binance"``
+  a ``BTC/USD`` request stops with a message naming ``BTCUSDT`` instead of
+  substituting it. Use ``"public"`` (below) to read USD pairs from Coinbase.
+- **Contract names:** some low-priced coins trade per 1000 units (``1000PEPEUSDT``);
+  use that name, and quantities are in those units. Delisted or renamed contracts
+  have no newer files and stop with ``contract_not_listed``.
+- **Not covered:** coin-margined (inverse) contracts and dated futures.
+- The live Binance API is not used, so this works where that API is blocked.
+
+**Public crypto data, split by quote** (``"public"``). One route for spot and
+perpetuals that serves what the strategy asked for:
+
+- USD (and EUR, GBP) pairs such as ``BTC/USD``: Coinbase public candles.
+- USDT, USDC and FDUSD pairs such as ``BTC/USDT``: Binance bulk spot files.
+- USDT- and USDC-margined perpetuals such as ``BTCUSDT``: Binance USD-M bulk files.
+
+Every source on this route is public: no API key, no broker account and no
+Data Downloader. The data provenance names the exchange and the symbol served
+(``priceSource``, ``servedSymbol``). Coinbase serves 300 candles per request
+under a public limit of about 10 requests a second, so a first load of a year of
+1-minute bars takes about three minutes; later runs read the shared bar cache.
+
+.. code-block:: bash
+
+   export BACKTESTING_DATA_SOURCE='{"crypto":"public","crypto_future":"public","default":"ibkr"}'
+
+.. code-block:: python
+
+   # Spot priced in US dollars (Coinbase BTC-USD)
+   self.get_historical_prices(Asset("BTC", "crypto"), 60, "minute", quote=Asset("USD", "forex"))
+
+   # Spot priced in USDT (Binance BTCUSDT)
+   self.get_historical_prices(Asset("BTC", "crypto"), 60, "minute", quote=Asset("USDT", "crypto"))
+
+   # USDT-margined perpetual (Binance USD-M BTCUSDT, with funding and marks)
+   perp = Asset("BTCUSDT", asset_type=Asset.AssetType.CRYPTO_FUTURE, leverage=3)
+   self.submit_order(self.create_order(perp, 0.01, "buy"))
+
+**Bitunix** (``"bitunix"``) reads Bitunix's public market API: candles from 2022
+(majors) or 2024 (smaller coins) and funding from March 2024. Use it when you want
+that venue's own prices and funding.
+
+Prices agree closely between venues in normal markets but can differ by several
+percent for a few minutes in a crash, and funding differs by venue. The data
+provenance of every backtest names the source it used (``priceSource`` and
+``fundingSource``).
+
+**Limits on every route:** maintenance-margin tiers and liquidation fees are not
+published, so liquidation happens when collateral runs out and is checked on closed
+candles (intrabar liquidation is not modeled).
+
+`BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=backtesting&utm_campaign=lumibot&utm_content=perpetual_data_sources>`_
+runs these backtests on hosted workers with the shared data cache already warm, so a
+perpetual strategy can go from backtest to paper or live trading without local setup.
 
 Routing perpetuals to Bitunix
 -----------------------------

@@ -704,3 +704,29 @@ def test_ccxt_cache_missing_market_raises_clear_diagnostic(tmp_path, monkeypatch
             start=datetime(2026, 1, 1),
             end=datetime(2026, 1, 2),
         )
+
+
+def test_rate_limited_exchange_is_not_paused_twice(tmp_path, monkeypatch):
+    # CCXT already spaces requests to the exchange's published limit when enableRateLimit is on.
+    # An extra one-second pause every ten pages nearly doubled a cold year of Coinbase minutes.
+    cache = _cache_without_live_exchange(tmp_path, monkeypatch)
+    start = datetime(2026, 1, 1)
+
+    class FakeApi:
+        id = "coinbase"
+        enableRateLimit = True
+        has = {"fetchOHLCV": True}
+        markets = {"BTC/USD": {"id": "BTC-USD"}}
+
+        def parse8601(self, text):
+            return int(pd.Timestamp(text, tz="UTC").timestamp() * 1000)
+
+        def fetch_ohlcv(self, symbol, timeframe, since=None, limit=None, params=None):
+            return [[since + i * 60_000, 1.0, 1.0, 1.0, 1.0, 1.0] for i in range(limit)]
+
+    cache.api = FakeApi()
+    pauses = []
+    monkeypatch.setattr(ccxt_data_store.time, "sleep", lambda s: pauses.append(s))
+    rows = cache._get_barset_from_api("BTC/USD", "1m", 9000, start, datetime(2026, 1, 7, 6))
+    assert len(rows) == 9001  # end is inclusive
+    assert pauses == []

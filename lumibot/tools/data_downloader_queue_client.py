@@ -208,6 +208,15 @@ class DownloaderQueueTimeout(TimeoutError):
         self.provider_details = dict(provider_details) if isinstance(provider_details, dict) else None
 
 
+class DownloaderNotConfigured(DownloaderQueueTimeout):
+    """No Data Downloader is configured and nothing answers at the default local address.
+
+    Raised at once instead of retrying for the whole submit budget: with no
+    ``DATADOWNLOADER_BASE_URL`` there is no downloader that could come back. Subclasses the
+    timeout so callers keep the same handling they had when the budget ran out.
+    """
+
+
 class DownloaderQueueRequestLost(RuntimeError):
     """The downloader explicitly no longer has an accepted queue request."""
 
@@ -576,6 +585,12 @@ class QueueClient:
                 requests_exceptions.ConnectionError,
             ) as exc:
                 last_error = exc
+                if not getattr(self, "configured", True) and isinstance(exc, requests_exceptions.ConnectionError) \
+                        and not isinstance(exc, requests_exceptions.ConnectTimeout):
+                    raise DownloaderNotConfigured(
+                        f"No Data Downloader answers at {self.base_url} and DATADOWNLOADER_BASE_URL is not set; "
+                        f"this data route needs one ({path})."
+                    ) from exc
                 self._invalidate_sessions("submit network error")
                 delay = self._compute_backoff_delay(
                     attempt=attempt,
@@ -1281,6 +1296,8 @@ def get_queue_client(client_id: Optional[str] = None) -> QueueClient:
                 api_key_header=api_key_header,
                 client_id=effective_client_id,
             )
+            # Only an explicitly configured downloader is worth retrying through outages.
+            _queue_client.configured = bool(os.environ.get("DATADOWNLOADER_BASE_URL", "").strip())
             base_url_log = _redact_downloader_base_url_for_logs(base_url)
             logger.info(
                 "Queue client initialized: base_url=%s poll_interval=%.3fs timeout=%.1fs client_id=%s",

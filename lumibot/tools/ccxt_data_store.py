@@ -783,8 +783,9 @@ class CcxtCacheDB:
                 break
             curr_start = next_start
 
-            # Sleep for half a second every rate_limit requests to prevent rate limiting issues
-            if cnt % rate_limit == 0:
+            # CCXT spaces requests to the exchange's published limit when enableRateLimit is on;
+            # only pause by hand when it is off (a second pause nearly doubles a cold download).
+            if cnt % rate_limit == 0 and not getattr(self.api, "enableRateLimit", False):
                 time.sleep(1)
 
             # Catch if endless loop.

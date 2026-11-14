@@ -2,6 +2,30 @@
 
 ## 4.6.57 - Unreleased
 
+### Added
+- A trailing stop can be the stop leg of a bracket or OTO order on its own: pass `secondary_trail_percent` or `secondary_trail_price` (a fixed `secondary_stop_price` is optional). Before, an OTO raised an error and a bracket silently built only its target. Backtests fill the trailing leg; brokers that cannot hold it refuse it.
+- `docsrc/brokers.order_support.rst`: which broker can hold which order (stops, trailing stops, brackets, OTO, OCO), checked by `tests/test_broker_order_type_contract.py`.
+- `docsrc/backtesting.how_orders_fill.rst`: how stops, gaps and bars that touch both exits are filled.
+
+### Changed
+- ⚠️ Orders a broker cannot hold are now refused with a plain "not supported" error and nothing is sent, instead of being changed into a different order. Strategies that relied on the old behavior will see an error order:
+  - Bitunix: standalone stop, stop-limit and trailing orders (were sent with no trigger price, or as market), and OCO. Use a bracket/OTO entry with `secondary_stop_price`.
+  - Tradovate: trailing stops (were sent as market), and bracket, OTO and OCO orders (were sent as the bare entry with no exits).
+  - Alpaca: a trailing leg on a bracket/OTO/OCO (was sent as a fixed stop) and a stop or stop-limit bracket entry (was sent as market).
+  - Tradier: trailing stops and trailing legs (were sent without the trail).
+  - CCXT: trailing stops on exchanges without CCXT trailing support (were sent without the trail).
+  - Schwab: any order its builder cannot express (for example trailing stops) is now an error order with an error event, instead of staying unprocessed with only a log line.
+- ⚠️ Backtests: when one bar reaches both a bracket/OCO target and its stop, the stop now fills (the target used to win, even when the bar opened below the stop). If the bar opens beyond the target, the target fills at the open. Results for tight brackets on coarse bars may be lower and more realistic.
+
+### Fixed
+- Alpaca bracket and OTO limit entries are sent as limit orders (they were always sent as market).
+- Bitunix stop-limit exits send `slOrderType=LIMIT` with `slOrderPrice`, and caller-built bracket/OTO child orders are read instead of dropped.
+- Tradovate stop-limit orders send their limit price (`price`) along with `stopPrice`.
+- A stop-limit written with `stop_limit_price` never filled in backtests and reached CCXT without its limit; one written with `limit_price` reached Alpaca, Tradier and Schwab without it. Both names now carry the value.
+- Schwab stock brackets and OTO orders were never sent (their `sell_to_close` exit legs had no stock template). Exit legs now map to SELL / BUY_TO_COVER.
+- CCXT sends trailing stops with CCXT's unified `trailingPercent`/`trailingAmount` where the exchange supports them.
+
+
 ## 4.6.56 - 2026-11-13
 
 Deploy marker: 682904c2fccb666144fd1e29f8cf66c9d95f5f4d

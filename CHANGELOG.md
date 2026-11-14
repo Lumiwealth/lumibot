@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `self.fundamentals.preload(symbols)` warms SEC fundamentals for a whole scanner universe in one call, downloading in parallel under the SEC's 10 requests per second limit and reporting symbols the SEC does not cover.
+- `self.fundamentals.get_fact_history(symbol, tags)` returns every reported period of a fact with the value known at the backtest date, for growth and trailing-twelve-month calculations.
+
+### Changed
+- SEC statement calls are now in-memory lookups: each company's facts are parsed once per process into a table keyed by when each value became public. 180 statement calls (5 companies, 12 dates) went from about 25 s to 0.24 s on a warm cache.
+- In backtests, raw SEC files are shared through LumiBot's remote backtest cache under provider keys (`sec/companyfacts/CIK...json`, `sec/submissions/...`, `sec/company_tickers.json`), so another backtest machine downloads nothing already fetched. A shared copy fetched before the backtest's end date is refreshed at most once a day.
+- Default SEC request spacing is 0.11 s (was 0.2 s) and is shared across threads.
+
+### Fixed
+- A filing made after the close was visible at that morning's open in backtests. Facts now become usable at the SEC acceptance time (next session's open if accepted after 4:00 PM New York), or at 9:30 AM the day after the filing date when no acceptance time is published.
+- A later amendment of an older year (for example a 10-K/A) replaced the current SEC statement; statements now use the newest reporting period, and a restated value applies only once its filing is public (#1141).
+- Statement fields are no longer filled from a prior-year comparative in the same filing when the current period is missing.
+
 ## 4.6.56 - 2026-11-13
 
 Deploy marker: 682904c2fccb666144fd1e29f8cf66c9d95f5f4d

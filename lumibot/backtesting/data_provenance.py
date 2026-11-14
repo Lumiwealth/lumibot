@@ -19,7 +19,17 @@ _OBSERVED_ROUTE_KEYS = (
     "windowStart",
     "windowEnd",
     "fallbackDecision",
+    # Routed crypto adapters name the exchange feed actually served, so a reader
+    # can tell Coinbase USD candles from Binance USDT candles and see where
+    # perpetual funding and marks came from.
+    "priceSource",
+    "servedSymbol",
+    "fundingSource",
+    "markSource",
 )
+
+# Notices report known data gaps (for example funding not published yet).
+_NOTICE_KEYS = ("kind", "source", "symbol", "through", "message")
 
 
 def _policy_version() -> str | None:
@@ -67,14 +77,33 @@ def _infer_vendor(adapter_name: str) -> str:
     return normalized.removesuffix("databacktesting").removesuffix("backtesting")
 
 
+def _safe_notices(notices: Iterable[Any]) -> List[Dict[str, Any]]:
+    safe: List[Dict[str, Any]] = []
+    for notice in notices:
+        if not isinstance(notice, dict):
+            continue
+        item = {
+            key: notice[key]
+            for key in _NOTICE_KEYS
+            if notice.get(key) is not None and isinstance(notice.get(key), (str, int, float, bool))
+        }
+        if item:
+            safe.append(item)
+    return safe
+
+
 def build_backtest_data_provenance(data_source: Any) -> Dict[str, Any]:
     observed = None
+    notices: List[Dict[str, Any]] = []
     getter = getattr(data_source, "get_data_provenance", None)
     if callable(getter):
         try:
             candidate = getter()
             if isinstance(candidate, dict):
                 observed = candidate.get("observedRoutes")
+                raw_notices = candidate.get("notices")
+                if isinstance(raw_notices, list):
+                    notices = _safe_notices(raw_notices)
         except Exception:
             observed = None
 
@@ -84,11 +113,14 @@ def build_backtest_data_provenance(data_source: Any) -> Dict[str, Any]:
         routes = [{"adapter": adapter, "vendor": _infer_vendor(adapter)}]
 
     policy_version = _policy_version()
-    return {
+    provenance = {
         "policyVersion": policy_version,
         "selection": "BotSpot Auto" if policy_version else "Explicit data source",
         "observedRoutes": routes,
     }
+    if notices:
+        provenance["notices"] = notices
+    return provenance
 
 
 def write_backtest_data_provenance(data_source: Any, directory: str | Path = "logs") -> Path:

@@ -1,3 +1,4 @@
+import re
 import math
 import os
 import time
@@ -1505,10 +1506,7 @@ class StrategyExecutor(Thread):
                 return
 
         # Check if self.strategy.sleeptime is a number or a string.
-        if isinstance(self.strategy.sleeptime, (int, float)):
-            sleep_units = "m"
-        else:
-            sleep_units = self.strategy.sleeptime[-1].lower()
+        sleep_units = self._parse_sleeptime(self.strategy.sleeptime)[1].lower()
         start_dt = datetime.now()
         self.sync_broker()
 
@@ -1856,30 +1854,38 @@ class StrategyExecutor(Thread):
 
     @staticmethod
     def _sleeptime_to_seconds(sleeptime):
-        """Convert the sleeptime to seconds"""
+        """Convert the sleeptime to seconds."""
+        count, unit = StrategyExecutor._parse_sleeptime(sleeptime)
+        return count * {"S": 1, "M": 60, "H": 3600, "D": 86400}[unit]
 
-        val_err_msg = ("You can set the sleep time as an integer which will be interpreted as minutes. "
-                       "eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter the time as a string "
-                       "with the duration numbers first, followed by the time units: 'M' for minutes, 'S' for seconds "
-                       "eg: '300S' is 300 seconds.")
+    _SLEEPTIME_UNITS = {
+        "s": "S", "sec": "S", "secs": "S", "second": "S", "seconds": "S",
+        "m": "M", "t": "M", "min": "M", "mins": "M", "minute": "M", "minutes": "M",
+        "h": "H", "hr": "H", "hrs": "H", "hour": "H", "hours": "H",
+        "d": "D", "day": "D", "days": "D",
+    }
 
-        if isinstance(sleeptime, int):
-            return sleeptime * 60
-        elif isinstance(sleeptime, str):
-            unit = sleeptime[-1]
-            time_raw = int(sleeptime[:-1])
-            if unit.lower() == "s":
-                return time_raw
-            elif unit.lower() == "m" or unit.lower() == "t":
-                return time_raw * 60
-            elif unit.lower() == "h":
-                return time_raw * 60 * 60
-            elif unit.lower() == "d":
-                return time_raw * 60 * 60 * 24
-            else:
-                raise ValueError(val_err_msg)
-        else:
-            raise ValueError(val_err_msg)
+    @staticmethod
+    def _parse_sleeptime(sleeptime):
+        """``(count, unit)`` for a sleeptime, unit one of S, M, H, D.
+
+        An integer is minutes. A string is a whole number followed by a unit, short or spelled
+        out the way bar sizes are: "15M", "15T", "1H", "1D", "300S", "15 minutes", "1 hour",
+        "2 hours", "1 day".
+        """
+        if isinstance(sleeptime, int) and not isinstance(sleeptime, bool):
+            return sleeptime, "M"
+        if isinstance(sleeptime, str):
+            match = re.fullmatch(r"\s*(\d+)\s*([A-Za-z]+)\s*", sleeptime)
+            if match:
+                unit = StrategyExecutor._SLEEPTIME_UNITS.get(match.group(2).lower())
+                if unit is not None:
+                    return int(match.group(1)), unit
+        raise ValueError(
+            f"Invalid sleeptime {sleeptime!r}. Use a whole number of minutes (for example 15) or a whole number "
+            "followed by a unit: \"30S\" or \"30 seconds\", \"15M\" or \"15 minutes\", \"1H\" or \"1 hour\", "
+            "\"2 hours\", \"1D\" or \"1 day\"."
+        )
 
     @staticmethod
     def _seconds_to_sleeptime_count(seconds, unit="s"):
@@ -1920,27 +1926,9 @@ class StrategyExecutor(Thread):
             until the market opens. The default is True.
         """
 
-        # Define a standard error message about acceptable formats for 'sleeptime'.
-        sleeptime_err_msg = (
-            "You can set the sleep time as an integer which will be interpreted as "
-            "minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter "
-            "the time as a string with the duration numbers first, followed by the time "
-            "units: 'M' for minutes, 'S' for seconds eg: '300S' is 300 seconds."
-        )
-        # Check the type of 'sleeptime'. If it's an integer, it is interpreted as minutes.
-        # If it's a string, the last character is taken as the unit of time, and the rest is converted to an integer.
-        if isinstance(self.strategy.sleeptime, int):
-            units = "M"
-            time_raw = self.strategy.sleeptime
-        elif isinstance(self.strategy.sleeptime, str):
-            units = self.strategy.sleeptime[-1:]
-            time_raw = int(self.strategy.sleeptime[:-1])
-        else:
-            raise ValueError(sleeptime_err_msg)  # If it's neither, raise an error with the defined message.
-
-        # Check if the units are valid (S for seconds, M for minutes, H for hours, D for days).
-        if units not in "TSMHDsmhd":
-            raise ValueError(sleeptime_err_msg)
+        # An integer is minutes; a string is a count and a unit ("15M", "1H", "15 minutes", "1 hour").
+        # Unparseable values raise a ValueError that lists valid forms.
+        time_raw, units = self._parse_sleeptime(self.strategy.sleeptime)
 
         # Assign the raw time to the target count for cron jobs so that later we can compare the current count to the
         # target count.
@@ -2080,21 +2068,8 @@ class StrategyExecutor(Thread):
 
             time_to_before_closing = time_to_close - self.strategy.minutes_before_closing * 60
 
-        sleeptime_err_msg = (
-            "You can set the sleep time as an integer which will be interpreted as "
-            "minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter "
-            "the time as a string with the duration numbers first, followed by the time "
-            "units: 'M' for minutes, 'S' for seconds eg: '300S' is 300 seconds."
-        )
-        if isinstance(self.strategy.sleeptime, int):
-            units = "M"
-        elif isinstance(self.strategy.sleeptime, str):
-            units = self.strategy.sleeptime[-1:]
-        else:
-            raise ValueError(sleeptime_err_msg)
-
-        if units not in "TSMHDsmhd":
-            raise ValueError(sleeptime_err_msg)
+        # Raises a clear ValueError listing valid forms when the sleeptime cannot be parsed.
+        _count, units = self._parse_sleeptime(self.strategy.sleeptime)
 
         strategy_sleeptime = self._sleeptime_to_seconds(self.strategy.sleeptime)
 

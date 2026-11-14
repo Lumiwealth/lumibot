@@ -359,11 +359,17 @@ class Strategy(_Strategy):
         the duration numbers first, followed by the time units: 'M' for minutes, 'S' for seconds
         eg: '300S' is 300 seconds, '10M' is 10 minutes.
 
+        Units can also be spelled out the way bar sizes are, singular or plural, with or without a
+        space: '30 seconds', '15 minutes' (or '15 mins', '15min'), '1 minute', '1 hour', '2 hours'
+        (or '2 hrs'), '1 day', '3 days'. Short forms: 'S', 'M' (or 'T'), 'H', 'D'. A value that
+        cannot be read raises a ValueError listing valid examples.
+
         Returns
         -------
         sleeptime : int or str
-            Sleep time in minutes or a string with the duration numbers first, followed by the time
-            units: `S` for seconds, `M` for minutes, `H` for hours' or `D` for days.
+            Sleep time in minutes or a string with a whole number followed by the time unit:
+            `S` for seconds, `M` for minutes, `H` for hours or `D` for days, or the spelled-out
+            forms above.
 
         Example
         -------

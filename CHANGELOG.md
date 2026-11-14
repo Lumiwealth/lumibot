@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 4.6.65 - Unreleased
 
 ### Fixed
 - Fundamentals: `shares_outstanding` and `market_cap` were `None` for companies with several share classes (for example Meta, Mastercard, Comcast, Nike), which file no single cover-page share count. Their basic weighted average share count of the latest filed period is now used; `periods` names the tag. Measured on 503 current S&P 500 members as of 2024-06-03: market cap for 481, up from 444.

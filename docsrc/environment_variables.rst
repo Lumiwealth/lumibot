@@ -380,6 +380,8 @@ LUMIBOT_CACHE_BACKEND / LUMIBOT_CACHE_MODE
 - Common values:
   - ``LUMIBOT_CACHE_BACKEND=s3``
   - ``LUMIBOT_CACHE_MODE=readwrite`` (or ``readonly``)
+- Test runs: LumiBot's own test suite turns the remote cache off and never contacts a real bucket. Set
+  ``LUMIBOT_TEST_ALLOW_REAL_REMOTE_CACHE=1`` only for a deliberate integration run against a real store.
 
 LUMIBOT_CACHE_FOLDER
 ^^^^^^^^^^^^^^^^^^^^

@@ -355,6 +355,11 @@ These env vars are used by the ThetaData chain cache/builder in `lumibot/tools/t
 - Common values:
   - `LUMIBOT_CACHE_BACKEND=s3`
   - `LUMIBOT_CACHE_MODE=readwrite` (or `readonly`)
+- Tests: `tests/conftest.py` forces the remote cache off (backend `local`, mode `disabled`, bucket and keys blanked)
+  and refuses to build a real S3 client, so no test can read or write a real bucket even when a local `.env`
+  configures one. Tests that need a remote store inject a fake with `client_factory=`. A deliberate
+  real-service integration run can opt out with `LUMIBOT_TEST_ALLOW_REAL_REMOTE_CACHE=1` (test runs only).
+  Enforced by `tests/test_tests_never_touch_real_remote_store.py`.
 
 ### `LUMIBOT_CACHE_FOLDER`
 - Purpose: Override the local cache folder (useful to simulate a fresh ECS task).

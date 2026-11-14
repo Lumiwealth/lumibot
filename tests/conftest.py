@@ -67,6 +67,50 @@ os.environ["BACKTESTING_DATA_SOURCE"] = "none"
 # cache bucket or leak between tests.
 os.environ["LUMIBOT_SHARED_BARS"] = "false"
 
+# Tests never read or write a real remote cache. A developer's .env may point the remote
+# backtest cache at a real bucket with read/write keys; a test saving a fixture through the
+# default cache would then upload it there. Force the remote cache off before any lumibot
+# import computes CACHE_REMOTE_CONFIG. Values are blanked (not deleted) so later
+# load_dotenv() calls in test modules, which never override, cannot bring them back.
+# Real-service integration runs opt out with LUMIBOT_TEST_ALLOW_REAL_REMOTE_CACHE=1.
+_ALLOW_REAL_REMOTE_CACHE = os.environ.get("LUMIBOT_TEST_ALLOW_REAL_REMOTE_CACHE") == "1"
+if not _ALLOW_REAL_REMOTE_CACHE:
+    os.environ["LUMIBOT_CACHE_BACKEND"] = "local"
+    os.environ["LUMIBOT_CACHE_MODE"] = "disabled"
+    for _cache_secret in (
+        "LUMIBOT_CACHE_S3_BUCKET",
+        "LUMIBOT_CACHE_S3_ACCESS_KEY_ID",
+        "LUMIBOT_CACHE_S3_SECRET_ACCESS_KEY",
+        "LUMIBOT_CACHE_S3_SESSION_TOKEN",
+    ):
+        os.environ[_cache_secret] = ""
+
+
+@pytest.fixture(autouse=True)
+def _block_real_remote_cache_client(monkeypatch):
+    """Even a test that builds S3 cache settings by hand cannot get a real S3 client.
+
+    Tests that need a remote store inject a fake with ``client_factory=``, which never
+    reaches ``_create_s3_client``.
+    """
+    if _ALLOW_REAL_REMOTE_CACHE:
+        yield
+        return
+    try:
+        from lumibot.tools.backtest_cache import BacktestCacheManager
+    except Exception:
+        yield
+        return
+
+    def _refuse(self):
+        raise RuntimeError(
+            "Tests may not use a real remote cache. Inject a fake with client_factory=, "
+            "or set LUMIBOT_TEST_ALLOW_REAL_REMOTE_CACHE=1 for a real-service run."
+        )
+
+    monkeypatch.setattr(BacktestCacheManager, "_create_s3_client", _refuse)
+    yield
+
 # Many tests flip `IS_BACKTESTING` on/off via direct `os.environ[...] = ...` assignment (not using
 # pytest's monkeypatch), which can leak state across the suite and create order-dependent failures.
 # Keep the environment stable by restoring `IS_BACKTESTING` after every test.

@@ -31,6 +31,56 @@ If a “warm” run is still slow, the most common causes are:
 
 For deeper cache semantics (engineering notes), see ``docs/remote_cache.md`` in the repository.
 
+Faster scanners: request history for many symbols in one call
+--------------------------------------------------------------
+
+A scanner that loops over its universe and calls ``get_historical_prices`` once per symbol
+makes one data request per symbol the first time each symbol is seen. Ask for the whole
+universe at once with ``get_historical_prices_for_assets`` instead:
+
+.. code-block:: python
+
+    from lumibot.strategies import Strategy
+
+    class MomentumScanner(Strategy):
+        def initialize(self):
+            self.sleeptime = "1D"
+            self.universe = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "JPM"]
+
+        def on_trading_iteration(self):
+            # One grouped call for every symbol (returns {asset: Bars or None}).
+            history = self.get_historical_prices_for_assets(self.universe, 60, "day")
+            scores = {}
+            for asset, bars in history.items():
+                if bars is None or len(bars.df) < 60:
+                    continue  # no data for this symbol: skip it, never guess
+                close = bars.df["close"]
+                scores[asset] = close.iloc[-1] / close.iloc[0] - 1
+            best = sorted(scores, key=scores.get, reverse=True)[:3]
+            self.log_message(f"Top 3: {[a.symbol for a in best]}")
+
+What the grouped call does in a backtest:
+
+- **Alpaca data** (``AlpacaBacktesting``): stock bars that are not cached yet are downloaded
+  up to 100 symbols per request (Alpaca's bars endpoint accepts many symbols). 250 stocks
+  need 3 requests instead of 250; at Alpaca's 200 requests per minute limit the one-by-one
+  path has to wait for the next minute. Each symbol is stored in the same shared cache file
+  as a single download, so the bars are identical and later runs read the cache.
+- **Every source**: once bars are cached, a scan is in-memory lookups. Measured on synthetic
+  cached daily bars, 500 stocks: about 35 ms per scan for 50 bars each.
+
+Limits:
+
+- A symbol with no bars comes back as ``None`` in the result; check for it.
+- Options are not part of the grouped stock download (option chains have their own grouped
+  download when a strategy picks strikes). Crypto symbols are still requested one by one.
+- Minute bars for many symbols are large however they are requested: Alpaca returns at most
+  10,000 bars per page, so grouping saves little there. Prefer daily bars for the scan and
+  minute bars only for the few symbols you trade.
+
+Want a scanner built for you? Describe it in plain English at `BotSpot <https://botspot.trade>`_
+and backtest it there, or connect the free BotSpot MCP to your AI assistant.
+
 Quick diagnosis checklist
 -------------------------
 

@@ -3,6 +3,8 @@
 ## 4.6.65 - Unreleased
 
 ### Fixed
+- Alpaca backtests: `get_historical_prices_for_assets` downloaded stock history one symbol per request. Stock bars not cached yet are now requested up to 100 symbols per request (the backtest window and history before the window), written to the same per-symbol cache files. 250 symbols: 250 requests down to 3. Bars, cache keys and errors are unchanged; a refused grouped request falls back to one request per symbol. Docs: `docsrc/backtesting.performance.rst` ("Faster scanners").
+- Backtests: a grouped history call over hundreds of symbols re-serialized every history row for the market input evidence on every scan, because only 32 symbol streams were remembered (500 stocks x 200 daily bars: about 2.5 s per scan, down to about 0.24 s). Up to 4096 streams are remembered now (total remembered rows still capped) and a grouped call commits its records once. The recorded evidence is unchanged.
 - Fundamentals: `shares_outstanding` and `market_cap` were `None` for companies with several share classes (for example Meta, Mastercard, Comcast, Nike), which file no single cover-page share count. Their basic weighted average share count of the latest filed period is now used; `periods` names the tag. Measured on 503 current S&P 500 members as of 2024-06-03: market cap for 481, up from 444.
 - Fundamentals: `debt_to_equity` was `None` when a company files debt only together with lease obligations, files equity only including noncontrolling interest, or files its debt total only in the annual report (the latest balance sheet with both debt and equity is now used). Same measurement: 400 of 503, up from 268. Missing debt is still never treated as zero.
 

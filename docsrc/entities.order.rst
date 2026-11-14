@@ -139,6 +139,28 @@ OTO (One-Triggers-Other) is a variant of bracket order. It takes one of the take
 
 To create an OTO order object, add either a ``take_profit_price`` or a ``stop_loss_price`` keyword parameter. A ``stop_loss_limit_price`` can also be specified in case of stop loss exit.
 
+**Trailing stop exits**
+
+The stop leg of a bracket or OTO order can be a trailing stop. Pass
+``secondary_trail_percent`` (for example ``2.0`` for 2%) or ``secondary_trail_price``
+(a fixed distance in price) with ``order_class=Order.OrderClass.BRACKET`` or
+``Order.OrderClass.OTO``. A fixed ``secondary_stop_price`` is optional.
+
+.. code-block:: python
+
+   order = self.create_order(
+      asset,
+      quantity,
+      Order.OrderSide.BUY,
+      order_class=Order.OrderClass.OTO,
+      secondary_trail_percent=2.0,
+   )
+   self.submit_order(order)
+
+Not every broker can hold a trailing leg on the exchange. A broker that cannot refuses the
+order with a plain error instead of sending a different order. See
+:doc:`brokers.order_support` for which brokers support which protective orders.
+
 Interactive Brokers requires the main or parent order to be a limit order. Add ``limit_price=my_limit_price``.
 
 

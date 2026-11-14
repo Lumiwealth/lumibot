@@ -280,6 +280,60 @@ existed.
 - LumiBot sends a contact-style user agent, as the SEC asks. Override it with
   ``LUMIBOT_SEC_USER_AGENT``.
 
+Fast screens over many companies
+--------------------------------
+
+A screen such as "market cap for 500 stocks" does not need each company's full
+SEC facts file (3 to 4 MB per company). The first time a company is loaded,
+LumiBot saves a compact file beside it holding only the facts the statements
+and metrics read (shares, revenue, income, cash flow, debt, equity and the
+other statement lines, each with its filing date). Later runs read the compact
+file first. It is stored in the same local cache, and in the remote backtest
+cache when one is configured, under ``sec/companyfacts_compact/``. The values
+are the same: the compact file is built from the full one and follows the same
+freshness rules. A fact outside the compact set (``get_fact_history`` with any
+other tag, ``get_company_facts(raw=True)``) opens the full file for that
+company only.
+
+.. code-block:: python
+
+   symbols = ["AAPL", "MSFT", "NVDA", ...]              # your universe
+   self.fundamentals.preload(symbols)                   # compact files, in parallel
+   table = self.fundamentals.get_metrics_table(symbols, metrics=["market_cap"])
+   largest = table.dropna(subset=["market_cap"]).sort_values("market_cap", ascending=False).head(20)
+
+Measured on one machine on 2026-11-14 for 503 large US companies, SEC data
+only, one date (prices passed in):
+
+.. list-table::
+   :header-rows: 1
+
+   * - Case
+     - Seconds
+     - SEC requests
+     - Data read
+   * - First run ever, nothing cached (full files from the SEC)
+     - 58
+     - 515
+     - 1,655 MB
+   * - Later run, full files on disk (before 4.6.65)
+     - 14
+     - 0
+     - 1,655 MB
+   * - Later run, compact files on disk
+     - 5
+     - 0
+     - 16 MB
+   * - New machine, compact files in the remote cache
+     - 6 to 7
+     - 0 to 5
+     - 14 MB
+
+After loading, a metrics table for all 503 companies takes under one second,
+for any set of metrics. The first run ever still downloads the full files once
+(the SEC publishes facts per company); building the compact files adds a few
+seconds to that run.
+
 Limits
 ------
 

@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.6.65 - Unreleased
+## 4.6.65 - 2026-11-14
+
+Deploy marker: 0ccb9dfbe80568fec6a2e7b8953de406c8ca0fe0
 
 ### Fixed
 - Futures: continuous silver (`SI`) used January as a front month and stayed in a contract until mid delivery month, after first notice. It now uses Mar, May, Jul, Sep, Dec and rolls 7 business days before first notice, like gold. Backtests of continuous `SI` change (more accurate contract).
@@ -11,6 +13,9 @@
 
 - Fundamentals: a ticker whose registrant changed (Alphabet/Google, Broadcom/Avago, Exxon Mobil, BlackRock, Disney) had no data before the change, because the SEC ticker map only knows today's registrant. Dates before the change now use the predecessor's filings (`lumibot/fundamentals/company_records.py`, with sources).
 - Fundamentals: companies that file share counts only per class and no weighted average (Berkshire Hathaway, Visa, Constellation Brands) had no market cap. The per-class cover-page counts of the latest report are now added up into a whole-company count (Berkshire Class A counted as 1,500 Class B; other classes one for one). `get_metrics_table` gained a `cik` column so two tickers of one company (GOOGL and GOOG) can be de-duplicated.
+
+### Changed
+- Fundamentals: screens over many companies load much less data. Each company's facts are also saved as a compact file (only the facts the statements and metrics read, with filing dates) in the same local and remote cache (`sec/companyfacts_compact/`), and later runs read that first; the full SEC file is opened only for a fact outside that set. Values are unchanged (tested: identical tables from both paths). Measured for 503 companies: 1,655 MB and 14 s from full files on disk, 16 MB and 5 s from compact files; a new backtest machine with a remote cache reads 14 MB instead of 1,655 MB. Docs: "Fast screens over many companies" in `docsrc/fundamentals.rst`.
 
 ### Added
 - Futures: roll rules for every commonly traded product. New: RTY, M2K, SIL, HG, MHG, PL, MNG, RB, HO, ZT, ZF, ZN, TN, ZB, UB, 6E, 6J, 6B, 6A, 6C, 6S, 6N, M6E, M6A, M6B, ZC, ZW, ZS, ZL, ZM, LE, HE, BTC, ETH, VX (months and last trade days from the exchange contract specifications, cited in `lumibot/tools/futures_roll.py`). Before, these fell to the default rule (Mar/Jun/Sep/Dec, roll on the 15th), which picked a thin or wrong contract month for metals, energy, grains, livestock and VIX, and could hold an FX contract past its last trade day. `futures_roll.contract_last_trade_date()` is new. An unknown symbol still uses the default and now logs one warning. Docs: `docsrc/futures.rst` ("How Continuous Futures Roll").

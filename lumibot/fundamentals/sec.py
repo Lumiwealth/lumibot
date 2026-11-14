@@ -1,4 +1,5 @@
 import copy
+import gzip
 import html
 import json
 import os
@@ -124,6 +125,12 @@ _METRIC_TAGS = {
     "shares_weighted": ["WeightedAverageNumberOfSharesOutstandingBasic"],
 }
 _METRIC_TAG_SET = tuple(dict.fromkeys(tag for tags in _METRIC_TAGS.values() for tag in tags))
+# Compact facts: per company, only the tags the statements and metrics read, saved as a small
+# gzip file beside the full SEC companyfacts file (which is several MB per company). Later runs
+# read the compact file first and open the full file only for a tag outside this set.
+_COMPACT_FACTS_VERSION = 1
+_COMPACT_TAGS = tuple(sorted({*_PRIORITY_COMPANY_FACT_TAGS, *_METRIC_TAG_SET}))
+_COMPACT_ROW_FIELDS = ("end", "start", "val", "accn", "form", "fy", "fp", "frame", "filed")
 
 FUNDAMENTAL_METRICS = (
     "ttm_revenue",
@@ -320,7 +327,19 @@ class _CompanyTimeline:
     kept in memory; every filing's availability is kept for all tags.
     """
 
-    def __init__(self, cik: str, payload: dict[str, Any], tags: Iterable[str], source_url: str, fetched_at: str):
+    def __init__(
+        self,
+        cik: str,
+        payload: dict[str, Any],
+        tags: Iterable[str],
+        source_url: str,
+        fetched_at: str,
+        *,
+        filings: dict[str, Any] | None = None,
+        us_gaap_tags: list[str] | None = None,
+    ):
+        """``filings`` and ``us_gaap_tags`` come from a compact facts file, whose ``payload``
+        holds only some tags: they carry the filing index and tag list of the full file."""
         self.cik = cik
         self.source_url = source_url
         self.fetched_at = fetched_at
@@ -337,8 +356,11 @@ class _CompanyTimeline:
         facts = payload.get("facts") if isinstance(payload, dict) else None
         facts = facts if isinstance(facts, dict) else {}
         us_gaap = facts.get("us-gaap") if isinstance(facts.get("us-gaap"), dict) else {}
-        self.us_gaap_tags = sorted(us_gaap)
-        for taxonomy in facts.values():
+        self.us_gaap_tags = sorted(us_gaap) if us_gaap_tags is None else list(us_gaap_tags)
+        for key, entry in (filings or {}).items():
+            self.filing_filed[_intern(key)] = _intern(str(entry[0]))
+            self.filing_form[_intern(key)] = _intern(str(entry[1] or ""))
+        for taxonomy in facts.values() if filings is None else ():
             if not isinstance(taxonomy, dict):
                 continue
             for fact in taxonomy.values():
@@ -878,6 +900,85 @@ class SECFundamentals:
         payload = self._get_json(url, cache_path, mutable=True, remote_relative=remote_relative)
         return payload if isinstance(payload, dict) else {}
 
+    def _compact_facts_location(self, cik: str) -> tuple[Path, str]:
+        return (
+            self._cache_path("companyfacts_compact", f"CIK{cik}.json.gz"),
+            f"sec/companyfacts_compact/CIK{cik}.json.gz",
+        )
+
+    def _load_compact_facts(self, cik: str) -> dict[str, Any] | None:
+        """The company's compact facts file, if a usable one is in the local or shared cache.
+
+        It is exactly as fresh as the full file it was built from (it carries that file's SEC
+        fetch time), so the same freshness rules decide whether it can be used.
+        """
+        cache_path, remote_relative = self._compact_facts_location(cik)
+        from_remote = False
+        if not self._cache_is_usable(cache_path, mutable=True):
+            if not self._pull_remote(cache_path, remote_relative):
+                return None
+            from_remote = True
+        try:
+            with gzip.open(cache_path, "rt", encoding="utf-8") as handle:
+                compact = json.load(handle)
+        except (OSError, ValueError, EOFError):
+            return None
+        if not isinstance(compact, dict) or compact.get("version") != _COMPACT_FACTS_VERSION:
+            return None
+        if not set(_COMPACT_TAGS) <= set(compact.get("tags") or ()):
+            return None
+        meta_path = self._cache_meta_path(cache_path)
+        if compact.get("fetched_at") and (from_remote or not meta_path.exists()):
+            meta_path.write_text(json.dumps({"fetched_at": compact["fetched_at"]}), encoding="utf-8")
+        if from_remote and not self._cache_is_usable(cache_path, mutable=True):
+            return None
+        facts: dict[str, Any] = {}
+        for taxonomy, by_name in (compact.get("facts") or {}).items():
+            facts[taxonomy] = {
+                name: {"units": {unit: [dict(zip(_COMPACT_ROW_FIELDS, row)) for row in rows] for unit, rows in units.items()}}
+                for name, units in by_name.items()
+            }
+        compact["facts"] = facts
+        return compact
+
+    def _store_compact_facts(self, cik: str, payload: dict[str, Any], timeline: _CompanyTimeline, fetched_at: str) -> None:
+        """Save the compact facts file built from the full ``payload`` (best effort)."""
+        source = payload.get("facts") if isinstance(payload.get("facts"), dict) else {}
+        facts: dict[str, Any] = {}
+        for tag in _COMPACT_TAGS:
+            taxonomy_name, _, name = tag.rpartition(":")
+            taxonomy = source.get(taxonomy_name or "us-gaap")
+            fact = taxonomy.get(name) if isinstance(taxonomy, dict) else None
+            units = fact.get("units") if isinstance(fact, dict) else None
+            if not isinstance(units, dict):
+                continue
+            kept = {
+                unit: [[row.get(field) for field in _COMPACT_ROW_FIELDS] for row in rows if isinstance(row, dict)]
+                for unit, rows in units.items()
+                if isinstance(rows, list)
+            }
+            facts.setdefault(taxonomy_name or "us-gaap", {})[name] = kept
+        compact = {
+            "version": _COMPACT_FACTS_VERSION,
+            "cik": cik,
+            "fetched_at": fetched_at,
+            "tags": list(_COMPACT_TAGS),
+            "us_gaap_tags": timeline.us_gaap_tags,
+            "filings": {key: [filed, timeline.filing_form.get(key, "")] for key, filed in timeline.filing_filed.items()},
+            "facts": facts,
+        }
+        cache_path, remote_relative = self._compact_facts_location(cik)
+        try:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp_path = cache_path.with_name(f"{cache_path.name}.tmp-{os.getpid()}-{threading.get_ident()}")
+            with gzip.open(tmp_path, "wt", encoding="utf-8") as handle:
+                json.dump(compact, handle, separators=(",", ":"))
+            os.replace(tmp_path, cache_path)
+            self._cache_meta_path(cache_path).write_text(json.dumps({"fetched_at": fetched_at}), encoding="utf-8")
+        except OSError:
+            return
+        self._push_remote(cache_path, remote_relative)
+
     def _timeline_lock(self, cik: str) -> threading.Lock:
         with self._timeline_locks_guard:
             lock = self._timeline_locks.get(cik)
@@ -908,11 +1009,24 @@ class SECFundamentals:
                         timeline.add_tags(payload.get("facts") or {}, missing)
                 return timeline
             url, cache_path, _remote_relative = self._companyfacts_location(cik)
-            payload = self._load_companyfacts_payload(cik)
-            tags = set(_PRIORITY_COMPANY_FACT_TAGS) | set(_METRIC_TAG_SET) | set(extra)
+            tags = set(_COMPACT_TAGS) | set(extra)
             if timeline is not None:
                 tags |= timeline.loaded_tags
-            rebuilt = _CompanyTimeline(cik, payload, tags, url, self._cache_fetched_at(cache_path))
+            compact = self._load_compact_facts(cik)
+            if compact is not None:
+                rebuilt = _CompanyTimeline(
+                    cik, compact, _COMPACT_TAGS, url, str(compact.get("fetched_at") or ""),
+                    filings=compact.get("filings") or {}, us_gaap_tags=compact.get("us_gaap_tags") or [],
+                )
+                missing = tags - rebuilt.loaded_tags
+                if missing:  # a tag outside the compact set: read it from the full file
+                    payload = self._load_companyfacts_payload(cik)
+                    rebuilt.add_tags(payload.get("facts") or {}, missing)
+            else:
+                payload = self._load_companyfacts_payload(cik)
+                fetched_at = self._cache_fetched_at(cache_path)
+                rebuilt = _CompanyTimeline(cik, payload, tags, url, fetched_at)
+                self._store_compact_facts(cik, payload, rebuilt, fetched_at)
             self._timelines[cik] = rebuilt
             return rebuilt
 

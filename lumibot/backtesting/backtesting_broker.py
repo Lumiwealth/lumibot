@@ -743,11 +743,296 @@ class BacktestingBroker(Broker):
 
         # Only advance time if there is positive time remaining.
         if time_to_close > 0:
-            self._update_datetime(time_to_close)
+            self._advance_checking_resting_orders(time_to_close, strategy)
         # If the calculated time is non-positive (e.g., exactly `minutes_before_closing` before
         # the close), do nothing. Nudging by 1 second can shift the simulated timestamp off
         # bar boundaries (e.g., 17:59:01), which breaks parity and can cause subtle lookups.
         # Otherwise (result <= 0 initially), the market is already closed.
+
+    # =========Resting orders between strategy runs==================
+    #
+    # A stop or limit rests at the broker and can fill at any moment, not only when the
+    # strategy runs. When the clock is about to jump over loaded bars (a strategy that runs
+    # every 15 minutes or once a day on minute bars), the jump stops at each bar on which a
+    # resting order can fill and lets `process_pending_orders` fill it with its ordinary
+    # rules. Finding those bars is array work on the bars already in memory: no data is
+    # requested, and a jump with nothing to fill costs a few array comparisons per order.
+
+    _check_resting_orders_between_runs = True
+    _BETWEEN_RUN_STOP_TYPES = (Order.OrderType.STOP, Order.OrderType.STOP_LIMIT, Order.OrderType.TRAIL)
+    _BETWEEN_RUN_RESTING_TYPES = (Order.OrderType.LIMIT,) + _BETWEEN_RUN_STOP_TYPES
+
+    @staticmethod
+    def _between_run_ns(dt) -> int:
+        """UTC nanoseconds of a clock value, in integer math (float ns loses whole bars)."""
+        return int(dt.timestamp()) * 1_000_000_000 + int(getattr(dt, "microsecond", 0)) * 1_000
+
+    def _between_run_pending_orders(self, strategy_name) -> list:
+        pending = []
+        for bucket in (getattr(self, "_unprocessed_orders", None), getattr(self, "_new_orders", None)):
+            if not bucket:
+                continue
+            for order in bucket.get_list():
+                if getattr(order, "strategy", None) == strategy_name:
+                    pending.append(order)
+        return pending
+
+    def _between_run_order_is_checked(self, order) -> bool:
+        """Mirror of the orders `process_pending_orders` evaluates on a bar's range."""
+        if not order.is_active() or order.dependent_order_filled:
+            return False
+        if order.order_class in (Order.OrderClass.OCO, Order.OrderClass.MULTILEG):
+            return False
+        if getattr(order, "_smart_limit_managed_by_parent", False) or getattr(
+            order, "_package_limit_managed_by_parent", False
+        ):
+            return False
+        return order.is_buy_order() or order.is_sell_order()
+
+    def _between_run_bar_arrays(self, order):
+        """Loaded intraday bars the engine fills ``order`` from, as arrays; None when there are none."""
+        data_source = self.data_source
+        finder = getattr(data_source, "find_asset_in_data_store", None)
+        store = getattr(data_source, "_data_store", None)
+        if not callable(finder) or not isinstance(store, dict):
+            return None
+        # Which loaded series an order fills from only changes when the store gains a series,
+        # so the lookup is remembered per order until the store's size changes.
+        cache = self.__dict__.setdefault("_between_run_series_keys", {})
+        store_size = len(store)
+        cached = cache.get(order.identifier)
+        if cached is not None and cached[0] == store_size:
+            key = cached[1]
+        else:
+            key = None
+            timestep = self._resolve_order_fill_timestep(order, getattr(data_source, "_timestep", "minute"))
+            try:
+                unit = parse_timestep_qty_and_unit(str(timestep))[1]
+            except Exception:
+                unit = str(timestep)
+            if str(unit or "").strip().lower() in {"minute", "hour"}:
+                asset = order.asset if order.asset.asset_type != "crypto" else (order.asset, order.quote)
+                try:
+                    key = finder(asset, order.quote, timestep)
+                except Exception:
+                    key = None
+            if len(cache) > 4096:
+                cache.clear()
+            cache[order.identifier] = (store_size, key)
+        data = store.get(key) if key is not None else None
+        if data is None or str(getattr(data, "timestep", "") or "") == "day":
+            return None
+        lines = getattr(data, "datalines", None)
+        index_ns = getattr(data, "_index_values_ns", None)
+        if index_ns is None or not lines or any(name not in lines for name in ("open", "high", "low")):
+            return None
+        return data, index_ns, lines
+
+    @staticmethod
+    def _between_run_column(lines, name, start, stop):
+        line = lines.get(name)
+        if line is None:
+            return None
+        try:
+            return np.asarray(line.dataline[start:stop], dtype=float)
+        except (TypeError, ValueError):
+            return None
+
+    def _between_run_first_fill_bar(self, order, lines, start, stop, forced, trail_work):
+        """Offset from ``start`` of the first bar in ``[start, stop)`` on which ``order`` can fill.
+
+        The conditions are the vector form of `stop_order` / `limit_order`: a sell stop can
+        fill when the bar's low is at or under it (the gap case opens under it, so its low is
+        too), a buy limit when the low is at or under it, and the mirror for the other side.
+        They may flag a bar the full rules then decline (for example a target that yields to
+        its stop on a both-touched bar); the engine decides, this only finds where to look.
+        """
+        open_ = self._between_run_column(lines, "open", start, stop)
+        high = self._between_run_column(lines, "high", start, stop)
+        low = self._between_run_column(lines, "low", start, stop)
+        if open_ is None or high is None or low is None:
+            return None
+        with np.errstate(invalid="ignore"):
+            valid = (open_ > 0) & (high > 0) & (low > 0)
+            observed = lines.get("bar_is_observed")
+            if observed is not None:
+                valid &= np.asarray(observed.dataline[start:stop]).astype(bool)
+
+            is_sell = order.is_sell_order()
+            order_type = order.order_type
+            if order_type is Order.OrderType.TRAIL:
+                trail_work.append((order, high if is_sell else low, valid))
+            if forced:
+                hit = valid
+            elif order_type not in self._BETWEEN_RUN_RESTING_TYPES:
+                return None
+            elif order_type is Order.OrderType.TRAIL:
+                hit = self._between_run_trail_hits(order, high, low, valid)
+            elif order_type is Order.OrderType.LIMIT or (
+                order_type is Order.OrderType.STOP_LIMIT and order.price_triggered
+            ):
+                limit = self._coerce_price(order.limit_price)
+                if limit is None or math.isnan(limit):
+                    return None
+                hit = valid & ((high >= limit) if is_sell else (low <= limit))
+                if is_sell and limit <= 0:
+                    hit = valid
+                if order_type is Order.OrderType.LIMIT:
+                    # With bid/ask on the bar the engine fills limits from the quote.
+                    bid = self._between_run_column(lines, "bid", start, stop)
+                    ask = self._between_run_column(lines, "ask", start, stop)
+                    if bid is not None and ask is not None:
+                        quoted = (bid > 0) & (ask > 0)
+                        if observed is not None:
+                            quoted &= np.asarray(observed.dataline[start:stop]).astype(bool)
+                        hit = hit | (quoted & ((limit <= ask) if is_sell else (limit >= bid)))
+            else:
+                stop_price = self._coerce_price(order.stop_price)
+                if stop_price is None or self._is_invalid_price(stop_price):
+                    return None
+                hit = valid & ((low <= stop_price) if is_sell else (high >= stop_price))
+        if hit is None or not hit.any():
+            return None
+        return int(np.argmax(hit))
+
+    def _between_run_trail_hits(self, order, high, low, valid):
+        """Bars on which a trailing stop is reached, following the stop bar by bar.
+
+        Same order of events as the engine on each bar: the bar is checked against the stop
+        as it stood after the previous bar, then the stop follows this bar's high (sell) or
+        low (buy).
+        """
+        is_sell = order.is_sell_order()
+        percent = order.trail_percent
+        amount = order.trail_price
+        favorable = high if is_sell else low
+        worst = -np.inf if is_sell else np.inf
+        if percent is not None:
+            potential = favorable * ((1 - float(percent)) if is_sell else (1 + float(percent)))
+        elif amount is not None:
+            potential = favorable - float(amount) if is_sell else favorable + float(amount)
+        else:
+            return None
+        potential = np.where(valid, potential, worst)
+        current = self._coerce_price(order.get_current_trail_stop_price())
+        if current is None or math.isnan(current):
+            current = worst
+        if is_sell:
+            after = np.maximum(np.maximum.accumulate(potential), current)
+        else:
+            after = np.minimum(np.minimum.accumulate(potential), current)
+        before = np.empty_like(after)
+        before[0] = current
+        before[1:] = after[:-1]
+        if is_sell:
+            return valid & (before > 0) & (low <= before)
+        return valid & np.isfinite(before) & (high >= before)
+
+    def _next_between_run_event(self, strategy, target, forced_orders=()):
+        """Time of the next loaded bar before ``target`` on which a pending order can fill.
+
+        Also moves trailing stops along the bars that are skipped, so a stop that is not
+        reached still follows every high (or low) the market made.
+        """
+        if callable(getattr(self.data_source, "get_backtest_fill_price", None)):
+            return None
+        pending = self._between_run_pending_orders(strategy.name)
+        if not pending:
+            return None
+        now_ns = self._between_run_ns(self.datetime)
+        end_ns = self._between_run_ns(target)
+        forced_ids = {id(order) for order in forced_orders}
+        event_ns = None
+        trail_work = []
+        for order in pending:
+            forced = id(order) in forced_ids
+            if not forced and order.order_type not in self._BETWEEN_RUN_RESTING_TYPES:
+                continue
+            if not self._between_run_order_is_checked(order):
+                continue
+            found = self._between_run_bar_arrays(order)
+            if found is None:
+                continue
+            _, index_ns, lines = found
+            # Bars strictly between now and the target: the bar at `now` was checked by the
+            # run that just finished, the bar at `target` is checked by the next run.
+            start = int(np.searchsorted(index_ns, now_ns, side="right"))
+            stop = int(np.searchsorted(index_ns, end_ns, side="left"))
+            if stop <= start:
+                continue
+            trail_count = len(trail_work)
+            offset = self._between_run_first_fill_bar(order, lines, start, stop, forced, trail_work)
+            if len(trail_work) > trail_count:
+                trail_work[-1] = trail_work[-1] + (index_ns[start:stop],)
+            if offset is None:
+                continue
+            bar_ns = int(index_ns[start + offset])
+            if event_ns is None or bar_ns < event_ns:
+                event_ns = bar_ns
+
+        for order, favorable, valid, bar_times in trail_work:
+            # Bars before the event bar (all of them when there is no event) only move the stop.
+            count = len(bar_times) if event_ns is None else int(np.searchsorted(bar_times, event_ns, side="left"))
+            seen = favorable[:count][valid[:count]]
+            if len(seen):
+                order.update_trail_stop_price(float(seen.max() if order.is_sell_order() else seen.min()))
+
+        if event_ns is None:
+            return None
+        tz = self.datetime.tzinfo
+        seconds, nanos = divmod(event_ns, 1_000_000_000)
+        return datetime.fromtimestamp(seconds, tz) + timedelta(microseconds=nanos // 1_000)
+
+    def _advance_checking_resting_orders(self, update_dt, strategy, after_event=None, **progress):
+        """Advance the clock like `_update_datetime`, filling resting orders on the way.
+
+        ``after_event`` runs after each bar on which orders were processed, so the strategy's
+        fill callbacks see the fill at the time it happened. An order submitted from such a
+        callback is processed on the following bar, as it would be for a strategy that runs
+        on every bar.
+        """
+        if (
+            strategy is None
+            or not self._check_resting_orders_between_runs
+            or not self._between_run_pending_orders(strategy.name)
+        ):
+            return self._update_datetime(update_dt, **progress)
+
+        now = self.datetime
+        if isinstance(update_dt, timedelta):
+            target = now + update_dt
+        elif isinstance(update_dt, (int, float)):
+            target = now + timedelta(seconds=update_dt)
+        else:
+            target = update_dt
+        tz = now.tzinfo
+        if isinstance(tz, (pytz.tzinfo.StaticTzInfo, pytz.tzinfo.DstTzInfo)):
+            target = tz.normalize(target)
+        target = min(target, self.data_source.datetime_end)
+        if target <= now:
+            return self._update_datetime(update_dt, **progress)
+
+        forced_orders = ()
+        moved = False
+        while True:
+            event_dt = self._next_between_run_event(strategy, target, forced_orders)
+            if event_dt is None or not (self.datetime < event_dt < target):
+                break
+            moved = True
+            known = {id(order) for order in self._between_run_pending_orders(strategy.name)}
+            self._update_datetime(event_dt)
+            if not self.is_market_open():
+                # Loaded bars outside the session (pre-market, overnight) do not fill resting orders.
+                forced_orders = ()
+                continue
+            self.process_pending_orders(strategy=strategy)
+            if after_event is not None:
+                after_event()
+            forced_orders = [
+                order for order in self._between_run_pending_orders(strategy.name) if id(order) not in known
+            ]
+        # Untouched clock: advance exactly as before. Otherwise land on the same target.
+        return self._update_datetime(target if moved else update_dt, **progress)
 
     # =========Positions functions==================
     def _pull_broker_position(self, asset):

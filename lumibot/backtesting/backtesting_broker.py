@@ -5255,10 +5255,11 @@ class BacktestingBroker(Broker):
     #   2. a real trade in that bar (the bar's open), else
     #   3. a Black-Scholes estimate: underlying price in that bar, implied volatility backed out
     #      from the contract's most recent real trade (any age; if it never traded, the nearest
-    #      strike with the same expiry and right). Estimated fills pay a spread penalty so they do
-    #      not flatter results, and are marked price_source="estimated" in the trade log.
+    #      strike with the same expiry and right). The estimate is used as computed and is
+    #      marked price_source="estimated" in the trade log. An optional spread penalty
+    #      (off by default) can be set with the environment variable below.
     OPTION_ESTIMATE_PENALTY_ENV = "LUMIBOT_BACKTEST_OPTION_ESTIMATE_PENALTY_PCT"
-    OPTION_ESTIMATE_PENALTY_DEFAULT_PCT = 5.0
+    OPTION_ESTIMATE_PENALTY_DEFAULT_PCT = 0.0
     OPTION_ESTIMATE_MIN_PENALTY = 0.01
     OPTION_IV_LOOKBACK_MINUTE_BARS = 1950  # about five regular sessions
     OPTION_IV_LOOKBACK_DAY_BARS = 30
@@ -5280,7 +5281,7 @@ class BacktestingBroker(Broker):
             return self.OPTION_ESTIMATE_PENALTY_DEFAULT_PCT
 
     def _penalized_estimate(self, estimate: float, is_buy: bool) -> float:
-        """Buys pay more and sells receive less than the model value."""
+        """The model value as computed, or with the optional penalty (buys pay more, sells receive less)."""
         pct = self._option_estimate_penalty_pct()
         if pct <= 0:
             return float(estimate)
@@ -5508,7 +5509,8 @@ class BacktestingBroker(Broker):
     def _option_fill_price_at_bar(self, order) -> tuple:
         """(price, source) for an option order at the current bar; (None, None) if no price.
 
-        source is "quote", "trade" or "estimated". Estimated prices include the spread penalty.
+        source is "quote", "trade" or "estimated". Estimated prices are the model value as
+        computed, plus the optional spread penalty when one is set (default none).
         """
         price = self._quote_price_now(order)
         if price is not None:

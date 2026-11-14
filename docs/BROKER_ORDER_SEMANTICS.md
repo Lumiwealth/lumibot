@@ -87,8 +87,8 @@ all legs or none. The backtesting broker matches that:
   of an observed bar starting now (a real trade); (3) a Black-Scholes estimate using the
   underlying's bar open and the implied volatility from the contract's most recent observed
   trade (any age within about five sessions of minute bars; if none, the nearest strike with
-  the same expiry and right from `get_chains`). Rate 0, volatility by bisection. Estimates pay
-  `LUMIBOT_BACKTEST_OPTION_ESTIMATE_PENALTY_PCT` (default 5%, minimum $0.01) and are marked
+  the same expiry and right from `get_chains`). Rate 0, volatility by bisection. Estimates are used as
+  computed (optional penalty `LUMIBOT_BACKTEST_OPTION_ESTIMATE_PENALTY_PCT`, default 0) and are marked
   `price_source=estimated`; counts go to `data_provenance.json` `optionFillPrices`. Calendar
   padding rows (`bar_is_observed == False`) are never used. No price at all: the order waits.
 - Why: thin contracts rarely trade in the same minute. Reusing older trades made each leg

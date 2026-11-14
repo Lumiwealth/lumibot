@@ -289,9 +289,9 @@ Option fills (backtesting)
 LUMIBOT_BACKTEST_OPTION_ESTIMATE_PENALTY_PCT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Purpose: Spread penalty on option fills that are estimated (no real quote or trade on the fill bar). Buys pay more, sells receive less.
-- Values: percent of the estimated price; the penalty is at least one cent. ``0`` turns it off.
-- Default: ``5``
+- Purpose: Optional spread penalty on option fills that are estimated (no real quote or trade on the fill bar). When set above 0, buys pay more and sells receive less.
+- Values: percent of the estimated price; when above 0 the penalty is at least one cent. ``0`` means no penalty.
+- Default: ``0`` (estimates are used as computed and labeled)
 - Notes:
   - See "How Orders Fill in a Backtest" for the quote, trade, estimated order. Estimated fills are marked ``price_source=estimated`` in the trades file.
 

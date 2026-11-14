@@ -2038,9 +2038,9 @@ class Strategy(_Strategy):
 
             In backtests a multi-leg order fills as a package: every leg fills on the
             same bar, or none of them does. Option fill prices always belong to the
-            fill bar: a real quote, else a real trade, else a marked Black-Scholes
-            estimate with a spread penalty (``LUMIBOT_BACKTEST_OPTION_ESTIMATE_PENALTY_PCT``,
-            default 5%). If a leg's time in force ends first, the whole package is canceled.
+            fill bar: a real quote, else a real trade, else a Black-Scholes estimate
+            that is used as computed and marked ``price_source=estimated``. If a leg's
+            time in force ends first, the whole package is canceled.
 
             Orders submitted one at a time are independent: each leg fills whenever
             its own contract next trades, which on illiquid options can be minutes or

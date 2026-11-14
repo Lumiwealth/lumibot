@@ -3,8 +3,8 @@
 Illiquid option contracts trade at different, sparse minutes. For every option order the
 fill price for a bar is, in order: a real bid/ask on that bar, a real trade on that bar,
 or a Black-Scholes estimate (underlying price on that bar, implied volatility from the
-contract's last real trade, or the nearest strike's when it never traded). Estimates pay a
-spread penalty and are marked ``price_source="estimated"``. A multi-leg order fills every
+contract's last real trade, or the nearest strike's when it never traded). Estimates are used
+as computed and are marked ``price_source="estimated"``. A multi-leg order fills every
 leg on the same bar or none of them, so a backtest never holds a naked short leg while it
 waits for a protecting leg to trade.
 """
@@ -150,18 +150,19 @@ def test_leg_without_a_trade_on_the_bar_gets_a_marked_estimate_from_its_last_tra
     short_put, long_put = strategy.fills[SHORT_PUT], strategy.fills[LONG_PUT]
     assert short_put[0] == long_put[0] == 6
     assert short_put[2] == long_put[2] == "estimated"
-    # Model value is the minute-3 price (same underlying, 4 minutes of time decay); the default
-    # 5% spread penalty is paid on top: the sale receives less, the purchase pays more.
-    assert 1.88 <= short_put[1] <= 1.91
-    assert 1.04 <= long_put[1] <= 1.06
+    # Model value is the minute-3 price (same underlying, 4 minutes of time decay). By default
+    # the estimate is used as computed: no penalty is added or subtracted.
+    assert short_put[1] == pytest.approx(2.00, abs=0.02)
+    assert long_put[1] == pytest.approx(1.00, abs=0.02)
 
 
-def test_estimate_penalty_is_a_setting(monkeypatch):
-    monkeypatch.setenv("LUMIBOT_BACKTEST_OPTION_ESTIMATE_PENALTY_PCT", "0")
-    prints = {SHORT_PUT: {3: 2.00}, LONG_PUT: {3: 1.00}}
+def test_estimate_penalty_is_an_optional_setting(monkeypatch):
+    # Off by default (see the test above). When set, buys pay more and sells receive less.
+    monkeypatch.setenv("LUMIBOT_BACKTEST_OPTION_ESTIMATE_PENALTY_PCT", "5")
+    prints = {SHORT_PUT: {3: 2.00, 30: 2.10}, LONG_PUT: {3: 1.00}}
     strategy = _run(prints, PUT_SPREAD, submit_after=6)
-    assert strategy.fills[SHORT_PUT][1] == pytest.approx(2.00, abs=0.02)
-    assert strategy.fills[LONG_PUT][1] == pytest.approx(1.00, abs=0.02)
+    assert 1.88 <= strategy.fills[SHORT_PUT][1] <= 1.91
+    assert 1.04 <= strategy.fills[LONG_PUT][1] <= 1.06
 
 
 def test_contract_that_never_traded_uses_the_nearest_strike_volatility():
@@ -192,7 +193,7 @@ def test_nothing_fills_without_any_price_and_the_package_expires_whole():
 
 def test_credit_package_limit_applies_to_the_net_including_estimates():
     # Minute 10: both trade, net credit 0.50 (below the 0.80 limit). Minutes 11 to 24 are
-    # estimated from minute 10 and pay the penalty, so the net is even lower.
+    # estimated from minute 10, so the net stays near 0.50.
     # Minute 25: both trade, net credit 1.00, so both fill there.
     prints = {SHORT_PUT: {10: 2.00, 25: 2.20}, LONG_PUT: {10: 1.50, 25: 1.20}}
     strategy = _run(prints, PUT_SPREAD, order_type="credit", price=0.80)
@@ -218,7 +219,8 @@ def test_single_leg_option_market_order_never_fills_at_an_older_bar_price():
     minute, price, source = strategy.fills[SHORT_PUT]
     assert minute == 6
     assert source == "estimated"
-    assert 1.88 <= price <= 1.91
+    # The estimate is used as computed (no penalty by default).
+    assert price == pytest.approx(2.00, abs=0.02)
 
 
 def test_estimated_fills_are_marked_in_the_trade_log_and_counted_in_provenance():

@@ -78,8 +78,9 @@ it uses, in this order:
 3. **Estimated**: a Black-Scholes value for that bar. It uses the underlying price on the
    bar and the implied volatility backed out from the contract's most recent real trade.
    If the contract never traded, it uses the nearest strike with the same expiry and
-   type. Estimated fills pay a spread penalty (default 5% of the price, at least one cent:
-   buys pay more, sells receive less) so they do not make results look better than live.
+   type. The estimate is used as computed: no penalty is added. If you want estimated
+   fills to be more conservative, set ``LUMIBOT_BACKTEST_OPTION_ESTIMATE_PENALTY_PCT``
+   (percent of the price; buys pay more, sells receive less). The default is ``0``.
 
 Every option fill is marked in the trades file (``price_source`` is ``quote``, ``trade``
 or ``estimated``), and ``data_provenance.json`` counts them under ``optionFillPrices``.

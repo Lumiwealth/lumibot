@@ -92,7 +92,7 @@ def _safe_notices(notices: Iterable[Any]) -> List[Dict[str, Any]]:
     return safe
 
 
-def build_backtest_data_provenance(data_source: Any) -> Dict[str, Any]:
+def build_backtest_data_provenance(data_source: Any, fill_price_counts: Dict[str, int] | None = None) -> Dict[str, Any]:
     observed = None
     notices: List[Dict[str, Any]] = []
     getter = getattr(data_source, "get_data_provenance", None)
@@ -120,14 +120,22 @@ def build_backtest_data_provenance(data_source: Any) -> Dict[str, Any]:
     }
     if notices:
         provenance["notices"] = notices
+    # How option fills were priced: "quote" and "trade" are real prices in the fill bar,
+    # "estimated" is a Black-Scholes model price (with a spread penalty).
+    if fill_price_counts:
+        provenance["optionFillPrices"] = {
+            str(key): int(value) for key, value in fill_price_counts.items() if isinstance(value, int)
+        }
     return provenance
 
 
-def write_backtest_data_provenance(data_source: Any, directory: str | Path = "logs") -> Path:
+def write_backtest_data_provenance(
+    data_source: Any, directory: str | Path = "logs", fill_price_counts: Dict[str, int] | None = None
+) -> Path:
     artifact = Path(directory) / "data_provenance.json"
     artifact.parent.mkdir(parents=True, exist_ok=True)
     artifact.write_text(
-        json.dumps(build_backtest_data_provenance(data_source), indent=2, sort_keys=True) + "\n",
+        json.dumps(build_backtest_data_provenance(data_source, fill_price_counts), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     return artifact

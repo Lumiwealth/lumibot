@@ -241,13 +241,13 @@ IBeam is an unsupported third-party authentication wrapper and is suitable only 
 - Default: `2.0`
 - Where: `lumibot/data_sources/data_source_backtesting.py`
 
-## Multi-leg option package fills
+## Option fills (backtesting)
 
-### `LUMIBOT_BACKTEST_PACKAGE_LEG_MAX_AGE_MINUTES`
-- Purpose: Maximum age (minutes) of a leg's last real (observed) print when its multi-leg package fills. All legs still fill in the same minute.
-- Values: integer minutes; `0` = every leg must print in the fill minute.
-- Default: `5` (measured 2026-11-14 on Alpaca 1-minute SPY condor data: closing packages filled 18/20 at 5 min vs 10/20 at 0).
-- Where: `lumibot/backtesting/backtesting_broker.py` (`_package_leg_max_age_minutes`, `_leg_bar_open_now`).
+### `LUMIBOT_BACKTEST_OPTION_ESTIMATE_PENALTY_PCT`
+- Purpose: Spread penalty (percent of price, minimum $0.01) applied to estimated option fills: buys pay more, sells receive less.
+- Values: float percent; `0` disables.
+- Default: `5` (hide-and-estimate study 2026-11-14 on Alpaca SPY 1-minute options: median error about 1% ATM, 2-3% for 5-15 delta wings).
+- Where: `lumibot/backtesting/backtesting_broker.py` (`_option_fill_price_at_bar`, `_penalized_estimate`).
 
 ## Trade audit telemetry (NVDA/SPX accuracy audits)
 

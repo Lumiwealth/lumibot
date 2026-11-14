@@ -2503,6 +2503,19 @@ class BacktestingBroker(Broker):
                     )
                 continue
 
+            # Single-leg option market orders: the fill price always belongs to this bar
+            # (quote, trade, or a marked estimate). See _option_fill_price_at_bar.
+            if (
+                order.order_type == Order.OrderType.MARKET
+                and self._is_option_asset(getattr(order, "asset", None))
+                and getattr(order, "smart_limit", None) is None
+            ):
+                if not self._try_fill_option_market_order(order, strategy):
+                    self._handle_unavailable_execution_data(
+                        order, f"no option price for the bar at {self.datetime}", strategy=strategy
+                    )
+                continue
+
             # Check validity if current date > valid date, cancel order. todo valid date
             # TODO: One day... I will purge all this crypto tuple stuff.
             asset = order.asset if order.asset.asset_type != "crypto" else (order.asset, order.quote)
@@ -5144,70 +5157,76 @@ class BacktestingBroker(Broker):
             return None
         return -abs(float(limit_price)) if kind == "credit" else abs(float(limit_price))
 
-    def _leg_package_fill_price(self, leg) -> Optional[float]:
-        """Observed executable quote, or the current bar open for trade-only data."""
-        try:
-            quote = self.get_quote(leg.asset, quote=leg.quote)
-        except Exception:
-            quote = None
-        if quote is not None and self._quote_matches_current_execution_bar(quote, leg):
-            side = "ask" if leg.is_buy_order() else "bid"
-            price = self._coerce_price(getattr(quote, side, None))
-            if not self._is_invalid_price(price):
-                try:
-                    price = float(price)
-                    if math.isfinite(price):
-                        return price
-                except (TypeError, ValueError):
-                    pass
-        return self._leg_bar_open_now(leg)
+    # ------------------------------------------------------------------
+    # Fill prices for options: quote, trade, or a marked model estimate
+    # ------------------------------------------------------------------
+    # Option contracts trade thinly, so a contract often has no trade in the minute an order
+    # should fill. Reusing an older trade as the fill price makes fills depend on whenever each
+    # contract happened to print next, which for multi-leg orders meant legs filled minutes or
+    # days apart. The rule is: a fill price always belongs to the fill bar.
+    #   1. a real bid/ask stamped on that bar (ask for buys, bid for sells), else
+    #   2. a real trade in that bar (the bar's open), else
+    #   3. a Black-Scholes estimate: underlying price in that bar, implied volatility backed out
+    #      from the contract's most recent real trade (any age; if it never traded, the nearest
+    #      strike with the same expiry and right). Estimated fills pay a spread penalty so they do
+    #      not flatter results, and are marked price_source="estimated" in the trade log.
+    OPTION_ESTIMATE_PENALTY_ENV = "LUMIBOT_BACKTEST_OPTION_ESTIMATE_PENALTY_PCT"
+    OPTION_ESTIMATE_PENALTY_DEFAULT_PCT = 5.0
+    OPTION_ESTIMATE_MIN_PENALTY = 0.01
+    OPTION_IV_LOOKBACK_MINUTE_BARS = 1950  # about five regular sessions
+    OPTION_IV_LOOKBACK_DAY_BARS = 30
+    OPTION_IV_NEIGHBOR_STRIKES = 6
 
-    PACKAGE_LEG_MAX_AGE_ENV = "LUMIBOT_BACKTEST_PACKAGE_LEG_MAX_AGE_MINUTES"
-    PACKAGE_LEG_MAX_AGE_DEFAULT_MINUTES = 5
-
-    def _package_leg_max_age_minutes(self) -> int:
-        """How old (in minutes) a leg's last real print may be when its package fills.
-
-        Thin option contracts rarely all trade in the same minute. 0 means every leg must
-        trade in the fill minute itself; the default of 5 lets a leg use its most recent
-        real trade from the last 5 minutes. Forward-filled padding is never used.
-        """
-        raw = os.environ.get(self.PACKAGE_LEG_MAX_AGE_ENV)
+    def _option_estimate_penalty_pct(self) -> float:
+        raw = os.environ.get(self.OPTION_ESTIMATE_PENALTY_ENV)
         if raw is None or str(raw).strip() == "":
-            return self.PACKAGE_LEG_MAX_AGE_DEFAULT_MINUTES
+            return self.OPTION_ESTIMATE_PENALTY_DEFAULT_PCT
         try:
-            value = int(float(raw))
+            return max(0.0, float(raw))
         except (TypeError, ValueError):
             logger.warning(
                 "Ignoring invalid %s=%r; using %s",
-                self.PACKAGE_LEG_MAX_AGE_ENV,
+                self.OPTION_ESTIMATE_PENALTY_ENV,
                 raw,
-                self.PACKAGE_LEG_MAX_AGE_DEFAULT_MINUTES,
+                self.OPTION_ESTIMATE_PENALTY_DEFAULT_PCT,
             )
-            return self.PACKAGE_LEG_MAX_AGE_DEFAULT_MINUTES
-        return max(0, value)
+            return self.OPTION_ESTIMATE_PENALTY_DEFAULT_PCT
 
-    def _leg_bar_open_now(self, leg) -> Optional[float]:
-        """Price a package leg from real bars only.
+    def _penalized_estimate(self, estimate: float, is_buy: bool) -> float:
+        """Buys pay more and sells receive less than the model value."""
+        pct = self._option_estimate_penalty_pct()
+        if pct <= 0:
+            return float(estimate)
+        penalty = max(abs(estimate) * pct / 100.0, self.OPTION_ESTIMATE_MIN_PENALTY)
+        return float(estimate + penalty) if is_buy else max(0.0, float(estimate - penalty))
 
-        The open of an observed bar starting now; otherwise (intraday) the close of the
-        most recent observed bar no older than the package leg age bound. Calendar padding
-        rows (forward-filled copies of an earlier print) are never used, and nothing past
-        the current time is read.
+    def _record_fill_price_source(self, source: Optional[str]) -> None:
+        if not source:
+            return
+        counts = getattr(self, "_option_fill_price_counts", None)
+        if counts is None:
+            counts = {}
+            self._option_fill_price_counts = counts
+        counts[source] = counts.get(source, 0) + 1
+
+    def _recent_real_bars(self, asset, quote, length: int):
+        """Recent bars up to and including the current bar, padding rows dropped.
+
+        Returns a frame indexed by tz-aware bar start, or None. Nothing after the current
+        backtest time is returned.
         """
-        asset = leg.asset if getattr(leg.asset, "asset_type", None) != "crypto" else (leg.asset, leg.quote)
+        lookup_asset = asset if getattr(asset, "asset_type", None) != "crypto" else (asset, quote)
         timestep = str(getattr(self.data_source, "_timestep", "minute"))
         source_name = str(getattr(self.data_source, "SOURCE", "") or "").upper()
-        max_age = 0 if timestep == "day" else self._package_leg_max_age_minutes()
         try:
             if source_name in {"CCXT", "YAHOO", "ALPACA", "DATABENTO", "DATABENTO_POLARS"}:
                 timeshift, kwargs = self._execution_bar_request(source_name)
                 bars = self.data_source.get_historical_prices(
-                    asset=asset, length=max_age + 1, quote=leg.quote, timeshift=timeshift, **kwargs
+                    asset=lookup_asset, length=max(1, int(length)), quote=quote, timeshift=timeshift, **kwargs
                 )
             else:
                 bars = self.data_source.get_historical_prices(
-                    asset=asset, length=max(3, max_age + 2), quote=leg.quote, timeshift=-1, timestep=timestep
+                    asset=lookup_asset, length=max(3, int(length) + 1), quote=quote, timeshift=-1, timestep=timestep
                 )
         except Exception:
             return None
@@ -5220,32 +5239,221 @@ class BacktestingBroker(Broker):
             index = index.tz_localize(now.tz or "America/New_York")
         if now.tz is None:
             now = now.tz_localize(index.tz)
-        index = index.tz_convert(now.tz)
-        if "bar_is_observed" in df.columns:
-            observed = [bool(v) if v == v else True for v in df["bar_is_observed"].tolist()]
-        else:
-            observed = [True] * len(df)
+        frame = df.copy()
+        frame.index = index.tz_convert(now.tz)
+        if "bar_is_observed" in frame.columns:
+            observed = frame["bar_is_observed"].map(lambda v: True if v != v else bool(v))
+            frame = frame[observed.astype(bool)]
         if timestep == "day":
-            current = [i for i, ts in enumerate(index) if ts.date() == now.date() and observed[i]]
+            frame = frame[[ts.date() <= now.date() for ts in frame.index]]
         else:
-            current = [i for i, ts in enumerate(index) if ts.floor("min") == now.floor("min") and observed[i]]
-        if current:
-            price = self._coerce_price(df["open"].iloc[current[-1]])
-            if price is not None and not self._is_invalid_price(price):
-                return float(price)
-        if max_age <= 0:
+            frame = frame[frame.index.floor("min") <= now.floor("min")]
+        return frame if not frame.empty else None
+
+    def _bar_matches_now(self, ts) -> bool:
+        now = pd.Timestamp(self.datetime)
+        ts = pd.Timestamp(ts)
+        if now.tz is None and ts.tz is not None:
+            now = now.tz_localize(ts.tz)
+        elif now.tz is not None and ts.tz is not None:
+            ts = ts.tz_convert(now.tz)
+        if str(getattr(self.data_source, "_timestep", "minute")) == "day":
+            return ts.date() == now.date()
+        return ts.floor("min") == now.floor("min")
+
+    def _leg_bar_open_now(self, leg) -> Optional[float]:
+        """Open of a real (observed) bar starting at the current backtest time, else None.
+
+        Calendar padding rows (forward-filled copies of an earlier print) are never used.
+        """
+        frame = self._recent_real_bars(leg.asset, leg.quote, 2)
+        if frame is None or not self._bar_matches_now(frame.index[-1]):
             return None
-        oldest = now.floor("min") - pd.Timedelta(minutes=max_age)
-        recent = [
-            i for i, ts in enumerate(index)
-            if observed[i] and oldest <= ts.floor("min") < now.floor("min")
-        ]
-        if not recent:
-            return None
-        price = self._coerce_price(df["close"].iloc[recent[-1]])
+        price = self._coerce_price(frame["open"].iloc[-1])
         if price is None or self._is_invalid_price(price):
             return None
         return float(price)
+
+    def _quote_price_now(self, order) -> Optional[float]:
+        try:
+            quote = self.get_quote(order.asset, quote=order.quote)
+        except Exception:
+            return None
+        if quote is None or not self._quote_matches_current_execution_bar(quote, order):
+            return None
+        price = self._coerce_price(getattr(quote, "ask" if order.is_buy_order() else "bid", None))
+        if price is None or self._is_invalid_price(price):
+            return None
+        try:
+            price = float(price)
+        except (TypeError, ValueError):
+            return None
+        return price if math.isfinite(price) else None
+
+    def _option_underlying_asset(self, asset):
+        underlying = getattr(asset, "underlying_asset", None)
+        if underlying is not None:
+            return underlying
+        return Asset(symbol=asset.symbol, asset_type=Asset.AssetType.STOCK)
+
+    def _option_years_to_expiry(self, asset, when) -> Optional[float]:
+        expiration = getattr(asset, "expiration", None)
+        if expiration is None:
+            return None
+        when = pd.Timestamp(when)
+        if when.tz is None:
+            when = when.tz_localize("America/New_York")
+        expiry_close = pd.Timestamp(
+            datetime(expiration.year, expiration.month, expiration.day, 16, 0)
+        ).tz_localize("America/New_York")
+        seconds = (expiry_close - when.tz_convert("America/New_York")).total_seconds()
+        if seconds <= 0:
+            return None
+        return seconds / (365.0 * 86400.0)
+
+    def _last_real_trade(self, asset, quote, before_now: bool = True):
+        timestep = str(getattr(self.data_source, "_timestep", "minute"))
+        lookback = self.OPTION_IV_LOOKBACK_DAY_BARS if timestep == "day" else self.OPTION_IV_LOOKBACK_MINUTE_BARS
+        frame = self._recent_real_bars(asset, quote, lookback)
+        if frame is None:
+            return None
+        if before_now:
+            frame = frame[[not self._bar_matches_now(ts) for ts in frame.index]]
+        for ts, close in zip(reversed(frame.index), reversed(frame["close"].tolist())):
+            price = self._coerce_price(close)
+            if price is not None and not self._is_invalid_price(price) and float(price) > 0:
+                return ts, float(price)
+        return None
+
+    def _underlying_price_at(self, underlying, quote, ts) -> Optional[float]:
+        frame = self._recent_real_bars(underlying, quote, self.OPTION_IV_LOOKBACK_MINUTE_BARS)
+        if frame is None:
+            return None
+        ts = pd.Timestamp(ts)
+        if ts.tz is not None and frame.index.tz is not None:
+            ts = ts.tz_convert(frame.index.tz)
+        prior = frame[frame.index <= ts]
+        if prior.empty:
+            return None
+        price = self._coerce_price(prior["close"].iloc[-1])
+        return None if price is None or self._is_invalid_price(price) else float(price)
+
+    def _neighbor_option_strikes(self, asset) -> list:
+        underlying = self._option_underlying_asset(asset)
+        try:
+            chains = self.data_source.get_chains(underlying)
+        except Exception:
+            return []
+        try:
+            by_right = (chains or {}).get("Chains", {}) if isinstance(chains, dict) else chains["Chains"]
+            side = by_right.get(str(asset.right).upper()) or by_right.get(str(asset.right).lower()) or {}
+            expiration = asset.expiration
+            strikes = side.get(expiration) or side.get(str(expiration)) or side.get(expiration.isoformat()) or []
+        except Exception:
+            return []
+        own = float(asset.strike)
+        others = sorted({float(s) for s in strikes if float(s) != own}, key=lambda s: abs(s - own))
+        return others[: self.OPTION_IV_NEIGHBOR_STRIKES]
+
+    def _estimate_option_price_now(self, order) -> Optional[float]:
+        """Black-Scholes value of an option at the current bar (unpenalized), or None."""
+        from lumibot.tools.black_scholes import BS
+
+        asset = order.asset
+        if getattr(asset, "strike", None) is None or getattr(asset, "right", None) is None:
+            return None
+        is_call = str(asset.right).lower().startswith("c")
+        underlying = self._option_underlying_asset(asset)
+        underlying_frame = self._recent_real_bars(underlying, order.quote, 2)
+        if underlying_frame is None or not self._bar_matches_now(underlying_frame.index[-1]):
+            return None
+        spot = self._coerce_price(underlying_frame["open"].iloc[-1])
+        years_now = self._option_years_to_expiry(asset, self.datetime)
+        if spot is None or self._is_invalid_price(spot) or years_now is None:
+            return None
+
+        reference = self._last_real_trade(asset, order.quote)
+        reference_strike = float(asset.strike)
+        if reference is None:
+            for strike in self._neighbor_option_strikes(asset):
+                neighbor = Asset(
+                    symbol=asset.symbol,
+                    asset_type=Asset.AssetType.OPTION,
+                    expiration=asset.expiration,
+                    strike=strike,
+                    right=asset.right,
+                    underlying_asset=getattr(asset, "underlying_asset", None),
+                )
+                reference = self._last_real_trade(neighbor, order.quote)
+                if reference is not None:
+                    reference_strike = strike
+                    break
+        if reference is None:
+            return None
+        reference_ts, reference_price = reference
+        reference_spot = self._underlying_price_at(underlying, order.quote, reference_ts)
+        years_then = self._option_years_to_expiry(asset, reference_ts)
+        if reference_spot is None or years_then is None:
+            return None
+        def value(underlying_price, strike, days, volatility_pct):
+            model = BS([float(underlying_price), float(strike), 0.0, days], volatility=volatility_pct)
+            return float(model.callPrice if is_call else model.putPrice)
+
+        try:
+            # Bisection on volatility (percent). Monotonic in volatility; 80 halvings of
+            # [0.01, 1000] are far below a cent. The library solver rounds too coarsely here.
+            days_then = years_then * 365.0
+            low, high = 0.01, 1000.0
+            if not (value(reference_spot, reference_strike, days_then, low) <= reference_price
+                    <= value(reference_spot, reference_strike, days_then, high)):
+                return None
+            for _ in range(80):
+                mid = (low + high) / 2.0
+                if value(reference_spot, reference_strike, days_then, mid) < reference_price:
+                    low = mid
+                else:
+                    high = mid
+            estimate = value(spot, asset.strike, years_now * 365.0, (low + high) / 2.0)
+        except Exception:
+            return None
+        return estimate if math.isfinite(estimate) and estimate >= 0 else None
+
+    def _option_fill_price_at_bar(self, order) -> tuple:
+        """(price, source) for an option order at the current bar; (None, None) if no price.
+
+        source is "quote", "trade" or "estimated". Estimated prices include the spread penalty.
+        """
+        price = self._quote_price_now(order)
+        if price is not None:
+            return price, "quote"
+        price = self._leg_bar_open_now(order)
+        if price is not None:
+            return price, "trade"
+        estimate = self._estimate_option_price_now(order)
+        if estimate is None:
+            return None, None
+        return self._penalized_estimate(estimate, order.is_buy_order()), "estimated"
+
+    def _leg_package_fill_price(self, leg) -> tuple:
+        """(price, source) for one package leg at the current bar."""
+        if self._is_option_asset(getattr(leg, "asset", None)):
+            return self._option_fill_price_at_bar(leg)
+        price = self._quote_price_now(leg)
+        if price is not None:
+            return price, "quote"
+        price = self._leg_bar_open_now(leg)
+        return (price, "trade") if price is not None else (None, None)
+
+    def _try_fill_option_market_order(self, order, strategy) -> bool:
+        """Fill a single-leg option market order at the current bar, if it can be priced."""
+        price, source = self._option_fill_price_at_bar(order)
+        if price is None:
+            return False
+        order.trade_slippage = 0.0
+        setattr(order, "_price_source", source)
+        self._record_fill_price_source(source)
+        self._execute_filled_order(order=order, price=price, filled_quantity=order.quantity, strategy=strategy)
+        return True
 
     @staticmethod
     def _is_atomic_market_package(parent_order_type, orders) -> bool:
@@ -5261,18 +5469,19 @@ class BacktestingBroker(Broker):
         """Fill every leg of a package order on this bar, or none of them.
 
         Applies to credit/debit/even limit packages (net limit checked) and to market
-        packages (no limit). A leg price is only usable when it belongs to the current
-        execution bar: an executable quote stamped on this bar, otherwise this bar's
-        open. A stale earlier print never fills a leg, so the package waits for the
-        first bar where every leg is priced.
+        packages (no limit). Every leg price belongs to the current bar: a quote or trade
+        on this bar, or for options a marked Black-Scholes estimate for this bar (see
+        ``_option_fill_price_at_bar``). If any leg cannot be priced, nothing fills.
         """
         legs = order.child_orders
         prices = []
+        sources = []
         for leg in legs:
-            price = self._leg_package_fill_price(leg)
+            price, source = self._leg_package_fill_price(leg)
             if price is None:
                 return False
             prices.append(price)
+            sources.append(source)
         _, ratios = get_multileg_quantity_units(leg.quantity for leg in legs)
         net = sum(
             (price if leg.is_buy_order() else -price) * ratio
@@ -5281,9 +5490,13 @@ class BacktestingBroker(Broker):
         net_limit = getattr(order, "_package_net_limit", None)
         if net_limit is not None and net > float(net_limit) + 1e-9:
             return False
-        for leg, price in zip(legs, prices):
+        for leg, price, source in zip(legs, prices, sources):
             leg.trade_slippage = 0.0
-            setattr(leg, "_price_source", "package_limit")
+            if self._is_option_asset(getattr(leg, "asset", None)):
+                setattr(leg, "_price_source", source)
+                self._record_fill_price_source(source)
+            else:
+                setattr(leg, "_price_source", "package_limit")
             self._execute_filled_order(order=leg, price=price, filled_quantity=leg.quantity, strategy=strategy)
         return True
 

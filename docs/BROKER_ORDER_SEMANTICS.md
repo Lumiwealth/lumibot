@@ -82,19 +82,21 @@ all legs or none. The backtesting broker matches that:
   credit/debit/even packages (`_package_net_limit`) are filled by the parent in
   `_fill_package_at_net_limit`: every leg on one bar or none. Legs are never
   processed as independent orders (`_package_limit_managed_by_parent`).
-- A leg price comes from real data only: a quote stamped on the current bar (ask for
-  buys, bid for sells); else the open of an observed bar starting now; else the close
-  of that leg's most recent observed bar no older than
-  `LUMIBOT_BACKTEST_PACKAGE_LEG_MAX_AGE_MINUTES` (default 5, `0` = same minute only).
-  Calendar padding rows (`bar_is_observed == False`) are never used and no price is
-  invented. Why 5: on Alpaca 1-minute SPY condor data (Oct 12 to Nov 6 2026, local
-  study) every entry filled within a minute under any rule, but a same-minute-only rule
-  left 10 of 20 closing packages unfilled on expiry day (far wings stop trading); 5
-  minutes left 2. Single-leg Alpaca option orders still need a print in the fill minute
-  (`_requires_current_execution_bar`); a package needs N legs to line up, so a small
-  window keeps it about as fillable as its legs are one by one.
-- Alpaca's historical option API has bars and trades but no historical quotes, so the
-  quote branch never applies to Alpaca option backtests.
+- Every option fill price belongs to the fill bar (`_option_fill_price_at_bar`, single legs
+  and packages): (1) a quote stamped on that bar (ask for buys, bid for sells); (2) the open
+  of an observed bar starting now (a real trade); (3) a Black-Scholes estimate using the
+  underlying's bar open and the implied volatility from the contract's most recent observed
+  trade (any age within about five sessions of minute bars; if none, the nearest strike with
+  the same expiry and right from `get_chains`). Rate 0, volatility by bisection. Estimates pay
+  `LUMIBOT_BACKTEST_OPTION_ESTIMATE_PENALTY_PCT` (default 5%, minimum $0.01) and are marked
+  `price_source=estimated`; counts go to `data_provenance.json` `optionFillPrices`. Calendar
+  padding rows (`bar_is_observed == False`) are never used. No price at all: the order waits.
+- Why: thin contracts rarely trade in the same minute. Reusing older trades made each leg
+  fill whenever its own contract printed next (legs days apart). Hide-and-estimate on Alpaca
+  SPY 1-minute data (2026-11-14): median error ATM ~1%, 5-15 delta wings 2-3%, deep OTM about
+  1 cent; with the previous trade 15+ minutes old, ATM median 13 to 31 cents.
+- Alpaca's historical option API has bars and trades but no historical quotes, so source (1)
+  never applies to Alpaca option backtests.
 - A credit/debit/even limit is checked against the ratio-weighted net of the leg
   prices (credit negative). A market package has no limit.
 - If an unfilled leg's time in force ends, the whole package is canceled

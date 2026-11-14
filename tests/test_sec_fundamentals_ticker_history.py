@@ -2,8 +2,10 @@
 
 The SEC ticker file is today's. When a company reorganizes under a new holding company,
 its ticker moves to the new registrant's CIK, which has no filings before the
-reorganization. SEC data does not link the new CIK to its predecessor, so LumiBot does not
-guess one: it says plainly why there is no data instead of a pile of "not filed" reasons.
+reorganization. SEC data does not link the new CIK to its predecessor. Known predecessors are
+listed in lumibot/fundamentals/company_records.py (tested in test_sec_fundamental_metrics.py);
+for any other ticker LumiBot does not guess one: it says plainly why there is no data instead
+of a pile of "not filed" reasons.
 Synthetic data only.
 """
 

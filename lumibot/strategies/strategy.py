@@ -5398,13 +5398,15 @@ class Strategy(_Strategy):
             sleep_time=effective_sleep_time
         )
         if self.is_backtesting:
-            from lumibot.backtesting.market_input_evidence import record_market_input
+            from lumibot.backtesting.market_input_evidence import market_input_batch, record_market_input
 
-            for asset in assets:
-                bars = results.get(asset) if isinstance(results, dict) else None
-                record_market_input(source=self.broker.data_source, asset=asset,
-                    quote=self.quote_asset, timestep=timestep, when=self.get_datetime(),
-                    frame=bars.pandas_df if bars is not None else None, purpose="history-batch")
+            # One commit for the whole scan instead of one per asset (same records, same order).
+            with market_input_batch(self.broker.data_source):
+                for asset in assets:
+                    bars = results.get(asset) if isinstance(results, dict) else None
+                    record_market_input(source=self.broker.data_source, asset=asset,
+                        quote=self.quote_asset, timestep=timestep, when=self.get_datetime(),
+                        frame=bars.pandas_df if bars is not None else None, purpose="history-batch")
         return results
 
     def get_bars(

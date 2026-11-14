@@ -95,12 +95,15 @@ backtest date (or ``as_of``), and is ``None`` when it cannot be computed:
    * - ``ttm_free_cash_flow``
      - TTM operating cash flow minus TTM capital expenditures
    * - ``debt_to_equity``
-     - Long-term debt (including the current portion when reported) over
-       stockholders' equity, from the same balance sheet
+     - Long-term debt (including the current portion when reported, and
+       finance lease obligations when the company files them together) over
+       stockholders' equity, both from the latest balance sheet that has both
    * - ``current_ratio``
      - Current assets over current liabilities, same balance sheet
    * - ``shares_outstanding``
-     - Cover-page shares outstanding from the latest filing
+     - Cover-page shares outstanding from the latest filing. Companies with
+       several share classes file no single total; for them it is the basic
+       weighted average share count of the latest filed period
    * - ``book_value_per_share``
      - Stockholders' equity over shares outstanding
    * - ``market_cap``, ``pe_ratio``, ``ps_ratio``, ``pb_ratio``
@@ -131,6 +134,72 @@ so P/E is not meaningful"``. Nothing is estimated or filled in: a missing input,
 a period the company did not report, or a latest filing more than 18 months old
 gives ``None``, not an old or made-up number. ``get_metrics(...)["periods"]``
 names the period, filing and availability time behind every value.
+
+Stock screener: market cap, revenue growth and debt for a whole universe
+------------------------------------------------------------------------
+
+``get_metrics_table`` returns one pandas row per symbol with the metrics you
+ask for, as of the backtest date. Sort and filter it with plain pandas.
+
+Top 5 companies by market cap, rebalanced monthly:
+
+.. code-block:: python
+
+   table = self.fundamentals.get_metrics_table(UNIVERSE, ["market_cap"])
+   table = table.dropna(subset=["market_cap"]).drop_duplicates("cik")   # one row per company
+   targets = list(table["market_cap"].astype(float).nlargest(5).index)  # for example ["AAPL", "MSFT", ...]
+
+Revenue growth over 20% and debt to equity under 0.5, fastest growers first:
+
+.. code-block:: python
+
+   table = self.fundamentals.get_metrics_table(UNIVERSE, ["revenue_growth_yoy", "debt_to_equity"])
+   table = table[["revenue_growth_yoy", "debt_to_equity"]].astype(float).dropna()
+   picks = table[(table["revenue_growth_yoy"] > 0.20) & (table["debt_to_equity"] < 0.5)]
+   targets = list(picks["revenue_growth_yoy"].nlargest(5).index)
+
+- **Market cap on a past date** is shares outstanding from the latest filing
+  that was public on that date, times the price that day. In a backtest the
+  price is the strategy's own price at the current bar, so the only market data
+  a screener needs is daily bars for its universe. ``prices={...}`` and
+  ``as_of=`` let you ask about any date outside a strategy.
+- **Market cap is for the whole company, all share classes.** The share count
+  is, in this order: the single count on the filing's cover page or balance
+  sheet; for a company that files one count per class, the basic weighted
+  average share count of the latest period; and when it files neither (or its
+  classes are not one for one), the per-class counts on the cover page of the
+  latest annual or quarterly report, added up. Classes are added one for one
+  unless LumiBot has a conversion on record (Berkshire Hathaway: one Class A
+  share is 1,500 Class B shares). Visa's Class B and C shares convert into more
+  than one Class A share, so Visa comes out about 10% low.
+- **Two tickers of one company give the same market cap.** ``GOOGL`` and
+  ``GOOG`` both return Alphabet's whole value. The table's ``cik`` column is
+  the SEC company id: ``drop_duplicates("cik")`` keeps one row per company so a
+  top-N list does not hold the same company twice.
+- **Any value can be missing, and a missing value never passes a filter.** A
+  metric that cannot be computed is ``None`` (the ``reasons`` column says why).
+  ``dropna()`` leaves those companies out; filling with zero would make a
+  company with no debt line look debt free. What to expect, measured on today's
+  S&P 500 members as of June 2024: market cap for 494 of 503 and debt to
+  equity for 402 of 503.
+
+  - ``market_cap`` is missing when today's ticker points to a company that had
+    not filed yet on that date (a spin-off or new listing), or when a stock
+    split cannot be dated.
+  - ``debt_to_equity`` is missing for most banks, insurers and asset managers
+    (they do not file a long-term debt line), for companies with no long-term
+    debt line at all, and when stockholders' equity is zero or negative (about
+    30 large companies that bought back more stock than their book equity).
+  - ``revenue_growth_yoy`` is missing until two years of revenue are public.
+- **You choose the universe.** LumiBot does not ship index membership lists.
+  If you pass today's members of an index to a backtest, the result has
+  survivorship bias: companies that were dropped from the index (often after
+  falling) are missing, and companies are included before they joined.
+
+Two complete strategies are in ``lumibot/example_strategies``:
+`stock_top_market_cap.py <https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/stock_top_market_cap.py>`_
+and
+`stock_revenue_growth_low_debt.py <https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/stock_revenue_growth_low_debt.py>`_.
 
 Methods
 -------
@@ -211,6 +280,60 @@ existed.
 - LumiBot sends a contact-style user agent, as the SEC asks. Override it with
   ``LUMIBOT_SEC_USER_AGENT``.
 
+Fast screens over many companies
+--------------------------------
+
+A screen such as "market cap for 500 stocks" does not need each company's full
+SEC facts file (3 to 4 MB per company). The first time a company is loaded,
+LumiBot saves a compact file beside it holding only the facts the statements
+and metrics read (shares, revenue, income, cash flow, debt, equity and the
+other statement lines, each with its filing date). Later runs read the compact
+file first. It is stored in the same local cache, and in the remote backtest
+cache when one is configured, under ``sec/companyfacts_compact/``. The values
+are the same: the compact file is built from the full one and follows the same
+freshness rules. A fact outside the compact set (``get_fact_history`` with any
+other tag, ``get_company_facts(raw=True)``) opens the full file for that
+company only.
+
+.. code-block:: python
+
+   symbols = ["AAPL", "MSFT", "NVDA", ...]              # your universe
+   self.fundamentals.preload(symbols)                   # compact files, in parallel
+   table = self.fundamentals.get_metrics_table(symbols, metrics=["market_cap"])
+   largest = table.dropna(subset=["market_cap"]).sort_values("market_cap", ascending=False).head(20)
+
+Measured on one machine on 2026-11-14 for 503 large US companies, SEC data
+only, one date (prices passed in):
+
+.. list-table::
+   :header-rows: 1
+
+   * - Case
+     - Seconds
+     - SEC requests
+     - Data read
+   * - First run ever, nothing cached (full files from the SEC)
+     - 58
+     - 515
+     - 1,655 MB
+   * - Later run, full files on disk (before 4.6.65)
+     - 14
+     - 0
+     - 1,655 MB
+   * - Later run, compact files on disk
+     - 5
+     - 0
+     - 16 MB
+   * - New machine, compact files in the remote cache
+     - 6 to 7
+     - 0 to 5
+     - 14 MB
+
+After loading, a metrics table for all 503 companies takes under one second,
+for any set of metrics. The first run ever still downloads the full files once
+(the SEC publishes facts per company); building the compact files adds a few
+seconds to that run.
+
 Limits
 ------
 
@@ -243,8 +366,12 @@ Limits
   current one, and older history may be missing for it. When the current
   registrant had filed nothing yet on the date you ask about, every metric is
   ``None`` and the reason says so (and statements carry the same warning).
-  SEC data does not link a new registrant to its predecessor, so LumiBot does
-  not guess one; look the predecessor up yourself if you need that history.
+  SEC data does not link a new registrant to its predecessor. LumiBot keeps a
+  short list of known predecessors (``lumibot/fundamentals/company_records.py``:
+  Alphabet and Google, Broadcom and Avago, Exxon Mobil, BlackRock, Disney) and
+  uses the earlier registrant's filings for dates before the change. For any
+  other ticker it does not guess one; add a row there, with its source, when
+  you need that history.
 
 Agent tools
 -----------

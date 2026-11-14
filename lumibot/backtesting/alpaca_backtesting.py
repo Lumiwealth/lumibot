@@ -6,6 +6,7 @@ from collections import deque
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Optional
 
 import pandas as pd
@@ -2072,15 +2073,29 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 )
             raise RuntimeError(f"No data fetched for {key}.")
 
+        if is_option:
+            # Ensure 'timestamp' is a pandas timestamp object
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            if df['timestamp'].dt.tz is None:
+                df['timestamp'] = df['timestamp'].dt.tz_localize(tzinfo)
+            else:
+                df['timestamp'] = df['timestamp'].dt.tz_convert(tzinfo)
+            return self._finish_option_frame(key, df, tzinfo, data_datetime_start, data_datetime_end)
+
+        return self._finish_window_frame(key, df, timestep, tzinfo, data_datetime_start, data_datetime_end)
+
+    def _finish_window_frame(self, key, df, timestep, tzinfo, data_datetime_start, data_datetime_end) -> pd.DataFrame:
+        """One stock or crypto symbol's window rows: align to the calendar, cache to disk, store.
+
+        Shared by the single download and the grouped download (``_prefetch_stock_bars``) so
+        both write exactly the same file and frame for a symbol.
+        """
         # Ensure 'timestamp' is a pandas timestamp object
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         if df['timestamp'].dt.tz is None:
             df['timestamp'] = df['timestamp'].dt.tz_localize(tzinfo)
         else:
             df['timestamp'] = df['timestamp'].dt.tz_convert(tzinfo)
-
-        if is_option:
-            return self._finish_option_frame(key, df, tzinfo, data_datetime_start, data_datetime_end)
 
         df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
 
@@ -2096,19 +2111,159 @@ class AlpacaBacktesting(DataSourceBacktesting):
         else:
             # Alpaca aligns native intraday multiples on provider-specific boundaries
             # such as 09:40 for 20Min NYSE bars. Preserve those native timestamps.
-            df.sort_values("timestamp", inplace=True)
+            df = df.sort_values("timestamp")
 
         # Filter data to include only rows between data_datetime_start and data_datetime_end
         df = df[(df['timestamp'] >= data_datetime_start) & (df['timestamp'] <= data_datetime_end)]
 
         # Save to cache
-        df.to_csv(filepath, index=False)
+        cache_dir = os.path.join(LUMIBOT_CACHE_FOLDER, self.CACHE_SUBFOLDER)
+        os.makedirs(cache_dir, exist_ok=True)
+        df.to_csv(os.path.join(cache_dir, f"{key}.csv"), index=False)
 
         # Store in _data_store
-        df.set_index('timestamp', inplace=True)
+        df = df.set_index('timestamp')
         self._data_store[key] = df
         logger.info(f"Finished fetching and caching data for {key}")
         return df
+
+    # ------------------------------------------------------------------
+    # Grouped stock history (get_historical_prices_for_assets)
+    # ------------------------------------------------------------------
+    ALPACA_STOCK_SYMBOLS_PER_REQUEST = 100
+
+    def get_bars(self, assets, length, timestep="minute", timeshift=None, chunk_size=2, max_workers=2,
+                 quote=None, exchange=None, include_after_hours=True, sleep_time=None):
+        """History for many assets. Stock bars that are not loaded yet are downloaded in grouped
+        requests (up to ``ALPACA_STOCK_SYMBOLS_PER_REQUEST`` symbols each) before the per-asset
+        lookups run, so a scanner over N stocks costs about N/100 requests instead of N.
+        The bars, cache files and errors are the same as asking for each asset by itself.
+        """
+        try:
+            self._prefetch_stock_history(assets, length, timestep, timeshift, quote)
+        except Exception as exc:
+            # The grouped download is only a shortcut: anything it could not load is fetched
+            # (and reported) per asset below, exactly as before.
+            logger.debug("Grouped Alpaca stock history download skipped: %s", exc)
+        return super().get_bars(assets, length, timestep=timestep, timeshift=timeshift, chunk_size=chunk_size,
+                                max_workers=max_workers, quote=quote, exchange=exchange,
+                                include_after_hours=include_after_hours, sleep_time=sleep_time)
+
+    def _stock_bars_in_groups(self, members, timestep, start, end, *, request_end=None, refresh=False):
+        """Rows per symbol for ``members`` ([(asset, quote), ...]), a few symbols-per-request at a time."""
+        by_symbol = {}
+        size = max(1, int(self.ALPACA_STOCK_SYMBOLS_PER_REQUEST))
+        symbols = sorted({asset.symbol for asset, _quote in members})
+        first_asset, first_quote = members[0]
+        for offset in range(0, len(symbols), size):
+            chunk = symbols[offset:offset + size]
+            client, request = self._history_request(
+                base_asset=first_asset, quote_asset=first_quote, timestep=timestep,
+                data_datetime_start=start, data_datetime_end=end, auto_adjust=self._auto_adjust,
+                request_end=request_end,
+            )
+            request = request.model_copy(update={"symbol_or_symbols": chunk})
+            what = f"{len(chunk)} stock symbols"
+            bars = fetch_alpaca_bars(
+                client, request,
+                lambda query: self._alpaca_request(client.get_stock_bars, query, what=what),
+                refresh=refresh,
+            )
+            by_symbol.update(self._rows_by_symbol(bars.df))
+        return by_symbol
+
+    def _prefetch_stock_history(self, assets, length, timestep, timeshift, quote) -> None:
+        if not isinstance(assets, list) or len(assets) < 2:
+            return
+        if timestep is None:
+            timestep = self._timestep
+        source_timestep, resample_rule = self._normalize_timestep_for_source(timestep)
+        store = self._state("_data_store", dict)
+        refreshed = self._state("_refreshed_keys", dict)
+        tried = self._state("_stock_prefetch_tried", set)
+        members = {}
+        for item in assets:
+            base, item_quote = (item[0], item[1]) if isinstance(item, tuple) else (item, quote)
+            if isinstance(base, str):
+                base = Asset(symbol=base)
+            if str(getattr(base, "asset_type", "")).lower() in ("option", "crypto"):
+                continue
+            base, item_quote = self._sanitize_base_and_quote_asset(base, item_quote or self.LUMIBOT_DEFAULT_QUOTE_ASSET)
+            key = self._get_asset_key(base_asset=base, quote_asset=item_quote, timestep=source_timestep)
+            members.setdefault(key, (base, item_quote))
+        if len(members) < 2:
+            return
+
+        # 1. The backtest window, for symbols with no frame and no cache file yet.
+        cache_dir = os.path.join(LUMIBOT_CACHE_FOLDER, self.CACHE_SUBFOLDER)
+        wanted = {}
+        for key, member in members.items():
+            if key in tried:
+                continue
+            if self._refresh_cache and key not in refreshed:
+                wanted[key] = member
+            elif key not in store and not os.path.exists(os.path.join(cache_dir, f"{key}.csv")):
+                wanted[key] = member
+        if len(wanted) > 1:
+            tried.update(wanted)  # a symbol with no bars is not asked for in every later scan
+            rows = self._stock_bars_in_groups(
+                list(wanted.values()), source_timestep, self._data_datetime_start, self._data_datetime_end,
+                refresh=bool(self._refresh_cache),
+            )
+            for key, (base, _quote) in wanted.items():
+                frame = rows.get(base.symbol)
+                if frame is None or frame.empty:
+                    continue  # the per-asset lookup reports it, as before
+                self._finish_window_frame(key, frame, source_timestep, self.tzinfo,
+                                          self._data_datetime_start, self._data_datetime_end)
+                if self._refresh_cache:
+                    refreshed[key] = True
+            logger.info("Loaded %d stock symbols in %d request(s)", len(wanted),
+                        (len(wanted) + self.ALPACA_STOCK_SYMBOLS_PER_REQUEST - 1) // self.ALPACA_STOCK_SYMBOLS_PER_REQUEST)
+
+        # 2. Bars from before the window (history_before_start), for symbols that need them now.
+        if not getattr(self, "_history_before_start", False):
+            return
+        search_datetime = self._datetime - timeshift if timeshift else self._datetime
+        needed_start = self._history_start_needed(search_datetime, length, timestep)
+        loaded_from = self._state("_history_loaded_from", dict)
+        attempts = self._state("_history_reach_attempts", set)
+        groups = {}
+        for key, member in members.items():
+            loaded_start = loaded_from.get(key, self._data_datetime_start)
+            frame = store.get(key)
+            if needed_start >= loaded_start or frame is None:
+                continue
+            if (key, int(length), str(timestep), search_datetime.date()) in attempts:
+                continue
+            last_included = loaded_start - timedelta(seconds=1)
+            segment_key = self._get_asset_key(
+                base_asset=member[0], quote_asset=member[1], timestep=source_timestep,
+                data_datetime_start=needed_start, data_datetime_end=last_included,
+            ) + "_HISTORY"
+            segment_refresh = bool(self._refresh_cache) and segment_key not in refreshed
+            if not segment_refresh and (
+                    segment_key in store or os.path.exists(os.path.join(cache_dir, f"{segment_key}.csv"))):
+                continue
+            view = self._resample_ohlcv_dataframe(frame, resample_rule) if resample_rule is not None else frame
+            position = self._newest_bar_position(view.index, search_datetime, timestep,
+                                                 self._remove_incomplete_current_bar)
+            if position + 1 >= length:
+                continue
+            groups.setdefault((loaded_start, segment_refresh), []).append((segment_key, member))
+        for (loaded_start, segment_refresh), group in groups.items():
+            if len(group) < 2:
+                continue
+            last_included = loaded_start - timedelta(seconds=1)
+            rows = self._stock_bars_in_groups(
+                [member for _key, member in group], source_timestep, needed_start, last_included,
+                request_end=last_included, refresh=segment_refresh,
+            )
+            for segment_key, (base, _quote) in group:
+                frame = rows.get(base.symbol)
+                bars = None if frame is None else SimpleNamespace(df=frame.set_index("timestamp"))
+                self._finish_history_segment(segment_key, self._bars_to_frame(bars), base, source_timestep,
+                                             needed_start, loaded_start, segment_refresh)
 
     def _finish_option_frame(self, key, df, tzinfo, data_datetime_start, data_datetime_end,
                              write_csv: bool = True) -> pd.DataFrame:
@@ -2330,7 +2485,13 @@ class AlpacaBacktesting(DataSourceBacktesting):
         except Exception as exc:
             raise RuntimeError(f"Failed to fetch history before the backtest window for {key}: {exc}")
 
-        df = self._bars_to_frame(bars)
+        return self._finish_history_segment(key, self._bars_to_frame(bars), asset, source_timestep,
+                                            segment_start, segment_end, refresh)
+
+    def _finish_history_segment(self, key, df, asset, source_timestep, segment_start, segment_end,
+                                refresh) -> pd.DataFrame:
+        """Clip, cache and store one symbol's bars from before the window (single or grouped download)."""
+        store = self._state("_data_store", dict)
         if not df.empty and not self._is_option(asset) and source_timestep == "minute":
             calendar = get_trading_days(
                 self.market,
@@ -2348,7 +2509,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         df = df.set_index("timestamp")
         store[key] = df
         if refresh:
-            refreshed[key] = True
+            self._state("_refreshed_keys", dict)[key] = True
         return df
 
     def _bars_to_frame(self, bars) -> pd.DataFrame:

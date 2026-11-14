@@ -1,0 +1,26 @@
+<ns0:xbrl xmlns:ns0="http://www.xbrl.org/2003/instance" xmlns:ns1="http://xbrl.org/2006/xbrldi" xmlns:ns2="http://xbrl.sec.gov/dei/2023">
+    <ns0:context id="C_0cff8d21-75a8-4fd6-9402-03b93c0bd708">
+        <ns0:entity>
+            <ns0:identifier scheme="http://www.sec.gov/CIK">0001067983</ns0:identifier>
+            <ns0:segment>
+                <ns1:explicitMember dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassBMember</ns1:explicitMember>
+            </ns0:segment>
+        </ns0:entity>
+        <ns0:period>
+            <ns0:instant>2024-04-19</ns0:instant>
+        </ns0:period>
+    </ns0:context>
+    <ns0:context id="C_48503e16-324d-4d70-9bfe-d7d2a6e51e68">
+        <ns0:entity>
+            <ns0:identifier scheme="http://www.sec.gov/CIK">0001067983</ns0:identifier>
+            <ns0:segment>
+                <ns1:explicitMember dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassAMember</ns1:explicitMember>
+            </ns0:segment>
+        </ns0:entity>
+        <ns0:period>
+            <ns0:instant>2024-04-19</ns0:instant>
+        </ns0:period>
+    </ns0:context>
+    <ns2:EntityCommonStockSharesOutstanding contextRef="C_48503e16-324d-4d70-9bfe-d7d2a6e51e68" decimals="INF" id="F_71ecca64-b167-4554-9319-c17d81a37d2d" unitRef="U_shares">562539</ns2:EntityCommonStockSharesOutstanding>
+    <ns2:EntityCommonStockSharesOutstanding contextRef="C_0cff8d21-75a8-4fd6-9402-03b93c0bd708" decimals="INF" id="F_0aac01cd-a4cf-44a3-91ec-ec593a93a5d1" unitRef="U_shares">1311384883</ns2:EntityCommonStockSharesOutstanding>
+    </ns0:xbrl>

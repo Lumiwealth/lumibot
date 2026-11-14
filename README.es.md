@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 2d3e5a13d7c9a901e52d9bcd402265128752a427567a93bc0bfad88e795d5905 -->
+<!-- entry-source-sha256: b45ff928f7b9f1c158b3cd78a3d90557e7e5202d87107e522044a0b9d92f600c -->
 
 # LumiBot AI Trading
 
@@ -16,6 +16,7 @@ Este es un resumen localizado del README en inglés y de la página principal de
 - **Backtest antes de operar:** evalúa decisiones de IA y reglas de Python con datos históricos, gráficos, operaciones y registros.
 - **La misma estrategia para backtesting y trading:** conserva la clase de estrategia; cambia la fuente de datos y la configuración del bróker.
 - **Varias clases de activos:** acciones, opciones, futuros, divisas, cripto y mercados de predicción, según los [brókers compatibles](https://lumibot.lumiwealth.com/brokers.all.html).
+- **Datos fundamentales gratis:** estados de resultados, balances y flujo de caja de los informes de la SEC, y ratios listos (PER, márgenes, crecimiento) tal como se conocían en cada fecha. Los backtests no ven el futuro. [Datos fundamentales](https://lumibot.lumiwealth.com/fundamentals.html).
 - **La decisión llega a un bróker.** Revisa las órdenes, las ejecuciones y los registros de decisiones. [Cómo funciona la ejecución](https://lumibot.lumiwealth.com/execution_gap.html).
 
 ## Conecta tu asistente de IA
@@ -67,6 +68,6 @@ lumibot connect botspot
 
 ## Explora el framework
 
-[Ejemplos de Python](https://lumibot.lumiwealth.com/examples.html) · [Ejemplos de IA](https://lumibot.lumiwealth.com/agents_examples.html) · [Strategy API](https://lumibot.lumiwealth.com/strategy_api_overview.html) · [Brókers](https://lumibot.lumiwealth.com/brokers.all.html)
+[Ejemplos de Python](https://lumibot.lumiwealth.com/examples.html) · [Ejemplos de IA](https://lumibot.lumiwealth.com/agents_examples.html) · [Strategy API](https://lumibot.lumiwealth.com/strategy_api_overview.html) · [Brókers](https://lumibot.lumiwealth.com/brokers.all.html) · [Datos fundamentales](https://lumibot.lumiwealth.com/fundamentals.html)
 
 El trading implica riesgo y puede causar pérdidas. Una simulación histórica no garantiza rentabilidad.

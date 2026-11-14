@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 2d3e5a13d7c9a901e52d9bcd402265128752a427567a93bc0bfad88e795d5905 -->
+<!-- entry-source-sha256: b45ff928f7b9f1c158b3cd78a3d90557e7e5202d87107e522044a0b9d92f600c -->
 
 # LumiBot AI Trading
 
@@ -16,6 +16,7 @@ Cette page résume le README anglais et la page d'accueil de la documentation. L
 - **Backtester avant de trader :** évaluez les décisions IA et les règles Python sur des données historiques, avec graphiques, transactions et journaux.
 - **La même stratégie en backtest et chez le courtier :** conservez la classe de stratégie ; changez la source de données et la configuration d'exécution.
 - **Plusieurs classes d'actifs :** actions, options, contrats à terme, devises, crypto et marchés prédictifs selon les [courtiers pris en charge](https://lumibot.lumiwealth.com/brokers.all.html).
+- **Données fondamentales gratuites :** comptes de résultat, bilans et flux de trésorerie des rapports SEC, et ratios prêts à l'emploi (PER, marges, croissance) tels qu'ils étaient connus à chaque date. Les backtests ne voient pas le futur. [Données fondamentales](https://lumibot.lumiwealth.com/fundamentals.html).
 - **La décision atteint un courtier.** Consultez les ordres, les exécutions et les journaux de décision. [Fonctionnement de l’exécution](https://lumibot.lumiwealth.com/execution_gap.html).
 
 ## Connectez votre assistant IA
@@ -67,6 +68,6 @@ lumibot connect botspot
 
 ## Explorer le framework
 
-[Exemples Python](https://lumibot.lumiwealth.com/examples.html) · [Exemples IA](https://lumibot.lumiwealth.com/agents_examples.html) · [Strategy API](https://lumibot.lumiwealth.com/strategy_api_overview.html) · [Courtiers](https://lumibot.lumiwealth.com/brokers.all.html)
+[Exemples Python](https://lumibot.lumiwealth.com/examples.html) · [Exemples IA](https://lumibot.lumiwealth.com/agents_examples.html) · [Strategy API](https://lumibot.lumiwealth.com/strategy_api_overview.html) · [Courtiers](https://lumibot.lumiwealth.com/brokers.all.html) · [Données fondamentales](https://lumibot.lumiwealth.com/fundamentals.html)
 
 Le trading comporte un risque de perte. Une simulation historique n'est pas une garantie de rendement.

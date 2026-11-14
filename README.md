@@ -24,6 +24,7 @@ Read this in [中文](README.zh-CN.md) · [Español](README.es.md) · [Français
 - **Backtest before trading:** evaluate AI decisions and Python rules on historical data, with charts, trades and logs.
 - **Same strategy for backtesting and trading:** keep your strategy class; change the data source and broker runner.
 - **Multiple asset classes:** stocks, options, futures, forex, crypto and prediction markets through [supported brokers](https://lumibot.lumiwealth.com/brokers.all.html).
+- **Free fundamental data:** SEC income statements, balance sheets, cash flow and ready-made ratios (P/E, margins, growth) as they were known on each date, so backtests never see the future. [Fundamental data](https://lumibot.lumiwealth.com/fundamentals.html).
 - **The decision reaches a broker.** Inspect the orders, fills and decision records. [How execution works](https://lumibot.lumiwealth.com/execution_gap.html).
 
 ## Connect your AI assistant
@@ -211,6 +212,26 @@ position and submits the order. Set that reviewer's `allow_trading=False`.
 [See the hybrid flow](https://lumibot.lumiwealth.com/agents_flows.html) and
 [structured-answer examples](https://lumibot.lumiwealth.com/agents_quickstart.html).
 
+## Screen stocks on fundamentals
+
+Every strategy gets free point-in-time fundamentals from SEC filings, with no API key. In a
+backtest each number is what investors could see on that day: no later filings, no
+restatements before they were public, and ratios that stay right across stock splits.
+
+```python
+def on_trading_iteration(self):
+    table = self.fundamentals.get_metrics_table(
+        ["AAPL", "MSFT", "NVDA"], ["pe_ratio", "revenue_growth_yoy", "debt_to_equity"]
+    )
+    cheap_growers = table[(table["pe_ratio"] < 40) & (table["revenue_growth_yoy"] > 0.10)]
+```
+
+A metric that cannot be computed is `None`, and `get_metrics(...)["reasons"]` says why.
+Statements, any reported fact and the filings themselves are in the
+[fundamental data guide](https://lumibot.lumiwealth.com/fundamentals.html). Your AI agents can also read filings, news and economic data
+through the [free BotSpot MCP](https://lumibot.lumiwealth.com/botspot_mcp.html), and
+[BotSpot](https://botspot.trade) can build, backtest and run a fundamentals strategy for you.
+
 ## Run the same strategy with a paper broker
 
 After the backtest works, keep the `MyStrategy` class and replace the final `MyStrategy.backtest(...)` call with a broker runner. This example uses Alpaca paper trading:
@@ -249,6 +270,7 @@ For full setup guides, broker tutorials, AI-agent docs, examples, and deployment
 
 - [Python strategies](https://lumibot.lumiwealth.com/examples.html) and [AI strategies](https://lumibot.lumiwealth.com/agents_examples.html)
 - [Strategy API](https://lumibot.lumiwealth.com/strategy_api_overview.html), [data sources](https://lumibot.lumiwealth.com/backtesting.html) and [brokers](https://lumibot.lumiwealth.com/brokers.all.html)
+- [Fundamental data (SEC filings)](https://lumibot.lumiwealth.com/fundamentals.html) and [macro data](https://lumibot.lumiwealth.com/macro_data.html)
 - [Compare frameworks](https://lumibot.lumiwealth.com/ai_trading_project_comparison.html) and [migrate from Backtrader](docsrc/MIGRATING_FROM_BACKTRADER.rst)
 - [CLI setup](https://lumibot.lumiwealth.com/cli.html), including `lumibot demo` and `lumibot init`
 - [Run locally or deploy](https://lumibot.lumiwealth.com/deployment.html) and [cash accounting](https://lumibot.lumiwealth.com/cash_accounting.html)

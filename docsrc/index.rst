@@ -20,6 +20,7 @@ Why build with LumiBot?
 * **Backtest before trading:** evaluate AI decisions and Python rules on historical data, with charts, trades and logs.
 * **Same strategy for backtesting and trading:** keep your strategy class; change the data source and broker runner.
 * **Multiple asset classes:** stocks, options, futures, forex, crypto and prediction markets through :doc:`supported brokers <brokers.all>`.
+* **Free fundamental data:** SEC income statements, balance sheets, cash flow and ready-made ratios (P/E, margins, growth) as they were known on each date, so backtests never see the future. :doc:`Fundamental data <fundamentals>`.
 * **The decision reaches a broker.** Inspect orders, fills and decision records. :doc:`How execution works <execution_gap>`.
 
 .. _connect-your-ai-assistant:
@@ -271,7 +272,7 @@ Table of Contents
    Strategy Methods <strategy_methods>
    Strategy Properties <strategy_properties>
    Assets and Orders <entities>
-   SEC Fundamentals <fundamentals>
+   Fundamental Data (SEC Filings) <fundamentals>
    Macro Data <macro_data>
 
 .. toctree::

@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 2d3e5a13d7c9a901e52d9bcd402265128752a427567a93bc0bfad88e795d5905 -->
+<!-- entry-source-sha256: b45ff928f7b9f1c158b3cd78a3d90557e7e5202d87107e522044a0b9d92f600c -->
 
 # LumiBot AI Trading
 
@@ -16,6 +16,7 @@ LumiBot は無料のオープンソース Python フレームワークです。P
 - **取引前にバックテスト：** AI の判断と Python ルールを過去データで評価し、チャート、取引、ログを確認できます。
 - **検証と取引で同じ戦略を使用：** 戦略クラスを維持し、データソースとブローカーの実行設定を変更します。
 - **複数の資産クラス：** [対応ブローカー](https://lumibot.lumiwealth.com/brokers.all.html) に応じて、株式、オプション、先物、外国為替、暗号資産、予測市場に対応します。
+- **無料のファンダメンタルデータ：** SEC 報告書の損益計算書、貸借対照表、キャッシュフローと、すぐ使える指標（PER、利益率、成長率）を、各日付で公開されていた値のまま使えます。バックテストに未来の情報は混ざりません。[ファンダメンタルデータ](https://lumibot.lumiwealth.com/fundamentals.html)。
 - **判断をブローカーに届けます。** 注文、約定、判断の記録を確認できます。[実行の仕組み](https://lumibot.lumiwealth.com/execution_gap.html).
 
 ## AI アシスタントを接続
@@ -67,6 +68,6 @@ lumibot connect botspot
 
 ## フレームワークを調べる
 
-[Python の例](https://lumibot.lumiwealth.com/examples.html) · [AI の例](https://lumibot.lumiwealth.com/agents_examples.html) · [Strategy API](https://lumibot.lumiwealth.com/strategy_api_overview.html) · [ブローカー](https://lumibot.lumiwealth.com/brokers.all.html)
+[Python の例](https://lumibot.lumiwealth.com/examples.html) · [AI の例](https://lumibot.lumiwealth.com/agents_examples.html) · [Strategy API](https://lumibot.lumiwealth.com/strategy_api_overview.html) · [ブローカー](https://lumibot.lumiwealth.com/brokers.all.html) · [ファンダメンタルデータ](https://lumibot.lumiwealth.com/fundamentals.html)
 
 取引には損失のリスクがあります。過去のシミュレーションは利益を保証しません。

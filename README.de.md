@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 2d3e5a13d7c9a901e52d9bcd402265128752a427567a93bc0bfad88e795d5905 -->
+<!-- entry-source-sha256: b45ff928f7b9f1c158b3cd78a3d90557e7e5202d87107e522044a0b9d92f600c -->
 
 # LumiBot AI Trading
 
@@ -16,6 +16,7 @@ Diese Seite fasst die englische README und die Startseite der Dokumentation zusa
 - **Vor dem Handel backtesten:** Prüfe KI-Entscheidungen und Python-Regeln mit historischen Daten, Charts, Trades und Logs.
 - **Dieselbe Strategie für Backtests und Handel:** Behalte die Strategieklasse; ändere Datenquelle und Broker-Startkonfiguration.
 - **Mehrere Anlageklassen:** Aktien, Optionen, Futures, Devisen, Krypto und Prognosemärkte je nach [unterstütztem Broker](https://lumibot.lumiwealth.com/brokers.all.html).
+- **Kostenlose Fundamentaldaten:** Gewinn- und Verlustrechnungen, Bilanzen und Cashflow aus SEC-Berichten sowie fertige Kennzahlen (KGV, Margen, Wachstum), so wie sie an jedem Datum bekannt waren. Backtests sehen keine Zukunft. [Fundamentaldaten](https://lumibot.lumiwealth.com/fundamentals.html).
 - **Die Entscheidung erreicht einen Broker.** Prüfe Orders, Ausführungen und Entscheidungsprotokolle. [So funktioniert die Ausführung](https://lumibot.lumiwealth.com/execution_gap.html).
 
 ## Verbinde deinen KI-Assistenten
@@ -67,6 +68,6 @@ lumibot connect botspot
 
 ## Framework erkunden
 
-[Python-Beispiele](https://lumibot.lumiwealth.com/examples.html) · [KI-Beispiele](https://lumibot.lumiwealth.com/agents_examples.html) · [Strategy API](https://lumibot.lumiwealth.com/strategy_api_overview.html) · [Broker](https://lumibot.lumiwealth.com/brokers.all.html)
+[Python-Beispiele](https://lumibot.lumiwealth.com/examples.html) · [KI-Beispiele](https://lumibot.lumiwealth.com/agents_examples.html) · [Strategy API](https://lumibot.lumiwealth.com/strategy_api_overview.html) · [Broker](https://lumibot.lumiwealth.com/brokers.all.html) · [Fundamentaldaten](https://lumibot.lumiwealth.com/fundamentals.html)
 
 Beim Trading sind Verluste möglich. Eine historische Simulation garantiert keine Rendite.

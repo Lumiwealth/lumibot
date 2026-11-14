@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 2d3e5a13d7c9a901e52d9bcd402265128752a427567a93bc0bfad88e795d5905 -->
+<!-- entry-source-sha256: b45ff928f7b9f1c158b3cd78a3d90557e7e5202d87107e522044a0b9d92f600c -->
 
 # LumiBot AI Trading
 
@@ -16,6 +16,7 @@ Esta página resume o README em inglês e a página inicial da documentação. O
 - **Backtest antes de operar:** avalie decisões da IA e regras Python com dados históricos, gráficos, operações e registros.
 - **A mesma estratégia para backtest e trading:** mantenha a classe da estratégia; troque a fonte de dados e a configuração de execução da corretora.
 - **Várias classes de ativos:** ações, opções, futuros, câmbio, cripto e mercados de previsão, conforme as [corretoras compatíveis](https://lumibot.lumiwealth.com/brokers.all.html).
+- **Dados fundamentalistas grátis:** demonstrações de resultados, balanços e fluxo de caixa dos relatórios da SEC, e indicadores prontos (P/L, margens, crescimento) como eram conhecidos em cada data. Os backtests não veem o futuro. [Dados fundamentalistas](https://lumibot.lumiwealth.com/fundamentals.html).
 - **A decisão chega a uma corretora.** Consulte ordens, execuções e registros de decisão. [Como a execução funciona](https://lumibot.lumiwealth.com/execution_gap.html).
 
 ## Conecte seu assistente de IA
@@ -67,6 +68,6 @@ lumibot connect botspot
 
 ## Explore o framework
 
-[Exemplos Python](https://lumibot.lumiwealth.com/examples.html) · [Exemplos de IA](https://lumibot.lumiwealth.com/agents_examples.html) · [Strategy API](https://lumibot.lumiwealth.com/strategy_api_overview.html) · [Corretoras](https://lumibot.lumiwealth.com/brokers.all.html)
+[Exemplos Python](https://lumibot.lumiwealth.com/examples.html) · [Exemplos de IA](https://lumibot.lumiwealth.com/agents_examples.html) · [Strategy API](https://lumibot.lumiwealth.com/strategy_api_overview.html) · [Corretoras](https://lumibot.lumiwealth.com/brokers.all.html) · [Dados fundamentalistas](https://lumibot.lumiwealth.com/fundamentals.html)
 
 Operar envolve risco de perda. Uma simulação histórica não garante rentabilidade.

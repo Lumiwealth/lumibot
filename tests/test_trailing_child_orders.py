@@ -82,3 +82,32 @@ def test_backtest_oto_trailing_child_follows_price_then_exits():
     assert child.is_filled()
     assert child.get_fill_price() == pytest.approx(20800.0)
     assert position_quantity(broker, strategy, BASE) == pytest.approx(0.0)
+
+
+@pytest.mark.parametrize("order_class", [Order.OrderClass.BRACKET, Order.OrderClass.OTO])
+def test_protective_child_logs_a_new_event_when_it_starts_resting(order_class):
+    """A bracket/OTO stop that becomes active after the entry fills is a working
+    order at the broker, so the trade event log must show it as "new" then.
+    Before, it went straight to the order book with no event, so anyone reading
+    the trade log saw an unprotected entry until the stop filled."""
+    strategy, broker, _ = _crypto_strategy(
+        [
+            (20000.0, 20100.0, 19900.0, 20050.0),
+            (20050.0, 20100.0, 20000.0, 20060.0),
+        ]
+    )
+    order = strategy.create_order(
+        BASE,
+        Decimal("0.5"),
+        Order.OrderSide.BUY,
+        order_type=Order.OrderType.MARKET,
+        order_class=order_class,
+        secondary_stop_price=19000.0,
+        quote=QUOTE,
+    )
+    submit_and_fill(strategy, broker, order)
+    _advance_one_bar(strategy, broker)
+    log = broker._trade_event_log_df
+    stops = log[(log["type"] == "stop") & (log["status"] == "new")]
+    assert len(stops) == 1
+    assert stops.iloc[0]["side"] == "sell_to_close"

@@ -2025,6 +2025,9 @@ class BacktestingBroker(Broker):
                     f"{child_order} was sent to broker {self.name} now that the parent Bracket/OTO order has been filled"
                 )
                 self._new_orders.append(child_order)
+                # The child now rests at the broker; log it like any other new order so the
+                # trade event log shows the protection from the moment the entry fills.
+                self._record_trade_event_row(child_order, None, None, status=self.NEW_ORDER)
 
         is_multileg_parent = order.is_parent() and order.order_class is Order.OrderClass.MULTILEG
 

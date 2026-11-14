@@ -10,6 +10,7 @@ from pathlib import Path
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 from .broker import Broker, LumibotBrokerAPIError
+from lumibot.brokers.broker import ORDER_NATIVE, ORDER_SIMULATED, ORDER_UNSUPPORTED  # noqa: F401
 from .oauth_refresh_mode import OAUTH_REFRESH_MODE_EXTERNAL, get_oauth_refresh_mode
 
 logger = LazyLogger(__name__)
@@ -119,6 +120,18 @@ class Tradier(Broker):
 
     ***Note: Tradier does not support Trailing StopLoss orders.
     """
+
+    # Tradier order types are market, limit, stop and stop_limit; no trailing stop.
+    ORDER_SUPPORT = {
+        "market": ORDER_NATIVE, "limit": ORDER_NATIVE, "stop": ORDER_NATIVE, "stop_limit": ORDER_NATIVE,
+        "trailing_stop": (ORDER_UNSUPPORTED, "Trailing stop orders are not supported by Tradier. Use a stop or "
+                          "stop-limit order instead."),
+        "bracket": ORDER_NATIVE, "oto": ORDER_NATIVE, "oco": ORDER_NATIVE,
+        "trailing_leg": (ORDER_UNSUPPORTED, "Trailing stop orders are not supported by Tradier. Use a stop or "
+                         "stop-limit order instead."),
+        "stop_limit_leg": ORDER_NATIVE,
+    }
+
 
     POLL_EVENT = "poll"
     CASH_ACTIVITY_TYPES = (

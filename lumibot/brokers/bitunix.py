@@ -6,6 +6,7 @@ import time
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
 from .broker import Broker, LumibotBrokerAPIError
+from lumibot.brokers.broker import ORDER_NATIVE, ORDER_SIMULATED, ORDER_UNSUPPORTED  # noqa: F401
 
 logger = LazyLogger(__name__)
 TYPE_CHECKING = False
@@ -65,6 +66,25 @@ class Bitunix(Broker):
     - All asset symbols should be the full Bitunix symbol (e.g., "BTCUSDT").
     - Leverage and margin settings are managed per-symbol as needed.
     """
+
+    # The futures order endpoint accepts only MARKET and LIMIT; protective exits ride
+    # on the entry as take-profit / stop-loss (bracket or OTO).
+    ORDER_SUPPORT = {
+        "market": ORDER_NATIVE, "limit": ORDER_NATIVE,
+        "stop": (ORDER_UNSUPPORTED, "Stop orders are not supported by Bitunix: its order endpoint accepts only "
+                 "MARKET and LIMIT. Attach a stop loss to the entry instead (secondary_stop_price)."),
+        "stop_limit": (ORDER_UNSUPPORTED, "Stop-limit orders are not supported by Bitunix: its order endpoint "
+                       "accepts only MARKET and LIMIT. Attach a stop loss to the entry instead."),
+        "trailing_stop": (ORDER_UNSUPPORTED, "Trailing stop orders are not supported by Bitunix: the exchange API "
+                          "has no trailing field. Use a fixed secondary_stop_price instead."),
+        "bracket": ORDER_NATIVE, "oto": ORDER_NATIVE,
+        "oco": (ORDER_UNSUPPORTED, "OCO orders are not supported by Bitunix. Use a bracket or OTO entry with "
+                "secondary_limit_price / secondary_stop_price instead."),
+        "trailing_leg": (ORDER_UNSUPPORTED, "Trailing stop orders are not supported by Bitunix: the exchange API "
+                         "has no trailing field. Use a fixed secondary_stop_price instead."),
+        "stop_limit_leg": ORDER_NATIVE,
+    }
+
 
     ASSET_TYPE_MAP = dict(
         stock=[],

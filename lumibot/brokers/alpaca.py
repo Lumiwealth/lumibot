@@ -6,6 +6,7 @@ from collections import Counter
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
 from .broker import Broker
+from lumibot.brokers.broker import ORDER_NATIVE, ORDER_SIMULATED, ORDER_UNSUPPORTED  # noqa: F401
 
 logger = LazyLogger(__name__)
 datetime = LazyModule("datetime")
@@ -285,6 +286,20 @@ class Alpaca(Broker):
     >>> trader.run()
 
     """
+
+    # Alpaca holds every type; a bracket/OTO entry must be market or limit and its
+    # stop_loss leg takes a fixed stop price only (no trailing leg).
+    ORDER_SUPPORT = {
+        "market": ORDER_NATIVE, "limit": ORDER_NATIVE, "stop": ORDER_NATIVE,
+        "stop_limit": ORDER_NATIVE, "trailing_stop": ORDER_NATIVE,
+        "bracket": ORDER_NATIVE, "oto": ORDER_NATIVE, "oco": ORDER_NATIVE,
+        "trailing_leg": (ORDER_UNSUPPORTED, "A trailing stop leg on a bracket, OTO or OCO order is not supported "
+                         "by Alpaca: its stop_loss leg takes only a fixed stop price. Submit the trailing stop as "
+                         "its own order after the entry fills."),
+        "advanced_entry_types": {"market", "limit"},
+        "stop_limit_leg": ORDER_NATIVE,
+    }
+
 
     ASSET_TYPE_MAP = dict(
         stock=["us_equity"],

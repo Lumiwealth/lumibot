@@ -7,6 +7,7 @@ from collections import deque
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 from .broker import Broker, LumibotBrokerAPIError
+from lumibot.brokers.broker import ORDER_NATIVE, ORDER_SIMULATED, ORDER_UNSUPPORTED  # noqa: F401
 
 # Set up module-specific logger for enhanced logging
 
@@ -65,6 +66,22 @@ class Tradovate(Broker):
     """
     Tradovate broker that implements connection to the Tradovate API.
     """
+
+    # Single market, limit, stop and stop-limit orders only for now.
+    ORDER_SUPPORT = {
+        "market": ORDER_NATIVE, "limit": ORDER_NATIVE, "stop": ORDER_NATIVE, "stop_limit": ORDER_NATIVE,
+        "trailing_stop": (ORDER_UNSUPPORTED, "Trailing stop orders are not supported by Tradovate in LumiBot. Use a "
+                          "stop or stop-limit order instead."),
+        "bracket": (ORDER_UNSUPPORTED, "Bracket orders are not supported by Tradovate in LumiBot yet. Submit the "
+                    "entry, then submit the stop and target as separate orders."),
+        "oto": (ORDER_UNSUPPORTED, "OTO orders are not supported by Tradovate in LumiBot yet. Submit the entry, "
+                "then submit the exit as a separate order."),
+        "oco": (ORDER_UNSUPPORTED, "OCO orders are not supported by Tradovate in LumiBot yet. Submit the stop and "
+                "target as separate orders."),
+        "trailing_leg": ORDER_UNSUPPORTED,
+        "stop_limit_leg": ORDER_UNSUPPORTED,
+    }
+
     NAME = "Tradovate"
     POLL_EVENT = "poll"
 

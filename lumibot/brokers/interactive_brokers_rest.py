@@ -6,6 +6,7 @@ import re
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
 from ..brokers import Broker
+from lumibot.brokers.broker import ORDER_NATIVE, ORDER_SIMULATED, ORDER_UNSUPPORTED  # noqa: F401
 
 logger = LazyLogger(__name__)
 TYPE_CHECKING = False
@@ -89,10 +90,43 @@ ASSET_CLASS_MAPPING = {
 }
 
 
+
+def _floor_to_increment(price, increment):
+    """Round a price down to the contract's tick in decimal arithmetic.
+
+    Binary float floor division moved exact prices down a tick (101.5 // 0.01
+    gives 10149), so a 101.50 limit was sent as 101.49.
+    """
+    if price is None:
+        return None
+    from decimal import Decimal, ROUND_FLOOR
+    step = Decimal(str(increment))
+    if step <= 0:
+        return float(price)
+    ticks = (Decimal(str(price)) / step).to_integral_value(rounding=ROUND_FLOOR)
+    return float(ticks * step)
+
+
 class InteractiveBrokersREST(Broker):
     """
     Broker that connects to the Interactive Brokers REST API.
     """
+
+    # Single orders of every type are sent natively. Parent/child groups are not
+    # built by this adapter yet, so brackets, OTO and OCO are refused.
+    ORDER_SUPPORT = {
+        "market": ORDER_NATIVE, "limit": ORDER_NATIVE, "stop": ORDER_NATIVE, "stop_limit": ORDER_NATIVE,
+        "trailing_stop": ORDER_NATIVE,
+        "bracket": (ORDER_UNSUPPORTED, "Bracket orders are not supported by Interactive Brokers (Client Portal) in "
+                    "LumiBot yet. Submit the entry, then the stop and target as separate orders."),
+        "oto": (ORDER_UNSUPPORTED, "OTO orders are not supported by Interactive Brokers (Client Portal) in LumiBot "
+                "yet. Submit the exit after the entry fills."),
+        "oco": (ORDER_UNSUPPORTED, "OCO orders are not supported by Interactive Brokers (Client Portal) in LumiBot "
+                "yet. Submit the stop and target as separate orders."),
+        "trailing_leg": ORDER_UNSUPPORTED,
+        "stop_limit_leg": ORDER_UNSUPPORTED,
+    }
+
 
     POLL_EVENT = "poll"
     NAME = "InteractiveBrokersREST"
@@ -722,6 +756,10 @@ class InteractiveBrokersREST(Broker):
                 )
 
     def _submit_order(self, order: Order) -> Order:
+        # Refuse what this adapter cannot place (it sends no child orders) instead of
+        # sending a bracket as its bare entry.
+        if self._refuse_unsupported_order(order):
+            return order
         # Ensure futures orders have expiration set
         if (
             hasattr(order.asset, "asset_type")
@@ -922,8 +960,8 @@ class InteractiveBrokersREST(Broker):
 
             rules = self.data_source.get_contract_rules(conid)
             increment = rules['rules']['increment'] # 0.05 for example
-            price = (order.limit_price // increment) * increment if order.limit_price is not None else None
-            aux_price = (order.stop_price // increment) * increment if order.stop_price is not None else None
+            price = _floor_to_increment(order.limit_price, increment)
+            aux_price = _floor_to_increment(order.stop_price, increment)
 
             data = {
                 "conid": conid,

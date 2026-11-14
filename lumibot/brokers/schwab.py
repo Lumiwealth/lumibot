@@ -12,6 +12,7 @@ from threading import Thread
 from lumibot._lazy_imports import LazyLogger, lazy_class
 
 from .broker import Broker, LumibotBrokerAPIError
+from lumibot.brokers.broker import ORDER_NATIVE, ORDER_SIMULATED, ORDER_UNSUPPORTED  # noqa: F401
 from .oauth_refresh_mode import is_external_oauth_refresh_mode
 
 logger = LazyLogger(__name__)
@@ -298,6 +299,19 @@ class Schwab(Broker):
     Link to Schwab API documentation: https://developer.schwab.com/ and create an account to get API doc access.
     Link to the Python client library: https://schwab-py.readthedocs.io/en/latest/
     """
+
+    # Schwab templates cover market, limit, stop and stop-limit, plus OTO, OCO and
+    # bracket groups. Trailing stops are not built by LumiBot's Schwab adapter.
+    ORDER_SUPPORT = {
+        "market": ORDER_NATIVE, "limit": ORDER_NATIVE, "stop": ORDER_NATIVE, "stop_limit": ORDER_NATIVE,
+        "trailing_stop": (ORDER_UNSUPPORTED, "Trailing stop orders are not supported by Schwab in LumiBot; nothing "
+                          "was sent. Use a stop or stop-limit order instead."),
+        "bracket": ORDER_NATIVE, "oto": ORDER_NATIVE, "oco": ORDER_NATIVE,
+        "trailing_leg": (ORDER_UNSUPPORTED, "Trailing stop legs are not supported by Schwab in LumiBot; nothing "
+                         "was sent."),
+        "stop_limit_leg": ORDER_NATIVE,
+    }
+
 
     NAME = "Schwab"
     CASH_FUNDING_TRANSACTION_TYPES = {

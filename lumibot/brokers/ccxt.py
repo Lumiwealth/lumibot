@@ -9,6 +9,7 @@ from threading import Lock
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
 from .broker import Broker, LumibotBrokerAPIError
+from lumibot.brokers.broker import ORDER_NATIVE, ORDER_SIMULATED, ORDER_UNSUPPORTED, OrderSupport  # noqa: F401
 
 logger = LazyLogger(__name__)
 TYPE_CHECKING = False
@@ -38,6 +39,22 @@ class Ccxt(Broker):
     """
     Crypto broker using CCXT.
     """
+
+    # Trailing stops depend on the exchange (see supports_order); compound orders
+    # use the exchange's own attached-order parameters through custom_params.
+    ORDER_SUPPORT = {
+        "market": ORDER_NATIVE, "limit": ORDER_NATIVE, "stop": ORDER_NATIVE, "stop_limit": ORDER_NATIVE,
+        "trailing_stop": ORDER_NATIVE,
+        "bracket": (ORDER_UNSUPPORTED, "Bracket orders are not supported by CCXT in LumiBot; use the exchange's "
+                    "native attached-order parameters through custom_params."),
+        "oto": (ORDER_UNSUPPORTED, "OTO orders are not supported by CCXT in LumiBot; use the exchange's native "
+                "attached-order parameters through custom_params."),
+        "oco": (ORDER_UNSUPPORTED, "OCO orders are not supported by CCXT in LumiBot; use the exchange's native "
+                "attached-order parameters through custom_params."),
+        "trailing_leg": ORDER_UNSUPPORTED,
+        "stop_limit_leg": ORDER_UNSUPPORTED,
+    }
+
 
     def __init__(self, config, data_source: CcxtData = None, max_workers=20, chunk_size=100, **kwargs):
         from lumibot.data_sources import CcxtData
@@ -625,6 +642,26 @@ class Ccxt(Broker):
         # A REST acknowledgement can register or finish an order before the
         # optional submission worker gets here. Do not enqueue it a second time.
         return [] if order._new_event.is_set() or order._closed_event.is_set() else [order]
+
+    def supports_order(self, order=None, *, order_type=None, order_class=None, asset_type=None,
+                       trailing_leg=None, stop_limit_leg=None):
+        """Trailing stops follow the exchange's own CCXT capability flags."""
+        support = super().supports_order(order, order_type=order_type, order_class=order_class,
+                                         asset_type=asset_type, trailing_leg=trailing_leg,
+                                         stop_limit_leg=stop_limit_leg)
+        kind = str(order.order_type if order is not None else order_type or "").lower()
+        if kind != Order.OrderType.TRAIL or support.mode != ORDER_NATIVE:
+            return support
+        has = getattr(getattr(self, "api", None), "has", {}) or {}
+        exchange = getattr(getattr(self, "api", None), "id", "this exchange")
+        if order is None:
+            percent = amount = True
+        else:
+            percent, amount = order.trail_percent is not None, order.trail_price is not None
+        if (percent and has.get("createTrailingPercentOrder")) or (amount and has.get("createTrailingAmountOrder")):
+            return support
+        return OrderSupport(ORDER_UNSUPPORTED,
+                            f"Trailing stop orders of this kind are not supported by {exchange} through CCXT.")
 
     def _submit_order(self, order):
         """Submit through CCXT's unified order API, preserving native parameters."""

@@ -175,6 +175,51 @@ def _tradier(stack):
     return broker, asset, sent, "buy"
 
 
+def _ibkr_rest(stack):
+    # Client Portal order fields as documented for POST /iserver/account/{id}/orders:
+    # conid, orderType (MKT/LMT/STP/STOP_LIMIT/TRAIL), price, auxPrice, trailingType, trailingAmt.
+    from lumibot.brokers.interactive_brokers_rest import InteractiveBrokersREST
+
+    broker = InteractiveBrokersREST.__new__(InteractiveBrokersREST)
+    broker.name = "InteractiveBrokersREST"
+    broker.data_source = MagicMock()
+    broker.data_source.get_conid_from_asset.return_value = 756733
+    broker.data_source.get_contract_rules.return_value = {"rules": {"increment": 0.01}}
+    broker.data_source.execute_order.return_value = [{"order_id": "ib-1"}]
+    broker._unprocessed_orders = []
+    broker._safe_stream_dispatch = MagicMock()
+    broker._log_order_status = MagicMock()
+    asset = Asset("SPY")
+
+    def sent():
+        calls = broker.data_source.execute_order.call_args_list
+        return repr(calls) if calls else None
+
+    return broker, asset, sent, "buy"
+
+
+def _projectx(stack):
+    from lumibot.brokers.projectx import ProjectX
+    from tests.test_projectx_bracket_lifecycle_unit import DummyDataSource, StubClient
+    import lumibot.brokers.projectx as projectx_module
+
+    config = {"firm": "TOPONE", "api_key": "dummy", "username": "dummy",
+              "base_url": "https://example.invalid/", "preferred_account_name": "ACC",
+              "streaming_base_url": "wss://example.invalid/"}
+    stack.enter_context(patch.object(projectx_module, "ProjectXClient", lambda cfg: StubClient()))
+    stack.enter_context(patch.object(ProjectX, "_start_orders_thread"))
+    broker = ProjectX(config, data_source=DummyDataSource(), connect_stream=False)
+    broker.client = StubClient()
+    broker.account_id = 1
+    broker._get_contract_id_from_asset = lambda a: f"CON.F.US.{a.symbol}.Z25"
+    asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
+
+    def sent():
+        return repr(broker.client.placed) if broker.client.placed else None
+
+    return broker, asset, sent, "buy"
+
+
 BROKERS = {
     "alpaca": _alpaca,
     "bitunix": _bitunix,
@@ -183,39 +228,62 @@ BROKERS = {
     "ccxt_okx": _ccxt("okx"),
     "ccxt_bybit": _ccxt("bybit"),
     "ccxt_coinbase": _ccxt("coinbase"),
+    "ibkr_rest": _ibkr_rest,
+    "projectx": _projectx,
 }
 
 
 def _submit(broker_name, case_name):
-    """Return ("placed", request_text) or ("refused", message)."""
+    """Return (outcome, detail, support): ("placed", request_text) or ("refused", message).
+
+    Drives the adapter's own request builder (``_submit_order``) so the check is
+    independent of the base-class refusal that ``submit_order`` adds on top.
+    """
     kwargs, _ = CASES[case_name]
     with ExitStack() as stack:
         stack.enter_context(patch.object(Broker, "_launch_stream", lambda self: None))
         broker, asset, sent, side = BROKERS[broker_name](stack)
         quote = Asset("USDT", asset_type="crypto") if broker_name.startswith("ccxt") else None
         order = Order("contract-strategy", asset, Decimal("1"), side=side, quote=quote, **kwargs)
+        support = broker.supports_order(order)
         try:
             result = broker._submit_order(order)
         except Exception as exc:  # a refusal may be raised
             assert sent() is None, f"{broker_name}/{case_name} raised after sending a request"
-            return "refused", str(exc)
+            return "refused", str(exc), support
         request = sent()
         result = result if result is not None else order
         if request is None:
-            return "refused", str(getattr(result, "error_message", "") or "")
-        assert str(result.status).lower() != "error", f"{broker_name}/{case_name} sent a request but errored"
-        return "placed", request
+            message = getattr(result, "error_message", None) or getattr(result, "error", None) or ""
+            return "refused", str(message), support
+        assert str(result.status).lower() not in {"error", "rejected"}, (
+            f"{broker_name}/{case_name} sent a request but errored")
+        return "placed", request, support
+
+
+# A simulated order sends only the entry now; LumiBot places the exits later while the
+# strategy runs (covered by tests/test_projectx_bracket_lifecycle_unit.py).
+_ENTRY_PRICES = {"bracket_limit_entry": [LIMIT]}
 
 
 @pytest.mark.parametrize("case_name", list(CASES))
 @pytest.mark.parametrize("broker_name", list(BROKERS))
 def test_order_is_placed_as_asked_or_refused_plainly(broker_name, case_name):
-    outcome, detail = _submit(broker_name, case_name)
+    outcome, detail, support = _submit(broker_name, case_name)
     if outcome == "refused":
         assert "not supported" in detail.lower(), f"{broker_name}/{case_name} refused without a plain reason: {detail}"
         return
-    for price in CASES[case_name][1]:
+    prices = _ENTRY_PRICES.get(case_name, []) if support.simulated else CASES[case_name][1]
+    for price in prices:
         assert str(price) in detail, f"{broker_name}/{case_name} dropped price {price}: {detail}"
+
+
+@pytest.mark.parametrize("case_name", list(CASES))
+@pytest.mark.parametrize("broker_name", list(BROKERS))
+def test_declaration_matches_what_the_adapter_does(broker_name, case_name):
+    """supports_order (what callers and submit_order rely on) agrees with the request builder."""
+    outcome, detail, support = _submit(broker_name, case_name)
+    assert (support.mode == "unsupported") == (outcome == "refused"), (broker_name, case_name, support, detail)
 
 
 # Pins today's matrix so a silent change in either direction is visible in review.
@@ -232,6 +300,10 @@ EXPECTED_REFUSED = {
                    "bracket_trailing_leg", "oto_stop", "oto_trailing", "oco"},
     "ccxt_coinbase": {"trailing_percent", "trailing_price", "bracket", "bracket_limit_entry",
                       "bracket_stop_limit_leg", "bracket_trailing_leg", "oto_stop", "oto_trailing", "oco"},
+    "ibkr_rest": {"bracket", "bracket_limit_entry", "bracket_stop_limit_leg", "bracket_trailing_leg",
+                  "oto_stop", "oto_trailing", "oco"},
+    "projectx": {"stop_limit", "trailing_percent", "trailing_price", "bracket_stop_limit_leg",
+                 "bracket_trailing_leg", "oto_stop", "oto_trailing", "oco"},
 }
 
 

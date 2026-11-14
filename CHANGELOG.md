@@ -3,6 +3,8 @@
 ## 4.6.57 - Unreleased
 
 ### Added
+- `broker.supports_order(order)` (or `supports_order(order_type=..., order_class=..., asset_type=..., trailing_leg=..., stop_limit_leg=...)`) says whether a broker can place an order and how: `native` (the broker holds it, even while the strategy is stopped), `simulated` (LumiBot acts for you, only while the strategy runs), `unsupported` (refused, with the plain reason) or `unknown` (not declared). Each broker answers from one `ORDER_SUPPORT` declaration, which `submit_order`/`submit_orders` also use to refuse unsupported orders before anything is sent. A contract test checks every declaration against the broker's real request builder, and another checks the docs table against the declarations.
+- `docsrc/brokers.order_support.rst` explains what simulated orders do when a strategy is not running continuously (ProjectX bracket exits and smart limit re-pricing), with tests for each restart case.
 - A trailing stop can be the stop leg of a bracket or OTO order on its own: pass `secondary_trail_percent` or `secondary_trail_price` (a fixed `secondary_stop_price` is optional). Before, an OTO raised an error and a bracket silently built only its target. Backtests fill the trailing leg; brokers that cannot hold it refuse it.
 - `docsrc/brokers.order_support.rst`: which broker can hold which order (stops, trailing stops, brackets, OTO, OCO), checked by `tests/test_broker_order_type_contract.py`.
 - `docsrc/backtesting.how_orders_fill.rst`: how stops, gaps and bars that touch both exits are filled.
@@ -15,6 +17,8 @@
   - Tradier: trailing stops and trailing legs (were sent without the trail).
   - CCXT: trailing stops on exchanges without CCXT trailing support (were sent without the trail).
   - Schwab: any order its builder cannot express (for example trailing stops) is now an error order with an error event, instead of staying unprocessed with only a log line.
+  - Interactive Brokers (Client Portal): bracket, OTO and OCO orders (were sent as the bare entry with no exits).
+  - ProjectX: OTO and OCO orders (the exit was dropped or merged into the entry), stop-limit legs on brackets (sent as a plain stop), and stop-limit or trailing orders now say "not supported" instead of "Unsupported order type".
 - ⚠️ Backtests: when one bar reaches both a bracket/OCO target and its stop, the stop now fills (the target used to win, even when the bar opened below the stop). If the bar opens beyond the target, the target fills at the open. Results for tight brackets on coarse bars may be lower and more realistic.
 
 ### Fixed
@@ -24,6 +28,7 @@
 - A stop-limit written with `stop_limit_price` never filled in backtests and reached CCXT without its limit; one written with `limit_price` reached Alpaca, Tradier and Schwab without it. Both names now carry the value.
 - Schwab stock brackets and OTO orders were never sent (their `sell_to_close` exit legs had no stock template). Exit legs now map to SELL / BUY_TO_COVER.
 - CCXT sends trailing stops with CCXT's unified `trailingPercent`/`trailingAmount` where the exchange supports them.
+- Interactive Brokers (Client Portal) limit and stop prices are rounded to the tick in decimal arithmetic. Float floor division moved exact prices down a tick (a 101.50 limit was sent as 101.49).
 
 
 ## 4.6.56 - 2026-11-13

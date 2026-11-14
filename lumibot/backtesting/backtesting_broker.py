@@ -3306,14 +3306,29 @@ class BacktestingBroker(Broker):
                     if state != "closed":
                         high = low = open
                 price = self.limit_order(order.limit_price, simple_side, open, high, low)
+                # A target touched inside the bar yields to a stop sibling the same bar
+                # also reaches: high/low do not say which came first, so assume the stop.
+                if (
+                    price is not None
+                    and not self._limit_fills_at_open(order, open)
+                    and self._linked_exit_fill_price(order, open, high, low, want_limit=False) is not None
+                ):
+                    price = None
 
             elif order.order_type == Order.OrderType.STOP:
                 price = self.stop_order(order.stop_price, simple_side, open, high, low)
+                if price is not None and self._linked_exit_fill_price(order, open, high, low, want_limit=True, at_open_only=True) is not None:
+                    # The bar opened beyond the target sibling: the open trades first.
+                    price = None
 
             elif order.order_type == Order.OrderType.STOP_LIMIT:
                 if not order.price_triggered:
                     price = self.stop_order(order.stop_price, simple_side, open, high, low)
-                    if price is not None:
+                    if price is not None and self._linked_exit_fill_price(
+                        order, open, high, low, want_limit=True, at_open_only=True
+                    ) is not None:
+                        price = None
+                    elif price is not None:
                         price = self.limit_order(order.limit_price, simple_side, price, high, low)
                         order.price_triggered = True
                 elif order.price_triggered:
@@ -3396,6 +3411,10 @@ class BacktestingBroker(Broker):
                 if current_trail_stop_price:
                     # Check if we have hit the trail stop price for both sell/buy orders
                     price = self.stop_order(current_trail_stop_price, simple_side, open, high, low)
+                    if price is not None and self._linked_exit_fill_price(
+                        order, open, high, low, want_limit=True, at_open_only=True
+                    ) is not None:
+                        price = None
 
                 # Update the stop price if the price has moved
                 if order.is_sell_order():
@@ -5248,6 +5267,56 @@ class BacktestingBroker(Broker):
             )
 
         return True
+
+    def _limit_fills_at_open(self, order, open_):
+        """True when a limit order is already marketable at the bar's open (a gap)."""
+        open_val = self._coerce_price(open_)
+        limit_val = self._coerce_price(order.limit_price)
+        if open_val is None or limit_val is None:
+            return False
+        if order.is_buy_order():
+            return limit_val >= open_val
+        return limit_val <= 0 or limit_val <= open_val
+
+    def _linked_exit_fill_price(self, order, open_, high, low, *, want_limit, at_open_only=False):
+        """Price the one-cancels-other sibling of ``order`` would fill at on this bar.
+
+        Used only to settle a bar that reaches both a bracket/OCO target and its
+        stop. Pure: it never changes the sibling. ``want_limit`` selects which kind
+        of sibling counts; ``at_open_only`` counts a limit sibling only when the bar
+        opened beyond it.
+        """
+        sibling = getattr(order, "dependent_order", None)
+        if (
+            sibling is None
+            or sibling is order
+            or getattr(sibling, "dependent_order", None) is not order
+            or not sibling.is_active()
+            or getattr(sibling, "dependent_order_filled", False)
+            or sibling.asset != order.asset
+        ):
+            return None
+        side = "buy" if sibling.is_buy_order() else "sell"
+        sibling_type = sibling.order_type
+        if want_limit:
+            if sibling_type != Order.OrderType.LIMIT:
+                return None
+            if at_open_only and not self._limit_fills_at_open(sibling, open_):
+                return None
+            return self.limit_order(sibling.limit_price, side, open_, high, low)
+        if sibling_type == Order.OrderType.STOP:
+            return self.stop_order(sibling.stop_price, side, open_, high, low)
+        if sibling_type == Order.OrderType.STOP_LIMIT:
+            if getattr(sibling, "price_triggered", False):
+                return self.limit_order(sibling.limit_price, side, open_, high, low)
+            triggered = self.stop_order(sibling.stop_price, side, open_, high, low)
+            if triggered is None:
+                return None
+            return self.limit_order(sibling.limit_price, side, triggered, high, low)
+        if sibling_type == Order.OrderType.TRAIL:
+            trail = sibling.get_current_trail_stop_price()
+            return self.stop_order(trail, side, open_, high, low) if trail else None
+        return None
 
     def limit_order(self, limit_price, side, open_, high, low):
         """Limit order logic."""

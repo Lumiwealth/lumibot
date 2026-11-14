@@ -1995,13 +1995,34 @@ class Strategy(_Strategy):
         order : Order or list[Order]
             Order object or a list of order objects containing the asset and instructions for executing the order.
         is_multileg : bool
-            Tradier only.
-            A boolean value to indicate if the orders are part of one multileg order.
-            Currently, this is only available for Tradier.
+            Submit a list of option orders as ONE multi-leg order (a spread, iron
+            condor, straddle, strangle...). Defaults to True when every order in the
+            list is an option. Supported by brokers with native multi-leg orders and
+            by backtesting.
+
+            In backtests a multi-leg order fills as a package: every leg fills on the
+            same bar, or none of them does. The package waits for the first bar where
+            every leg has a usable price for that bar (an executable quote stamped on
+            the bar, otherwise that bar's open); an earlier print is never reused.
+            If a leg's time in force ends first, the whole package is canceled.
+
+            Orders submitted one at a time are independent: each leg fills whenever
+            its own contract next trades, which on illiquid options can be minutes or
+            days apart and leaves naked legs open in between. Submit option spreads as
+            one multi-leg order::
+
+                legs = [
+                    self.create_order(long_put, 1, "buy"),
+                    self.create_order(short_put, 1, "sell"),
+                    self.create_order(short_call, 1, "sell"),
+                    self.create_order(long_call, 1, "buy"),
+                ]
+                self.submit_order(legs, is_multileg=True)
         order_type : str
-            Tradier only.
             The order type for the multileg order. Possible values are:
             ('market', 'debit', 'credit', 'even'). Default is 'market'.
+            'credit', 'debit' and 'even' use ``price`` as the net package limit;
+            in backtests the limit is checked against the net of the leg prices.
         duration : str
             Tradier only.
             The duration for the multileg order. Possible values are:
@@ -2410,11 +2431,9 @@ class Strategy(_Strategy):
         orders : list of orders
             A list of order objects containing the asset and instructions for the orders.
         is_multileg : bool
-            Tradier only.
-            A boolean value to indicate if the orders are part of one multileg order.
-            Currently, this is only available for Tradier.
+            Submit the orders as ONE multi-leg order that fills together or not at
+            all (see ``submit_order``). Use this for option spreads and condors.
         order_type : str
-            Tradier only.
             The order type for the multileg order. Possible values are:
             ('market', 'debit', 'credit', 'even'). Default is 'market'.
         duration : str

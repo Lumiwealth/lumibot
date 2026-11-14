@@ -72,6 +72,31 @@ limit or inclusive timestamp cursor:
 
 ---
 
+### Multi-leg option packages fill together (backtesting invariant, 2026-11-14)
+
+Brokers execute a multi-leg option order (spread, condor, straddle) as one package:
+all legs or none. The backtesting broker matches that:
+
+- `submit_order([...], is_multileg=True)` (the default when every leg is an option)
+  creates a MULTILEG parent. Market packages (`_package_atomic_market`) and
+  credit/debit/even packages (`_package_net_limit`) are filled by the parent in
+  `_fill_package_at_net_limit`: every leg on one bar or none. Legs are never
+  processed as independent orders (`_package_limit_managed_by_parent`).
+- A leg price is usable only for the current execution bar: a quote stamped on that
+  bar (ask for buys, bid for sells), otherwise the open of an observed bar starting
+  now. Calendar padding rows (`bar_is_observed == False`, forward-filled copies of an
+  earlier print) are refused, the same rule single-leg fills use. Staleness bound:
+  zero bars. No price is invented or carried forward.
+- A credit/debit/even limit is checked against the ratio-weighted net of the leg
+  prices (credit negative). A market package has no limit.
+- If an unfilled leg's time in force ends, the whole package is canceled
+  (`_cancel_package_if_leg_time_in_force_elapsed`); `error_message` on the parent and
+  legs says why. Closing packages follow the same rule.
+- Orders submitted one at a time remain independent and fill whenever their own
+  contract trades. On illiquid options that can leave naked short legs for days, so
+  spreads must be submitted as one multi-leg order.
+- Regression tests: `tests/backtest/test_multileg_atomic_package_fill.py`.
+
 ## Broker notes (public sources, summarized)
 
 ### SmartLimit mutation confirmation

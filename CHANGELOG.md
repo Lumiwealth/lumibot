@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- ⚠️ Backtests: a multi-leg option order (`submit_order([...], is_multileg=True)`, the default when every leg is an option) with market legs now fills as one package: every leg on the same bar, at the first bar where every leg has a price for that bar, or not at all. Before, each leg filled whenever its own contract next printed, so a sparse-option iron condor could open its legs days apart and hold naked short options in between. Closing packages follow the same rule. If a leg's time in force ends first, the whole package is canceled with the reason in `error_message`. Package legs (market and credit/debit/even) no longer fill on a forward-filled padding bar that repeats an earlier print. **This changes results for existing options backtests that submit market multi-leg orders on thinly traded contracts.** Orders submitted one at a time are unchanged; the `submit_order` docs now say to submit spreads as one multi-leg order, and the `strangle.py` example does.
+
 ## 4.6.58 - 2026-11-13
 
 Deploy marker: 3fc1861ae5f749c161a2df8bae969e6a2284f272

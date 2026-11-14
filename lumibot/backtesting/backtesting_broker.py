@@ -1414,6 +1414,14 @@ class BacktestingBroker(Broker):
                     parent_order._package_net_limit = package_limit
                     for child in orders:
                         setattr(child, "_package_limit_managed_by_parent", True)
+                elif self._is_atomic_market_package(parent_order_type, orders):
+                    # A market multi-leg order (a spread, condor, straddle...) is one
+                    # package at the broker: every leg fills together or none does.
+                    # Filling each leg whenever its own contract next prints would hold
+                    # naked legs for minutes or days on illiquid options.
+                    parent_order._package_atomic_market = True
+                    for child in orders:
+                        setattr(child, "_package_limit_managed_by_parent", True)
 
             parent_order.child_orders = orders
             self._unprocessed_orders.append(parent_order)
@@ -2412,6 +2420,8 @@ class BacktestingBroker(Broker):
             if order.dependent_order_filled:
                 continue
             # No need to check status since we already filtered for pending orders only
+            if self._cancel_package_if_leg_time_in_force_elapsed(order, strategy=strategy):
+                continue
             if self._cancel_order_if_hard_time_in_force_elapsed(order, strategy=strategy):
                 continue
 
@@ -2429,7 +2439,11 @@ class BacktestingBroker(Broker):
             # Multileg parent orders are placeholders unless they are explicitly
             # configured as a package SMART_LIMIT (i.e. have a SmartLimitConfig).
             if order.order_class is Order.OrderClass.MULTILEG and getattr(order, "smart_limit", None) is None:
-                if getattr(order, "_package_net_limit", None) is not None and order.child_orders:
+                is_package = (
+                    getattr(order, "_package_net_limit", None) is not None
+                    or getattr(order, "_package_atomic_market", False)
+                )
+                if is_package and order.child_orders:
                     if not any(o.is_filled() for o in order.child_orders):
                         self._fill_package_at_net_limit(order, strategy)
                 # If this is the final fill for a multileg order, mark the parent order as filled
@@ -3792,6 +3806,43 @@ class BacktestingBroker(Broker):
         self.cancel_order(order)
         return True
 
+    def _cancel_package_if_leg_time_in_force_elapsed(self, order: Optional[Order], strategy=None) -> bool:
+        """An unfilled package leg that expires takes the whole package with it.
+
+        Package legs (credit/debit/even or market multi-leg orders) fill together or not
+        at all, so one leg reaching its time in force cancels the parent and every leg
+        instead of leaving the other legs working on their own.
+        """
+        if order is None or not getattr(order, "_package_limit_managed_by_parent", False):
+            return False
+        if not order.parent_identifier:
+            return False
+        parent = self.get_tracked_order(order.parent_identifier, use_placeholders=True)
+        if parent is None or not parent.is_active():
+            return False
+        if any(child.is_filled() for child in parent.child_orders or []):
+            return False
+        if not self._order_time_in_force_elapsed(order, include_session_close=False):
+            return False
+        symbol = getattr(getattr(parent, "asset", None), "symbol", "<unknown>")
+        reason = (
+            f"multi-leg package canceled as a whole: time_in_force={getattr(order, 'time_in_force', None)} "
+            "elapsed before any bar had a usable price for every leg"
+        )
+        logger.warning("[FILL][EXPIRE] %s %s: %s at %s", symbol, parent.identifier, reason, self.datetime)
+        if strategy is not None:
+            try:
+                strategy.log_message(f"[FILL][EXPIRE] Order {parent.identifier} for {symbol}: {reason}", color="yellow")
+            except Exception:
+                pass
+        for target in [parent, *(parent.child_orders or [])]:
+            try:
+                target.error_message = reason
+            except Exception:
+                pass
+        self.cancel_order(parent)
+        return True
+
     def _cancel_order_if_hard_time_in_force_elapsed(self, order: Optional[Order], strategy=None) -> bool:
         """Cancel orders that must expire before any price lookup or fill attempt.
 
@@ -5147,13 +5198,34 @@ class BacktestingBroker(Broker):
             matches = [i for i, ts in enumerate(index) if ts.floor("min") == now.floor("min")]
         if not matches:
             return None
+        # Calendar padding (a forward-filled copy of an earlier print) is not a trade
+        # on this bar. Single-leg fills refuse it; a package leg must too.
+        if "bar_is_observed" in df.columns and not bool(df["bar_is_observed"].iloc[matches[-1]]):
+            return None
         price = self._coerce_price(df["open"].iloc[matches[-1]])
         if price is None or self._is_invalid_price(price):
             return None
         return float(price)
 
+    @staticmethod
+    def _is_atomic_market_package(parent_order_type, orders) -> bool:
+        """True when a multi-leg submit is a plain market package (all legs market orders)."""
+        def _kind(value):
+            return str(getattr(value, "value", value) or "").lower()
+
+        if _kind(parent_order_type) != "market" or len(orders) < 2:
+            return False
+        return all(_kind(getattr(child, "order_type", None)) == "market" for child in orders)
+
     def _fill_package_at_net_limit(self, order: Order, strategy) -> bool:
-        """Fill every leg of a package limit order on this bar, or none of them."""
+        """Fill every leg of a package order on this bar, or none of them.
+
+        Applies to credit/debit/even limit packages (net limit checked) and to market
+        packages (no limit). A leg price is only usable when it belongs to the current
+        execution bar: an executable quote stamped on this bar, otherwise this bar's
+        open. A stale earlier print never fills a leg, so the package waits for the
+        first bar where every leg is priced.
+        """
         legs = order.child_orders
         prices = []
         for leg in legs:
@@ -5166,7 +5238,8 @@ class BacktestingBroker(Broker):
             (price if leg.is_buy_order() else -price) * ratio
             for leg, price, ratio in zip(legs, prices, ratios)
         )
-        if net > float(order._package_net_limit) + 1e-9:
+        net_limit = getattr(order, "_package_net_limit", None)
+        if net_limit is not None and net > float(net_limit) + 1e-9:
             return False
         for leg, price in zip(legs, prices):
             leg.trade_slippage = 0.0

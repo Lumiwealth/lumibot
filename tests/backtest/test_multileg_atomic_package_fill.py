@@ -115,7 +115,8 @@ CONDOR = [
 
 
 def test_condor_with_sparse_legs_fills_every_leg_on_one_bar():
-    # Each leg prints at different minutes; minute 40 is the first where all four print.
+    # Each leg prints at different, far-apart minutes; minute 40 is the first minute where
+    # every leg has a real print within the 5-minute leg age bound (all print at 40).
     prints = {
         LONG_PUT: {2: 1.00, 40: 1.10},
         SHORT_PUT: {5: 2.00, 40: 2.10},
@@ -133,10 +134,11 @@ def test_condor_with_sparse_legs_fills_every_leg_on_one_bar():
 
 
 def test_vertical_does_not_fill_while_one_leg_has_no_price_and_expires_whole():
-    # The long leg never prints after the short leg's bar, so no bar has both.
+    # The two legs never print within 5 minutes of each other (the default leg age bound),
+    # so no minute has a real price for both.
     prints = {
         SHORT_PUT: {3: 2.00, 30: 2.10},
-        LONG_PUT: {7: 1.00},
+        LONG_PUT: {9: 1.00},
     }
     legs = [(SHORT_PUT, Order.OrderSide.SELL), (LONG_PUT, Order.OrderSide.BUY)]
     strategy = _run(
@@ -167,7 +169,7 @@ def test_credit_package_limit_applies_to_the_net_and_waits_for_a_bar_that_meets_
 
 
 def test_closing_condor_is_one_package_too():
-    # Opens at minute 5 (all four print). Close is submitted at minute 10; the legs then
+    # Opens at minute 5 (all four print). Close is submitted at minute 12; the legs then
     # print at 15, 22, 30 and together only at 45, so the close must happen at 45.
     prints = {
         LONG_PUT: {5: 1.00, 15: 0.90, 45: 0.80},
@@ -175,9 +177,51 @@ def test_closing_condor_is_one_package_too():
         SHORT_CALL: {5: 2.50, 30: 2.00, 45: 1.70},
         LONG_CALL: {5: 1.20, 45: 0.70},
     }
-    strategy = _run(prints, CONDOR, close_after=10)
+    strategy = _run(prints, CONDOR, close_after=12)
     assert {_minute(ts) for ts in strategy.fill_times.values()} == {5}
     assert {_minute(ts) for ts in strategy.close_fill_times.values()} == {45}
     assert len(strategy.close_fill_times) == 4
     for asset in (LONG_PUT, SHORT_PUT, SHORT_CALL, LONG_CALL):
         assert strategy.get_position(asset) is None
+
+
+def test_package_uses_each_legs_last_real_print_within_the_age_bound():
+    # Legs print at minutes 10, 12, 13 and 14. At minute 14 every leg's last real print is
+    # at most 4 minutes old, so all four fill together at 14. The legs that did not trade
+    # at 14 are priced at the close of their own last real bar, never at padding.
+    prints = {
+        LONG_PUT: {10: 1.00},
+        SHORT_PUT: {12: 2.00},
+        SHORT_CALL: {13: 2.50},
+        LONG_CALL: {14: 1.20},
+    }
+    strategy = _run(prints, CONDOR)
+    assert {_minute(ts) for ts in strategy.fill_times.values()} == {14}
+    assert len(strategy.fill_times) == 4
+    assert float(strategy.submitted[0].avg_fill_price) == pytest.approx(1.00 - 2.00 - 2.50 + 1.20)
+
+
+def test_age_bound_is_a_setting_and_zero_means_same_minute(monkeypatch):
+    monkeypatch.setenv("LUMIBOT_BACKTEST_PACKAGE_LEG_MAX_AGE_MINUTES", "0")
+    prints = {
+        LONG_PUT: {10: 1.00, 30: 1.10},
+        SHORT_PUT: {12: 2.00, 30: 2.10},
+        SHORT_CALL: {13: 2.50, 30: 2.40},
+        LONG_CALL: {14: 1.20, 30: 1.00},
+    }
+    strategy = _run(prints, CONDOR)
+    assert {_minute(ts) for ts in strategy.fill_times.values()} == {30}
+
+
+def test_a_print_older_than_the_bound_is_not_used(monkeypatch):
+    monkeypatch.setenv("LUMIBOT_BACKTEST_PACKAGE_LEG_MAX_AGE_MINUTES", "2")
+    # With a 2-minute bound, minute 14 has a stale long put (4 minutes old); the package
+    # waits until every leg prints again at 30.
+    prints = {
+        LONG_PUT: {10: 1.00, 30: 1.10},
+        SHORT_PUT: {12: 2.00, 30: 2.10},
+        SHORT_CALL: {13: 2.50, 30: 2.40},
+        LONG_CALL: {14: 1.20, 30: 1.00},
+    }
+    strategy = _run(prints, CONDOR)
+    assert {_minute(ts) for ts in strategy.fill_times.values()} == {30}

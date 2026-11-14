@@ -82,11 +82,19 @@ all legs or none. The backtesting broker matches that:
   credit/debit/even packages (`_package_net_limit`) are filled by the parent in
   `_fill_package_at_net_limit`: every leg on one bar or none. Legs are never
   processed as independent orders (`_package_limit_managed_by_parent`).
-- A leg price is usable only for the current execution bar: a quote stamped on that
-  bar (ask for buys, bid for sells), otherwise the open of an observed bar starting
-  now. Calendar padding rows (`bar_is_observed == False`, forward-filled copies of an
-  earlier print) are refused, the same rule single-leg fills use. Staleness bound:
-  zero bars. No price is invented or carried forward.
+- A leg price comes from real data only: a quote stamped on the current bar (ask for
+  buys, bid for sells); else the open of an observed bar starting now; else the close
+  of that leg's most recent observed bar no older than
+  `LUMIBOT_BACKTEST_PACKAGE_LEG_MAX_AGE_MINUTES` (default 5, `0` = same minute only).
+  Calendar padding rows (`bar_is_observed == False`) are never used and no price is
+  invented. Why 5: on Alpaca 1-minute SPY condor data (Oct 12 to Nov 6 2026, local
+  study) every entry filled within a minute under any rule, but a same-minute-only rule
+  left 10 of 20 closing packages unfilled on expiry day (far wings stop trading); 5
+  minutes left 2. Single-leg Alpaca option orders still need a print in the fill minute
+  (`_requires_current_execution_bar`); a package needs N legs to line up, so a small
+  window keeps it about as fillable as its legs are one by one.
+- Alpaca's historical option API has bars and trades but no historical quotes, so the
+  quote branch never applies to Alpaca option backtests.
 - A credit/debit/even limit is checked against the ratio-weighted net of the leg
   prices (credit negative). A market package has no limit.
 - If an unfilled leg's time in force ends, the whole package is canceled

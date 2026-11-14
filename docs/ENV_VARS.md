@@ -241,6 +241,14 @@ IBeam is an unsupported third-party authentication wrapper and is suitable only 
 - Default: `2.0`
 - Where: `lumibot/data_sources/data_source_backtesting.py`
 
+## Multi-leg option package fills
+
+### `LUMIBOT_BACKTEST_PACKAGE_LEG_MAX_AGE_MINUTES`
+- Purpose: Maximum age (minutes) of a leg's last real (observed) print when its multi-leg package fills. All legs still fill in the same minute.
+- Values: integer minutes; `0` = every leg must print in the fill minute.
+- Default: `5` (measured 2026-11-14 on Alpaca 1-minute SPY condor data: closing packages filled 18/20 at 5 min vs 10/20 at 0).
+- Where: `lumibot/backtesting/backtesting_broker.py` (`_package_leg_max_age_minutes`, `_leg_bar_open_now`).
+
 ## Trade audit telemetry (NVDA/SPX accuracy audits)
 
 ### `LUMIBOT_BACKTEST_AUDIT`

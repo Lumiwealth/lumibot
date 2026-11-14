@@ -5162,29 +5162,58 @@ class BacktestingBroker(Broker):
                     pass
         return self._leg_bar_open_now(leg)
 
+    PACKAGE_LEG_MAX_AGE_ENV = "LUMIBOT_BACKTEST_PACKAGE_LEG_MAX_AGE_MINUTES"
+    PACKAGE_LEG_MAX_AGE_DEFAULT_MINUTES = 5
+
+    def _package_leg_max_age_minutes(self) -> int:
+        """How old (in minutes) a leg's last real print may be when its package fills.
+
+        Thin option contracts rarely all trade in the same minute. 0 means every leg must
+        trade in the fill minute itself; the default of 5 lets a leg use its most recent
+        real trade from the last 5 minutes. Forward-filled padding is never used.
+        """
+        raw = os.environ.get(self.PACKAGE_LEG_MAX_AGE_ENV)
+        if raw is None or str(raw).strip() == "":
+            return self.PACKAGE_LEG_MAX_AGE_DEFAULT_MINUTES
+        try:
+            value = int(float(raw))
+        except (TypeError, ValueError):
+            logger.warning(
+                "Ignoring invalid %s=%r; using %s",
+                self.PACKAGE_LEG_MAX_AGE_ENV,
+                raw,
+                self.PACKAGE_LEG_MAX_AGE_DEFAULT_MINUTES,
+            )
+            return self.PACKAGE_LEG_MAX_AGE_DEFAULT_MINUTES
+        return max(0, value)
+
     def _leg_bar_open_now(self, leg) -> Optional[float]:
-        """Open of the leg's bar at the current backtest time, or None when the leg has not
-        traded yet in this bar (an option with no print waits, the same as a single leg)."""
+        """Price a package leg from real bars only.
+
+        The open of an observed bar starting now; otherwise (intraday) the close of the
+        most recent observed bar no older than the package leg age bound. Calendar padding
+        rows (forward-filled copies of an earlier print) are never used, and nothing past
+        the current time is read.
+        """
         asset = leg.asset if getattr(leg.asset, "asset_type", None) != "crypto" else (leg.asset, leg.quote)
         timestep = str(getattr(self.data_source, "_timestep", "minute"))
         source_name = str(getattr(self.data_source, "SOURCE", "") or "").upper()
+        max_age = 0 if timestep == "day" else self._package_leg_max_age_minutes()
         try:
             if source_name in {"CCXT", "YAHOO", "ALPACA", "DATABENTO", "DATABENTO_POLARS"}:
                 timeshift, kwargs = self._execution_bar_request(source_name)
                 bars = self.data_source.get_historical_prices(
-                    asset=asset, length=1, quote=leg.quote, timeshift=timeshift, **kwargs
+                    asset=asset, length=max_age + 1, quote=leg.quote, timeshift=timeshift, **kwargs
                 )
             else:
                 bars = self.data_source.get_historical_prices(
-                    asset=asset, length=3, quote=leg.quote, timeshift=-1, timestep=timestep
+                    asset=asset, length=max(3, max_age + 2), quote=leg.quote, timeshift=-1, timestep=timestep
                 )
         except Exception:
             return None
         df = getattr(bars, "df", None)
         if df is None or df.empty:
             return None
-        # Use only the bar that starts at the current time: earlier bars are stale and
-        # later ones (which a shifted request can return) are the future.
         now = pd.Timestamp(self.datetime)
         index = pd.DatetimeIndex(df.index)
         if index.tz is None:
@@ -5192,17 +5221,28 @@ class BacktestingBroker(Broker):
         if now.tz is None:
             now = now.tz_localize(index.tz)
         index = index.tz_convert(now.tz)
-        if timestep == "day":
-            matches = [i for i, ts in enumerate(index) if ts.date() == now.date()]
+        if "bar_is_observed" in df.columns:
+            observed = [bool(v) if v == v else True for v in df["bar_is_observed"].tolist()]
         else:
-            matches = [i for i, ts in enumerate(index) if ts.floor("min") == now.floor("min")]
-        if not matches:
+            observed = [True] * len(df)
+        if timestep == "day":
+            current = [i for i, ts in enumerate(index) if ts.date() == now.date() and observed[i]]
+        else:
+            current = [i for i, ts in enumerate(index) if ts.floor("min") == now.floor("min") and observed[i]]
+        if current:
+            price = self._coerce_price(df["open"].iloc[current[-1]])
+            if price is not None and not self._is_invalid_price(price):
+                return float(price)
+        if max_age <= 0:
             return None
-        # Calendar padding (a forward-filled copy of an earlier print) is not a trade
-        # on this bar. Single-leg fills refuse it; a package leg must too.
-        if "bar_is_observed" in df.columns and not bool(df["bar_is_observed"].iloc[matches[-1]]):
+        oldest = now.floor("min") - pd.Timedelta(minutes=max_age)
+        recent = [
+            i for i, ts in enumerate(index)
+            if observed[i] and oldest <= ts.floor("min") < now.floor("min")
+        ]
+        if not recent:
             return None
-        price = self._coerce_price(df["open"].iloc[matches[-1]])
+        price = self._coerce_price(df["close"].iloc[recent[-1]])
         if price is None or self._is_invalid_price(price):
             return None
         return float(price)

@@ -283,6 +283,19 @@ BACKTESTING_PROGRESS_HEARTBEAT_SECONDS
 - Values: float seconds (string).
 - Default: ``2.0``
 
+Multi-leg option fills (backtesting)
+------------------------------------
+
+LUMIBOT_BACKTEST_PACKAGE_LEG_MAX_AGE_MINUTES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: How old each leg's last real trade may be when a multi-leg option order (spread, iron condor, straddle) fills in a backtest. All legs always fill together, in the same minute.
+- Values: whole minutes. ``0`` means every leg must trade in the fill minute itself.
+- Default: ``5``
+- Notes:
+  - Thinly traded option contracts often do not all trade in the same minute. With the default, a leg with no trade in the fill minute is priced at its most recent real trade from the last 5 minutes. Forward-filled filler rows are never used and no price is invented.
+  - Single-leg option orders are not affected; they still fill only on a minute where that contract traded.
+
 Trade audit telemetry (accuracy investigations)
 -----------------------------------------------
 

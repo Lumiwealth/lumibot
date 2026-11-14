@@ -154,9 +154,14 @@ How option data works
 - **Prices.** Option bars are real trades. LumiBot never fills the gaps between trades.
   ``get_last_price()`` returns the open of a bar that traded in the current minute (or day),
   otherwise the close of the most recent earlier trade, and ``None`` before the first trade.
-- **Fills.** An option order fills only on a bar that traded in the current minute (or day).
-  If the contract did not trade, the order keeps working until the next real trade, or until
-  its time in force ends.
+- **Fills.** An option fill price always belongs to the fill bar. If the contract traded in the
+  current minute (or day), the fill uses that real trade. If it did not, the fill is a
+  Black-Scholes estimate for that bar, built from the contract's most recent real trade (or the
+  nearest strike's when the contract never traded). Estimates are used as computed and marked
+  ``price_source=estimated`` in the trades file. Alpaca has no historical option quotes, so
+  fills here are either ``trade`` or ``estimated``. If no price can be found at all, the order
+  keeps working until one can, or until its time in force ends. See
+  :doc:`backtesting.how_orders_fill`.
 - **No data.** A contract with no bars at all logs one clear error and its price is ``None``.
 
 Known limits

@@ -685,9 +685,15 @@ df = df[~all_zero]
    so a strike or expiration listed after the simulated date can appear in that day's chain.
    Chain membership is therefore not proof that a contract existed on that date. A
    point-in-time chain needs an authoritative availability date or a historical chain source;
-   until one exists, the guard is item 4: a contract cannot fill before its first real print.
-4. `BacktestingBroker` requires an Alpaca option bar that printed in the current minute/day
-   to fill (`_requires_current_execution_bar`). Orders wait for the next real print.
+   until one exists, item 4 limits the effect: a fill is priced from real trades at or before
+   the fill bar, and a contract with no trade yet is estimated from the nearest traded strike
+   and labeled `estimated`.
+4. Option fill prices belong to the fill bar (`_option_fill_price_at_bar`): a real trade that
+   printed in the current minute/day when there is one, otherwise a Black-Scholes estimate
+   from the contract's most recent real trade (or the nearest strike's when it never traded),
+   used as computed and marked `price_source=estimated`. A later print is never used as an
+   earlier bar's price. Alpaca has no historical option quotes, so the quote source never
+   applies here. See `docs/BROKER_ORDER_SEMANTICS.md`.
 5. Environment mode (no `config`, which is how `BACKTESTING_DATA_SOURCE=alpaca` builds it in
    BotSpot): credentials from `ALPACA_*` variables, minute bars by default (daily-cadence
    strategies are still primed to day bars), and the run goes through `backtesting_end`. An

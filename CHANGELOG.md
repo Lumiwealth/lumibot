@@ -11,6 +11,9 @@
 - Fundamentals: a ticker whose registrant changed (Alphabet/Google, Broadcom/Avago, Exxon Mobil, BlackRock, Disney) had no data before the change, because the SEC ticker map only knows today's registrant. Dates before the change now use the predecessor's filings (`lumibot/fundamentals/company_records.py`, with sources).
 - Fundamentals: companies that file share counts only per class and no weighted average (Berkshire Hathaway, Visa, Constellation Brands) had no market cap. The per-class cover-page counts of the latest report are now added up into a whole-company count (Berkshire Class A counted as 1,500 Class B; other classes one for one). `get_metrics_table` gained a `cik` column so two tickers of one company (GOOGL and GOOG) can be de-duplicated.
 
+### Changed
+- Fundamentals: screens over many companies load much less data. Each company's facts are also saved as a compact file (only the facts the statements and metrics read, with filing dates) in the same local and remote cache (`sec/companyfacts_compact/`), and later runs read that first; the full SEC file is opened only for a fact outside that set. Values are unchanged (tested: identical tables from both paths). Measured for 503 companies: 1,655 MB and 14 s from full files on disk, 16 MB and 5 s from compact files; a new backtest machine with a remote cache reads 14 MB instead of 1,655 MB. Docs: "Fast screens over many companies" in `docsrc/fundamentals.rst`.
+
 ### Added
 - Examples: `stock_top_market_cap.py` and `stock_revenue_growth_low_debt.py`, each covered by a full backtest on synthetic data (`tests/test_example_fundamental_screeners.py`). They use the existing `get_metrics_table` and plain pandas; docs: `docsrc/fundamentals.rst` ("Stock screener"). No library behavior changed.
 

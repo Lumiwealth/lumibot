@@ -146,8 +146,8 @@ Top 5 companies by market cap, rebalanced monthly:
 .. code-block:: python
 
    table = self.fundamentals.get_metrics_table(UNIVERSE, ["market_cap"])
-   caps = table["market_cap"].astype(float).dropna()
-   targets = list(caps.nlargest(5).index)      # for example ["AAPL", "MSFT", ...]
+   table = table.dropna(subset=["market_cap"]).drop_duplicates("cik")   # one row per company
+   targets = list(table["market_cap"].astype(float).nlargest(5).index)  # for example ["AAPL", "MSFT", ...]
 
 Revenue growth over 20% and debt to equity under 0.5, fastest growers first:
 
@@ -163,17 +163,28 @@ Revenue growth over 20% and debt to equity under 0.5, fastest growers first:
   price is the strategy's own price at the current bar, so the only market data
   a screener needs is daily bars for its universe. ``prices={...}`` and
   ``as_of=`` let you ask about any date outside a strategy.
+- **Market cap is for the whole company, all share classes.** The share count
+  is, in this order: the single count on the filing's cover page or balance
+  sheet; for a company that files one count per class, the basic weighted
+  average share count of the latest period; and when it files neither (or its
+  classes are not one for one), the per-class counts on the cover page of the
+  latest annual or quarterly report, added up. Classes are added one for one
+  unless LumiBot has a conversion on record (Berkshire Hathaway: one Class A
+  share is 1,500 Class B shares). Visa's Class B and C shares convert into more
+  than one Class A share, so Visa comes out about 10% low.
+- **Two tickers of one company give the same market cap.** ``GOOGL`` and
+  ``GOOG`` both return Alphabet's whole value. The table's ``cik`` column is
+  the SEC company id: ``drop_duplicates("cik")`` keeps one row per company so a
+  top-N list does not hold the same company twice.
 - **Any value can be missing, and a missing value never passes a filter.** A
   metric that cannot be computed is ``None`` (the ``reasons`` column says why).
   ``dropna()`` leaves those companies out; filling with zero would make a
   company with no debt line look debt free. What to expect, measured on today's
-  S&P 500 members as of June 2024 with SEC data only: market cap for 481 of
-  503 and debt to equity for 400 of 503.
+  S&P 500 members as of June 2024: market cap for 494 of 503 and debt to
+  equity for 402 of 503.
 
-  - ``market_cap`` is missing when the company files no usable share count
-    (some companies with several share classes, for example Berkshire Hathaway
-    and Visa), when today's ticker points to a registrant that had not filed
-    yet on that date (a new holding company or a spin-off), or when a stock
+  - ``market_cap`` is missing when today's ticker points to a company that had
+    not filed yet on that date (a spin-off or new listing), or when a stock
     split cannot be dated.
   - ``debt_to_equity`` is missing for most banks, insurers and asset managers
     (they do not file a long-term debt line), for companies with no long-term
@@ -301,8 +312,12 @@ Limits
   current one, and older history may be missing for it. When the current
   registrant had filed nothing yet on the date you ask about, every metric is
   ``None`` and the reason says so (and statements carry the same warning).
-  SEC data does not link a new registrant to its predecessor, so LumiBot does
-  not guess one; look the predecessor up yourself if you need that history.
+  SEC data does not link a new registrant to its predecessor. LumiBot keeps a
+  short list of known predecessors (``lumibot/fundamentals/company_records.py``:
+  Alphabet and Google, Broadcom and Avago, Exxon Mobil, BlackRock, Disney) and
+  uses the earlier registrant's filings for dates before the change. For any
+  other ticker it does not guess one; add a row there, with its source, when
+  you need that history.
 
 Agent tools
 -----------

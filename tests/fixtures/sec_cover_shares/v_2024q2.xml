@@ -1,0 +1,38 @@
+<ns0:xbrl xmlns:ns0="http://www.xbrl.org/2003/instance" xmlns:ns1="http://xbrl.org/2006/xbrldi" xmlns:ns2="http://xbrl.sec.gov/dei/2023" xml:lang="en-US">
+    <ns0:context id="c-6">
+        <ns0:entity>
+            <ns0:identifier scheme="http://www.sec.gov/CIK">0001403161</ns0:identifier>
+            <ns0:segment>
+                <ns1:explicitMember dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassAMember</ns1:explicitMember>
+            </ns0:segment>
+        </ns0:entity>
+        <ns0:period>
+            <ns0:instant>2024-04-17</ns0:instant>
+        </ns0:period>
+    </ns0:context>
+    <ns0:context id="c-7">
+        <ns0:entity>
+            <ns0:identifier scheme="http://www.sec.gov/CIK">0001403161</ns0:identifier>
+            <ns0:segment>
+                <ns1:explicitMember dimension="us-gaap:StatementClassOfStockAxis">v:CommonClassB1Member</ns1:explicitMember>
+            </ns0:segment>
+        </ns0:entity>
+        <ns0:period>
+            <ns0:instant>2024-04-17</ns0:instant>
+        </ns0:period>
+    </ns0:context>
+    <ns0:context id="c-8">
+        <ns0:entity>
+            <ns0:identifier scheme="http://www.sec.gov/CIK">0001403161</ns0:identifier>
+            <ns0:segment>
+                <ns1:explicitMember dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassCMember</ns1:explicitMember>
+            </ns0:segment>
+        </ns0:entity>
+        <ns0:period>
+            <ns0:instant>2024-04-17</ns0:instant>
+        </ns0:period>
+    </ns0:context>
+    <ns2:EntityCommonStockSharesOutstanding contextRef="c-6" decimals="INF" id="f-33" unitRef="shares">1574151974</ns2:EntityCommonStockSharesOutstanding>
+    <ns2:EntityCommonStockSharesOutstanding contextRef="c-7" decimals="INF" id="f-34" unitRef="shares">245513385</ns2:EntityCommonStockSharesOutstanding>
+    <ns2:EntityCommonStockSharesOutstanding contextRef="c-8" decimals="INF" id="f-35" unitRef="shares">9273174</ns2:EntityCommonStockSharesOutstanding>
+    </ns0:xbrl>

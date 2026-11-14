@@ -32,11 +32,11 @@ def _no_shared_remote_cache(monkeypatch):
 
 
 class _Response:
-    def __init__(self, payload=None, status_code=200):
+    def __init__(self, payload=None, status_code=200, text=""):
         self._payload = payload
         self.status_code = status_code
         self.headers = {}
-        self.text = ""
+        self.text = text
 
     def raise_for_status(self):
         return None
@@ -115,7 +115,7 @@ def _facts(*, eps_q1_24=1.5, gross=True, debt=True):
     return {"cik": int(CIK), "facts": {"us-gaap": us_gaap, "dei": dei}}
 
 
-def _sec(monkeypatch, tmp_path, facts=None, *, strategy=None, extra_tickers=None, extra_facts=None):
+def _sec(monkeypatch, tmp_path, facts=None, *, strategy=None, extra_tickers=None, extra_facts=None, documents=None):
     tickers = {"0": {"ticker": "EXM", "cik_str": int(CIK), "title": "Example"}}
     tickers.update(extra_tickers or {})
     all_facts = {CIK: facts or _facts(), **(extra_facts or {})}
@@ -128,6 +128,9 @@ def _sec(monkeypatch, tmp_path, facts=None, *, strategy=None, extra_tickers=None
                 return _Response(payload)
         if "submissions" in url:
             return _Response({"filings": {"recent": {"accessionNumber": [], "acceptanceDateTime": []}}})
+        for suffix, text in (documents or {}).items():  # filing documents, by URL ending
+            if url.endswith(suffix):
+                return _Response(text=text)
         return _Response({}, status_code=404)
 
     monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake_get)
@@ -319,3 +322,101 @@ def test_debt_to_equity_uses_the_latest_balance_sheet_that_has_both(monkeypatch,
 
     assert result["values"]["debt_to_equity"] == pytest.approx(4_615_731e3 / 2_963_509e3)
     assert result["periods"]["debt_to_equity"]["end"] == "2023-12-31"
+
+
+# ---- registrant history and share classes (recorded SEC rows and filing cover pages, public data) ----
+
+def _fixture_path(name):
+    from pathlib import Path
+
+    return Path(__file__).parent / "fixtures" / name
+
+
+def _alphabet(monkeypatch, tmp_path):
+    """GOOGL and GOOG map to Alphabet Inc., which first filed in October 2015; Google Inc. filed before."""
+    import json
+
+    data = json.loads(_fixture_path("sec_companyfacts_registrant_history.json").read_text())
+    return _sec(
+        monkeypatch, tmp_path,
+        extra_tickers={
+            "20": {"ticker": "GOOGL", "cik_str": 1652044, "title": "Alphabet Inc."},
+            "21": {"ticker": "GOOG", "cik_str": 1652044, "title": "Alphabet Inc."},
+        },
+        extra_facts={"0001652044": data["successor"], "0001288776": data["predecessor"]},
+    )
+
+
+def test_a_date_before_the_current_registrant_existed_uses_its_predecessor(monkeypatch, tmp_path):
+    sec = _alphabet(monkeypatch, tmp_path)
+
+    old = sec.get_metrics("GOOGL", ["shares_outstanding", "market_cap"], as_of=datetime(2015, 6, 1, 10, tzinfo=NY), price=549.0)
+    new = sec.get_metrics("GOOGL", ["shares_outstanding"], as_of=AFTER_Q1)
+
+    assert old["cik"] == "0001288776" and old["reasons"] == {}
+    assert old["values"]["shares_outstanding"] == 680_915_000  # Google Inc., quarter ended 2015-03-31
+    assert old["values"]["market_cap"] == pytest.approx(549.0 * 680_915_000)
+    assert new["cik"] == "0001652044"
+    assert new["values"]["shares_outstanding"] == 12_381_000_000  # Alphabet, all classes, 2024-03-31
+
+
+def test_the_table_names_the_company_so_two_tickers_of_one_company_are_not_counted_twice(monkeypatch, tmp_path):
+    sec = _alphabet(monkeypatch, tmp_path)
+
+    table = sec.get_metrics_table(["GOOGL", "GOOG"], ["market_cap"], as_of=AFTER_Q1, prices={"GOOGL": 174.0, "GOOG": 175.0})
+
+    assert table.loc["GOOGL", "cik"] == table.loc["GOOG", "cik"] == "0001652044"
+    assert table.loc["GOOGL", "market_cap"] == pytest.approx(174.0 * 12_381_000_000)  # the whole company, not one class
+    assert list(table.drop_duplicates("cik").index) == ["GOOGL"]
+
+
+def _share_classes(monkeypatch, tmp_path):
+    import json
+
+    companies = json.loads(_fixture_path("sec_companyfacts_share_classes.json").read_text())["companies"]
+    covers = _fixture_path("sec_cover_shares")
+
+    def index(*names):
+        return json.dumps({"directory": {"item": [{"name": name} for name in names]}})
+
+    documents = {
+        "/000095017024053185/index.json": index("brka-20240331_htm.xml", "FilingSummary.xml"),
+        "/000095017024053185/brka-20240331_htm.xml": (covers / "brk_2024q1.xml").read_text(),
+        "/000119312515166595/index.json": index("brka-20150331.xml", "brka-20150331_cal.xml", "brka-20150331_lab.xml", "FilingSummary.xml"),
+        "/000119312515166595/brka-20150331.xml": (covers / "brk_2015q1.xml").read_text(),
+        "/000140316124000030/index.json": index("FilingSummary.xml", "v-20240331_cal.xml", "v-20240331_htm.xml"),
+        "/000140316124000030/v-20240331_htm.xml": (covers / "v_2024q2.xml").read_text(),
+    }
+    return _sec(
+        monkeypatch, tmp_path,
+        extra_tickers={
+            "30": {"ticker": "BRK-B", "cik_str": companies["BRK-B"]["cik"], "title": "Berkshire Hathaway Inc"},
+            "31": {"ticker": "V", "cik_str": companies["V"]["cik"], "title": "Visa Inc."},
+        },
+        extra_facts={f"{c['cik']:010d}": c for c in companies.values()},
+        documents=documents,
+    )
+
+
+def test_share_classes_filed_only_per_class_add_up_to_the_whole_company(monkeypatch, tmp_path):
+    """Berkshire files Class A and Class B counts separately; one Class A share is 1,500 Class B shares."""
+    sec = _share_classes(monkeypatch, tmp_path)
+
+    now = sec.get_metrics("BRK-B", ["shares_outstanding", "market_cap"], as_of=AFTER_Q1, price=407.0)
+    then = sec.get_metrics("BRK-B", ["shares_outstanding"], as_of=datetime(2015, 6, 1, 10, tzinfo=NY))
+
+    assert now["values"]["shares_outstanding"] == 562_539 * 1500 + 1_311_384_883  # in Class B shares
+    assert now["values"]["market_cap"] == pytest.approx(407.0 * 2_155_193_383)
+    assert now["periods"]["shares_outstanding"]["accession_number"] == "0000950170-24-053185"
+    # 2015: the filed weighted average (1,642,951) counts Class A equivalents and must not be used as B shares.
+    assert then["values"]["shares_outstanding"] == 824_730 * 1500 + 1_227_452_053
+
+
+def test_share_classes_without_a_known_conversion_are_added_one_for_one(monkeypatch, tmp_path):
+    sec = _share_classes(monkeypatch, tmp_path)
+
+    visa = sec.get_metrics("V", ["shares_outstanding"], as_of=AFTER_Q1)
+
+    assert visa["values"]["shares_outstanding"] == 1_574_151_974 + 245_513_385 + 9_273_174
+    filing_day = sec.get_metrics("V", ["shares_outstanding"], as_of=datetime(2024, 4, 24, 15, tzinfo=NY))
+    assert filing_day["values"]["shares_outstanding"] is None  # that filing is not public until the next morning

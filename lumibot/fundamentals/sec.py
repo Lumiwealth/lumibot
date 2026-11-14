@@ -17,6 +17,8 @@ from zoneinfo import ZoneInfo
 
 import requests
 
+from .company_records import PREDECESSOR_CIK, SHARE_CLASS_UNITS
+
 SEC_DATA_BASE_URL = "https://data.sec.gov"
 SEC_ARCHIVES_BASE_URL = "https://www.sec.gov/Archives/edgar/data/"
 SEC_COMPANY_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
@@ -326,6 +328,7 @@ class _CompanyTimeline:
         self.series: dict[str, dict[str, _Series]] = {}
         self.loaded_tags: set[str] = set()
         self.filing_filed: dict[str, str] = {}
+        self.filing_form: dict[str, str] = {}
         self.filing_ts: dict[str, float] = {}
         self.filing_published: dict[str, str] = {}
         self.acceptance_loaded = False
@@ -346,6 +349,7 @@ class _CompanyTimeline:
                             key = self.filing_key(row)
                             if key not in self.filing_filed:
                                 self.filing_filed[key] = _intern(str(row["filed"]))
+                                self.filing_form[key] = _intern(str(row.get("form") or ""))
         for key, filed in self.filing_filed.items():
             ts = _available_from_filed(filed)
             if ts is not None:
@@ -543,6 +547,8 @@ class SECFundamentals:
         self._timelines: dict[str, _CompanyTimeline] = {}
         self._timeline_locks: dict[str, threading.Lock] = {}
         self._timeline_locks_guard = threading.Lock()
+        self._cover_counts: dict[tuple[str, str], dict[str, Any] | None] = {}
+        self._cover_counts_lock = threading.Lock()
 
     @staticmethod
     def _cache_meta_path(cache_path: Path) -> Path:
@@ -834,8 +840,8 @@ class SECFundamentals:
             raise SECTickerNotFoundError(f"No SEC CIK found for ticker {symbol!r}.")
         return cik
 
-    def _get_submissions_payload(self, symbol: str) -> dict[str, Any]:
-        cik = self.ticker_to_cik(symbol)
+    def _get_submissions_payload(self, symbol: str, cik: str | None = None) -> dict[str, Any]:
+        cik = cik or self.ticker_to_cik(symbol)
         url = f"{SEC_DATA_BASE_URL}/submissions/CIK{cik}.json"
         cache_path = self._cache_path("submissions", f"CIK{cik}.json")
         payload = self._get_json(
@@ -885,7 +891,9 @@ class SECFundamentals:
         return time.monotonic() - timeline.loaded_at <= self.mutable_cache_ttl_seconds
 
     def _timeline(self, symbol: str, extra_tags: Iterable[str] = ()) -> _CompanyTimeline:
-        cik = self.ticker_to_cik(symbol)
+        return self._timeline_for_cik(self.ticker_to_cik(symbol), extra_tags)
+
+    def _timeline_for_cik(self, cik: str, extra_tags: Iterable[str] = ()) -> _CompanyTimeline:
         extra = [tag for tag in extra_tags if tag]
         timeline = self._timelines.get(cik)
         if timeline is not None and self._timeline_is_fresh(timeline) and all(t in timeline.loaded_tags for t in extra):
@@ -919,7 +927,7 @@ class SECFundamentals:
                 return
             acceptance: dict[str, str] = {}
             try:
-                recent = self._get_submissions_payload(symbol).get("filings", {}).get("recent", {})
+                recent = self._get_submissions_payload(symbol, timeline.cik).get("filings", {}).get("recent", {})
                 accessions = recent.get("accessionNumber") or []
                 accepted = recent.get("acceptanceDateTime") or []
                 for index, accession in enumerate(accessions):
@@ -936,6 +944,13 @@ class SECFundamentals:
         as_of_dt = self._resolve_as_of(as_of)
         as_ts = _timestamp(as_of_dt)
         timeline = self._timeline(symbol, extra_tags)
+        # The ticker map is today's. On a date before the current registrant had filed anything,
+        # use the registrant that filed for the same business then (company_records.py).
+        while timeline.state_index(as_ts) == 0 and timeline.cik in PREDECESSOR_CIK:
+            try:
+                timeline = self._timeline_for_cik(PREDECESSOR_CIK[timeline.cik], extra_tags)
+            except Exception:
+                break
         self._ensure_acceptance(symbol, timeline, as_ts)
         return as_of_dt, as_ts, timeline
 
@@ -944,7 +959,8 @@ class SECFundamentals:
 
         The SEC ticker map is today's: after a reorganization a ticker points at the new
         registrant, whose filings start at the reorganization. SEC data does not link it to
-        its predecessor registrant, so LumiBot does not guess one.
+        its predecessor registrant. Known predecessors are listed in ``company_records.py``
+        and used automatically; for any other ticker LumiBot does not guess one.
         """
         if timeline.state_index(as_ts) > 0:
             return None
@@ -1025,6 +1041,13 @@ class SECFundamentals:
                 return symbol, "error", f"{type(exc).__name__}: {exc}"
             if not timeline.series:
                 return symbol, "missing", "no_us_gaap_facts"
+            predecessor = PREDECESSOR_CIK.get(timeline.cik)
+            while predecessor:  # earlier registrants of the same business, for dates before the change
+                try:
+                    self._timeline_for_cik(predecessor)
+                except Exception:
+                    break
+                predecessor = PREDECESSOR_CIK.get(predecessor)
             if include_submissions:
                 self._ensure_acceptance(symbol, timeline, None, force=True)
             return symbol, "loaded", None
@@ -1526,6 +1549,7 @@ class SECFundamentals:
             raise ValueError(f"Unknown fundamental metric(s) {unknown}. Choose from: {', '.join(FUNDAMENTAL_METRICS)}.")
         as_of_dt, as_ts, timeline = self._point_in_time(symbol, as_of)
         context = _MetricContext(self, timeline, as_of_dt, as_ts)
+        context.symbol = str(symbol).upper().strip()
         price_loader = self._price_source_splits(symbol)
         context.basis = _SplitBasis(
             _sec_split_events(timeline),
@@ -1572,7 +1596,9 @@ class SECFundamentals:
     ):
         """``get_metrics`` for a whole universe, as a pandas DataFrame (one row per symbol).
 
-        Columns are the metrics plus ``reasons`` (a dict of why each missing value is None).
+        Columns are the metrics, ``cik`` (the SEC company id the values came from: two tickers
+        of one company, such as two share classes, share it) and ``reasons`` (a dict of why
+        each missing value is None).
         Symbols the SEC does not cover get a row of None. ``prices`` maps symbol to price;
         symbols without one use the strategy's last price.
         """
@@ -1588,6 +1614,7 @@ class SECFundamentals:
             try:
                 result = self.get_metrics(symbol, requested, as_of=as_of, price=price_map.get(symbol))
                 row = dict(result["values"])
+                row["cik"] = result["cik"]
                 row["reasons"] = result["reasons"]
             except SECTickerNotFoundError:
                 row = {name: None for name in requested}
@@ -1596,9 +1623,81 @@ class SECFundamentals:
                 row = {name: None for name in requested}
                 row["reasons"] = {name: f"SEC data unavailable: {type(exc).__name__}: {exc}" for name in requested}
             rows[symbol] = row
-        frame = pd.DataFrame.from_dict(rows, orient="index", columns=[*requested, "reasons"], dtype=object)
+        frame = pd.DataFrame.from_dict(rows, orient="index", columns=[*requested, "cik", "reasons"], dtype=object)
         frame.index.name = "symbol"
         return frame
+
+    def _cover_share_counts(self, timeline: _CompanyTimeline, as_ts: float) -> dict[str, Any] | None:
+        """Per-class share counts from the cover page of the latest 10-K or 10-Q public at ``as_ts``.
+
+        The SEC company facts file leaves out values filed per share class, so a company with
+        several classes has no share count there. The filing's own XBRL data has them. Two small
+        SEC requests per filing (its file list and its XBRL data), cached like filing documents;
+        only made for a company with no usable share count. Returns None when nothing is found.
+        """
+        best: tuple[str, float] | None = None
+        with timeline.lock:
+            for key, ts in timeline.filing_ts.items():
+                if ts > as_ts or key.startswith("filed:"):
+                    continue
+                if not timeline.filing_form.get(key, "").startswith(("10-K", "10-Q")):
+                    continue
+                if best is None or ts > best[1]:
+                    best = (key, ts)
+        if best is None:
+            return None
+        accession, ts = best
+        memo_key = (timeline.cik, accession)
+        with self._cover_counts_lock:
+            if memo_key in self._cover_counts:
+                return self._cover_counts[memo_key]
+        try:
+            counts = self._load_cover_share_counts(timeline.cik, accession)
+        except Exception:
+            counts = None  # not retried in this process; the caller reports the share count as missing
+        result = None
+        if counts and counts.get("classes"):
+            result = {
+                **counts,
+                "accession_number": accession,
+                "form": timeline.filing_form.get(accession),
+                "filed": timeline.filing_filed.get(accession),
+                "available_at": _iso_from_timestamp(ts),
+            }
+        with self._cover_counts_lock:
+            self._cover_counts[memo_key] = result
+        return result
+
+    def _load_cover_share_counts(self, cik: str, accession: str) -> dict[str, Any] | None:
+        derived = self._cache_path("filings", cik, accession, "cover_share_counts.json")
+        if derived.exists():
+            return json.loads(derived.read_text(encoding="utf-8"))
+        safe_accession = re.sub(r"[^A-Za-z0-9_.=-]+", "_", str(accession)).strip("_")
+
+        def fetch(name: str) -> str:
+            safe_name = re.sub(r"[^A-Za-z0-9_.=-]+", "_", name).strip("_")
+            return self._get_text(
+                self._filing_url(cik, accession, name),
+                self._cache_path("filings", cik, accession, name),
+                remote_relative=f"sec/filings/{cik}/{safe_accession}/{safe_name}",
+            )
+
+        listing = json.loads(fetch("index.json"))
+        names = [str(item.get("name") or "") for item in (listing.get("directory") or {}).get("item") or []]
+        instance = [name for name in names if name.endswith("_htm.xml")] or [
+            name
+            for name in names
+            if name.endswith(".xml")
+            and not re.search(r"(_cal|_def|_lab|_pre)\.xml$", name)
+            and name != "FilingSummary.xml"
+            and not re.match(r"R\d+\.xml$", name)
+        ]
+        if not instance:
+            return None
+        counts = _cover_share_counts_from_xbrl(fetch(instance[0]))
+        derived.parent.mkdir(parents=True, exist_ok=True)
+        derived.write_text(json.dumps(counts), encoding="utf-8")
+        return counts
 
     def _price_source_splits(self, symbol: str):
         """Loader for the backtest price data's split history.
@@ -2085,6 +2184,7 @@ class _MetricContext:
         self.timeline = timeline
         self.as_of_date = datetime.fromtimestamp(as_ts, _NEW_YORK).date()
         self.as_ts = as_ts
+        self.symbol = ""
         self.price: float | None = None
         self.price_reason: str | None = None
         self.basis: _SplitBasis = _SplitBasis((), date.max)
@@ -2385,6 +2485,17 @@ class _MetricContext:
         if shares is not None:
             return shares, None
         weighted = [row for row in self._periods("shares_weighted") if row["days"] is not None and row["value"] > 0]
+        record = SHARE_CLASS_UNITS.get(self.timeline.cik)
+        if record is not None or not weighted:
+            # No single count and no usable average (or the classes are not one for one, so an
+            # average counted in one class's units cannot be used): add up the per-class counts
+            # from the cover page of the latest report.
+            row, class_reason = self._shares_from_classes(record)
+            if row is not None:
+                rows, split_reason = self._on_as_of_basis("shares", [row])
+                return (rows[0], None) if rows is not None else (None, split_reason)
+            if record is not None or class_reason:
+                return None, class_reason or reason
         if not weighted:
             return None, reason
         row = min(weighted, key=lambda item: (-item["end"].toordinal(), item["days"]))
@@ -2394,6 +2505,47 @@ class _MetricContext:
         if rows is None:
             return None, split_reason
         return rows[0], None
+
+    def _shares_from_classes(self, record: dict[str, Any] | None):
+        """(whole-company share count row in the asked ticker's class, reason when None)."""
+        counts = self.owner._cover_share_counts(self.timeline, self.as_ts)
+        if counts is None:
+            return None, None
+        end = _to_date(counts.get("instant")) or _to_date(counts.get("filed"))
+        if end is None or self._stale(end):
+            return None, None
+        classes = {name: float(value) for name, value in counts["classes"].items() if float(value) > 0}
+        members = {name: value for name, value in classes.items() if name}
+        if not members:
+            total = classes.get("")
+        else:
+            units = (record or {}).get("units") or {}
+            asked_unit = 1.0
+            if record is not None:
+                valid_from = _to_date(record.get("valid_from"))
+                asked = (record.get("tickers") or {}).get(self.symbol)
+                if asked is None or asked not in units or (valid_from and self.as_of_date < valid_from):
+                    return None, (
+                        f"{self.symbol or 'this ticker'} is one of several share classes that are not one for one, "
+                        "and its class is not in LumiBot's share class records for this date"
+                    )
+                asked_unit = float(units[asked])
+            total = sum(value * float(units.get(name, 1.0)) for name, value in members.items()) / asked_unit
+        if not total:
+            return None, None
+        return {
+            "start": None,
+            "end": end,
+            "days": None,
+            "value": float(total),
+            "tag": "dei:EntityCommonStockSharesOutstanding (per share class, from the filing)",
+            "unit": "shares",
+            "accession_number": counts.get("accession_number"),
+            "form": counts.get("form"),
+            "filed": counts.get("filed"),
+            "available_at": counts.get("available_at"),
+            "share_classes": classes,
+        }, None
 
     def _m_shares_outstanding(self):
         shares, reason = self._shares()
@@ -2454,6 +2606,48 @@ class _MetricContext:
         if equity["value"] <= 0:
             return None, "stockholders' equity is not positive", None
         return market_cap / equity["value"], None, self._period_info(equity)
+
+
+def _cover_share_counts_from_xbrl(text: str) -> dict[str, Any]:
+    """``{"instant": date, "classes": {class member name: shares}}`` from a filing's XBRL data.
+
+    Reads only the cover-page fact ``EntityCommonStockSharesOutstanding`` and the share class
+    each value is filed under ("" when it is filed without a class). The latest dated value
+    per class wins.
+    """
+    import xml.etree.ElementTree as ElementTree
+
+    def local(name: str) -> str:
+        return name.rsplit("}", 1)[-1]
+
+    root = ElementTree.fromstring(text.encode("utf-8"))
+    contexts: dict[str, tuple[str, str]] = {}
+    facts: list[tuple[str, str]] = []
+    for element in root:
+        name = local(element.tag)
+        if name == "context":
+            members = [(m.text or "").strip() for m in element.iter() if local(m.tag) == "explicitMember"]
+            instant = next(((d.text or "").strip() for d in element.iter() if local(d.tag) == "instant"), "")
+            member = members[0].rsplit(":", 1)[-1] if len(members) == 1 else ("" if not members else None)
+            if member is not None:
+                contexts[str(element.get("id"))] = (instant, member)
+        elif name == "EntityCommonStockSharesOutstanding" and (element.text or "").strip():
+            facts.append((str(element.get("contextRef")), element.text.strip()))
+    best: dict[str, tuple[str, float]] = {}
+    for context_id, value in facts:
+        if context_id not in contexts:
+            continue
+        instant, member = contexts[context_id]
+        try:
+            number = float(value.replace(",", ""))
+        except ValueError:
+            continue
+        if member not in best or instant > best[member][0]:
+            best[member] = (instant, number)
+    return {
+        "instant": max((instant for instant, _ in best.values()), default=None),
+        "classes": {member: number for member, (_instant, number) in best.items()},
+    }
 
 
 def _ratio_text(ratio: float) -> str:

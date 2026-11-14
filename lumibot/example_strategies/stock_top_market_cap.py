@@ -7,7 +7,9 @@ Strategy Description
 
 Each month, buys the largest companies in a universe by market cap, in equal weights.
 Market cap on each date is shares outstanding from the latest SEC filing public on that
-date times the price that day, so a backtest never sees a later filing.
+date times the price that day, so a backtest never sees a later filing. It is the value of
+the whole company (all share classes), so list one ticker per company or drop duplicates
+by the table's "cik" column as below.
 
 Any value can be missing (no usable share count, no debt line as at most banks and insurers,
 negative equity, a company that had not filed yet). A missing value is dropped: it never
@@ -34,9 +36,11 @@ class TopMarketCap(Strategy):
             return  # rebalance once a month
         self.vars.month = (now.year, now.month)
 
-        # One row per company: shares outstanding from the latest filing public today x today's price.
+        # Shares outstanding from the latest filing public today x today's price, for the whole company.
         table = self.fundamentals.get_metrics_table(self.parameters["universe"], ["market_cap"])
-        market_caps = table["market_cap"].astype(float).dropna()  # no filing or no price yet: left out
+        table = table.dropna(subset=["market_cap"])  # no filing or no price yet: left out
+        table = table.drop_duplicates("cik")  # two tickers of one company (share classes): keep the first listed
+        market_caps = table["market_cap"].astype(float)
         targets = list(market_caps.nlargest(self.parameters["top_n"]).index)
         if not targets:
             self.log_message("No company has a market cap yet (no filing or no price). Holding.")

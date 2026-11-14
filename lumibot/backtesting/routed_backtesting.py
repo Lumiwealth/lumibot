@@ -1429,7 +1429,9 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         """
         adapter = self._perpetual_adapter(asset)
         if adapter is None:
-            raise ValueError("Derivative contract terms are unavailable; supply Asset.contract_spec or provider metadata")
+            raise ValueError(
+                "Derivative contract terms are unavailable; supply Asset.contract_spec or provider metadata"
+            )
         return adapter.contract_spec(asset, quote)
 
     def get_funding_events(self, asset, start, end):

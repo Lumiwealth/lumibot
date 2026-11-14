@@ -1977,6 +1977,7 @@ class BacktestingBroker(Broker):
         seconds_before_closing = strategy.minutes_before_closing * 60
 
         positions = self.get_tracked_positions(strategy.name)
+        expiring_options = []
         for position in positions:
             if not pandas_source and position.asset.asset_type != Asset.AssetType.OPTION:
                 continue
@@ -1994,7 +1995,52 @@ class BacktestingBroker(Broker):
                 self._cancel_open_orders_for_asset(strategy.name, position.asset, set())
 
                 if position.asset.asset_type == Asset.AssetType.OPTION:
-                    self.settle_expired_option_contract(position, strategy)
+                    expiring_options.append(position)
+
+        for position in self._cash_settle_offsetting_expiring_options(expiring_options, strategy):
+            self.settle_expired_option_contract(position, strategy)
+
+    def _cash_settle_offsetting_expiring_options(self, positions, strategy) -> list:
+        """Cash-settle in-the-money options whose deliveries offset; return the rest.
+
+        A spread held to expiry with both legs in the money (for example a call debit
+        spread) delivers shares in both directions: the long leg is exercised, the short
+        leg assigned. Settling each leg on its own delivered 100-share stock trades, and
+        when the account could not pay for the long leg's shares the long leg was
+        cash-settled while the short leg still delivered a short stock position. When an
+        underlying has expiring in-the-money options delivering in both directions, every
+        one of them is cash-settled at intrinsic value instead: the account receives or
+        pays the spread's net value and holds no stock. Options with a single delivery
+        direction keep normal exercise and assignment.
+        """
+        groups = {}
+        for position in positions:
+            try:
+                underlying = self._resolve_underlying_asset_for_option(position.asset, strategy)
+                price, underlying = self._get_underlying_price_for_settlement(underlying, strategy)
+                intrinsic = self._intrinsic_value_per_contract(position.asset, price)
+            except Exception:
+                intrinsic = 0.0
+                underlying = None
+            if underlying is None or intrinsic <= 0 or not position.quantity:
+                groups.setdefault(("unpaired", id(position)), []).append((position, None))
+                continue
+            side = self._get_underlying_delivery_side(position.asset, float(position.quantity))
+            groups.setdefault((getattr(underlying, "symbol", None), "itm"), []).append((position, side))
+
+        remaining = []
+        for key, members in groups.items():
+            sides = {side for _, side in members if side is not None}
+            if key[1] == "itm" and len(sides) > 1:
+                for position, _ in members:
+                    logger.info(
+                        "[OPTION_EXPIRY][NET] %s settles in cash with its offsetting legs (no stock delivered)",
+                        position.asset,
+                    )
+                    self.cash_settle_options_contract(position, strategy)
+                continue
+            remaining.extend(position for position, _ in members)
+        return remaining
 
     def _apply_trade_cost(self, strategy, trade_cost: Decimal) -> None:
         if not trade_cost:

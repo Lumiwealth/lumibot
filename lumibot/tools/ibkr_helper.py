@@ -5347,6 +5347,21 @@ def _lookup_same_month_future_conid_from_mapping(
         if conid > 0:
             matches.setdefault(conid, expiration)
 
+    if len(matches) > 1:
+        # A same-month registry can hold one contract under its last trade date
+        # and an older one under its delivery month (crude: CLK26 keyed in May
+        # beside CLM26, which last trades in May). Keep only entries that are a
+        # real last trade date of some contract month in the root's calendar.
+        year, month = int(target[:4]), int(target[4:6])
+        calendar_dates = set()
+        for offset in range(3):
+            contract_year, contract_month = year + (month - 1 + offset) // 12, (month - 1 + offset) % 12 + 1
+            try:
+                calendar_dates.add(_contract_expiration_date(key.symbol, year=contract_year,
+                                                             month=contract_month).strftime("%Y%m%d"))
+            except Exception:
+                continue
+        matches = {conid: expiration for conid, expiration in matches.items() if expiration in calendar_dates}
     if len(matches) == 1:
         conid, expiration = next(iter(matches.items()))
         return conid, expiration

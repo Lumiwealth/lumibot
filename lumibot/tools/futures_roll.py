@@ -216,16 +216,46 @@ def _previous_us_futures_trading_day(day: date) -> date:
         return day
     return valid[-1].date()
 
+_CME_BUSINESS_DAY_CALENDAR = None
+
+
+def _get_cme_business_day_calendar():
+    """CME business (trade) days. Unlike the Globex session calendar it excludes
+    holidays such as Memorial Day or Thanksgiving even when Globex is open."""
+    global _CME_BUSINESS_DAY_CALENDAR
+    if _CME_BUSINESS_DAY_CALENDAR is not None:
+        return _CME_BUSINESS_DAY_CALENDAR
+    try:
+        import pandas_market_calendars as mcal  # type: ignore
+
+        _CME_BUSINESS_DAY_CALENDAR = mcal.get_calendar("CME_TradeDate")
+    except Exception:
+        _CME_BUSINESS_DAY_CALENDAR = False
+    return _CME_BUSINESS_DAY_CALENDAR
+
+
 def _prior_month_25th_minus_trading_days(year: int, month: int, trading_days_before_25th: int) -> datetime:
+    """NYMEX crude rule, counted in CME business days.
+
+    Counting on the Globex session calendar treated Memorial Day, Juneteenth,
+    Thanksgiving and similar holidays as business days and put the last trade a
+    day late (2026-11-13: CLM26 computed 2026-05-20, IBKR says 2026-05-19).
+    Verified against every recorded IBKR CL/MCL last trade date 2024-2037.
+    """
     if month == 1:
         anchor_year, anchor_month = year - 1, 12
     else:
         anchor_year, anchor_month = year, month - 1
 
     anchor_day = date(anchor_year, anchor_month, 25)
-    anchor_day = _previous_us_futures_trading_day(anchor_day)
+    cal = _get_cme_business_day_calendar()
+    if cal:
+        valid = cal.valid_days(start_date=anchor_day - timedelta(days=45), end_date=anchor_day)
+        if valid is not None and len(valid):
+            anchor_day = valid[-1].date()
+    else:
+        anchor_day = _previous_us_futures_trading_day(anchor_day)
 
-    cal = _get_us_futures_calendar()
     if not cal:
         last_trade_dt = _subtract_business_days(
             _to_timezone(datetime.combine(anchor_day, datetime.min.time())),

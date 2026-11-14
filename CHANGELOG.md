@@ -5,6 +5,7 @@
 ### Fixed
 - Intraday futures lookbacks in IBKR backtests now count trading bars, not wall-clock time. Asking for 63 fifteen-minute bars across the daily maintenance hour, a weekend or a holiday returns 63 real bars instead of 59 and is no longer reported as missing required data. A genuine provider shortfall is still reported.
 - IBKR history requests for "60 minutes" (and 120, 180, 240 or 480 minutes) now ask IBKR for its legal hour bar sizes instead of "60min", which IBKR rejects permanently. Hourly strategies were silently getting zero bars. Hourly bars share one cache file however the timestep is written. A size IBKR has no bar for (for example 45 minutes) now fails with a clear error before any request, and a permanent bar-size rejection from IBKR is raised instead of being treated as missing data.
+- Crude oil (CL, MCL) last trade dates are counted in CME business days, so months whose window holds Memorial Day, Juneteenth, Thanksgiving, MLK or Presidents Day no longer ask IBKR for a contract one day late (CLM26 now resolves to 2026-05-19). Checked against every recorded IBKR CL and MCL last trade date. When the contract registry holds two same-month entries, the one that is a real last trade date for a contract month is chosen; truly ambiguous entries still refuse.
 
 ## 4.6.55 - 2026-11-13
 

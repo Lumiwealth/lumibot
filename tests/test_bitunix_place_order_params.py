@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from lumibot.brokers.bitunix import Bitunix
+from lumibot.brokers.broker import LumibotBrokerAPIError
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.bitunix_helpers import BitUnixClient
 
@@ -425,3 +426,112 @@ def test_exchange_short_position_stays_short_through_close(submission):
     assert body["side"] == "SELL"
     assert body["positionId"] == "test-short"
     assert body["tradeSide"] == "CLOSE"
+
+
+# --- Protective order shapes -------------------------------------------------
+# Bitunix documents only MARKET and LIMIT for POST /api/v1/futures/trade/place_order
+# (https://openapidoc.bitunix.com/doc/trade/place_order.html, "orderType: LIMIT: limit
+# orders, MARKET: market orders"). Stops ride on that request as tpPrice/slPrice with
+# optional slOrderType/slOrderPrice. Anything else must be refused before a request is
+# sent, never downgraded: a stop sent without its trigger price, or a trailing stop sent
+# as MARKET, leaves a leveraged position with no protection at the exchange.
+
+
+def _assert_refused_without_request(order, request, words):
+    assert order.status == Order.OrderStatus.ERROR
+    message = str(order.error_message or order._error).lower()
+    assert "not supported by bitunix" in message
+    for word in words:
+        assert word in message
+    request.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "kwargs, words",
+    [
+        ({"stop_price": Decimal("59000")}, ["stop"]),
+        ({"stop_price": Decimal("59000"), "stop_limit_price": Decimal("58900")}, ["stop_limit"]),
+        ({"trail_percent": 2.5}, ["trailing_stop"]),
+        ({"trail_price": Decimal("150")}, ["trailing_stop"]),
+    ],
+)
+def test_standalone_stop_and_trailing_orders_are_refused_not_downgraded(submission, kwargs, words):
+    broker, _, request = submission
+    order = broker._submit_order(make_order(side=Order.OrderSide.SELL, **kwargs))
+    _assert_refused_without_request(order, request, words)
+
+
+def test_unknown_order_type_never_maps_to_market(submission):
+    broker, _, _ = submission
+    with pytest.raises(LumibotBrokerAPIError, match="not supported by Bitunix"):
+        broker._map_type_to_bitunix(Order.OrderType.TRAIL)
+
+
+def test_oco_is_refused(submission):
+    broker, _, request = submission
+    order = make_order(
+        side=Order.OrderSide.SELL,
+        order_class=Order.OrderClass.OCO,
+        limit_price=Decimal("61000"),
+        stop_price=Decimal("59000"),
+    )
+    _assert_refused_without_request(broker._submit_order(order), request, ["oco"])
+
+
+def test_bracket_entry_carries_take_profit_and_stop_loss(submission):
+    broker, _, request = submission
+    order = make_order(
+        side=Order.OrderSide.BUY,
+        order_class=Order.OrderClass.BRACKET,
+        secondary_limit_price=Decimal("61000"),
+        secondary_stop_price=Decimal("59000"),
+    )
+    assert broker._submit_order(order).status == Order.OrderStatus.SUBMITTED
+    body = json.loads(request.call_args.kwargs["data"])
+    assert body["orderType"] == "MARKET"
+    assert body["tpPrice"] == "61000.0"
+    assert body["slPrice"] == "59000.0"
+    assert "slOrderType" not in body
+
+
+def test_bracket_stop_limit_child_sends_documented_limit_fields(submission):
+    broker, _, request = submission
+    order = make_order(
+        side=Order.OrderSide.BUY,
+        order_class=Order.OrderClass.BRACKET,
+        secondary_limit_price=Decimal("61000"),
+        secondary_stop_price=Decimal("59000"),
+        secondary_stop_limit_price=Decimal("58900"),
+    )
+    assert broker._submit_order(order).status == Order.OrderStatus.SUBMITTED
+    body = json.loads(request.call_args.kwargs["data"])
+    assert body["slPrice"] == "59000.0"
+    assert body["slOrderType"] == "LIMIT"
+    assert body["slOrderPrice"] == "58900.0"
+
+
+def test_oto_stop_child_built_by_caller_still_reaches_the_wire(submission):
+    broker, _, request = submission
+    child = Order(
+        "test-strategy",
+        Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE, leverage=10),
+        Decimal("0.01"),
+        side=Order.OrderSide.SELL,
+        stop_price=Decimal("59000"),
+    )
+    order = make_order(side=Order.OrderSide.BUY, order_class=Order.OrderClass.OTO, child_orders=[child])
+    assert broker._submit_order(order).status == Order.OrderStatus.SUBMITTED
+    assert json.loads(request.call_args.kwargs["data"])["slPrice"] == "59000.0"
+
+
+def test_bracket_with_trailing_child_is_refused(submission):
+    broker, _, request = submission
+    child = Order(
+        "test-strategy",
+        Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE, leverage=10),
+        Decimal("0.01"),
+        side=Order.OrderSide.SELL,
+        trail_percent=2.0,
+    )
+    order = make_order(side=Order.OrderSide.BUY, order_class=Order.OrderClass.OTO, child_orders=[child])
+    _assert_refused_without_request(broker._submit_order(order), request, ["trailing"])

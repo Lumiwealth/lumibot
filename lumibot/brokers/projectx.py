@@ -12,6 +12,7 @@ from contextlib import contextmanager
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, LazyPytzTimezoneRef, lazy_class
 from lumibot.brokers.broker import Broker
+from lumibot.brokers.broker import ORDER_NATIVE, ORDER_SIMULATED, ORDER_UNSUPPORTED  # noqa: F401
 # PollingStream usage was removed to align with centralized lifecycle in core Broker
 
 # Import moved to avoid circular dependency
@@ -172,6 +173,29 @@ class ProjectX(Broker):
     thefuturesdesk, futureselite, fxifyfutures, goatfundedfutures, holaprime,
     nexgen, tx3funding, demo, daytraders
     """
+
+    # Brackets are simulated: LumiBot places the stop and target after the entry
+    # fills and cancels the other when one fills. Both exits rest at the broker
+    # once placed, but placing them and cancelling the sibling need the strategy
+    # to be running (a restart catches up on the next sync).
+    ORDER_SUPPORT = {
+        "market": ORDER_NATIVE, "limit": ORDER_NATIVE, "stop": ORDER_NATIVE,
+        "stop_limit": (ORDER_UNSUPPORTED, "Stop-limit orders are not supported by ProjectX in LumiBot. Use a stop "
+                       "order instead."),
+        "trailing_stop": (ORDER_UNSUPPORTED, "Trailing stop orders are not supported by ProjectX in LumiBot yet. "
+                          "Use a stop order instead."),
+        "bracket": (ORDER_SIMULATED, "LumiBot simulates ProjectX brackets: it places the stop and target after the "
+                    "entry fills and cancels the other when one fills. The exits rest at ProjectX once placed, but "
+                    "placing them and cancelling the sibling only happen while the strategy is running."),
+        "oto": (ORDER_UNSUPPORTED, "OTO orders are not supported by ProjectX in LumiBot. Use a bracket order or "
+                "submit the exit after the entry fills."),
+        "oco": (ORDER_UNSUPPORTED, "OCO orders are not supported by ProjectX in LumiBot. Submit the stop and target "
+                "as separate orders."),
+        "trailing_leg": ORDER_UNSUPPORTED,
+        "stop_limit_leg": (ORDER_UNSUPPORTED, "Stop-limit exits are not supported by ProjectX in LumiBot; the "
+                           "bracket stop is a plain stop order. Use secondary_stop_price only."),
+    }
+
 
     # Order type mappings (ProjectX values - CORRECTED from real Project X library)
     ORDER_TYPE_MAPPING = {
@@ -692,6 +716,9 @@ class ProjectX(Broker):
 
     def _submit_order(self, order: Order) -> Order:
         """Submit a new order to the broker."""
+        # Refuse what this adapter cannot place instead of dropping legs or prices.
+        if self._refuse_unsupported_order(order):
+            return order
         with self._order_update_lock:
             existing = self._existing_submission(order)
             if existing is not None:

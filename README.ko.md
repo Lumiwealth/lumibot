@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 2d3e5a13d7c9a901e52d9bcd402265128752a427567a93bc0bfad88e795d5905 -->
+<!-- entry-source-sha256: b45ff928f7b9f1c158b3cd78a3d90557e7e5202d87107e522044a0b9d92f600c -->
 
 # LumiBot AI Trading
 
@@ -16,6 +16,7 @@ LumiBot은 트레이딩 봇을 만드는 무료 오픈소스 Python 프레임워
 - **거래 전에 백테스트:** 과거 데이터로 AI 판단과 Python 규칙을 평가하고 차트, 거래, 로그를 확인합니다.
 - **백테스트와 거래에 같은 전략 사용:** 전략 클래스를 유지하고 데이터 소스와 브로커 실행 설정을 바꿉니다.
 - **여러 자산군 지원:** [지원 브로커](https://lumibot.lumiwealth.com/brokers.all.html)에 따라 주식, 옵션, 선물, 외환, 암호화폐 및 예측 시장을 다룹니다.
+- **무료 펀더멘털 데이터:** SEC 보고서의 손익계산서, 재무상태표, 현금흐름과 바로 쓰는 지표(PER, 마진, 성장률)를 각 날짜에 공개된 값 그대로 제공합니다. 백테스트에 미래 정보가 섞이지 않습니다. [펀더멘털 데이터](https://lumibot.lumiwealth.com/fundamentals.html).
 - **의사결정이 브로커에게 전달됩니다.** 주문, 체결 및 의사결정 기록을 확인하세요. [실행 방식](https://lumibot.lumiwealth.com/execution_gap.html).
 
 ## AI 어시스턴트 연결
@@ -67,6 +68,6 @@ lumibot connect botspot
 
 ## 프레임워크 살펴보기
 
-[Python 예제](https://lumibot.lumiwealth.com/examples.html) · [AI 예제](https://lumibot.lumiwealth.com/agents_examples.html) · [Strategy API](https://lumibot.lumiwealth.com/strategy_api_overview.html) · [브로커](https://lumibot.lumiwealth.com/brokers.all.html)
+[Python 예제](https://lumibot.lumiwealth.com/examples.html) · [AI 예제](https://lumibot.lumiwealth.com/agents_examples.html) · [Strategy API](https://lumibot.lumiwealth.com/strategy_api_overview.html) · [브로커](https://lumibot.lumiwealth.com/brokers.all.html) · [펀더멘털 데이터](https://lumibot.lumiwealth.com/fundamentals.html)
 
 거래에는 손실 위험이 있습니다. 과거 시뮬레이션은 수익을 보장하지 않습니다.

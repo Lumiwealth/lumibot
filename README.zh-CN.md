@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 2d3e5a13d7c9a901e52d9bcd402265128752a427567a93bc0bfad88e795d5905 -->
+<!-- entry-source-sha256: b45ff928f7b9f1c158b3cd78a3d90557e7e5202d87107e522044a0b9d92f600c -->
 
 # LumiBot AI 交易框架
 
@@ -16,6 +16,7 @@ LumiBot 是一个免费、开源的 Python 交易机器人框架。你可以编�
 - **先回测，再交易：** 用历史数据评估 AI 决策与 Python 规则，查看图表、交易和日志。
 - **回测和交易使用同一套策略：** 保留策略类，切换数据源和券商运行配置。
 - **多资产类别：** 支持股票、期权、期货、外汇、加密货币和预测市场，具体取决于[券商支持范围](https://lumibot.lumiwealth.com/brokers.all.html)。
+- **免费基本面数据：** 来自 SEC 报告的利润表、资产负债表、现金流量表，以及现成指标（市盈率、利润率、增长率），按每个日期当时已公开的数据提供。回测不会看到未来。[基本面数据](https://lumibot.lumiwealth.com/fundamentals.html)。
 - **决策会传达到券商。** 查看订单、成交和决策记录。[执行机制说明](https://lumibot.lumiwealth.com/execution_gap.html).
 
 ## 连接你的 AI 助手
@@ -67,6 +68,6 @@ lumibot connect botspot
 
 ## 继续探索
 
-[策略示例](https://lumibot.lumiwealth.com/examples.html) · [AI 示例](https://lumibot.lumiwealth.com/agents_examples.html) · [Strategy API](https://lumibot.lumiwealth.com/strategy_api_overview.html) · [券商](https://lumibot.lumiwealth.com/brokers.all.html)
+[策略示例](https://lumibot.lumiwealth.com/examples.html) · [AI 示例](https://lumibot.lumiwealth.com/agents_examples.html) · [Strategy API](https://lumibot.lumiwealth.com/strategy_api_overview.html) · [券商](https://lumibot.lumiwealth.com/brokers.all.html) · [基本面数据](https://lumibot.lumiwealth.com/fundamentals.html)
 
 交易有风险，可能亏损。历史模拟不是收益保证。

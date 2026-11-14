@@ -6,7 +6,8 @@ import time
 from collections import deque
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
-from .broker import Broker
+from .broker import Broker, LumibotBrokerAPIError
+from lumibot.brokers.broker import ORDER_NATIVE, ORDER_SIMULATED, ORDER_UNSUPPORTED  # noqa: F401
 
 # Set up module-specific logger for enhanced logging
 
@@ -65,6 +66,22 @@ class Tradovate(Broker):
     """
     Tradovate broker that implements connection to the Tradovate API.
     """
+
+    # Single market, limit, stop and stop-limit orders only for now.
+    ORDER_SUPPORT = {
+        "market": ORDER_NATIVE, "limit": ORDER_NATIVE, "stop": ORDER_NATIVE, "stop_limit": ORDER_NATIVE,
+        "trailing_stop": (ORDER_UNSUPPORTED, "Trailing stop orders are not supported by Tradovate in LumiBot. Use a "
+                          "stop or stop-limit order instead."),
+        "bracket": (ORDER_UNSUPPORTED, "Bracket orders are not supported by Tradovate in LumiBot yet. Submit the "
+                    "entry, then submit the stop and target as separate orders."),
+        "oto": (ORDER_UNSUPPORTED, "OTO orders are not supported by Tradovate in LumiBot yet. Submit the entry, "
+                "then submit the exit as a separate order."),
+        "oco": (ORDER_UNSUPPORTED, "OCO orders are not supported by Tradovate in LumiBot yet. Submit the stop and "
+                "target as separate orders."),
+        "trailing_leg": ORDER_UNSUPPORTED,
+        "stop_limit_leg": ORDER_UNSUPPORTED,
+    }
+
     NAME = "Tradovate"
     POLL_EVENT = "poll"
 
@@ -271,10 +288,17 @@ class Tradovate(Broker):
             response.raise_for_status()
             data = response.json()
 
-            # Check for authentication errors first
+            # Check for authentication errors first. Tradovate answers a refused
+            # login with HTTP 200 and an ``errorText`` body, so the transport
+            # status says nothing. Carry 401 (Unauthorized) so callers can tell
+            # a refused credential from a crash without reading message text.
             if "errorText" in data:
                 error_text = data["errorText"]
-                raise TradovateAPIError(f"Tradovate authentication failed: {error_text}")
+                raise TradovateAPIError(
+                    f"Tradovate authentication failed: {error_text}",
+                    status_code=401,
+                    response_text=response.text,
+                )
 
             # Check if CAPTCHA is required
             if data.get("p-captcha"):
@@ -287,8 +311,11 @@ class Tradovate(Broker):
                 # Determine correct web login URL
                 web_url = "https://tradovate.com/"
 
+                # A login throttle is a wait, not a refused credential: carry 429.
                 raise TradovateAPIError(
-                    f"Tradovate API is rate limiting login attempts. "
+                    status_code=429,
+                    response_text=response.text,
+                    message=f"Tradovate API is rate limiting login attempts. "
                     f"Please wait {p_time} {time_unit} before trying again, "
                     f"or log into your Tradovate account through the web interface "
                     f"({web_url}) to clear the restriction immediately."
@@ -1296,6 +1323,32 @@ class Tradovate(Broker):
         is updated to 'submitted' and the raw response is attached to the order. Otherwise, 
         the order is marked with an error.
         """
+        # Placed as asked, or refused with a plain error. Never silently send a
+        # different order: a trailing stop sent as Market, or a bracket sent
+        # without its exits, leaves the position unprotected.
+        if order.order_class in (
+            Order.OrderClass.BRACKET, Order.OrderClass.OTO, Order.OrderClass.OCO, Order.OrderClass.MULTILEG
+        ) or order.child_orders:
+            order.set_error(LumibotBrokerAPIError(
+                f"{order.order_class} orders are not supported by Tradovate in LumiBot yet. Submit the "
+                "entry, then submit the stop and target as separate orders."
+            ))
+            return order
+        if order.order_type == Order.OrderType.MARKET:
+            order_type = "Market"
+        elif order.order_type == Order.OrderType.LIMIT:
+            order_type = "Limit"
+        elif order.order_type == Order.OrderType.STOP:
+            order_type = "Stop"
+        elif order.order_type == Order.OrderType.STOP_LIMIT:
+            order_type = "StopLimit"
+        else:
+            order.set_error(LumibotBrokerAPIError(
+                f"{order.order_type} orders are not supported by Tradovate in LumiBot. Use a stop or "
+                "stop-limit order instead."
+            ))
+            return order
+
         self._ensure_connected()
 
         # Pre-submission validation
@@ -1323,20 +1376,6 @@ class Tradovate(Broker):
         else:
             symbol = order.asset.symbol
 
-        # Determine the order type string based on the order type.
-        if order.order_type == Order.OrderType.MARKET:
-            order_type = "Market"
-        elif order.order_type == Order.OrderType.LIMIT:
-            order_type = "Limit"
-        elif order.order_type == Order.OrderType.STOP:
-            order_type = "Stop"
-        elif order.order_type == Order.OrderType.STOP_LIMIT:
-            order_type = "StopLimit"
-        else:
-            logger.warning(
-                f"Order type '{order.order_type}' is not fully supported. Defaulting to Market order."
-            )
-            order_type = "Market"
 
         # Build the payload with numeric values sent as numbers and booleans as True/False.
         payload = {
@@ -1352,6 +1391,11 @@ class Tradovate(Broker):
         # If a limit price is specified for limit orders, include it.
         if order.limit_price is not None:
             payload["price"] = float(order.limit_price)
+        # Tradovate's StopLimit carries its limit in `price` (documented: "a
+        # Stop-Limit will require a price and a stopPrice"); LumiBot keeps it in
+        # stop_limit_price.
+        if order_type == "StopLimit" and order.stop_limit_price is not None:
+            payload["price"] = float(order.stop_limit_price)
         # Similarly, include stop price if specified.
         if order.stop_price is not None:
             payload["stopPrice"] = float(order.stop_price)

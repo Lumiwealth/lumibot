@@ -12,6 +12,7 @@ from threading import Thread
 from lumibot._lazy_imports import LazyLogger, lazy_class
 
 from .broker import Broker, LumibotBrokerAPIError
+from lumibot.brokers.broker import ORDER_NATIVE, ORDER_SIMULATED, ORDER_UNSUPPORTED  # noqa: F401
 from .oauth_refresh_mode import is_external_oauth_refresh_mode
 
 logger = LazyLogger(__name__)
@@ -298,6 +299,19 @@ class Schwab(Broker):
     Link to Schwab API documentation: https://developer.schwab.com/ and create an account to get API doc access.
     Link to the Python client library: https://schwab-py.readthedocs.io/en/latest/
     """
+
+    # Schwab templates cover market, limit, stop and stop-limit, plus OTO, OCO and
+    # bracket groups. Trailing stops are not built by LumiBot's Schwab adapter.
+    ORDER_SUPPORT = {
+        "market": ORDER_NATIVE, "limit": ORDER_NATIVE, "stop": ORDER_NATIVE, "stop_limit": ORDER_NATIVE,
+        "trailing_stop": (ORDER_UNSUPPORTED, "Trailing stop orders are not supported by Schwab in LumiBot; nothing "
+                          "was sent. Use a stop or stop-limit order instead."),
+        "bracket": ORDER_NATIVE, "oto": ORDER_NATIVE, "oco": ORDER_NATIVE,
+        "trailing_leg": (ORDER_UNSUPPORTED, "Trailing stop legs are not supported by Schwab in LumiBot; nothing "
+                         "was sent."),
+        "stop_limit_leg": ORDER_NATIVE,
+    }
+
 
     NAME = "Schwab"
     CASH_FUNDING_TRANSACTION_TYPES = {
@@ -2718,8 +2732,16 @@ class Schwab(Broker):
                 order_builder = self._prepare_schwab_single_order_builder(order)
 
             if not order_builder:
-                logger.error(colored(f"Failed to create order builder for {order}", "red"))
-                return None
+                # Refuse visibly: a builder failure used to leave the order unprocessed
+                # with only a log line, so the strategy never learned nothing was sent.
+                error = LumibotBrokerAPIError(
+                    f"This {order.order_type} {order.order_class} order is not supported by Schwab in LumiBot; "
+                    "nothing was sent."
+                )
+                logger.error(colored(str(error), "red"))
+                order.set_error(error)
+                self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=str(error))
+                return order
 
             order_spec = self._build_order_spec_from_builder(
                 order_builder,
@@ -2970,29 +2992,38 @@ class Schwab(Broker):
         if order.order_type == Order.OrderType.STOP_LIMIT:
             limit_price = order.stop_limit_price
 
+        # Exit legs of brackets/OTO/OCO carry *_to_close sides; for a stock these are the
+        # plain equity instructions (a short closes with BUY_TO_COVER).
+        side = {
+            Order.OrderSide.SELL_TO_CLOSE: Order.OrderSide.SELL,
+            Order.OrderSide.BUY_TO_CLOSE: Order.OrderSide.BUY_TO_COVER,
+            Order.OrderSide.BUY_TO_OPEN: Order.OrderSide.BUY,
+            Order.OrderSide.SELL_TO_OPEN: Order.OrderSide.SELL_SHORT,
+        }.get(order.side, order.side)
+
         # Create the appropriate order builder based on order side and type
         order_builder = None
 
         # Market orders
         if order.order_type == Order.OrderType.MARKET:
-            if order.side == Order.OrderSide.BUY:
+            if side == Order.OrderSide.BUY:
                 order_builder = equity_buy_market(symbol, quantity)
-            elif order.side == Order.OrderSide.SELL:
+            elif side == Order.OrderSide.SELL:
                 order_builder = equity_sell_market(symbol, quantity)
-            elif order.side == Order.OrderSide.SELL_SHORT:
+            elif side == Order.OrderSide.SELL_SHORT:
                 order_builder = equity_sell_short_market(symbol, quantity)
-            elif order.side == Order.OrderSide.BUY_TO_COVER:
+            elif side == Order.OrderSide.BUY_TO_COVER:
                 order_builder = equity_buy_to_cover_market(symbol, quantity)
 
         # Limit orders
         elif order.order_type == Order.OrderType.LIMIT:
-            if order.side == Order.OrderSide.BUY:
+            if side == Order.OrderSide.BUY:
                 order_builder = equity_buy_limit(symbol, quantity, limit_price)
-            elif order.side == Order.OrderSide.SELL:
+            elif side == Order.OrderSide.SELL:
                 order_builder = equity_sell_limit(symbol, quantity, limit_price)
-            elif order.side == Order.OrderSide.SELL_SHORT:
+            elif side == Order.OrderSide.SELL_SHORT:
                 order_builder = equity_sell_short_limit(symbol, quantity, limit_price)
-            elif order.side == Order.OrderSide.BUY_TO_COVER:
+            elif side == Order.OrderSide.BUY_TO_COVER:
                 order_builder = equity_buy_to_cover_limit(symbol, quantity, limit_price)
 
         # Stop and stop limit orders aren't directly supported by the templates, so we need a workaround
@@ -3001,22 +3032,22 @@ class Schwab(Broker):
 
             # Start with a market or limit order based on type
             if order.order_type == Order.OrderType.STOP:
-                if order.side == Order.OrderSide.BUY:
+                if side == Order.OrderSide.BUY:
                     order_builder = equity_buy_market(symbol, quantity)
-                elif order.side == Order.OrderSide.SELL:
+                elif side == Order.OrderSide.SELL:
                     order_builder = equity_sell_market(symbol, quantity)
-                elif order.side == Order.OrderSide.SELL_SHORT:
+                elif side == Order.OrderSide.SELL_SHORT:
                     order_builder = equity_sell_short_market(symbol, quantity)
-                elif order.side == Order.OrderSide.BUY_TO_COVER:
+                elif side == Order.OrderSide.BUY_TO_COVER:
                     order_builder = equity_buy_to_cover_market(symbol, quantity)
             else:  # STOP_LIMIT
-                if order.side == Order.OrderSide.BUY:
+                if side == Order.OrderSide.BUY:
                     order_builder = equity_buy_limit(symbol, quantity, limit_price)
-                elif order.side == Order.OrderSide.SELL:
+                elif side == Order.OrderSide.SELL:
                     order_builder = equity_sell_limit(symbol, quantity, limit_price)
-                elif order.side == Order.OrderSide.SELL_SHORT:
+                elif side == Order.OrderSide.SELL_SHORT:
                     order_builder = equity_sell_short_limit(symbol, quantity, limit_price)
-                elif order.side == Order.OrderSide.BUY_TO_COVER:
+                elif side == Order.OrderSide.BUY_TO_COVER:
                     order_builder = equity_buy_to_cover_limit(symbol, quantity, limit_price)
 
             # Then try to add stop price to the builder object through manual modification

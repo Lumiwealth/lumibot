@@ -236,6 +236,56 @@ class TestTradovateBroker:
             mock_get_account_info.assert_not_called()
             mock_get_user_info.assert_not_called()
 
+    @staticmethod
+    def _token_reply(body):
+        # Tradovate answers /auth/accesstokenrequest with HTTP 200 and puts a
+        # refused login or a login throttle in the JSON body (recorded shape).
+        reply = MagicMock()
+        reply.status_code = 200
+        reply.raise_for_status.return_value = None
+        reply.json.return_value = body
+        reply.text = str(body)
+        return reply
+
+    def _broker_for_token_tests(self):
+        from lumibot.brokers import Tradovate
+
+        config = {
+            "USERNAME": "test_user",
+            "DEDICATED_PASSWORD": "wrong_pass",
+            "CID": "test_cid",
+            "SECRET": "test_secret",
+            "IS_PAPER": True,
+        }
+        return Tradovate(config=config)
+
+    def test_refused_login_reports_unauthorized_status(self):
+        """A refused login carries HTTP 401 so callers can tell a bad credential from a crash."""
+        from lumibot.brokers.tradovate import Tradovate, TradovateAPIError
+
+        broker = self._broker_for_token_tests()
+        reply = self._token_reply({
+            "errorText": "Incorrect username or password. Please try again, noting that passwords are case-sensitive."
+        })
+        with patch.object(Tradovate, "_request", return_value=reply):
+            with pytest.raises(TradovateAPIError) as raised:
+                broker._get_tokens()
+        assert raised.value.status_code == 401
+        assert "Incorrect username or password" in str(raised.value)
+        assert raised.value.response_text == reply.text
+
+    def test_login_throttle_reports_rate_limit_status(self):
+        """A login throttle (captcha) carries HTTP 429, a wait, not a refused credential."""
+        from lumibot.brokers.tradovate import Tradovate, TradovateAPIError
+
+        broker = self._broker_for_token_tests()
+        reply = self._token_reply({"p-captcha": True, "p-time": 15, "p-ticket": "ticket"})
+        with patch.object(Tradovate, "_request", return_value=reply):
+            with pytest.raises(TradovateAPIError) as raised:
+                broker._get_tokens()
+        assert raised.value.status_code == 429
+        assert "rate limiting login attempts" in str(raised.value)
+
     def test_broker_connect_on_init_preserves_eager_connection(self):
         """Test explicit eager connection path for callers that require fail-fast auth."""
         from lumibot.brokers import Tradovate
@@ -1346,3 +1396,60 @@ class TestTradovateTokenRenewal:
 if __name__ == "__main__":
     # Run all tests when file is executed directly
     pytest.main([__file__, "-v"])
+
+
+class TestTradovateOrderShapes:
+    """Placed as asked, or refused with a plain error; never silently changed.
+
+    Request shape from Tradovate's documented order fields: "a Limit or Stop order
+    must use the price parameter, but a Stop-Limit will require a price and a
+    stopPrice" (partner.tradovate.com, orders/place-oco and placeorder).
+    """
+
+    def _broker(self):
+        from lumibot.brokers import Tradovate
+
+        broker = Tradovate.__new__(Tradovate)
+        broker.account_spec = "TEST"
+        broker.account_id = 123
+        broker.trading_token = "token"
+        broker.trading_api_url = "https://example.invalid/v1"
+        broker._ensure_connected = MagicMock()
+        broker._get_headers = MagicMock(return_value={})
+        broker._process_trade_event = MagicMock()
+        response = MagicMock()
+        response.json.return_value = {"orderId": 77}
+        response.raise_for_status.return_value = None
+        broker._request = MagicMock(return_value=response)
+        return broker
+
+    def _order(self, **kwargs):
+        from lumibot.entities import Asset, Order
+
+        return Order("Strategy", Asset("MESZ5", asset_type=Asset.AssetType.FUTURE), 1, side="sell", **kwargs)
+
+    def test_stop_limit_sends_limit_as_price(self):
+        broker = self._broker()
+        broker._submit_order(self._order(stop_price=5000.25, stop_limit_price=4999.75))
+        payload = broker._request.call_args.kwargs["json"]
+        assert payload["orderType"] == "StopLimit"
+        assert payload["stopPrice"] == 5000.25
+        assert payload["price"] == 4999.75
+
+    @pytest.mark.parametrize("kwargs", [{"trail_percent": 1.5}, {"trail_price": 4.0}])
+    def test_trailing_stop_is_refused_not_sent_as_market(self, kwargs):
+        broker = self._broker()
+        order = broker._submit_order(self._order(**kwargs))
+        broker._request.assert_not_called()
+        assert order.status == "error"
+        assert "not supported by tradovate" in order.error_message.lower()
+
+    @pytest.mark.parametrize("order_class", ["bracket", "oto"])
+    def test_bracket_and_oto_are_refused_not_sent_without_exits(self, order_class):
+        broker = self._broker()
+        order = self._order(order_class=order_class, secondary_stop_price=4990.0)
+        order.side = "buy"
+        order = broker._submit_order(order)
+        broker._request.assert_not_called()
+        assert order.status == "error"
+        assert "not supported by tradovate" in order.error_message.lower()

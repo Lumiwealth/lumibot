@@ -1,5 +1,6 @@
 """Collateral and FIFO lots for perpetual backtests, in native contract units."""
 
+import json
 from copy import deepcopy
 from decimal import Decimal
 
@@ -22,6 +23,10 @@ class PerpetualAccount:
         self.processing_events = False
         broker.backtest_assumptions = []
         broker.perpetual_events = []
+        # Machine-readable: windows with no funding data, and who supplied prices and funding.
+        broker.perpetual_funding_unavailable = []
+        broker.perpetual_data_sources = {}
+        self._funding_gaps_reported = set()
 
     def assumption(self, message):
         if message not in self.broker.backtest_assumptions:
@@ -235,6 +240,8 @@ class PerpetualAccount:
                 else:
                     for event in events:
                         timeline.setdefault(event["timestamp"], []).append((asset, event))
+                self.record_sources(asset)
+                self.report_funding_gaps(asset, start, now)
                 marks = source._perpetual_rows(source._perpetual_input(getattr(source, "mark_prices", None), asset)) or []
                 for row in marks:
                     if start < row["timestamp"] <= now:
@@ -277,6 +284,63 @@ class PerpetualAccount:
             self.last_event_time[strategy.name] = now
         finally:
             self.processing_events = False
+
+    def record_sources(self, asset):
+        source = self.broker.data_source
+        symbol = getattr(asset, "symbol", str(asset))
+        if symbol in self.broker.perpetual_data_sources:
+            return
+        prices = funding = type(source).__name__
+        try:
+            prices = source.provider_for(asset)
+        except Exception:
+            pass
+        coverage = self._coverage(asset)
+        funding = coverage.get("source") if coverage else prices
+        self.broker.perpetual_data_sources[symbol] = {"prices": prices, "funding": funding}
+
+    def _coverage(self, asset):
+        getter = getattr(self.broker.data_source, "get_funding_coverage", None)
+        if not callable(getter):
+            return None
+        try:
+            return getter(asset)
+        except Exception:
+            return None
+
+    def report_funding_gaps(self, asset, start, end):
+        """Say plainly when part of a held period has no funding data (never shown as zero)."""
+        coverage = self._coverage(asset)
+        if not coverage:
+            return
+        first, last, interval = coverage.get("first"), coverage.get("last"), coverage.get("interval")
+        gaps = []
+        if first is None:
+            gaps.append((start, end))
+        else:
+            if first > start and (interval is None or first - start > interval):
+                gaps.append((start, min(first, end)))
+            if last is not None and interval is not None and last >= start and end - last > interval * 1.1:
+                gaps.append((last + interval, end))
+        symbol = getattr(asset, "symbol", str(asset))
+        for gap_start, gap_end in gaps:
+            key = (symbol, gap_start, gap_end)
+            if key in self._funding_gaps_reported or gap_end <= gap_start:
+                continue
+            self._funding_gaps_reported.add(key)
+            notice = {
+                "symbol": symbol,
+                "source": coverage.get("source"),
+                "covered_from": first.isoformat() if first is not None else None,
+                "covered_to": last.isoformat() if last is not None else None,
+                "not_covered": [[gap_start.isoformat(), gap_end.isoformat()]],
+            }
+            self.broker.perpetual_funding_unavailable.append(notice)
+            self.assumption(
+                f"{symbol}: {coverage.get('source')} has no funding data from {gap_start.isoformat()} to "
+                f"{gap_end.isoformat()}; no funding is charged there, which is missing data, not zero funding.\n"
+                f"PERPETUAL_FUNDING_UNAVAILABLE {json.dumps(notice, sort_keys=True)}"
+            )
 
     def liquidate(self, strategy, at):
         source = self.broker.data_source

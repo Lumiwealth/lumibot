@@ -273,6 +273,7 @@ Troubleshooting
 - Verify your credentials are correct
 - Ensure you're using the dedicated API password, not your login password
 - Check that your CID and Secret match your API application
+- A refused login raises ``TradovateAPIError`` with ``status_code`` 401. Too many login attempts raise it with ``status_code`` 429; wait the time in the message, or log in once on the Tradovate website, then try again.
 
 **Connection Problems**
 

@@ -2536,6 +2536,12 @@ class _Strategy:
             assumptions = getattr(self.broker, "backtest_assumptions", None)
             if assumptions:
                 self._analysis["backtest_assumptions"] = list(assumptions)
+            funding_gaps = getattr(self.broker, "perpetual_funding_unavailable", None)
+            if funding_gaps:
+                self._analysis["perpetual_funding_unavailable"] = list(funding_gaps)
+            data_sources = getattr(self.broker, "perpetual_data_sources", None)
+            if data_sources:
+                self._analysis["perpetual_data_sources"] = dict(data_sources)
             perpetual_events = getattr(self.broker, "perpetual_events", None)
             if perpetual_events:
                 self._analysis["perpetual_events"] = [row for row in perpetual_events if row["strategy"] == self._name]

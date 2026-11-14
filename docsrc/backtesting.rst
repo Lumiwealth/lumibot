@@ -106,6 +106,7 @@ When you run a backtest, several important files are generated, each prefixed by
    backtesting.how_to_backtest
    backtesting.backtesting_function
    backtesting.performance
+   backtesting.how_orders_fill
    backtesting.yahoo
    backtesting.pandas
    backtesting.polygon

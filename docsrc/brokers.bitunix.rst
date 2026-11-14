@@ -245,7 +245,16 @@ No. The LumiBot Bitunix broker connects to the live Bitunix futures API (``fapi.
 Which order types can I use on Bitunix?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Market, limit, stop and stop limit orders. You can also attach a take-profit price and a stop-loss price to an order. Multi-leg, OCO, OTO and bracket order groups are not supported.
+Market and limit orders. Bitunix's order endpoint accepts only those two types, so a
+standalone stop, stop-limit or trailing stop order is refused with a "not supported" error
+and nothing is sent.
+
+To protect a position, attach the stop and target to the entry: create a market or limit
+order with ``order_class=Order.OrderClass.BRACKET`` (or ``OTO``) and set
+``secondary_stop_price`` and ``secondary_limit_price``. They are sent as the exchange's
+stop-loss and take-profit on the same request, so the exchange holds them. Adding
+``secondary_stop_limit_price`` makes the stop-loss a limit order. Trailing exits and OCO
+orders are not supported. See :doc:`brokers.order_support`.
 
 How do I set leverage for a Bitunix order?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

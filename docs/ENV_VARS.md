@@ -355,6 +355,11 @@ These env vars are used by the ThetaData chain cache/builder in `lumibot/tools/t
 - Common values:
   - `LUMIBOT_CACHE_BACKEND=s3`
   - `LUMIBOT_CACHE_MODE=readwrite` (or `readonly`)
+- Tests: `tests/conftest.py` forces the remote cache off (backend `local`, mode `disabled`, bucket and keys blanked)
+  and refuses to build a real S3 client, so no test can read or write a real bucket even when a local `.env`
+  configures one. Tests that need a remote store inject a fake with `client_factory=`. A deliberate
+  real-service integration run can opt out with `LUMIBOT_TEST_ALLOW_REAL_REMOTE_CACHE=1` (test runs only).
+  Enforced by `tests/test_tests_never_touch_real_remote_store.py`.
 
 ### `LUMIBOT_CACHE_FOLDER`
 - Purpose: Override the local cache folder (useful to simulate a fresh ECS task).
@@ -369,6 +374,9 @@ These env vars are used by the ThetaData chain cache/builder in `lumibot/tools/t
   scope a caller passes.
 - `LUMIBOT_SHARED_BARS_SETTLE_MINUTES`: minutes after a bar ends before it is stored (default 15).
 - `LUMIBOT_SHARED_BARS_UPLOAD_WORKERS`: background upload workers (default 8); one file's uploads stay in order on one worker.
+- `LUMIBOT_SHARED_BARS_MEMORY_MB`: estimated megabytes of written partitions kept in memory (default 256), oldest dropped first.
+  Separately, a partition this process already downloaded or wrote is read from local disk, not S3, when it covers the
+  requested range; a coverage gap still falls through to S3.
 - Design and invariants: `docs/SHARED_BAR_CACHE.md`.
 
 ### `LUMIBOT_CACHE_S3_BUCKET`, `LUMIBOT_CACHE_S3_PREFIX`, `LUMIBOT_CACHE_S3_REGION`

@@ -8,6 +8,19 @@ import pytest
 from lumibot.fundamentals import SECFundamentals
 
 
+@pytest.fixture(autouse=True)
+def _no_shared_remote_cache(monkeypatch):
+    """Keep SEC tests off any remote cache configured in the developer's environment.
+
+    SECFundamentals uses LumiBot's shared backtest cache by default in backtest mode, so a
+    configured bucket would otherwise receive these synthetic fixtures.
+    """
+    from lumibot.tools import backtest_cache
+
+    disabled = backtest_cache.BacktestCacheManager(None)
+    monkeypatch.setattr(backtest_cache, "get_backtest_cache", lambda: disabled)
+
+
 class _Response:
     def __init__(self, *, payload=None, text="", status_code=200, headers=None):
         self._payload = payload

@@ -93,6 +93,16 @@ Things to know:
   other ``crypto_future`` routing values and what each provides. The exception is
   ``lumibot.backtesting.routed_backtesting.PerpetualDataUnavailable`` with the same
   values as attributes.
+- **Missing funding history is reported, not treated as zero.** Bitunix funding
+  history starts on 2024-03-04. When a position is held where the source has no
+  funding settlements, nothing is charged there and the run says so in its log
+  and backtest assumptions with one machine-readable line::
+
+     PERPETUAL_FUNDING_UNAVAILABLE {"covered_from": "2024-03-04T00:00:00+00:00", "covered_to": "...", "not_covered": [["2024-01-02T14:30:00+00:00", "2024-03-04T00:00:00+00:00"]], "source": "bitunix", "symbol": "BTCUSDT"}
+
+  The same records are in the backtest analysis under
+  ``perpetual_funding_unavailable``, and ``perpetual_data_sources`` records which
+  source supplied prices and which supplied funding for each contract.
 - **Limits.** Maintenance-margin tiers and liquidation fees are not published by
   this source, so liquidation happens when collateral runs out and is checked on
   closed candles (intrabar liquidation is not modeled). The backtest lists these

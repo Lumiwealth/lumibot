@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 2d3e5a13d7c9a901e52d9bcd402265128752a427567a93bc0bfad88e795d5905 -->
+<!-- entry-source-sha256: b45ff928f7b9f1c158b3cd78a3d90557e7e5202d87107e522044a0b9d92f600c -->
 
 # LumiBot AI Trading
 
@@ -16,6 +16,7 @@ LumiBot: бесплатный Python-фреймворк с открытым ис
 - **Сначала бэктест, затем торговля:** проверяйте решения ИИ и правила Python на истории с графиками, сделками и журналами.
 - **Одна стратегия для бэктеста и торговли:** сохраняйте класс стратегии, меняя источник данных и конфигурацию запуска с брокером.
 - **Разные классы активов:** акции, опционы, фьючерсы, валюты, криптовалюты и рынки прогнозов в зависимости от [поддерживаемого брокера](https://lumibot.lumiwealth.com/brokers.all.html).
+- **Бесплатные фундаментальные данные:** отчёты о прибылях и убытках, балансы и денежные потоки из отчётов SEC и готовые показатели (P/E, маржа, рост) в том виде, в каком они были известны на каждую дату. Бэктесты не видят будущего. [Фундаментальные данные](https://lumibot.lumiwealth.com/fundamentals.html).
 - **Решение доходит до брокера.** Просматривайте заявки, исполнения и записи решений. [Как устроено исполнение](https://lumibot.lumiwealth.com/execution_gap.html).
 
 ## Подключите ИИ-ассистента
@@ -67,6 +68,6 @@ lumibot connect botspot
 
 ## Изучите фреймворк
 
-[Примеры Python](https://lumibot.lumiwealth.com/examples.html) · [ИИ-примеры](https://lumibot.lumiwealth.com/agents_examples.html) · [Strategy API](https://lumibot.lumiwealth.com/strategy_api_overview.html) · [Брокеры](https://lumibot.lumiwealth.com/brokers.all.html)
+[Примеры Python](https://lumibot.lumiwealth.com/examples.html) · [ИИ-примеры](https://lumibot.lumiwealth.com/agents_examples.html) · [Strategy API](https://lumibot.lumiwealth.com/strategy_api_overview.html) · [Брокеры](https://lumibot.lumiwealth.com/brokers.all.html) · [Фундаментальные данные](https://lumibot.lumiwealth.com/fundamentals.html)
 
 Торговля связана с риском потерь. Историческая симуляция не гарантирует доходность.

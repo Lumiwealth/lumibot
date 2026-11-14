@@ -720,6 +720,14 @@ class Order:
             trail_percent,
             position_filled,
         )
+        # A stop-limit's limit is public under two names. Brokers and the backtester
+        # each read one of them, so carry the value in both; never guess when both
+        # were given and differ.
+        if self.order_type is self.OrderType.STOP_LIMIT:
+            if self.limit_price is None and self.stop_limit_price is not None:
+                self.limit_price = self.stop_limit_price
+            elif self.stop_limit_price is None and self.limit_price is not None:
+                self.stop_limit_price = self.limit_price
         self._set_order_class_children(
             secondary_limit_price,
             secondary_stop_price,
@@ -974,6 +982,13 @@ class Order:
     def _set_order_class_children(self, secondary_limit_price, secondary_stop_price, secondary_stop_limit_price,
                                   secondary_trail_price, secondary_trail_percent):
 
+        # A trailing stop is a stop leg on its own; it needs no fixed secondary_stop_price.
+        has_stop_leg = (
+            secondary_stop_price is not None
+            or secondary_trail_price is not None
+            or secondary_trail_percent is not None
+        )
+
         if self.order_class is self.OrderClass.OCO:
             # This is a "One-Cancel-Other" advanced order. All info needed to calculate the child orders exists
             # so they will be created automatically here unless specified directly by the user. It is expected that
@@ -1038,7 +1053,7 @@ class Order:
                             quote=self.quote,
                         )
                     )
-                if secondary_stop_price is not None:
+                if has_stop_leg:
                     self.child_orders.append(
                         Order(
                             # Stop Type will be filled in automatically for child based on the Stop Modifiers
@@ -1070,10 +1085,10 @@ class Order:
             # parent (entry) order as well as the child order.
             # Implement child orders: Open Position Order, one Triggered Order (Limit or Stop)
             if not self.child_orders:
-                if secondary_limit_price is not None and secondary_stop_price is not None:
+                if secondary_limit_price is not None and has_stop_leg:
                     raise ValueError("Order class is OTO but both secondary limit and stop prices have been provided. "
                                      "OTO only allows for one of these values.")
-                if secondary_limit_price is None and secondary_stop_price is None:
+                if secondary_limit_price is None and not has_stop_leg:
                     raise ValueError("Order class is OTO but no child order, secondary limit price, or secondary stop "
                                      "price has been provided. Must provide exactly one child order or one of "
                                      "'secondary_limit_price' or 'secondary_stop_price'.")
@@ -1091,7 +1106,7 @@ class Order:
                             quote=self.quote,
                         )
                     )
-                elif secondary_stop_price is not None:
+                elif has_stop_leg:
                     self.child_orders.append(
                         Order(
                             # Stop Type will be filled in automatically for child based on the Stop Modifiers

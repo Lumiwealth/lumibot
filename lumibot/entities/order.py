@@ -720,6 +720,14 @@ class Order:
             trail_percent,
             position_filled,
         )
+        # A stop-limit's limit is public under two names. Brokers and the backtester
+        # each read one of them, so carry the value in both; never guess when both
+        # were given and differ.
+        if self.order_type is self.OrderType.STOP_LIMIT:
+            if self.limit_price is None and self.stop_limit_price is not None:
+                self.limit_price = self.stop_limit_price
+            elif self.stop_limit_price is None and self.limit_price is not None:
+                self.stop_limit_price = self.limit_price
         self._set_order_class_children(
             secondary_limit_price,
             secondary_stop_price,

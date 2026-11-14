@@ -6,6 +6,7 @@ docs homepage mentioned it. These tests fail if it drops off the entry pages aga
 
 import re
 from pathlib import Path
+from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCSRC = ROOT / "docsrc"
@@ -30,9 +31,9 @@ def test_readme_shows_fundamentals_with_an_example_and_botspot_pointers():
     assert URL in readme
     assert "self.fundamentals.get_metrics_table(" in readme
     section = readme[readme.index("## Screen stocks on fundamentals"):readme.index("## Run the same strategy with a paper broker")]
-    links = set(re.findall(r"\]\(([^)]+)\)", section))
-    assert "https://lumibot.lumiwealth.com/botspot_mcp.html" in links
-    assert "https://botspot.trade" in links
+    links = [urlparse(link) for link in re.findall(r"\]\(([^)]+)\)", section)]
+    assert any(link.hostname == "lumibot.lumiwealth.com" and link.path == "/botspot_mcp.html" for link in links)
+    assert any(link.hostname == "botspot.trade" for link in links)
 
 
 def test_every_localized_readme_links_fundamentals():

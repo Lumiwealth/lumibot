@@ -2,6 +2,8 @@
 
 ## 4.6.59 - 2026-11-14
 
+Deploy marker: 37ce5bf80599cbbe8998ab9724f968071e2dce1b
+
 ### Fixed
 - `get_orders(statuses=...)` accepts status strings, case-insensitively. `"open"`, `"active"` and `"working"` mean every still-working order (same as `Order.ACTIVE_STATUSES`); any `OrderStatus` value or name and common broker spellings (`"filled"`, `"cancelled"`, `"partially_filled"`, `"rejected"`) match that status. Unknown strings raise `ValueError` listing the valid ones. Before, any string raised `TypeError` and crashed the strategy.
 - IBKR futures backtests no longer leave orders on a dated contract pending for the rest of the run. History for a dated contract was requested up to the run end; past the contract's expiration IBKR returns an empty page, so the contract's final weeks were never loaded and every fill check saw a stale bar (a CL hourly run across the October roll left 7 orders working with 1,419 pending checks). History now stops at the contract's last trading day. An order still working after its contract expires is canceled with a clear reason instead of waiting forever. Contract details are looked up once per contract per run, including failed lookups.

@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.6.61 - 2026-11-14
+
+Deploy marker: c41ae51b3d3b7126025657195b8fc43dc6a55223
+
+### Changed
+- ⚠️ Backtests: estimated option fill prices (`price_source=estimated`, used only when a contract has no real quote and no real trade on its fill bar) are more accurate when the rest of the expiration is loaded. When minute trade bars of at least five other contracts of the same expiration that traded earlier in the session are already in memory, the volatility now comes from a smooth curve fitted across all of those recent trades (calls and puts separately, newer trades counting more) instead of only the contract's own last trade. For index options, in-the-money contracts are priced from the out-of-the-money side using the forward implied by calls and puts that traded at the same strike. Validated against historical quote data (691,306 contract-minutes, 64 days): for strikes from 5 delta to at the money the median error fell from 17.7 to 12.1 cents and the 90th percentile from 113.1 to 67.0 cents; the real half-spread in that sample was 10 cents. Nothing extra is downloaded, only trades before the fill bar are used, and no penalty is added. **Estimated fill prices change for options backtests that load many contracts of an expiration. Backtests that load only their own legs, daily-bar backtests, and every fill that has a real quote or trade are unchanged.** New module `lumibot.tools.option_price_estimate`. Method, numbers and limits: "How close are the estimates?" in `docsrc/backtesting.how_orders_fill.rst` and `docs/investigations/2026-11-14_OPTION_ESTIMATE_CHAIN_SMILE.md`.
+
 ## 4.6.60 - 2026-11-14
 
 Deploy marker: b6a93499b87c216b714b3b99bca68f35d371baba

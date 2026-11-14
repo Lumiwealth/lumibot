@@ -5253,7 +5253,9 @@ class BacktestingBroker(Broker):
     # days apart. The rule is: a fill price always belongs to the fill bar.
     #   1. a real bid/ask stamped on that bar (ask for buys, bid for sells), else
     #   2. a real trade in that bar (the bar's open), else
-    #   3. a Black-Scholes estimate: underlying price in that bar, implied volatility backed out
+    #   3. a Black-Scholes estimate: underlying price in that bar, volatility from a smile
+    #      fitted across the expiration's recent trades when those contracts are in memory
+    #      (see _chain_option_estimate_now), otherwise implied volatility backed out
     #      from the contract's most recent real trade (any age; if it never traded, the nearest
     #      strike with the same expiry and right). The estimate is used as computed and is
     #      marked price_source="estimated" in the trade log. An optional spread penalty
@@ -5443,8 +5445,169 @@ class BacktestingBroker(Broker):
         others = sorted({float(s) for s in strikes if float(s) != own}, key=lambda s: abs(s - own))
         return others[: self.OPTION_IV_NEIGHBOR_STRIKES]
 
+    # ------------------------------------------------------------------
+    # Chain-based estimate: a volatility smile from the other contracts of the expiration
+    # ------------------------------------------------------------------
+    # When minute trade bars of enough other contracts of the same expiration are ALREADY in
+    # memory, the estimate uses a smoothed volatility smile fitted from all of them
+    # (lumibot.tools.option_price_estimate) instead of only the contract's own last trade.
+    # Nothing is fetched for this: a backtest that loaded only its own legs keeps the
+    # own-trade model. Only trade bars that ended before the current bar are read.
+    OPTION_CHAIN_MIN_OTHER_CONTRACTS = 5
+    OPTION_CHAIN_SESSION_MINUTES = 390
+    OPTION_CHAIN_PARITY_MINUTES = 15
+    OPTION_CHAIN_SOURCES = frozenset({"smile", "smile_parity", "smile_other_side", "neighbor"})
+
+    def _loaded_option_contracts(self, asset) -> list:
+        """(contract, minute data) pairs of the same underlying and expiration held in memory."""
+        store = getattr(self.data_source, "_data_store", None)
+        if not isinstance(store, dict) or not store:
+            return []
+        cache = getattr(self, "_option_chain_store_cache", None)
+        stamp = (id(store), len(store))
+        if cache is None or cache.get("stamp") != stamp:
+            grouped = {}
+            for key, data in list(store.items()):
+                contract = key[0] if isinstance(key, tuple) else key
+                if not self._is_option_asset(contract):
+                    continue
+                if getattr(contract, "strike", None) is None or getattr(contract, "right", None) is None:
+                    continue
+                if str(getattr(data, "timestep", "")) != "minute":
+                    continue
+                grouped.setdefault((contract.symbol, contract.expiration), {}).setdefault(contract, data)
+            cache = {"stamp": stamp, "groups": {k: list(v.items()) for k, v in grouped.items()}}
+            self._option_chain_store_cache = cache
+        return cache["groups"].get((asset.symbol, asset.expiration), [])
+
+    def _last_loaded_trade_before_now(self, data, now):
+        """(bar start, close) of the latest real trade bar that ended before the current bar."""
+        df = getattr(data, "df", None)
+        if not isinstance(df, pd.DataFrame) or df.empty or "close" not in df.columns:
+            return None
+        index = df.index
+        if not isinstance(index, pd.DatetimeIndex):
+            return None
+        cutoff = now.floor("min")
+        cutoff = cutoff.tz_localize(None) if index.tz is None else cutoff.tz_convert(index.tz)
+        end = int(index.searchsorted(cutoff, side="left"))
+        if end <= 0:
+            return None
+        window = df.iloc[max(0, end - self.OPTION_CHAIN_SESSION_MINUTES):end]
+        close = pd.to_numeric(window["close"], errors="coerce").to_numpy(dtype=float)
+        real = np.isfinite(close) & (close > 0)
+        if "bar_is_observed" in window.columns:
+            # calendar padding rows (copies of an earlier print) are never trades
+            real &= window["bar_is_observed"].map(lambda v: True if v != v else bool(v)).to_numpy(dtype=bool)
+        if "missing" in window.columns:
+            real &= ~window["missing"].map(lambda v: False if v != v else bool(v)).to_numpy(dtype=bool)
+        if "volume" in window.columns:
+            # a bar that reports a volume of zero is not a trade
+            volume = pd.to_numeric(window["volume"], errors="coerce").to_numpy(dtype=float)
+            real &= ~(volume == 0)
+        hits = np.nonzero(real)[0]
+        if hits.size == 0:
+            return None
+        ts = pd.Timestamp(window.index[hits[-1]])
+        ts = ts.tz_localize(now.tz) if ts.tz is None else ts.tz_convert(now.tz)
+        return ts, float(close[hits[-1]])
+
+    def _chain_option_estimate_now(self, order, asset, underlying, spot, years_now) -> Optional[float]:
+        """Smile-based estimate from the expiration's contracts held in memory, or None."""
+        if str(getattr(self.data_source, "_timestep", "minute")) != "minute":
+            return None
+        try:
+            contracts = self._loaded_option_contracts(asset)
+            if len(contracts) < self.OPTION_CHAIN_MIN_OTHER_CONTRACTS:
+                return None
+            now = pd.Timestamp(self.datetime)
+            if now.tz is None:
+                now = now.tz_localize("America/New_York")
+            session_start = now.floor("min") - pd.Timedelta(minutes=self.OPTION_CHAIN_SESSION_MINUTES)
+
+            trades = {}
+            for contract, data in contracts:
+                trade = self._last_loaded_trade_before_now(data, now)
+                if trade is not None and trade[0] >= session_start:
+                    trades[contract] = trade
+            others = [contract for contract in trades if contract != asset]
+            if len(others) < self.OPTION_CHAIN_MIN_OTHER_CONTRACTS:
+                return None
+
+            underlying_frame = self._recent_real_bars(underlying, order.quote, self.OPTION_CHAIN_SESSION_MINUTES + 2)
+            if underlying_frame is None:
+                return None
+            underlying_index = underlying_frame.index
+            underlying_close = pd.to_numeric(underlying_frame["close"], errors="coerce").to_numpy(dtype=float)
+
+            ordered = [asset] + sorted(others, key=lambda c: (float(c.strike), str(c.right)))
+            count = len(ordered)
+            strike = np.array([float(c.strike) for c in ordered])
+            is_call = np.array([str(c.right).lower().startswith("c") for c in ordered])
+            trade_price = np.full(count, np.nan)
+            trade_spot = np.full(count, np.nan)
+            trade_years = np.full(count, np.nan)
+            trade_age = np.full(count, np.nan)
+            trade_bar = [None] * count
+            for i, contract in enumerate(ordered):
+                if contract not in trades:
+                    continue
+                ts, close = trades[contract]
+                years_then = self._option_years_to_expiry(contract, ts)
+                # the underlying price for a trade bar is the close of the same underlying bar
+                position = int(underlying_index.searchsorted(ts, side="right")) - 1
+                if years_then is None or position < 0:
+                    continue
+                trade_price[i] = close
+                trade_spot[i] = underlying_close[position]
+                trade_years[i] = years_then
+                # a trade bar is known from its end, one minute after its start
+                trade_age[i] = max(0.0, (now - ts).total_seconds() / 60.0 - 1.0)
+                trade_bar[i] = ts
+
+            from lumibot.tools.option_price_estimate import estimate_option_prices, parity_forward_factor
+
+            forward_factor = None
+            if self._normalize_asset_type(getattr(underlying, "asset_type", "")) == "index":
+                # European-style index options: read the forward from calls and puts that traded
+                # at the same strike in the same recent minute (put-call parity).
+                by_strike_and_bar = {}
+                for i in range(count):
+                    if trade_bar[i] is not None and trade_age[i] <= self.OPTION_CHAIN_PARITY_MINUTES:
+                        by_strike_and_bar.setdefault((strike[i], trade_bar[i]), {})[bool(is_call[i])] = i
+                pairs = [(s[True], s[False]) for s in by_strike_and_bar.values() if len(s) == 2]
+                if pairs:
+                    calls = np.array([c for c, _ in pairs])
+                    puts = np.array([p for _, p in pairs])
+                    forward_factor = parity_forward_factor(
+                        trade_price[calls], trade_price[puts], strike[calls], trade_spot[calls], trade_years[calls]
+                    )
+
+            result = estimate_option_prices(
+                strike,
+                is_call,
+                float(spot),
+                float(years_now),
+                trade_price=trade_price,
+                trade_underlying_price=trade_spot,
+                trade_years_to_expiry=trade_years,
+                trade_age_minutes=trade_age,
+                forward_factor=forward_factor,
+            )
+            if str(result.source[0]) not in self.OPTION_CHAIN_SOURCES:
+                return None
+            estimate = float(result.price[0])
+            return estimate if math.isfinite(estimate) and estimate >= 0 else None
+        except Exception:
+            logger.debug("Chain-based option estimate unavailable; using the contract's own last trade", exc_info=True)
+            return None
+
     def _estimate_option_price_now(self, order) -> Optional[float]:
-        """Black-Scholes value of an option at the current bar (unpenalized), or None."""
+        """Model value of an option at the current bar (unpenalized), or None.
+
+        Uses the expiration's volatility smile when enough of its contracts are in memory,
+        otherwise Black-Scholes with the volatility of the contract's own last real trade.
+        """
         from lumibot.tools.black_scholes import BS
 
         asset = order.asset
@@ -5459,6 +5622,10 @@ class BacktestingBroker(Broker):
         years_now = self._option_years_to_expiry(asset, self.datetime)
         if spot is None or self._is_invalid_price(spot) or years_now is None:
             return None
+
+        chain_estimate = self._chain_option_estimate_now(order, asset, underlying, spot, years_now)
+        if chain_estimate is not None:
+            return chain_estimate
 
         reference = self._last_real_trade(asset, order.quote)
         reference_strike = float(asset.strike)

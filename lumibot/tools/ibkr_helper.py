@@ -1057,6 +1057,8 @@ def get_price_data(
         _bar, _bar_seconds, timestep_component = _timestep_to_ibkr_bar(timestep)
     except Exception:
         timestep_component = _timestep_component(timestep)
+    else:
+        _require_legal_ibkr_bar(timestep)
 
     # Shared IBKR historical feeds can lag current time, including futures.
     # Asking through "now" makes a valid delayed page fail strict stale-tail
@@ -1518,6 +1520,10 @@ def get_price_data(
                     _page_checkpoint=_checkpoint_pages,
                 )
             except Exception as exc:
+                if _is_permanent_history_request_error(exc):
+                    # The request itself is invalid; retrying or returning no bars
+                    # would hide it. Surface it to the strategy and the run report.
+                    raise
                 df_cache = checkpoint_state["frame"]
                 # Avoid crashing the entire backtest on entitlement/session issues. Return an empty
                 # frame so strategies can continue with a loud error in logs.
@@ -5661,6 +5667,10 @@ def _timestep_to_ibkr_bar(timestep: str) -> Tuple[str, int, str]:
     if raw.endswith("minute"):
         qty = raw.removesuffix("minute") or "1"
         minutes = int(qty)
+        hours, extra = divmod(minutes, 60)
+        if not extra and hours in IBKR_LEGAL_HOUR_BARS:
+            # IBKR has no "60min" bar; it is "1h". One name also keeps one cache file.
+            return f"{hours}h", minutes * 60, "hour" if hours == 1 else f"{hours}hour"
         return f"{minutes}min", minutes * 60, f"{minutes}minute"
 
     if raw in {"hour", "1hour", "h", "1h"}:
@@ -5678,10 +5688,41 @@ def _timestep_to_ibkr_bar(timestep: str) -> Tuple[str, int, str]:
         return f"{days}d", days * 24 * 60 * 60, f"{days}day"
 
     if raw.endswith("min"):
-        minutes = int(raw.removesuffix("min") or "1")
-        return f"{minutes}min", minutes * 60, f"{minutes}minute"
+        return _timestep_to_ibkr_bar(f"{int(raw.removesuffix('min') or '1')}minute")
 
     raise ValueError(f"Unsupported IBKR timestep: {timestep}")
+
+
+# Bar sizes IBKR's historical data endpoint accepts (minutes and hours).
+IBKR_LEGAL_MINUTE_BARS = frozenset({1, 2, 3, 5, 10, 15, 20, 30})
+IBKR_LEGAL_HOUR_BARS = frozenset({1, 2, 3, 4, 8})
+_IBKR_PERMANENT_REQUEST_ERRORS = ("bar size setting is invalid",)
+
+
+def _require_legal_ibkr_bar(timestep: str) -> None:
+    """Refuse an intraday bar size IBKR would reject, before asking it.
+
+    IBKR answers an illegal size with a permanent error; treating that as a gap
+    left strategies running silently on zero bars.
+    """
+    bar, _, component = _timestep_to_ibkr_bar(timestep)
+    if bar.endswith("min"):
+        legal = int(bar.removesuffix("min")) in IBKR_LEGAL_MINUTE_BARS
+    elif bar.endswith("h"):
+        legal = int(bar.removesuffix("h")) in IBKR_LEGAL_HOUR_BARS
+    else:
+        return
+    if not legal:
+        raise ValueError(
+            f"IBKR has no {component} bar size (requested timestep {timestep!r}). Legal intraday sizes: "
+            + ", ".join(f"{m} minute" for m in sorted(IBKR_LEGAL_MINUTE_BARS)) + ", "
+            + ", ".join(f"{h} hour" for h in sorted(IBKR_LEGAL_HOUR_BARS)) + "."
+        )
+
+
+def _is_permanent_history_request_error(exc: BaseException) -> bool:
+    message = str(exc).lower()
+    return any(token in message for token in _IBKR_PERMANENT_REQUEST_ERRORS)
 
 
 def _normalize_history_source(source: Optional[str]) -> str:

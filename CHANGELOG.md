@@ -2,6 +2,8 @@
 
 ## 4.6.58 - 2026-11-13
 
+Deploy marker: 3fc1861ae5f749c161a2df8bae969e6a2284f272
+
 ### Added
 - Routed backtests can read Binance's public bulk files (`data.binance.vision`, no API key) for crypto: set `"crypto_future": "binance"` and/or `"crypto": "binance"` in `BACKTESTING_DATA_SOURCE`. Perpetuals get USD-M candles, hourly mark prices and settled funding charged at the mark; spot gets Binance spot candles. Every zip is checked against its SHA-256 checksum. Complete months use monthly files and the current month daily files, downloaded in parallel through the shared bar cache (one cache for every user). A window past the last published day stops up front with `PERPETUAL_DATA_UNAVAILABLE` (`no_data_for_window`); funding not yet published (current month) is not charged and is listed under `notices` in the data provenance. Spot quotes are served exactly; a USD request under `binance` stops with a message naming the USDT pair instead of substituting it (USDT trades about 0.12% below USD). New route value `public` splits by quote with no API key or broker account: USD/EUR/GBP pairs from Coinbase public candles, USDT/USDC/FDUSD pairs and USD-M perpetuals from Binance bulk files. Data provenance names `priceSource`, `fundingSource` and the served symbol. Opt-in; no default route changes. The routing value `binance` previously reached Binance's live API through CCXT, which is blocked in some regions; it now uses the bulk files. See `docsrc/backtesting.perpetuals.rst`.
 

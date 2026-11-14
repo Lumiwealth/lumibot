@@ -109,10 +109,10 @@ What is not covered yet: Alpaca, CCXT and Yahoo backtests, ``SMART_LIMIT`` order
 multi-leg packages with a net limit, and time skipped with ``self.sleep()`` still check
 resting orders only when the strategy runs.
 
-What changed in 4.6.63
+What changed in 4.6.64
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Before 4.6.63, resting orders were only checked when the strategy ran (once per
+Before 4.6.64, resting orders were only checked when the strategy ran (once per
 ``sleeptime``). A stop crossed between two runs was missed unless the price was still
 past the stop at the next run, so a dip that recovered never filled the stop. A limit
 touched between two runs was missed the same way.
@@ -123,7 +123,7 @@ will change**. Stops now fill when the price first crosses them, so results are 
 realistic and often worse than before. Strategies that run on every bar, strategies on
 daily bars, and strategies that only use market orders are unchanged.
 
-4.6.63 also fixes percent trailing stops (``trail_percent``): a sell trailing stop no
+4.6.64 also fixes percent trailing stops (``trail_percent``): a sell trailing stop no
 longer moves down when the price falls, and a buy trailing stop now moves down with
 the price. Trailing stops set with ``trail_price`` already worked this way.
 

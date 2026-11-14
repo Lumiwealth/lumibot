@@ -354,7 +354,7 @@ from an older bar or daily quote. Daily-only sources retain their daily fill
 model; limit/stop orders, other asset classes and live brokers retain their
 existing selection rules.
 
-### Resting orders between strategy runs (4.6.63)
+### Resting orders between strategy runs (4.6.64)
 
 `StrategyExecutor.safe_sleep` (and `BacktestingBroker._await_market_to_close`) advance the
 clock through `BacktestingBroker._advance_checking_resting_orders`. When the jump passes

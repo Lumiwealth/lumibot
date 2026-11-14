@@ -2,6 +2,12 @@
 
 ## 4.6.58 - Unreleased
 
+### Added
+- Routed backtests can read Binance's public bulk files (`data.binance.vision`, no API key) for crypto: set `"crypto_future": "binance"` and/or `"crypto": "binance"` in `BACKTESTING_DATA_SOURCE`. Perpetuals get USD-M candles, hourly mark prices and settled funding charged at the mark; spot gets Binance spot candles. Every zip is checked against its SHA-256 checksum. Complete months use monthly files and the current month daily files, downloaded in parallel through the shared bar cache (one cache for every user). A window past the last published day stops up front with `PERPETUAL_DATA_UNAVAILABLE` (`no_data_for_window`); funding not yet published (current month) is not charged and is listed under `notices` in the data provenance. Spot quotes are served exactly; a USD request under `binance` stops with a message naming the USDT pair instead of substituting it (USDT trades about 0.12% below USD). New route value `public` splits by quote with no API key or broker account: USD/EUR/GBP pairs from Coinbase public candles, USDT/USDC/FDUSD pairs and USD-M perpetuals from Binance bulk files. Data provenance names `priceSource`, `fundingSource` and the served symbol. Opt-in; no default route changes. The routing value `binance` previously reached Binance's live API through CCXT, which is blocked in some regions; it now uses the bulk files. See `docsrc/backtesting.perpetuals.rst`.
+
+### Fixed
+- A local backtest no longer looks hung for minutes after the strategy ends when no Data Downloader is configured. With `DATADOWNLOADER_BASE_URL` unset and nothing on the default local address, a refused connection (for example the default SPY benchmark at the end of a crypto backtest) was retried for up to 15 minutes per request; it now fails at once with `DownloaderNotConfigured`. A configured downloader still retries through outages.
+
 ## 4.6.57 - 2026-11-13
 
 Deploy marker: 7e46462269dff3742078c6c73a42b37be9137350
@@ -30,9 +36,6 @@ Deploy marker: 7e46462269dff3742078c6c73a42b37be9137350
   - Interactive Brokers (Client Portal): bracket, OTO and OCO orders (were sent as the bare entry with no exits).
   - ProjectX: OTO and OCO orders (the exit was dropped or merged into the entry), stop-limit legs on brackets (sent as a plain stop), and stop-limit or trailing orders now say "not supported" instead of "Unsupported order type".
 - ⚠️ Backtests: when one bar reaches both a bracket/OCO target and its stop, the stop now fills (the target used to win, even when the bar opened below the stop). If the bar opens beyond the target, the target fills at the open. Results for tight brackets on coarse bars may be lower and more realistic.
-
-### Added
-- Routed backtests can read Binance's public bulk files (`data.binance.vision`, no API key) for crypto: set `"crypto_future": "binance"` and/or `"crypto": "binance"` in `BACKTESTING_DATA_SOURCE`. Perpetuals get USD-M candles, hourly mark prices and settled funding charged at the mark; spot gets Binance spot candles. Every zip is checked against its SHA-256 checksum. Complete months use monthly files and the current month daily files, downloaded in parallel through the shared bar cache (one cache for every user). A window past the last published day stops up front with `PERPETUAL_DATA_UNAVAILABLE` (`no_data_for_window`); funding not yet published (current month) is not charged and is listed under `notices` in the data provenance. Spot quotes are served exactly; a USD request under `binance` stops with a message naming the USDT pair instead of substituting it (USDT trades about 0.12% below USD). New route value `public` splits by quote with no API key or broker account: USD/EUR/GBP pairs from Coinbase public candles, USDT/USDC/FDUSD pairs and USD-M perpetuals from Binance bulk files. Data provenance names `priceSource`, `fundingSource` and the served symbol. Opt-in; no default route changes. The routing value `binance` previously reached Binance's live API through CCXT, which is blocked in some regions; it now uses the bulk files. See `docsrc/backtesting.perpetuals.rst`.
 
 ### Fixed
 - A filing made after the close was visible at that morning's open in backtests. Facts now become usable at the SEC acceptance time (next session's open if accepted after 4:00 PM New York), or at 9:30 AM the day after the filing date when no acceptance time is published.

@@ -1722,6 +1722,7 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                 "priceSource": synthetic_options.PRICE_SOURCE_SYNTHETIC,
                 "modelVersion": synthetic_options.MODEL_VERSION,
                 "volatilityInput": sorted(synthetic.volatility_sources),
+                "parameters": sorted(synthetic.parameter_versions),
                 "realOptionRoute": self._routing.get("option_real") or "",
                 "notice": synthetic_options.NOTICE,
             }

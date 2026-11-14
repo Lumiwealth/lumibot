@@ -52,6 +52,7 @@ DIVIDEND_ENV = "LUMIBOT_SYNTHETIC_OPTION_DIVIDEND_YIELD"
 VOL_INPUT_ENV = "LUMIBOT_SYNTHETIC_OPTION_VOL_INPUT"  # auto | index | realized
 RISK_PREMIUM_ENV = "LUMIBOT_SYNTHETIC_OPTION_VOL_RISK_PREMIUM"
 SPREAD_ON_REAL_TRADES_ENV = "LUMIBOT_SYNTHETIC_OPTION_SPREAD_ON_REAL_TRADES"  # default off
+PARAMS_ENV = "LUMIBOT_SYNTHETIC_OPTION_PARAMS"  # path of an optional JSON parameter file
 
 DEFAULT_RATE = 0.04
 DEFAULT_DIVIDEND_YIELD = 0.0
@@ -111,14 +112,14 @@ WEEKLY_EXPIRATION_WEEKS = 8  # every Friday this far out
 MONTHLY_EXPIRATION_MONTHS = 12  # third Friday of each month this far out
 # Skew: volatility(z) = at-the-money volatility * (1 + slope*z + curve*z^2), z = standardized
 # log-moneyness ln(K/F) / (vol * sqrt(T)), clipped to +-SKEW_MAX_Z, factor floored at SKEW_FLOOR.
-SKEW = {"index": (-0.12, 0.03), "stock": (-0.06, 0.03)}
+# Slope and curve are in ModelParameters (index-like: -0.12, 0.03; others: -0.06, 0.03).
 SKEW_MAX_Z = 4.0
 SKEW_FLOOR = 0.75
 # Term structure: variance reverts from the 30-day level to the long-run level at this speed.
 TERM_MEAN_REVERSION = 4.0  # per year
 TERM_REFERENCE_YEARS = 30.0 / 365.0
-# Intraday: volatility rises when the underlying falls since the previous close.
-SPOT_VOL_BETA = {"index": 6.0, "stock": 3.0}
+# Intraday: volatility rises when the underlying falls since the previous close
+# (ModelParameters.spot_vol_beta: index-like 6, others 3).
 SPOT_VOL_MAX_SHIFT = 0.9  # |change of ln(vol)| is capped here
 VOL_FLOOR, VOL_CAP = 0.03, 5.0
 # Spread model (see half_spread).
@@ -128,7 +129,6 @@ SPREAD_HALF_VOLATILE_CENTS = 12.5
 SPREAD_VOLATILE_LEVEL = 0.22  # 30-day volatility at or above this is "volatile"
 SPREAD_BY_ABS_DELTA = ((0.0, 0.25), (0.10, 0.5), (0.27, 1.0), (0.50, 1.5), (0.80, 5.0), (1.0, 9.5))
 SPREAD_REFERENCE_DAYS = 7.0
-SPREAD_MIN_FRACTION_OF_MID = {"index": 0.0025, "stock": 0.015}
 SPREAD_MAX_FRACTION_OF_MID = 0.40
 SPREAD_DISLOCATION_START = 2.0  # bar range this many times the expected range starts widening
 SPREAD_DISLOCATION_MAX = 4.0
@@ -143,6 +143,95 @@ def skew_class(symbol: str, asset_type: str = "") -> str:
 def underlying_symbol(symbol: str) -> str:
     token = str(symbol or "").upper()
     return UNDERLYING_ROOT.get(token, token)
+
+
+# ----------------------------------------------------------------------------------------
+# Model parameters: neutral defaults, optionally replaced per underlying by a parameter file
+# ----------------------------------------------------------------------------------------
+@dataclass(frozen=True)
+class ModelParameters:
+    """Shape parameters of the model for one underlying.
+
+    The defaults are neutral, generic values. A parameter file (JSON, path in the
+    ``LUMIBOT_SYNTHETIC_OPTION_PARAMS`` environment variable) can replace any of them for all
+    underlyings (``"default"``), for a class (``"kinds": {"index": ..., "stock": ...}``) or for
+    one symbol (``"symbols": {"XYZ": ...}``). The file holds parameters only, never prices.
+    """
+
+    kind: str = "stock"
+    skew_slope: float = -0.06
+    skew_curve: float = 0.03
+    risk_premium: float = DEFAULT_RISK_PREMIUM  # implied / realized volatility (input c)
+    volatility_index_scale: float = 1.0  # 30-day level / volatility index (input b)
+    spot_vol_beta: float = 3.0
+    # (days to expiry, multiplier on at-the-money volatility), linear in between, flat outside
+    term_multiplier: tuple = ((0.0, 1.0), (45.0, 1.0))
+    spread_scale_calm: float = 1.0
+    spread_scale_volatile: float = 1.0
+    spread_min_fraction: float = 0.015
+    version: str = "default"
+
+    @property
+    def identity(self) -> str:
+        """Short fingerprint, part of cache file names so different parameters never mix."""
+        import hashlib
+
+        text = repr((self.kind, self.skew_slope, self.skew_curve, self.risk_premium, self.volatility_index_scale,
+                     self.spot_vol_beta, self.term_multiplier, self.spread_scale_calm, self.spread_scale_volatile,
+                     self.spread_min_fraction))
+        return hashlib.sha1(text.encode()).hexdigest()[:8]
+
+
+_KIND_DEFAULTS = {
+    "index": dict(kind="index", skew_slope=-0.12, skew_curve=0.03, spot_vol_beta=6.0, spread_min_fraction=0.0025),
+    "stock": dict(kind="stock"),
+}
+_PARAMETER_FILE_CACHE: dict = {}
+
+
+def _parameter_file() -> dict:
+    path = os.environ.get(PARAMS_ENV)
+    if not path:
+        return {}
+    try:
+        stamp = (path, os.path.getmtime(path))
+    except OSError:
+        return {}
+    if _PARAMETER_FILE_CACHE.get("stamp") != stamp:
+        import json
+
+        try:
+            with open(path, encoding="utf-8") as handle:
+                loaded = json.load(handle)
+        except (OSError, ValueError):
+            loaded = {}
+        _PARAMETER_FILE_CACHE.update(stamp=stamp, data=loaded if isinstance(loaded, dict) else {})
+    return _PARAMETER_FILE_CACHE["data"]
+
+
+def parameters_for(symbol: str = "", asset_type: str = "", kind: Optional[str] = None) -> ModelParameters:
+    """Parameters for an underlying: built-in defaults, then the parameter file (default, kind, symbol)."""
+    kind = kind or skew_class(symbol, asset_type)
+    values = dict(_KIND_DEFAULTS[kind])
+    risk_premium = os.environ.get(RISK_PREMIUM_ENV)
+    if risk_premium not in (None, ""):
+        values["risk_premium"] = _env_float(RISK_PREMIUM_ENV, DEFAULT_RISK_PREMIUM)
+    loaded = _parameter_file()
+    layers = [loaded.get("default"), (loaded.get("kinds") or {}).get(kind),
+              (loaded.get("symbols") or {}).get(str(symbol or "").upper())]
+    allowed = set(ModelParameters.__dataclass_fields__) - {"kind", "version"}
+    for layer in layers:
+        if isinstance(layer, dict):
+            for key, value in layer.items():
+                if key in allowed:
+                    values[key] = tuple(tuple(float(x) for x in row) for row in value) if key == "term_multiplier" else float(value)
+    if loaded:
+        values["version"] = str(loaded.get("version") or "custom")
+    return ModelParameters(**values)
+
+
+def _resolve(params) -> ModelParameters:
+    return params if isinstance(params, ModelParameters) else parameters_for(kind=str(params or "stock"))
 
 
 # ----------------------------------------------------------------------------------------
@@ -259,6 +348,7 @@ def volatility_input(
     volatility_index_close: Optional[Sequence[float]] = None,
     mode: Optional[str] = None,
     risk_premium: Optional[float] = None,
+    volatility_index_scale: float = 1.0,
 ) -> Optional[VolatilityInput]:
     """Volatility level for the next session from data up to and including the previous close.
 
@@ -272,7 +362,8 @@ def volatility_input(
         series = np.asarray(volatility_index_close, dtype=float)
         series = series[np.isfinite(series) & (series > 0)]
         if series.size:
-            return VolatilityInput(float(series[-1]) / 100.0, float(np.mean(series[-252:])) / 100.0, "volatility_index")
+            scale = float(volatility_index_scale) / 100.0
+            return VolatilityInput(float(series[-1]) * scale, float(np.mean(series[-252:])) * scale, "volatility_index")
     if mode == "index":
         return None
     recent, long_run = realized_volatility(daily_close)
@@ -282,16 +373,17 @@ def volatility_input(
     return VolatilityInput(level, float(np.clip(long_run * premium, VOL_FLOOR, VOL_CAP)), "realized_volatility")
 
 
-def intraday_level(level, price, previous_close, kind: str = "index"):
+def intraday_level(level, price, previous_close, kind="index"):
     """Shift the previous-close volatility level for the move of the underlying since then."""
     with np.errstate(all="ignore"):
         move = np.log(np.asarray(price, dtype=float) / np.asarray(previous_close, dtype=float))
-    shift = np.clip(-SPOT_VOL_BETA[kind] * np.nan_to_num(move), -SPOT_VOL_MAX_SHIFT, SPOT_VOL_MAX_SHIFT)
+    shift = np.clip(-_resolve(kind).spot_vol_beta * np.nan_to_num(move), -SPOT_VOL_MAX_SHIFT, SPOT_VOL_MAX_SHIFT)
     return np.clip(np.asarray(level, dtype=float) * np.exp(shift), VOL_FLOOR, VOL_CAP)
 
 
-def surface_volatility(level, long_run, forward, strike, years, kind: str = "index"):
+def surface_volatility(level, long_run, forward, strike, years, kind="index"):
     """Volatility for each (bar, contract): term structure, then skew. All inputs broadcast."""
+    params = _resolve(kind)
     level, long_run, forward, strike, years = np.broadcast_arrays(
         *[np.asarray(a, dtype=float) for a in (level, long_run, forward, strike, years)]
     )
@@ -304,7 +396,9 @@ def surface_volatility(level, long_run, forward, strike, years, kind: str = "ind
     variance = long_run**2 + (level**2 - long_run**2) * weight(safe_years) / weight(TERM_REFERENCE_YEARS)
     variance = np.maximum(variance, 0.25 * np.minimum(level, long_run) ** 2)  # short-dated floor
     atm = np.sqrt(np.clip(variance, VOL_FLOOR**2, VOL_CAP**2))
-    slope, curve = SKEW[kind]
+    table = np.asarray(params.term_multiplier, dtype=float)
+    atm = atm * np.interp(safe_years * 365.0, table[:, 0], table[:, 1])
+    slope, curve = params.skew_slope, params.skew_curve
     with np.errstate(all="ignore"):
         z = np.clip(np.log(strike / forward) / (atm * np.sqrt(safe_years)), -SKEW_MAX_Z, SKEW_MAX_Z)
     factor = np.maximum(1.0 + slope * z + curve * z * z, SKEW_FLOOR)
@@ -380,18 +474,24 @@ def half_spread(mid, abs_delta, years, level, underlying_price, kind="index", di
       implies (``dislocation`` is that multiplier, computed by ``dislocation_multiplier``).
 
     Then it is kept between a minimum share of the mid price (0.25% index-like, 1.5% others)
-    and 40% of the mid, and never below half a cent.
+    and 40% of the mid, and never below half a cent. A parameter file can scale the calm and
+    volatile base per underlying.
     """
+    params = _resolve(kind)
     mid, abs_delta, years, level, underlying_price, dislocation = np.broadcast_arrays(
         *[np.asarray(a, dtype=float) for a in (mid, abs_delta, years, level, underlying_price, dislocation)]
     )
-    base = np.where(level >= SPREAD_VOLATILE_LEVEL, SPREAD_HALF_VOLATILE_CENTS, SPREAD_HALF_CALM_CENTS) / 100.0
+    base = np.where(
+        level >= SPREAD_VOLATILE_LEVEL,
+        SPREAD_HALF_VOLATILE_CENTS * params.spread_scale_volatile,
+        SPREAD_HALF_CALM_CENTS * params.spread_scale_calm,
+    ) / 100.0
     points = np.array(SPREAD_BY_ABS_DELTA)
     moneyness = np.interp(np.clip(abs_delta, 0.0, 1.0), points[:, 0], points[:, 1])
     days = np.maximum(years, 0.0) * 365.0
     time_factor = np.clip(np.sqrt(days / SPREAD_REFERENCE_DAYS), 0.5, 2.5)
     half = base * (underlying_price / SPREAD_REFERENCE_PRICE) * moneyness * time_factor * dislocation
-    half = np.maximum(half, SPREAD_MIN_FRACTION_OF_MID[kind] * mid * np.minimum(dislocation, 2.0))
+    half = np.maximum(half, params.spread_min_fraction * mid * np.minimum(dislocation, 2.0))
     half = np.minimum(half, SPREAD_MAX_FRACTION_OF_MID * mid)
     return np.maximum(half, TICK / 2.0)
 
@@ -426,7 +526,7 @@ class SurfaceDay:
     level: np.ndarray  # 30-day volatility at the previous close
     long_run: np.ndarray
     bar_years: float
-    kind: str
+    kind: ModelParameters
     volatility_source: str
     rate: float
     dividend_yield: float
@@ -436,7 +536,8 @@ class SurfaceDay:
     def to_frame(self) -> pd.DataFrame:
         frame = pd.DataFrame({name: getattr(self, name) for name in self.COLUMNS}, index=self.index)
         frame.attrs.update(
-            price_source=PRICE_SOURCE_SYNTHETIC, model_version=MODEL_VERSION, kind=self.kind,
+            price_source=PRICE_SOURCE_SYNTHETIC, model_version=MODEL_VERSION, kind=self.kind.kind,
+            parameters=self.kind.version,
             volatility_source=self.volatility_source, rate=self.rate, dividend_yield=self.dividend_yield,
             bar_years=self.bar_years,
         )
@@ -517,6 +618,7 @@ def build_surface(
     volatility_index_close: Optional[pd.Series] = None,
     bar_minutes: float = 1.0,
     mode: Optional[str] = None,
+    params: Optional[ModelParameters] = None,
 ) -> Optional[SurfaceDay]:
     """Model inputs for every bar of ``bars`` (the underlying's open/high/low/close).
 
@@ -525,6 +627,7 @@ def build_surface(
     """
     if bars is None or bars.empty or daily_close is None or len(daily_close) == 0:
         return None
+    params = params or parameters_for(symbol, asset_type)
     index = pd.DatetimeIndex(bars.index)
     index = index.tz_localize(_NY) if index.tz is None else index.tz_convert(_NY)
     bar_dates = np.array([d for d in index.date])
@@ -549,7 +652,10 @@ def build_surface(
         if vol_index is not None:
             cut = int(np.searchsorted(np.array(list(vol_index.index)), day, side="left"))
             index_closes = vol_index.to_numpy()[:cut] if cut else None
-        found = volatility_input(daily.to_numpy()[:known], index_closes, mode=mode)
+        found = volatility_input(
+            daily.to_numpy()[:known], index_closes, mode=mode, risk_premium=params.risk_premium,
+            volatility_index_scale=params.volatility_index_scale,
+        )
         if found is None:
             continue
         rows = bar_dates == day
@@ -570,7 +676,7 @@ def build_surface(
         high=np.fmax(column("high"), opens), low=np.fmin(column("low"), opens), close=closes,
         previous_close=previous_close[keep], level=level[keep], long_run=long_run[keep],
         bar_years=float(bar_minutes) * 60.0 / _YEAR_SECONDS,
-        kind=skew_class(symbol, asset_type),
+        kind=params,
         volatility_source="+".join(sorted(sources)) or "none",
         rate=_env_float(RATE_ENV, DEFAULT_RATE), dividend_yield=_env_float(DIVIDEND_ENV, DEFAULT_DIVIDEND_YIELD),
     )
@@ -638,7 +744,11 @@ def anchor_to_real_trades(surface: SurfaceDay, frame: pd.DataFrame, strike: floa
     return out
 
 
-def cache_relative_path(symbol: str, timestep: str, day: date) -> str:
-    """Cache file of one underlying-day of model inputs. The name says it is synthetic."""
+def cache_relative_path(symbol: str, timestep: str, day: date, parameters: str = "default") -> str:
+    """Cache file of one underlying-day of model inputs. The name says it is synthetic.
+
+    ``parameters`` is ``ModelParameters.identity``: files made with different parameters never mix.
+    """
     token = "".join(ch for ch in str(symbol).upper() if ch.isalnum() or ch in "._-")
-    return f"synthetic_options/{MODEL_VERSION}/{token}/{timestep}/{token}_{day:%Y%m%d}_{timestep}_synthetic_{MODEL_VERSION}.parquet"
+    name = f"{token}_{day:%Y%m%d}_{timestep}_synthetic_{MODEL_VERSION}_{parameters}.parquet"
+    return f"synthetic_options/{MODEL_VERSION}/{token}/{timestep}/{name}"

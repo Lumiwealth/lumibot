@@ -208,4 +208,28 @@ def test_synthetic_spread_on_real_trades_is_opt_in(monkeypatch):
 def test_cache_file_names_say_synthetic_and_carry_the_model_version():
     path = model.cache_relative_path("SPY", "minute", date(2025, 1, 13))
     version = model.MODEL_VERSION
-    assert path == f"synthetic_options/{version}/SPY/minute/SPY_20250113_minute_synthetic_{version}.parquet"
+    assert path == f"synthetic_options/{version}/SPY/minute/SPY_20250113_minute_synthetic_{version}_default.parquet"
+    assert model.parameters_for("SPY").identity != model.parameters_for("ABCD").identity
+
+
+def test_parameter_file_replaces_defaults_per_symbol(tmp_path, monkeypatch):
+    import json
+
+    assert model.parameters_for("ABCD").version == "default"
+    path = tmp_path / "parameters.json"
+    path.write_text(json.dumps({
+        "version": "example-1",
+        "default": {"risk_premium": 1.2},
+        "kinds": {"index": {"skew_slope": -0.2}},
+        "symbols": {"ABCD": {"spot_vol_beta": 1.0, "term_multiplier": [[0, 1.5], [30, 1.0]], "spread_scale_calm": 2.0}},
+    }))
+    monkeypatch.setenv(model.PARAMS_ENV, str(path))
+    abcd, spy = model.parameters_for("ABCD"), model.parameters_for("SPY")
+    assert (abcd.version, abcd.risk_premium, abcd.spot_vol_beta, abcd.skew_slope) == ("example-1", 1.2, 1.0, -0.06)
+    assert (spy.risk_premium, spy.skew_slope, spy.spot_vol_beta) == (1.2, -0.2, 6.0)
+    # the term table lifts short-dated volatility; the spread scale doubles the calm base
+    assert model.surface_volatility(0.2, 0.2, 100.0, 100.0, 1 / 365, abcd) > model.surface_volatility(0.2, 0.2, 100.0, 100.0, 1 / 365, "stock")
+    wide = model.half_spread(3.0, 0.27, 7 / 365, 0.15, 6000.0, abcd)
+    assert float(wide) == pytest.approx(2 * float(model.half_spread(3.0, 0.27, 7 / 365, 0.15, 6000.0, "stock")))
+    monkeypatch.setenv(model.PARAMS_ENV, str(tmp_path / "missing.json"))
+    assert model.parameters_for("ABCD").version == "default"  # an unreadable file changes nothing

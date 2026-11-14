@@ -48,6 +48,7 @@ class SyntheticOptionEngine:
         self._chains: dict = {}
         self._notice_logged = False
         self.volatility_sources: set = set()
+        self.parameter_versions: set = set()
         self.notices: list = []
 
     # -- underlying bars -------------------------------------------------------------
@@ -99,6 +100,7 @@ class SyntheticOptionEngine:
         )
         if surface is not None:
             self.volatility_sources.update(surface.volatility_source.split("+"))
+            self.parameter_versions.add(surface.kind.version)
             self._surfaces[cache_key] = (stamp, surface)
         return surface
 
@@ -130,7 +132,9 @@ class SyntheticOptionEngine:
         pieces = []
         for day in sorted(set(days)):
             part = frame[days == day]
-            path = Path(LUMIBOT_CACHE_FOLDER) / model.cache_relative_path(underlying.symbol, ts_unit, day)
+            path = Path(LUMIBOT_CACHE_FOLDER) / model.cache_relative_path(
+                underlying.symbol, ts_unit, day, fresh.kind.identity
+            )
             stored = None
             try:
                 if not path.exists() and cache is not None:

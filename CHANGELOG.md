@@ -2,6 +2,8 @@
 
 ## 4.6.60 - 2026-11-14
 
+Deploy marker: b6a93499b87c216b714b3b99bca68f35d371baba
+
 ### Added
 - `DATADOWNLOADER_REQUEST_CLASS`: optional label for Data Downloader requests. When set, every queued request carries it as `"request_class"` in the submit body so a downloader can group or prioritize requests by kind of caller. Unset or blank sends nothing and the submit body is unchanged. See `docsrc/environment_variables.rst`.
 

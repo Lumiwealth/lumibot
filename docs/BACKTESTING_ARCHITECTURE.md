@@ -1027,10 +1027,11 @@ filled rows.
 
 Only complete calendar-month provider requests older than one day are persisted.
 A second overlapping request downloads only missing partitions. Sparse provider
-bars remain sparse. Explicit limits/sort orders and requests without a known
-credential scope use the provider directly. Feed, adjustment, currency, cadence,
-asset class, as-of symbol mapping and credential scope are part of identity. No
-credentials are stored in paths or metadata. Historical partitions expire after
+bars remain sparse. Explicit limits/sort orders and unauthenticated clients use the
+provider directly. Feed, adjustment, currency, cadence, asset class and as-of symbol
+mapping are part of identity; who asked is not: every Alpaca connection shares one
+cache. Bars cached per connection before that are still read (and then written
+shared). No credentials are stored in paths or metadata. Historical partitions expire after
 24 hours so corporate-action changes and provider corrections can be refreshed;
 current months always read the provider. Explicit backtest refresh bypasses reuse.
 

@@ -130,7 +130,9 @@ class TradierData(DataSource):
         self._account_number = account_number
         self._paper = paper
         # Sandbox (paper) market data is delayed, so it is a different series from live data.
-        self.shared_bars_scope = shared_bar_cache.credential_scope(
+        # The account is not part of the key: every connection on one endpoint gets the same bars.
+        self.shared_bars_scope = shared_bar_cache.shared_scope("tradier", "paper" if paper else "live")
+        self.shared_bars_legacy_scope = shared_bar_cache.credential_scope(
             "tradier", account_number, "paper" if paper else "live"
         )
         self.max_workers = min(max_workers, 50)
@@ -351,6 +353,7 @@ class TradierData(DataSource):
             shared_bar_cache.normalize_timestep(timestep_qty if parsed_timestep_unit == "minute" else 1,
                                                 "minute" if parsed_timestep_unit == "minute" else timestep_unit),
             scope=self.shared_bars_scope,
+            legacy_scopes=(self.shared_bars_legacy_scope,),
             adjusted=True,
             assetType=str(asset.asset_type),
             interval=str(parsed_timestep_unit),

@@ -85,6 +85,9 @@ class DataSource(ABC):
     # One-way identity of the provider connection (see lumibot.tools.shared_bar_cache).
     # Brokers set it once the account is known. None means "do not share history".
     shared_bars_scope: str | None = None
+    # Per-connection scope used before the shared cache was shared by every connection.
+    # Read-only fallback so bars cached under it are reused, never written again.
+    shared_bars_legacy_scope: str | None = None
 
     def __init__(
             self,

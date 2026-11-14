@@ -108,8 +108,10 @@ class BrokerHistoryAdapter:
     RATE_LIMIT_WAITS = (15.0, 30.0, 60.0)
 
     def __init__(self, *, scope: str | None, sleep: Callable[[float], None] = time.sleep,
-                 clock: Callable[[], float] = time.monotonic):
+                 clock: Callable[[], float] = time.monotonic, legacy_scope: str | None = None):
         self.scope = scope
+        # Per-connection scope from before the cache was shared; read-only fallback.
+        self.legacy_scope = legacy_scope
         self.sleep = sleep
         self.limiter = RateLimiter(self.limits.requests_per_minute, clock=clock, sleep=sleep)
 
@@ -266,7 +268,7 @@ class SchwabHistory(BrokerHistoryAdapter):
 
 def make_adapter(name: str, config=None, **kwargs) -> BrokerHistoryAdapter:
     """Build the adapter for ``name`` ("schwab" or "tradier") from config or the environment."""
-    from lumibot.tools.shared_bar_cache import credential_scope
+    from lumibot.tools.shared_bar_cache import credential_scope, shared_scope
 
     name = str(name).strip().lower()
     config = dict(config or {})
@@ -281,9 +283,10 @@ def make_adapter(name: str, config=None, **kwargs) -> BrokerHistoryAdapter:
                 "Tradier history backtests need TRADIER_ACCESS_TOKEN and TRADIER_ACCOUNT_NUMBER.")
         from lumiwealth_tradier import Tradier
 
-        # Same scope as TradierData: charts, bots and backtests on one connection share bars.
-        scope = credential_scope("tradier", account, "paper" if paper else "live")
-        return TradierHistory(Tradier(account, token, paper), scope=scope, **kwargs)
+        # Same scope as TradierData: one cache per Tradier endpoint, shared by every connection.
+        scope = shared_scope("tradier", "paper" if paper else "live")
+        legacy = credential_scope("tradier", account, "paper" if paper else "live")
+        return TradierHistory(Tradier(account, token, paper), scope=scope, legacy_scope=legacy, **kwargs)
     if name == "schwab":
         from lumibot.credentials import SCHWAB_CONFIG
         from lumibot.data_sources.schwab_data import SchwabData
@@ -298,6 +301,7 @@ def make_adapter(name: str, config=None, **kwargs) -> BrokerHistoryAdapter:
             raise BrokerHistoryUnavailable(
                 "Schwab history backtests need a connected Schwab client (SCHWAB_APP_KEY, SCHWAB_APP_SECRET, "
                 "SCHWAB_ACCOUNT_NUMBER and a token). Schwab refresh tokens expire after 7 days.")
-        # Same scope as the Schwab broker's data source.
-        return SchwabHistory(client, scope=credential_scope("schwab", account), **kwargs)
+        # Same scope as SchwabData: one cache shared by every Schwab connection.
+        return SchwabHistory(client, scope=shared_scope("schwab"),
+                             legacy_scope=credential_scope("schwab", account), **kwargs)
     raise ValueError(f"Unknown broker history source {name!r}; choose 'schwab' or 'tradier'.")

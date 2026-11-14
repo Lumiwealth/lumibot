@@ -102,7 +102,10 @@ def schwab_source(scope="schwab-account-1"):
 
     client = FakeSchwabClient()
     source = SchwabData(client=client)
-    source.shared_bars_scope = shared_bar_cache.credential_scope("schwab", scope)
+    # What the Schwab broker sets (``Schwab._finish_initialization``): one scope for every Schwab
+    # connection, plus the old per-account scope only for reading files cached before.
+    source.shared_bars_scope = shared_bar_cache.shared_scope("schwab")
+    source.shared_bars_legacy_scope = shared_bar_cache.credential_scope("schwab", scope)
     return source, client
 
 
@@ -207,15 +210,14 @@ class FakeCcxtApi:
         return [[int(s.value // 1_000_000), r.open, r.high, r.low, r.close, r.volume] for s, r in frame.iterrows()]
 
 
-def ccxt_source(exchange="kraken"):
+def ccxt_source(exchange="kraken", api_key="key-1"):
     from lumibot.data_sources.ccxt_data import CcxtData
 
     source = CcxtData.__new__(CcxtData)
     source.api = FakeCcxtApi()
-    source.config = {"exchange_id": exchange, "apiKey": "synthetic"}
+    source.config = {"exchange_id": exchange, "apiKey": f"synthetic-{api_key}"}
     source._markets_loaded = True
     source._markets_lock = threading.Lock()
-    source.shared_bars_scope = shared_bar_cache.credential_scope("ccxt", exchange, "synthetic")
     return source, source.api
 
 
@@ -299,14 +301,26 @@ def test_cached_read_matches_an_uncached_read(broker, monkeypatch):
 
 
 @pytest.mark.parametrize("broker", sorted(CACHED_BROKERS))
-def test_different_connections_do_not_share_bars_by_default(broker):
+def test_different_connections_of_one_provider_share_bars(broker):
+    """One cache per provider (2026-11-13): another account's connection gets a cache hit."""
     make, asset = BROKERS[broker]
     first_source, _ = make()
     _read(first_source, asset, 30, "day", dt.timedelta(days=40))
-    other = {"schwab": "schwab-account-2", "tradier": "VA000002", "ibkr": "DU0000002", "ccxt": "coinbase"}[broker]
-    second_source, provider = make(other)
+    if broker == "ccxt":
+        second_source, provider = make("kraken", api_key="key-2")
+    else:
+        second_source, provider = make({"schwab": "schwab-account-2", "tradier": "VA000002"}[broker])
     _read(second_source, asset, 30, "day", dt.timedelta(days=40))
-    assert provider.calls, f"{broker}: another connection's bars were reused"
+    assert not provider.calls, f"{broker}: another connection downloaded bars already cached"
+
+
+def test_different_exchanges_never_share_bars():
+    make, asset = BROKERS["ccxt"]
+    first_source, _ = make()
+    _read(first_source, asset, 30, "day", dt.timedelta(days=40))
+    second_source, provider = make("coinbase")
+    _read(second_source, asset, 30, "day", dt.timedelta(days=40))
+    assert provider.calls, "a different exchange's candles were reused"
 
 
 @pytest.mark.parametrize("broker", sorted(CACHED_BROKERS))

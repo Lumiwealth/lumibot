@@ -4,7 +4,7 @@ Lumibot strategy accessors keep backtests deterministic and live strategies curr
 
 ## Order Status Filters
 
-Use `get_orders()` for backward-compatible access to all tracked strategy orders. When a strategy needs currently active orders, filter with `Order.OrderStatus` enum values instead of raw strings:
+Use `get_orders()` for backward-compatible access to all tracked strategy orders. When a strategy needs currently active orders, filter with `Order.OrderStatus` enum values or the documented status strings:
 
 ```python
 from lumibot.entities import Order
@@ -32,7 +32,7 @@ working = self.get_orders(statuses=[
 ])
 ```
 
-Raw string status filters are rejected. This avoids silent bugs from typos such as `"partal_fill"` or broker-specific wording.
+Status strings are also accepted, case-insensitively. `"open"`, `"active"` and `"working"` mean every still-working order (the same set as `Order.ACTIVE_STATUSES`). Any `Order.OrderStatus` value or name (`"filled"`, `"fill"`, `"canceled"`, `"partial_fill"`, `"error"`) and common broker spellings (`"cancelled"`, `"partially_filled"`, `"rejected"`) match that status. A typo such as `"partal_fill"` raises `ValueError` listing every valid string, so it never silently returns an empty list.
 
 ## Live Broker Refresh
 

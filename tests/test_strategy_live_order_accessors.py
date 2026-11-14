@@ -201,14 +201,35 @@ def test_get_orders_accepts_single_enum_status():
     assert [order.identifier for order in open_orders] == ["open-1"]
 
 
-def test_get_orders_rejects_raw_string_statuses():
+def test_get_orders_accepts_status_strings_case_insensitively():
+    strategy, broker = _strategy()
+    broker._new_orders.append(_order(strategy.name, "new-1", Order.OrderStatus.NEW))
+    broker._new_orders.append(_order(strategy.name, "open-1", Order.OrderStatus.OPEN))
+    broker._filled_orders.append(_order(strategy.name, "filled-1", Order.OrderStatus.FILLED))
+    broker._canceled_orders.append(_order(strategy.name, "canceled-1", Order.OrderStatus.CANCELED))
+
+    def ids(statuses):
+        return sorted(o.identifier for o in strategy.get_orders(statuses=statuses, broker_refresh=False))
+
+    # "open" and "active" mean every still-working order, same as Order.ACTIVE_STATUSES.
+    assert ids("open") == ["new-1", "open-1"]
+    assert ids("Active") == ["new-1", "open-1"]
+    assert ids(["OPEN"]) == ["new-1", "open-1"]
+    # Documented value, enum name and common broker spellings.
+    assert ids("filled") == ["filled-1"]
+    assert ids("FILL") == ["filled-1"]
+    assert ids(["cancelled", "Filled"]) == ["canceled-1", "filled-1"]
+    assert ids([Order.OrderStatus.NEW, "canceled"]) == ["canceled-1", "new-1"]
+
+
+def test_get_orders_unknown_status_string_lists_valid_values():
     strategy, _broker = _strategy()
 
-    with pytest.raises(TypeError, match="Order.OrderStatus"):
-        strategy.get_orders(statuses="open", broker_refresh=False)
+    with pytest.raises(ValueError, match="Unknown order status 'opne'.*filled"):
+        strategy.get_orders(statuses="opne", broker_refresh=False)
 
     with pytest.raises(TypeError, match="Order.OrderStatus"):
-        strategy.get_orders(statuses=["open"], broker_refresh=False)
+        strategy.get_orders(statuses=[3], broker_refresh=False)
 
 
 def test_partially_filled_alias_maps_to_partial_fill_status():

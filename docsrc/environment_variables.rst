@@ -283,6 +283,18 @@ BACKTESTING_PROGRESS_HEARTBEAT_SECONDS
 - Values: float seconds (string).
 - Default: ``2.0``
 
+Option fills (backtesting)
+--------------------------
+
+LUMIBOT_BACKTEST_OPTION_ESTIMATE_PENALTY_PCT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Spread penalty on option fills that are estimated (no real quote or trade on the fill bar). Buys pay more, sells receive less.
+- Values: percent of the estimated price; the penalty is at least one cent. ``0`` turns it off.
+- Default: ``5``
+- Notes:
+  - See "How Orders Fill in a Backtest" for the quote, trade, estimated order. Estimated fills are marked ``price_source=estimated`` in the trades file.
+
 Trade audit telemetry (accuracy investigations)
 -----------------------------------------------
 

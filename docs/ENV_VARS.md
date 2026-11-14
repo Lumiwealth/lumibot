@@ -241,6 +241,14 @@ IBeam is an unsupported third-party authentication wrapper and is suitable only 
 - Default: `2.0`
 - Where: `lumibot/data_sources/data_source_backtesting.py`
 
+## Option fills (backtesting)
+
+### `LUMIBOT_BACKTEST_OPTION_ESTIMATE_PENALTY_PCT`
+- Purpose: Spread penalty (percent of price, minimum $0.01) applied to estimated option fills: buys pay more, sells receive less.
+- Values: float percent; `0` disables.
+- Default: `5` (hide-and-estimate study 2026-11-14 on Alpaca SPY 1-minute options: median error about 1% ATM, 2-3% for 5-15 delta wings).
+- Where: `lumibot/backtesting/backtesting_broker.py` (`_option_fill_price_at_bar`, `_penalized_estimate`).
+
 ## Trade audit telemetry (NVDA/SPX accuracy audits)
 
 ### `LUMIBOT_BACKTEST_AUDIT`

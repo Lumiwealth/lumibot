@@ -3703,7 +3703,11 @@ class _Strategy:
             try:
                 from lumibot.backtesting.data_provenance import write_backtest_data_provenance
 
-                write_backtest_data_provenance(data_source, logdir)
+                write_backtest_data_provenance(
+                    data_source,
+                    logdir,
+                    fill_price_counts=getattr(self.broker, "_option_fill_price_counts", None),
+                )
             except Exception as exc:
                 # Diagnostics must not make an otherwise valid simulation fail.
                 self.logger.warning("Backtest data provenance artifact could not be written: %s", exc)

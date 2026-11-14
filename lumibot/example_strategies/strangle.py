@@ -167,21 +167,23 @@ class Strangle(Strategy):
             )
 
             if price_move / options["price_underlying"] > self.take_profit_threshold:
+                # Close both legs as one multi-leg order so they fill together.
                 self.submit_order(
-                    self.create_order(
-                        options["call"],
-                        options["call_order"].quantity,
-                        "sell",
-                        exchange="CBOE",
-                    )
-                )
-                self.submit_order(
-                    self.create_order(
-                        options["put"],
-                        options["put_order"].quantity,
-                        "sell",
-                        exchange="CBOE",
-                    )
+                    [
+                        self.create_order(
+                            options["call"],
+                            options["call_order"].quantity,
+                            "sell",
+                            exchange="CBOE",
+                        ),
+                        self.create_order(
+                            options["put"],
+                            options["put_order"].quantity,
+                            "sell",
+                            exchange="CBOE",
+                        ),
+                    ],
+                    is_multileg=True,
                 )
 
                 options["status"] = 2
@@ -261,7 +263,6 @@ class Strangle(Strategy):
                 "buy",
                 exchange="CBOE",
             )
-            self.submit_order(options["call_order"])
 
             # Buy put.
             options["put_order"] = self.create_order(
@@ -270,7 +271,8 @@ class Strangle(Strategy):
                 "buy",
                 exchange="CBOE",
             )
-            self.submit_order(options["put_order"])
+            # Submit both legs as one multi-leg order so they fill together (or not at all).
+            self.submit_order([options["call_order"], options["put_order"]], is_multileg=True)
 
             self.total_trades += 1
             options["status"] = 1

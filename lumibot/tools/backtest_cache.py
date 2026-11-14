@@ -158,6 +158,7 @@ class BacktestCacheManager:
         local_path: Path,
         payload: Optional[Dict[str, object]] = None,
         force_download: bool = False,
+        remote_relative: Optional[str] = None,
     ) -> bool:
         if not self.enabled:
             return False
@@ -165,7 +166,7 @@ class BacktestCacheManager:
         if not isinstance(local_path, Path):
             local_path = Path(local_path)
 
-        remote_key = self.remote_key_for(local_path, payload)
+        remote_key = self.remote_key_for(local_path, payload, remote_relative=remote_relative)
         if remote_key is None:
             return False
 
@@ -316,6 +317,7 @@ class BacktestCacheManager:
         self,
         local_path: Path,
         payload: Optional[Dict[str, object]] = None,
+        remote_relative: Optional[str] = None,
     ) -> bool:
         if not self.enabled or self.mode != CacheMode.S3_READWRITE:
             return False
@@ -329,7 +331,7 @@ class BacktestCacheManager:
             )
             return False
 
-        remote_key = self.remote_key_for(local_path, payload)
+        remote_key = self.remote_key_for(local_path, payload, remote_relative=remote_relative)
         if remote_key is None:
             return False
 
@@ -497,25 +499,38 @@ class BacktestCacheManager:
         self,
         local_path: Path,
         payload: Optional[Dict[str, object]] = None,
+        remote_relative: Optional[str] = None,
     ) -> Optional[str]:
+        """Remote key for a local cache file.
+
+        By default the key mirrors the file's path under the LumiBot cache root. A caller whose
+        files live elsewhere (for example a provider with its own cache folder) passes
+        ``remote_relative``: a provider-style key such as ``sec/companyfacts/CIK0000320193.json``.
+        It must describe the data only, never a user, account or strategy.
+        """
         if not self.enabled:
             return None
 
         if not isinstance(local_path, Path):
             local_path = Path(local_path)
 
-        try:
-            relative_path = local_path.resolve().relative_to(Path(LUMIBOT_CACHE_FOLDER).resolve())
-        except ValueError:
-            logger.debug(
-                "[REMOTE_CACHE][SKIP] %s is outside the cache root.", local_path.as_posix()
-            )
-            return None
+        if remote_relative:
+            relative = str(remote_relative).strip("/")
+            if not relative or ".." in relative.split("/"):
+                return None
+        else:
+            try:
+                relative = local_path.resolve().relative_to(Path(LUMIBOT_CACHE_FOLDER).resolve()).as_posix()
+            except ValueError:
+                logger.debug(
+                    "[REMOTE_CACHE][SKIP] %s is outside the cache root.", local_path.as_posix()
+                )
+                return None
 
         components = [
             self._settings.prefix if self._settings and self._settings.prefix else None,
             self._settings.version if self._settings else None,
-            relative_path.as_posix(),
+            relative,
         ]
         sanitized = [c.strip("/") for c in components if c]
         remote_key = "/".join(sanitized)

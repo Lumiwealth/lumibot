@@ -3,11 +3,17 @@ import html
 import json
 import os
 import re
+import sys
+import threading
 import time
-from datetime import date, datetime, timezone
+from bisect import bisect_right
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date, datetime, timedelta, timezone
+from datetime import time as dt_time
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 from urllib.parse import urljoin
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -16,6 +22,22 @@ SEC_ARCHIVES_BASE_URL = "https://www.sec.gov/Archives/edgar/data/"
 SEC_COMPANY_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 DEFAULT_SEC_USER_AGENT = "LumiBot open-source trading framework support@lumiwealth.com"
 DEFAULT_MUTABLE_CACHE_TTL_SECONDS = 300.0
+# SEC fair access allows at most 10 requests per second per client. 0.11 s between request
+# starts keeps every LumiBot process just under that, including parallel preload() workers.
+DEFAULT_MIN_REQUEST_INTERVAL_SECONDS = 0.11
+# In a backtest, a shared cached file fetched before the backtest's end date may be missing
+# filings inside the window. It is refetched, but at most once per this many seconds.
+BACKTEST_STALE_REFETCH_SECONDS = 86400.0
+_CACHE_META_KEY = "_lumibot_cache_meta"
+_NEW_YORK = ZoneInfo("America/New_York")
+_SESSION_OPEN = dt_time(9, 30)
+_SESSION_CLOSE = dt_time(16, 0)
+# A filing dated D becomes public no earlier than D 00:00 New York (acceptance the evening
+# before is dated the next day) and, without an acceptance time, is treated as public from
+# D+1 09:30. Acceptance times only matter when the requested time falls in that window
+# (33.5 hours, padded for daylight saving changes).
+_ACCEPTANCE_WINDOW_SECONDS = 36 * 3600.0
+_DEFAULT_REMOTE_CACHE = object()
 
 
 INCOME_STATEMENT_TAGS = {
@@ -156,6 +178,238 @@ class SECTickerNotFoundError(ValueError):
     """The SEC ticker map has no CIK for this symbol, so EDGAR has no filings for it."""
 
 
+def _timestamp(value: datetime) -> float:
+    """POSIX seconds for ``value``; a naive datetime is New York market time."""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=_NEW_YORK)
+    return value.timestamp()
+
+
+def _iso_from_timestamp(ts: float | None) -> str | None:
+    if ts is None:
+        return None
+    return datetime.fromtimestamp(ts, _NEW_YORK).isoformat()
+
+
+def _next_session_open(moment: datetime) -> datetime:
+    """09:30 New York on the first weekday after ``moment``'s calendar day."""
+    day = moment.astimezone(_NEW_YORK).date() + timedelta(days=1)
+    while day.weekday() >= 5:
+        day += timedelta(days=1)
+    return datetime.combine(day, _SESSION_OPEN, _NEW_YORK)
+
+
+def _available_from_filed(filed: Any) -> float | None:
+    """A filing with only a ``filed`` date is public from 09:30 New York the next day.
+
+    ``filed`` has no time of day and filings accepted after the close carry that day's date,
+    so treating it as midnight of the filing day showed after-close filings at that
+    morning's open. The next day's open is never earlier than the real availability.
+    """
+    text = str(filed or "").strip()[:10]
+    if not text:
+        return None
+    try:
+        day = date.fromisoformat(text)
+    except ValueError:
+        return None
+    return datetime.combine(day + timedelta(days=1), _SESSION_OPEN, _NEW_YORK).timestamp()
+
+
+def _available_from_acceptance(acceptance: Any) -> float | None:
+    """When an accepted filing becomes usable: at acceptance during or before a weekday
+    session, otherwise at the next session's open. SEC acceptance times are UTC."""
+    accepted = _parse_dt(acceptance)
+    if accepted is None:
+        return None
+    if accepted.tzinfo is None:
+        accepted = accepted.replace(tzinfo=timezone.utc)
+    local = accepted.astimezone(_NEW_YORK)
+    if local.weekday() >= 5 or local.time() >= _SESSION_CLOSE:
+        return _next_session_open(local).timestamp()
+    return local.timestamp()
+
+
+def _intern(value: Any) -> Any:
+    return sys.intern(value) if isinstance(value, str) else value
+
+
+# Row layout inside a timeline series (tuples keep 500-company universes small in memory).
+_R_FILING, _R_END, _R_START, _R_VAL, _R_ACCN, _R_FORM, _R_FY, _R_FP, _R_FRAME, _R_FILED = range(10)
+
+
+class _Series:
+    __slots__ = ("ts", "rows")
+
+    def __init__(self, rows: list[tuple]):
+        self.rows = rows
+        self.ts: list[float] = []
+
+
+class _CompanyTimeline:
+    """One company's facts, indexed by the moment each value became public.
+
+    Built once per process from the companyfacts file. A statement or history request is
+    then a binary search plus a scan of the visible rows, with no file read and no JSON
+    parse. Only the tags LumiBot's statements use (plus any tag asked for by name) are
+    kept in memory; every filing's availability is kept for all tags.
+    """
+
+    def __init__(self, cik: str, payload: dict[str, Any], tags: Iterable[str], source_url: str, fetched_at: str):
+        self.cik = cik
+        self.source_url = source_url
+        self.fetched_at = fetched_at
+        self.loaded_at = time.monotonic()
+        self.series: dict[str, dict[str, _Series]] = {}
+        self.loaded_tags: set[str] = set()
+        self.filing_filed: dict[str, str] = {}
+        self.filing_ts: dict[str, float] = {}
+        self.filing_published: dict[str, str] = {}
+        self.acceptance_loaded = False
+        self.memo: dict[Any, Any] = {}
+        self.lock = threading.RLock()
+        facts = payload.get("facts") if isinstance(payload, dict) else None
+        facts = facts if isinstance(facts, dict) else {}
+        us_gaap = facts.get("us-gaap") if isinstance(facts.get("us-gaap"), dict) else {}
+        self.us_gaap_tags = sorted(us_gaap)
+        for taxonomy in facts.values():
+            if not isinstance(taxonomy, dict):
+                continue
+            for fact in taxonomy.values():
+                units = fact.get("units") if isinstance(fact, dict) else None
+                for rows in units.values() if isinstance(units, dict) else ():
+                    for row in rows if isinstance(rows, list) else ():
+                        if isinstance(row, dict) and row.get("filed"):
+                            key = self.filing_key(row)
+                            if key not in self.filing_filed:
+                                self.filing_filed[key] = _intern(str(row["filed"]))
+        for key, filed in self.filing_filed.items():
+            ts = _available_from_filed(filed)
+            if ts is not None:
+                self.filing_ts[key] = ts
+                self.filing_published[key] = filed
+        self.fallback_ts = sorted(set(self.filing_ts.values()))
+        self.add_tags(us_gaap, tags)
+
+    @staticmethod
+    def filing_key(row: dict[str, Any]) -> str:
+        accn = row.get("accn")
+        return _intern(str(accn)) if accn else _intern(f"filed:{row.get('filed')}")
+
+    def add_tags(self, us_gaap: dict[str, Any], tags: Iterable[str]) -> None:
+        for tag in tags:
+            if tag in self.loaded_tags:
+                continue
+            self.loaded_tags.add(tag)
+            units = (us_gaap.get(tag) or {}).get("units") if isinstance(us_gaap.get(tag), dict) else None
+            if not isinstance(units, dict):
+                continue
+            by_unit: dict[str, _Series] = {}
+            for unit, rows in units.items():
+                if not isinstance(rows, list):
+                    continue
+                kept = []
+                for row in rows:
+                    if not isinstance(row, dict) or not row.get("filed"):
+                        continue
+                    key = self.filing_key(row)
+                    if key not in self.filing_ts:
+                        continue
+                    kept.append(
+                        (
+                            key,
+                            _intern(row.get("end")),
+                            _intern(row.get("start")),
+                            row.get("val"),
+                            _intern(row.get("accn")),
+                            _intern(row.get("form")),
+                            row.get("fy"),
+                            _intern(row.get("fp")),
+                            _intern(row.get("frame")),
+                            self.filing_filed[key],
+                        )
+                    )
+                if kept:
+                    by_unit[_intern(unit)] = _Series(kept)
+            if by_unit:
+                self.series[tag] = by_unit
+        self.reindex()
+
+    def reindex(self) -> None:
+        """Sort every series by availability and rebuild the global state index."""
+        for by_unit in self.series.values():
+            for series in by_unit.values():
+                series.rows.sort(key=lambda row: self.filing_ts[row[_R_FILING]])
+                series.ts = [self.filing_ts[row[_R_FILING]] for row in series.rows]
+        ordered = sorted(self.filing_ts.items(), key=lambda item: item[1])
+        self.state_ts = [ts for _key, ts in ordered]
+        # Latest publication visible at each state (old semantics: the newest publication).
+        published: list[str | None] = []
+        best: datetime | None = None
+        best_text: str | None = None
+        for key, _ts in ordered:
+            text = self.filing_published.get(key)
+            parsed = _parse_dt(text)
+            if parsed is not None:
+                parsed = parsed if parsed.tzinfo else parsed.replace(tzinfo=_NEW_YORK)
+                if best is None or parsed > best:
+                    best, best_text = parsed, text
+            published.append(best_text)
+        self.state_published = published
+        self.memo.clear()
+
+    def needs_acceptance(self, as_ts: float) -> bool:
+        if self.acceptance_loaded:
+            return False
+        index = bisect_right(self.fallback_ts, as_ts)
+        return index < len(self.fallback_ts) and self.fallback_ts[index] - as_ts < _ACCEPTANCE_WINDOW_SECONDS
+
+    def apply_acceptance(self, acceptance_by_accession: dict[str, str]) -> None:
+        for key in list(self.filing_ts):
+            accepted = acceptance_by_accession.get(key)
+            ts = _available_from_acceptance(accepted) if accepted else None
+            if ts is not None:
+                self.filing_ts[key] = ts
+                self.filing_published[key] = accepted
+        self.acceptance_loaded = True
+        self.reindex()
+
+    def state_index(self, as_ts: float) -> int:
+        return bisect_right(self.state_ts, as_ts)
+
+    def published_at(self, as_ts: float) -> str | None:
+        index = self.state_index(as_ts)
+        if index <= 0:
+            return None
+        parsed = _parse_dt(self.state_published[index - 1])
+        return parsed.isoformat() if parsed is not None else None
+
+    def available_ts(self, row: dict[str, Any]) -> float | None:
+        if not row.get("filed"):
+            return None
+        key = self.filing_key(row)
+        ts = self.filing_ts.get(key)
+        return ts if ts is not None else _available_from_filed(row.get("filed"))
+
+    def visible_periods(self, tag: str, as_ts: float, unit: str | None = None):
+        """Yield ``(unit, row, ts)`` for the latest public value of each period of ``tag``.
+
+        Rows are in availability order, so a later restatement of the same period replaces
+        the earlier value only once the restating filing is public.
+        """
+        for series_unit, series in self.series.get(tag, {}).items():
+            if unit is not None and series_unit != unit:
+                continue
+            visible = bisect_right(series.ts, as_ts)
+            latest: dict[tuple, int] = {}
+            rows = series.rows
+            for index in range(visible):
+                row = rows[index]
+                latest[(row[_R_START], row[_R_END])] = index
+            for index in latest.values():
+                yield series_unit, rows[index], series.ts[index]
+
+
 class SECFundamentals:
     """Direct SEC EDGAR client with mandatory local caching and point-in-time helpers."""
 
@@ -165,10 +419,24 @@ class SECFundamentals:
         *,
         cache_dir: str | os.PathLike[str] | None = None,
         user_agent: str | None = None,
-        min_request_interval_seconds: float = 0.2,
+        min_request_interval_seconds: float = DEFAULT_MIN_REQUEST_INTERVAL_SECONDS,
         cache_mode: str = "auto",
         mutable_cache_ttl_seconds: float = DEFAULT_MUTABLE_CACHE_TTL_SECONDS,
+        remote_cache: Any = _DEFAULT_REMOTE_CACHE,
+        backtest_end: Any | None = None,
     ) -> None:
+        """
+        Parameters
+        ----------
+        remote_cache:
+            Shared cache for raw SEC files in backtests. Defaults to LumiBot's configured remote
+            backtest cache (disabled unless one is configured). Files are stored under
+            provider-style keys such as ``sec/companyfacts/CIK0000320193.json`` so every
+            backtest machine reuses the same download. Pass ``None`` to keep files local only.
+        backtest_end:
+            Overrides the backtest end date used to decide whether a shared cached file is
+            recent enough. Normally read from the strategy.
+        """
         self.strategy = strategy
         self.cache_dir = Path(
             cache_dir
@@ -183,7 +451,18 @@ class SECFundamentals:
             raise ValueError("cache_mode must be one of: auto, live, backtest")
         self.cache_mode = normalized_cache_mode
         self.mutable_cache_ttl_seconds = max(float(mutable_cache_ttl_seconds), 0.0)
-        self._last_request_at = 0.0
+        self._remote_cache = remote_cache
+        self._backtest_end_override = backtest_end
+        self._rate_lock = threading.Lock()
+        self._next_request_at = 0.0
+        self._counter_lock = threading.Lock()
+        self.request_count = 0
+        self._tickers: dict[str, str] | None = None
+        self._tickers_loaded_at = 0.0
+        self._tickers_lock = threading.Lock()
+        self._timelines: dict[str, _CompanyTimeline] = {}
+        self._timeline_locks: dict[str, threading.Lock] = {}
+        self._timeline_locks_guard = threading.Lock()
 
     @staticmethod
     def _cache_meta_path(cache_path: Path) -> Path:
@@ -261,35 +540,140 @@ class SECFundamentals:
             return "backtest"
         return "live"
 
+    def _backtest_end(self) -> datetime | None:
+        candidates = [self._backtest_end_override]
+        strategy = self.strategy
+        if strategy is not None:
+            candidates.append(getattr(strategy, "_backtesting_end", None))
+            data_source = getattr(getattr(strategy, "broker", None), "data_source", None)
+            candidates.append(getattr(data_source, "datetime_end", None))
+        for candidate in candidates:
+            parsed = _parse_dt(candidate) if candidate is not None else None
+            if parsed is not None:
+                return parsed if parsed.tzinfo else parsed.replace(tzinfo=_NEW_YORK)
+        return None
+
+    def _cache_fetched_dt(self, cache_path: Path) -> datetime | None:
+        fetched = _parse_dt(self._cache_meta(cache_path).get("fetched_at"))
+        if fetched is None:
+            return None
+        return fetched if fetched.tzinfo else fetched.replace(tzinfo=timezone.utc)
+
     def _cache_is_usable(self, cache_path: Path, *, mutable: bool) -> bool:
         if not cache_path.exists():
             return False
-        if not mutable or self._resolved_cache_mode() == "backtest":
+        if not mutable:
             return True
-        age_seconds = max(time.time() - cache_path.stat().st_mtime, 0.0)
+        fetched = self._cache_fetched_dt(cache_path)
+        if self._resolved_cache_mode() == "backtest":
+            # A copy fetched after the backtest ends holds every filing the backtest can see.
+            # An older copy may miss filings inside the window: refetch it, at most once a day.
+            backtest_end = self._backtest_end()
+            if backtest_end is None:
+                return True
+            if fetched is None:
+                fetched = datetime.fromtimestamp(cache_path.stat().st_mtime, timezone.utc)
+            if fetched >= backtest_end:
+                return True
+            return (datetime.now(timezone.utc) - fetched).total_seconds() < BACKTEST_STALE_REFETCH_SECONDS
+        reference = cache_path.stat().st_mtime
+        if fetched is not None:
+            reference = min(reference, fetched.timestamp())
+        age_seconds = max(time.time() - reference, 0.0)
         return age_seconds <= self.mutable_cache_ttl_seconds
 
-    def _get_json(self, url: str, cache_path: Path, *, mutable: bool = False) -> dict[str, Any]:
+    def _remote(self) -> Any | None:
+        """The shared backtest cache, or None. Only used in backtest mode."""
+        if self._resolved_cache_mode() != "backtest":
+            return None
+        remote = self._remote_cache
+        if remote is _DEFAULT_REMOTE_CACHE:
+            try:
+                from lumibot.tools.backtest_cache import get_backtest_cache
+
+                remote = get_backtest_cache()
+            except Exception:
+                remote = None
+            self._remote_cache = remote
+        if remote is None or not getattr(remote, "enabled", False):
+            return None
+        return remote
+
+    def _pull_remote(self, cache_path: Path, remote_relative: str | None) -> bool:
+        remote = self._remote() if remote_relative else None
+        if remote is None:
+            return False
+        try:
+            return bool(remote.ensure_local_file(cache_path, remote_relative=remote_relative))
+        except Exception:
+            # The shared cache is an accelerator; the SEC remains the source.
+            return False
+
+    def _push_remote(self, cache_path: Path, remote_relative: str | None) -> None:
+        remote = self._remote() if remote_relative else None
+        if remote is None:
+            return
+        try:
+            remote.on_local_update(cache_path, remote_relative=remote_relative)
+        except Exception:
+            pass
+
+    def _read_cached_json(self, cache_path: Path, *, from_remote: bool = False) -> Any:
+        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+        if isinstance(payload, dict) and _CACHE_META_KEY in payload:
+            meta = payload.pop(_CACHE_META_KEY)
+            # A file downloaded from the shared cache carries its SEC fetch time inside it.
+            meta_path = self._cache_meta_path(cache_path)
+            if isinstance(meta, dict) and meta.get("fetched_at") and (from_remote or not meta_path.exists()):
+                self._cache_meta_path(cache_path).write_text(json.dumps(meta, sort_keys=True), encoding="utf-8")
+        return payload
+
+    def _write_json_cache(self, cache_path: Path, payload: Any) -> None:
+        stored = payload
+        if isinstance(payload, dict):
+            stored = {**payload, _CACHE_META_KEY: self._cache_meta(cache_path)}
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = cache_path.with_name(f"{cache_path.name}.tmp-{os.getpid()}-{threading.get_ident()}")
+        tmp_path.write_text(json.dumps(stored, separators=(",", ":")), encoding="utf-8")
+        os.replace(tmp_path, cache_path)
+
+    def _get_json(
+        self,
+        url: str,
+        cache_path: Path,
+        *,
+        mutable: bool = False,
+        remote_relative: str | None = None,
+    ) -> Any:
         if self._cache_is_usable(cache_path, mutable=mutable):
-            return json.loads(cache_path.read_text(encoding="utf-8"))
+            return self._read_cached_json(cache_path)
+        if self._pull_remote(cache_path, remote_relative):
+            payload = self._read_cached_json(cache_path, from_remote=True)
+            if self._cache_is_usable(cache_path, mutable=mutable):
+                return payload
         self._rate_limit()
         headers = self._headers()
         if mutable and cache_path.exists():
             headers.update(self._revalidation_headers(cache_path))
         response = requests.get(url, headers=headers, timeout=30)
         if getattr(response, "status_code", None) == 304 and cache_path.exists():
-            os.utime(cache_path, None)
+            payload = self._read_cached_json(cache_path)
             self._record_cache_fetch(cache_path, getattr(response, "headers", None))
-            return json.loads(cache_path.read_text(encoding="utf-8"))
+            self._write_json_cache(cache_path, payload)
+            self._push_remote(cache_path, remote_relative)
+            return payload
         response.raise_for_status()
         payload = response.json()
         cache_path.parent.mkdir(parents=True, exist_ok=True)
-        cache_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
         self._record_cache_fetch(cache_path, getattr(response, "headers", None))
+        self._write_json_cache(cache_path, payload)
+        self._push_remote(cache_path, remote_relative)
         return payload
 
-    def _get_text(self, url: str, cache_path: Path, *, mutable: bool = False) -> str:
+    def _get_text(self, url: str, cache_path: Path, *, mutable: bool = False, remote_relative: str | None = None) -> str:
         if self._cache_is_usable(cache_path, mutable=mutable):
+            return cache_path.read_text(encoding="utf-8", errors="replace")
+        if not mutable and self._pull_remote(cache_path, remote_relative) and cache_path.exists():
             return cache_path.read_text(encoding="utf-8", errors="replace")
         self._rate_limit()
         headers = self._archive_headers()
@@ -305,13 +689,20 @@ class SECFundamentals:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(text, encoding="utf-8", errors="replace")
         self._record_cache_fetch(cache_path, getattr(response, "headers", None))
+        if not mutable:
+            self._push_remote(cache_path, remote_relative)
         return text
 
     def _rate_limit(self) -> None:
-        elapsed = time.monotonic() - self._last_request_at
-        if elapsed < self.min_request_interval_seconds:
-            time.sleep(self.min_request_interval_seconds - elapsed)
-        self._last_request_at = time.monotonic()
+        """Space request starts by ``min_request_interval_seconds`` across all threads."""
+        with self._rate_lock:
+            now = time.monotonic()
+            start = max(now, self._next_request_at)
+            self._next_request_at = start + self.min_request_interval_seconds
+        if start > now:
+            time.sleep(start - now)
+        with self._counter_lock:
+            self.request_count += 1
 
     def _strategy_as_of(self) -> datetime:
         if self.strategy is not None and hasattr(self.strategy, "get_datetime"):
@@ -331,17 +722,37 @@ class SECFundamentals:
             return min(_same_tz(requested, strategy_as_of), strategy_as_of)
         return requested
 
+    def _ticker_map(self) -> dict[str, str]:
+        with self._tickers_lock:
+            fresh = self._tickers is not None and (
+                self._resolved_cache_mode() == "backtest"
+                or time.monotonic() - self._tickers_loaded_at <= self.mutable_cache_ttl_seconds
+            )
+            if fresh:
+                return self._tickers  # type: ignore[return-value]
+            payload = self._get_json(
+                SEC_COMPANY_TICKERS_URL,
+                self._cache_path("company_tickers.json"),
+                mutable=True,
+                remote_relative="sec/company_tickers.json",
+            )
+            mapping: dict[str, str] = {}
+            for entry in payload.values() if isinstance(payload, dict) else ():
+                if not isinstance(entry, dict):
+                    continue
+                ticker = str(entry.get("ticker", "")).upper()
+                if ticker and ticker not in mapping and entry.get("cik_str") is not None:
+                    mapping[ticker] = f"{int(entry['cik_str']):010d}"
+            self._tickers = mapping
+            self._tickers_loaded_at = time.monotonic()
+            return mapping
+
     def ticker_to_cik(self, symbol: str) -> str:
         symbol_upper = str(symbol).upper().strip()
-        payload = self._get_json(
-            SEC_COMPANY_TICKERS_URL,
-            self._cache_path("company_tickers.json"),
-            mutable=True,
-        )
-        for entry in payload.values():
-            if str(entry.get("ticker", "")).upper() == symbol_upper:
-                return f"{int(entry['cik_str']):010d}"
-        raise SECTickerNotFoundError(f"No SEC CIK found for ticker {symbol!r}.")
+        cik = self._ticker_map().get(symbol_upper)
+        if cik is None:
+            raise SECTickerNotFoundError(f"No SEC CIK found for ticker {symbol!r}.")
+        return cik
 
     def _get_submissions_payload(self, symbol: str) -> dict[str, Any]:
         cik = self.ticker_to_cik(symbol)
@@ -351,6 +762,7 @@ class SECFundamentals:
             url,
             cache_path,
             mutable=True,
+            remote_relative=f"sec/submissions/CIK{cik}.json",
         )
         return {
             **payload,
@@ -364,6 +776,213 @@ class SECFundamentals:
         as_of_dt = self._resolve_as_of(as_of)
         return self._filter_submissions_as_of(self._get_submissions_payload(symbol), as_of_dt)
 
+    # ------------------------------------------------------------------
+    # Point-in-time fact table (parsed once per process per company)
+    # ------------------------------------------------------------------
+
+    def _companyfacts_location(self, cik: str) -> tuple[str, Path, str]:
+        return (
+            f"{SEC_DATA_BASE_URL}/api/xbrl/companyfacts/CIK{cik}.json",
+            self._cache_path("companyfacts", f"CIK{cik}.json"),
+            f"sec/companyfacts/CIK{cik}.json",
+        )
+
+    def _load_companyfacts_payload(self, cik: str) -> dict[str, Any]:
+        url, cache_path, remote_relative = self._companyfacts_location(cik)
+        payload = self._get_json(url, cache_path, mutable=True, remote_relative=remote_relative)
+        return payload if isinstance(payload, dict) else {}
+
+    def _timeline_lock(self, cik: str) -> threading.Lock:
+        with self._timeline_locks_guard:
+            lock = self._timeline_locks.get(cik)
+            if lock is None:
+                lock = self._timeline_locks[cik] = threading.Lock()
+            return lock
+
+    def _timeline_is_fresh(self, timeline: _CompanyTimeline) -> bool:
+        if self._resolved_cache_mode() == "backtest":
+            return True
+        return time.monotonic() - timeline.loaded_at <= self.mutable_cache_ttl_seconds
+
+    def _timeline(self, symbol: str, extra_tags: Iterable[str] = ()) -> _CompanyTimeline:
+        cik = self.ticker_to_cik(symbol)
+        extra = [tag for tag in extra_tags if tag]
+        timeline = self._timelines.get(cik)
+        if timeline is not None and self._timeline_is_fresh(timeline) and all(t in timeline.loaded_tags for t in extra):
+            return timeline
+        with self._timeline_lock(cik):
+            timeline = self._timelines.get(cik)
+            if timeline is not None and self._timeline_is_fresh(timeline):
+                missing = [tag for tag in extra if tag not in timeline.loaded_tags]
+                if missing:
+                    payload = self._load_companyfacts_payload(cik)
+                    us_gaap = (payload.get("facts") or {}).get("us-gaap") or {}
+                    with timeline.lock:
+                        timeline.add_tags(us_gaap, missing)
+                return timeline
+            url, cache_path, _remote_relative = self._companyfacts_location(cik)
+            payload = self._load_companyfacts_payload(cik)
+            tags = set(_PRIORITY_COMPANY_FACT_TAGS) | set(extra)
+            if timeline is not None:
+                tags |= timeline.loaded_tags
+            rebuilt = _CompanyTimeline(cik, payload, tags, url, self._cache_fetched_at(cache_path))
+            self._timelines[cik] = rebuilt
+            return rebuilt
+
+    def _ensure_acceptance(self, symbol: str, timeline: _CompanyTimeline, as_ts: float | None, *, force: bool = False) -> None:
+        """Load acceptance times only when a filing's exact time can change the answer."""
+        if timeline.acceptance_loaded:
+            return
+        if not force and (as_ts is None or not timeline.needs_acceptance(as_ts)):
+            return
+        with self._timeline_lock(timeline.cik):
+            if timeline.acceptance_loaded:
+                return
+            acceptance: dict[str, str] = {}
+            try:
+                recent = self._get_submissions_payload(symbol).get("filings", {}).get("recent", {})
+                accessions = recent.get("accessionNumber") or []
+                accepted = recent.get("acceptanceDateTime") or []
+                for index, accession in enumerate(accessions):
+                    if index < len(accepted) and accepted[index]:
+                        acceptance[str(accession)] = str(accepted[index])
+            except Exception:
+                # Without acceptance times every filing stays at the conservative
+                # "next day" availability. Never retried within this process.
+                acceptance = {}
+            with timeline.lock:
+                timeline.apply_acceptance(acceptance)
+
+    def _point_in_time(self, symbol: str, as_of: Any | None, extra_tags: Iterable[str] = ()):
+        as_of_dt = self._resolve_as_of(as_of)
+        as_ts = _timestamp(as_of_dt)
+        timeline = self._timeline(symbol, extra_tags)
+        self._ensure_acceptance(symbol, timeline, as_ts)
+        return as_of_dt, as_ts, timeline
+
+    def _provenance(self, timeline: _CompanyTimeline) -> dict[str, Any]:
+        return {
+            "id": f"sec-companyfacts-{timeline.cik}",
+            "source": "sec_edgar_companyfacts",
+            "source_url": timeline.source_url,
+            "fetched_at": timeline.fetched_at,
+        }
+
+    @staticmethod
+    def _fact_output(tag: str | None, unit: str, row: tuple, ts: float) -> dict[str, Any]:
+        output = {
+            "value": row[_R_VAL],
+            "unit": unit,
+            "filed": row[_R_FILED],
+            "form": row[_R_FORM],
+            "fy": row[_R_FY],
+            "fp": row[_R_FP],
+            "frame": row[_R_FRAME],
+            "start": row[_R_START],
+            "end": row[_R_END],
+            "accession_number": row[_R_ACCN],
+            "available_at": _iso_from_timestamp(ts),
+        }
+        if tag is not None:
+            output = {"tag": tag, **output}
+        return output
+
+    def preload(
+        self,
+        symbols: Iterable[str],
+        *,
+        max_workers: int = 8,
+        include_submissions: bool = False,
+    ) -> dict[str, Any]:
+        """Warm the fact table for a whole universe in one call.
+
+        Downloads (or reads from the shared or local cache) every company's companyfacts file
+        in parallel, with request starts spaced to stay under SEC's 10 requests per second,
+        and builds each point-in-time table. Later statement calls for these symbols are
+        in-memory lookups. Symbols the SEC does not cover are reported, not raised.
+
+        ``include_submissions`` also loads each company's filing acceptance times up front.
+        Without it they are loaded on demand, only for a company and date where an exact
+        filing time can change the answer.
+        """
+        started = time.perf_counter()
+        requests_before = self.request_count
+        unique = list(dict.fromkeys(str(symbol).upper().strip() for symbol in symbols if str(symbol or "").strip()))
+        self._ticker_map()
+
+        def load(symbol: str) -> tuple[str, str, str | None]:
+            try:
+                timeline = self._timeline(symbol)
+            except SECTickerNotFoundError:
+                return symbol, "missing", "no_sec_cik"
+            except requests.HTTPError as exc:
+                status = getattr(getattr(exc, "response", None), "status_code", None)
+                if status == 404:
+                    return symbol, "missing", "no_companyfacts"
+                return symbol, "error", f"{type(exc).__name__}: {exc}"
+            except Exception as exc:
+                return symbol, "error", f"{type(exc).__name__}: {exc}"
+            if not timeline.series:
+                return symbol, "missing", "no_us_gaap_facts"
+            if include_submissions:
+                self._ensure_acceptance(symbol, timeline, None, force=True)
+            return symbol, "loaded", None
+
+        results: list[tuple[str, str, str | None]] = []
+        if unique:
+            workers = max(1, min(int(max_workers), len(unique)))
+            with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="sec-preload") as pool:
+                results = list(pool.map(load, unique))
+        return {
+            "loaded": [symbol for symbol, status, _ in results if status == "loaded"],
+            "missing": [symbol for symbol, status, _ in results if status == "missing"],
+            "errors": {symbol: reason for symbol, status, reason in results if status == "error"},
+            "reasons": {symbol: reason for symbol, status, reason in results if status == "missing"},
+            "sec_requests": self.request_count - requests_before,
+            "seconds": round(time.perf_counter() - started, 3),
+        }
+
+    def get_fact_history(
+        self,
+        symbol: str,
+        tags: str | Iterable[str],
+        *,
+        as_of: Any | None = None,
+        unit: str | None = None,
+    ) -> dict[str, Any]:
+        """Every reported period of a us-gaap fact, with the value known at ``as_of``.
+
+        Each period (start, end) appears once, with the value from the latest filing public at
+        ``as_of``. A restatement filed later never shows before its filing is public, and an
+        older year amended later never hides newer periods. ``tags`` may be one tag or a list
+        in priority order; the first tag that reports a period supplies its value. Values are
+        sorted by period end, oldest first, and include annual, quarterly and year-to-date
+        periods exactly as filed (use ``start``, ``end``, ``fp`` and ``form`` to pick).
+        """
+        tag_list = [tags] if isinstance(tags, str) else [str(tag) for tag in tags]
+        as_of_dt, as_ts, timeline = self._point_in_time(symbol, as_of, tag_list)
+        chosen: dict[tuple, tuple[int, float, str, str, tuple]] = {}
+        with timeline.lock:
+            for priority, tag in enumerate(tag_list):
+                for series_unit, row, ts in timeline.visible_periods(tag, as_ts, unit):
+                    key = (row[_R_START], row[_R_END], series_unit)
+                    if key not in chosen or chosen[key][0] > priority:
+                        chosen[key] = (priority, ts, tag, series_unit, row)
+        values = [
+            self._fact_output(tag, series_unit, row, ts)
+            for _priority, ts, tag, series_unit, row in chosen.values()
+        ]
+        values.sort(key=lambda item: (str(item.get("end") or ""), str(item.get("start") or "")))
+        return {
+            "symbol": str(symbol).upper(),
+            "cik": timeline.cik,
+            "tags": tag_list,
+            "as_of": as_of_dt.isoformat(),
+            **self._provenance(timeline),
+            "published_at": timeline.published_at(as_ts),
+            "values": values,
+        }
+
     def get_company_facts(
         self,
         symbol: str,
@@ -372,55 +991,144 @@ class SECFundamentals:
         raw: bool = False,
         max_facts: int | None = _DEFAULT_COMPANY_FACTS_LIMIT,
     ) -> dict[str, Any]:
-        cik = self.ticker_to_cik(symbol)
-        url = f"{SEC_DATA_BASE_URL}/api/xbrl/companyfacts/CIK{cik}.json"
-        cache_path = self._cache_path("companyfacts", f"CIK{cik}.json")
-        payload = self._get_json(
-            url,
-            cache_path,
-            mutable=True,
-        )
-        as_of_dt = self._resolve_as_of(as_of)
-        provenance = {
-            "id": f"sec-companyfacts-{cik}",
-            "source": "sec_edgar_companyfacts",
-            "source_url": url,
-            "fetched_at": self._cache_fetched_at(cache_path),
-        }
+        as_of_dt, as_ts, timeline = self._point_in_time(symbol, as_of)
+        provenance = self._provenance(timeline)
         if raw:
-            filtered = self._filter_company_facts_as_of(payload, as_of_dt)
+            payload = self._load_companyfacts_payload(timeline.cik)
+            filtered = self._filter_company_facts_visible(payload, timeline, as_ts)
+            filtered["as_of"] = as_of_dt.isoformat()
             filtered.update(provenance)
             filtered["published_at"] = self._latest_company_fact_publication(filtered)
             return filtered
-        facts = payload.get("facts", {}).get("us-gaap", {})
-        compact: dict[str, Any] = {
-            "symbol": symbol.upper(),
-            "cik": cik,
+        limit = None if max_facts is None else max(int(max_facts), 1)
+        memo_key = ("compact", limit, timeline.state_index(as_ts))
+        with timeline.lock:
+            cached = timeline.memo.get(memo_key)
+        if cached is None:
+            cached = self._compact_facts(timeline, as_ts, limit)
+            with timeline.lock:
+                timeline.memo[memo_key] = cached
+        facts, truncated = cached
+        return {
+            "symbol": str(symbol).upper(),
+            "cik": timeline.cik,
             "as_of": as_of_dt.isoformat(),
             **provenance,
-            "facts": {},
+            "facts": {tag: dict(value) for tag, value in facts.items()},
+            "fact_count": len(facts),
+            "truncated": truncated,
+            "max_facts": max_facts,
+            "published_at": timeline.published_at(as_ts),
         }
-        ordered_tags = [tag for tag in _PRIORITY_COMPANY_FACT_TAGS if tag in facts]
-        priority_seen = set(ordered_tags)
-        ordered_tags.extend(tag for tag in sorted(facts) if tag not in priority_seen)
-        limit = None if max_facts is None else max(int(max_facts), 1)
-        stopped_for_limit = False
-        for tag in ordered_tags:
-            if limit is not None and len(compact["facts"]) >= limit:
-                stopped_for_limit = True
+
+    def _compact_facts(self, timeline: _CompanyTimeline, as_ts: float, limit: int | None):
+        available = set(timeline.us_gaap_tags)
+        ordered = [tag for tag in _PRIORITY_COMPANY_FACT_TAGS if tag in available]
+        seen = set(ordered)
+        ordered.extend(tag for tag in timeline.us_gaap_tags if tag not in seen)
+        facts: dict[str, Any] = {}
+        payload_us_gaap: dict[str, Any] | None = None
+        truncated = False
+        for tag in ordered:
+            if limit is not None and len(facts) >= limit:
+                truncated = True
                 break
-            tag_payload = facts[tag]
-            units = tag_payload.get("units", {})
-            latest = self._latest_fact_from_units(units, as_of_dt)
+            if tag in timeline.loaded_tags:
+                latest = self._latest_visible(timeline, tag, as_ts)
+            else:
+                # Tags outside the statement maps are not held in memory; read them from the
+                # cached file once per call (results are memoised per filing state).
+                if payload_us_gaap is None:
+                    payload = self._load_companyfacts_payload(timeline.cik)
+                    payload_us_gaap = (payload.get("facts") or {}).get("us-gaap") or {}
+                latest = self._latest_visible_from_payload(timeline, payload_us_gaap.get(tag) or {}, as_ts)
             if latest is not None:
-                compact["facts"][tag] = latest
-        compact["fact_count"] = len(compact["facts"])
-        compact["truncated"] = stopped_for_limit
-        compact["max_facts"] = max_facts
-        compact["published_at"] = self._latest_company_fact_publication(
-            self._filter_company_facts_as_of(payload, as_of_dt)
-        )
-        return compact
+                facts[tag] = latest
+        return facts, truncated
+
+    @staticmethod
+    def _latest_key(end: Any, ts: float) -> tuple:
+        # Newest period first; for the same period the most recently public value.
+        return (str(end or ""), ts)
+
+    def _latest_visible(self, timeline: _CompanyTimeline, tag: str, as_ts: float) -> dict[str, Any] | None:
+        best = None
+        for series_unit, row, ts in timeline.visible_periods(tag, as_ts):
+            key = self._latest_key(row[_R_END], ts)
+            if best is None or key > best[0]:
+                best = (key, series_unit, row, ts)
+        if best is None:
+            return None
+        return self._fact_output(None, best[1], best[2], best[3])
+
+    def _latest_visible_from_payload(
+        self, timeline: _CompanyTimeline, tag_payload: dict[str, Any], as_ts: float
+    ) -> dict[str, Any] | None:
+        best = None
+        units = tag_payload.get("units") if isinstance(tag_payload, dict) else None
+        for unit, rows in units.items() if isinstance(units, dict) else ():
+            for row in rows if isinstance(rows, list) else ():
+                if not isinstance(row, dict):
+                    continue
+                ts = timeline.available_ts(row)
+                if ts is None or ts > as_ts:
+                    continue
+                key = self._latest_key(row.get("end"), ts)
+                if best is None or key > best[0]:
+                    best = (key, unit, row, ts)
+        if best is None:
+            return None
+        _key, unit, row, ts = best
+        return {
+            "value": row.get("val"),
+            "unit": unit,
+            "filed": row.get("filed"),
+            "form": row.get("form"),
+            "fy": row.get("fy"),
+            "fp": row.get("fp"),
+            "frame": row.get("frame"),
+            "start": row.get("start"),
+            "end": row.get("end"),
+            "accession_number": row.get("accn"),
+            "available_at": _iso_from_timestamp(ts),
+        }
+
+    def _filter_company_facts_visible(
+        self, payload: dict[str, Any], timeline: _CompanyTimeline, as_ts: float
+    ) -> dict[str, Any]:
+        """Raw companyfacts with only the rows public at ``as_ts`` (no deep copy)."""
+        filtered = {key: value for key, value in payload.items() if key != "facts"}
+        facts_out: dict[str, Any] = {}
+        facts = payload.get("facts")
+        for taxonomy_name, taxonomy in facts.items() if isinstance(facts, dict) else ():
+            if not isinstance(taxonomy, dict):
+                facts_out[taxonomy_name] = taxonomy
+                continue
+            taxonomy_out: dict[str, Any] = {}
+            for tag, fact in taxonomy.items():
+                if not isinstance(fact, dict):
+                    taxonomy_out[tag] = fact
+                    continue
+                units = fact.get("units")
+                fact_out = {key: value for key, value in fact.items() if key != "units"}
+                units_out: dict[str, Any] = {}
+                for unit, rows in units.items() if isinstance(units, dict) else ():
+                    if not isinstance(rows, list):
+                        units_out[unit] = rows
+                        continue
+                    visible = []
+                    for row in rows:
+                        if not isinstance(row, dict):
+                            continue
+                        ts = timeline.available_ts(row)
+                        if ts is None or ts <= as_ts:
+                            visible.append(row)
+                    units_out[unit] = visible
+                fact_out["units"] = units_out
+                taxonomy_out[tag] = fact_out
+            facts_out[taxonomy_name] = taxonomy_out
+        filtered["facts"] = facts_out
+        return filtered
 
     @staticmethod
     def _latest_company_fact_publication(payload: dict[str, Any]) -> str | None:
@@ -528,24 +1236,52 @@ class SECFundamentals:
         raw: bool,
         statement: str,
     ) -> dict[str, Any]:
-        raw_facts = self.get_company_facts(symbol, as_of=as_of, raw=True)
         if raw:
-            return raw_facts
-        as_of_dt = self._resolve_as_of(as_of)
-        facts = raw_facts.get("facts", {}).get("us-gaap", {})
+            return self.get_company_facts(symbol, as_of=as_of, raw=True)
+        as_of_dt, as_ts, timeline = self._point_in_time(symbol, as_of)
+        # The answer only changes when a new filing becomes public, so it is computed once per
+        # filing state and then reused for every date until the next filing.
+        memo_key = (statement, timeline.state_index(as_ts))
+        with timeline.lock:
+            cached = timeline.memo.get(memo_key)
+        if cached is None:
+            with timeline.lock:
+                cached = self._compute_statement(timeline, tag_map, as_ts)
+                timeline.memo[memo_key] = cached
+        values, anchor, warnings = cached
+        return {
+            "symbol": str(symbol).upper(),
+            "cik": timeline.cik,
+            "statement": statement,
+            "as_of": as_of_dt.isoformat(),
+            **self._provenance(timeline),
+            "published_at": timeline.published_at(as_ts),
+            "values": {field: dict(value) for field, value in values.items()},
+            "anchor": dict(anchor) if anchor else None,
+            "warnings": copy.deepcopy(warnings),
+        }
+
+    def _compute_statement(self, timeline: _CompanyTimeline, tag_map: dict[str, list[str]], as_ts: float):
         field_candidates: dict[str, list[dict[str, Any]]] = {}
         for field, tags in tag_map.items():
-            candidates = self._fact_candidates_for_tags(facts, tags, as_of_dt)
+            candidates = []
+            for tag in tags:
+                for series_unit, row, ts in timeline.visible_periods(tag, as_ts):
+                    candidate = self._fact_output(tag, series_unit, row, ts)
+                    candidate["_ts"] = ts
+                    candidates.append(candidate)
             if candidates:
+                candidates.sort(key=lambda row, tags=tags: self._statement_candidate_sort_key(row, tags), reverse=True)
                 field_candidates[field] = candidates
 
         anchor = self._statement_anchor(field_candidates)
         values: dict[str, Any] = {}
         warnings: list[dict[str, Any]] = []
+        keys = ("tag", "filed", "form", "fy", "fp", "start", "end", "accession_number")
         for field, candidates in field_candidates.items():
             chosen = self._best_matching_statement_fact(candidates, anchor)
             if chosen is not None:
-                values[field] = chosen
+                values[field] = {key: value for key, value in chosen.items() if key != "_ts"}
                 continue
             latest = candidates[0]
             warnings.append(
@@ -555,79 +1291,18 @@ class SECFundamentals:
                         "Latest fact did not match the statement period anchor and was omitted "
                         "to avoid mixing facts from different SEC filings or periods."
                     ),
-                    "latest_candidate": {
-                        key: latest.get(key)
-                        for key in ("tag", "filed", "form", "fy", "fp", "start", "end", "accession_number")
-                    },
-                    "anchor": {
-                        key: anchor.get(key) if anchor else None
-                        for key in ("tag", "filed", "form", "fy", "fp", "start", "end", "accession_number")
-                    },
+                    "latest_candidate": {key: latest.get(key) for key in keys},
+                    "anchor": {key: anchor.get(key) if anchor else None for key in keys},
                 }
             )
-        return {
-            "symbol": symbol.upper(),
-            "cik": self.ticker_to_cik(symbol),
-            "statement": statement,
-            "as_of": as_of_dt.isoformat(),
-            "id": raw_facts.get("id"),
-            "source": raw_facts.get("source"),
-            "source_url": raw_facts.get("source_url"),
-            "published_at": raw_facts.get("published_at"),
-            "fetched_at": raw_facts.get("fetched_at"),
-            "values": values,
-            "anchor": {
-                key: anchor.get(key)
-                for key in ("tag", "filed", "form", "fy", "fp", "start", "end", "accession_number")
-            }
-            if anchor
-            else None,
-            "warnings": warnings,
-        }
-
-    def _fact_candidates_for_tags(
-        self,
-        facts: dict[str, Any],
-        tags: list[str],
-        as_of: datetime,
-    ) -> list[dict[str, Any]]:
-        candidates: list[dict[str, Any]] = []
-        for tag in tags:
-            tag_payload = facts.get(tag)
-            if not tag_payload:
-                continue
-            units = tag_payload.get("units", {})
-            for unit, unit_facts in units.items():
-                if not isinstance(unit_facts, list):
-                    continue
-                for fact in unit_facts:
-                    if not isinstance(fact, dict):
-                        continue
-                    filed = _parse_dt(fact.get("filed") or fact.get("acceptanceDateTime"))
-                    if filed is None:
-                        continue
-                    filed = _same_tz(filed, as_of)
-                    if filed > as_of:
-                        continue
-                    candidates.append(
-                        {
-                            "tag": tag,
-                            "value": fact.get("val"),
-                            "unit": unit,
-                            "filed": fact.get("filed"),
-                            "form": fact.get("form"),
-                            "fy": fact.get("fy"),
-                            "fp": fact.get("fp"),
-                            "frame": fact.get("frame"),
-                            "start": fact.get("start"),
-                            "end": fact.get("end"),
-                            "accession_number": fact.get("accn"),
-                        }
-                    )
-        candidates.sort(key=lambda row: self._statement_candidate_sort_key(row, tags), reverse=True)
-        return candidates
+        anchor_out = {key: anchor.get(key) for key in keys} if anchor else None
+        return values, anchor_out, warnings
 
     def _statement_candidate_sort_key(self, row: dict[str, Any], tags: list[str] | None = None) -> tuple[Any, ...]:
+        # Newest period first. Sorting by filing date first let a later amendment of an older
+        # year (or a comparative restated in a newer filing) become the "current" statement.
+        # For the same period, the most recently public value wins (restatements apply only
+        # once their filing is public; see visible_periods).
         form_priority = {
             "10-K": 5,
             "20-F": 5,
@@ -642,8 +1317,8 @@ class SECFundamentals:
             except ValueError:
                 tag_priority = 0
         return (
-            str(row.get("filed") or ""),
             str(row.get("end") or ""),
+            float(row.get("_ts") or 0.0),
             str(row.get("start") or ""),
             form_priority,
             tag_priority,
@@ -672,13 +1347,16 @@ class SECFundamentals:
         return None
 
     def _same_statement_period(self, candidate: dict[str, Any], anchor: dict[str, Any]) -> bool:
+        candidate_end = str(candidate.get("end") or "").strip()
+        anchor_end = str(anchor.get("end") or "").strip()
+        if candidate_end and anchor_end and candidate_end != anchor_end:
+            # A comparative from the same filing is a different period, never this statement.
+            return False
         candidate_accn = str(candidate.get("accession_number") or "").strip()
         anchor_accn = str(anchor.get("accession_number") or "").strip()
         if candidate_accn and anchor_accn and candidate_accn == anchor_accn:
             return True
-        candidate_end = str(candidate.get("end") or "").strip()
-        anchor_end = str(anchor.get("end") or "").strip()
-        if not candidate_end or not anchor_end or candidate_end != anchor_end:
+        if not candidate_end or not anchor_end:
             return False
         for key in ("start", "fy", "fp", "form"):
             candidate_value = str(candidate.get(key) or "").strip()
@@ -686,64 +1364,6 @@ class SECFundamentals:
             if candidate_value and anchor_value and candidate_value != anchor_value:
                 return False
         return True
-
-    def _latest_fact_for_tags(
-        self,
-        facts: dict[str, Any],
-        tags: list[str],
-        as_of: datetime,
-    ) -> dict[str, Any] | None:
-        candidates: list[tuple[str, dict[str, Any]]] = []
-        for tag in tags:
-            tag_payload = facts.get(tag)
-            if not tag_payload:
-                continue
-            latest = self._latest_fact_from_units(tag_payload.get("units", {}), as_of)
-            if latest is not None:
-                candidates.append((tag, latest))
-        if not candidates:
-            return None
-        candidates.sort(
-            key=lambda item: (
-                str(item[1].get("filed") or ""),
-                str(item[1].get("end") or ""),
-                -tags.index(item[0]),
-            ),
-            reverse=True,
-        )
-        tag, latest = candidates[0]
-        return {"tag": tag, **latest}
-
-    def _latest_fact_from_units(self, units: dict[str, Any], as_of: datetime) -> dict[str, Any] | None:
-        candidates: list[dict[str, Any]] = []
-        for unit, facts in units.items():
-            if not isinstance(facts, list):
-                continue
-            for fact in facts:
-                if not isinstance(fact, dict):
-                    continue
-                filed = _parse_dt(fact.get("filed") or fact.get("acceptanceDateTime"))
-                if filed is None:
-                    continue
-                filed = _same_tz(filed, as_of)
-                if filed <= as_of:
-                    candidates.append({**fact, "unit": unit})
-        if not candidates:
-            return None
-        candidates.sort(key=lambda row: (str(row.get("filed") or ""), str(row.get("end") or "")), reverse=True)
-        chosen = candidates[0]
-        return {
-            "value": chosen.get("val"),
-            "unit": chosen.get("unit"),
-            "filed": chosen.get("filed"),
-            "form": chosen.get("form"),
-            "fy": chosen.get("fy"),
-            "fp": chosen.get("fp"),
-            "frame": chosen.get("frame"),
-            "start": chosen.get("start"),
-            "end": chosen.get("end"),
-            "accession_number": chosen.get("accn"),
-        }
 
     def get_filings(
         self,
@@ -912,7 +1532,9 @@ class SECFundamentals:
             raise ValueError("primary_document is required when accession_number is not in recent submissions.")
         url = self._filing_url(cik, accession_number, primary_document)
         cache_path = self._cache_path("filings", cik, accession_number, primary_document)
-        raw = self._get_text(url, cache_path)
+        safe_document = re.sub(r"[^A-Za-z0-9_.=-]+", "_", str(primary_document)).strip("_")
+        safe_accession = re.sub(r"[^A-Za-z0-9_.=-]+", "_", str(accession_number)).strip("_")
+        raw = self._get_text(url, cache_path, remote_relative=f"sec/filings/{cik}/{safe_accession}/{safe_document}")
         text = _strip_html(raw) if as_text else raw
         original_length = len(text)
         truncated = False

@@ -159,3 +159,39 @@ def test_native_stock_prices_survive_optional_action_outage(monkeypatch, tmp_pat
                                       verified_empty, provider_prices_verified=True)
     with pytest.raises(EquityBasisError):
         h._merge_frames(first, verified)
+
+
+def test_failed_split_lookup_does_not_create_a_shared_cache_identity(monkeypatch, tmp_path):
+    """2026-11-13: each split-lookup outage day wrote stock bars under a new
+    dated cache name that no later run ever read (14 orphan names in three
+    weeks). Unknown splits keep their prices private to this run and are
+    reported as unverified; the shared cache only holds verified identities."""
+    monkeypatch.setattr(h, "_IBKR_EQUITY_BASIS_CACHE", {})
+    monkeypatch.setattr(h, "_ibkr_history_now_utc", lambda: pd.Timestamp("2026-10-22T15:00Z").to_pydatetime())
+    monkeypatch.setattr(h, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    published, fetched = [], []
+    monkeypatch.setattr(h, "get_backtest_cache", lambda: SimpleNamespace(
+        ensure_local_file=lambda path, *a, **k: fetched.append(str(path)),
+        on_local_update=lambda path, *a, **k: published.append(str(path))))
+    monkeypatch.setattr(h, "_resolve_conid", lambda **_: 12345)
+    monkeypatch.setattr(h, "_get_cached_equity_actions",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("corporate_actions_unavailable: lookup failed")))
+    price_calls = []
+    monkeypatch.setattr(h, "_ibkr_history_request", lambda **_: price_calls.append(1) or payload())
+    from lumibot.tools.ibkr_history_health import ibkr_history_health_snapshot, reset_ibkr_history_health_for_testing
+    reset_ibkr_history_health_for_testing()
+
+    request = args()
+    request["asset"] = Asset("SPY")
+    first = h._get_cached_bars_for_source(**request)
+    repeat = h._get_cached_bars_for_source(**request)
+
+    assert first.close.tolist() == [120.] * 3
+    pd.testing.assert_frame_equal(first, repeat)
+    assert len(price_calls) == 1  # still reused within this run
+    stock_files = [p for p in tmp_path.rglob("*.parquet") if "stock" in p.parts]
+    assert stock_files == []
+    assert not [p for p in published if p.endswith(".parquet")]
+    assert not [p for p in fetched if p.endswith(".parquet")]
+    warning = [w for w in ibkr_history_health_snapshot()["warnings"] if w.get("symbol") == "SPY"]
+    assert warning and warning[0]["split_actions_verified"] is False

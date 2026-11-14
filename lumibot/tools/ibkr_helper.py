@@ -1243,6 +1243,8 @@ def get_price_data(
     cache_manager = get_backtest_cache()
 
     try:
+        if not _is_shared_cache_path(cache_file):
+            raise LookupError("private run-local cache file")
         cache_manager.ensure_local_file(
             cache_file,
             payload=_remote_payload(
@@ -1257,7 +1259,7 @@ def get_price_data(
     except Exception:
         pass
 
-    df_cache = _read_cache_frame(cache_file)
+    df_cache = _read_cache_frame_with_legacy_name(cache_file, timestep)
     if equity_basis is not None:
         df_cache = _verified_equity_cache(df_cache, equity_basis)
     # If this series came from a cached parquet (e.g., prefilled via TWS), it may not include the
@@ -2036,6 +2038,8 @@ def _get_cached_bars_for_source(
     )
     cache_manager = get_backtest_cache()
     try:
+        if not _is_shared_cache_path(cache_file):
+            raise LookupError("private run-local cache file")
         cache_manager.ensure_local_file(
             cache_file,
             payload=_remote_payload(
@@ -2050,7 +2054,7 @@ def _get_cached_bars_for_source(
     except Exception:
         pass
 
-    df_cache = _read_cache_frame(cache_file)
+    df_cache = _read_cache_frame_with_legacy_name(cache_file, timestep)
     if equity_basis is not None:
         df_cache = _verified_equity_cache(df_cache, equity_basis)
     if not df_cache.empty:
@@ -4191,6 +4195,8 @@ def _record_missing_window(
     )
     cache_manager = get_backtest_cache()
     try:
+        if not _is_shared_cache_path(cache_file):
+            raise LookupError("private run-local cache file")
         cache_manager.ensure_local_file(
             cache_file,
             payload=_remote_payload(
@@ -5595,6 +5601,33 @@ def _lookup_conid_future(
     return int(chosen["conid"])
 
 
+# Split-adjusted stock prices whose split ledger could not be verified are kept
+# out of the shared cache. Their cache identity is dated per outage day, so a
+# file written under it is never read by a later run (2026-11-13: 14 orphan
+# daily names in three weeks). Within one process they still reuse a private
+# file, so a run does not download the same window twice.
+_UNVERIFIED_SPLIT_BASES: set[str] = set()
+_PRIVATE_CACHE_ROOTS: Dict[str, Path] = {}
+
+
+def _private_cache_root() -> Path:
+    # One private folder per shared cache root, created on first use.
+    key = str(LUMIBOT_CACHE_FOLDER)
+    if key not in _PRIVATE_CACHE_ROOTS:
+        import tempfile
+
+        _PRIVATE_CACHE_ROOTS[key] = Path(tempfile.mkdtemp(prefix="lumibot-ibkr-unverified-"))
+    return _PRIVATE_CACHE_ROOTS[key]
+
+
+def _is_shared_cache_path(path: Path) -> bool:
+    try:
+        Path(path).resolve().relative_to(Path(LUMIBOT_CACHE_FOLDER).resolve())
+        return True
+    except ValueError:
+        return False
+
+
 def _cache_file_for(
     *,
     asset: Asset,
@@ -5606,6 +5639,8 @@ def _cache_file_for(
     equity_basis: str | None = None,
 ) -> Path:
     provider_root = Path(LUMIBOT_CACHE_FOLDER) / CACHE_SUBFOLDER
+    if equity_basis and equity_basis in _UNVERIFIED_SPLIT_BASES:
+        provider_root = _private_cache_root() / CACHE_SUBFOLDER
     asset_folder = _asset_folder(asset)
     _bar, _bar_seconds, timestep_component = _timestep_to_ibkr_bar(timestep)
     exch = (exchange or "").strip().upper() or "AUTO"
@@ -5853,6 +5888,7 @@ def _get_current_equity_basis(symbol: str):
         logger.warning("IBKR %s corporate-action metadata unavailable; using native split-adjusted "
                        "prices. Cash dividends are unverified for this run.", symbol)
         snapshot = EquityBasisSnapshot.from_provider_adjusted_prices(as_of=now)
+        _UNVERIFIED_SPLIT_BASES.add(snapshot.split_fingerprint)
     _IBKR_EQUITY_BASIS_CACHE[symbol] = (bucket, snapshot)
     return snapshot
 
@@ -6005,6 +6041,44 @@ def _max_period_for_bar(bar: str) -> str:
     return f"{IBKR_HISTORY_MAX_POINTS}min"
 
 
+def _legacy_cache_file(cache_file: Path, timestep: str) -> Optional[Path]:
+    """Where an hourly series was cached before hour-sized names were unified.
+
+    "60 minutes" used to be cached under ``60minute`` and "1 hour" under
+    ``hour``. Both now share the hour name; older files keep their old name.
+    """
+    try:
+        bar, _, component = _timestep_to_ibkr_bar(timestep)
+    except Exception:
+        return None
+    if not bar.endswith("h"):
+        return None
+    legacy = f"{int(bar.removesuffix('h')) * 60}minute"
+    if cache_file.parent.parent.name != component or f"_{component}_" not in cache_file.name:
+        return None
+    return (cache_file.parent.parent.parent / legacy / cache_file.parent.name
+            / cache_file.name.replace(f"_{component}_", f"_{legacy}_", 1))
+
+
+def _read_cache_frame_with_legacy_name(cache_file: Path, timestep: str) -> pd.DataFrame:
+    """Read the unified cache file, falling back to a legacy-named one.
+
+    Writes always go to the unified name, so the legacy file is only read until
+    the series is next updated."""
+    frame = _read_cache_frame(cache_file)
+    if not frame.empty:
+        return frame
+    legacy = _legacy_cache_file(cache_file, timestep)
+    if legacy is None:
+        return frame
+    if _is_shared_cache_path(legacy):
+        try:
+            get_backtest_cache().ensure_local_file(legacy, payload=_remote_payload_from_path(legacy))
+        except Exception:
+            pass
+    return _read_cache_frame(legacy)
+
+
 def _read_cache_frame(path: Path) -> pd.DataFrame:
     if not path.exists():
         return pd.DataFrame()
@@ -6042,6 +6116,8 @@ def _write_cache_frame(path: Path, df: pd.DataFrame) -> pd.DataFrame:
         return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
 
     written = identity()
+    if not _is_shared_cache_path(path):
+        return df
     try:
         get_backtest_cache().on_local_update(path, payload=_remote_payload_from_path(path))
     except Exception:

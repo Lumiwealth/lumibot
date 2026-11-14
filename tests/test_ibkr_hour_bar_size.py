@@ -9,6 +9,7 @@ the strategy silently ran with zero hourly bars and zero fills.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 
@@ -128,4 +129,30 @@ def test_size_with_no_legal_ibkr_bar_fails_before_asking(monkeypatch, tmp_path):
             end_dt=datetime.fromtimestamp(1700003600, tz=timezone.utc),
             source="Trades",
         )
+    assert bars_sent == []
+
+
+def test_hourly_bars_cached_under_the_old_60minute_name_are_still_read(monkeypatch, tmp_path):
+    """Hourly bars written before the names were unified (under "60minute")
+    must keep serving "1 hour" and "60 minutes" requests instead of being
+    downloaded again under the unified "hour" name."""
+    import pandas as pd
+
+    helper, bars_sent = _crypto_history_stub(monkeypatch, tmp_path)
+    asset, quote = Asset("BTC", asset_type="crypto"), Asset("USD", asset_type="forex")
+    unified = helper._cache_file_for(asset=asset, quote=quote, timestep="hour", exchange="ZEROHASH",
+                                     source="Trades", include_after_hours=True)
+    legacy = Path(str(unified).replace("/hour/", "/60minute/").replace("_hour_", "_60minute_"))
+    assert legacy != unified
+    index = pd.date_range("2023-11-14 22:00", periods=4, freq="1h", tz="UTC").tz_convert("America/New_York")
+    legacy_bars = pd.DataFrame({"open": [1., 2., 3., 4.], "high": [2., 3., 4., 5.], "low": [1., 2., 3., 4.],
+                                "close": [2., 3., 4., 5.], "volume": [1., 1., 1., 1.], "missing": False}, index=index)
+    legacy.parent.mkdir(parents=True)
+    legacy_bars.to_parquet(legacy)
+
+    for spelling in ("1 hour", "60 minutes"):
+        frame = helper.get_price_data(asset=asset, quote=quote, timestep=spelling,
+                                      start_dt=index[0].to_pydatetime(), end_dt=index[-1].to_pydatetime(),
+                                      exchange="ZEROHASH", source="Trades")
+        assert frame["close"].tolist() == [2., 3., 4., 5.]
     assert bars_sent == []

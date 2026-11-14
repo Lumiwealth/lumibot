@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "package_version": "4.6.60",
+  "package_version": "4.6.61",
   "cases": [],
-  "no_cases_reason": "Author-reviewed 4.6.60 delta: option backtest fills priced from the fill bar (quote, else trade, else labeled estimate used as computed), atomic multi-leg package fills, cash settlement of offsetting in-the-money legs at expiry, and an optional request_class label on data downloader requests. No agent prompt, skill, tool schema or model runtime changes. The retained native option/attention fixtures do use the changed BacktestingBroker package path, so their fills were compared directly on the previous dev source and on this candidate: every fixture contract has a two-sided quote on every bar, and tool results, statuses and fill prices were identical for the ratio package, the call spread and a single-leg option order. The native harness tests passed 408 of 408. Each change is proven by focused code tests. Zero new model runs; preserve earlier native actor/judge receipts with their original sources and SDKs."
+  "no_cases_reason": "Author-reviewed 4.6.61 delta: a more accurate labeled estimate for option fills that have no real quote or trade on the fill bar (volatility smile across the expiration when its contracts are already in memory, otherwise the previous own-trade estimate), plus documentation. No agent prompt, skill, tool schema or model runtime changes. The retained native option/attention fixtures quote every contract on every bar, so no fill is estimated and the changed path is never entered. The change is proven by focused code tests. Zero new model runs; preserve earlier native actor/judge receipts with their original sources and SDKs."
 }

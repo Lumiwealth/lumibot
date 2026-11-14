@@ -16,6 +16,8 @@
 - A filing made after the close was visible at that morning's open in backtests. Facts now become usable at the SEC acceptance time (next session's open if accepted after 4:00 PM New York), or at 9:30 AM the day after the filing date when no acceptance time is published.
 - A later amendment of an older year (for example a 10-K/A) replaced the current SEC statement; statements now use the newest reporting period, and a restated value applies only once its filing is public (#1141).
 - Statement fields are no longer filled from a prior-year comparative in the same filing when the current period is missing.
+- The shared bar cache no longer downloads the same file from the remote cache (S3) again and again. It asked S3 before the local disk on every read and kept only 64 files in memory, so a cloud options backtest re-downloaded each contract's file 10 to 25 times (2,000 to 4,100 S3 requests for 35 to 80 contracts). A file this process already downloaded or wrote is now read from local disk whenever it covers the requested range; when it does not (for example today's still-open bars, which are never cached), S3 is asked exactly as before, so newer data from other processes is still found. In a 40-file, 20-read test the S3 requests dropped from 800 to 40. Every provider that uses the shared bar cache benefits.
+- The shared bar cache's in-memory layer is limited by size instead of a count of 64 files. New `LUMIBOT_SHARED_BARS_MEMORY_MB` (default 256).
 
 ## 4.6.56 - 2026-11-13
 

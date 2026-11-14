@@ -105,6 +105,28 @@ def settle_margin() -> pd.Timedelta:
     return pd.Timedelta(minutes=max(0.0, minutes))
 
 
+DEFAULT_MEMORY_MB = 256.0
+
+
+def memory_budget_bytes() -> int:
+    """Byte budget for partitions kept in this process's memory (``LUMIBOT_SHARED_BARS_MEMORY_MB``)."""
+    raw = os.environ.get("LUMIBOT_SHARED_BARS_MEMORY_MB")
+    try:
+        megabytes = float(raw) if raw else DEFAULT_MEMORY_MB
+    except ValueError:
+        megabytes = DEFAULT_MEMORY_MB
+    return int(max(0.0, megabytes) * 1024 * 1024)
+
+
+def _estimated_bytes(part) -> int:
+    """Rough in-memory size of a partition: its rows plus a small fixed overhead."""
+    try:
+        rows = int(part.rows.memory_usage(index=True, deep=False).sum())
+    except Exception:
+        rows = 0
+    return rows + 1024 + 256 * len(part.empty)
+
+
 def credential_scope(provider, *identity) -> str | None:
     """Stable one-way scope for a provider connection (never store the raw credential).
 
@@ -848,11 +870,17 @@ class _Store:
     """Loads and saves partitions locally and (if configured) remotely."""
 
     # Recently written partitions, so a running bot or backtest skips re-reading its own files.
-    _memory: OrderedDict[str, tuple[float, _Partition]] = OrderedDict()
+    # Bounded by an estimate of their in-memory size (``LUMIBOT_SHARED_BARS_MEMORY_MB``), not a
+    # count: an options run touches hundreds of small partitions, and a count of 64 dropped
+    # them long before memory mattered.
+    _memory: OrderedDict[str, tuple[float | None, _Partition, int]] = OrderedDict()
+    _memory_bytes = 0
     _memory_lock = threading.Lock()
-    _MEMORY_LIMIT = 64
     # Manifests written by this process (their files may still be queued for writing).
     _manifests: dict[str, _Manifest] = {}
+    # Local partition files this process downloaded or wrote itself. Such a file is read from
+    # disk instead of S3 whenever it already answers the requested range (see ``_local_covering``).
+    _downloaded: set[str] = set()
 
     def __init__(self):
         self.client, self.manager = _remote()
@@ -867,6 +895,8 @@ class _Store:
             if body is not None:
                 try:
                     _write_local(path, body)
+                    with self._memory_lock:
+                        self._downloaded.add(str(path))
                 except OSError:
                     pass
                 return body
@@ -875,11 +905,41 @@ class _Store:
         except OSError:
             return None
 
+    def _local_covering(self, part: _Partition, want, clock) -> _Partition | None:
+        """This process's local copy of ``part`` when it already answers ``want``, else None.
+
+        Only files this process downloaded or wrote qualify, so a stale file left by an older
+        run is never trusted. A copy that lacks any piece of the requested range (for example
+        the open, unsettled end of today, which is never in coverage) returns None, and the
+        caller asks S3 exactly as before: newer coverage published by another process is still
+        found there.
+        """
+        if self.client is None or want is None:
+            return None
+        with self._memory_lock:
+            known = str(part.path) in self._downloaded
+        if not known:
+            return None
+        try:
+            body = part.path.read_bytes()
+        except OSError:
+            return None
+        local = _decode_partition(_Partition(part.series, part.start, part.stop, part.path), body)
+        lo, hi = max(want[0], part.start), min(want[1], part.stop)
+        if hi > lo:
+            answered = _union(local.coverage + _live_empty([local], clock))
+            if _subtract(lo, hi, answered):
+                return None
+        return local
+
     def load(
-        self, items: Sequence[tuple[BarSeries, pd.Timestamp, pd.Timestamp]]
+        self, items: Sequence[tuple[BarSeries, pd.Timestamp, pd.Timestamp]], *, want=None, clock=None
     ) -> tuple[list[_Partition], dict[BarSeries, _Manifest]]:
+        """Load partitions. ``want`` is the requested ``(start, end_exclusive)``; with it, a
+        partition this process already holds on disk is served locally when it covers that range."""
         parts = [_Partition(s, a, b, _series_dir(s) / f"{_label(a, s)}.parquet") for s, a, b in items]
         series = list(dict.fromkeys(p.series for p in parts))
+        clock = clock if clock is not None else pd.Timestamp(datetime.now(timezone.utc))
 
         def load_part(part):
             cached = self._memory_get(part.path)
@@ -887,6 +947,10 @@ class _Store:
                 cached.series = part.series  # same file, possibly another equal-identity series object
                 _telemetry("hit", "shared_bars", part.path)
                 return cached
+            local = self._local_covering(part, want, clock)
+            if local is not None:
+                _telemetry("hit", "shared_bars_disk", part.path)
+                return local
             body = self._load_bytes(part.path)
             _telemetry("hit" if body else "miss", "shared_bars", part.path, nbytes=len(body or b""))
             if not body and part.series.legacy:
@@ -986,18 +1050,25 @@ class _Store:
                     return None
             except OSError:
                 return None
-        part = entry[1]
+        part = entry[1]  # entry = (mtime, partition, estimated bytes)
         return _Partition(
             part.series, part.start, part.stop, part.path, part.rows, list(part.coverage), part.epoch, part.strict,
             list(part.empty),
         )
 
     def _remember(self, part: _Partition, mtime: float | None) -> None:
-        with self._memory_lock:
-            self._memory[str(part.path)] = (mtime, part)
-            self._memory.move_to_end(str(part.path))
-            while len(self._memory) > self._MEMORY_LIMIT:
-                self._memory.popitem(last=False)
+        size = _estimated_bytes(part)
+        budget = memory_budget_bytes()
+        with _Store._memory_lock:
+            key = str(part.path)
+            previous = _Store._memory.pop(key, None)
+            if previous is not None:
+                _Store._memory_bytes -= previous[2]
+            _Store._memory[key] = (mtime, part, size)
+            _Store._memory_bytes += size
+            while _Store._memory and _Store._memory_bytes > budget:
+                _, (_, _, dropped) = _Store._memory.popitem(last=False)
+                _Store._memory_bytes -= dropped
 
     # Saving ----------------------------------------------------------------
 
@@ -1012,6 +1083,8 @@ class _Store:
             current = _decode_partition(_Partition(part.series, part.start, part.stop, part.path), current_bytes)
             merged = _merge_partitions(part, current)
             _write_local(part.path, _encode_partition(merged))
+            with self._memory_lock:
+                self._downloaded.add(str(part.path))
             self._remember(merged, part.path.stat().st_mtime)
 
     def save(self, part: _Partition) -> None:
@@ -1161,7 +1234,7 @@ def read_bars_many(
     store = _Store()
     plan = [(s, a, b) for s in usable for a, b in partitions_for(s, start, end_excl)]
     load_started = time.perf_counter()
-    parts, manifests = store.load(plan)
+    parts, manifests = store.load(plan, want=None if refresh else (start, end_excl), clock=clock)
     lookup_ms = (time.perf_counter() - load_started) * 1000
     by_series: dict[BarSeries, list[_Partition]] = {}
     for part in parts:
@@ -1389,4 +1462,6 @@ def _reset_process_memory() -> None:
     """Forget this process's in-memory partitions and manifests (tests simulate a new process)."""
     with _Store._memory_lock:
         _Store._memory.clear()
+        _Store._memory_bytes = 0
         _Store._manifests.clear()
+        _Store._downloaded.clear()

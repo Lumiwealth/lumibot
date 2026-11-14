@@ -31,7 +31,13 @@ connection, so their bars are never mixed with broker-connection bars.
    and longer bars, under `<LUMIBOT_CACHE_FOLDER>/bars/v2/<provider>/<digest>/`. With the S3
    backend the same path sits under `<prefix>/<version>/bars/v2/...`.
 2. Each partition records the exact ranges the broker answered (`coverage`). The request range
-   minus coverage gives the gaps. Remote partitions load in parallel.
+   minus coverage gives the gaps. Remote partitions load in parallel. Load order per partition:
+   memory (written by this process, bounded by `LUMIBOT_SHARED_BARS_MEMORY_MB`), then the local
+   file if this process downloaded or wrote it and its coverage already answers the request,
+   then S3. A local copy with any gap in the requested range always asks S3, so coverage
+   another process published is still found; unsettled bars are never in coverage. Before
+   2026-11-13 S3 was asked first on every read, and options backtests downloaded each file
+   10 to 25 times.
 3. Each gap is read from the broker, widened by one bar on both sides so callers whose start or
    end differ by milliseconds or a time-zone offset still land inside coverage next time.
 4. Settled rows are kept in memory for this process at once. With a remote store the local

@@ -109,22 +109,49 @@ def test_plot_indicators_handles_lines_missing_detail_text_column(tmp_path, monk
 
 
 def test_plot_indicators_emits_empty_csv_and_parquet_when_no_chart_data(tmp_path, monkeypatch) -> None:
-    """Regression: indicators artifacts should exist even when a strategy emits no data."""
+    """Regression: indicators artifacts should exist even when a strategy emits no data.
+
+    Updated 2026-11-14: with nothing to draw, the page is a small static file and no plot is
+    built (building an empty figure cost seconds per backtest and wrote a 4 MB file). The
+    artifacts themselves (HTML, CSV, parquet) must still exist with the same columns.
+    """
     mock_write = MagicMock()
     monkeypatch.setattr("plotly.graph_objects.Figure.write_html", mock_write)
+    mock_subplots = MagicMock()
+    monkeypatch.setattr("lumibot.tools.indicators.make_subplots", mock_subplots)
 
-    plot_indicators(
-        plot_file_html=str(tmp_path / "plot.html"),
-        chart_markers_df=None,
-        chart_lines_df=None,
-        chart_ohlc_df=None,
-        strategy_name="Test",
-        show_indicators=True,
-    )
+    for empty in (None, pd.DataFrame()):
+        plot_indicators(
+            plot_file_html=str(tmp_path / "plot.html"),
+            chart_markers_df=empty,
+            chart_lines_df=empty,
+            chart_ohlc_df=empty,
+            strategy_name="Test <b>",
+            show_indicators=True,
+        )
+
+        mock_write.assert_not_called()
+        mock_subplots.assert_not_called()
+        page = (tmp_path / "plot.html").read_text()
+        assert "Indicators for Test &lt;b&gt; (no indicator data)" in page
+        assert len(page) < 2000
+        assert (tmp_path / "plot.parquet").exists()
+        exported = pd.read_csv(tmp_path / "plot.csv")
+        assert exported.empty
+        assert list(exported.columns) == ["datetime", "name", "plot_name", "type", "value", "symbol", "size",
+                                          "color", "detail_text", "open", "high", "low", "close"]
+
+
+def test_plot_indicators_still_builds_the_plot_when_any_indicator_exists(tmp_path, monkeypatch) -> None:
+    mock_write = MagicMock()
+    monkeypatch.setattr("plotly.graph_objects.Figure.write_html", mock_write)
+    lines = pd.DataFrame([{"plot_name": "default_plot", "name": "Trend",
+                           "datetime": pd.Timestamp("2020-01-01"), "value": 1.0}])
+
+    plot_indicators(str(tmp_path / "plot.html"), None, lines, None, "Test", show_indicators=True)
 
     mock_write.assert_called_once()
-    assert (tmp_path / "plot.csv").exists()
-    assert (tmp_path / "plot.parquet").exists()
+    assert len(pd.read_csv(tmp_path / "plot.csv")) == 1
 
 
 def test_plot_indicators_handles_markers_missing_detail_text_column(tmp_path, monkeypatch) -> None:

@@ -172,7 +172,10 @@ expiries, or a reversal spanning different expiries, require explicit contracts.
 Normal fills, fees and price availability apply to both legs.
 
 A dated contract's history is loaded up to its last trading day, even when the backtest
-runs past it, so orders on that contract fill on its real bars until it expires. An order
+runs past it, so orders on that contract fill on its real bars until it expires. This
+holds for the direct IBKR source and for routed backtests, where a continuous future such as
+``Asset("ES", asset_type="cont_future")`` resolves to the dated contract for fills and each
+contract after a roll is loaded from a week before its first use. An order
 still working after its contract's expiration date can never fill: the backtest cancels it
 and logs ``[FILL][CANCEL] ... contract CL 2026-10-20 expired on 2026-10-20``. It shows as
 canceled in the trades file. Contract details (multiplier, tick size) are looked up once

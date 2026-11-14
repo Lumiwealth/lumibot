@@ -816,6 +816,36 @@ def plot_indicators(
         )
         return
 
+    if all(df is None or df.empty for df in (chart_markers_df, chart_lines_df, chart_ohlc_df)):
+        # Nothing to draw: do not import the charting library and build an empty figure
+        # (seconds of work and a multi-megabyte file). Keep the same artifacts: a small
+        # page saying there is no indicator data, plus the empty CSV and parquet.
+        logger.debug("No indicator data; writing empty indicators artifacts without building a plot.")
+        if _env_flag_enabled("LUMIBOT_WRITE_INDICATORS_HTML", default=True):
+            title = f"Indicators for {strategy_name}" if strategy_name else "Indicators"
+            title = html.escape(title + " (no indicator data)")
+            with open(plot_file_html, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "<!doctype html>\n<html>\n<head>\n<meta charset=\"utf-8\" />\n"
+                    f"<title>{title}</title>\n"
+                    "<style>html, body {height: 100%; margin: 0; background: #111111; color: #f2f5fa; "
+                    "font-family: \"Open Sans\", verdana, arial, sans-serif;} "
+                    "h1 {font-size: 30px; font-weight: normal; padding: 60px 80px;}</style>\n"
+                    f"</head>\n<body>\n<h1>{title}</h1>\n</body>\n</html>\n"
+                )
+            disable_ui = _env_flag_enabled("LUMIBOT_DISABLE_UI", default=False) or bool(
+                os.environ.get("PYTEST_CURRENT_TEST"))
+            if show_indicators and not disable_ui:
+                with contextlib.suppress(Exception):
+                    webbrowser.open("file://" + os.path.abspath(plot_file_html))
+        else:
+            logger.info(
+                "Skipping indicators HTML generation because LUMIBOT_WRITE_INDICATORS_HTML is disabled."
+            )
+        plot_indicators(plot_file_html, chart_markers_df, chart_lines_df, chart_ohlc_df,
+                        strategy_name, show_indicators=False)
+        return
+
     logger.info("\nCreating indicators plot...")
 
     # Assign "default_plot" as plot_name for markers and lines that don't have one

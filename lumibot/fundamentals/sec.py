@@ -110,11 +110,16 @@ _METRIC_TAGS = {
     "capex": ["PaymentsToAcquirePropertyPlantAndEquipment"],
     "assets_current": ["AssetsCurrent"],
     "liabilities_current": ["LiabilitiesCurrent"],
-    "equity": ["StockholdersEquity"],
-    "debt_total": ["LongTermDebt"],
-    "debt_noncurrent": ["LongTermDebtNoncurrent"],
-    "debt_current": ["LongTermDebtCurrent", "DebtCurrent"],
+    # Companies with a noncontrolling interest often file only the combined equity line.
+    "equity": ["StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
+    # Many companies file debt only together with finance (capital) lease obligations.
+    "debt_total": ["LongTermDebt", "LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities"],
+    "debt_noncurrent": ["LongTermDebtNoncurrent", "LongTermDebtAndCapitalLeaseObligations"],
+    "debt_current": ["LongTermDebtCurrent", "LongTermDebtAndCapitalLeaseObligationsCurrent", "DebtCurrent"],
     "shares": ["dei:EntityCommonStockSharesOutstanding", "CommonStockSharesOutstanding"],
+    # Companies with several share classes file no single share count (the per-class counts are
+    # not in the SEC company facts). Their basic weighted average share count is used instead.
+    "shares_weighted": ["WeightedAverageNumberOfSharesOutstandingBasic"],
 }
 _METRIC_TAG_SET = tuple(dict.fromkeys(tag for tags in _METRIC_TAGS.values() for tag in tags))
 
@@ -144,7 +149,7 @@ _PRICE_METRICS = frozenset({"market_cap", "pe_ratio", "ps_ratio", "pb_ratio"})
 _SPLIT_DETECT_TAGS = ("EarningsPerShareDiluted", "EarningsPerShareBasic")
 _SPLIT_SHARES_TAG = "WeightedAverageNumberOfDilutedSharesOutstanding"
 _PER_SHARE_KEYS = frozenset({"eps_diluted"})
-_SHARE_COUNT_KEYS = frozenset({"shares"})
+_SHARE_COUNT_KEYS = frozenset({"shares", "shares_weighted"})
 _DEFAULT_SPLIT_HISTORY = object()
 _UNSET = object()
 # A fact whose latest filed period ended more than this long before the date is too old to use
@@ -2327,20 +2332,39 @@ class _MetricContext:
             return None, "current liabilities are not positive", None
         return assets["value"] / liabilities["value"], None, self._period_info(assets, liabilities)
 
+    def _debt_at(self, end: date):
+        """(long-term debt including the current portion when filed, source rows) for one balance sheet date."""
+        total = self._instant("debt_total", end)
+        if total is not None:
+            return total["value"], [total]
+        noncurrent = self._instant("debt_noncurrent", end)
+        if noncurrent is None:
+            return None, []
+        current = self._instant("debt_current", end)
+        return noncurrent["value"] + (current["value"] if current is not None else 0.0), [
+            row for row in (noncurrent, current) if row is not None
+        ]
+
     def _m_debt_to_equity(self):
         equity, reason = self._balance("equity", "stockholders' equity")
         if equity is None:
             return None, reason, None
         end = equity["end"]
-        total = self._instant("debt_total", end)
-        parts = [total] if total is not None else []
-        debt = total["value"] if total is not None else None
+        debt, parts = self._debt_at(end)
         if debt is None:
-            noncurrent = self._instant("debt_noncurrent", end)
-            current = self._instant("debt_current", end)
-            if noncurrent is not None:
-                debt = noncurrent["value"] + (current["value"] if current is not None else 0.0)
-                parts = [row for row in (noncurrent, current) if row is not None]
+            # Debt totals are often filed only in the annual report. Use the latest balance sheet
+            # date that has both debt and equity (never a debt figure against another date's equity).
+            earlier = sorted(
+                {row["end"] for row in self._periods("equity") if row["days"] is None and row["end"] < end},
+                reverse=True,
+            )
+            for candidate in earlier:
+                if self._stale(candidate):
+                    break
+                debt, parts = self._debt_at(candidate)
+                if debt is not None:
+                    equity = self._instant("equity", candidate)
+                    break
         if debt is None:
             return None, (
                 f"no long-term debt filed for the balance sheet dated {end.isoformat()} "
@@ -2350,8 +2374,29 @@ class _MetricContext:
             return None, "stockholders' equity is not positive", None
         return debt / equity["value"], None, self._period_info(equity, *parts)
 
-    def _m_shares_outstanding(self):
+    def _shares(self):
+        """(share count row on the as_of share basis, reason when None).
+
+        The cover-page (or balance sheet) count when one is filed and current. Otherwise the
+        basic weighted average share count of the latest filed period (shortest period ending
+        last): companies with several share classes file no single total.
+        """
         shares, reason = self._balance("shares", "shares outstanding")
+        if shares is not None:
+            return shares, None
+        weighted = [row for row in self._periods("shares_weighted") if row["days"] is not None and row["value"] > 0]
+        if not weighted:
+            return None, reason
+        row = min(weighted, key=lambda item: (-item["end"].toordinal(), item["days"]))
+        if self._stale(row["end"]):
+            return None, reason
+        rows, split_reason = self._on_as_of_basis("shares_weighted", [row])
+        if rows is None:
+            return None, split_reason
+        return rows[0], None
+
+    def _m_shares_outstanding(self):
+        shares, reason = self._shares()
         if shares is None:
             return None, reason, None
         return shares["value"], None, self._period_info(shares)
@@ -2360,7 +2405,7 @@ class _MetricContext:
         equity, reason = self._balance("equity", "stockholders' equity")
         if equity is None:
             return None, reason, None
-        shares, reason = self._balance("shares", "shares outstanding")
+        shares, reason = self._shares()
         if shares is None:
             return None, reason, None
         if shares["value"] <= 0:

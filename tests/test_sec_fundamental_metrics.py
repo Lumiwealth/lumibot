@@ -273,3 +273,49 @@ def test_bulk_table_for_a_scanner_universe(monkeypatch, tmp_path):
         for name in ["ttm_revenue", "gross_margin", "pe_ratio"]
     )
     assert "sec" in table.loc["NOSUCH", "reasons"]["ttm_revenue"].lower()
+
+
+# ---- coverage: real companies whose facts use other tags (recorded SEC rows, public data) ----
+
+def _recorded(monkeypatch, tmp_path):
+    import json
+    from pathlib import Path
+
+    companies = json.loads((Path(__file__).parent / "fixtures" / "sec_companyfacts_coverage.json").read_text())["companies"]
+    tickers = {str(i + 10): {"ticker": s, "cik_str": c["cik"], "title": c["entityName"]} for i, (s, c) in enumerate(companies.items())}
+    facts = {f"{c['cik']:010d}": {"cik": c["cik"], "facts": c["facts"]} for c in companies.values()}
+    return _sec(monkeypatch, tmp_path, extra_tickers=tickers, extra_facts=facts)
+
+
+def test_share_count_falls_back_to_weighted_average_when_no_total_is_filed(monkeypatch, tmp_path):
+    """A company with several share classes files no single cover-page count (META)."""
+    sec = _recorded(monkeypatch, tmp_path)
+
+    result = sec.get_metrics("META", ["shares_outstanding", "market_cap"], as_of=AFTER_Q1, price=100.0)
+
+    assert result["values"]["shares_outstanding"] == 2_545_000_000  # Q1 2024 quarter, filed 2024-04-25
+    assert result["values"]["market_cap"] == pytest.approx(254.5e9)
+    assert result["periods"]["shares_outstanding"]["inputs"][0]["tag"] == "WeightedAverageNumberOfSharesOutstandingBasic"
+    before = sec.get_metrics("META", ["shares_outstanding"], as_of=datetime(2024, 4, 25, 10, tzinfo=NY))
+    assert before["values"]["shares_outstanding"] == 2_574_000_000  # filing day: still the FY2023 figure
+
+
+def test_debt_to_equity_reads_equity_filed_with_noncontrolling_interest(monkeypatch, tmp_path):
+    result = _recorded(monkeypatch, tmp_path).get_metrics("PG", ["debt_to_equity"], as_of=AFTER_Q1)
+
+    assert result["values"]["debt_to_equity"] is not None, result["reasons"]
+    assert 0.4 < result["values"]["debt_to_equity"] < 0.8  # 24.3 B long-term (+ current portion) over 50.3 B
+
+
+def test_debt_to_equity_reads_debt_filed_together_with_lease_obligations(monkeypatch, tmp_path):
+    result = _recorded(monkeypatch, tmp_path).get_metrics("ABBV", ["debt_to_equity"], as_of=AFTER_Q1)
+
+    assert result["values"]["debt_to_equity"] == pytest.approx((63_805e6 + 10_193e6) / 8_007e6)
+
+
+def test_debt_to_equity_uses_the_latest_balance_sheet_that_has_both(monkeypatch, tmp_path):
+    """Debt totals are often filed only in the annual report (FRT): use that date for both sides."""
+    result = _recorded(monkeypatch, tmp_path).get_metrics("FRT", ["debt_to_equity"], as_of=AFTER_Q1)
+
+    assert result["values"]["debt_to_equity"] == pytest.approx(4_615_731e3 / 2_963_509e3)
+    assert result["periods"]["debt_to_equity"]["end"] == "2023-12-31"

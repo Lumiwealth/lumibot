@@ -9,6 +9,10 @@ Each month, buys the largest companies in a universe by market cap, in equal wei
 Market cap on each date is shares outstanding from the latest SEC filing public on that
 date times the price that day, so a backtest never sees a later filing.
 
+Any value can be missing (no usable share count, no debt line as at most banks and insurers,
+negative equity, a company that had not filed yet). A missing value is dropped: it never
+passes a filter and is never counted as zero.
+
 The universe is a list you choose. A list of today's index members has survivorship bias
 in a backtest (it leaves out companies that were removed from the index).
 """

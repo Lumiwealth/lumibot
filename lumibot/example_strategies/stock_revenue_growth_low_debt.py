@@ -11,6 +11,10 @@ last twelve months and whose debt is under half of equity, then holds the fastes
 in equal weights. Every number comes from SEC filings that were public on that date. A
 company that did not file a number (for example no debt line) is left out, never assumed
 to pass.
+
+Any value can be missing (no usable share count, no debt line as at most banks and insurers,
+negative equity, a company that had not filed yet). A missing value is dropped: it never
+passes a filter and is never counted as zero.
 """
 
 

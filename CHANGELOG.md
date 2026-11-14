@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+- Fundamentals: `shares_outstanding` and `market_cap` were `None` for companies with several share classes (for example Meta, Mastercard, Comcast, Nike), which file no single cover-page share count. Their basic weighted average share count of the latest filed period is now used; `periods` names the tag. Measured on 503 current S&P 500 members as of 2024-06-03: market cap for 481, up from 444.
+- Fundamentals: `debt_to_equity` was `None` when a company files debt only together with lease obligations, files equity only including noncontrolling interest, or files its debt total only in the annual report (the latest balance sheet with both debt and equity is now used). Same measurement: 400 of 503, up from 268. Missing debt is still never treated as zero.
+
 ### Added
 - Examples: `stock_top_market_cap.py` and `stock_revenue_growth_low_debt.py`, each covered by a full backtest on synthetic data (`tests/test_example_fundamental_screeners.py`). They use the existing `get_metrics_table` and plain pandas; docs: `docsrc/fundamentals.rst` ("Stock screener"). No library behavior changed.
 

@@ -95,12 +95,15 @@ backtest date (or ``as_of``), and is ``None`` when it cannot be computed:
    * - ``ttm_free_cash_flow``
      - TTM operating cash flow minus TTM capital expenditures
    * - ``debt_to_equity``
-     - Long-term debt (including the current portion when reported) over
-       stockholders' equity, from the same balance sheet
+     - Long-term debt (including the current portion when reported, and
+       finance lease obligations when the company files them together) over
+       stockholders' equity, both from the latest balance sheet that has both
    * - ``current_ratio``
      - Current assets over current liabilities, same balance sheet
    * - ``shares_outstanding``
-     - Cover-page shares outstanding from the latest filing
+     - Cover-page shares outstanding from the latest filing. Companies with
+       several share classes file no single total; for them it is the basic
+       weighted average share count of the latest filed period
    * - ``book_value_per_share``
      - Stockholders' equity over shares outstanding
    * - ``market_cap``, ``pe_ratio``, ``ps_ratio``, ``pb_ratio``
@@ -160,10 +163,23 @@ Revenue growth over 20% and debt to equity under 0.5, fastest growers first:
   price is the strategy's own price at the current bar, so the only market data
   a screener needs is daily bars for its universe. ``prices={...}`` and
   ``as_of=`` let you ask about any date outside a strategy.
-- **Drop missing values, do not fill them.** A metric that cannot be computed
-  is ``None`` (the ``reasons`` column says why). ``dropna()`` leaves those
-  companies out; filling with zero would make a company with no debt line look
-  debt free.
+- **Any value can be missing, and a missing value never passes a filter.** A
+  metric that cannot be computed is ``None`` (the ``reasons`` column says why).
+  ``dropna()`` leaves those companies out; filling with zero would make a
+  company with no debt line look debt free. What to expect, measured on today's
+  S&P 500 members as of June 2024 with SEC data only: market cap for 481 of
+  503 and debt to equity for 400 of 503.
+
+  - ``market_cap`` is missing when the company files no usable share count
+    (some companies with several share classes, for example Berkshire Hathaway
+    and Visa), when today's ticker points to a registrant that had not filed
+    yet on that date (a new holding company or a spin-off), or when a stock
+    split cannot be dated.
+  - ``debt_to_equity`` is missing for most banks, insurers and asset managers
+    (they do not file a long-term debt line), for companies with no long-term
+    debt line at all, and when stockholders' equity is zero or negative (about
+    30 large companies that bought back more stock than their book equity).
+  - ``revenue_growth_yoy`` is missing until two years of revenue are public.
 - **You choose the universe.** LumiBot does not ship index membership lists.
   If you pass today's members of an index to a backtest, the result has
   survivorship bias: companies that were dropped from the index (often after

@@ -1,6 +1,9 @@
 Crypto Perpetuals
 =================
 
+.. meta::
+   :description: Backtest crypto perpetual futures in LumiBot with real perpetual prices, leverage, margin, funding payments and liquidation.
+
 Backtest crypto perpetual futures with real perpetual prices, leverage, margin,
 funding payments and liquidation.
 

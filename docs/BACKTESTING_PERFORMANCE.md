@@ -1225,7 +1225,7 @@ coverage includes both former capture ceilings, bounded-cache eviction,
 concurrent duplicate reads, transaction rollback and actual backtest export.
 
 
-## Resting orders between runs (4.6.63)
+## Resting orders between runs (4.6.64)
 
 Checking resting orders on every bar between two strategy runs is event-indexed, not a
 per-bar loop: array comparisons find the bars where an order can fill, and only those bars

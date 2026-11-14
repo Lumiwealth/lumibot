@@ -1,6 +1,16 @@
 # Changelog
 
-## 4.6.63 - 2026-11-14
+## 4.6.64 - 2026-11-14
+
+Deploy marker: 666e9485281a89f4ea032684bd21a824cc252f80
+
+### Notes
+- First published release of the 4.6.63 changes below. The `v4.6.63` tag exists but was never published to PyPI: the release workflow stopped on a test that depended on test order (see Fixed), so the version moved forward. Runtime code is identical to the `v4.6.63` tag.
+
+### Fixed
+- Tests: `tests/test_ai_option_example_entrypoints.py` no longer depends on test order. It patched a `lumibot.credentials` module object imported at collection time; when another test file in the same worker had re-imported that module, the example scripts read the fresh module and started live trading setup instead of the backtest path. It now patches the module the example will actually import.
+
+## 4.6.63 - 2026-11-14 (tagged, not published)
 
 Deploy marker: f9a29dc59da7d8855b6c44f1035449f1d2a54212
 

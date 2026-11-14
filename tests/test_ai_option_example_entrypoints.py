@@ -1,10 +1,10 @@
 """Execute example startup configuration without models, data requests or orders."""
+import importlib
 import runpy
 from pathlib import Path
 
 import pytest
 
-from lumibot import credentials
 from lumibot.strategies import Strategy
 
 
@@ -17,7 +17,9 @@ def test_option_example_backtest_charges_its_declared_contract_fee(monkeypatch, 
     def capture(cls, *args, **kwargs):
         calls.append((cls.parameters["estimated_contract_fee"], kwargs))
 
-    monkeypatch.setattr(credentials, "IS_BACKTESTING", True)
+    # Patch the module the example will import: another test file in the same worker may have
+    # re-imported lumibot.credentials, leaving the object imported above stale.
+    monkeypatch.setattr(importlib.import_module("lumibot.credentials"), "IS_BACKTESTING", True)
     monkeypatch.setattr(Strategy, "backtest", classmethod(capture))
     path = Path(__file__).parents[1] / "lumibot" / "example_strategies" / filename
     runpy.run_path(str(path), run_name="__main__")

@@ -2283,6 +2283,13 @@ def _maybe_augment_futures_bid_ask(
     return updated, True
 
 
+# A transient failure on an older history page is retried for that exact page this many
+# times (waiting this many seconds, times the attempt number) before the missing range is
+# reported as unavailable for the run.
+_OLDER_PAGE_RETRY_ATTEMPTS = 2
+_OLDER_PAGE_RETRY_WAIT_SECONDS = 2.0
+
+
 def _fetch_history_between_dates(
     *,
     asset: Asset,
@@ -2332,6 +2339,7 @@ def _fetch_history_between_dates(
     futures_empty_open_pages = 0
     checkpointed_pages = 0
     paging_stalled = False
+    older_page_retries = 0
 
     # Opt-in trace: log every real network fetch + caller, to audit cache-miss root causes.
     if os.environ.get("LUMIBOT_CACHE_MISS_DEBUG"):
@@ -2436,10 +2444,50 @@ def _fetch_history_between_dates(
                     reason=classification.reason,
                 )
             if chunks:
-                # A later (older) page failed. The newer pages are real bars: keep them
-                # and stop paging instead of raising, which used to discard every page
-                # already collected and leave the strategy with no bars at all. Nothing
-                # is negatively cached, so the missing older part stays retryable.
+                # A later (older) page failed. A transient failure is retried for exactly
+                # this page a bounded number of times, right away, so one hiccup does not
+                # leave a permanent gap in the run.
+                # A deadline-bounded repair walk keeps its own budget and is not retried here.
+                if (
+                    classification.outcome is HistoryOutcome.TRANSIENT_FAILURE
+                    and _deadline_monotonic is None
+                    and older_page_retries < _OLDER_PAGE_RETRY_ATTEMPTS
+                ):
+                    older_page_retries += 1
+                    logger.warning(
+                        "IBKR history page for %s timestep=%s ending %s failed (%s); retry %d of %d",
+                        getattr(asset, "symbol", None),
+                        timestep,
+                        cursor_end,
+                        classification.reason,
+                        older_page_retries,
+                        _OLDER_PAGE_RETRY_ATTEMPTS,
+                    )
+                    time.sleep(_OLDER_PAGE_RETRY_WAIT_SECONDS * older_page_retries)
+                    continue
+                # Still failing: keep the newer pages (real bars) and stop paging instead
+                # of raising, which used to discard every page already collected. The
+                # missing range is reported in the run's history health (settings.json).
+                # It is not negatively cached across processes, and within this process
+                # the caller's attempted-segment record stops it being requested again
+                # on every bar. No bars are invented for it.
+                oldest_collected = min(chunk.index.min() for chunk in chunks)
+                try:
+                    record_history_health(
+                        series_id=_history_health_series_id(asset=asset, quote=quote, timestep=timestep,
+                            exchange=exchange, source=source, include_after_hours=include_after_hours),
+                        symbol=str(getattr(asset, "symbol", "") or ""),
+                        asset_type=asset_type,
+                        timestep=timestep,
+                        requested_start=start_dt,
+                        requested_end=_to_utc(pd.Timestamp(oldest_collected).to_pydatetime()),
+                        outcome=HistoryOutcome.PARTIAL,
+                        repair_attempts=older_page_retries,
+                        transient_failures=older_page_retries + 1,
+                        reason="older_history_page_unavailable",
+                    )
+                except Exception:
+                    pass
                 logger.warning(
                     "IBKR history paging for %s timestep=%s stopped at an older page (%s); keeping %d real bars "
                     "already collected back to %s",

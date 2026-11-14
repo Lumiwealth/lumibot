@@ -10,9 +10,9 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
-from lumibot.data_sources.data_source_backtesting import DataSourceBacktesting
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.credentials import ALPACA_CONFIG, COINBASE_CONFIG, KRAKEN_CONFIG, POLYGON_API_KEY
+from lumibot.data_sources.data_source_backtesting import DataSourceBacktesting
 from lumibot.entities import Asset, AssetsMapping, Data
 from lumibot.tools import ibkr_helper, polygon_helper
 from lumibot.tools.helpers import parse_timestep_qty_and_unit
@@ -1297,7 +1297,8 @@ class _ProviderRegistry:
 
         raise RoutingProviderError(
             f"Unknown backtesting routing provider {provider!r}. "
-            "Expected one of: thetadata, ibkr, polygon, alpaca, ccxt, bitunix, or a CCXT exchange id (e.g., binance, kraken)."
+            "Expected one of: thetadata, ibkr, polygon, alpaca, ccxt, bitunix, "
+            "or a CCXT exchange id (e.g., binance, kraken)."
         )
 
     def adapter_for_spec(self, spec: ProviderSpec) -> _RoutingAdapter:

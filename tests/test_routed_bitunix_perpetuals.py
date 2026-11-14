@@ -218,7 +218,7 @@ def test_failure_carries_machine_readable_reason_and_alternatives(monkeypatch):
     assert payload["reason"] == caught.value.reason == "coin_margined_unsupported"
     assert payload["source"] == "bitunix" and payload["asset_class"] == "crypto_future"
     assert payload["symbol"] == "BTCUSD"
-    assert {item["routing"] for item in payload["alternatives"]} == {"coinbase", "ibkr"}
+    assert {item["routing"] for item in payload["alternatives"]} == {"binance", "coinbase", "ibkr"}
     assert "Other crypto_future data sources" in str(caught.value)
 
 

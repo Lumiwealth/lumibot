@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.57 - Unreleased
+## 4.6.57 - 2026-11-13
 
 ### Added
 - `self.fundamentals.preload(symbols)` warms SEC fundamentals for a whole scanner universe in one call, downloading in parallel under the SEC's 10 requests per second limit and reporting symbols the SEC does not cover.

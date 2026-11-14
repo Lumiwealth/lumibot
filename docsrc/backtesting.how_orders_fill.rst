@@ -1,6 +1,9 @@
 How Orders Fill in a Backtest
 =============================
 
+.. meta::
+   :description: How LumiBot backtests fill stops, limits, gaps and bracket exits from bar data, including which exit fills when one bar touches both.
+
 A backtest only knows each bar's open, high, low and close. It does not know the
 order in which prices traded inside the bar. These are the rules LumiBot uses so
 results are not better than live trading would have been.

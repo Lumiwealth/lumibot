@@ -1,6 +1,9 @@
 Order Types by Broker
 =====================
 
+.. meta::
+   :description: Which brokers hold stops, trailing stops, brackets, OTO and OCO orders in LumiBot, and how to check support in code before sending.
+
 .. include:: _snippets/botspot_mcp_callout.rst
 
 Which brokers can hold which orders, especially the protective ones (stops, trailing

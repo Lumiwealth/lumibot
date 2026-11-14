@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.65 - Unreleased
+## 4.6.65 - 2026-11-14
 
 ### Fixed
 - Alpaca backtests: `get_historical_prices_for_assets` downloaded stock history one symbol per request. Stock bars not cached yet are now requested up to 100 symbols per request (the backtest window and history before the window), written to the same per-symbol cache files. 250 symbols: 250 requests down to 3. Bars, cache keys and errors are unchanged; a refused grouped request falls back to one request per symbol. Docs: `docsrc/backtesting.performance.rst` ("Faster scanners").

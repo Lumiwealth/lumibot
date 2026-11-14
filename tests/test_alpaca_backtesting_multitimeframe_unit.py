@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 import pytz
@@ -1322,3 +1322,147 @@ def test_alpaca_stock_daily_last_price_keeps_session_marks_without_building_bars
     source._datetime = _NY_TZ.localize(datetime(2026, 8, 4, 16, 30))
     assert float(source.get_last_price(Asset("SPY"))) == 110.0
     assert built == []
+
+
+# ---------------------------------------------------------------------------
+# 5, 10, 15 and 30-minute stock bars built from the cached 1-minute series.
+# Fixture: recorded XOM bars for 2025-11-26 (full day) and 2025-11-28 (half day).
+# ---------------------------------------------------------------------------
+import os
+
+import pytest
+
+_NY = pytz.timezone("America/New_York")
+_FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures", "alpaca_minute_rebuild")
+
+
+def _recorded(name):
+    df = pd.read_csv(os.path.join(_FIXTURES, name))
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True).dt.tz_convert(_NY)
+    return df.set_index("timestamp")
+
+
+def _minute_rebuild_source(tmp_path, monkeypatch, *, minute_df, provider=None, now=None):
+    """A data source holding only the 1-minute series; ``provider`` answers native requests."""
+    monkeypatch.setattr("lumibot.backtesting.alpaca_backtesting.LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    monkeypatch.delenv("BACKTESTING_INTRADAY_BARS_FROM_MINUTES", raising=False)
+    source = AlpacaBacktesting.__new__(AlpacaBacktesting)
+    source.CACHE_SUBFOLDER = "alpaca"
+    source.market = "NYSE"
+    source.tzinfo = _NY
+    source._remove_incomplete_current_bar = True
+    source._refresh_cache = False
+    source._timestep = "minute"
+    source._auto_adjust = True
+    source._datetime = now or _NY.localize(datetime(2025, 11, 26, 10, 0))
+    source._data_datetime_start = _NY.localize(datetime(2025, 11, 26, 0, 0))
+    source._data_datetime_end = _NY.localize(datetime(2025, 11, 28, 23, 59))
+    asset, quote = Asset("XOM"), Asset("USD", asset_type="forex")
+    source._data_store = {source._get_asset_key(base_asset=asset, quote_asset=quote, timestep="minute"): minute_df}
+    source.native_requests = []
+
+    def native(**kwargs):
+        source.native_requests.append(kwargs["timestep"])
+        if provider is None:
+            raise AssertionError(f"provider series requested: {kwargs['timestep']}")
+        return provider
+
+    source.get_historical_prices_between_dates = native
+    return source, asset
+
+
+def _provider_answer(provider, source, now, length, timestep):
+    position = AlpacaBacktesting._newest_bar_position(provider.index, now, timestep, True)
+    return provider.iloc[max(0, position - length + 1): position + 1]
+
+
+@pytest.mark.parametrize("minutes", [5, 15])
+def test_intraday_bars_built_from_cached_minutes_equal_recorded_provider_bars(tmp_path, monkeypatch, minutes):
+    minute_df = _recorded("xom_minute_session_2025-11-26_2025-11-28.csv")
+    provider = _recorded(f"xom_{minutes}minute_provider_2025-11-26_2025-11-28.csv")
+    source, asset = _minute_rebuild_source(tmp_path, monkeypatch, minute_df=minute_df)
+    timestep = f"{minutes} minutes"
+
+    compared = 0
+    for day, close in ((26, (16, 0)), (28, (13, 0))):  # 2025-11-28 is a half day
+        now = _NY.localize(datetime(2025, 11, day, 9, 30))
+        end = _NY.localize(datetime(2025, 11, day, *close))
+        while now < end:
+            source._datetime = now
+            finished = int((now - now.replace(hour=9, minute=30)).total_seconds() // (minutes * 60))
+            for length in {1, 2, finished} - {0}:
+                if length > finished:
+                    continue
+                bars = source.get_historical_prices(asset, length, timestep=timestep)
+                expected = _provider_answer(provider, source, now, length, timestep)
+                got = bars.pandas_df[["open", "high", "low", "close", "volume"]]
+                assert list(got.index) == list(expected.index), (now, length)
+                assert (got.to_numpy() == expected.to_numpy()).all(), (now, length)
+                compared += len(got)
+            now += timedelta(minutes=1)
+
+    assert compared > 1000
+    assert source.native_requests == []  # nothing was fetched
+
+
+def test_intraday_request_reaching_outside_the_session_uses_the_provider_series(tmp_path, monkeypatch):
+    minute_df = _recorded("xom_minute_session_2025-11-26_2025-11-28.csv")
+    provider = _recorded("xom_5minute_provider_2025-11-26_2025-11-28.csv")
+    now = _NY.localize(datetime(2025, 11, 26, 10, 0))
+    source, asset = _minute_rebuild_source(tmp_path, monkeypatch, minute_df=minute_df, provider=provider, now=now)
+
+    # 20 five-minute bars at 10:00 reach into pre-market bars only the provider series has.
+    bars = source.get_historical_prices(asset, 20, timestep="5 minutes")
+    assert source.native_requests == ["5minute"]
+    expected = _provider_answer(provider, source, now, 20, "5 minutes")
+    assert list(bars.pandas_df.index) == list(expected.index)
+    assert bars.pandas_df.index[0].time() < datetime(2025, 1, 1, 9, 30).time()
+
+    # After the close the provider series has after-hours bars; do not answer from minutes.
+    source.native_requests.clear()
+    source._datetime = _NY.localize(datetime(2025, 11, 26, 16, 30))
+    source.get_historical_prices(asset, 1, timestep="5 minutes")
+    assert source.native_requests == ["5minute"]
+
+
+@pytest.mark.parametrize("change", ["option_off", "env_off", "provider_loaded", "hourly", "crypto"])
+def test_intraday_bars_from_minutes_falls_back_to_the_provider_series(tmp_path, monkeypatch, change):
+    minute_df = _recorded("xom_minute_session_2025-11-26_2025-11-28.csv")
+    provider = _recorded("xom_5minute_provider_2025-11-26_2025-11-28.csv")
+    source, asset = _minute_rebuild_source(tmp_path, monkeypatch, minute_df=minute_df, provider=provider)
+    timestep = "5 minutes"
+    if change == "option_off":
+        source._intraday_bars_from_minutes = False
+    elif change == "env_off":
+        monkeypatch.setenv("BACKTESTING_INTRADAY_BARS_FROM_MINUTES", "false")
+    elif change == "provider_loaded":
+        quote = Asset("USD", asset_type="forex")
+        source._data_store[source._get_asset_key(base_asset=asset, quote_asset=quote, timestep="5minute")] = provider
+    elif change == "hourly":
+        timestep = "1 hour"
+    elif change == "crypto":
+        asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+
+    source.get_historical_prices(asset, 2, timestep=timestep)
+    assert len(source.native_requests) == 1
+
+
+def test_intraday_bars_from_minutes_has_no_bar_where_nothing_traded(tmp_path, monkeypatch):
+    """The provider has no bar for a period without trades; the cached minutes hold filled rows."""
+    index = pd.date_range(_NY.localize(datetime(2025, 11, 26, 9, 30)), periods=30, freq="1min")
+    minute_df = pd.DataFrame({"open": 10.0, "high": 10.5, "low": 9.5, "close": 10.0, "volume": 100.0}, index=index)
+    minute_df.loc[index[5:10], ["open", "high", "low", "close"]] = 10.0
+    minute_df.loc[index[5:10], "volume"] = 0.0  # 09:35 to 09:39: no trades, forward filled
+    provider = pd.DataFrame({"open": 10.0, "high": 10.5, "low": 9.5, "close": 10.0, "volume": 500.0},
+                            index=index[[0, 10, 15, 20, 25]])
+    now = _NY.localize(datetime(2025, 11, 26, 9, 50))
+    source, asset = _minute_rebuild_source(tmp_path, monkeypatch, minute_df=minute_df, provider=provider, now=now)
+
+    bars = source.get_historical_prices(asset, 3, timestep="5 minutes")
+    assert source.native_requests == []
+    assert [stamp.strftime("%H:%M") for stamp in bars.pandas_df.index] == ["09:30", "09:40", "09:45"]
+
+    # Right after the quiet period the newest finished bar is not adjacent: let the provider answer.
+    source._datetime = _NY.localize(datetime(2025, 11, 26, 9, 40))
+    source.get_historical_prices(asset, 1, timestep="5 minutes")
+    assert source.native_requests == ["5minute"]

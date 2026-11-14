@@ -3,7 +3,7 @@ import math
 import os
 import time
 from collections import deque
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time as dt_time, timedelta
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -187,6 +187,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
                   warm_up_trading_days).
                 - option_chain_max_days (int): get_chains() horizon when no expiration hint is set. Default 90.
                 - refresh_cache (bool): Whether to force cache refresh. Defaults to False.
+                - intraday_bars_from_minutes (bool): Build 5, 10, 15 and 30-minute stock bars from the
+                  1-minute series already in the cache instead of downloading them, when every
+                  requested bar is inside today's regular session (identical bars). Defaults to True;
+                  the environment variable BACKTESTING_INTRADAY_BARS_FROM_MINUTES=false turns it off.
                 - warm_up_trading_days (int): The number of trading days used for warm-up before processing 
                   the primary dataset. Defaults to 0.
                 - market (str): Indicates the stock exchange or market (e.g., "NYSE"). Defaults to "NYSE".
@@ -252,6 +256,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
         self._data_store: dict[str, pd.DataFrame] = {}
         self._refreshed_keys = {}
         self._refresh_cache: bool = kwargs.get('refresh_cache', False)
+        # 5, 10, 15 and 30-minute stock bars are built from the cached 1-minute series when the
+        # answer is identical to the provider's (see _bars_from_cached_minutes). On by default;
+        # False, or BACKTESTING_INTRADAY_BARS_FROM_MINUTES=false, always downloads the provider series.
+        self._intraday_bars_from_minutes = kwargs.get('intraday_bars_from_minutes')
         # History never shows the bar that is still forming: a bar is returned only after it
         # has closed, like IBKR, ThetaData and Polygon backtests, in both environment and
         # explicit-config mode. Its final OHLCV would be a lookahead. An explicit False opts in
@@ -600,6 +608,13 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if timeshift:
             search_datetime = self._datetime - timeshift
 
+        rebuilt = self._bars_from_cached_minutes(
+            asset, quote, source_timestep, timestep, search_datetime, length, remove_incomplete_current_bar,
+        )
+        if rebuilt is not None:
+            return Bars(rebuilt, self.SOURCE, asset=asset, quote=quote, return_polars=return_polars,
+                        tzinfo=self.tzinfo)
+
         try:
             # Fetch historical prices during the backtest using the dedicated function
             df = self.get_historical_prices_between_dates(
@@ -677,6 +692,94 @@ class AlpacaBacktesting(DataSourceBacktesting):
             return_polars=return_polars,
             tzinfo=self.tzinfo,
         )
+
+    # Bar sizes that can be built from the cached 1-minute series: each lines up with the
+    # 09:30 open, and the provider's own regular-session bars are equal field for field
+    # (measured, see docs/investigations/2026-11-14_INTRADAY_BARS_FROM_MINUTE_BARS.md).
+    MINUTE_REBUILD_BAR_MINUTES = (5, 10, 15, 30)
+    _REGULAR_SESSION_OPEN = dt_time(9, 30)
+    _REGULAR_SESSION_CLOSE = dt_time(16, 0)
+
+    def _intraday_bars_from_minutes_enabled(self) -> bool:
+        configured = self.__dict__.get("_intraday_bars_from_minutes")
+        if configured is not None:
+            return bool(configured)
+        value = os.environ.get("BACKTESTING_INTRADAY_BARS_FROM_MINUTES", "true")
+        return str(value).strip().lower() not in ("0", "false", "no", "off")
+
+    def _bars_from_cached_minutes(self, asset, quote, source_timestep, timestep, search_datetime,
+                                  length, remove_incomplete_current_bar) -> pd.DataFrame | None:
+        """Answer a 5, 10, 15 or 30-minute stock request from the cached 1-minute series.
+
+        Returns the bars only when the answer is the same as the provider's own series would
+        give: every requested bar lies inside today's regular session. The provider series
+        also has pre-market and after-hours bars the 1-minute cache does not hold, so any
+        request that reaches outside the session (or is not adjacent to the newest finished
+        bar) returns None and the caller downloads the provider series as before. Once the
+        provider series is loaded or cached it is always used.
+        """
+        if not source_timestep.endswith("minute") or source_timestep == "minute":
+            return None
+        try:
+            bar_minutes = int(source_timestep[:-len("minute")])
+        except ValueError:
+            return None
+        if bar_minutes not in self.MINUTE_REBUILD_BAR_MINUTES or not self._intraday_bars_from_minutes_enabled():
+            return None
+        if self.__dict__.get("_refresh_cache"):
+            return None
+        base, base_quote = self._sanitize_base_and_quote_asset(asset, quote)
+        if str(getattr(base, "asset_type", "")).lower() != "stock":
+            return None
+
+        store = self.__dict__.get("_data_store")
+        if store is None or getattr(self, "market", None) is None:
+            return None  # an instance without loaded series or calendar (built without __init__)
+        cache_dir = os.path.join(LUMIBOT_CACHE_FOLDER, self.CACHE_SUBFOLDER)
+        native_key = self._get_asset_key(base_asset=base, quote_asset=base_quote, timestep=source_timestep)
+        if native_key in store or os.path.exists(os.path.join(cache_dir, f"{native_key}.csv")):
+            return None
+        minute_key = self._get_asset_key(base_asset=base, quote_asset=base_quote, timestep="minute")
+        minutes = store.get(minute_key)
+        if minutes is None:
+            if not os.path.exists(os.path.join(cache_dir, f"{minute_key}.csv")) \
+                    or not self._load_ohlcv_into_data_store(minute_key):
+                return None
+            minutes = store.get(minute_key)
+        if minutes is None or minutes.empty:
+            return None
+
+        built = self._state("_minute_rebuilt_frames", dict)
+        known = built.get((minute_key, bar_minutes))
+        if known is None or known[0] is not minutes:
+            frame = self._resample_ohlcv_dataframe(
+                minutes[["open", "high", "low", "close", "volume"]], f"{bar_minutes}min")
+            # A filled minute has no volume. A period with no trades has no provider bar.
+            frame = frame[frame["volume"] > 0]
+            known = (minutes, frame)
+            built[(minute_key, bar_minutes)] = known
+        frame = known[1]
+
+        position = self._newest_bar_position(frame.index, search_datetime, timestep, remove_incomplete_current_bar)
+        first = position - int(length) + 1
+        if position < 0 or first < 0:
+            return None
+        delta = timedelta(minutes=bar_minutes)
+        cutoff = search_datetime - delta if remove_incomplete_current_bar else search_datetime
+        newest = frame.index[position]
+        if cutoff - newest >= delta:
+            return None  # the provider series may hold a newer bar (after hours, or a gap)
+        market_tz = pytz.timezone("America/New_York")
+        oldest_local = frame.index[first].tz_convert(market_tz)
+        newest_local = newest.tz_convert(market_tz)
+        if oldest_local.date() != newest_local.date() \
+                or oldest_local.time() < self._REGULAR_SESSION_OPEN \
+                or newest_local.time() >= self._REGULAR_SESSION_CLOSE:
+            return None
+        from lumibot.tools import backtest_telemetry
+
+        backtest_telemetry.record_cache("hit", layer="alpaca_bars_from_minutes", source="alpaca", asset_class="stock")
+        return frame.iloc[first: position + 1]
 
     @staticmethod
     def _normalize_timestep_for_source(timestep: str) -> tuple[str, str | None]:

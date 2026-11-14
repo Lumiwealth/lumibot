@@ -1,9 +1,9 @@
-# Intraday Bars From Cached Minute Bars (Measurement And Proposal)
+# Intraday Bars From Cached Minute Bars (Measurement And What Shipped)
 
 Compares Alpaca's own 5-minute bars with 5-minute bars built from cached 1-minute bars.
 
 - Last Updated: 2026-11-14
-- Status: Proposal. Nothing changed in code.
+- Status: Shipped for Alpaca stock backtests, on by default (see "What shipped"). Futures unchanged.
 - Audience: contributors working on backtest speed.
 
 ## Overview
@@ -34,7 +34,61 @@ last, `volume` sum, bars labeled by start time).
   Hourly bars do not: the provider's 09:00 bar includes pre-market trades, a rebuilt one
   starts at 09:30.
 
-## Proposal
+## Second measurement (5, 10, 15 and 30-minute, stressed week, half day, futures)
+
+Stocks: Alpaca provider bars fetched once for TSLA, XOM, UBER and SPY over three weeks:
+2026-01-05 to 01-09 (normal), 2025-11-24 to 11-28 (holiday and a half day) and 2025-04-07 to
+04-11 (a stressed week). Regular-session bars only (NYSE calendar, half day ends 13:00).
+
+| Bar size | Provider regular-session bars | OHLC identical | Volume identical | Only in provider | Only in rebuilt |
+|---|---|---|---|---|---|
+| 5-minute | 4,224 | 4,224 | 4,224 | 0 | 0 |
+| 10-minute | 2,112 | 2,112 | 2,112 | 0 | 0 |
+| 15-minute | 1,408 | 1,408 | 1,408 | 0 | 0 |
+| 30-minute | 704 | 704 | 704 | 0 | 0 |
+
+Futures: local Interactive Brokers cache files only (no provider calls), single contracts,
+24-hour session, whole days where both files have data.
+
+| Contract | Bar size | Provider bars | Identical (OHLC and volume) | Only in one series |
+|---|---|---|---|---|
+| ES Dec 2026 | 5-minute | 6,072 | 6,072 | 0 |
+| MES Dec 2026 | 5-minute | 5,796 | 5,796 | 0 |
+| MNQ Dec 2026 | 15-minute | 2,024 | 2,024 | 0 |
+| MGC Dec 2026 | 15-minute | 1,932 | 1,932 | 0 |
+
+Single futures contracts are identical, including the bars at the daily session break.
+Futures still use the provider series, for two reasons that were not measured: a continuous
+future changes contract at a minute that is not on a 5-minute edge (a rebuilt bar at each
+roll would mix two contracts), and those files carry bid, ask and gap columns besides OHLCV.
+Not measured: 10 and 30-minute futures bars, crypto, a stock trading halt.
+
+## What shipped
+
+`AlpacaBacktesting` builds 5, 10, 15 and 30-minute **stock** bars from the 1-minute series
+when all of these hold, and otherwise downloads the provider series exactly as before:
+
+1. The 1-minute series for the window is already loaded or in the cache, and the provider
+   series for that bar size is not (once the provider series exists it is always used).
+2. Every requested bar is inside today's regular session (09:30 to 16:00 New York) and the
+   newest one is the bar right before now. A request that reaches into pre-market, after
+   hours or an earlier day gets the provider series, because that series has bars the
+   1-minute cache does not hold.
+3. A period with no trades has no bar (like the provider), never a filled one.
+
+So an answer from minutes is the same bars the provider series would give: results do not
+move. On by default. Off: `intraday_bars_from_minutes=False` in the config, or
+`BACKTESTING_INTRADAY_BARS_FROM_MINUTES=false`. Each answer is counted in the telemetry
+cache layer `alpaca_bars_from_minutes`.
+
+Tests: `tests/test_alpaca_backtesting_multitimeframe_unit.py` (recorded XOM bars for a full
+day and a half day, every session minute, 5 and 15-minute; fallback cases; no-trade periods).
+
+What it does not speed up: a strategy that asks for more bars than today's session holds
+(for example 20 five-minute bars at 10:00) still downloads the provider series once.
+
+## Original proposal (superseded)
+
 
 1. Add a data source option `intraday_bars_from_minutes` (environment variable
    `BACKTESTING_INTRADAY_BARS_FROM_MINUTES`), default off, so existing results do not move.

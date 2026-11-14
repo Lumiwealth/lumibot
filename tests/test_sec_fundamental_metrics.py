@@ -131,7 +131,10 @@ def _sec(monkeypatch, tmp_path, facts=None, *, strategy=None, extra_tickers=None
         return _Response({}, status_code=404)
 
     monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake_get)
-    return SECFundamentals(strategy=strategy, cache_dir=tmp_path, min_request_interval_seconds=0, remote_cache=None)
+    return SECFundamentals(
+        strategy=strategy, cache_dir=tmp_path, min_request_interval_seconds=0, remote_cache=None,
+        split_history=lambda _symbol: [],  # no splits; never call Yahoo from a unit test
+    )
 
 
 AFTER_Q1 = datetime(2024, 6, 3, 10, 0, tzinfo=NY)

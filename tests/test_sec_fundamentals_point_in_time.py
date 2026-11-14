@@ -117,6 +117,7 @@ def _sec(tmp_path, fake, monkeypatch, **kwargs):
     monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake)
     kwargs.setdefault("min_request_interval_seconds", 0)
     kwargs.setdefault("remote_cache", None)
+    kwargs.setdefault("split_history", lambda _symbol: [])  # no splits; never call Yahoo from a unit test
     return SECFundamentals(cache_dir=tmp_path, **kwargs)
 
 

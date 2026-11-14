@@ -136,6 +136,17 @@ FUNDAMENTAL_METRICS = (
     "pb_ratio",
 )
 _PRICE_METRICS = frozenset({"market_cap", "pe_ratio", "ps_ratio", "pb_ratio"})
+# Stock splits. Filed per-share values and share counts are on the share basis in force when the
+# filing was issued, while prices are as traded on the day (or split-adjusted by the price
+# source). Ratios convert every per-share input and share count to the share basis on the
+# date asked for. Split dates come from the price source's split history; SEC filings
+# restating the same period's EPS by a split-like factor confirm when a split happened.
+_SPLIT_DETECT_TAGS = ("EarningsPerShareDiluted", "EarningsPerShareBasic")
+_SPLIT_SHARES_TAG = "WeightedAverageNumberOfDilutedSharesOutstanding"
+_PER_SHARE_KEYS = frozenset({"eps_diluted"})
+_SHARE_COUNT_KEYS = frozenset({"shares"})
+_DEFAULT_SPLIT_HISTORY = object()
+_UNSET = object()
 # A fact whose latest filed period ended more than this long before the date is too old to use
 # as "current": the metric is None instead of carrying an old number forward.
 _METRIC_STALE_DAYS = 548
@@ -479,6 +490,7 @@ class SECFundamentals:
         mutable_cache_ttl_seconds: float = DEFAULT_MUTABLE_CACHE_TTL_SECONDS,
         remote_cache: Any = _DEFAULT_REMOTE_CACHE,
         backtest_end: Any | None = None,
+        split_history: Any = _DEFAULT_SPLIT_HISTORY,
     ) -> None:
         """
         Parameters
@@ -491,6 +503,13 @@ class SECFundamentals:
         backtest_end:
             Overrides the backtest end date used to decide whether a shared cached file is
             recent enough. Normally read from the strategy.
+        split_history:
+            ``callable(symbol) -> [(date, ratio), ...]`` giving a stock's split dates (ratio 2.0
+            for a 2-for-1 split, 0.5 for a 1-for-2 reverse split). Used to date splits that
+            SEC filings cannot date yet (after the company's latest filing, for example in live
+            trading). In a backtest the strategy's own price data is used first. Defaults to
+            Yahoo Finance's split history; pass ``None`` to rely only on SEC filings and the
+            price data.
         """
         self.strategy = strategy
         self.cache_dir = Path(
@@ -508,6 +527,7 @@ class SECFundamentals:
         self.mutable_cache_ttl_seconds = max(float(mutable_cache_ttl_seconds), 0.0)
         self._remote_cache = remote_cache
         self._backtest_end_override = backtest_end
+        self._split_history = split_history
         self._rate_lock = threading.Lock()
         self._next_request_at = 0.0
         self._counter_lock = threading.Lock()
@@ -1458,7 +1478,14 @@ class SECFundamentals:
         None and ``reasons`` says why.
 
         Price-based metrics (``market_cap``, ``pe_ratio``, ``ps_ratio``, ``pb_ratio``) use
-        ``price`` when given, otherwise the strategy's last price at the current bar.
+        ``price`` when given, otherwise the strategy's last price at the current bar. ``price``
+        is the price as traded on ``as_of``. A strategy price from split-adjusted backtest data
+        is converted back to the price traded that day.
+
+        Stock splits: diluted EPS, shares outstanding and book value per share are converted to
+        the share basis in force at ``as_of`` (a filing made before a 10-for-1 split reports
+        EPS ten times higher than the shares that trade after it). When a split cannot be dated
+        reliably the value is None with a reason, never a number on the wrong basis.
 
         Returns ``{"symbol", "as_of", "values", "reasons", "periods", "price"}``. ``periods``
         names the period end, accession number and availability time behind each value.
@@ -1469,8 +1496,15 @@ class SECFundamentals:
             raise ValueError(f"Unknown fundamental metric(s) {unknown}. Choose from: {', '.join(FUNDAMENTAL_METRICS)}.")
         as_of_dt, as_ts, timeline = self._point_in_time(symbol, as_of)
         context = _MetricContext(self, timeline, as_of_dt, as_ts)
+        price_loader = self._price_source_splits(symbol)
+        context.basis = _SplitBasis(
+            _sec_split_events(timeline),
+            _sec_horizon(timeline),
+            price_loader=price_loader,
+            fallback_loader=lambda: self._external_split_history(symbol),
+        )
         if any(name in _PRICE_METRICS for name in requested):
-            context.price = self._metric_price(symbol, price)
+            context.price, context.price_reason = self._metric_price(symbol, price, context, price_loader)
         values: dict[str, Any] = {}
         reasons: dict[str, str] = {}
         periods: dict[str, Any] = {}
@@ -1532,25 +1566,145 @@ class SECFundamentals:
         frame.index.name = "symbol"
         return frame
 
-    def _metric_price(self, symbol: str, price: Any) -> float | None:
+    def _price_source_splits(self, symbol: str):
+        """Loader for the backtest price data's split history.
+
+        Returns ``(events, start, end, label, frame, data_source)`` or None.
+        """
+        cached: dict[str, Any] = {}
+
+        def load():
+            if "value" in cached:
+                return cached["value"]
+            cached["value"] = None
+            strategy = self.strategy
+            if strategy is None or not bool(getattr(strategy, "is_backtesting", False)):
+                return None
+            data_source = getattr(getattr(strategy, "broker", None), "data_source", None)
+            getter = getattr(data_source, "_get_backtest_daily_corporate_action_frame", None)
+            if not callable(getter):
+                return None
+            try:
+                from lumibot.entities import Asset
+
+                frame = getter(Asset(str(symbol).upper(), asset_type="stock"))
+            except Exception:
+                frame = None
+            if frame is None or getattr(frame, "empty", True) or "stock_splits" not in frame.columns:
+                return None
+            start, end = _frame_dates(frame)
+            if start is None:
+                return None
+            cached["value"] = (_split_events_from_frame(frame), start, end, "the backtest price data", frame, data_source)
+            return cached["value"]
+
+        return load
+
+    def _external_split_history(self, symbol: str):
+        """``(events, start, end, label, None, None)`` from ``split_history`` (Yahoo by default), or None."""
+        provider = self._split_history
+        if provider is None:
+            return None
+        try:
+            if provider is _DEFAULT_SPLIT_HISTORY:
+                from lumibot.tools.yahoo_helper import YahooHelper
+
+                series = YahooHelper.get_symbol_splits(str(symbol).upper())
+                raw = list(series.items()) if series is not None else []
+                label = "Yahoo Finance split history"
+            else:
+                raw = list(provider(str(symbol).upper()) or [])
+                label = "the split history"
+        except Exception:
+            return None
+        events = []
+        for when, ratio in raw:
+            day = when.date() if isinstance(when, datetime) or hasattr(when, "to_pydatetime") else _to_date(when)
+            try:
+                ratio = float(ratio)
+            except (TypeError, ValueError):
+                continue
+            if day is None or ratio <= 0 or abs(ratio - 1.0) < 1e-9:
+                continue
+            events.append((day, ratio))
+        return (sorted(events), date.min, datetime.now(_NEW_YORK).date(), label, None, None)
+
+    def _metric_price(self, symbol: str, price: Any, context: "_MetricContext", price_loader) -> tuple[float | None, str | None]:
+        """(price as traded on as_of, reason when None)."""
         if price is not None:
             try:
                 value = float(price)
             except (TypeError, ValueError):
-                return None
-            return value if value > 0 else None
+                return None, "price= is not a number"
+            return (value, None) if value > 0 else (None, "price= is not positive")
         strategy = self.strategy
         if strategy is None or not hasattr(strategy, "get_last_price"):
-            return None
+            return None, None
         try:
-            value = strategy.get_last_price(str(symbol).upper())
+            value = float(strategy.get_last_price(str(symbol).upper()))
         except Exception:
-            return None
-        try:
-            value = float(value)
-        except (TypeError, ValueError):
-            return None
-        return value if value > 0 else None
+            return None, None
+        if not value > 0:
+            return None, None
+        if not bool(getattr(strategy, "is_backtesting", False)):
+            return value, None
+        return self._as_traded_backtest_price(symbol, value, context, price_loader)
+
+    def _as_traded_backtest_price(self, symbol, value, context: "_MetricContext", price_loader):
+        """Undo split adjustment of a backtest price so it is the price traded on as_of."""
+        as_of_date = context.as_of_date
+        later_sec = [ev for ev in context.basis.sec_events if ev[1] > as_of_date]
+        loaded = price_loader()
+        if loaded is None:
+            if not later_sec:
+                return value, None
+            lo, hi, ratio = later_sec[0]
+            return None, (
+                f"SEC filings show a {_ratio_text(ratio)} stock split between {lo.isoformat()} and "
+                f"{hi.isoformat()}, after {as_of_date.isoformat()}, and the backtest price data has no split "
+                "history to tell whether its prices are already adjusted for it"
+            )
+        events, _start, frame_end, _label, frame, data_source = loaded
+        evidence = _adjustment_evidence(frame)
+        # SEC splits after as_of that may fall after the price data ends and that the price
+        # data does not list: its prices may or may not already be adjusted for them.
+        unexplained = [
+            (lo, hi, ratio)
+            for lo, hi, ratio in later_sec
+            if hi > frame_end and not any(lo < day <= hi and abs(value / ratio - 1) <= 0.03 for day, value in events)
+        ]
+        if evidence is None:
+            try:
+                from lumibot.entities import Asset
+
+                asset = Asset(str(symbol).upper(), asset_type="stock")
+                adjusted = not bool(data_source.should_apply_stock_splits_to_positions(asset))
+            except Exception:
+                adjusted = None
+            # Without a split inside the price data there is no proof of how it is adjusted, so a
+            # split after the data's last day could already be folded into its prices or not.
+            if adjusted is None or unexplained:
+                lo, hi, ratio = (unexplained or later_sec or [(as_of_date, as_of_date, 1.0)])[0]
+                return None, (
+                    f"cannot tell whether the backtest prices are already adjusted for the {_ratio_text(ratio)} "
+                    f"stock split between {lo.isoformat()} and {hi.isoformat()}"
+                )
+        else:
+            adjusted = evidence
+        if not adjusted:
+            return value, None
+        if unexplained:
+            lo, hi, ratio = unexplained[0]
+            return None, (
+                f"the backtest prices are split-adjusted and SEC filings show a {_ratio_text(ratio)} stock split "
+                f"between {lo.isoformat()} and {hi.isoformat()}, after the price data ends, so the price traded "
+                f"on {as_of_date.isoformat()} cannot be recovered"
+            )
+        later = _SplitBasis(context.basis.sec_events, context.basis.sec_horizon, lambda: loaded)
+        factor, reason = later.factor(as_of_date, frame_end)
+        if factor is None:
+            return None, reason
+        return value * factor, None
 
     def get_filings(
         self,
@@ -1898,6 +2052,8 @@ class _MetricContext:
         self.as_of_date = datetime.fromtimestamp(as_ts, _NEW_YORK).date()
         self.as_ts = as_ts
         self.price: float | None = None
+        self.price_reason: str | None = None
+        self.basis: _SplitBasis = _SplitBasis((), date.max)
         self._cache: dict[str, Any] = {}
 
     # -- inputs -------------------------------------------------------------------------
@@ -1999,7 +2155,37 @@ class _MetricContext:
                 f"{label} for the twelve months ending {end.isoformat()} needs the annual report and the "
                 "same year-to-date period a year earlier, and they are not all filed"
             ), None, end
+        if key in _PER_SHARE_KEYS:
+            rows, reason = self._on_as_of_basis(key, rows)
+            if rows is None:
+                return None, reason, None, end
+            value = rows[0]["value"] if len(rows) == 1 else rows[0]["value"] + rows[1]["value"] - rows[2]["value"]
         return value, None, self._period_info(*rows), end
+
+    @staticmethod
+    def _basis_date(row: dict[str, Any]) -> date | None:
+        """The day a value's share basis was fixed.
+
+        A financial statement is restated for every split before the filing is issued, so its
+        basis is the filing date. The cover-page share count is dated a few days before the
+        filing and is treated the same way (a split between those two days is not detected).
+        """
+        return _to_date(row.get("filed")) or row["end"]
+
+    def _on_as_of_basis(self, key: str, rows: list[dict[str, Any]]):
+        """Copies of ``rows`` on the share basis at as_of, or (None, reason)."""
+        converted = []
+        for row in rows:
+            start = self._basis_date(row)
+            factor, reason = self.basis.factor(start, self.as_of_date)
+            if factor is None:
+                return None, reason
+            row = dict(row)
+            if abs(factor - 1.0) > 1e-12:
+                row["split_factor"] = factor
+                row["value"] = row["value"] / factor if key in _PER_SHARE_KEYS else row["value"] * factor
+            converted.append(row)
+        return converted, None
 
     def _instant(self, key: str, end: date | None = None):
         rows = [row for row in self._periods(key) if row["days"] is None]
@@ -2094,6 +2280,11 @@ class _MetricContext:
                 f"latest filed {label} is dated {row['end'].isoformat()}, more than 18 months before "
                 f"{self.as_of_date.isoformat()}"
             )
+        if key in _SHARE_COUNT_KEYS:
+            rows, reason = self._on_as_of_basis(key, [row])
+            if rows is None:
+                return None, reason
+            row = rows[0]
         return row, None
 
     def _m_current_ratio(self):
@@ -2148,7 +2339,7 @@ class _MetricContext:
         return equity["value"] / shares["value"], None, self._period_info(equity, shares)
 
     def _price_reason(self):
-        return "no price: pass price= or call from a strategy with a price at the current bar"
+        return self.price_reason or "no price: pass price= or call from a strategy with a price at the current bar"
 
     def _m_market_cap(self):
         if self.price is None:
@@ -2189,6 +2380,263 @@ class _MetricContext:
         if equity["value"] <= 0:
             return None, "stockholders' equity is not positive", None
         return market_cap / equity["value"], None, self._period_info(equity)
+
+
+def _ratio_text(ratio: float) -> str:
+    """'10-for-1' or '1-for-10'."""
+    if ratio >= 1:
+        value = ratio
+        text = f"{value:g}-for-1"
+    else:
+        value = 1.0 / ratio
+        text = f"1-for-{value:g}"
+    return text
+
+
+def _split_like_ratio(old: Any, new: Any) -> float | None:
+    """old/new when two filings' values of one period differ by a clean split ratio, else None.
+
+    Split ratios are p/q with q in 1..4 (2, 3, 3/2, 5/4, 10, 1/10...). Values under 5 cents
+    are ignored: rounding to the cent alone can move them by a split-like factor.
+    """
+    try:
+        old_value = float(old)
+        new_value = float(new)
+    except (TypeError, ValueError):
+        return None
+    if old_value == 0 or new_value == 0 or (old_value > 0) != (new_value > 0):
+        return None
+    small = min(abs(old_value), abs(new_value))
+    if small < 0.05:
+        return None
+    ratio = old_value / new_value
+    magnitude = ratio if ratio >= 1 else 1.0 / ratio
+    if magnitude < 1.2:
+        return None
+    tolerance = min(max(0.03, 0.006 / small), 0.08)
+    for denominator in (1, 2, 3, 4):
+        numerator = round(magnitude * denominator)
+        if numerator <= denominator:
+            continue
+        target = numerator / denominator
+        if abs(magnitude / target - 1) <= tolerance:
+            return target if ratio >= 1 else 1.0 / target
+    return None
+
+
+def _sec_split_events(timeline: "_CompanyTimeline") -> list[tuple[date, date, float]]:
+    """Stock splits seen in SEC data: ``(after, by, ratio)``, each split effective in (after, by].
+
+    When a company splits, its next filings restate earlier periods' EPS on the new share
+    basis, so one period's EPS in an earlier and a later filing differs by the split ratio
+    (and its weighted share count by the inverse). Every such pair dates the split between
+    the two filings; pairs of the same split narrow the window. Uses the whole companyfacts
+    file, including filings after the date asked for: the windows only decide when a value's
+    share basis can be trusted, never a value itself.
+    """
+    if "split_events" in timeline.memo:
+        return timeline.memo["split_events"]
+    shares_by_filing: dict[tuple, float] = {}
+    for series in timeline.series.get(_SPLIT_SHARES_TAG, {}).values():
+        for row in series.rows:
+            shares_by_filing[(row[_R_START], row[_R_END], row[_R_ACCN])] = row[_R_VAL]
+    pairs: list[tuple[date, date, float, bool, float]] = []
+    for tag in _SPLIT_DETECT_TAGS:
+        for series in timeline.series.get(tag, {}).values():
+            by_period: dict[tuple, list[tuple]] = {}
+            for row in series.rows:
+                by_period.setdefault((row[_R_START], row[_R_END]), []).append(row)
+            for (start, end), rows in by_period.items():
+                for earlier, later in zip(rows, rows[1:]):
+                    ratio = _split_like_ratio(earlier[_R_VAL], later[_R_VAL])
+                    if ratio is None:
+                        continue
+                    after, by = _to_date(earlier[_R_FILED]), _to_date(later[_R_FILED])
+                    if after is None or by is None or by <= after:
+                        continue
+                    old_shares = shares_by_filing.get((start, end, earlier[_R_ACCN]))
+                    new_shares = shares_by_filing.get((start, end, later[_R_ACCN]))
+                    confirmed = False
+                    if old_shares and new_shares:
+                        try:
+                            share_ratio = float(new_shares) / float(old_shares)
+                        except (TypeError, ValueError, ZeroDivisionError):
+                            share_ratio = 0.0
+                        if abs(share_ratio / ratio - 1) > 0.05:
+                            continue  # EPS moved but the share count did not: a restatement, not a split
+                        confirmed = True
+                    size = max(abs(float(earlier[_R_VAL])), abs(float(later[_R_VAL])))
+                    pairs.append((after, by, ratio, confirmed, size))
+    merged: list[list] = []
+    for after, by, ratio, confirmed, size in sorted(pairs):
+        for event in merged:
+            if abs(event[2] / ratio - 1) <= 0.03 and after < event[1] and event[0] < by:
+                event[0], event[1] = max(event[0], after), min(event[1], by)
+                event[3] = event[3] or confirmed
+                event[4] += 1
+                event[5] = max(event[5], size)
+                break
+        else:
+            merged.append([after, by, ratio, confirmed, 1, size])
+    events = [
+        (after, by, ratio)
+        for after, by, ratio, confirmed, count, size in merged
+        if confirmed or (count >= 2 and size >= 0.25) or size >= 1.0
+    ]
+    timeline.memo["split_events"] = events
+    return events
+
+
+def _sec_horizon(timeline: "_CompanyTimeline") -> date:
+    """The latest filing date in the companyfacts file: SEC data cannot show a split after it."""
+    if "split_horizon" not in timeline.memo:
+        dates = [_to_date(value) for value in timeline.filing_filed.values()]
+        dates = [value for value in dates if value is not None]
+        timeline.memo["split_horizon"] = max(dates) if dates else date.min
+    return timeline.memo["split_horizon"]
+
+
+def _frame_dates(frame) -> tuple[date | None, date | None]:
+    try:
+        first, last = frame.index.min(), frame.index.max()
+        return first.date(), last.date()
+    except Exception:
+        return None, None
+
+
+def _split_events_from_frame(frame) -> list[tuple[date, float]]:
+    events = []
+    try:
+        column = frame["stock_splits"]
+    except Exception:
+        return events
+    for index, value in column.items():
+        try:
+            ratio = float(value)
+        except (TypeError, ValueError):
+            continue
+        if not ratio > 0 or abs(ratio - 1.0) < 1e-9 or ratio != ratio:
+            continue
+        day = index.date() if hasattr(index, "date") else _to_date(index)
+        if day is not None:
+            events.append((day, ratio))
+    return sorted(events)
+
+
+def _adjustment_evidence(frame) -> bool | None:
+    """True when the price data is split-adjusted, False when it is as traded, None when unknown.
+
+    A ``_split_adjusted`` marker says adjusted. Otherwise a split inside the data decides it:
+    as-traded closes jump by the split ratio on the split day, adjusted closes do not.
+    """
+    if frame is None:
+        return None
+    try:
+        if "_split_adjusted" in frame.columns and bool(frame["_split_adjusted"].fillna(False).astype(bool).any()):
+            return True
+        if "close" not in frame.columns:
+            return None
+        closes = frame["close"].dropna()
+    except Exception:
+        return None
+    for day, ratio in _split_events_from_frame(frame):
+        try:
+            before = closes[closes.index.map(lambda ts: ts.date() < day)]
+            after = closes[closes.index.map(lambda ts: ts.date() >= day)]
+        except Exception:
+            return None
+        if before.empty or after.empty or not float(after.iloc[0]) > 0:
+            continue
+        jump = float(before.iloc[-1]) / float(after.iloc[0])
+        if abs(jump / ratio - 1) < 0.25:
+            return False
+        if abs(jump - 1) < 0.25:
+            return True
+    return None
+
+
+class _SplitBasis:
+    """Product of stock splits effective in a date range, or a reason it cannot be known.
+
+    ``price_loader`` gives the backtest price data's split history (cheap, always consulted);
+    ``fallback_loader`` (for example Yahoo) is only called when SEC data cannot settle it.
+    Each returns ``(events, covered_from, covered_to, label, ...)`` or None.
+    """
+
+    def __init__(self, sec_events, sec_horizon: date, price_loader=None, fallback_loader=None):
+        self.sec_events = list(sec_events)
+        self.sec_horizon = sec_horizon
+        self._loaders = {"price": price_loader, "fallback": fallback_loader}
+        self._loaded: dict[str, Any] = {}
+
+    def _load(self, name: str):
+        if name not in self._loaded:
+            loader = self._loaders.get(name)
+            try:
+                self._loaded[name] = loader() if loader is not None else None
+            except Exception:
+                self._loaded[name] = None
+        return self._loaded[name]
+
+    def _in_sec_window(self, day: date, value: float) -> bool:
+        return any(after < day <= by and abs(value / ratio - 1) <= 0.03 for after, by, ratio in self.sec_events)
+
+    def factor(self, start: date, end: date) -> tuple[float | None, str | None]:
+        """Splits effective after ``start`` and on or before ``end``, multiplied together."""
+        if end <= start:
+            return 1.0, None
+        factor = 1.0
+        ambiguous = []
+        for after, by, ratio in self.sec_events:
+            if by <= start or after >= end:
+                continue
+            if after >= start and by <= end:
+                factor *= ratio
+            else:
+                ambiguous.append((after, by, ratio))
+        beyond_sec = end > self.sec_horizon
+        known = self._load("price")
+        if known is None and (ambiguous or beyond_sec):
+            known = self._load("fallback")
+        if known is None:
+            if ambiguous:
+                after, by, ratio = ambiguous[0]
+                return None, (
+                    f"SEC filings show a {_ratio_text(ratio)} stock split between {after.isoformat()} and "
+                    f"{by.isoformat()} and no split history dates it relative to {end.isoformat()}"
+                )
+            if beyond_sec:
+                return None, (
+                    f"cannot confirm stock splits after the company's latest SEC filing "
+                    f"({self.sec_horizon.isoformat()}): no split history is available"
+                )
+            return factor, None
+        events, covered_from, covered_to, label = known[0], known[1], known[2], known[3]
+        for after, by, ratio in ambiguous:
+            matches = [day for day, value in events if after < day <= by and abs(value / ratio - 1) <= 0.03]
+            if not matches:
+                return None, (
+                    f"SEC filings show a {_ratio_text(ratio)} stock split between {after.isoformat()} and "
+                    f"{by.isoformat()} that {label} does not date"
+                )
+            if start < matches[0] <= end:
+                factor *= ratio
+        # Splits the price history lists that SEC data did not show (no restated EPS to compare).
+        sec_end = min(end, self.sec_horizon)
+        for day, value in events:
+            if start < day <= sec_end and covered_from <= day <= covered_to and not self._in_sec_window(day, value):
+                factor *= value
+        if beyond_sec:
+            unchecked_from = max(start, self.sec_horizon)
+            if covered_from > unchecked_from or covered_to < end:
+                return None, (
+                    f"cannot confirm stock splits between {unchecked_from.isoformat()} and {end.isoformat()}: "
+                    f"the latest SEC filing is {self.sec_horizon.isoformat()} and {label} does not cover that range"
+                )
+            for day, value in events:
+                if unchecked_from < day <= end:
+                    factor *= value
+        return factor, None
 
 
 def _to_date(value: Any) -> date | None:

@@ -108,7 +108,21 @@ backtest date (or ``as_of``), and is ``None`` when it cannot be computed:
        share and book value per share
 
 Price-based metrics use ``price=`` when you pass it (``prices={...}`` for the
-table), otherwise the strategy's last price at the current bar.
+table), otherwise the strategy's last price at the current bar. ``price=`` is
+the price as traded on that date. A backtest price that is adjusted for a later
+stock split is converted back to the price traded that day.
+
+**Stock splits.** A filing reports EPS and share counts on the share basis of
+the day it was filed. After a 10-for-1 split, a filing made before the split
+shows EPS ten times higher than the shares now trading. LumiBot converts diluted
+EPS, shares outstanding and book value per share to the share basis on the date
+you ask about, so P/E, P/S, P/B and market cap stay right across a split (NVIDIA
+on 2024-06-12, two days after its 10-for-1 split: P/E about 73, market cap about
+$3.1 trillion). Split dates come from the backtest's price data, from SEC
+filings that restate earlier periods on the new basis, and outside a backtest
+from Yahoo Finance's split history (``SECFundamentals(split_history=...)``
+replaces it). When a split cannot be dated reliably, the value is ``None`` and
+the reason names the split. You never get a number on the wrong share basis.
 
 When a metric is ``None``, ``get_metrics(...)["reasons"]`` says why, for
 example ``"no long-term debt filed for the balance sheet dated 2024-03-31
@@ -214,10 +228,12 @@ Limits
   conservative day-after-filing rule.
 - **No analyst estimates, no price data.** Combine with your strategy's own
   price data.
-- **Price-based ratios assume the price is as traded on that date.** SEC share
-  counts and EPS are as filed. If your backtest prices are adjusted for a later
-  stock split, P/E, P/S, P/B and market cap before that split are off by the
-  split ratio; pass ``price=`` with the unadjusted price around splits.
+- **Splits right after a filing.** Between a split and the company's next
+  filing, SEC data alone cannot say exactly when the split happened. LumiBot
+  then needs a split history (the backtest's price data or Yahoo Finance); if
+  none is available, per-share values and price ratios are ``None`` with the
+  reason. A split between a filing's cover-page share date and its filing date
+  (a few days) is not detected.
 - **TTM needs a company that reports year-to-date quarters.** Most US filers
   do. Banks and insurers often have no gross profit, so ``gross_margin`` is
   ``None`` for them.

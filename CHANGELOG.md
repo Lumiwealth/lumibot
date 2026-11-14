@@ -2,6 +2,8 @@
 
 ## 4.6.56 - 2026-11-13
 
+Deploy marker: 682904c2fccb666144fd1e29f8cf66c9d95f5f4d
+
 ### Added
 - Indicator executors can offer whole-history computation. If the object an `IndicatorExecutor` prepares has `compute_history(bars_df)` returning one value per row per output, `self.indicators.get` calls it once per stream in backtests, caches it, reads the value at the current bar and recomputes only when the stored series changes. Live trading keeps feeding bars one at a time; objects without the method are unchanged.
 - Routed backtests can read real crypto perpetual data from Bitunix's public market API (no API key): set `"crypto_future": "bitunix"` in `BACKTESTING_DATA_SOURCE`. Perpetual candles, contract terms and settled funding come from the exchange, so perpetual orders fill with leverage and margin and funding is charged at each real settlement. Opt-in only; existing routes are unchanged. Coin-margined (inverse) contracts and missing or unreachable data stop the backtest up front with a plain message instead of a silent zero-trade run. The message ends with a machine-readable `PERPETUAL_DATA_UNAVAILABLE {...}` line (reason code, source, symbol and the other `crypto_future` data sources) so tools can switch source and rerun. Paging keeps going past transient empty pages, so long minute-bar windows are not cut short. See `docsrc/backtesting.perpetuals.rst`.

@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.59 - Unreleased
+## 4.6.59 - 2026-11-14
 
 ### Fixed
 - `get_orders(statuses=...)` accepts status strings, case-insensitively. `"open"`, `"active"` and `"working"` mean every still-working order (same as `Order.ACTIVE_STATUSES`); any `OrderStatus` value or name and common broker spellings (`"filled"`, `"cancelled"`, `"partially_filled"`, `"rejected"`) match that status. Unknown strings raise `ValueError` listing the valid ones. Before, any string raised `TypeError` and crashed the strategy.

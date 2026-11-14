@@ -420,3 +420,127 @@ def test_share_classes_without_a_known_conversion_are_added_one_for_one(monkeypa
     assert visa["values"]["shares_outstanding"] == 1_574_151_974 + 245_513_385 + 9_273_174
     filing_day = sec.get_metrics("V", ["shares_outstanding"], as_of=datetime(2024, 4, 24, 15, tzinfo=NY))
     assert filing_day["values"]["shares_outstanding"] is None  # that filing is not public until the next morning
+
+
+# ---- compact facts: a small per-company file with only the facts the metrics use ----
+
+class _FakeRemote:
+    """Stands in for the shared backtest cache: a dict of remote key -> bytes."""
+
+    enabled = True
+
+    def __init__(self, store):
+        self.store = store
+
+    def ensure_local_file(self, local_path, remote_relative=None, **_):
+        if remote_relative not in self.store:
+            return False
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        local_path.write_bytes(self.store[remote_relative])
+        return True
+
+    def on_local_update(self, local_path, remote_relative=None, **_):
+        self.store[remote_relative] = local_path.read_bytes()
+        return True
+
+
+def _recorded_with_ballast(monkeypatch, tmp_path, **sec_kwargs):
+    """The recorded companies, each with many facts the metrics never read (as real files have)."""
+    import json
+    from pathlib import Path
+
+    companies = json.loads((Path(__file__).parent / "fixtures" / "sec_companyfacts_coverage.json").read_text())["companies"]
+    tickers = {str(i): {"ticker": s, "cik_str": c["cik"], "title": c["entityName"]} for i, (s, c) in enumerate(companies.items())}
+    facts = {}
+    for company in companies.values():
+        us_gaap = dict(company["facts"].get("us-gaap", {}))
+        template = next(iter(us_gaap.values()))
+        for index in range(40):
+            us_gaap[f"UnusedDisclosureDetail{index}"] = template
+        facts[f"{company['cik']:010d}"] = {"cik": company["cik"], "facts": {**company["facts"], "us-gaap": us_gaap}}
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append(url)
+        if url.endswith("company_tickers.json"):
+            return _Response(tickers)
+        for cik, payload in facts.items():
+            if url.endswith(f"companyfacts/CIK{cik}.json"):
+                return _Response(payload)
+        return _Response({"filings": {"recent": {"accessionNumber": [], "acceptanceDateTime": []}}})
+
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake_get)
+
+    def make(cache_dir, **kwargs):
+        return SECFundamentals(
+            cache_dir=cache_dir, min_request_interval_seconds=0, split_history=lambda _symbol: [],
+            **{"remote_cache": None, **sec_kwargs, **kwargs},
+        )
+
+    return make, list(companies), calls
+
+
+_COMPACT_DATES = [datetime(2019, 6, 3, 10, 0, tzinfo=NY), datetime(2022, 3, 1, 10, 0, tzinfo=NY), AFTER_Q1]
+
+
+def _tables(sec, symbols):
+    prices = {symbol: 50.0 for symbol in symbols}
+    return [sec.get_metrics_table(symbols, as_of=day, prices=prices) for day in _COMPACT_DATES]
+
+
+def test_compact_facts_give_the_same_tables_without_the_full_files(monkeypatch, tmp_path):
+    make, symbols, calls = _recorded_with_ballast(monkeypatch, tmp_path)
+    first = make(tmp_path)
+    expected = _tables(first, symbols)
+    statements = first.get_income_statement(symbols[0], as_of=AFTER_Q1)
+    history = first.get_fact_history(symbols[0], "NetIncomeLoss", as_of=AFTER_Q1)
+
+    full = sorted(p for p in (tmp_path / "companyfacts").glob("CIK*.json") if not p.name.endswith(".meta.json"))
+    compact = sorted((tmp_path / "companyfacts_compact").glob("CIK*.json.gz"))
+    assert len(compact) == len(full) == len(symbols)
+    assert sum(path.stat().st_size for path in compact) * 5 < sum(path.stat().st_size for path in full)
+
+    # A later run reads only the compact files: the full files are gone and the SEC is not asked.
+    for path in full:
+        path.unlink()
+    calls.clear()
+    second = make(tmp_path)
+    for got, want in zip(_tables(second, symbols), expected):
+        pd.testing.assert_frame_equal(got, want)
+    assert second.get_income_statement(symbols[0], as_of=AFTER_Q1) == statements
+    assert second.get_fact_history(symbols[0], "NetIncomeLoss", as_of=AFTER_Q1) == history
+    assert not [url for url in calls if "companyfacts" in url]
+
+
+def test_a_fact_outside_the_compact_set_still_comes_from_the_full_file(monkeypatch, tmp_path):
+    make, symbols, calls = _recorded_with_ballast(monkeypatch, tmp_path)
+    expected = make(tmp_path).get_fact_history(symbols[0], "UnusedDisclosureDetail3", as_of=AFTER_Q1)
+    assert expected["values"]
+    for path in (tmp_path / "companyfacts").glob("CIK*.json"):
+        path.unlink()
+    calls.clear()
+
+    second = make(tmp_path)
+    _tables(second, symbols[:1])
+    assert not [url for url in calls if "companyfacts" in url]
+    got = second.get_fact_history(symbols[0], "UnusedDisclosureDetail3", as_of=AFTER_Q1)
+
+    assert got["values"] == expected["values"]
+    assert len([url for url in calls if "companyfacts" in url]) == 1
+
+
+def test_compact_facts_are_shared_through_the_remote_backtest_cache(monkeypatch, tmp_path):
+    store = {}
+    make, symbols, calls = _recorded_with_ballast(
+        monkeypatch, tmp_path, cache_mode="backtest", backtest_end=datetime(2024, 12, 31, tzinfo=NY)
+    )
+    expected = _tables(make(tmp_path / "machine_a", remote_cache=_FakeRemote(store)), symbols)
+    compact_keys = [key for key in store if key.startswith("sec/companyfacts_compact/")]
+    assert len(compact_keys) == len(symbols)
+
+    # Another machine: no local files; only the compact objects are downloaded.
+    calls.clear()
+    compact_only = _FakeRemote({key: store[key] for key in compact_keys})
+    for got, want in zip(_tables(make(tmp_path / "machine_b", remote_cache=compact_only), symbols), expected):
+        pd.testing.assert_frame_equal(got, want)
+    assert not [url for url in calls if "companyfacts" in url]

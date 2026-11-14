@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.56 - Unreleased
+## 4.6.56 - 2026-11-13
 
 ### Added
 - Indicator executors can offer whole-history computation. If the object an `IndicatorExecutor` prepares has `compute_history(bars_df)` returning one value per row per output, `self.indicators.get` calls it once per stream in backtests, caches it, reads the value at the current bar and recomputes only when the stored series changes. Live trading keeps feeding bars one at a time; objects without the method are unchanged.

@@ -1,6 +1,11 @@
 # Changelog
 
-## 4.6.69 - Unreleased
+## 4.6.69 - 2026-11-15
+
+Deploy marker: 302404459a544927b8aa81b8b8abed3a4463cf5a
+
+### Fixed
+- Backtests no longer fail when an aware clock target uses a different timezone implementation from the broker, including a UTC end bound reached after a resting order fills. Timezone conversion preserves the same instant, fill timing and configured end of the backtest.
 
 ## 4.6.68 - 2026-11-15
 

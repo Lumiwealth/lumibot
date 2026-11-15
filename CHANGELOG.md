@@ -2,6 +2,8 @@
 
 ## 4.6.74 - 2026-11-15
 
+Deploy marker: 2397fcc2f2b7f32b75b28902ca740d02c87b8511
+
 ### Fixed
 - Native backtest partial executions continue through the remaining quantity without duplicate fills or fees. Final chunks finish the order and preserve its weighted fill price; canceled remainders and OCO protection stay respected.
 - Perpetual data errors describe the selected provider's limits and explain existing native CCXT selection without suggesting a different contract or settlement currency. Routing, machine-readable reasons and successful data access are unchanged.

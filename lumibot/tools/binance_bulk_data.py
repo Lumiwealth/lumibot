@@ -290,7 +290,7 @@ def cached_candles(client: BinanceBulkData, market: str, symbol: str, timestep: 
 
     rows = shared_bar_cache.read_bars(
         shared_series(market, symbol, timestep, kind), start_ts, end_ts, fetch,
-        now=client.now().normalize(), coverage_from_rows=True,
+        now=client.now().normalize(), coverage_from_rows=True, coverage_through_rows=True,
     )
     rows = rows[["open", "high", "low", "close", "volume"]].astype(float)
     rows.index = pd.DatetimeIndex(rows.index).tz_convert("UTC")

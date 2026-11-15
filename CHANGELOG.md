@@ -1,6 +1,12 @@
 # Changelog
 
-## 4.6.67 - Unreleased
+## 4.6.67 - 2026-11-15
+
+### Fixed
+- Binance spot and USD-M perpetual backtests retry missing archive tails when daily files become available. Previously an incomplete response could mark a longer range as cached, so subsequent runs never fetched the newly published candles. Existing rows and the shared cache identity are preserved; missing prices are still reported rather than filled or substituted.
+
+### Added
+- Full trade-event CSV/Parquet exports include optional `asset.contract_spec` JSON with authoritative derivative base, quote, settlement, face size, inverse flag and native quantity units. This makes inverse and linear contract exposure interpretable without changing order quantities or execution. Logging performs no provider metadata requests. Unavailable terms remain empty; existing columns retain their order and meaning.
 
 ## 4.6.66 - 2026-11-14
 

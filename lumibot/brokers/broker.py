@@ -163,6 +163,7 @@ TRADE_EVENT_LOG_COLUMNS = (
     "cash_event_raw_subtype",
     "cash_event_broker_name",
     "cash_event_broker_event_id",
+    "asset.contract_spec",
 )
 
 # Consolidate errors from different brokers into a single class that can be easily caught even
@@ -341,6 +342,7 @@ class Broker(ABC):
                 "cash_event_raw_subtype": cash_event.raw_subtype,
                 "cash_event_broker_name": cash_event.broker_name,
                 "cash_event_broker_event_id": cash_event.broker_event_id,
+                "asset.contract_spec": None,
             }
         else:
             new_row = (
@@ -377,6 +379,7 @@ class Broker(ABC):
                 cash_event.raw_subtype,
                 cash_event.broker_name,
                 cash_event.broker_event_id,
+                None,
             )
 
         self._trade_event_log_rows.append(new_row)
@@ -470,6 +473,7 @@ class Broker(ABC):
                 "cash_event_raw_subtype": raw_subtype,
                 "cash_event_broker_name": self.name,
                 "cash_event_broker_event_id": event_id,
+                "asset.contract_spec": None,
             }
         else:
             new_row = (
@@ -506,6 +510,7 @@ class Broker(ABC):
                 raw_subtype,
                 self.name,
                 event_id,
+                None,
             )
 
         self._trade_event_log_rows.append(new_row)
@@ -1801,7 +1806,12 @@ class Broker(ABC):
             return spec
         getter = getattr(self.data_source, "get_contract_spec", None)
         if callable(getter):
-            return getter(asset, quote)
+            spec = getter(asset, quote)
+            if isinstance(asset, Asset):
+                # Keep the terms already resolved for execution available to event exports.
+                # This is provenance, not a cache: another quote must still reach the source.
+                asset._resolved_contract_spec = spec
+            return spec
         raise ValueError("Derivative contract terms are unavailable; supply Asset.contract_spec or provider metadata")
 
     def get_contract_exposure(self, asset, quantity, price, quote=None):
@@ -4156,6 +4166,11 @@ class Broker(ABC):
 
         asset = stored_order.asset
         price_source = getattr(stored_order, "_price_source", None)
+        contract_spec = getattr(asset, "contract_spec", None) or getattr(asset, "_resolved_contract_spec", None)
+        serialized_contract_spec = (
+            _json_dumps(contract_spec.to_dict(), sort_keys=True, separators=(",", ":"))
+            if contract_spec is not None else None
+        )
 
         if audit_enabled:
             new_row = {
@@ -4194,6 +4209,7 @@ class Broker(ABC):
             new_row["cash_event_raw_subtype"] = None
             new_row["cash_event_broker_name"] = None
             new_row["cash_event_broker_event_id"] = None
+            new_row["asset.contract_spec"] = serialized_contract_spec
         else:
             # PERF: In backtests, trade events are appended in large volumes. Avoid property
             # lookups where we can safely access the backing fields.
@@ -4231,6 +4247,7 @@ class Broker(ABC):
                 None,
                 None,
                 None,
+                serialized_contract_spec,
             )
 
         journal = getattr(stored_order, "decision_journal", None)

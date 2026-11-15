@@ -525,3 +525,9 @@ wrong timestamp.
 Do not delete shared caches. The acceptance runner sets `LUMIBOT_CACHE_FOLDER` to an artifact-local cache directory before importing LumiBot, so cold/warm tests are isolated and reproducible.
 
 For production-like S3 cache experiments, use an isolated S3 version prefix. Do not mutate or delete shared production cache objects unless Rob explicitly requests the exact operation.
+
+## Archive-tail coverage and derivative event units
+
+Binance spot and USD-M archive readers bound shared-cache coverage by actual returned candles. A missing tail is retried after publication, including older cache records that overstated coverage. This does not fabricate current-day data or change funding availability; see `docsrc/backtesting.perpetuals.rst`. Sparse-session providers retain their existing coverage policy.
+
+Full trade-event CSV and Parquet exports append optional `asset.contract_spec` JSON from explicit or already resolved `ContractSpec` metadata. Use the declared quantity unit and contract size to interpret exposure, and preserve base/quote/settlement currencies when calculating P&L. The logger does not fetch provider metadata or infer it from a symbol. See `docsrc/backtesting.trades_files.rst` for a working parsing example and limitations. Existing column order and execution behavior are unchanged.

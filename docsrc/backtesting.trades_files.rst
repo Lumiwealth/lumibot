@@ -50,6 +50,40 @@ When ``benchmark_asset=None``, the trade CSV is still exported. Without a
 benchmark comparison plot it uses the full trade-event format, including
 ``status=fill`` rows. Disabling a benchmark must not remove execution evidence.
 
+Derivative contract units
+-------------------------
+
+The full trade-event CSV and Parquet exports append an optional
+``asset.contract_spec`` JSON column. It preserves explicit ``Asset.contract_spec``
+terms, or terms already resolved by the broker from its data source: ``base``,
+``quote``, ``settle``, ``contract_size``, ``inverse`` and ``quantity_unit``.
+The logger does not request metadata or infer terms from a symbol. An empty
+value means those terms were unavailable; stock, cash and corporate-action rows
+also leave this column empty. Existing columns and order quantities keep their
+meaning.
+
+Read the terms when interpreting derivative fills. For example, three inverse
+contracts with a USD 100 contract size represent USD 300 of quote exposure,
+regardless of the fill price. A linear contract with a 0.01 base-unit contract
+size represents 0.01 base units per contract. Older adapters may instead report
+quantities directly in base units (``quantity_unit="base"``).
+
+.. code-block:: python
+
+   import json
+   from decimal import Decimal
+   from lumibot.entities import ContractSpec
+
+   # row is one fill read with csv.DictReader from the full trade-event CSV.
+   if row.get("asset.contract_spec"):
+       terms = ContractSpec.from_dict(json.loads(row["asset.contract_spec"]))
+       exposure = terms.exposure(Decimal(row["filled_quantity"]), row["price"])
+       print(exposure["base"], exposure["quote"], exposure["settle"])
+
+Exposure is distinct from collateral committed and from profit or loss. These
+instrument terms do not include account leverage, margin mode or historical
+currency-conversion rates. See :doc:`brokers.ccxt` for contract accounting.
+
 Option Lifecycle Statuses
 -------------------------
 

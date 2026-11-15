@@ -1202,6 +1202,7 @@ def read_bars_many(
     now=None,
     refresh: bool = False,
     coverage_from_rows: bool = False,
+    coverage_through_rows: bool = False,
     strict_ohlcv: bool = False,
     confirmed_empty: Callable[[BarSeries], bool] | None = None,
 ) -> dict[BarSeries, pd.DataFrame]:
@@ -1213,6 +1214,9 @@ def read_bars_many(
     ``now - delay`` for delayed feeds). ``coverage_from_rows`` is for providers
     that can silently truncate the start of an answer: coverage then starts at the
     first returned bar instead of the requested start.
+    ``coverage_through_rows`` is for providers that can truncate the tail: coverage
+    then ends after the last returned bar, and overstated older coverage is repaired.
+    Leave it false for complete answers with legitimate sparse or closed-session tails.
 
     ``confirmed_empty(series)`` returning True is the caller's statement that ``fetch``
     returns only complete, successful provider answers for that series (errors, rate
@@ -1244,8 +1248,16 @@ def read_bars_many(
     overlap_checks: dict[BarSeries, bool] = {}
     for item in usable:
         item_parts = by_series[item]
+        if coverage_through_rows:
+            # Older writers could mark an unavailable tail as complete. Keep the
+            # existing rows and identity, but let the provider fill that gap now.
+            for part in item_parts:
+                row_stop = (min(part.rows.index[-1] + item.duration, _settled_cut(item, clock))
+                            if not part.rows.empty else part.start)
+                part.coverage = _union((a, min(b, row_stop)) for a, b in part.coverage)
         covered = [] if refresh else _union(
-            [c for p in item_parts for c in p.coverage] + _live_empty(item_parts, clock)
+            [c for p in item_parts for c in p.coverage]
+            + ([] if coverage_through_rows else _live_empty(item_parts, clock))
         )
         cached_rows = _rows_in(item_parts, start, end_excl)
         item_gaps = _subtract(start, end_excl, covered)
@@ -1343,7 +1355,8 @@ def read_bars_many(
         item_parts = by_series[item]
         cut = _settled_cut(item, clock)
         empty_cut = clock - item.duration - EMPTY_SETTLE
-        vouched = (confirmed_empty is not None and not coverage_from_rows and item not in restarted
+        vouched = (confirmed_empty is not None and not coverage_from_rows and not coverage_through_rows
+                   and item not in restarted
                    and bool(confirmed_empty(item)))
         changed = set()
         for (gap_start, gap_stop), rows in fetched.get(item, []):
@@ -1365,6 +1378,8 @@ def read_bars_many(
                 continue
             cov_start = max(gap_start, rows.index[0]) if coverage_from_rows else gap_start
             cov_stop = gap_stop if gap_stop <= cut else min(gap_stop, cut)
+            if coverage_through_rows:
+                cov_stop = min(cov_stop, rows.index[-1] + item.duration)
             if cov_stop <= cov_start:
                 continue
             settled = rows[(rows.index >= cov_start) & (rows.index < cov_stop)]

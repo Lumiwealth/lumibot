@@ -2,7 +2,7 @@
 
 ## 4.6.68 - 2026-11-15
 
-Deploy marker: 076789e042b3e6a08d0c7025834c3f1fed1639ac
+Deploy marker: 8b457fdaca155f6a7d43766e954eda6a94cafc08
 
 ### Fixed
 - Preserve an explicitly selected public CCXT exchange in automatically routed backtests, including native inverse and linear perpetual contracts. Existing automatic defaults and explicit provider maps remain compatible.

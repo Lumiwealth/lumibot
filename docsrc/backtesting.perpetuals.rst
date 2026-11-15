@@ -55,6 +55,10 @@ against its published SHA-256 checksum before it is used.
 - **One-day lag:** Binance publishes each day's file the next day. A backtest that
   ends after the last published day stops up front and names that day; nothing is
   filled in. End the backtest on or before yesterday (UTC).
+- **Newly published files are retried.** The shared cache covers only the candles
+  Binance actually returned. If a daily file was missing on an earlier run, a later
+  run requests that missing tail again, including a partial final UTC day. Existing
+  cached candles are kept; unavailable prices are never filled or substituted.
 - **Funding is published monthly.** Funding is the exchange's own historical rate,
   charged at Binance's mark price at each settlement. Settlements in the current
   month are not published yet, so they are not charged; the log and the data

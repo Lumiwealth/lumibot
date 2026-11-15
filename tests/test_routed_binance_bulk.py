@@ -40,6 +40,7 @@ from lumibot.tools.binance_bulk_data import (
     perpetual_symbol,
     shared_series,
     spot_symbol,
+    cached_candles,
 )
 from tests.test_backtesting_multileg_unit import _StubStrategy
 
@@ -182,6 +183,38 @@ def test_monthly_then_daily_files_make_one_series():
     assert frame.loc[pd.Timestamp("2026-08-01 00:00", tz="UTC"), "close"] == 62001
     # Today's daily file is never asked for (Binance publishes it tomorrow).
     assert not any("2026-08-04" in url for url in archive.calls)
+
+
+@pytest.mark.parametrize("market,prefix", [("um", "futures/um"), ("spot", "spot")])
+def test_binance_cache_refetches_newly_published_partial_final_day(monkeypatch, tmp_path, market, prefix):
+    from lumibot import constants
+    from lumibot.tools import backtest_cache, parquet_series_cache, shared_bar_cache
+
+    cache_folder = str(tmp_path / "cache")
+    monkeypatch.setattr(constants, "LUMIBOT_CACHE_FOLDER", cache_folder)
+    monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", cache_folder)
+    monkeypatch.setattr(parquet_series_cache, "get_backtest_cache",
+                        lambda: backtest_cache.BacktestCacheManager(None))
+    monkeypatch.setenv("LUMIBOT_SHARED_BARS", "true")
+    shared_bar_cache._reset_process_memory()
+    archive = _Archive()
+    symbol = "EXAMPLEUSDT"
+    for day in ("2026-08-01",):
+        archive.add(f"{prefix}/daily/klines/{symbol}/1h/{symbol}-1h-{day}.zip",
+                    _kline_rows(day, 24, pd.Timedelta(hours=1), 100))
+    start, end = "2026-08-01", "2026-08-02 04:59"
+    first = cached_candles(_client(archive), market, symbol, "hour", start, end)
+    assert first.index[-1] == pd.Timestamp("2026-08-01 23:00", tz="UTC")
+    archive.add(f"{prefix}/daily/klines/{symbol}/1h/{symbol}-1h-2026-08-02.zip",
+                _kline_rows("2026-08-02", 24, pd.Timedelta(hours=1), 200))
+    shared_bar_cache._reset_process_memory()
+    second = cached_candles(_client(archive), market, symbol, "hour", start, end)
+    assert second.index[-1] == pd.Timestamp("2026-08-02 04:00", tz="UTC")
+    assert len(second) == 29
+    assert second.index.max() < pd.Timestamp(end, tz="UTC")
+    # UTC midnight remains exclusive: the next day's real bars are not leaked.
+    midnight = cached_candles(_client(archive), market, symbol, "hour", start, "2026-08-02")
+    assert midnight.index[-1] == pd.Timestamp("2026-08-01 23:00", tz="UTC")
 
 
 def test_checksum_mismatch_is_refused():

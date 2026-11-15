@@ -202,6 +202,60 @@ def test_coverage_from_rows_does_not_claim_a_truncated_start():
     assert len(result) == len(expected)
 
 
+def _check_truncated_tail_is_retried(*, legacy_coverage):
+    item = series()
+    _, _, frame = provider()
+    calls = []
+
+    def fetch(start, stop):
+        calls.append((start, stop))
+        rows = frame[(frame.index >= start) & (frame.index < stop)]
+        return rows[rows.index < pd.Timestamp("2026-03-02 12:00", tz="UTC")] if len(calls) == 1 else rows
+
+    options = {} if legacy_coverage else {"coverage_through_rows": True}
+    first = sbc.read_bars(item, "2026-03-02", "2026-03-03", fetch, now=NOW,
+                          coverage_from_rows=True, **options)
+    assert first.index[-1] == pd.Timestamp("2026-03-02 11:59", tz="UTC")
+    # A later reader must ask for the previously unavailable tail, even when an
+    # older writer incorrectly marked that missing range as complete.
+    sbc._reset_process_memory()
+    second = sbc.read_bars(item, "2026-03-02", "2026-03-03", fetch, now=NOW,
+                           coverage_from_rows=True, coverage_through_rows=True)
+    assert len(calls) == 2
+    expected = frame.loc["2026-03-02":"2026-03-03 00:00"]
+    pd.testing.assert_frame_equal(second[["close"]], expected[["close"]], check_freq=False, check_names=False)
+    assert calls[1][0] >= pd.Timestamp("2026-03-02 11:59", tz="UTC")
+    # Once the tail is real, the same request is a hit again.
+    sbc.read_bars(item, "2026-03-02", "2026-03-03", fetch, now=NOW,
+                  coverage_from_rows=True, coverage_through_rows=True)
+    assert len(calls) == 2
+
+
+def test_row_bounded_coverage_refetches_a_truncated_tail():
+    _check_truncated_tail_is_retried(legacy_coverage=False)
+
+
+def test_row_bounded_coverage_repairs_legacy_overstated_tail():
+    _check_truncated_tail_is_retried(legacy_coverage=True)
+
+
+def test_default_coverage_keeps_a_complete_sparse_range():
+    item = series(timestep="1hour")
+    _, _, frame = provider(freq="h")
+    calls = []
+
+    def fetch(start, stop):
+        calls.append((start, stop))
+        return frame[(frame.index >= start) & (frame.index < stop) &
+                     (frame.index.weekday < 5) & (frame.index.hour >= 9) & (frame.index.hour <= 16)]
+
+    first = sbc.read_bars(item, "2026-03-13", "2026-03-15", fetch, now=NOW)
+    second = sbc.read_bars(item, "2026-03-13", "2026-03-15", fetch, now=NOW)
+    assert len(calls) == 1  # a complete provider answer may legitimately end before a weekend
+    assert first.index[-1] == pd.Timestamp("2026-03-13 16:00", tz="UTC")
+    pd.testing.assert_frame_equal(first, second)
+
+
 class SlowRemote:
     """In-memory S3 whose uploads take a long time."""
 

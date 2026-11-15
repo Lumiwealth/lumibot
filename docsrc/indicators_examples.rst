@@ -16,6 +16,10 @@ Use one in a strategy::
 
     ratio = self.indicators.get("up_down_ratio", asset, length=14)
 
+Want one on a live chart without writing code? Describe it, or paste a Pine
+Script indicator, on `BotSpot <https://botspot.trade/charts?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_indicators&utm_content=indicators_examples>`_
+and its builder writes the LumiBot indicator for you.
+
 1. Donchian channel (on the price chart)
 ----------------------------------------
 

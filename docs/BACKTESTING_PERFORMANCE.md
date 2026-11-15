@@ -1263,3 +1263,12 @@ asserts operation counts (zero extra broker passes for a market-order strategy, 
 per fill for a bracket strategy) and records seconds as diagnostics. Full-year run:
 `LUMIBOT_SPEED_BENCH_MONTHS=12`. Measured 2026-11-14 (12 months, 5-minute runs on minute
 bars): market-only 36.5 s without and 34.5 s with the check; brackets 71.0 s and 66.7 s.
+
+### CCXT funding coverage intervals
+
+Phemex legacy perpetual product metadata expresses its funding interval in hours;
+newer product metadata uses seconds. Coverage reporting normalizes those units,
+so an eight-hour interval does not produce a false missing-funding warning as
+though it were eight seconds. Payment timestamps, rates and cashflows are
+unchanged; genuine missing history remains unavailable. See the public
+[perpetual backtesting guide](https://lumibot.lumiwealth.com/backtesting.perpetuals.html).

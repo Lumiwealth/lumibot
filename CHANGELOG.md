@@ -2,19 +2,17 @@
 
 ## 4.6.73 - Unreleased
 
-## 4.6.72 - 2026-11-15
-
-### Added
-- New documentation page, Draw Boxes, Lines, Labels and Tables from an Indicator, for the existing `self.draw` indicator drawing objects (Pine's `box.new`, `line.new`, `label.new`, `table.new`), with a working example and the 500-per-kind limit. No behavior change.
-
 ### Added
 - Backtest input observations retain literal last-price API results, their asset/quote identity, simulation time and unavailable reasons. History remains separate, repeated cached observations deduplicate, and scalar evidence has a 10 MiB payload budget with explicit incomplete-capture reporting. Checksums and cleanup apply without another data request or changes to trading behavior.
 
 ### Fixed
 - Diagnostic capture counters now roll back with a failed batch commit, so a failed write does not consume the observation allowance or overstate exported row counts.
-
-### Fixed
 - Phemex funding coverage normalizes legacy hour counts and newer second counts, preventing false missing-funding warnings for an eight-hour interval. Funding payment timestamps, rates and cashflows are unchanged.
+
+## 4.6.72 - 2026-11-15
+
+### Added
+- New documentation page, Draw Boxes, Lines, Labels and Tables from an Indicator, for the existing `self.draw` indicator drawing objects (Pine's `box.new`, `line.new`, `label.new`, `table.new`), with a working example and the 500-per-kind limit. No behavior change.
 
 ## 4.6.71 - 2026-11-15
 

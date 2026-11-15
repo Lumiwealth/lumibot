@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "package_version": "4.6.65",
+  "package_version": "4.6.66",
   "cases": [],
-  "no_cases_reason": "Author-reviewed 4.6.65 delta: SEC fundamentals fixes (predecessor registrant history, per-class share counts, more debt and equity tags, cik column) and a compact per-company facts file read before the full SEC file (values identical, tested); Alpaca backtests download uncached stock history in grouped requests; grouped history calls commit market input evidence once per call (same records, same order); two screener examples; documentation. No agent prompt, skill, tool schema, model runtime or eval fixture changed, and no retained fixture reads SEC fundamentals or uses the Alpaca backtesting source. Focused code tests cover each change; zero new model runs. Preserve earlier native actor/judge receipts with their original sources and SDKs."
+  "no_cases_reason": "Author-reviewed 4.6.66 delta: futures roll rules for about 35 more products and a corrected continuous silver (SI) schedule (lumibot/tools/futures_roll.py); a dated futures contract's last trade day is moved off exchange holidays and an open futures position is valued at its last close after an exchange early close (ibkr_helper.py, IBKR and routed backtesting sources); 5/10/15/30-minute stock bars answered from loaded or cached 1-minute bars in routed and Alpaca backtests (identical bars, tested); tests use made-up bars; documentation. No agent prompt, skill, tool schema, model runtime or eval fixture changed, and no retained fixture trades futures or constructs the routed, IBKR or Alpaca backtesting sources. Focused code tests cover each change; zero new model runs. Preserve earlier native actor/judge receipts with their original sources and SDKs."
 }

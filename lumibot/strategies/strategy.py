@@ -2374,7 +2374,11 @@ class Strategy(_Strategy):
 
         if not child_orders:
             return None
-        _, ratios = get_multileg_quantity_units(leg.quantity for leg in child_orders)
+        try:
+            _, ratios = get_multileg_quantity_units(leg.quantity for leg in child_orders)
+        except (TypeError, ValueError, ArithmeticError):
+            # A missing, infinite or NaN leg quantity has no package ratio.
+            return None
         quote_data: list[tuple[Order, float | None, float | None]] = []
         for leg in child_orders:
             try:

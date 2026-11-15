@@ -2496,7 +2496,12 @@ class Schwab(Broker):
                 pass
         with self._schwab_order_transition_lock:
             observed_order._observation_source = source
-            children = getattr(observed_order, "child_orders", []) or []
+            # Trigger children (OCO/OTO) are broker orders of their own. Package
+            # legs are not: the package parent owns their fills and closes them.
+            if getattr(observed_order, "order_class", None) == Order.OrderClass.MULTILEG:
+                children = []
+            else:
+                children = getattr(observed_order, "child_orders", []) or []
             parent = self.get_tracked_order(observed_order.identifier, use_placeholders=True) if children else None
             if parent is not None:
                 self._bind_owned_child_orders(observed_order, parent)

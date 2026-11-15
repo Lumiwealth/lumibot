@@ -29,6 +29,12 @@ class _BrokerStub:
         self.cancel_order = None
         self.get_tracked_orders = None
 
+    def order_belongs_to_local_strategy(self, order, local_strategy_name=None):
+        return True
+
+    def _record_fill_callback_entry(self):
+        return None
+
 
 def _confirmed_cancel(order):
     # Unit repricing fixtures deliver a terminal broker callback. A no-op
@@ -935,9 +941,9 @@ def test_tradier_positive_limit_without_quotes_stays_a_debit(mocker):
     assert broker.submit_orders.call_args.kwargs["price"] == 0.30
 
 
-def test_multileg_limit_on_other_brokers_keeps_the_unweighted_net_quote(mocker):
-    """Quantity weighting is Schwab's; Tradier still sums one quote per leg."""
-    # Buy 1 at 1.00 and sell 2 at 0.80: the unweighted sum is a 0.20 debit.
+def test_multileg_limit_on_other_brokers_weights_the_net_quote_by_leg_ratio(mocker):
+    """Every broker weights each leg quote by its package ratio, as dev does."""
+    # Buy 1 at 1.00 and sell 2 at 0.80: one package is a 0.60 credit.
     broker = _BrokerStub(name="tradier")
     broker.submit_orders = mocker.Mock(return_value="ok")
     strategy = _MinimalStrategy(broker)
@@ -953,9 +959,9 @@ def test_multileg_limit_on_other_brokers_keeps_the_unweighted_net_quote(mocker):
 
     mocker.patch.object(strategy, "get_quote", side_effect=_get_quote)
 
-    assert strategy._compute_multileg_net_best_fastest([buy, sell]) == pytest.approx((0.20, 0.20))
+    assert strategy._compute_multileg_net_best_fastest([buy, sell]) == pytest.approx((-0.60, -0.60))
     strategy.submit_order([buy, sell], is_multileg=True, order_type=Order.OrderType.LIMIT, price=0.10)
-    assert broker.submit_orders.call_args.kwargs["order_type"] == "debit"
+    assert broker.submit_orders.call_args.kwargs["order_type"] == "credit"
 
 
 def test_one_option_list_with_a_package_price_is_refused_on_schwab(mocker):

@@ -113,8 +113,9 @@ against its published SHA-256 checksum before it is used.
   listing on Binance (BTCUSDT 1-minute bars from September 2019): 1-minute, hourly
   and daily candles, hourly mark prices and every funding settlement. The same route
   also serves spot crypto when ``crypto`` is routed to ``binance``.
-- **One-day lag:** Binance publishes each day's file the next day. A backtest that
-  ends after the returned archive data stops up front; nothing is filled in.
+- **One-day lag:** Binance publishes each day's file the next day. A backtest stops
+  before trading when its requested end is more than one bar beyond the end of
+  the last returned candle; nothing is filled in.
   Compare exact timestamps, rather than assuming yesterday in your local timezone
   is fully published. A local calendar day can extend into the next UTC day.
 - **Newly published files are retried.** The shared cache covers only the candles

@@ -56,6 +56,17 @@ def test_routed_ccxt_terms_preserve_native_settlement(monkeypatch, tmp_path, der
     assert spec.quantity_unit == "contracts" and spec.contract_size == 1
 
 
+def test_routed_ccxt_missing_contract_reports_provider_reason_without_spot_substitution(monkeypatch, tmp_path,
+                                                                                     derivatives):
+    router, cache = _router(monkeypatch, tmp_path, derivatives.api)
+    cache.download_ohlcv = Mock(side_effect=AssertionError("contract lookup must not substitute candles"))
+    with pytest.raises(ValueError, match="Derivative contract terms are unavailable") as caught:
+        router.get_contract_spec(Asset("MISSING/USDT:USDT", "crypto_future"))
+    assert "phemex" in str(caught.value) and "No CCXT market for MISSING/USDT:USDT" in str(caught.value)
+    assert isinstance(caught.value.__cause__, ValueError)
+    cache.download_ohlcv.assert_not_called()
+
+
 def test_routed_ccxt_history_resolves_native_contract_before_fetch(monkeypatch, tmp_path, derivatives):
     router, cache = _router(monkeypatch, tmp_path, derivatives.api)
     frame = pd.DataFrame({"open": [100], "high": [102], "low": [99], "close": [101], "volume": [2]},

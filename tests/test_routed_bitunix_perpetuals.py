@@ -27,6 +27,7 @@ from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestin
 from lumibot.entities import Asset
 from lumibot.tools.bitunix_market_data import BitunixMarketData, BitunixMarketDataError, resolve_symbol
 from tests.test_backtesting_multileg_unit import _StubStrategy
+from tests.test_ccxt_unified_spot import make_broker
 
 FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "bitunix_public_perpetual_market.json").read_text())
 
@@ -238,10 +239,17 @@ def test_bitunix_route_never_serves_spot_assets(monkeypatch):
         router._update_pandas_data(Asset("BTC", "crypto"), Asset("USD", "forex"), 2, "hour")
 
 
-def test_default_spot_proxy_route_is_unchanged(monkeypatch):
-    # Existing spot-proxy routing reads spot history for perpetuals and has no contract terms.
-    # This change must not alter what those backtests compute.
+def test_default_spot_proxy_route_is_unchanged(monkeypatch, make_broker):
+    from lumibot.tools.ccxt_data_store import CcxtCacheDB
+
+    # A spot-only catalogue stays useful for spot. It cannot supply derivative
+    # terms or silently relabel its spot market as a perpetual contract.
     router = _router({"crypto_future": "coinbase", "crypto": "coinbase", "default": "ibkr"}, monkeypatch)
+    cache = CcxtCacheDB.__new__(CcxtCacheDB)
+    cache.api, cache.exchange_id = make_broker("coinbase").api, "coinbase"
+    router._registry._adapters["ccxt"]._cache_by_exchange["coinbase"] = cache
+    market = cache.get_market(Asset("BTC", "crypto"), Asset("USDT", "crypto"))
+    assert market["symbol"] == "BTC/USDT" and market["spot"] is True and market["contract"] is False
     with pytest.raises(ValueError, match="Derivative contract terms are unavailable"):
         router.get_contract_spec(PERP)
     assert router.get_funding_events(PERP, pd.Timestamp("2026-08-03", tz="UTC"),

@@ -9,6 +9,7 @@ from lumibot.backtesting.routed_backtesting import RoutedBacktestingPandas
 from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
 from lumibot.data_sources.ccxt_backtesting_data import CcxtBacktestingData
 from lumibot.entities import Asset, Data
+from tests.test_ccxt_unified_spot import make_broker
 
 
 def test_data_supports_hour_timestep_and_get_bars():
@@ -117,7 +118,7 @@ def test_routed_backtesting_allows_hour_history_for_futures(monkeypatch):
     assert not bars.df.empty
 
 
-def test_routed_backtesting_allows_hour_history_for_ccxt_crypto(monkeypatch):
+def test_routed_backtesting_allows_hour_history_for_ccxt_crypto(monkeypatch, make_broker):
     import lumibot.tools.ccxt_data_store as ccxt_data_store
     import lumibot.tools.thetadata_helper as thetadata_helper
 
@@ -126,9 +127,12 @@ def test_routed_backtesting_allows_hour_history_for_ccxt_crypto(monkeypatch):
 
     calls = []
 
-    class _FakeCcxtCache:
+    class _FakeCcxtCache(ccxt_data_store.CcxtCacheDB):
         def __init__(self, exchange_id):
             self.exchange_id = exchange_id
+            # Native unified market shape and the real get_market resolver;
+            # only candle transport is controlled in this history contract.
+            self.api = make_broker(exchange_id).api
 
         def download_ohlcv(self, symbol, timeframe, start_datetime, end_dt):
             calls.append(
@@ -242,7 +246,7 @@ def test_ccxt_between_dates_populates_cold_cache(monkeypatch):
     assert list(bars.df["close"]) == [100.5, 101.5]
 
 
-def test_routed_ccxt_hour_history_handles_new_york_midnight_as_utc_cache_boundary(monkeypatch):
+def test_routed_ccxt_hour_history_handles_new_york_midnight_as_utc_cache_boundary(monkeypatch, make_broker):
     import lumibot.tools.ccxt_data_store as ccxt_data_store
     import lumibot.tools.thetadata_helper as thetadata_helper
 
@@ -252,9 +256,13 @@ def test_routed_ccxt_hour_history_handles_new_york_midnight_as_utc_cache_boundar
     calls = []
     ny = pytz.timezone("America/New_York")
 
-    class _FakeCcxtCache:
+    class _FakeCcxtCache(ccxt_data_store.CcxtCacheDB):
         def __init__(self, exchange_id):
             self.exchange_id = exchange_id
+            self.api = make_broker(exchange_id).api
+            usd_market = dict(self.api.markets["BTC/USDT"], id="BTC-USD", symbol="BTC/USD",
+                              quote="USD", quoteId="USD")
+            self.api.set_markets([usd_market])
 
         def download_ohlcv(self, symbol, timeframe, start_datetime, end_dt):
             calls.append(
@@ -310,16 +318,17 @@ def test_routed_ccxt_hour_history_handles_new_york_midnight_as_utc_cache_boundar
     assert bars.df["close"].iloc[-1] == 100.5
 
 
-def _routed_crypto_source_with_fake_ccxt(monkeypatch, calls):
+def _routed_crypto_source_with_fake_ccxt(monkeypatch, calls, make_broker):
     import lumibot.tools.ccxt_data_store as ccxt_data_store
     import lumibot.tools.thetadata_helper as thetadata_helper
 
     monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(thetadata_helper, "reset_theta_terminal_tracking", lambda *_args, **_kwargs: None)
 
-    class _FakeCcxtCache:
+    class _FakeCcxtCache(ccxt_data_store.CcxtCacheDB):
         def __init__(self, exchange_id):
             self.exchange_id = exchange_id
+            self.api = make_broker(exchange_id).api
 
         def download_ohlcv(self, symbol, timeframe, start_datetime, end_dt):
             calls.append(
@@ -368,9 +377,9 @@ def _routed_crypto_source_with_fake_ccxt(monkeypatch, calls):
     return ds
 
 
-def test_routed_ccxt_crypto_last_price_stays_minute_even_when_day_mode_is_inferred(monkeypatch):
+def test_routed_ccxt_crypto_last_price_stays_minute_even_when_day_mode_is_inferred(monkeypatch, make_broker):
     calls = []
-    ds = _routed_crypto_source_with_fake_ccxt(monkeypatch, calls)
+    ds = _routed_crypto_source_with_fake_ccxt(monkeypatch, calls, make_broker)
 
     asset = Asset(symbol="BTC", asset_type=Asset.AssetType.CRYPTO)
     quote = Asset(symbol="USDT", asset_type=Asset.AssetType.CRYPTO)
@@ -385,9 +394,9 @@ def test_routed_ccxt_crypto_last_price_stays_minute_even_when_day_mode_is_inferr
     assert calls[0]["timeframe"] == "1m"
 
 
-def test_routed_ccxt_crypto_quote_stays_minute_even_when_day_mode_is_inferred(monkeypatch):
+def test_routed_ccxt_crypto_quote_stays_minute_even_when_day_mode_is_inferred(monkeypatch, make_broker):
     calls = []
-    ds = _routed_crypto_source_with_fake_ccxt(monkeypatch, calls)
+    ds = _routed_crypto_source_with_fake_ccxt(monkeypatch, calls, make_broker)
 
     asset = Asset(symbol="BTC", asset_type=Asset.AssetType.CRYPTO)
     quote_asset = Asset(symbol="USDT", asset_type=Asset.AssetType.CRYPTO)
@@ -401,7 +410,7 @@ def test_routed_ccxt_crypto_quote_stays_minute_even_when_day_mode_is_inferred(mo
     assert calls[0]["timeframe"] == "1m"
 
 
-def test_routed_ccxt_refresh_replaces_stale_legacy_alias_and_lookup_cache(monkeypatch):
+def test_routed_ccxt_refresh_replaces_stale_legacy_alias_and_lookup_cache(monkeypatch, make_broker):
     import lumibot.tools.ccxt_data_store as ccxt_data_store
     import lumibot.tools.thetadata_helper as thetadata_helper
 
@@ -410,9 +419,10 @@ def test_routed_ccxt_refresh_replaces_stale_legacy_alias_and_lookup_cache(monkey
 
     calls = []
 
-    class _FakeCcxtCache:
+    class _FakeCcxtCache(ccxt_data_store.CcxtCacheDB):
         def __init__(self, exchange_id):
             self.exchange_id = exchange_id
+            self.api = make_broker(exchange_id).api
 
         def download_ohlcv(self, symbol, timeframe, start_datetime, end_dt):
             calls.append(

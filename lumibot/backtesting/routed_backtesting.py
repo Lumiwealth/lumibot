@@ -1105,7 +1105,14 @@ class _CcxtRoutingAdapter(_DataFrameRoutingAdapter):
         return self._cache_by_exchange[exchange_id]
 
     def contract_spec(self, asset, quote_asset=None):
-        return self._cache_for(asset).get_contract_spec(asset, quote_asset)
+        cache = self._cache_for(asset)
+        try:
+            return cache.get_contract_spec(asset, quote_asset)
+        except ValueError as exc:
+            raise ValueError(
+                f"Derivative contract terms are unavailable from CCXT {cache.exchange_id}: {exc}. "
+                "Supply Asset.contract_spec or matching provider metadata."
+            ) from exc
 
     def funding_events(self, asset, start, end):
         # Prefetch the run window once through the shared owner. Querying each

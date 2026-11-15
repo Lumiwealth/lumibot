@@ -8,6 +8,7 @@ import pytest
 
 from lumibot.backtesting.routed_backtesting import RoutedBacktestingPandas
 from lumibot.entities import Asset
+from tests.test_ccxt_unified_spot import make_broker
 
 
 @pytest.mark.parametrize("when,expected", [
@@ -595,14 +596,16 @@ def test_routed_backtesting_crypto_daily_prefetch_stays_unloaded_when_coverage_f
         ("day", "day", "1d"),
     ],
 )
-def test_routed_ccxt_crypto_prefetches_full_backtest_window_once(monkeypatch, timestep, ts_unit, expected_timeframe):
+def test_routed_ccxt_crypto_prefetches_full_backtest_window_once(monkeypatch, timestep, ts_unit, expected_timeframe,
+                                                               make_broker):
     import lumibot.tools.ccxt_data_store as ccxt_data_store
 
     calls: list[dict[str, object]] = []
 
-    class FakeCcxtCacheDB:
+    class FakeCcxtCacheDB(ccxt_data_store.CcxtCacheDB):
         def __init__(self, exchange_id):
             self.exchange_id = exchange_id
+            self.api = make_broker(exchange_id).api
 
         def download_ohlcv(self, symbol, timeframe, start, end):
             calls.append(
@@ -685,14 +688,15 @@ def test_routed_ccxt_crypto_prefetches_full_backtest_window_once(monkeypatch, ti
     assert len(calls) == 1
 
 
-def test_routed_ccxt_crypto_expands_prefetch_when_later_lookback_is_deeper(monkeypatch):
+def test_routed_ccxt_crypto_expands_prefetch_when_later_lookback_is_deeper(monkeypatch, make_broker):
     import lumibot.tools.ccxt_data_store as ccxt_data_store
 
     calls: list[dict[str, object]] = []
 
-    class FakeCcxtCacheDB:
+    class FakeCcxtCacheDB(ccxt_data_store.CcxtCacheDB):
         def __init__(self, exchange_id):
             self.exchange_id = exchange_id
+            self.api = make_broker(exchange_id).api
 
         def download_ohlcv(self, symbol, timeframe, start, end):
             calls.append(
@@ -764,14 +768,15 @@ def test_routed_ccxt_crypto_expands_prefetch_when_later_lookback_is_deeper(monke
     assert calls[1]["end"] == backtest_end
 
 
-def test_routed_ccxt_crypto_empty_full_window_is_not_retried_each_step(monkeypatch):
+def test_routed_ccxt_crypto_empty_full_window_is_not_retried_each_step(monkeypatch, make_broker):
     import lumibot.tools.ccxt_data_store as ccxt_data_store
 
     calls: list[dict[str, object]] = []
 
-    class FakeCcxtCacheDB:
+    class FakeCcxtCacheDB(ccxt_data_store.CcxtCacheDB):
         def __init__(self, exchange_id):
             self.exchange_id = exchange_id
+            self.api = make_broker(exchange_id).api
 
         def download_ohlcv(self, symbol, timeframe, start, end):
             calls.append({"symbol": symbol, "timeframe": timeframe, "start": start, "end": end})

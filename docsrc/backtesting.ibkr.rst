@@ -372,3 +372,27 @@ How do I choose the futures exchange?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 LumiBot tries to find it automatically, preferring USD and US venues. If the result is unclear, pass ``exchange=...`` to ``get_historical_prices()``, ``get_last_price()`` or ``get_quote()``. ``IBKR_FUTURES_EXCHANGE`` (default ``CME``) is used when automatic routing fails.
+
+
+5, 10, 15 and 30-minute stock bars from loaded minute bars
+----------------------------------------------------------
+
+In a routed backtest that uses this route for stocks and ETFs, a request for 5, 10, 15 or
+30-minute bars is answered from the 1-minute bars the run has already loaded, instead of
+downloading a second series, when the answer is identical: every requested bar, and the bar
+right before the oldest one, is a finished bar of today's regular session (09:30 to 16:00
+New York), and every minute in them traded.
+
+.. code-block:: python
+
+    # At 10:30 with minute bars loaded: 10:15, 10:20 and 10:25, no extra download.
+    bars = self.get_historical_prices("SPY", 3, "5 minutes")
+
+Limits:
+
+- A request that reaches before the open (for example 20 five-minute bars at 10:00), includes
+  the first bar of the day, or comes after the close downloads the provider series as before,
+  because pre-market and after-hours bars are not equal to bars rebuilt from minutes. Once
+  downloaded, that series is always used.
+- Stocks and ETFs only. Futures, options, crypto, hourly and daily bars are unchanged.
+- On by default. ``BACKTESTING_INTRADAY_BARS_FROM_MINUTES=false`` turns it off.

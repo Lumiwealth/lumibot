@@ -63,6 +63,31 @@ request, saved in the Alpaca cache folder so a rerun downloads nothing, and neve
 a symbol simply has fewer bars (a recent listing, an option that rarely trades), you get the bars
 that exist, so check ``len(bars.df)`` before using a long lookback.
 
+5, 10, 15 and 30-minute bars from the minute cache
+--------------------------------------------------
+
+When a stock backtest asks for 5, 10, 15 or 30-minute bars and its 1-minute bars are already
+in the cache, LumiBot builds the bars from the minutes instead of downloading a second series.
+It does this only when the answer is identical to Alpaca's own bars: every requested bar is
+inside today's regular session (09:30 to 16:00 New York). Measured on recorded data, Alpaca's
+regular-session 5, 10, 15 and 30-minute bars equal the rebuilt ones in open, high, low, close
+and volume (8,448 of 8,448 bars, including a half day and a stressed week).
+
+.. code-block:: python
+
+    # At 10:15 with minute bars cached: the three finished bars (09:30, 09:45, 10:00), no download.
+    bars = self.get_historical_prices("SPY", 3, "15 minutes")
+
+Limits:
+
+- A request that reaches before today's open (for example 20 five-minute bars at 10:00), or
+  that is made after the close, downloads Alpaca's series as before, because that series also
+  holds pre-market and after-hours bars. Once downloaded, Alpaca's series is always used.
+- Stocks and ETFs only. Options, crypto, hourly and daily bars are unchanged.
+- It is on by default. To always download Alpaca's series, pass
+  ``"intraday_bars_from_minutes": False`` in the data source config or set
+  ``BACKTESTING_INTRADAY_BARS_FROM_MINUTES=false``.
+
 Options example
 ---------------
 

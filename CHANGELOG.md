@@ -1,5 +1,19 @@
 # Changelog
 
+## 4.6.66 - 2026-11-14
+
+Deploy marker: b63710ac7df5df3c03a5f3d72befc067f090ec0a
+
+### Fixed
+- Futures backtests (Interactive Brokers route): a run was marked failed ("valuation bars, asked for 1 and got 0") when a position was still open after an exchange holiday halt or early close, for example the 1:00 PM ET equity index halt on Jul 3 and Labor Day. The closure check knew only weekends and the daily 5 to 6 PM ET break. Equity index, metals and energy futures now also use the exchange calendar, so the open position is valued at its last real close until the market reopens (valuation only: no bar, trade or fill is made). A gap inside a normal session is still reported as missing. Other products keep the old rule.
+- Futures backtests: an order on a continuous equity index future (ES, MES, NQ, MNQ, RTY, M2K, YM, MYM) placed while the June 2026 contract was the front month never filled, so a strategy could silently skip about seven weeks. The order was bound to the third Friday (Jun 19 2026, an exchange holiday) while the listed contract stops trading on Jun 18. A contract's last trade day now moves to the prior exchange business day when the rule day is a holiday. Backtests that cover March to June 2026 change (trades that were missing now happen).
+- Futures: continuous silver (`SI`) used January as a front month and stayed in a contract until mid delivery month, after first notice. It now uses Mar, May, Jul, Sep, Dec and rolls 7 business days before first notice, like gold. Backtests of continuous `SI` change (more accurate contract).
+
+### Added
+- Futures: roll rules for every commonly traded product. New: RTY, M2K, SIL, HG, MHG, PL, MNG, RB, HO, ZT, ZF, ZN, TN, ZB, UB, 6E, 6J, 6B, 6A, 6C, 6S, 6N, M6E, M6A, M6B, ZC, ZW, ZS, ZL, ZM, LE, HE, BTC, ETH, VX (months and last trade days from the exchange contract specifications, cited in `lumibot/tools/futures_roll.py`). Before, these fell to the default rule (Mar/Jun/Sep/Dec, roll on the 15th), which picked a thin or wrong contract month for metals, energy, grains, livestock and VIX, and could hold an FX contract past its last trade day. `futures_roll.contract_last_trade_date()` is new. An unknown symbol still uses the default and now logs one warning. Docs: `docsrc/futures.rst` ("How Continuous Futures Roll").
+- Routed backtests (Interactive Brokers route): 5, 10, 15 and 30-minute stock and ETF bars are answered from the loaded 1-minute series when every requested bar, and the bar before the oldest one, is a finished bar of today's regular session and every minute in them traded. The answers are identical to the provider series (checked on made-up bars in tests and on local cache files: 12,112 returned bars, 0 different requests); any other request loads the provider series as before, because pre-market and after-hours bars are not equal to a rebuild. On by default; off with `BACKTESTING_INTRADAY_BARS_FROM_MINUTES=false`. Hourly bars and futures unchanged. Docs: `docsrc/backtesting.ibkr.rst`.
+- Alpaca backtests: 5, 10, 15 and 30-minute stock bars are built from the cached 1-minute series instead of downloaded, when every requested bar is inside today's regular session (the bars are identical to Alpaca's: 8,448 of 8,448 measured, including a half day and a stressed week). Any other request downloads Alpaca's series as before, so results do not change. On by default; off with `intraday_bars_from_minutes=False` or `BACKTESTING_INTRADAY_BARS_FROM_MINUTES=false`. Futures are unchanged (single contracts measured identical, continuous futures not yet). Docs: `docsrc/backtesting.alpaca.rst`, `docs/investigations/2026-11-14_INTRADAY_BARS_FROM_MINUTE_BARS.md`.
+
 ## 4.6.65 - 2026-11-14
 
 Deploy marker: 0ccb9dfbe80568fec6a2e7b8953de406c8ca0fe0

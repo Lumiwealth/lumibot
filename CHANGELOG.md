@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.6.68 - Unreleased
+
 ## 4.6.67 - 2026-11-15
 
 Deploy marker: ce795f880

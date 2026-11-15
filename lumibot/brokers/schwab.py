@@ -2478,6 +2478,12 @@ class Schwab(Broker):
                 for item in stored_order.transactions
                 if item.price is not None
             )
+            # A repriced package's average covers only its new order, so leave
+            # out the fills made before the replace.
+            base_id, base_filled, base_value = getattr(stored_order, "schwab_replace_fill_base", None) or (None, 0.0, 0.0)
+            if str(getattr(observed_order, "identifier", None)) == base_id:
+                cumulative_filled -= base_filled
+                prior_value -= base_value
             return (float(cumulative_filled) * float(average) - prior_value) / float(fill_delta)
         except (TypeError, ValueError, ZeroDivisionError):
             return average
@@ -2605,8 +2611,8 @@ class Schwab(Broker):
             except (TypeError, ValueError):
                 cumulative_filled = 0.0
             # A repriced package's new order counts from zero; add what filled before it.
-            base_id, base_filled = getattr(stored_order, "_schwab_replace_fill_base", (None, 0.0))
-            if cumulative_filled > 0 and identifier == base_id:
+            base_id, base_filled, _ = getattr(stored_order, "schwab_replace_fill_base", None) or (None, 0.0, 0.0)
+            if cumulative_filled > 0 and str(identifier) == base_id:
                 cumulative_filled += base_filled
             if Order.is_equivalent_status(observed_status, self.FILLED_ORDER) and cumulative_filled <= 0:
                 cumulative_filled = float(stored_order.quantity or observed_order.quantity or 0)
@@ -4624,8 +4630,13 @@ class Schwab(Broker):
             order.previous_identifiers.append(order.identifier)
             if order.order_class == Order.OrderClass.MULTILEG:
                 # The new order was sent only the unfilled packages and counts its
-                # fills from zero; remember the packages filled before it.
-                order._schwab_replace_fill_base = (new_order_id, self._schwab_package_fills_recorded(order))
+                # fills from zero; remember the packages (and their net value)
+                # filled before it. Public so the restart checkpoint keeps it.
+                order.schwab_replace_fill_base = [
+                    str(new_order_id),
+                    self._schwab_package_fills_recorded(order),
+                    sum(float(t.quantity) * float(t.price) for t in order.transactions if t.price is not None),
+                ]
             order.identifier = new_order_id
             order._local_order_ownership = True
             # Update price information

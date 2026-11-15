@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from copy import deepcopy
 from datetime import date
 from pathlib import Path
@@ -1522,9 +1523,12 @@ def test_a_partly_filled_close_package_can_still_be_repriced_after_sync(lifecycl
     assert [leg["quantity"] for leg in transport.replace_calls[-1][1]["orderLegCollection"]] == [1, 1]
 
 
-def test_the_replacement_fill_completes_a_partly_filled_package(lifecycle):
+@pytest.mark.parametrize("restart", [False, True], ids=["live", "after-restart"])
+def test_the_replacement_fill_completes_a_partly_filled_package(monkeypatch, restart):
     """The new order counts its fills from zero; its one package completes the two."""
-    transport, broker, _queues = lifecycle
+    monkeypatch.setenv("LUMIBOT_TELEMETRY", "false")
+    transport = _ReplaceableTransport()
+    broker, _ = _TRANSPORT.data_only_schwab_broker(transport, name="fixture")
     legs = [
         _option_leg(500, "PUT", Order.OrderSide.SELL_TO_OPEN, quantity=2),
         _option_leg(490, "PUT", Order.OrderSide.BUY_TO_OPEN, quantity=2),
@@ -1545,7 +1549,14 @@ def test_the_replacement_fill_completes_a_partly_filled_package(lifecycle):
     broker._process_schwab_order_snapshot(observed)
 
     assert broker.modify_order(parent, limit_price=1.15) is True
-    # Register the one-package replacement order with the fixture, then fill it.
+    if restart:
+        # The checkpoint must carry the packages filled before the replace.
+        state = json.loads(json.dumps(broker.export_order_state("fixture")))
+        broker, _ = _TRANSPORT.data_only_schwab_broker(transport, name="fixture")
+        broker.restore_order_state(state, "fixture")
+        parent = broker.get_tracked_order(parent.identifier)
+    # Register the one-package replacement order with the fixture, then fill it
+    # at a different net price (2.00 - 0.85 = 1.15 credit).
     replacement = deepcopy(transport.replace_calls[-1][1])
     replacement.update(orderId=parent.identifier, status="WORKING", filledQuantity=0)
     for leg in replacement["orderLegCollection"]:
@@ -1555,13 +1566,17 @@ def test_the_replacement_fill_completes_a_partly_filled_package(lifecycle):
     transport.queue_order_reads(parent.identifier, {
         "status": "FILLED",
         "filledQuantity": 1,
-        "orderActivityCollection": [execution],
+        "orderActivityCollection": [{"activityType": "EXECUTION", "executionLegs": [
+            {"legId": 1, "quantity": 1, "price": 2.00},
+            {"legId": 2, "quantity": 1, "price": 0.85},
+        ]}],
     })
     observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
     broker._process_schwab_order_snapshot(observed)
 
     assert parent.is_filled()
     assert sum(float(item.quantity) for item in parent.transactions) == 2
+    assert abs(parent.transactions[-1].price) == pytest.approx(1.15)
 
 
 def test_a_replace_without_a_location_is_confirmed_against_the_price_sent(lifecycle):

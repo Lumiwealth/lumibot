@@ -202,6 +202,130 @@ def test_existing_overstated_funding_coverage_is_clamped_to_observed_rows(public
     assert later.api.v2GetApiDataPublicDataFundingRateHistory.call_count == 1
 
 
+@pytest.mark.parametrize("independent_managers", [False, True], ids=["shared-manager", "separate-managers"])
+def test_stale_funding_writer_retains_other_instance_settlements(public_cache, monkeypatch, independent_managers):
+    import io
+    from lumibot.tools import backtest_cache, parquet_series_cache
+    from tests.test_backtest_cache_manager import ConditionalS3Client, _build_settings, _parquet_bytes
+
+    root, _ = public_cache
+    # Existing S3 response/CAS contract fake, also recording the old blind-upload
+    # path so the red failure reproduces an actual destructive publication.
+    class RecordingS3(ConditionalS3Client):
+        def __init__(self, body):
+            super().__init__(body)
+            self.blind_uploads = 0
+
+        def upload_file(self, source, bucket, key):
+            self.blind_uploads += 1
+            self.body = Path(source).read_bytes()
+            self.etag = f'"blind-{self.blind_uploads}"'
+
+    seed = pd.DataFrame({"fundingRate": ["0.0001"], "coverageStart": [START.isoformat()],
+        "coverageEnd": [START.isoformat()]}, index=pd.DatetimeIndex([START]))
+    remote = RecordingS3(_parquet_bytes(seed))
+    first, second = store.CcxtCacheDB("phemex"), store.CcxtCacheDB("phemex")
+    managers = [backtest_cache.BacktestCacheManager(_build_settings(), client_factory=lambda _: remote)
+                for _ in range(2 if independent_managers else 1)]
+    active = [managers[0]]
+    monkeypatch.setattr(parquet_series_cache, "get_backtest_cache", lambda: active[0])
+    for cache in (first, second):
+        cache.api.v2GetApiDataPublicDataFundingRateHistory.side_effect = lambda params: _funding_answer_through(params, days=1)
+
+    first.get_funding_events(INVERSE, START, START)  # Stale in-memory month has 00:00 only.
+    active[0] = managers[-1]
+    second.get_funding_events(INVERSE, START + pd.Timedelta(hours=8), START + pd.Timedelta(hours=8))
+    active[0] = managers[0]
+    first.get_funding_events(INVERSE, START + pd.Timedelta(hours=16), START + pd.Timedelta(hours=16))
+
+    expected = pd.date_range(START, periods=3, freq="8h")
+    remote_rows = pd.read_parquet(io.BytesIO(remote.body))
+    local_rows = pd.read_parquet(next((root / "ccxt/phemex/funding").rglob("*.parquet")))
+    pd.testing.assert_index_equal(remote_rows.index, expected, check_names=False)
+    pd.testing.assert_frame_equal(local_rows, remote_rows)
+    assert remote_rows["fundingRate"].tolist() == ["0.0001", "0.00009158", "0.0001"]
+    assert remote.blind_uploads == 0
+    assert remote.put_calls == (3 if independent_managers else 2)  # Separate writer retries its stale ETag.
+    assert first._funding_frames[(INVERSE.symbol, "2026-11")].index.equals(expected)
+    for _bounds, rows in remote_rows.groupby(["coverageStart", "coverageEnd"]):
+        assert pd.to_datetime(rows["coverageEnd"], utc=True).max() <= rows.index.max()
+    calls = first.api.v2GetApiDataPublicDataFundingRateHistory.call_count
+    monkeypatch.setattr(parquet_series_cache.ParquetSeriesCache, "read", Mock(side_effect=AssertionError("per-bar disk read")))
+    first.get_funding_events(INVERSE, START + pd.Timedelta(hours=16), START + pd.Timedelta(hours=16))
+    assert first.api.v2GetApiDataPublicDataFundingRateHistory.call_count == calls
+
+
+def test_simultaneous_funding_writers_preserve_local_and_remote_union(public_cache, monkeypatch):
+    import io
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    from lumibot.tools import backtest_cache, parquet_series_cache
+    from tests.test_backtest_cache_manager import ConditionalS3Client, _build_settings, _parquet_bytes
+
+    root, _ = public_cache
+    class RecordingS3(ConditionalS3Client):
+        lock = threading.Lock()
+
+        def put_object(self, **kwargs):
+            with self.lock:
+                return super().put_object(**kwargs)
+
+    seed = pd.DataFrame({"fundingRate": ["0.0001"], "coverageStart": [START.isoformat()],
+        "coverageEnd": [START.isoformat()]}, index=pd.DatetimeIndex([START]))
+    remote = RecordingS3(_parquet_bytes(seed))
+    caches = [store.CcxtCacheDB("phemex"), store.CcxtCacheDB("phemex")]
+    manager = backtest_cache.BacktestCacheManager(_build_settings(), client_factory=lambda _: remote)
+    monkeypatch.setattr(parquet_series_cache, "get_backtest_cache", lambda: manager)
+    for cache in caches:
+        cache.api.v2GetApiDataPublicDataFundingRateHistory.side_effect = lambda params: _funding_answer_through(params, days=1)
+        cache.get_funding_events(INVERSE, START, START)
+    path = next((root / "ccxt/phemex/funding").rglob("*.parquet"))
+    ready = threading.Barrier(2, timeout=3)
+    first_replaced, second_replaced = threading.Event(), threading.Event()
+    first_writer, role_guard = [], threading.Lock()
+    original_write = parquet_series_cache.ParquetSeriesCache.write
+    original_replace = Path.replace
+
+    def prepared_old_month(cache, frame, **kwargs):
+        if cache.path == path:
+            assert len(frame) == 2  # Each caller has seed + its own new settlement.
+            ready.wait()  # Both old caller snapshots are ready before either write.
+        return original_write(cache, frame, **kwargs)
+
+    def overlap_replace(source, target):
+        if Path(target) != path:
+            return original_replace(source, target)
+        name = threading.current_thread().name
+        with role_guard:
+            if not first_writer:
+                first_writer.append(name)
+            is_first = first_writer[0] == name
+        if not is_first:
+            assert first_replaced.wait(3)
+        value = original_replace(source, target)
+        if is_first:
+            first_replaced.set()
+            # With correct path serialization the second replacement waits;
+            # without it this forces B to replace A before A publishes.
+            second_replaced.wait(.2)
+        else:
+            second_replaced.set()
+        return value
+
+    monkeypatch.setattr(parquet_series_cache.ParquetSeriesCache, "write", prepared_old_month)
+    monkeypatch.setattr(Path, "replace", overlap_replace)
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="funding-overlap") as pool:
+        pending = [pool.submit(cache.get_funding_events, INVERSE, START + pd.Timedelta(hours=hours),
+                              START + pd.Timedelta(hours=hours)) for cache, hours in zip(caches, (8, 16))]
+        results = [future.result(timeout=5) for future in pending]
+    expected = pd.date_range(START, periods=3, freq="8h")
+    remote_rows = pd.read_parquet(io.BytesIO(remote.body))
+    pd.testing.assert_index_equal(remote_rows.index, expected, check_names=False)
+    pd.testing.assert_frame_equal(pd.read_parquet(path), remote_rows)
+    assert remote_rows["fundingRate"].tolist() == ["0.0001", "0.00009158", "0.0001"]
+    assert all(rows is not None and len(rows) == 1 for rows in results)
+
+
 def test_funding_coverage_fetches_only_uncovered_requested_ranges(public_cache):
     cache = store.CcxtCacheDB("phemex")
     cache.get_funding_events(INVERSE, START, END)

@@ -337,17 +337,18 @@ class BacktestCacheManager:
 
         client = self._get_client()
         started = time.perf_counter()
-        is_ibkr_parquet = bool(
+        is_mergeable_parquet = bool(
             isinstance(payload, dict)
-            and payload.get("provider") == "ibkr"
+            and (payload.get("provider") == "ibkr"
+                 or (payload.get("provider") == "ccxt" and payload.get("kind") == "funding"))
             and local_path.suffix.lower() == ".parquet"
         )
         if (
-            is_ibkr_parquet
+            is_mergeable_parquet
             and hasattr(client, "get_object")
             and hasattr(client, "put_object")
         ):
-            self._conditional_upload_ibkr_parquet(
+            self._conditional_upload_parquet(
                 client=client,
                 local_path=local_path,
                 remote_key=remote_key,
@@ -380,14 +381,14 @@ class BacktestCacheManager:
         _telemetry_cache("upload", payload, nbytes=uploaded_bytes, seconds=elapsed)
         return True
 
-    def _conditional_upload_ibkr_parquet(
+    def _conditional_upload_parquet(
         self,
         *,
         client: object,
         local_path: Path,
         remote_key: str,
     ) -> None:
-        """Upload one IBKR parquet without allowing a stale writer to erase newer rows."""
+        """Upload shared parquet without allowing a stale writer to erase newer rows."""
         local_bytes = local_path.read_bytes()
         with self._remote_etags_lock:
             etag = self._remote_etags.get(remote_key)
@@ -428,7 +429,7 @@ class BacktestCacheManager:
                 local_path.write_bytes(local_bytes)
 
         raise RuntimeError(
-            f"IBKR remote cache changed repeatedly while updating key={remote_key!r}"
+            f"Remote parquet cache changed repeatedly while updating key={remote_key!r}"
         )
 
     def _download_object_bytes(self, client: object, remote_key: str) -> tuple[bytes, Optional[str]]:

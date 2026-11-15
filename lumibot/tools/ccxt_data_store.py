@@ -273,7 +273,10 @@ class CcxtCacheDB:
                 incoming["coverageStart"] = incoming.index.min().isoformat()
                 incoming["coverageEnd"] = incoming.index.max().isoformat()
                 frame = ParquetSeriesCache.merge(frame, incoming)
+                # The shared writer merges under its path transaction lock;
+                # retain remote rows added by the conditional publisher too.
                 cache.write(frame)
+                frame = self._observed_funding_coverage(cache.read())
                 frames[key] = frame
             if not frame.empty:
                 chosen = frame[(frame.index >= first) & (frame.index <= last)]

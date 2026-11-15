@@ -1563,6 +1563,10 @@ def test_the_replacement_fill_completes_a_partly_filled_package(monkeypatch, res
         leg["orderLegType"] = "OPTION"
     transport._base[parent.identifier] = replacement
     transport._latest[parent.identifier] = deepcopy(replacement)
+    # A direct read of the one-package replacement keeps the parent at two packages.
+    working = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._apply_direct_order_observation(parent, working)
+    assert parent.quantity == 2
     transport.queue_order_reads(parent.identifier, {
         "status": "FILLED",
         "filledQuantity": 1,

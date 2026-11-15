@@ -2523,6 +2523,10 @@ class Schwab(Broker):
         self._process_schwab_order_snapshot(matched_order, source="rest_direct_order")
         changed = not order_lumi.equivalent_status(previous_status)
         for attr in ("quantity", "limit_price", "stop_price"):
+            # A repriced package's new order holds only the unfilled packages; the
+            # parent keeps the full quantity its legs are sized for.
+            if attr == "quantity" and getattr(order_lumi, "schwab_replace_fill_base", None):
+                continue
             value = getattr(matched_order, attr, None)
             if getattr(order_lumi, attr, None) != value:
                 setattr(order_lumi, attr, value)

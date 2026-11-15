@@ -216,9 +216,13 @@ def test_futures_position_is_valued_at_last_close_after_exchange_early_close(sym
     from lumibot.tools.ibkr_helper import closed_futures_mark
 
     frame = _made_up_futures_session(calendar_name, day)
+    when = pd.Timestamp(when, tz="America/New_York")
     if not marked and symbol == "MGC":
-        frame = frame.loc[frame.index < pd.Timestamp("2026-07-03 13:00", tz="America/New_York")]
-    mark = closed_futures_mark(frame, timestep="minute", when=pd.Timestamp(when, tz="America/New_York"), symbol=symbol)
+        # A gap 90 minutes before the calendar's own close for that day (the close
+        # time differs between calendar package versions), valued 5 minutes later.
+        cut = frame.index[-1] + pd.Timedelta(minutes=1) - pd.Timedelta(minutes=90)
+        frame, when = frame.loc[frame.index < cut], cut + pd.Timedelta(minutes=5)
+    mark = closed_futures_mark(frame, timestep="minute", when=when, symbol=symbol)
     assert mark == (float(frame.close.iloc[-1]) if marked else None)
 
 

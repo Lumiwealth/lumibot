@@ -283,6 +283,7 @@ Table of Contents
    Build Your First Indicator <indicators_first_custom>
    Settings and Outputs <indicators_settings_outputs>
    Outputs and Styles <indicators_styles>
+   Draw Boxes, Lines, Labels and Tables <indicators_drawings>
    Price Chart or Own Pane <indicators_chart_placement>
    Indicators in Backtests <indicators_backtesting>
    Indicators in Live Strategies <indicators_live_strategies>

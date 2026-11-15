@@ -2,6 +2,8 @@
 
 ## 4.6.66 - 2026-11-14
 
+Deploy marker: b63710ac7df5df3c03a5f3d72befc067f090ec0a
+
 ### Fixed
 - Futures backtests (Interactive Brokers route): a run was marked failed ("valuation bars, asked for 1 and got 0") when a position was still open after an exchange holiday halt or early close, for example the 1:00 PM ET equity index halt on Jul 3 and Labor Day. The closure check knew only weekends and the daily 5 to 6 PM ET break. Equity index, metals and energy futures now also use the exchange calendar, so the open position is valued at its last real close until the market reopens (valuation only: no bar, trade or fill is made). A gap inside a normal session is still reported as missing. Other products keep the old rule.
 - Futures backtests: an order on a continuous equity index future (ES, MES, NQ, MNQ, RTY, M2K, YM, MYM) placed while the June 2026 contract was the front month never filled, so a strategy could silently skip about seven weeks. The order was bound to the third Friday (Jun 19 2026, an exchange holiday) while the listed contract stops trading on Jun 18. A contract's last trade day now moves to the prior exchange business day when the rule day is a holiday. Backtests that cover March to June 2026 change (trades that were missing now happen).

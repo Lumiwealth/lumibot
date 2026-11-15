@@ -1087,11 +1087,47 @@ class _AlpacaRoutingAdapter(_DataFrameRoutingAdapter):
 
 class _CcxtRoutingAdapter(_DataFrameRoutingAdapter):
     provider_key = "ccxt"
+    uses_spot_proxy = False
     _default_start_buffer = timedelta(0)
 
     def __init__(self, router: "RoutedBacktestingPandas"):
         super().__init__(router)
         self._cache_by_exchange: dict[str, Any] = {}
+
+    def _cache_for(self, asset, provider_spec=None):
+        base = asset[0] if isinstance(asset, tuple) else asset
+        spec = provider_spec or self._router._provider_spec_for_asset(base)
+        exchange_id = spec.ccxt_exchange_id or _infer_default_ccxt_exchange_id()
+        if exchange_id not in self._cache_by_exchange:
+            from lumibot.tools.ccxt_data_store import CcxtCacheDB
+
+            self._cache_by_exchange[exchange_id] = CcxtCacheDB(exchange_id)
+        return self._cache_by_exchange[exchange_id]
+
+    def contract_spec(self, asset, quote_asset=None):
+        cache = self._cache_for(asset)
+        try:
+            return cache.get_contract_spec(asset, quote_asset)
+        except ValueError as exc:
+            raise ValueError(
+                f"Derivative contract terms are unavailable from CCXT {cache.exchange_id}: {exc}. "
+                "Supply Asset.contract_spec or matching provider metadata."
+            ) from exc
+
+    def funding_events(self, asset, start, end):
+        # Prefetch the run window once through the shared owner. Querying each
+        # empty simulated minute must not repeat HTTP or hide later settlements.
+        rows = self._cache_for(asset).get_funding_events(
+            asset, self._router.datetime_start, self._router.datetime_end)
+        if rows is None:
+            return None
+        return [row for row in rows if start <= row["timestamp"] <= end]
+
+    def funding_coverage(self, asset):
+        return self._cache_for(asset).get_funding_coverage(asset)
+
+    def mark_at(self, asset, at):
+        return self._cache_for(asset).get_perpetual_mark(asset, at)
 
     def _fetch_df(
         self,
@@ -1107,18 +1143,7 @@ class _CcxtRoutingAdapter(_DataFrameRoutingAdapter):
         require_quote_data: bool,
         require_ohlc_data: bool,
     ) -> pd.DataFrame | None:
-        exchange_id = provider_spec.ccxt_exchange_id or _infer_default_ccxt_exchange_id()
-
-        try:
-            from lumibot.tools.ccxt_data_store import CcxtCacheDB
-        except Exception as e:
-            raise RoutingProviderError(
-                f"Routing selected CCXT ({exchange_id}) but CCXT dependencies are not available: {e}"
-            ) from e
-
-        if exchange_id not in self._cache_by_exchange:
-            self._cache_by_exchange[exchange_id] = CcxtCacheDB(exchange_id)
-        cache_db = self._cache_by_exchange[exchange_id]
+        cache_db = self._cache_for(asset, provider_spec)
 
         if ts_unit == "minute":
             timeframe = "1m"
@@ -1129,17 +1154,9 @@ class _CcxtRoutingAdapter(_DataFrameRoutingAdapter):
         else:
             raise RoutingProviderError(f"CCXT routing only supports minute/hour/day timesteps, got {ts_unit!r}.")
 
-        from lumibot.tools.symbol_normalization import build_ccxt_crypto_symbol
-
-        symbol = build_ccxt_crypto_symbol(
-            getattr(asset, "symbol", asset),
-            getattr(quote_asset, "symbol", quote_asset),
-            exchange_id=exchange_id,
-        )
-        if not symbol:
-            raise RoutingProviderError(
-                f"Unable to build a CCXT crypto symbol from asset={asset!r} quote={quote_asset!r}."
-            )
+        # Native contract metadata preserves settlement and resolves exchange ids;
+        # the reporting wallet is not necessarily the instrument's price quote.
+        symbol = cache_db.get_market(asset, quote_asset)["symbol"]
         if ts_unit in {"minute", "hour"}:
             try:
                 prefetch_start = min(start_datetime, self._router.datetime_start)
@@ -1650,7 +1667,10 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
     # native daily bars so a warmed minute frame cannot satisfy a daily lookup at the wrong date.
     PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX = True
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, exchange_id=None, **kwargs):
+        # The same optional exchange_id accepted by CcxtBacktestingData is
+        # retained when a public asset-class map selects this routed source.
+        self._ccxt_exchange_id_hint = exchange_id
         super().__init__(*args, **kwargs)
         self._registry = _ProviderRegistry(self)
         self._routing = self._normalize_routing(self._extract_routing_config(getattr(self, "_config", None)))
@@ -2012,7 +2032,14 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
             raw = self._routing.get("crypto_future") or self._routing.get("crypto") or self._routing.get("default") or "thetadata"
         else:
             raw = self._routing.get(asset_type) or self._routing.get("default") or "thetadata"
-        return self._registry.resolve_provider_spec(raw)
+        spec = self._registry.resolve_provider_spec(raw)
+        exchange_hint = getattr(self, "_ccxt_exchange_id_hint", None)
+        if spec.provider == "public" and exchange_hint and asset_type in {"crypto", "crypto_future"}:
+            exchange_id = _ccxt_exchange_id_from_token(str(exchange_hint))
+            if exchange_id is None:
+                raise RoutingProviderError(f"Unknown CCXT exchange_id {exchange_hint!r} for public crypto routing.")
+            return ProviderSpec(provider="ccxt", ccxt_exchange_id=exchange_id, raw=raw)
+        return spec
 
     @staticmethod
     def _frame_last_date(frame):

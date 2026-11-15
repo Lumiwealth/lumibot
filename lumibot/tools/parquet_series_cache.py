@@ -79,6 +79,19 @@ class ParquetSeriesCache:
         return df
 
     def write(self, df: pd.DataFrame, *, remote_payload: Optional[Dict[str, object]] = None) -> None:
+        payload = remote_payload or self.remote_payload
+        if payload and payload.get("provider") == "ccxt" and payload.get("kind") == "funding":
+            from lumibot.tools.shared_bar_cache import _path_lock
+
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            # Reuse the shared-cache transaction lock: two same-path writers
+            # must not replace each other's rows before publication reopens it.
+            with _path_lock(self.path):
+                self._write(self.merge(self.read(), df), remote_payload=payload)
+            return
+        self._write(df, remote_payload=payload)
+
+    def _write(self, df: pd.DataFrame, *, remote_payload: Optional[Dict[str, object]]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         df_to_save = df.copy()
         if not isinstance(df_to_save.index, pd.DatetimeIndex):
@@ -97,7 +110,7 @@ class ParquetSeriesCache:
         if cache_manager is None:
             return
         try:
-            cache_manager.on_local_update(self.path, payload=remote_payload or self.remote_payload)
+            cache_manager.on_local_update(self.path, payload=remote_payload)
         except Exception:
             logger.debug("Remote cache upload failed for %s", self.path.as_posix(), exc_info=True)
 

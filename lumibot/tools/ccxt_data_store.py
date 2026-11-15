@@ -10,6 +10,11 @@ from pandas import DataFrame
 from ..constants import LUMIBOT_CACHE_FOLDER
 from lumibot.tools.lumibot_logger import get_logger
 import math
+import json
+import tempfile
+from pathlib import Path
+from urllib.parse import quote as encode_symbol
+from decimal import Decimal
 from typing import Union
 
 logger = get_logger(__name__)
@@ -67,11 +72,39 @@ class CcxtCacheDB:
         from lumibot.tools.ccxt_partner_ids import apply_partner_config
 
         apply_partner_config(self.api)
+        self._load_public_markets()
+        # Recommended two or less api calls per second.
+        self.api.enableRateLimit = True
+        self.max_download_limit = 50000 if max_download_limit is None else max_download_limit
+
+    def _load_public_markets(self):
+        """Share public CCXT markets/currencies for one hour, never credentials."""
+        from lumibot.tools.backtest_cache import get_backtest_cache
+        from lumibot.tools.ccxt_phemex import normalize_markets
+
+        path = Path(LUMIBOT_CACHE_FOLDER) / "ccxt" / self.exchange_id / "markets.json"
+        payload = {"provider": "ccxt", "exchange": self.exchange_id, "kind": "markets"}
+        manager = get_backtest_cache()
+        if manager is not None:
+            try:
+                manager.ensure_local_file(path, payload=payload)
+            except Exception:
+                self.logger.debug("Public CCXT market snapshot unavailable remotely")
+        now = self._current_utc_naive().replace(tzinfo=timezone.utc)
+        try:
+            snapshot = json.loads(path.read_text())
+            fetched = datetime.fromisoformat(snapshot["fetchedAt"])
+            if (snapshot.get("schema") == 1 and isinstance(snapshot.get("markets"), dict)
+                    and snapshot["markets"] and timedelta(0) <= now - fetched < timedelta(hours=1)):
+                self.api.set_markets(snapshot["markets"], snapshot.get("currencies"))
+                normalize_markets(self.api)
+                return
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            pass
         last_error = None
         for attempt in range(3):
             try:
                 self.api.load_markets()
-                from lumibot.tools.ccxt_phemex import normalize_markets
                 normalize_markets(self.api)
                 last_error = None
                 break
@@ -81,9 +114,191 @@ class CcxtCacheDB:
                     time.sleep(1 + attempt)
         if last_error is not None:
             raise last_error
-        # Recommended two or less api calls per second.
-        self.api.enableRateLimit = True
-        self.max_download_limit = 50000 if max_download_limit is None else max_download_limit
+        markets = getattr(self.api, "markets", None)
+        if not isinstance(markets, dict) or not markets:
+            return
+        snapshot = {"schema": 1, "fetchedAt": now.isoformat(), "markets": markets,
+                    "currencies": getattr(self.api, "currencies", {})}
+        path.parent.mkdir(parents=True, exist_ok=True)
+        descriptor, temporary = tempfile.mkstemp(prefix=path.name, suffix=".tmp", dir=path.parent)
+        try:
+            with os.fdopen(descriptor, "w") as stream:
+                json.dump(snapshot, stream, default=str)
+            os.replace(temporary, path)
+        finally:
+            Path(temporary).unlink(missing_ok=True)
+        if manager is not None:
+            try:
+                manager.on_local_update(path, payload=payload)
+            except Exception:
+                self.logger.debug("Public CCXT market snapshot upload unavailable")
+
+    def get_market(self, asset, quote=None):
+        from lumibot.tools.symbol_normalization import resolve_ccxt_instrument_market
+
+        if isinstance(asset, tuple):
+            asset, quote = asset
+        return resolve_ccxt_instrument_market(self.api.markets, asset, quote, exchange_id=self.exchange_id)
+
+    def get_contract_spec(self, asset, quote=None):
+        from lumibot.entities import ContractSpec
+
+        return ContractSpec.from_ccxt_market(self.get_market(asset, quote))
+
+    @staticmethod
+    def _utc_stamp(value):
+        stamp = pd.Timestamp(value)
+        return stamp.tz_localize("UTC") if stamp.tzinfo is None else stamp.tz_convert("UTC")
+
+    def _fetch_funding_page(self, market, first, last):
+        if self.exchange_id == "phemex":
+            # CCXT's legacy inverse route is retired. V2 serves every native family.
+            info = market.get("info") or {}
+            native = market.get("baseId") if market.get("inverse") else market["id"]
+            symbol = info.get("fundingRate8hSymbol") or f".{native}FR8H"
+            response = self.api.v2GetApiDataPublicDataFundingRateHistory(
+                {"symbol": symbol, "start": first, "end": last, "limit": 100})
+            if str(response.get("code", 0)) != "0":
+                raise ValueError(f"Phemex funding history failed: {response.get('code')}")
+            return [{"timestamp": int(row["fundingTime"]), "fundingRate": row["fundingRate"]}
+                    for row in response["data"]["rows"]]
+        return self.api.fetch_funding_rate_history(market["symbol"], since=first, limit=100,
+                                                   params={"until": last})
+
+    @staticmethod
+    def _observed_funding_coverage(frame):
+        """Old query bounds are not proof that an unobserved settlement exists."""
+        if frame.empty or not {"coverageStart", "coverageEnd", "fundingRate"} <= set(frame):
+            return frame
+        frame = frame.copy()
+        for (low, high), rows in frame.groupby(["coverageStart", "coverageEnd"]):
+            try:
+                low, high = pd.Timestamp(low), pd.Timestamp(high)
+                if low.tzinfo is None or high.tzinfo is None:
+                    continue
+                frame.loc[rows.index, "coverageStart"] = max(low, rows.index.min()).isoformat()
+                frame.loc[rows.index, "coverageEnd"] = min(high, rows.index.max()).isoformat()
+            except (ValueError, TypeError):
+                continue
+        return frame
+
+    @staticmethod
+    def _funding_gaps(frame, first, last):
+        """Uncovered observed-history intervals, not missing event timestamps."""
+        stop = last + pd.Timedelta(milliseconds=1)
+        gaps = [(first, stop)]
+        if frame.empty or not {"coverageStart", "coverageEnd", "fundingRate"} <= set(frame):
+            return [(first, last)]
+        for low, high in frame[["coverageStart", "coverageEnd"]].drop_duplicates().itertuples(index=False, name=None):
+            try:
+                low, high = pd.Timestamp(low), pd.Timestamp(high) + pd.Timedelta(milliseconds=1)
+                if low.tzinfo is None or high.tzinfo is None or high <= low:
+                    continue
+            except (ValueError, TypeError):
+                continue
+            remaining = []
+            for start, end in gaps:
+                if high <= start or low >= end:
+                    remaining.append((start, end))
+                else:
+                    if start < low:
+                        remaining.append((start, low))
+                    if high < end:
+                        remaining.append((high, end))
+            gaps = remaining
+        return [(start, end - pd.Timedelta(milliseconds=1)) for start, end in gaps]
+
+    def get_funding_events(self, asset, start, end):
+        """Real sparse settlements in [start, end]; None means unavailable, never zero.
+
+        Monthly shared records contain only provider events and coverage bounded
+        by those observations. A partial response never closes its unknown tail.
+        The same requested interval is queried once per instance, including an
+        unavailable interval, without confusing that memo with shared coverage.
+        """
+        from lumibot.tools.parquet_series_cache import ParquetSeriesCache
+
+        if not self.api.has.get("fetchFundingRateHistory"):
+            return None
+        first = self._utc_stamp(start)
+        last = min(self._utc_stamp(end), self._utc_stamp(self._current_utc_naive()))
+        if first > last:
+            return None
+        market = self.get_market(asset)
+        symbol = market["symbol"]
+        queries = self.__dict__.setdefault("_funding_queries", set())
+        frames = self.__dict__.setdefault("_funding_frames", {})
+        output = []
+        month = first.normalize().replace(day=1)
+        while month <= last:
+            stop = month + pd.offsets.MonthBegin(1) - pd.Timedelta(milliseconds=1)
+            through = min(stop, last)
+            label = month.strftime("%Y-%m")
+            key = (symbol, label)
+            path = (Path(LUMIBOT_CACHE_FOLDER) / "ccxt" / self.exchange_id / "funding"
+                    / encode_symbol(symbol, safe="") / f"{label}.parquet")
+            cache = ParquetSeriesCache(path, remote_payload={"provider": "ccxt", "exchange": self.exchange_id,
+                "symbol": symbol, "kind": "funding", "month": label}, tz=timezone.utc)
+            if key not in frames:
+                cache.hydrate_remote()
+                frames[key] = self._observed_funding_coverage(cache.read())
+            frame = frames[key]
+            requested = (symbol, max(first, month), through)
+            gaps = [] if requested in queries else self._funding_gaps(frame, max(first, month), through)
+            queries.add(requested)  # Never retry this same failed/partial query every bar.
+            for begin, finish_stamp in gaps:
+                cursor, rows = int(begin.timestamp() * 1000), {}
+                finish = int(finish_stamp.timestamp() * 1000)
+                while cursor <= finish:
+                    page = self._fetch_funding_page(market, cursor, finish)
+                    if not page:
+                        break
+                    newest = max(int(row["timestamp"]) for row in page)
+                    if newest < cursor:
+                        raise ValueError("Funding history pagination did not advance")
+                    for row in page:
+                        timestamp = int(row["timestamp"])
+                        if int(begin.timestamp() * 1000) <= timestamp <= finish:
+                            rate = str(row["fundingRate"])
+                            if not Decimal(rate).is_finite():
+                                raise ValueError("Funding rate must be finite")
+                            rows[timestamp] = rate
+                    cursor = newest + 1
+                    if len(page) < 100:
+                        break
+                if not rows:
+                    continue
+                incoming = pd.DataFrame({"fundingRate": list(rows.values())},
+                    index=pd.to_datetime(list(rows), unit="ms", utc=True))
+                incoming["coverageStart"] = incoming.index.min().isoformat()
+                incoming["coverageEnd"] = incoming.index.max().isoformat()
+                frame = ParquetSeriesCache.merge(frame, incoming)
+                # The shared writer merges under its path transaction lock;
+                # retain remote rows added by the conditional publisher too.
+                cache.write(frame)
+                frame = self._observed_funding_coverage(cache.read())
+                frames[key] = frame
+            if not frame.empty:
+                chosen = frame[(frame.index >= first) & (frame.index <= last)]
+                output.extend({"timestamp": stamp, "fundingRate": str(row["fundingRate"])}
+                              for stamp, row in chosen.iterrows())
+            month += pd.offsets.MonthBegin(1)
+        return output or None
+
+    def get_funding_coverage(self, asset):
+        """Actual observed settlement bounds for the existing missing-data report."""
+        market = self.get_market(asset)
+        frames = [frame for (symbol, _month), frame in getattr(self, "_funding_frames", {}).items()
+                  if symbol == market["symbol"] and not frame.empty]
+        stamps = sorted({stamp for frame in frames for stamp in frame.index})
+        spacing = pd.Series(stamps).diff().dropna() if len(stamps) > 1 else pd.Series(dtype="timedelta64[ns]")
+        interval = spacing[spacing > pd.Timedelta(0)].median() if not spacing.empty else None
+        if self.exchange_id == "phemex":
+            seconds = (market.get("info") or {}).get("fundingInterval")
+            if seconds is not None and float(seconds) > 0:
+                interval = pd.Timedelta(seconds=float(seconds))
+        return {"source": f"ccxt:{self.exchange_id}", "first": stamps[0] if stamps else None,
+                "last": stamps[-1] if stamps else None, "interval": interval}
 
     @staticmethod
     def _to_utc_naive(value: datetime) -> datetime:
@@ -289,7 +504,36 @@ class CcxtCacheDB:
             df_cache = self.get_data_from_cache(symbol, timeframe, start, end)
         return df_cache
 
-    def shared_series(self, symbol: str, timeframe: str):
+    def download_mark_ohlcv(self, asset, timeframe, start, end):
+        """Native mark candles, separately keyed from traded candles. No spot fallback."""
+        if self.exchange_id != "phemex" and not self.api.has.get("fetchMarkOHLCV"):
+            return None
+        market = self.get_market(asset)
+        first, last = self._normalize_download_window(start, end)
+        if first > last:
+            return None
+        result = self._download_ohlcv_shared(market["symbol"], timeframe, start, end,
+                                             first, last, self.max_download_limit, price="mark")
+        return None if result is None or result.empty else result
+
+    def get_perpetual_mark(self, asset, at):
+        """Return the mark minute's OPEN, exact only at that minute's boundary.
+
+        An intraminute instant may use that same minute's already-known open,
+        labeled inexact. Never return a later close or a previous stale minute.
+        """
+        stamp = self._utc_stamp(at)
+        minute = stamp.floor("min")
+        frame = self.download_mark_ohlcv(asset, "1m", minute.to_pydatetime(), minute.to_pydatetime())
+        if frame is None or frame.empty:
+            return None, False
+        index = pd.to_datetime(frame.index, utc=True)
+        rows = frame[index == minute]
+        if rows.empty:
+            return None, False
+        return float(rows.iloc[-1]["open"]), stamp == minute
+
+    def shared_series(self, symbol: str, timeframe: str, *, price: str | None = None):
         """Shared bar cache identity of this exchange's public candles for ``symbol``.
 
         These candles come from the exchange's public market data (no API key),
@@ -307,7 +551,7 @@ class CcxtCacheDB:
             # Crypto candles are traded prices; exchanges do not re-adjust them.
             adjusted=False,
             exchange=self.exchange_id,
-            market_data="public",
+            market_data="mark" if price == "mark" else "public",
         )
 
     def _download_ohlcv_shared(
@@ -319,6 +563,8 @@ class CcxtCacheDB:
         start_dt: datetime,
         end_dt: datetime,
         limit: int,
+        *,
+        price: str | None = None,
     ) -> DataFrame:
         """Serve ``download_ohlcv`` from the shared bar cache (local files plus S3).
 
@@ -335,9 +581,9 @@ class CcxtCacheDB:
             frames = []
             for chunk_start, chunk_end in self._split_download_range(first, last, timeframe, limit):
                 count = self._count_timeframe_units(chunk_start, chunk_end, timeframe)
-                rows = self._filter_executable_rows(
-                    self._get_barset_from_api(symbol, timeframe, count, chunk_start, chunk_end)
-                )
+                args = (symbol, timeframe, count, chunk_start, chunk_end)
+                rows = self._filter_executable_rows(self._get_barset_from_api(
+                    *args, **({"price": price} if price else {})))
                 if not rows.empty:
                     frames.append(rows)
             if not frames:
@@ -347,7 +593,7 @@ class CcxtCacheDB:
             return rows[["open", "high", "low", "close", "volume"]].astype(float)
 
         rows = shared_bar_cache.read_bars(
-            self.shared_series(symbol, timeframe),
+            self.shared_series(symbol, timeframe, price=price),
             pd.Timestamp(start_dt, tz="UTC"),
             pd.Timestamp(end_dt, tz="UTC"),
             fetch,
@@ -653,7 +899,8 @@ class CcxtCacheDB:
 
 
     def _get_barset_from_api(self, symbol:str, timeframe:str,
-                             limit:int=None, start:datetime=None, end:datetime=None)->Union[DataFrame ,None]:
+                             limit:int=None, start:datetime=None, end:datetime=None,
+                             *, price: str | None = None)->Union[DataFrame ,None]:
         """Use CCXT to get historical candle data for a given cryptocurrency symbol and time parameters.
         Outputs a dataframe open, high, low, close columns and a native timezone index.
 
@@ -752,9 +999,11 @@ class CcxtCacheDB:
 
         while curr_start <= endunix:
             cnt += 1
-            from lumibot.tools.ccxt_phemex import fetch_ohlcv
-            candles = fetch_ohlcv(self.api, symbol, timeframe,
-                                           since=curr_start, limit=loop_limit, params={})
+            from lumibot.tools.ccxt_phemex import fetch_ohlcv, fetch_mark_ohlcv
+            fetch = fetch_mark_ohlcv if price == "mark" else fetch_ohlcv
+            candles = fetch(self.api, symbol, timeframe, since=curr_start, limit=loop_limit, params={})
+            if candles is None:
+                return None
 
             df = pd.DataFrame(candles, columns=["datetime",
                                                 "open", "high", "low", "close", "volume"])

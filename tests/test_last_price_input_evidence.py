@@ -134,10 +134,73 @@ def test_last_price_capture_failure_cannot_change_strategy_return():
     assert "capture_error" in recorder.incomplete
 
 
+def test_default_last_price_capture_has_a_byte_bound_without_stopping_price_calls(tmp_path):
+    recorder = MarketInputEvidence()
+    assert getattr(recorder, "max_last_price_bytes", None) == 10 * 1024 * 1024
+    # A large literal return proves the ordinary default without thousands of writes.
+    value = "1" * recorder.max_last_price_bytes
+    strategy, source, calls, _ = _strategy(value, source=SimpleNamespace(_market_input_evidence=recorder))
+    assert Strategy.get_last_price(strategy, Asset("TEST")) is value
+    assert len(calls) == 1 and _observations(source) == []
+    write_market_input_evidence(source, tmp_path, finalize=True)
+    manifest = json.loads((tmp_path / "market_input_manifest.json").read_text())
+    assert manifest["lastPriceByteLimit"] == 10 * 1024 * 1024
+    assert manifest["lastPricePayloadBytes"] == 0
+    assert manifest["complete"] is False
+    assert manifest["incompleteReasons"] == ["last_price_byte_limit"]
+
+
+def test_last_price_byte_limit_is_scalar_only_and_exports_omitted_evidence(tmp_path):
+    recorder = MarketInputEvidence()
+    recorder.max_last_price_bytes = 450
+    strategy, source, calls, _ = _strategy(Decimal("1.2500"), source=SimpleNamespace(_market_input_evidence=recorder))
+    asset = Asset("TEST")
+    frame = pd.DataFrame({"close": [10.]}, index=pd.date_range("2025-02-01", periods=1, tz="UTC"))
+    kwargs = dict(source=source, asset=asset, timestep="day", when=strategy.broker.datetime, purpose="history")
+    record_market_input(frame=frame, **kwargs)
+    assert Strategy.get_last_price(strategy, asset) == Decimal("1.2500")
+    strategy.broker.datetime = strategy.broker.datetime.replace(hour=13)
+    assert Strategy.get_last_price(strategy, asset) == Decimal("1.2500")
+    record_market_input(frame=frame.assign(close=11.), **kwargs)
+    assert len(calls) == 2 and len(_observations(source)) == 1
+    assert len(recorder.rows) == 2 and len(recorder.observations) == 3
+    consumed = recorder._connection.execute(
+        "SELECT SUM(LENGTH(CAST(payload AS BLOB))) FROM observations WHERE json_extract(payload, '$.purpose') = 'last_price'"
+    ).fetchone()[0]
+    assert recorder._last_price_payload_bytes == consumed <= recorder.max_last_price_bytes
+    spool = recorder.spool_directory
+    write_market_input_evidence(source, tmp_path, finalize=True)
+    assert not spool.exists()
+    manifest = json.loads((tmp_path / "market_input_manifest.json").read_text())
+    assert manifest["lastPriceByteLimit"] == 450 and manifest["lastPricePayloadBytes"] == consumed
+    assert manifest["rowLimit"] is None and manifest["observationLimit"] is None
+    assert manifest["complete"] is False and manifest["incompleteReasons"] == ["last_price_byte_limit"]
+    path = tmp_path / "market_input_observations.csv"
+    with path.open() as handle:
+        rows = list(csv.DictReader(handle))
+    assert [row["purpose"] for row in rows] == ["history", "last_price", "history"]
+    assert manifest["files"][path.name]["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_duplicate_last_price_does_not_consume_byte_budget_or_report_truncation():
+    recorder = MarketInputEvidence()
+    strategy, source, calls, _ = _strategy(Decimal("1.2500"), source=SimpleNamespace(_market_input_evidence=recorder))
+    for asset in [Asset("FIRST"), Asset("SECOND")]:
+        assert Strategy.get_last_price(strategy, asset) == Decimal("1.2500")
+    consumed = recorder._last_price_payload_bytes
+    recorder.max_last_price_bytes = consumed
+    assert Strategy.get_last_price(strategy, Asset("FIRST")) == Decimal("1.2500")
+    assert len(calls) == 2 and len(_observations(source)) == 2
+    assert recorder._last_price_payload_bytes == consumed
+    assert "last_price_byte_limit" not in recorder.incomplete
+    recorder.close()
+
+
 def test_rolled_back_batch_restores_shared_capture_counts_and_accepts_later_price():
     import sqlite3
 
     recorder = MarketInputEvidence(max_observations=3)
+    recorder.max_last_price_bytes = 450  # Only one literal observation fits.
     value = Decimal("8.200")
     strategy, source, _, _ = _strategy(value, source=SimpleNamespace(_market_input_evidence=recorder))
     asset = Asset("TEST")
@@ -154,9 +217,11 @@ def test_rolled_back_batch_restores_shared_capture_counts_and_accepts_later_pric
     recorder._connection.set_authorizer(None)
     assert recorder._connection.execute("SELECT COUNT(*) FROM observations").fetchone()[0] == 1
     assert len(recorder.observations) == len(recorder.rows) == 1
+    assert recorder._last_price_payload_bytes == 0
     assert "capture_error" in recorder.incomplete
     assert Strategy.get_last_price(strategy, asset) is value  # Same-clock cache, now captured successfully.
     assert len(_observations(source)) == 1 and len(recorder.observations) == 2
+    assert 0 < recorder._last_price_payload_bytes <= recorder.max_last_price_bytes
     assert "observation_limit" not in recorder.incomplete
     recorder.close()
 

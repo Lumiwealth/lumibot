@@ -1225,10 +1225,22 @@ Framework valuation calls also use this API, so an observation does not prove
 that the strategy used that value to trade.
 
 Identical same-time scalar observations deduplicate, including cache hits.
-They share the existing observation allowance, streamed export, checksums and
-spool cleanup with frame observations. Counts describe distinct observations,
-not API calls. Capture neither fetches another price nor changes return values,
-return types, trading decisions or live operation.
+They share the existing optional observation allowance, streamed export,
+checksums and spool cleanup with frame observations. Scalar evidence also has
+a default **10 MiB encoded-payload budget per backtest**. An observation that
+does not fit is omitted; the manifest reports `complete: false`,
+`last_price_byte_limit`, `lastPriceByteLimit` and `lastPricePayloadBytes`.
+Historical capture and actual price fetching continue unchanged. Counts
+describe distinct observations, not API calls. Capture neither fetches another
+price nor changes return values, return types, trading decisions or live operation.
+
+A native storage measurement of 1,000 neutral scalar observations used 399,890
+encoded-payload bytes, 1,323,008 bytes in SQLite and 261,039 observation-CSV bytes.
+At the default budget, that shape projects to about 26,221 observations,
+34.7 MB of temporary SQLite storage and 6.84 MB of observation CSV. These are
+size estimates, not exact file-size limits: metadata and literal values vary,
+and history has a separate storage lifetime. Truncated diagnostic evidence
+does not mean market-data fetching or the backtest itself was truncated.
 
 Completed backtests export a hash-bound manifest and CSV files and remove their
 owned temporary spool. Export failure also closes that spool, and unrelated

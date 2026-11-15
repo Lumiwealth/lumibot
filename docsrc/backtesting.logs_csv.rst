@@ -25,8 +25,12 @@ History rows leave these additional scalar fields blank.
 
 Identical same-time returns, including cached reads, are deduplicated. These
 counts are observations, not API-call counts. Capture uses the existing
-observation limit and reports truncation rather than calling it complete.
-It makes no extra market-data requests and does not change trading behavior.
+optional observation limit and a separate 10 MiB encoded-payload budget for
+last-price observations. If a scalar observation does not fit, the manifest
+reports ``complete: false``, ``last_price_byte_limit``, ``lastPriceByteLimit``
+and ``lastPricePayloadBytes``. Historical capture and price fetching continue;
+only diagnostic evidence is omitted. Capture makes no extra market-data
+requests and does not change trading behavior.
 A last-price result can be a historical close or a cached value, and framework
 valuation also uses this API. It is not proof of an exchange quote, a fill,
 or the strategy's decision.

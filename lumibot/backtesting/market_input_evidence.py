@@ -217,6 +217,7 @@ class MarketInputEvidence:
     max_prefix_states = 4096
     max_prefix_states_per_stream = 4
     max_prefix_rows = 1_000_000
+    max_last_price_bytes = 10 * 1024 * 1024
 
     def __init__(self, *, max_rows=None, max_observations=None, max_cache_rows=50_000):
         for name, value in (("max_rows", max_rows), ("max_observations", max_observations),
@@ -234,6 +235,7 @@ class MarketInputEvidence:
         self.lock = RLock()
         self._row_count = 0
         self._observation_count = 0
+        self._last_price_payload_bytes = 0
         self._last_scalar_observation = None
         self._batch_depth = 0
         self._directory = tempfile.TemporaryDirectory(prefix="lumibot-market-input-")
@@ -287,7 +289,7 @@ class MarketInputEvidence:
         most of a 500-stock scan's time; the records and their order are unchanged.
         """
         with self.lock:
-            initial_counts = self._row_count, self._observation_count
+            initial_counts = self._row_count, self._observation_count, self._last_price_payload_bytes
             if not self._batch_depth and not self._connection.in_transaction:
                 self._connection.execute("BEGIN")
             self._batch_depth += 1
@@ -301,7 +303,7 @@ class MarketInputEvidence:
                     except Exception:
                         # Nothing uncommitted may survive as "already in the spool".
                         self._connection.rollback()
-                        self._row_count, self._observation_count = initial_counts
+                        self._row_count, self._observation_count, self._last_price_payload_bytes = initial_counts
                         self._serialized_rows.clear()
                         self._prefix_states.clear()
                         self._last_scalar_observation = None
@@ -459,12 +461,24 @@ class MarketInputEvidence:
                 self.incomplete.add("observation_limit")
                 return
             sequence = self._observation_count
+            payload = _encoded({**observation, "sequence": sequence})
+            payload_bytes = len(payload.encode("utf-8"))
+            if self._last_price_payload_bytes + payload_bytes > self.max_last_price_bytes:
+                # An already-recorded same-time return is not omitted evidence.
+                if self._connection.execute(
+                    "SELECT 1 FROM observations WHERE fingerprint = ?", (fingerprint,)
+                ).fetchone():
+                    self._last_scalar_observation = fingerprint
+                    return
+                self.incomplete.add("last_price_byte_limit")
+                return
             with self._transaction():
                 inserted = self._connection.execute(
                     "INSERT OR IGNORE INTO observations (fingerprint, sequence, payload) VALUES (?, ?, ?)",
-                    (fingerprint, sequence, _encoded({**observation, "sequence": sequence})),
+                    (fingerprint, sequence, payload),
                 ).rowcount
             self._observation_count += inserted
+            self._last_price_payload_bytes += payload_bytes * inserted
             self._last_scalar_observation = fingerprint
 
     def _remember_rows(self, stream, frame, arrays, reused, new_encoded, open_digest):
@@ -597,6 +611,8 @@ def write_market_input_evidence(source, directory, *, prefix="", finalize=False)
                                   "Raw custom data accesses are not captured."),
                         "complete": not recorder.incomplete, "incompleteReasons": sorted(recorder.incomplete),
                         "rowLimit": recorder.max_rows, "observationLimit": recorder.max_observations,
+                        "lastPriceByteLimit": recorder.max_last_price_bytes,
+                        "lastPricePayloadBytes": recorder._last_price_payload_bytes,
                         "serializationCacheLimit": recorder.max_cache_rows, "storage": "disk-spool",
                         "files": files}
             manifest_path.write_text(_encoded(manifest) + "\n", encoding="utf-8")

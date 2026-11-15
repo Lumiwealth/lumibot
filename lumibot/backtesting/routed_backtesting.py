@@ -65,16 +65,20 @@ class PerpetualDataUnavailable(RoutingProviderError):
 
     MARKER = "PERPETUAL_DATA_UNAVAILABLE"
 
-    def __init__(self, message: str, *, reason: str, source: str, symbol: str | None = None):
+    def __init__(self, message: str, *, reason: str, source: str, symbol: str | None = None,
+                 observed_request_tail: dict[str, Any] | None = None):
         import json
 
         self.reason = reason if reason in PERPETUAL_DATA_REASONS else "source_error"
         self.source = source
         self.symbol = symbol
         self.asset_class = "crypto_future"
+        self.observed_request_tail = observed_request_tail
         self.alternatives = [dict(item) for item in CRYPTO_FUTURE_ROUTE_ALTERNATIVES if item["routing"] != source]
         payload = {"reason": self.reason, "source": source, "asset_class": self.asset_class,
                    "symbol": symbol, "alternatives": self.alternatives}
+        if observed_request_tail is not None:
+            payload["observed_request_tail"] = observed_request_tail
         others = ", ".join(f"{item['routing']} ({item['kind']})" for item in self.alternatives)
         super().__init__(
             f"{message} Data source: {source}. Other crypto_future data sources: {others}.\n"
@@ -1365,10 +1369,11 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
             f"{asset!r} is a {asset_type or 'unknown'} asset."
         )
 
-    def _unavailable(self, exc, symbol=None, market="um"):
+    def _unavailable(self, exc, symbol=None, market="um", *, observed_request_tail=None):
         if market == "um":
             return PerpetualDataUnavailable(str(exc), reason=getattr(exc, "reason", "source_error"),
-                                            source="binance", symbol=symbol)
+                                            source="binance", symbol=symbol,
+                                            observed_request_tail=observed_request_tail)
         return RoutingProviderError(f"{exc} Data source: binance (spot bulk files).")
 
     def resolve(self, asset: Asset, quote_asset: Asset | None = None) -> tuple[str, str, None]:
@@ -1506,12 +1511,30 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
         window_end_ts = pd.Timestamp(window_end)
         window_end_ts = window_end_ts.tz_localize("UTC") if window_end_ts.tzinfo is None else window_end_ts
         if last_open + 2 * step < window_end_ts:
+            def utc_iso(value):
+                stamp = pd.Timestamp(value)
+                stamp = stamp.tz_localize("UTC") if stamp.tzinfo is None else stamp.tz_convert("UTC")
+                return stamp.isoformat()
+
+            # These are observed bars for this one fetch, including its lookback.
+            # They are not global archive bounds or proof of an interior gap-free window.
+            observed_request_tail = {
+                "scope": "returned_request",
+                "requested_start": utc_iso(self._router.datetime_start),
+                "requested_end": utc_iso(window_end_ts),
+                "requested_timezone": str(pd.Timestamp(window_end).tzinfo or "UTC"),
+                "fetch_start": utc_iso(fetch_start),
+                "first_bar_open": utc_iso(df.index[0]),
+                "last_bar_open": utc_iso(last_open),
+                "bar_duration_seconds": int(step.total_seconds()),
+                "observed_end_exclusive": utc_iso(last_open + step),
+            }
             exc = BinanceBulkDataError(
                 f"Binance bulk files for {symbol} end at {last_open:%Y-%m-%d %H:%M} UTC, before the backtest end "
                 f"{window_end_ts.tz_convert('UTC'):%Y-%m-%d %H:%M} UTC. Binance publishes each day's file about one "
                 "day later; end the backtest on or before the last published day. Nothing is filled in.",
                 reason="no_data_for_window")
-            raise self._unavailable(exc, symbol, market)
+            raise self._unavailable(exc, symbol, market, observed_request_tail=observed_request_tail)
         if market == "um":
             self._funding_rows(symbol)
         self._fully_loaded_series.add(canonical_key)

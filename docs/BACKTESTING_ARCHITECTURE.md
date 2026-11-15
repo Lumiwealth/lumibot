@@ -956,6 +956,18 @@ Spot-proxy routes have no contract terms or funding history. Since perpetual acc
 
 **Real perpetual route (opt-in): `{"crypto_future":"bitunix"}`.** `_BitunixPerpetualRoutingAdapter` (`uses_spot_proxy = False`) reads Bitunix public futures market data through `lumibot/tools/bitunix_market_data.py`: perpetual candles (`/kline`, shared bar cache provider `bitunix`), contract terms (`/trading_pairs`, quantities in base coin) and settled funding with its settlement mark price (`/get_funding_rate_history`). The router exposes `get_contract_spec` and `get_funding_events` only for adapters that define them, so `PerpetualAccount` charges real funding. Invariants: no spot substitution, empty or blocked answers raise `PerpetualDataUnavailable` (a `RoutingProviderError` whose message ends with a `PERPETUAL_DATA_UNAVAILABLE {json}` line: `reason`, `source`, `asset_class`, `symbol`, `alternatives`) before trading, transient empty kline pages are retried and stepped past rather than ending the series (seen mid-2026 on 1-minute history), coin-margined (inverse) symbols raise before trading because Bitunix does not publish face value or margin coin, and a USD budget is never converted into USDT collateral (the order error says to set a USDT quote asset). Tests: `tests/test_routed_bitunix_perpetuals.py` (recorded responses in `tests/fixtures/bitunix_public_perpetual_market.json`). Reachability from US cloud (2026-11-13): Bitunix, OKX, Kraken Futures, Bitget, KuCoin Futures, Deribit, Hyperliquid and Binance bulk files answer; Binance futures REST returns 451 and Bybit returns 403.
 
+Binance perpetual archive-tail failures additionally include `observed_request_tail`
+on `PerpetualDataUnavailable` and in its existing machine-readable error line.
+It records the exact simulation boundaries/timezone, fetch start including lookback,
+first/last returned candle opens, bar width and final candle end-exclusive. Its
+`scope="returned_request"` is deliberate: these observations neither establish
+global archive availability nor prove an interior gap-free interval. Other
+failure reasons omit the object. Callers can diagnose UTC/local-calendar boundary
+differences without changing dates or switching a provider. The producer does not
+choose a replacement window. Native coverage is in
+`test_unpublished_tail_reports_request_bound_bar_facts` (minute/hour) and
+`test_unpublished_tail_preserves_the_requested_timezone_and_dates`.
+
 #### Crypto daily bars (important semantics)
 
 CCXT OHLCV timestamps mark candle opens. Default research history and last-price

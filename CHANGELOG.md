@@ -2,6 +2,9 @@
 
 ## 4.6.71 - Unreleased
 
+### Fixed
+- Perpetual archive-tail errors expose exact requested boundaries, timezone and observed candle endpoints in machine-readable detail. Callers can distinguish a UTC archive tail from their local calendar window without guessing provider coverage. Dates, data sources, fills and existing trading behavior are unchanged.
+
 ## 4.6.70 - 2026-11-15
 
 Deploy marker: 78d0e837ae42fb72eb3d2f0169f8840fe3636b54

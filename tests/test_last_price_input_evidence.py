@@ -214,7 +214,8 @@ def test_rolled_back_batch_restores_shared_capture_counts_and_accepts_later_pric
     with recorder.batch():
         assert Strategy.get_last_price(strategy, asset) is value
         record_market_input(frame=frame.assign(close=11.), **kwargs)
-    recorder._connection.set_authorizer(None)
+    # Python 3.10 still treats None as a callback; restore normal authorization explicitly.
+    recorder._connection.set_authorizer(lambda *args: sqlite3.SQLITE_OK)
     assert recorder._connection.execute("SELECT COUNT(*) FROM observations").fetchone()[0] == 1
     assert len(recorder.observations) == len(recorder.rows) == 1
     assert recorder._last_price_payload_bytes == 0

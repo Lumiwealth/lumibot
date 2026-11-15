@@ -18,6 +18,19 @@ def normalize_markets(api):
             normalize_market(api, market)
 
 
+def funding_interval_seconds(market):
+    """Decode Phemex's legacy hours and newer seconds product metadata."""
+    info = market.get("info") or {}
+    value = info.get("fundingInterval")
+    if value is None or not float(value) > 0:
+        return None
+    value = float(value)
+    # CCXT merges legacy hour counts (8) over newer second counts (28800).
+    # Decode only the legacy product's hour-count range. Newer product types
+    # and already-normalized seconds retain their original units.
+    return value * 3600 if info.get("type") == "Perpetual" and value <= 24 else value
+
+
 def fetch_ohlcv(api, symbol, timeframe="1m", since=None, limit=None, params=None):
     params = dict(params or {})
     if getattr(api, "id", None) != "phemex" or since is None:

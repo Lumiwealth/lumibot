@@ -89,6 +89,10 @@ price scales. Funding uses the public V2 history endpoint and the product's
 funding-series metadata. Historical marks use the minute's opening observation
 at a settlement boundary, never that minute's later close. Unsupported or missing
 marks remain unavailable; traded prices are not relabeled as provider marks.
+Legacy product metadata expresses the funding interval in hours; newer product
+metadata uses seconds. LumiBot normalizes both before reporting uncovered
+funding windows, so an eight-hour interval is not treated as eight seconds.
+Payment timestamps and rates are unchanged; missing history remains unavailable.
 
 The shared cache separates exchange, full contract identity, bar size and trade
 versus mark data. Public market metadata is shared across instances with a

@@ -2,6 +2,9 @@
 
 ## 4.6.72 - Unreleased
 
+### Fixed
+- Phemex funding coverage normalizes legacy hour counts and newer second counts, preventing false missing-funding warnings for an eight-hour interval. Funding payment timestamps, rates and cashflows are unchanged.
+
 ## 4.6.71 - 2026-11-15
 
 Deploy marker: 0cd1aaa7f

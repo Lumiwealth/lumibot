@@ -41,6 +41,8 @@ What a custom indicator can do
      - Declares settings people can change, the lines it draws, colors and guide lines. More: :doc:`indicators_settings_outputs`.
    * - Chart placement
      - Draws on the price chart or in its own pane. More: :doc:`indicators_chart_placement`.
+   * - Boxes, lines, labels and tables
+     - Draws shapes at a bar time and price, like Pine's ``box.new`` and ``label.new``. More: :doc:`indicators_drawings`.
    * - TradingView numbers
      - Built-in ``sma``, ``ema``, ``rsi``, ``macd``, ``bbands``, ``atr``, ``stoch`` and ``vwap`` follow Pine Script v6 formulas. More: :doc:`indicators_tradingview_numbers`.
 

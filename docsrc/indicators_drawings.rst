@@ -1,3 +1,5 @@
+:orphan:
+
 Draw Boxes, Lines, Labels and Tables from an Indicator
 ======================================================
 

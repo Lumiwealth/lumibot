@@ -4784,7 +4784,7 @@ class Strategy(_Strategy):
             "backtesting_data_sources": backtesting_data_sources,
             "backtest_time_seconds": backtest_time_seconds,
         }
-        conversion = self.budget_conversion
+        conversion = getattr(self, "budget_conversion", None)
         if conversion is not None:
             settings["budget_conversion"] = conversion
         profiling_enabled = bool(getattr(self, "_backtest_profiling_enabled", False))

@@ -2,6 +2,8 @@
 
 ## 4.6.70 - 2026-11-15
 
+Deploy marker: 78d0e837ae42fb72eb3d2f0169f8840fe3636b54
+
 ### Added
 - Backtests can declare starting cash in a different currency through optional `budget_conversion` or `BACKTESTING_BUDGET_CONVERSION` JSON. The caller supplies the input and wallet currencies and a finite positive conversion rate, so USD, stablecoin, crypto and FX budgets initialize in the intended quote-wallet units. Optional rate provenance is retained in settings; approximate or later observations are disclosed without automatic provider lookup. Existing numeric budgets, defaults and live balances remain unchanged. See the Backtesting Function documentation for units, examples and limits.
 

@@ -1516,6 +1516,9 @@ def test_a_partly_filled_close_package_can_still_be_repriced_after_sync(lifecycl
 
     assert broker.modify_order(parent, limit_price=1.15) is True
     assert transport.replace_calls[-1][1]["price"] == "1.15"
+    # The replace is a new order: only the one unfilled package is sent again.
+    assert transport.replace_calls[-1][1]["quantity"] == 1
+    assert [leg["quantity"] for leg in transport.replace_calls[-1][1]["orderLegCollection"]] == [1, 1]
 
 
 def test_a_replace_without_a_location_is_confirmed_against_the_price_sent(lifecycle):

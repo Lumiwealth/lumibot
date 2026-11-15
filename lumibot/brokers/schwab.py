@@ -4401,13 +4401,33 @@ class Schwab(Broker):
             if replacement is not None:
                 order.limit_price = replacement
             order_builder = self._prepare_multileg_option_order_builder(order, check_book=False)
-            return self._build_order_spec_from_builder(
+            order_spec = self._build_order_spec_from_builder(
                 order_builder,
                 order.time_in_force,
                 session=self._schwab_session_for_order(order),
             )
         finally:
             order.limit_price = original_limit_price
+        # A replace creates a new order from this body, so filled packages must not
+        # be sent again: send only the unfilled packages, with legs scaled to match.
+        filled = max(
+            float(getattr(self, "_schwab_observed_fill_quantities", {}).get(order.identifier, 0.0)),
+            sum(float(item.quantity) for item in getattr(order, "transactions", None) or []),
+        )
+        if order_spec and filled > 0:
+            packages = int(order_spec["quantity"])
+            remaining = packages - filled
+            if remaining <= 0 or remaining != int(remaining):
+                logger.error(colored(
+                    f"Schwab package {order.identifier} has no whole unfilled package left to reprice.",
+                    "red",
+                ))
+                return None
+            remaining = int(remaining)
+            for leg in order_spec["orderLegCollection"]:
+                leg["quantity"] = int(leg["quantity"]) // packages * remaining
+            order_spec["quantity"] = remaining
+        return order_spec
 
     def _prepare_futures_order_builder(self, order, OrderBuilder):
         """

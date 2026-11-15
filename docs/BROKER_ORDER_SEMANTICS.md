@@ -383,7 +383,9 @@ Lifecycle:
 - `modify_order` replaces the package through the same builder, so SMART_LIMIT
   repricing changes only the net price. A replace does not re-check the
   position book: its legs were validated on submit, and after a partial close
-  fill the synced book no longer holds the full leg. A replace that returns no
+  fill the synced book no longer holds the full leg. Because a replace creates
+  a new order, it sends only the unfilled packages, with each leg scaled to
+  match, and is refused when no whole package is left. A replace that returns no
   new order id follows the order Schwab lists in the replaced order's
   `replacingOrderCollection` when it names exactly one (read up to three
   times, half a second apart, since Schwab may not mark it `REPLACED` at

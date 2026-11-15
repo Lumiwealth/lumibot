@@ -294,9 +294,10 @@ class CcxtCacheDB:
         spacing = pd.Series(stamps).diff().dropna() if len(stamps) > 1 else pd.Series(dtype="timedelta64[ns]")
         interval = spacing[spacing > pd.Timedelta(0)].median() if not spacing.empty else None
         if self.exchange_id == "phemex":
-            seconds = (market.get("info") or {}).get("fundingInterval")
-            if seconds is not None and float(seconds) > 0:
-                interval = pd.Timedelta(seconds=float(seconds))
+            from lumibot.tools.ccxt_phemex import funding_interval_seconds
+            seconds = funding_interval_seconds(market)
+            if seconds is not None:
+                interval = pd.Timedelta(seconds=seconds)
         return {"source": f"ccxt:{self.exchange_id}", "first": stamps[0] if stamps else None,
                 "last": stamps[-1] if stamps else None, "interval": interval}
 

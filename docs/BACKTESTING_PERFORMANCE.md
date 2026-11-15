@@ -1210,8 +1210,37 @@ of labeling truncated evidence complete.
 Explicit callers can still request a finite row or observation ceiling. Those
 limits affect only diagnostic capture, never the simulation's trading lifetime.
 The recorder is used for backtest inputs; it does not limit how long a live bot
-can trade. It records inputs actually returned by the framework, not quotes,
-broker fills, arbitrary custom data reads or proof of strategy correctness.
+can trade. It records inputs actually returned by the framework, not broker
+fills, arbitrary custom data reads or proof of strategy correctness.
+
+`market_input_observations.csv` also records literal `get_last_price` results
+with `purpose=last_price`, the effective asset/quote, exchange argument and
+simulation time. Scalar observations carry `method`, `value`, `valueType` and
+`unavailableReason`; they are not added to historical rows or frame hashes.
+Decimal values retain their text precision. `None`, nonfinite returns and
+caught lookup errors remain explicit, while finite zero and negative values
+are preserved without imposing a product-wide price rule. A last-price result
+may be a daily close or a cached value; it is not necessarily an exchange quote.
+Framework valuation calls also use this API, so an observation does not prove
+that the strategy used that value to trade.
+
+Identical same-time scalar observations deduplicate, including cache hits.
+They share the existing optional observation allowance, streamed export,
+checksums and spool cleanup with frame observations. Scalar evidence also has
+a default **10 MiB encoded-payload budget per backtest**. An observation that
+does not fit is omitted; the manifest reports `complete: false`,
+`last_price_byte_limit`, `lastPriceByteLimit` and `lastPricePayloadBytes`.
+Historical capture and actual price fetching continue unchanged. Counts
+describe distinct observations, not API calls. Capture neither fetches another
+price nor changes return values, return types, trading decisions or live operation.
+
+A native storage measurement of 1,000 neutral scalar observations used 399,890
+encoded-payload bytes, 1,323,008 bytes in SQLite and 261,039 observation-CSV bytes.
+At the default budget, that shape projects to about 26,221 observations,
+34.7 MB of temporary SQLite storage and 6.84 MB of observation CSV. These are
+size estimates, not exact file-size limits: metadata and literal values vary,
+and history has a separate storage lifetime. Truncated diagnostic evidence
+does not mean market-data fetching or the backtest itself was truncated.
 
 Completed backtests export a hash-bound manifest and CSV files and remove their
 owned temporary spool. Export failure also closes that spool, and unrelated
@@ -1234,3 +1263,12 @@ asserts operation counts (zero extra broker passes for a market-order strategy, 
 per fill for a bracket strategy) and records seconds as diagnostics. Full-year run:
 `LUMIBOT_SPEED_BENCH_MONTHS=12`. Measured 2026-11-14 (12 months, 5-minute runs on minute
 bars): market-only 36.5 s without and 34.5 s with the check; brackets 71.0 s and 66.7 s.
+
+### CCXT funding coverage intervals
+
+Phemex legacy perpetual product metadata expresses its funding interval in hours;
+newer product metadata uses seconds. Coverage reporting normalizes those units,
+so an eight-hour interval does not produce a false missing-funding warning as
+though it were eight seconds. Payment timestamps, rates and cashflows are
+unchanged; genuine missing history remains unavailable. See the public
+[perpetual backtesting guide](https://lumibot.lumiwealth.com/backtesting.perpetuals.html).

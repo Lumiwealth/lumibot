@@ -157,11 +157,28 @@ Does an indicator make money?
 No tool can promise that. Indicators describe the past. Test any idea in a
 backtest and on a paper account first.
 
+Use these indicators without installing anything
+------------------------------------------------
+
+LumiBot is the open-source engine. `BotSpot <https://botspot.trade/charts?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_indicators&utm_content=indicators_overview>`_
+is the hosted app built on it, by the same team:
+
+- **Live charts in your browser** that run LumiBot indicators.
+- **An AI builder** that writes an indicator from a plain description, or
+  converts a Pine Script indicator you paste in.
+- **Backtests and bots** that use the same indicator on your own broker.
+- **A Marketplace** of strategies other people have published.
+
+Signing up is free. Coding with an AI assistant instead? Connect the free
+BotSpot MCP: :doc:`botspot_mcp`.
+
 All indicator pages
 -------------------
 
 - :doc:`indicators_first_custom`: write your first indicator.
 - :doc:`indicators_settings_outputs`: settings people can change, and what it draws.
+- :doc:`indicators_styles`: line styles, colors, widths, fills, markers and bar colors.
+- :doc:`indicators_drawings`: draw boxes, lines, labels and tables on the chart.
 - :doc:`indicators_chart_placement`: on the price chart or its own pane.
 - :doc:`indicators_backtesting`: use an indicator in a backtest.
 - :doc:`indicators_live_strategies`: use it in a live strategy on your broker.

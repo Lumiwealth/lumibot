@@ -327,6 +327,43 @@ def test_unpublished_tail_preserves_the_requested_timezone_and_dates(monkeypatch
     assert (router.datetime_start, router.datetime_end) == original_window
 
 
+def test_backtest_entrypoint_preserves_unpublished_tail_exception(monkeypatch, tmp_path):
+    from lumibot.strategies import Strategy
+    import lumibot.tools.thetadata_helper as thetadata_helper
+
+    monkeypatch.setenv("LUMIBOT_SHARED_BARS", "false")
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *_a, **_k: None)
+    monkeypatch.setattr(thetadata_helper, "reset_theta_terminal_tracking", lambda *_a, **_k: None)
+    archive = _perp_archive()
+
+    class RecordedArchiveRouter(RoutedBacktestingPandas):
+        def __init__(self, *args, **kwargs):
+            kwargs["config"] = {"backtesting_data_routing": {"crypto_future": "binance", "default": "ibkr"}}
+            super().__init__(*args, **kwargs)
+            self._registry._adapters["binance"]._client = _client(archive)
+
+    class ArchiveReader(Strategy):
+        def initialize(self):
+            self.set_market("24/7")
+            self.sleeptime = "1H"
+
+        def on_trading_iteration(self):
+            self.get_historical_prices(PERP, 2, timestep="hour", quote=USDT)
+
+    with pytest.raises(PerpetualDataUnavailable) as caught:
+        ArchiveReader.backtest(
+            RecordedArchiveRouter, datetime(2026, 8, 3), datetime(2026, 8, 4),
+            quote_asset=USDT, budget=1000, benchmark_asset=None, risk_free_rate=0,
+            analyze_backtest=False, show_plot=False, show_tearsheet=False,
+            save_tearsheet=False, show_indicators=False, save_logfile=False,
+            save_stats_file=False, logdir=str(tmp_path),
+        )
+    tail = caught.value.observed_request_tail
+    assert tail["scope"] == "returned_request"
+    assert tail["observed_end_exclusive"] == "2026-08-04T00:00:00+00:00"
+    assert json.loads(str(caught.value).split("PERPETUAL_DATA_UNAVAILABLE ", 1)[1])["observed_request_tail"] == tail
+
+
 def test_unpublished_symbol_is_unavailable_with_a_hint(monkeypatch):
     router = _router({"crypto_future": "binance", "default": "ibkr"}, monkeypatch, _perp_archive())
     with pytest.raises(PerpetualDataUnavailable) as caught:

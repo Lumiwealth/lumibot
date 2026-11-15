@@ -2,6 +2,8 @@
 
 ## 4.6.67 - 2026-11-15
 
+Deploy marker: ce795f880
+
 ### Fixed
 - Binance spot and USD-M perpetual backtests retry missing archive tails when daily files become available. Previously an incomplete response could mark a longer range as cached, so subsequent runs never fetched the newly published candles. Existing rows and the shared cache identity are preserved; missing prices are still reported rather than filled or substituted.
 

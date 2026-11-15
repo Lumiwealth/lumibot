@@ -98,6 +98,11 @@ The fill rules are the ones above, bar by bar:
 Your strategy's ``on_filled_order`` runs at the time of the fill. An order it places
 there is processed on the next bar.
 
+Aware timestamps may use ``datetime.timezone``, ``zoneinfo`` or ``pytz``. The broker
+preserves their absolute instant when advancing its clock, including a configured
+end bound in another timezone after a resting order fills. The clock still stops
+at that configured end; timezone conversion does not extend the backtest window.
+
 What bars are used:
 
 * The bars the backtest already fills that order from. Nothing extra is downloaded.

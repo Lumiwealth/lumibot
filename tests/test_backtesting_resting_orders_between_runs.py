@@ -11,7 +11,7 @@ Reproduced scenario this file starts from: a position with a stop at 90, the pri
 See docsrc/backtesting.how_orders_fill.rst ("Resting orders are checked on every bar").
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 
 import numpy as np
 import pandas as pd
@@ -116,6 +116,48 @@ def test_stop_gapped_through_between_runs_fills_at_the_open():
     price, when = _fill_of(fills, stop)
     assert price == pytest.approx(88.0)  # the open, not the stop price
     assert _minute(when) == 5
+
+
+def test_resting_stop_sleep_lands_on_stdlib_utc_end_after_fill():
+    strategy, broker, fills = _setup(_bars({5: (93.0, 93.0, 85.0, 86.0)}))
+    try:
+        _long_position(strategy, broker)
+        stop = _rest(strategy, broker, strategy.create_order(STOCK, 10, "sell", stop_price=90.0))
+        end = (broker.datetime + timedelta(minutes=10)).astimezone(timezone.utc)
+        broker.data_source.datetime_end = end
+
+        # The sleep target is later than the end, and an intervening fill makes
+        # the broker advance first to the event, then to the selected UTC bound.
+        _sleep_minutes(strategy, 60)
+
+        price, when = _fill_of(fills, stop)
+        assert price == pytest.approx(90.0)
+        assert _minute(when) == 5
+        assert broker.datetime == end
+        assert not broker.should_continue()
+        assert position_quantity(broker, strategy, STOCK) == pytest.approx(0.0)
+    finally:
+        broker.cleanup_streams()
+
+
+def test_resting_order_advance_accepts_stdlib_utc_absolute_target():
+    strategy, broker, fills = _setup(_bars({5: (93.0, 93.0, 85.0, 86.0)}))
+    try:
+        _long_position(strategy, broker)
+        stop = _rest(strategy, broker, strategy.create_order(STOCK, 10, "sell", stop_price=90.0))
+        expected = broker.datetime + timedelta(minutes=10)
+
+        broker._advance_checking_resting_orders(
+            expected.astimezone(timezone.utc), strategy, after_event=strategy._executor.process_queue
+        )
+
+        price, when = _fill_of(fills, stop)
+        assert price == pytest.approx(90.0)
+        assert _minute(when) == 5
+        assert broker.datetime == expected
+        assert broker.datetime.tzinfo == expected.tzinfo
+    finally:
+        broker.cleanup_streams()
 
 
 def test_buy_stop_crossed_between_runs_fills_at_the_stop():

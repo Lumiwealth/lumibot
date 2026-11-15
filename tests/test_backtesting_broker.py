@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 from datetime import datetime as dt, time, timedelta # Renamed datetime to dt to avoid conflict
 import pytz
+import pytest
+from zoneinfo import ZoneInfo
 
 
 # Assuming the BacktestingBroker class is importable like this
@@ -1093,6 +1095,23 @@ def test_clock_advance_before_end_preserves_normal_progress():
     broker._update_datetime(60)
     assert broker.datetime == expected
     assert broker.should_continue()
+
+
+@pytest.mark.parametrize("target_timezone", [datetime.timezone.utc, ZoneInfo("UTC"), pytz.UTC],
+                         ids=["stdlib-utc", "zoneinfo-utc", "pytz-utc"])
+def test_absolute_clock_advance_preserves_instant_across_aware_timezones(target_timezone):
+    source = PandasData(datetime_start=dt(2026, 6, 1, 9, 30),
+                        datetime_end=dt(2026, 6, 1, 16, 0), pandas_data={})
+    broker = BacktestingBroker(source)
+    try:
+        expected = broker.datetime + timedelta(minutes=5)
+        broker._update_datetime(expected.astimezone(target_timezone))
+
+        assert broker.datetime == expected
+        assert broker.datetime.tzinfo == expected.tzinfo
+        assert broker.should_continue()
+    finally:
+        broker.cleanup_streams()
 
 
 def test_final_valuation_of_held_position_stays_inside_backtest_window():

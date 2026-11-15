@@ -113,9 +113,11 @@ against its published SHA-256 checksum before it is used.
   listing on Binance (BTCUSDT 1-minute bars from September 2019): 1-minute, hourly
   and daily candles, hourly mark prices and every funding settlement. The same route
   also serves spot crypto when ``crypto`` is routed to ``binance``.
-- **One-day lag:** Binance publishes each day's file the next day. A backtest that
-  ends after the last published day stops up front and names that day; nothing is
-  filled in. End the backtest on or before yesterday (UTC).
+- **One-day lag:** Binance publishes each day's file the next day. A backtest stops
+  before trading when its requested end is more than one bar beyond the end of
+  the last returned candle; nothing is filled in.
+  Compare exact timestamps, rather than assuming yesterday in your local timezone
+  is fully published. A local calendar day can extend into the next UTC day.
 - **Newly published files are retried.** The shared cache covers only the candles
   Binance actually returned. If a daily file was missing on an earlier run, a later
   run requests that missing tail again, including a partial final UTC day. Existing
@@ -134,6 +136,38 @@ against its published SHA-256 checksum before it is used.
   have no newer files and stop with ``contract_not_listed``.
 - **Not covered:** coin-margined (inverse) contracts and dated futures.
 - The live Binance API is not used, so this works where that API is blocked.
+
+When an unpublished tail stops a perpetual backtest, catch
+``PerpetualDataUnavailable`` to inspect its ``observed_request_tail`` attribute.
+The same object is included in the existing ``PERPETUAL_DATA_UNAVAILABLE`` JSON
+line in the error message:
+
+.. code-block:: python
+
+   from datetime import datetime
+   from lumibot.backtesting.routed_backtesting import PerpetualDataUnavailable
+   from lumibot.entities import Asset
+
+   try:
+       MyStrategy.backtest(
+           None, datetime(2026, 8, 1), datetime(2026, 8, 8),
+           quote_asset=Asset("USDT", "crypto"), benchmark_asset=None,
+       )
+   except PerpetualDataUnavailable as error:
+       tail = error.observed_request_tail
+       if tail is not None:
+           print(tail["requested_end"], tail["requested_timezone"])
+           print(tail["last_bar_open"], tail["observed_end_exclusive"])
+
+The fields describe this request only (``scope="returned_request"``):
+``requested_start`` and ``requested_end`` are the exact simulation boundaries in
+UTC; ``requested_timezone`` retains the requested end's timezone;
+``fetch_start`` includes any earlier indicator lookback; ``first_bar_open`` and
+``last_bar_open`` name the returned candles; ``bar_duration_seconds`` defines
+their width; and ``observed_end_exclusive`` is the end of the last returned
+candle. These facts are not global archive availability and do not prove there
+are no gaps between the first and last candle. Other failures leave the
+attribute ``None``. LumiBot does not change your dates or choose another source.
 
 **Public crypto data, split by quote** (``"public"``). One route for spot and
 perpetuals that serves what the strategy asked for:

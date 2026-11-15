@@ -166,8 +166,25 @@ class CcxtCacheDB:
                                                    params={"until": last})
 
     @staticmethod
+    def _observed_funding_coverage(frame):
+        """Old query bounds are not proof that an unobserved settlement exists."""
+        if frame.empty or not {"coverageStart", "coverageEnd", "fundingRate"} <= set(frame):
+            return frame
+        frame = frame.copy()
+        for (low, high), rows in frame.groupby(["coverageStart", "coverageEnd"]):
+            try:
+                low, high = pd.Timestamp(low), pd.Timestamp(high)
+                if low.tzinfo is None or high.tzinfo is None:
+                    continue
+                frame.loc[rows.index, "coverageStart"] = max(low, rows.index.min()).isoformat()
+                frame.loc[rows.index, "coverageEnd"] = min(high, rows.index.max()).isoformat()
+            except (ValueError, TypeError):
+                continue
+        return frame
+
+    @staticmethod
     def _funding_gaps(frame, first, last):
-        """Uncovered source-query intervals, not missing event timestamps."""
+        """Uncovered observed-history intervals, not missing event timestamps."""
         stop = last + pd.Timedelta(milliseconds=1)
         gaps = [(first, stop)]
         if frame.empty or not {"coverageStart", "coverageEnd", "fundingRate"} <= set(frame):
@@ -194,8 +211,10 @@ class CcxtCacheDB:
     def get_funding_events(self, asset, start, end):
         """Real sparse settlements in [start, end]; None means unavailable, never zero.
 
-        Monthly shared records contain only provider events plus the successful
-        source query's coverage. Failed/empty requests create no coverage row.
+        Monthly shared records contain only provider events and coverage bounded
+        by those observations. A partial response never closes its unknown tail.
+        The same requested interval is queried once per instance, including an
+        unavailable interval, without confusing that memo with shared coverage.
         """
         from lumibot.tools.parquet_series_cache import ParquetSeriesCache
 
@@ -207,7 +226,7 @@ class CcxtCacheDB:
             return None
         market = self.get_market(asset)
         symbol = market["symbol"]
-        failures = self.__dict__.setdefault("_funding_failures", set())
+        queries = self.__dict__.setdefault("_funding_queries", set())
         frames = self.__dict__.setdefault("_funding_frames", {})
         output = []
         month = first.normalize().replace(day=1)
@@ -216,18 +235,18 @@ class CcxtCacheDB:
             through = min(stop, last)
             label = month.strftime("%Y-%m")
             key = (symbol, label)
-            if key in failures:
-                return None
             path = (Path(LUMIBOT_CACHE_FOLDER) / "ccxt" / self.exchange_id / "funding"
                     / encode_symbol(symbol, safe="") / f"{label}.parquet")
             cache = ParquetSeriesCache(path, remote_payload={"provider": "ccxt", "exchange": self.exchange_id,
                 "symbol": symbol, "kind": "funding", "month": label}, tz=timezone.utc)
             if key not in frames:
                 cache.hydrate_remote()
-                frames[key] = cache.read()
+                frames[key] = self._observed_funding_coverage(cache.read())
             frame = frames[key]
-            for begin, finish_stamp in self._funding_gaps(frame, max(first, month), through):
-                failures.add(key)  # A failed page is not retried for every simulated bar.
+            requested = (symbol, max(first, month), through)
+            gaps = [] if requested in queries else self._funding_gaps(frame, max(first, month), through)
+            queries.add(requested)  # Never retry this same failed/partial query every bar.
+            for begin, finish_stamp in gaps:
                 cursor, rows = int(begin.timestamp() * 1000), {}
                 finish = int(finish_stamp.timestamp() * 1000)
                 while cursor <= finish:
@@ -248,19 +267,35 @@ class CcxtCacheDB:
                     if len(page) < 100:
                         break
                 if not rows:
-                    return None
+                    continue
                 incoming = pd.DataFrame({"fundingRate": list(rows.values())},
                     index=pd.to_datetime(list(rows), unit="ms", utc=True))
-                incoming["coverageStart"], incoming["coverageEnd"] = begin.isoformat(), finish_stamp.isoformat()
+                incoming["coverageStart"] = incoming.index.min().isoformat()
+                incoming["coverageEnd"] = incoming.index.max().isoformat()
                 frame = ParquetSeriesCache.merge(frame, incoming)
                 cache.write(frame)
                 frames[key] = frame
-                failures.discard(key)
-            chosen = frame[(frame.index >= first) & (frame.index <= last)]
-            output.extend({"timestamp": stamp, "fundingRate": str(row["fundingRate"])}
-                          for stamp, row in chosen.iterrows())
+            if not frame.empty:
+                chosen = frame[(frame.index >= first) & (frame.index <= last)]
+                output.extend({"timestamp": stamp, "fundingRate": str(row["fundingRate"])}
+                              for stamp, row in chosen.iterrows())
             month += pd.offsets.MonthBegin(1)
         return output or None
+
+    def get_funding_coverage(self, asset):
+        """Actual observed settlement bounds for the existing missing-data report."""
+        market = self.get_market(asset)
+        frames = [frame for (symbol, _month), frame in getattr(self, "_funding_frames", {}).items()
+                  if symbol == market["symbol"] and not frame.empty]
+        stamps = sorted({stamp for frame in frames for stamp in frame.index})
+        spacing = pd.Series(stamps).diff().dropna() if len(stamps) > 1 else pd.Series(dtype="timedelta64[ns]")
+        interval = spacing[spacing > pd.Timedelta(0)].median() if not spacing.empty else None
+        if self.exchange_id == "phemex":
+            seconds = (market.get("info") or {}).get("fundingInterval")
+            if seconds is not None and float(seconds) > 0:
+                interval = pd.Timedelta(seconds=float(seconds))
+        return {"source": f"ccxt:{self.exchange_id}", "first": stamps[0] if stamps else None,
+                "last": stamps[-1] if stamps else None, "interval": interval}
 
     @staticmethod
     def _to_utc_naive(value: datetime) -> datetime:

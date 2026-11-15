@@ -33,6 +33,10 @@ owner used by `CcxtBacktestingData`; it does not create a second provider client
 implementation or convert perpetuals into spot instruments. The existing Phemex
 compatibility helper owns bounded history, scaled price parsing and metadata-named
 mark requests. Funding's existing V2 compatibility is shared rather than copied.
+The existing ``run_backtest(exchange_id=...)`` keyword survives an environment
+override selecting automatic ``public`` routes. The router resolves it as a CCXT
+venue for public crypto requests; an explicit provider map still wins and absent
+hints retain the existing defaults. No new Asset identity field is introduced.
 
 Trade bars retain their existing shared `BarSeries` identity. Mark bars use that
 same store with a distinct data kind; public metadata and sparse monthly funding
@@ -41,6 +45,10 @@ exchange, full instrument identity, data kind and time. Settlement suffixes and
 different exchanges cannot collide; no account, user or strategy enters a key.
 Funding query coverage is limited to successful provider answers and actual time.
 An empty or failed answer does not establish fabricated zero-rate settlements.
+The routed adapter prefetches the run's funding window through that owner, then
+filters each requested event interval before returning rows. Both direct and
+routed sources expose the same observed funding bounds to the existing engine's
+partial-history disclosures; prefetch does not charge a future settlement early.
 
 At an exact funding minute, a historical mark uses that minute's opening value,
 not its future closing value. Missing marks stay unavailable rather than being

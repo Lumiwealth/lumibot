@@ -53,6 +53,20 @@ currency suffix. For example, Phemex's ``BTC/USD:BTC`` is priced in USD, settles
 in BTC and has a USD face value per contract; ``BTC/USDT:USDT`` settles in USDT.
 Choose a reporting wallet deliberately; a BTC balance is not a dollar balance.
 
+If the process selects automatic ``public`` crypto routes, the existing
+``exchange_id`` backtest option selects the requested CCXT venue without changing
+that process's provider map:
+
+.. code-block:: python
+
+   MyStrategy.backtest(datasource_class=None, exchange_id="phemex",
+                       quote_asset=Asset("BTC", "crypto"), benchmark_asset=None)
+
+With no exchange option, the automatic route keeps its Coinbase/Binance defaults.
+An explicit provider route such as ``{"crypto_future":"binance"}`` remains
+authoritative. ``Asset`` has no ``exchange`` constructor field; declare this
+venue through the supported backtest option, not by attaching an attribute.
+
 .. code-block:: bash
 
    export BACKTESTING_DATA_SOURCE='{"crypto_future":"phemex","crypto":"coinbase","default":"ibkr"}'

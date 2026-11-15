@@ -92,11 +92,12 @@ def test_public_market_snapshot_reuses_across_instances_and_expires(public_cache
 def test_sparse_funding_month_is_shared_and_keeps_recorded_rates(public_cache):
     root, apis = public_cache
     first = store.CcxtCacheDB("phemex")
-    rows = first.get_funding_events(INVERSE, START, END)
+    observed_end = START + pd.Timedelta(hours=16)
+    rows = first.get_funding_events(INVERSE, START, observed_end)
     assert [r["fundingRate"] for r in rows] == ["0.0001", "0.00009158", "0.0001"]
     assert [r["timestamp"] for r in rows] == list(pd.date_range(START, periods=3, freq="8h"))
     second = store.CcxtCacheDB("phemex")
-    assert second.get_funding_events(INVERSE, START, END) == rows
+    assert second.get_funding_events(INVERSE, START, observed_end) == rows
     assert [a.v2GetApiDataPublicDataFundingRateHistory.call_count for a in apis] == [1, 0]
     paths = list((root / "ccxt/phemex/funding").rglob("2026-11.parquet"))
     assert len(paths) == 1
@@ -135,6 +136,72 @@ def test_funding_request_clips_future_and_preserves_sparse_gaps(public_cache):
     assert calls and all(c.args[0]["end"] <= int(NOW.replace(tzinfo=timezone.utc).timestamp()*1000) for c in calls)
 
 
+def _funding_answer_through(params, *, days):
+    answer = deepcopy(DATA["funding"])
+    answer["data"]["rows"] = [dict(row, fundingTime=row["fundingTime"] + day * 86400000)
+        for day in range(days) for row in DATA["funding"]["data"]["rows"]
+        if params["start"] <= row["fundingTime"] + day * 86400000 <= params["end"]]
+    return answer
+
+
+def test_partial_funding_response_keeps_tail_open_for_later_publication(public_cache):
+    root, _ = public_cache
+    through = END + pd.Timedelta(days=1)
+    first = store.CcxtCacheDB("phemex")
+    first.api.v2GetApiDataPublicDataFundingRateHistory.side_effect = lambda params: _funding_answer_through(params, days=1)
+    assert len(first.get_funding_events(INVERSE, START, through)) == 3
+    cached = pd.read_parquet(next((root / "ccxt/phemex/funding").rglob("*.parquet")))
+    assert pd.to_datetime(cached["coverageEnd"], utc=True).max() <= cached.index.max()
+
+    later = store.CcxtCacheDB("phemex")
+    later.api.v2GetApiDataPublicDataFundingRateHistory.side_effect = lambda params: _funding_answer_through(params, days=2)
+    rows = later.get_funding_events(INVERSE, START, through)
+    assert len(rows) == 6
+    assert [row["timestamp"] for row in rows] == list(pd.date_range(START, periods=6, freq="8h"))
+    assert later.api.v2GetApiDataPublicDataFundingRateHistory.call_count == 1
+    assert later.get_funding_coverage(INVERSE) == {"source": "ccxt:phemex", "first": START,
+        "last": START + pd.Timedelta(hours=40), "interval": pd.Timedelta(hours=8)}
+
+
+def test_unknown_funding_tail_keeps_known_settlements_and_memoizes_query(public_cache, monkeypatch):
+    from lumibot.tools.parquet_series_cache import ParquetSeriesCache
+
+    first = store.CcxtCacheDB("phemex")
+    expected = first.get_funding_events(INVERSE, START, START + pd.Timedelta(hours=16))
+    later = store.CcxtCacheDB("phemex")
+    later.api.v2GetApiDataPublicDataFundingRateHistory.return_value = {"code": 0, "data": {"rows": []}}
+    assert later.get_funding_events(INVERSE, START, END) == expected
+    assert later.api.v2GetApiDataPublicDataFundingRateHistory.call_count == 1
+    monkeypatch.setattr(ParquetSeriesCache, "read", Mock(side_effect=AssertionError("repeated parquet read")))
+    assert later.get_funding_events(INVERSE, START, END) == expected
+    assert later.api.v2GetApiDataPublicDataFundingRateHistory.call_count == 1
+
+
+def test_empty_funding_interval_does_not_poison_later_settlement(public_cache):
+    cache = store.CcxtCacheDB("phemex")
+    cache.api.v2GetApiDataPublicDataFundingRateHistory.side_effect = lambda params: _funding_answer_through(params, days=1)
+    assert cache.get_funding_events(INVERSE, START + pd.Timedelta(hours=1), START + pd.Timedelta(hours=2)) is None
+    assert cache.get_funding_coverage(INVERSE) == {"source": "ccxt:phemex", "first": None,
+        "last": None, "interval": pd.Timedelta(hours=8)}
+    rows = cache.get_funding_events(INVERSE, START + pd.Timedelta(hours=7), START + pd.Timedelta(hours=8))
+    assert len(rows) == 1 and rows[0]["timestamp"] == START + pd.Timedelta(hours=8)
+    assert cache.api.v2GetApiDataPublicDataFundingRateHistory.call_count == 2
+
+
+def test_existing_overstated_funding_coverage_is_clamped_to_observed_rows(public_cache):
+    root, _ = public_cache
+    first = store.CcxtCacheDB("phemex")
+    first.get_funding_events(INVERSE, START, START + pd.Timedelta(hours=16))
+    path = next((root / "ccxt/phemex/funding").rglob("*.parquet"))
+    cached = pd.read_parquet(path)
+    cached["coverageEnd"] = (END + pd.Timedelta(days=1)).isoformat()
+    cached.to_parquet(path)
+    later = store.CcxtCacheDB("phemex")
+    later.api.v2GetApiDataPublicDataFundingRateHistory.side_effect = lambda params: _funding_answer_through(params, days=2)
+    assert len(later.get_funding_events(INVERSE, START, END + pd.Timedelta(days=1))) == 6
+    assert later.api.v2GetApiDataPublicDataFundingRateHistory.call_count == 1
+
+
 def test_funding_coverage_fetches_only_uncovered_requested_ranges(public_cache):
     cache = store.CcxtCacheDB("phemex")
     cache.get_funding_events(INVERSE, START, END)
@@ -148,7 +215,8 @@ def test_funding_coverage_fetches_only_uncovered_requested_ranges(public_cache):
     assert len(rows) == 6
     assert later.api.v2GetApiDataPublicDataFundingRateHistory.call_count == 1
     query = later.api.v2GetApiDataPublicDataFundingRateHistory.call_args.args[0]
-    assert query["start"] == int((END + pd.Timedelta(milliseconds=1)).timestamp()*1000)
+    # The first request did not prove its unobserved tail complete.
+    assert query["start"] == int((START + pd.Timedelta(hours=16, milliseconds=1)).timestamp()*1000)
 
 
 def test_nonfinite_funding_never_creates_persisted_coverage(public_cache):

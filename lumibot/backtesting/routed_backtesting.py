@@ -1108,7 +1108,16 @@ class _CcxtRoutingAdapter(_DataFrameRoutingAdapter):
         return self._cache_for(asset).get_contract_spec(asset, quote_asset)
 
     def funding_events(self, asset, start, end):
-        return self._cache_for(asset).get_funding_events(asset, start, end)
+        # Prefetch the run window once through the shared owner. Querying each
+        # empty simulated minute must not repeat HTTP or hide later settlements.
+        rows = self._cache_for(asset).get_funding_events(
+            asset, self._router.datetime_start, self._router.datetime_end)
+        if rows is None:
+            return None
+        return [row for row in rows if start <= row["timestamp"] <= end]
+
+    def funding_coverage(self, asset):
+        return self._cache_for(asset).get_funding_coverage(asset)
 
     def mark_at(self, asset, at):
         return self._cache_for(asset).get_perpetual_mark(asset, at)
@@ -1651,7 +1660,10 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
     # native daily bars so a warmed minute frame cannot satisfy a daily lookup at the wrong date.
     PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX = True
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, exchange_id=None, **kwargs):
+        # The same optional exchange_id accepted by CcxtBacktestingData is
+        # retained when a public asset-class map selects this routed source.
+        self._ccxt_exchange_id_hint = exchange_id
         super().__init__(*args, **kwargs)
         self._registry = _ProviderRegistry(self)
         self._routing = self._normalize_routing(self._extract_routing_config(getattr(self, "_config", None)))
@@ -2013,7 +2025,14 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
             raw = self._routing.get("crypto_future") or self._routing.get("crypto") or self._routing.get("default") or "thetadata"
         else:
             raw = self._routing.get(asset_type) or self._routing.get("default") or "thetadata"
-        return self._registry.resolve_provider_spec(raw)
+        spec = self._registry.resolve_provider_spec(raw)
+        exchange_hint = getattr(self, "_ccxt_exchange_id_hint", None)
+        if spec.provider == "public" and exchange_hint and asset_type in {"crypto", "crypto_future"}:
+            exchange_id = _ccxt_exchange_id_from_token(str(exchange_hint))
+            if exchange_id is None:
+                raise RoutingProviderError(f"Unknown CCXT exchange_id {exchange_hint!r} for public crypto routing.")
+            return ProviderSpec(provider="ccxt", ccxt_exchange_id=exchange_id, raw=raw)
+        return spec
 
     @staticmethod
     def _frame_last_date(frame):

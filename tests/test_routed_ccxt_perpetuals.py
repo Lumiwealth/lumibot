@@ -18,6 +18,7 @@ from lumibot.tools.ccxt_data_store import CcxtCacheDB
 from tests.test_ccxt_derivatives import derivatives
 from tests.test_ccxt_unified_spot import make_broker
 from tests.test_backtesting_multileg_unit import _StubStrategy
+from tests.test_ccxt_perpetual_public_data import public_cache
 
 FIXTURE = json.loads((Path(__file__).parent / "fixtures/ccxt_public_perpetual_data.json").read_text())
 
@@ -162,5 +163,138 @@ def test_routed_inverse_funding_uses_recorded_native_settlement_mark(monkeypatch
         broker._perpetuals.process_events(strategy)
         assert strategy.cash == pytest.approx(expected, abs=1e-12)  # Never charge twice.
         assert api.publicGetMdV2KlineList.call_args.args[0]["symbol"] == ".MBTC"
+    finally:
+        broker.cleanup_streams()
+
+
+def _run_backtest_router(monkeypatch, *, exchange_id=None, provider="public", end=None):
+    """Enter through the public backtest API; stop after constructing its real source."""
+    import lumibot.strategies._strategy as strategy_module
+    import lumibot.tools.thetadata_helper as theta
+
+    class SourceSelected(Exception):
+        pass
+
+    selected = {}
+
+    class RecordingRouter(RoutedBacktestingPandas):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            selected["source"] = self
+            raise SourceSelected
+
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *_a, **_k: None)
+    monkeypatch.setattr(theta, "reset_theta_terminal_tracking", lambda *_a, **_k: None)
+    monkeypatch.setattr(strategy_module, "RoutedBacktestingPandas", RecordingRouter)
+    # A normal automatic asset-class map supplied to the backtest process.
+    routes = {"default": "ibkr", "stock": "ibkr", "index": "ibkr", "option": "thetadata",
+              "crypto": "public", "crypto_future": provider, "future": "ibkr", "cont_future": "ibkr"}
+    monkeypatch.setenv("BACKTESTING_DATA_SOURCE", json.dumps(routes))
+    from lumibot.strategies import Strategy
+
+    kwargs = {} if exchange_id is None else {"exchange_id": exchange_id}
+    with pytest.raises(SourceSelected):
+        Strategy.run_backtest(None, backtesting_start=datetime(2026, 11, 13, tzinfo=timezone.utc),
+            backtesting_end=end or datetime(2026, 11, 14, 4, tzinfo=timezone.utc),
+            thetadata_username="test", thetadata_password="test", use_quote_data=False,
+            show_plot=False, show_tearsheet=False, show_indicators=False, show_progress_bar=False,
+            save_tearsheet=False, save_stats_file=False, save_logfile=False, **kwargs)
+    return selected["source"]
+
+
+@pytest.mark.parametrize("symbol,settle", [
+    ("BTCUSD", "BTC"), ("BTC/USD:BTC", "BTC"), ("BTC/USDC:USDC", "USDC"),
+])
+def test_run_backtest_public_route_honors_explicit_ccxt_exchange(monkeypatch, public_cache, symbol, settle):
+    from lumibot.backtesting.routed_backtesting import _BinanceBulkRoutingAdapter
+
+    monkeypatch.setattr(_BinanceBulkRoutingAdapter, "contract_spec",
+        Mock(side_effect=AssertionError("explicit venue reached the default venue")))
+    source = _run_backtest_router(monkeypatch, exchange_id="PHEMEX")
+    spec = source.get_contract_spec(Asset(symbol, "crypto_future"), Asset(settle, "crypto"))
+    assert spec.settle == settle and spec.contract_size == 1
+    cache = source._registry._adapters["ccxt"]._cache_by_exchange["phemex"]
+    assert cache.get_market(Asset(symbol, "crypto_future"))["symbol"].endswith(f":{settle}")
+
+
+def test_run_backtest_public_route_reads_selected_native_candles(monkeypatch, public_cache):
+    source = _run_backtest_router(monkeypatch, exchange_id="phemex",
+                                 end=datetime(2026, 11, 13, 0, 10, tzinfo=timezone.utc))
+    asset, wallet = Asset("BTCUSD", "crypto_future"), Asset("BTC", "crypto")
+    source._update_pandas_data(asset, wallet, length=1, timestep="minute", start_dt=source.datetime_start)
+    cache = source._registry._adapters["ccxt"]._cache_by_exchange["phemex"]
+    assert cache.api.publicGetMdV2KlineList.call_count >= 1
+    assert cache.api.publicGetMdV2KlineList.call_args.args[0]["symbol"] == "BTCUSD"
+    routes = source.get_data_provenance()["observedRoutes"]
+    assert len(routes) == 1 and routes[0]["exchange"] == "phemex"
+    assert routes[0]["vendor"] == "ccxt" and routes[0]["symbol"] == "BTCUSD"
+
+
+def test_run_backtest_public_route_keeps_unhinted_default(monkeypatch, public_cache):
+    from lumibot.backtesting.routed_backtesting import _BinanceBulkRoutingAdapter
+
+    terms = object()
+    selected = Mock(return_value=terms)
+    monkeypatch.setattr(_BinanceBulkRoutingAdapter, "contract_spec", selected)
+    source = _run_backtest_router(monkeypatch)
+    assert source.get_contract_spec(Asset("BTCUSDT", "crypto_future")) is terms
+    assert selected.call_count == 1
+    assert source._registry._adapters["ccxt"]._cache_by_exchange == {}
+
+
+def test_run_backtest_explicit_provider_beats_exchange_hint(monkeypatch, public_cache):
+    from lumibot.backtesting.routed_backtesting import _BinanceBulkRoutingAdapter
+
+    terms = object()
+    selected = Mock(return_value=terms)
+    monkeypatch.setattr(_BinanceBulkRoutingAdapter, "contract_spec", selected)
+    source = _run_backtest_router(monkeypatch, exchange_id="phemex", provider="binance")
+    assert source.get_contract_spec(Asset("BTCUSDT", "crypto_future")) is terms
+    assert selected.call_count == 1
+    assert source._registry._adapters["ccxt"]._cache_by_exchange == {}
+
+
+def test_ccxt_router_empty_minute_preserves_later_real_funding(monkeypatch, public_cache):
+    from lumibot.backtesting.routed_backtesting import _BinanceBulkRoutingAdapter
+    monkeypatch.setattr(_BinanceBulkRoutingAdapter, "funding_events",
+        Mock(side_effect=AssertionError("explicit venue reached the default venue")))
+    source = _run_backtest_router(monkeypatch, exchange_id="phemex")
+    asset = Asset("BTC/USD:BTC", "crypto_future")
+    first = pd.Timestamp("2026-11-13", tz="UTC")
+    assert source.get_funding_events(asset, first + pd.Timedelta(minutes=1),
+                                     first + pd.Timedelta(minutes=2)) == []
+    rows = source.get_funding_events(asset, first + pd.Timedelta(hours=7, minutes=59),
+                                    first + pd.Timedelta(hours=8))
+    assert rows == [{"timestamp": first + pd.Timedelta(hours=8), "fundingRate": "0.00009158"}]
+    cache = source._registry._adapters["ccxt"]._cache_by_exchange["phemex"]
+    assert cache.api.v2GetApiDataPublicDataFundingRateHistory.call_count == 1
+
+
+@pytest.mark.parametrize("path", ["public", "direct"])
+def test_ccxt_funding_coverage_reaches_existing_gap_report(monkeypatch, public_cache, path):
+    from lumibot.backtesting import BacktestingBroker
+    from lumibot.backtesting.routed_backtesting import _BinanceBulkRoutingAdapter
+    from lumibot.data_sources.ccxt_backtesting_data import CcxtBacktestingData
+
+    first = pd.Timestamp("2026-11-13", tz="UTC")
+    end = first + pd.Timedelta(days=1, hours=4)
+    if path == "public":
+        monkeypatch.setattr(_BinanceBulkRoutingAdapter, "funding_events",
+            Mock(side_effect=AssertionError("explicit venue reached the default venue")))
+        source = _run_backtest_router(monkeypatch, exchange_id="phemex")
+    else:
+        source = CcxtBacktestingData(datetime_start=first, datetime_end=end, exchange_id="phemex")
+    asset = Asset("BTC/USD:BTC", "crypto_future")
+    rows = source.get_funding_events(asset, first, end)
+    assert len(rows) == 3  # Keep actual known settlements despite missing tail history.
+    coverage = source.get_funding_coverage(asset)
+    assert coverage["source"] == "ccxt:phemex"
+    assert coverage["first"] == first and coverage["last"] == first + pd.Timedelta(hours=16)
+    broker = BacktestingBroker(source)
+    try:
+        broker._perpetuals.report_funding_gaps(asset, first, end)
+        notices = broker.perpetual_funding_unavailable
+        assert len(notices) == 1 and notices[0]["source"] == "ccxt:phemex"
+        assert notices[0]["not_covered"] == [[(first + pd.Timedelta(days=1)).isoformat(), end.isoformat()]]
     finally:
         broker.cleanup_streams()

@@ -67,6 +67,9 @@ class CcxtBacktestingData(DataSourceBacktesting):
             return mark, exact
         return super().get_perpetual_mark(asset, at)
 
+    def get_funding_coverage(self, asset):
+        return self.cache_db.get_funding_coverage(asset)
+
     def _history_symbol(self, asset, quote=None):
         from lumibot.tools.symbol_normalization import build_ccxt_crypto_symbol
 

@@ -15,6 +15,8 @@ Backtests also export ``market_input_manifest.json``, ``market_inputs.csv`` and
 ``market_input_observations.csv``. The manifest records file checksums and any
 incomplete capture. Historical and indicator frames remain distinct from
 scalar last-price returns.
+If capture recovers after a failed recording attempt, the manifest still
+reports ``complete: false`` with ``capture_error`` for the omitted evidence.
 
 An observation with ``purpose=last_price`` records the actual
 ``get_last_price`` result, its ``valueType``, effective asset and quote currency,

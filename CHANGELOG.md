@@ -9,6 +9,7 @@ Deploy marker: dadfd7128af4fd61a96de0d7869897c82160d560
 
 ### Fixed
 - Diagnostic capture counters now roll back with a failed batch commit, so a failed write does not consume the observation allowance or overstate exported row counts.
+- Diagnostic completeness preserves earlier recording failures after storage recovers, and already-recorded scalar duplicates do not falsely report an observation-limit omission.
 - Phemex funding coverage normalizes legacy hour counts and newer second counts, preventing false missing-funding warnings for an eight-hour interval. Funding payment timestamps, rates and cashflows are unchanged.
 
 ## 4.6.72 - 2026-11-15

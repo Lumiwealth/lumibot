@@ -196,6 +196,85 @@ def test_duplicate_last_price_does_not_consume_byte_budget_or_report_truncation(
     recorder.close()
 
 
+def test_explicit_observation_limit_does_not_mislabel_persisted_last_price():
+    recorder = MarketInputEvidence(max_observations=2)
+    strategy, source, _, _ = _strategy(Decimal("1.2500"), source=SimpleNamespace(_market_input_evidence=recorder))
+    for asset in [Asset("FIRST"), Asset("SECOND"), Asset("FIRST")]:
+        assert Strategy.get_last_price(strategy, asset) == Decimal("1.2500")
+    assert len(_observations(source)) == 2
+    assert "observation_limit" not in recorder.incomplete
+    assert Strategy.get_last_price(strategy, Asset("THIRD")) == Decimal("1.2500")
+    assert len(_observations(source)) == 2 and "observation_limit" in recorder.incomplete
+    recorder.close()
+
+
+def test_initial_last_price_spool_failure_is_retained_after_recovery(tmp_path, monkeypatch):
+    import lumibot.backtesting.market_input_evidence as evidence
+
+    original = evidence.MarketInputEvidence
+    attempts = []
+    def unavailable_once():
+        attempts.append(True)
+        if len(attempts) == 1:
+            raise OSError("synthetic storage setup failure")
+        return original()  # Recovery uses a real SQLite spool.
+    monkeypatch.setattr(evidence, "MarketInputEvidence", unavailable_once)
+    value = Decimal("1.2500")
+    strategy, source, _, _ = _strategy(value)
+    assert Strategy.get_last_price(strategy, Asset("TEST")) is value
+    strategy.broker.datetime = strategy.broker.datetime.replace(hour=13)
+    assert Strategy.get_last_price(strategy, Asset("TEST")) is value
+    assert len(_observations(source)) == 1
+    evidence.write_market_input_evidence(source, tmp_path, finalize=True)
+    manifest = json.loads((tmp_path / "market_input_manifest.json").read_text())
+    assert manifest["complete"] is False
+    assert manifest["incompleteReasons"] == ["capture_error"]
+
+
+def test_initial_history_spool_failure_is_retained_after_recovery(tmp_path, monkeypatch):
+    import lumibot.backtesting.market_input_evidence as evidence
+
+    original = evidence.MarketInputEvidence
+    attempts = []
+    def unavailable_once():
+        attempts.append(True)
+        if len(attempts) == 1:
+            raise OSError("synthetic storage setup failure")
+        return original()
+    monkeypatch.setattr(evidence, "MarketInputEvidence", unavailable_once)
+    source = SimpleNamespace()
+    frame = pd.DataFrame({"close": [10.]}, index=pd.date_range("2025-02-01", periods=1, tz="UTC"))
+    kwargs = dict(source=source, asset=Asset("TEST"), timestep="day", frame=frame, purpose="history")
+    evidence.record_market_input(when=frame.index[0], **kwargs)
+    evidence.record_market_input(when=frame.index[0] + pd.Timedelta(days=1), **kwargs)
+    assert frame["close"].tolist() == [10.] and len(source._market_input_evidence.observations) == 1
+    evidence.write_market_input_evidence(source, tmp_path, finalize=True)
+    manifest = json.loads((tmp_path / "market_input_manifest.json").read_text())
+    assert manifest["complete"] is False and manifest["incompleteReasons"] == ["capture_error"]
+
+
+def test_batch_setup_failure_does_not_mark_successful_individual_capture_incomplete(tmp_path, monkeypatch):
+    import lumibot.backtesting.market_input_evidence as evidence
+
+    original = evidence.MarketInputEvidence
+    attempts = []
+    def unavailable_once():
+        attempts.append(True)
+        if len(attempts) == 1:
+            raise OSError("synthetic batch setup failure")
+        return original()
+    monkeypatch.setattr(evidence, "MarketInputEvidence", unavailable_once)
+    source = SimpleNamespace()
+    frame = pd.DataFrame({"close": [10.]}, index=pd.date_range("2025-02-01", periods=1, tz="UTC"))
+    with evidence.market_input_batch(source):
+        evidence.record_market_input(source=source, asset=Asset("TEST"), timestep="day",
+            when=frame.index[0], frame=frame, purpose="history")
+    assert len(source._market_input_evidence.observations) == 1
+    evidence.write_market_input_evidence(source, tmp_path, finalize=True)
+    manifest = json.loads((tmp_path / "market_input_manifest.json").read_text())
+    assert manifest["complete"] is True and manifest["incompleteReasons"] == []
+
+
 def test_rolled_back_batch_restores_shared_capture_counts_and_accepts_later_price():
     import sqlite3
 

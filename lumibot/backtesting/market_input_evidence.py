@@ -457,20 +457,22 @@ class MarketInputEvidence:
             # A cached same-clock read adds no new observation or disk write.
             if fingerprint == self._last_scalar_observation:
                 return
-            if self.max_observations is not None and self._observation_count >= self.max_observations:
-                self.incomplete.add("observation_limit")
-                return
             sequence = self._observation_count
             payload = _encoded({**observation, "sequence": sequence})
             payload_bytes = len(payload.encode("utf-8"))
-            if self._last_price_payload_bytes + payload_bytes > self.max_last_price_bytes:
+            limit_reason = None
+            if self.max_observations is not None and self._observation_count >= self.max_observations:
+                limit_reason = "observation_limit"
+            elif self._last_price_payload_bytes + payload_bytes > self.max_last_price_bytes:
+                limit_reason = "last_price_byte_limit"
+            if limit_reason:
                 # An already-recorded same-time return is not omitted evidence.
                 if self._connection.execute(
                     "SELECT 1 FROM observations WHERE fingerprint = ?", (fingerprint,)
                 ).fetchone():
                     self._last_scalar_observation = fingerprint
                     return
-                self.incomplete.add("last_price_byte_limit")
+                self.incomplete.add(limit_reason)
                 return
             with self._transaction():
                 inserted = self._connection.execute(
@@ -533,6 +535,17 @@ def market_input_batch(source):
                 recorder.incomplete.add("capture_error")
 
 
+def _record_capture_error(source, recorder):
+    # A failed recording attempt may precede creation of a usable spool.
+    try:
+        source._market_input_evidence_capture_error = True
+    except Exception:
+        pass  # Recording must not change the caller's actual input or return value.
+    if recorder is not None:
+        with recorder.lock:
+            recorder.incomplete.add("capture_error")
+
+
 def record_market_input(*, source, asset, timestep, when, frame, purpose, quote=None):
     recorder = getattr(source, "_market_input_evidence", None)
     try:
@@ -542,9 +555,7 @@ def record_market_input(*, source, asset, timestep, when, frame, purpose, quote=
         recorder.record(asset=asset, timestep=timestep, when=when, frame=frame,
                         purpose=purpose, quote=quote)
     except Exception:
-        if recorder is not None:
-            with recorder.lock:
-                recorder.incomplete.add("capture_error")
+        _record_capture_error(source, recorder)
 
 
 def record_last_price_input(*, source, asset, quote, exchange, when, value, unavailable_reason=None):
@@ -556,9 +567,7 @@ def record_last_price_input(*, source, asset, quote, exchange, when, value, unav
         recorder.record_last_price(asset=asset, quote=quote, exchange=exchange, when=when,
                                    value=value, unavailable_reason=unavailable_reason)
     except Exception:
-        if recorder is not None:
-            with recorder.lock:
-                recorder.incomplete.add("capture_error")
+        _record_capture_error(source, recorder)
 
 
 def _write_csv(path, fields, rows):
@@ -591,6 +600,8 @@ def write_market_input_evidence(source, directory, *, prefix="", finalize=False)
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
         with recorder.lock:
+            if getattr(source, "_market_input_evidence_capture_error", False) is True:
+                recorder.incomplete.add("capture_error")
             manifest_path = directory / (prefix + "market_input_manifest.json")
             manifest_path.unlink(missing_ok=True)  # A failed replacement is never an old complete snapshot.
             context_fields = ["asset", "timestep", "columns"]

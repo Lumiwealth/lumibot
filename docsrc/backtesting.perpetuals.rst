@@ -22,11 +22,11 @@ Ways to get perpetual data
    * - Source
      - What you get
      - How to choose it
-   * - ``CcxtBacktesting``
-     - Perpetual candles, contract terms and funding history from any CCXT
-       exchange that lists the contract and supports ``fetchFundingRateHistory``
-     - ``datasource_class=CcxtBacktesting`` with ``exchange_id``, and an asset such
-       as ``Asset("BTC/USDT:USDT", "crypto_future")``
+   * - CCXT, direct or routed
+     - The selected exchange's perpetual candles and contract terms, plus
+       published funding and historical marks where its public API supports them
+     - ``datasource_class=CcxtBacktesting`` with ``exchange_id``, or a route such
+       as ``{"crypto_future":"phemex"}``; keep the full settlement symbol
    * - Binance public bulk files (routed backtests)
      - Binance USD-M perpetual candles, hourly mark prices and settled funding,
        from the public file archive. No API key
@@ -35,14 +35,57 @@ Ways to get perpetual data
      - Bitunix perpetual candles, contract terms and settled funding (rate and
        mark price at settlement). Public endpoints, no API key
      - ``BACKTESTING_DATA_SOURCE='{"crypto_future":"bitunix", ...}'``
-   * - Spot proxy (routed backtests, other providers)
-     - Spot candles of the same coin. No contract terms and no funding, so
-       perpetual orders are rejected with "Derivative contract terms are
-       unavailable"
-     - Any other ``crypto_future`` route, for example ``"coinbase"`` or ``"ibkr"``
+   * - Spot-only sources
+     - No native perpetual contract terms or funding. A spot pair cannot stand
+       in for an inverse or linear perpetual
+     - An exchange that lists only the spot instrument, or a spot-proxy route
+       such as ``"ibkr"``; select a venue that actually lists the contract
 
 Data sources
 ------------
+
+**Native CCXT perpetuals** preserve the exchange's complete instrument identity,
+including its quote currency, settlement currency, contract size and native
+quantity units. Routed CCXT history uses the same metadata and funding owner as
+``CcxtBacktesting``; it does not turn the requested contract into a spot pair.
+Both inverse and linear products use provider metadata rather than a guessed
+currency suffix. For example, Phemex's ``BTC/USD:BTC`` is priced in USD, settles
+in BTC and has a USD face value per contract; ``BTC/USDT:USDT`` settles in USDT.
+Choose a reporting wallet deliberately; a BTC balance is not a dollar balance.
+
+.. code-block:: bash
+
+   export BACKTESTING_DATA_SOURCE='{"crypto_future":"phemex","crypto":"coinbase","default":"ibkr"}'
+
+.. code-block:: python
+
+   # Public instrument metadata determines native contract units.
+   perp = Asset("BTC/USD:BTC", "crypto_future", leverage=3)
+   terms = self.broker.get_contract_spec(perp)
+   quantity = self.get_quantity_for_notional(perp, 1000, price=50000)
+   # On a USD 1-face inverse contract this is 1000 contracts, not 0.02 BTC.
+
+Phemex's public, explicitly bounded history endpoint serves its perpetual trade
+and metadata-named mark series. The existing provider parser preserves its native
+price scales. Funding uses the public V2 history endpoint and the product's
+funding-series metadata. Historical marks use the minute's opening observation
+at a settlement boundary, never that minute's later close. Unsupported or missing
+marks remain unavailable; traded prices are not relabeled as provider marks.
+
+The shared cache separates exchange, full contract identity, bar size and trade
+versus mark data. Public market metadata is shared across instances with a
+one-hour refresh. Funding stays a sparse timestamped event series in shared UTC
+month partitions, preserving actual payment timestamps and rates. Missing or
+failed history is not cached as zero funding or filled with invented events.
+
+Limits: exchange history retention and rate limits apply. Current product
+metadata is not an archive of historical contract specification changes. A
+provider may expose candles without funding or historical marks; that missing
+capability remains visible and does not qualify another venue or a spot proxy.
+No authenticated account endpoint is needed for these public data reads.
+See Phemex's `Public Contract API documentation
+<https://github.com/phemex/phemex-api-docs/blob/master/Public-Contract-API-en.md>`_
+for its product fields, history requests and provider limits.
 
 **Binance bulk files** (``"binance"``) read the public archive at
 ``data.binance.vision``, the same files anyone can download. Every file is checked

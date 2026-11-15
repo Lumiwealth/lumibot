@@ -47,66 +47,25 @@ class CcxtBacktestingData(DataSourceBacktesting):
         self.cache_db = CcxtCacheDB(self.name,max_download_limit=download_limit)
 
     def get_market(self, asset, quote=None):
-        from lumibot.tools.symbol_normalization import resolve_ccxt_instrument_market
-
-        return resolve_ccxt_instrument_market(self.cache_db.api.markets, asset, quote, exchange_id=self.name)
+        return self.cache_db.get_market(asset, quote)
 
     def get_contract_spec(self, asset, quote=None):
-        from lumibot.entities import ContractSpec
-
-        return ContractSpec.from_ccxt_market(self.get_market(asset, quote))
+        return self.cache_db.get_contract_spec(asset, quote)
 
     def get_funding_events(self, asset, start, end):
         supplied = super().get_funding_events(asset, start, end)
         if supplied is not None:
             return supplied
-        api = self.cache_db.api
-        if not api.has.get("fetchFundingRateHistory"):
+        rows = self.cache_db.get_funding_events(asset, self.datetime_start, self.datetime_end)
+        if rows is None:
             return None
-        cache = getattr(self, "_funding_history", None)
-        if cache is None:
-            self._funding_history = cache = {}
-        market = self.get_market(asset)
-        symbol = market["symbol"]
-        if symbol not in cache:
-            # A failed static history download remains unavailable for this run;
-            # do not repeat the same paginated request on every simulated bar.
-            cache[symbol] = None
-            first = int(self.datetime_start.timestamp() * 1000)
-            last = int(self.datetime_end.timestamp() * 1000)
-            cursor, result = first, {}
-            while cursor <= last:
-                if self.name == "phemex":
-                    # CCXT 4.5.64 selects a retired V1 route for inverse history.
-                    # The V2 endpoint serves all funding symbols. FR8H is the
-                    # provider's symbol suffix, not an assumed payment interval.
-                    info = market.get("info") or {}
-                    native = market.get("baseId") if market.get("inverse") else market["id"]
-                    rate_symbol = info.get("fundingRate8hSymbol") or f".{native}FR8H"
-                    response = api.v2GetApiDataPublicDataFundingRateHistory(
-                        {"symbol": rate_symbol, "start": cursor, "end": last, "limit": 100})
-                    if str(response.get("code", 0)) != "0":
-                        raise ValueError(f"Phemex funding history failed: {response.get('code')}")
-                    page = [{"timestamp": int(row["fundingTime"]), "fundingRate": row["fundingRate"], "info": row}
-                            for row in response["data"]["rows"]]
-                else:
-                    page = api.fetch_funding_rate_history(symbol, since=cursor, limit=100, params={"until": last})
-                if not page:
-                    break
-                timestamps = [int(row["timestamp"]) for row in page]
-                newest = max(timestamps)
-                if newest < cursor:
-                    raise ValueError("Funding history pagination did not advance")
-                for row in page:
-                    if first <= int(row["timestamp"]) <= last:
-                        result[int(row["timestamp"])] = row
-                cursor = newest + 1
-                if len(page) < 100:
-                    break
-            cache[symbol] = self._perpetual_rows(list(result.values()))
-        if cache[symbol] is None:
-            return None
-        return [row for row in cache[symbol] if start <= row["timestamp"] <= end]
+        return [row for row in self._perpetual_rows(rows) if start <= row["timestamp"] <= end]
+
+    def get_perpetual_mark(self, asset, at):
+        mark, exact = self.cache_db.get_perpetual_mark(asset, at)
+        if mark is not None:
+            return mark, exact
+        return super().get_perpetual_mark(asset, at)
 
     def _history_symbol(self, asset, quote=None):
         from lumibot.tools.symbol_normalization import build_ccxt_crypto_symbol

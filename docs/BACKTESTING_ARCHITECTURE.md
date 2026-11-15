@@ -25,6 +25,30 @@ normalizes aware endpoints to UTC before building exchange requests or slicing.
 Its legacy naive endpoints retain their UTC meaning. Neither repair changes
 candle-open versus candle-completion semantics.
 
+### Native CCXT perpetual routing
+
+`_CcxtRoutingAdapter` resolves the requested provider contract before fetching
+candles. Its contract, funding and mark hooks delegate to `CcxtCacheDB`, the same
+owner used by `CcxtBacktestingData`; it does not create a second provider client
+implementation or convert perpetuals into spot instruments. The existing Phemex
+compatibility helper owns bounded history, scaled price parsing and metadata-named
+mark requests. Funding's existing V2 compatibility is shared rather than copied.
+
+Trade bars retain their existing shared `BarSeries` identity. Mark bars use that
+same store with a distinct data kind; public metadata and sparse monthly funding
+events reuse `BacktestCacheManager` and `ParquetSeriesCache`. Keys describe only
+exchange, full instrument identity, data kind and time. Settlement suffixes and
+different exchanges cannot collide; no account, user or strategy enters a key.
+Funding query coverage is limited to successful provider answers and actual time.
+An empty or failed answer does not establish fabricated zero-rate settlements.
+
+At an exact funding minute, a historical mark uses that minute's opening value,
+not its future closing value. Missing marks stay unavailable rather than being
+reported as exact stale or traded prices. Current market metadata has a one-hour
+cache lifetime and is not historical contract-specification evidence. The normal
+cache warmer can invoke the same cache owner's metadata, trade, mark and funding
+operations independently; SDK code creates no scheduler or recurring job.
+
 The adapter audit also checked Alpaca (SDK aware index), Tradier (local wall
 times and date-only sessions), IBKR socket (UTC seconds intraday; local daily
 session labels), IBKR REST (UTC milliseconds), Bitunix (UTC milliseconds),

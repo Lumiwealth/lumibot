@@ -1,6 +1,5 @@
 """Provider history pagination uses observed timestamps, never fixed intervals."""
 
-from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pandas as pd
@@ -9,11 +8,20 @@ import pytest
 from lumibot.data_sources.ccxt_backtesting_data import CcxtBacktestingData
 from tests.test_ccxt_derivatives import derivatives
 from tests.test_ccxt_unified_spot import make_broker
+from tests.test_ccxt_store import _cache_without_live_exchange
+
+
+def _source_cache(api, exchange_id, tmp_path, monkeypatch):
+    # Funding now shares the real cache owner with routed backtests. Only the
+    # external provider response is mocked; local parquet reads/writes are real.
+    cache = _cache_without_live_exchange(tmp_path, monkeypatch)
+    cache.api, cache.exchange_id = api, exchange_id
+    return cache
 
 
 @pytest.mark.parametrize("symbol,native", [("BTC/USDT:USDT", ".BTCUSDTFR8H"),
                                           ("BTC/USDC:USDC", ".BTCUSDCFR8H"), ("BTC/USD:BTC", ".BTCFR8H")])
-def test_phemex_funding_uses_working_v2_route_for_every_family(derivatives, symbol, native):
+def test_phemex_funding_uses_working_v2_route_for_every_family(derivatives, symbol, native, tmp_path, monkeypatch):
     source = CcxtBacktestingData.__new__(CcxtBacktestingData)
     source.name = "phemex"
     source.datetime_start = pd.Timestamp("2026-10-26", tz="UTC")
@@ -26,7 +34,7 @@ def test_phemex_funding_uses_working_v2_route_for_every_family(derivatives, symb
     api.markets[symbol]["info"].update(fundingRateSymbol=native.replace("FR8H", "FR"), fundingRate8hSymbol=native)
     api.has["fetchFundingRateHistory"] = True
     api.v2GetApiDataPublicDataFundingRateHistory = Mock(return_value={"code": 0, "msg": "OK", "data": {"rows": [row]}})
-    source.cache_db = SimpleNamespace(api=api)
+    source.cache_db = _source_cache(api, source.name, tmp_path, monkeypatch)
     asset = derivatives.get_asset(symbol)
     rows = source.get_funding_events(asset, source.datetime_start, source.datetime_end)
     assert rows[0]["fundingRate"] == "0.0001"
@@ -36,7 +44,7 @@ def test_phemex_funding_uses_working_v2_route_for_every_family(derivatives, symb
     assert api.v2GetApiDataPublicDataFundingRateHistory.call_count == 1
 
 
-def test_ccxt_funding_pagination_uses_last_observed_timestamp(derivatives):
+def test_ccxt_funding_pagination_uses_last_observed_timestamp(derivatives, tmp_path, monkeypatch):
     source = CcxtBacktestingData.__new__(CcxtBacktestingData)
     source.name = "other"
     source.datetime_start = pd.Timestamp("2026-01-01", tz="UTC")
@@ -47,7 +55,7 @@ def test_ccxt_funding_pagination_uses_last_observed_timestamp(derivatives):
     api = derivatives.api
     api.has["fetchFundingRateHistory"] = True
     api.fetch_funding_rate_history = Mock(side_effect=pages)
-    source.cache_db = SimpleNamespace(api=api)
+    source.cache_db = _source_cache(api, source.name, tmp_path, monkeypatch)
     asset = derivatives.get_asset("BTC/USDT:USDT")
     rows = source.get_funding_events(asset, source.datetime_start, source.datetime_end)
     assert len(rows) == 101
@@ -55,7 +63,7 @@ def test_ccxt_funding_pagination_uses_last_observed_timestamp(derivatives):
     assert "paginate" not in api.fetch_funding_rate_history.call_args.kwargs["params"]
 
 
-def test_failed_funding_history_is_not_refetched_for_every_backtest_bar(derivatives):
+def test_failed_funding_history_is_not_refetched_for_every_backtest_bar(derivatives, tmp_path, monkeypatch):
     source = CcxtBacktestingData.__new__(CcxtBacktestingData)
     source.name = "other"
     source.datetime_start = pd.Timestamp("2026-01-01", tz="UTC")
@@ -63,7 +71,7 @@ def test_failed_funding_history_is_not_refetched_for_every_backtest_bar(derivati
     api = derivatives.api
     api.has["fetchFundingRateHistory"] = True
     api.fetch_funding_rate_history = Mock(side_effect=ConnectionError("synthetic provider outage"))
-    source.cache_db = SimpleNamespace(api=api)
+    source.cache_db = _source_cache(api, source.name, tmp_path, monkeypatch)
     asset = derivatives.get_asset("BTC/USDT:USDT")
     with pytest.raises(ConnectionError):
         source.get_funding_events(asset, source.datetime_start, source.datetime_end)

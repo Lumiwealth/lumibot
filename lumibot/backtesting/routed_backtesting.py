@@ -1087,11 +1087,31 @@ class _AlpacaRoutingAdapter(_DataFrameRoutingAdapter):
 
 class _CcxtRoutingAdapter(_DataFrameRoutingAdapter):
     provider_key = "ccxt"
+    uses_spot_proxy = False
     _default_start_buffer = timedelta(0)
 
     def __init__(self, router: "RoutedBacktestingPandas"):
         super().__init__(router)
         self._cache_by_exchange: dict[str, Any] = {}
+
+    def _cache_for(self, asset, provider_spec=None):
+        base = asset[0] if isinstance(asset, tuple) else asset
+        spec = provider_spec or self._router._provider_spec_for_asset(base)
+        exchange_id = spec.ccxt_exchange_id or _infer_default_ccxt_exchange_id()
+        if exchange_id not in self._cache_by_exchange:
+            from lumibot.tools.ccxt_data_store import CcxtCacheDB
+
+            self._cache_by_exchange[exchange_id] = CcxtCacheDB(exchange_id)
+        return self._cache_by_exchange[exchange_id]
+
+    def contract_spec(self, asset, quote_asset=None):
+        return self._cache_for(asset).get_contract_spec(asset, quote_asset)
+
+    def funding_events(self, asset, start, end):
+        return self._cache_for(asset).get_funding_events(asset, start, end)
+
+    def mark_at(self, asset, at):
+        return self._cache_for(asset).get_perpetual_mark(asset, at)
 
     def _fetch_df(
         self,
@@ -1107,18 +1127,7 @@ class _CcxtRoutingAdapter(_DataFrameRoutingAdapter):
         require_quote_data: bool,
         require_ohlc_data: bool,
     ) -> pd.DataFrame | None:
-        exchange_id = provider_spec.ccxt_exchange_id or _infer_default_ccxt_exchange_id()
-
-        try:
-            from lumibot.tools.ccxt_data_store import CcxtCacheDB
-        except Exception as e:
-            raise RoutingProviderError(
-                f"Routing selected CCXT ({exchange_id}) but CCXT dependencies are not available: {e}"
-            ) from e
-
-        if exchange_id not in self._cache_by_exchange:
-            self._cache_by_exchange[exchange_id] = CcxtCacheDB(exchange_id)
-        cache_db = self._cache_by_exchange[exchange_id]
+        cache_db = self._cache_for(asset, provider_spec)
 
         if ts_unit == "minute":
             timeframe = "1m"
@@ -1129,17 +1138,9 @@ class _CcxtRoutingAdapter(_DataFrameRoutingAdapter):
         else:
             raise RoutingProviderError(f"CCXT routing only supports minute/hour/day timesteps, got {ts_unit!r}.")
 
-        from lumibot.tools.symbol_normalization import build_ccxt_crypto_symbol
-
-        symbol = build_ccxt_crypto_symbol(
-            getattr(asset, "symbol", asset),
-            getattr(quote_asset, "symbol", quote_asset),
-            exchange_id=exchange_id,
-        )
-        if not symbol:
-            raise RoutingProviderError(
-                f"Unable to build a CCXT crypto symbol from asset={asset!r} quote={quote_asset!r}."
-            )
+        # Native contract metadata preserves settlement and resolves exchange ids;
+        # the reporting wallet is not necessarily the instrument's price quote.
+        symbol = cache_db.get_market(asset, quote_asset)["symbol"]
         if ts_unit in {"minute", "hour"}:
             try:
                 prefetch_start = min(start_datetime, self._router.datetime_start)

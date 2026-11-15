@@ -33,3 +33,22 @@ def fetch_ohlcv(api, symbol, timeframe="1m", since=None, limit=None, params=None
     # families; keep CCXT's native price/volume-scale parser.
     response = api.publicGetMdV2KlineList(request)
     return api.parse_ohlcvs(response["data"]["rows"], market, timeframe, since, limit)
+
+
+def fetch_mark_ohlcv(api, symbol, timeframe="1m", since=None, limit=None, params=None):
+    """Historical provider marks, without substituting traded-price candles.
+
+    Phemex publishes the mark-series id in product metadata and uses the same
+    bounded public history endpoint and price scale as the underlying contract.
+    Other exchanges retain CCXT's declared mark-history capability.
+    """
+    if getattr(api, "id", None) == "phemex":
+        market = normalize_market(api, api.market(symbol))
+        mark_symbol = (market.get("info") or {}).get("markSymbol")
+        if not mark_symbol:
+            return None
+        return fetch_ohlcv(api, symbol, timeframe, since=since, limit=limit,
+                           params={**(params or {}), "symbol": mark_symbol})
+    if not getattr(api, "has", {}).get("fetchMarkOHLCV"):
+        return None
+    return api.fetch_mark_ohlcv(symbol, timeframe, since=since, limit=limit, params=params or {})

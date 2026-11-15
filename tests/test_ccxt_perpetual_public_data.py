@@ -1,0 +1,216 @@
+"""Public provider contracts; real local/shared cache writes, never a network call."""
+
+from copy import deepcopy
+from datetime import datetime, timedelta, timezone
+import json
+from pathlib import Path
+from unittest.mock import Mock
+
+import ccxt
+import pandas as pd
+import pytest
+
+from lumibot.entities import Asset
+from lumibot.tools import ccxt_data_store as store
+
+
+DATA = json.loads((Path(__file__).parent / "fixtures/ccxt_public_perpetual_data.json").read_text())
+NOW = datetime(2026, 11, 15, 12)
+START = pd.Timestamp("2026-11-13", tz="UTC")
+END = START + pd.Timedelta(days=1) - pd.Timedelta(milliseconds=1)
+INVERSE = Asset("BTC/USD:BTC", "crypto_future")
+
+
+@pytest.fixture
+def public_cache(tmp_path, monkeypatch):
+    from lumibot import constants
+    from lumibot.tools import backtest_cache, parquet_series_cache, shared_bar_cache
+    monkeypatch.setattr(store, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    monkeypatch.setattr(constants, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    monkeypatch.setattr(backtest_cache, "get_backtest_cache", lambda: None)
+    monkeypatch.setattr(parquet_series_cache, "get_backtest_cache", lambda: None)
+    monkeypatch.setattr(store.CcxtCacheDB, "_current_utc_naive", lambda self: NOW)
+    monkeypatch.delenv("LUMIBOT_SHARED_BARS", raising=False)
+    monkeypatch.delenv("LUMIBOT_SHARED_BARS_SCOPE", raising=False)
+    shared_bar_cache._reset_process_memory()
+    original = ccxt.phemex
+    apis = []
+
+    def factory(exchange="phemex"):
+        api = original()
+        api.id = exchange
+        markets = []
+        for native, raw in DATA["products"].items():
+            inverse = native == "BTCUSD"
+            quote, settle = raw["quoteCurrency"], raw["settleCurrency"]
+            markets.append({"id": native, "symbol": f"BTC/{quote}:{settle}", "base": "BTC",
+                "baseId": "BTC", "quote": quote, "quoteId": quote, "settle": settle,
+                "settleId": settle, "type": "swap", "spot": False, "swap": True,
+                "future": False, "option": False, "contract": True, "inverse": inverse,
+                "linear": not inverse, "active": True, "contractSize": raw.get("contractSize"),
+                "priceScale": raw.get("priceScale"), "valueScale": 8,
+                "precision": {"price": raw.get("tickSize", .1), "amount": raw.get("lotSize", .001)},
+                "limits": {}, "info": deepcopy(raw)})
+        def load():
+            api.set_markets(deepcopy(markets))
+            return api.markets
+        api.load_markets = Mock(side_effect=load)
+        api.has["fetchFundingRateHistory"] = True
+        api.v2GetApiDataPublicDataFundingRateHistory = Mock(return_value=deepcopy(DATA["funding"]))
+        api.publicGetMdV2KlineList = Mock(return_value=deepcopy(DATA["trade_candles"]))
+        apis.append(api)
+        return api
+    monkeypatch.setattr(store.ccxt, "phemex", factory)
+    monkeypatch.setattr(store.ccxt, "other", lambda: factory("other"), raising=False)
+    return tmp_path, apis
+
+
+def test_public_market_snapshot_reuses_across_instances_and_expires(public_cache, monkeypatch):
+    root, apis = public_cache
+    first = store.CcxtCacheDB("phemex")
+    spec = first.get_contract_spec(INVERSE)
+    assert (spec.base, spec.quote, spec.settle, spec.inverse, spec.contract_size) == ("BTC", "USD", "BTC", True, 1)
+    assert first.get_contract_spec((INVERSE, Asset("USD", "crypto"))) == spec
+    assert first.get_market(Asset("BTCUSD", "crypto_future"))["symbol"] == "BTC/USD:BTC"
+    for settle in ("USDT", "USDC"):
+        linear = first.get_contract_spec(Asset(f"BTC/{settle}:{settle}", "crypto_future"))
+        assert (linear.base, linear.quote, linear.settle, linear.inverse,
+                linear.contract_size, linear.quantity_unit) == ("BTC", settle, settle, False, 1, "contracts")
+    second = store.CcxtCacheDB("phemex")
+    assert second.get_contract_spec(INVERSE) == spec
+    assert second.get_contract_spec(Asset("BTC/USDC:USDC", "crypto_future")) == linear
+    assert [api.load_markets.call_count for api in apis] == [1, 0]
+    snapshot = json.loads((root / "ccxt/phemex/markets.json").read_text())
+    assert snapshot["schema"] == 1 and snapshot["fetchedAt"] and snapshot["currencies"]
+    assert snapshot["markets"]["BTC/USD:BTC"]["info"]["markSymbol"] == ".MBTC"
+    monkeypatch.setattr(store.CcxtCacheDB, "_current_utc_naive", lambda self: NOW + timedelta(hours=2))
+    store.CcxtCacheDB("phemex")
+    assert apis[-1].load_markets.call_count == 1
+
+
+def test_sparse_funding_month_is_shared_and_keeps_recorded_rates(public_cache):
+    root, apis = public_cache
+    first = store.CcxtCacheDB("phemex")
+    rows = first.get_funding_events(INVERSE, START, END)
+    assert [r["fundingRate"] for r in rows] == ["0.0001", "0.00009158", "0.0001"]
+    assert [r["timestamp"] for r in rows] == list(pd.date_range(START, periods=3, freq="8h"))
+    second = store.CcxtCacheDB("phemex")
+    assert second.get_funding_events(INVERSE, START, END) == rows
+    assert [a.v2GetApiDataPublicDataFundingRateHistory.call_count for a in apis] == [1, 0]
+    paths = list((root / "ccxt/phemex/funding").rglob("2026-11.parquet"))
+    assert len(paths) == 1
+    cached = pd.read_parquet(paths[0])
+    assert len(cached) == 3 and {"fundingRate", "coverageStart", "coverageEnd"} <= set(cached)
+    assert first.api.v2GetApiDataPublicDataFundingRateHistory.call_args.args[0]["symbol"] == ".BTCFR8H"
+
+
+@pytest.mark.parametrize("failure", ["unsupported", "empty", "error", "nonadvancing"])
+def test_unavailable_funding_is_visible_and_not_persisted(public_cache, failure):
+    root, _ = public_cache
+    cache = store.CcxtCacheDB("other")
+    cache.api.has["fetchFundingRateHistory"] = failure != "unsupported"
+    if failure == "error":
+        cache.api.fetch_funding_rate_history = Mock(side_effect=ConnectionError("recorded service failure"))
+    elif failure == "nonadvancing":
+        cache.api.fetch_funding_rate_history = Mock(return_value=[{"timestamp": int(START.timestamp()*1000)-1,
+            "fundingRate": ".001"}] * 100)
+    else:
+        cache.api.fetch_funding_rate_history = Mock(return_value=[])
+    if failure in {"error", "nonadvancing"}:
+        with pytest.raises((ConnectionError, ValueError)):
+            cache.get_funding_events(INVERSE, START, END)
+    else:
+        assert cache.get_funding_events(INVERSE, START, END) is None
+    assert cache.get_funding_events(INVERSE, START, END) is None
+    assert cache.api.fetch_funding_rate_history.call_count <= 1
+    assert not list((root / "ccxt/other/funding").rglob("*.parquet"))
+
+
+def test_funding_request_clips_future_and_preserves_sparse_gaps(public_cache):
+    _, _apis = public_cache
+    cache = store.CcxtCacheDB("phemex")
+    cache.get_funding_events(INVERSE, START, pd.Timestamp("2026-12-01", tz="UTC"))
+    calls = cache.api.v2GetApiDataPublicDataFundingRateHistory.call_args_list
+    assert calls and all(c.args[0]["end"] <= int(NOW.replace(tzinfo=timezone.utc).timestamp()*1000) for c in calls)
+
+
+def test_funding_coverage_fetches_only_uncovered_requested_ranges(public_cache):
+    cache = store.CcxtCacheDB("phemex")
+    cache.get_funding_events(INVERSE, START, END)
+    assert cache.api.v2GetApiDataPublicDataFundingRateHistory.call_args.args[0]["start"] == int(START.timestamp()*1000)
+    later = store.CcxtCacheDB("phemex")
+    shifted = deepcopy(DATA["funding"])
+    for row in shifted["data"]["rows"]:
+        row["fundingTime"] += 86400000
+    later.api.v2GetApiDataPublicDataFundingRateHistory.return_value = shifted
+    rows = later.get_funding_events(INVERSE, START, END + pd.Timedelta(days=1))
+    assert len(rows) == 6
+    assert later.api.v2GetApiDataPublicDataFundingRateHistory.call_count == 1
+    query = later.api.v2GetApiDataPublicDataFundingRateHistory.call_args.args[0]
+    assert query["start"] == int((END + pd.Timedelta(milliseconds=1)).timestamp()*1000)
+
+
+def test_nonfinite_funding_never_creates_persisted_coverage(public_cache):
+    root, _ = public_cache
+    cache = store.CcxtCacheDB("phemex")
+    response = deepcopy(DATA["funding"])
+    response["data"]["rows"][0]["fundingRate"] = "NaN"
+    cache.api.v2GetApiDataPublicDataFundingRateHistory.return_value = response
+    with pytest.raises(ValueError, match="finite"):
+        cache.get_funding_events(INVERSE, START, END)
+    assert cache.get_funding_events(INVERSE, START, END) is None
+    assert not list((root / "ccxt/phemex/funding").rglob("*.parquet"))
+
+
+def test_successful_funding_history_is_not_reread_for_every_bar(public_cache, monkeypatch):
+    from lumibot.tools.parquet_series_cache import ParquetSeriesCache
+    cache = store.CcxtCacheDB("phemex")
+    expected = cache.get_funding_events(INVERSE, START, END)
+    monkeypatch.setattr(ParquetSeriesCache, "read", Mock(side_effect=AssertionError("repeated parquet read")))
+    assert cache.get_funding_events(INVERSE, START, END) == expected
+    assert cache.api.v2GetApiDataPublicDataFundingRateHistory.call_count == 1
+
+
+def test_mark_history_uses_recorded_native_prices_and_distinct_shared_series(public_cache):
+    _root, _apis = public_cache
+    cache = store.CcxtCacheDB("phemex")
+    def answer(params):
+        return deepcopy(DATA["mark_candles"] if params["symbol"] == ".MBTC" else DATA["trade_candles"])
+    cache.api.publicGetMdV2KlineList = Mock(side_effect=answer)
+    finish = START + pd.Timedelta(minutes=9)
+    trade = cache.download_ohlcv("BTC/USD:BTC", "1m", START.to_pydatetime(), finish.to_pydatetime())
+    mark = cache.download_mark_ohlcv(INVERSE, "1m", START.to_pydatetime(), finish.to_pydatetime())
+    assert trade.iloc[1]["close"] == 71346.3
+    assert mark.iloc[1]["close"] == 71346.9345
+    before = cache.api.publicGetMdV2KlineList.call_count
+    again = cache.download_mark_ohlcv(INVERSE, "1m", START.to_pydatetime(), finish.to_pydatetime())
+    pd.testing.assert_frame_equal(mark, again)
+    assert cache.api.publicGetMdV2KlineList.call_count == before
+    mark_series = cache.shared_series("BTC/USD:BTC", "1m", price="mark")
+    assert mark_series.digest != cache.shared_series("BTC/USD:BTC", "1m").digest
+    other = store.CcxtCacheDB("other")
+    assert mark_series.digest != other.shared_series("BTC/USD:BTC", "1m", price="mark").digest
+
+
+def test_unsupported_mark_history_does_not_substitute_trade_bars(public_cache):
+    cache = store.CcxtCacheDB("other")
+    cache.api.has["fetchMarkOHLCV"] = False
+    cache.api.fetch_ohlcv = Mock(side_effect=AssertionError("trade substitution"))
+    assert cache.download_mark_ohlcv(INVERSE, "1m", START, END) is None
+    cache.api.fetch_ohlcv.assert_not_called()
+
+
+def test_settlement_mark_uses_exact_minute_open_never_future_close(public_cache):
+    cache = store.CcxtCacheDB("phemex")
+    frame = pd.DataFrame({"open": [71366.7], "close": [90000.]}, index=[START])
+    cache.download_mark_ohlcv = Mock(return_value=frame)
+    assert cache.get_perpetual_mark(INVERSE, START) == (71366.7, True)
+    assert cache.get_perpetual_mark(INVERSE, START + pd.Timedelta(seconds=30)) == (71366.7, False)
+
+
+def test_missing_settlement_minute_never_returns_stale_mark_as_exact(public_cache):
+    cache = store.CcxtCacheDB("phemex")
+    cache.download_mark_ohlcv = Mock(return_value=pd.DataFrame({"open": [71366.7]},
+        index=[START - pd.Timedelta(minutes=1)]))
+    assert cache.get_perpetual_mark(INVERSE, START) == (None, False)

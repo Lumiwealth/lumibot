@@ -38,6 +38,13 @@ override selecting automatic ``public`` routes. The router resolves it as a CCXT
 venue for public crypto requests; an explicit provider map still wins and absent
 hints retain the existing defaults. No new Asset identity field is introduced.
 
+`PerpetualDataUnavailable` scopes its explanation to the selected source. Binance
+USD-M rejection does not imply that native inverse history is unavailable from
+all venues. The diagnostic names the existing automatic-public `exchange_id`
+selection path and explicit-provider-map precedence without changing either.
+Its reason, source, original symbol, alternatives and optional request-tail
+payload stay intact; it neither promises venue coverage nor substitutes contracts.
+
 Trade bars retain their existing shared `BarSeries` identity. Mark bars use that
 same store with a distinct data kind; public metadata and sparse monthly funding
 events reuse `BacktestCacheManager` and `ParquetSeriesCache`. Keys describe only
@@ -950,7 +957,7 @@ otherwise closed-interval checks can skip valid market hours on pandas 3.
     - `{"crypto":"ccxt"}` (auto-select exchange from existing env/credentials; defaults to Coinbase when no exchange credential/config is available), or
     - a supported CCXT backtesting exchange id directly, e.g. `{"crypto":"coinbase"}`.
 
-For `Asset.AssetType.CRYPTO_FUTURE`, routed backtesting fetches spot crypto history as the price source while storing bars against the original futures asset. Quote assets are preserved exactly. USDT contracts such as `BTCUSDT`, `ETHUSDT`, and `SOLUSDT` use `BTC/USDT`, `ETH/USDT`, and `SOL/USDT`; if the exact pair has no provider data, LumiBot treats that as missing data instead of silently falling back to USD.
+For `Asset.AssetType.CRYPTO_FUTURE` on a spot-proxy route, routed backtesting fetches spot crypto history as the price source while storing bars against the original futures asset. Quote assets are preserved exactly. USDT contracts such as `BTCUSDT`, `ETHUSDT`, and `SOLUSDT` use `BTC/USDT`, `ETH/USDT`, and `SOL/USDT`; if the exact pair has no provider data, LumiBot treats that as missing data instead of silently falling back to USD. Native perpetual routes described above retain the actual contract's data and terms.
 
 Spot-proxy routes have no contract terms or funding history. Since perpetual accounting (4.6.31) every order on them is rejected with "Derivative contract terms are unavailable", so such a backtest completes with zero trades. That default is intentionally unchanged.
 

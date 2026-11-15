@@ -71,6 +71,12 @@ An explicit provider route such as ``{"crypto_future":"binance"}`` remains
 authoritative. ``Asset`` has no ``exchange`` constructor field; declare this
 venue through the supported backtest option, not by attaching an attribute.
 
+``PerpetualDataUnavailable`` describes the selected source's limitation, not
+every venue's capability. A Binance USD-M rejection does not rule out native
+CCXT history for the requested contract; the chosen venue must list that exact
+contract and supply its required data. Keep its intended quote and settlement
+currency: selecting a USDT contract changes a USD/inverse instrument.
+
 .. code-block:: bash
 
    export BACKTESTING_DATA_SOURCE='{"crypto_future":"phemex","crypto":"coinbase","default":"ibkr"}'

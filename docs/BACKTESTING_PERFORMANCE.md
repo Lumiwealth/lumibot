@@ -1210,8 +1210,25 @@ of labeling truncated evidence complete.
 Explicit callers can still request a finite row or observation ceiling. Those
 limits affect only diagnostic capture, never the simulation's trading lifetime.
 The recorder is used for backtest inputs; it does not limit how long a live bot
-can trade. It records inputs actually returned by the framework, not quotes,
-broker fills, arbitrary custom data reads or proof of strategy correctness.
+can trade. It records inputs actually returned by the framework, not broker
+fills, arbitrary custom data reads or proof of strategy correctness.
+
+`market_input_observations.csv` also records literal `get_last_price` results
+with `purpose=last_price`, the effective asset/quote, exchange argument and
+simulation time. Scalar observations carry `method`, `value`, `valueType` and
+`unavailableReason`; they are not added to historical rows or frame hashes.
+Decimal values retain their text precision. `None`, nonfinite returns and
+caught lookup errors remain explicit, while finite zero and negative values
+are preserved without imposing a product-wide price rule. A last-price result
+may be a daily close or a cached value; it is not necessarily an exchange quote.
+Framework valuation calls also use this API, so an observation does not prove
+that the strategy used that value to trade.
+
+Identical same-time scalar observations deduplicate, including cache hits.
+They share the existing observation allowance, streamed export, checksums and
+spool cleanup with frame observations. Counts describe distinct observations,
+not API calls. Capture neither fetches another price nor changes return values,
+return types, trading decisions or live operation.
 
 Completed backtests export a hash-bound manifest and CSV files and remove their
 owned temporary spool. Export failure also closes that spool, and unrelated

@@ -2988,6 +2988,19 @@ class Strategy(_Strategy):
             or getattr(self, "is_backtesting", False)
             or getattr(getattr(self, "broker", None), "IS_BACKTESTING_BROKER", False)
         )
+
+        def observed_result(value, unavailable_reason=None):
+            if is_backtesting_run:
+                try:
+                    from lumibot.backtesting.market_input_evidence import record_last_price_input
+
+                    record_last_price_input(source=self.broker.data_source, asset=asset,
+                        quote=quote_asset, exchange=exchange, when=self.broker.datetime,
+                        value=value, unavailable_reason=unavailable_reason)
+                except Exception:
+                    pass  # Diagnostic capture never changes the public API's result.
+            return value
+
         if is_backtesting_run:
             current_datetime = getattr(getattr(self, "broker", None), "datetime", None)
             cache = getattr(self, "_last_price_request_cache", None)
@@ -3000,7 +3013,7 @@ class Strategy(_Strategy):
                 self._last_price_request_cache_datetime = current_datetime
             cache_key = (asset, quote_asset, exchange)
             if cache_key in cache:
-                return cache[cache_key]
+                return observed_result(cache[cache_key])
 
         if is_backtesting_run:
             self._record_backtest_runtime_milestone("first_price_lookup_at")
@@ -3045,7 +3058,7 @@ class Strategy(_Strategy):
                         result = float(bars.df["close"].iloc[-1])
                         cache[cache_key] = result
                         self._record_usable_backtest_price(result, asset)
-                        return result
+                        return observed_result(result)
 
                     # Forward-fill retry (v4.5.1): when the length=1 slice comes
                     # back empty (observed on 24/7-market midnight iterations —
@@ -3087,7 +3100,7 @@ class Strategy(_Strategy):
                                     result = float(pre_sim["close"].iloc[-1])
                                     cache[cache_key] = result
                                     self._record_usable_backtest_price(result, asset)
-                                    return result
+                                    return observed_result(result)
                             except Exception:
                                 pass
                 except Exception:
@@ -3102,7 +3115,7 @@ class Strategy(_Strategy):
             if is_backtesting_run:
                 cache[cache_key] = result
                 self._record_usable_backtest_price(result, asset)
-            return result
+            return observed_result(result)
         except UnsupportedAsset:
             raise
         except Exception as e:
@@ -3110,7 +3123,7 @@ class Strategy(_Strategy):
             self.log_message(f"{e}")
             if is_backtesting_run:
                 self._note_backtest_data(asset, False)
-            return None
+            return observed_result(None, "lookup_error")
 
     def _note_backtest_data(self, asset, found):
         """Remember, per asset, whether any price or bar request in this backtest returned data.

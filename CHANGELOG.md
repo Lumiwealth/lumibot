@@ -2,6 +2,12 @@
 
 ## 4.6.72 - Unreleased
 
+### Added
+- Backtest input observations retain literal last-price API results, their asset/quote identity, simulation time and unavailable reasons. History remains separate, repeated cached observations deduplicate, and existing capture limits, checksums and cleanup apply without another data request or changes to trading behavior.
+
+### Fixed
+- Diagnostic capture counters now roll back with a failed batch commit, so a failed write does not consume the observation allowance or overstate exported row counts.
+
 ## 4.6.71 - 2026-11-15
 
 Deploy marker: 0cd1aaa7f

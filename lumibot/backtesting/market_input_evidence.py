@@ -7,6 +7,7 @@ actually returned them. Its manifest states the scope and any incomplete capture
 from __future__ import annotations
 
 import csv
+from decimal import Decimal
 import hashlib
 from contextlib import contextmanager
 import json
@@ -233,6 +234,7 @@ class MarketInputEvidence:
         self.lock = RLock()
         self._row_count = 0
         self._observation_count = 0
+        self._last_scalar_observation = None
         self._batch_depth = 0
         self._directory = tempfile.TemporaryDirectory(prefix="lumibot-market-input-")
         self.spool_directory = Path(self._directory.name)
@@ -259,6 +261,7 @@ class MarketInputEvidence:
         with self.lock:
             self._finalizer()
             self._serialized_rows.clear()
+            self._last_scalar_observation = None
 
     @contextmanager
     def _transaction(self):
@@ -284,6 +287,7 @@ class MarketInputEvidence:
         most of a 500-stock scan's time; the records and their order are unchanged.
         """
         with self.lock:
+            initial_counts = self._row_count, self._observation_count
             if not self._batch_depth and not self._connection.in_transaction:
                 self._connection.execute("BEGIN")
             self._batch_depth += 1
@@ -297,8 +301,10 @@ class MarketInputEvidence:
                     except Exception:
                         # Nothing uncommitted may survive as "already in the spool".
                         self._connection.rollback()
+                        self._row_count, self._observation_count = initial_counts
                         self._serialized_rows.clear()
                         self._prefix_states.clear()
+                        self._last_scalar_observation = None
                         self.incomplete.add("capture_error")
 
     def _read_records(self, table):
@@ -422,6 +428,45 @@ class MarketInputEvidence:
             if stream is not None:
                 self._remember_rows(stream, frame, arrays, reused, new_encoded, open_digest)
 
+    def record_last_price(self, *, asset, quote, exchange, when, value, unavailable_reason=None):
+        """Record a literal API return, never a historical bar or a price fetch."""
+        value_type = type(value).__name__
+        scalar = value.item() if isinstance(value, np.generic) else value
+        reason = unavailable_reason
+        if scalar is None:
+            literal, reason = None, reason or "returned_none"
+        elif isinstance(scalar, Decimal):
+            literal = str(scalar)  # Keep decimal precision and scale.
+            if not scalar.is_finite():
+                reason = reason or "non_finite"
+        elif isinstance(scalar, float) and not math.isfinite(scalar):
+            literal, reason = str(scalar), reason or "non_finite"
+        elif isinstance(scalar, (str, int, float, bool)):
+            literal = scalar
+        else:
+            literal, reason = None, reason or "unsupported_scalar"
+        observation = {"asset": _encoded(asset_identity(asset, quote)),
+                       "timestep": "", "columns": "[]", "purpose": "last_price",
+                       "method": "get_last_price", "observedAt": when.isoformat(),
+                       "exchange": exchange, "value": literal, "valueType": value_type,
+                       "unavailableReason": reason}
+        fingerprint = _encoded(observation)
+        with self.lock:
+            # A cached same-clock read adds no new observation or disk write.
+            if fingerprint == self._last_scalar_observation:
+                return
+            if self.max_observations is not None and self._observation_count >= self.max_observations:
+                self.incomplete.add("observation_limit")
+                return
+            sequence = self._observation_count
+            with self._transaction():
+                inserted = self._connection.execute(
+                    "INSERT OR IGNORE INTO observations (fingerprint, sequence, payload) VALUES (?, ?, ?)",
+                    (fingerprint, sequence, _encoded({**observation, "sequence": sequence})),
+                ).rowcount
+            self._observation_count += inserted
+            self._last_scalar_observation = fingerprint
+
     def _remember_rows(self, stream, frame, arrays, reused, new_encoded, open_digest):
         candidates = self._prefix_states.pop(stream, [])
         if len(frame) > self.max_prefix_rows:
@@ -488,6 +533,20 @@ def record_market_input(*, source, asset, timestep, when, frame, purpose, quote=
                 recorder.incomplete.add("capture_error")
 
 
+def record_last_price_input(*, source, asset, quote, exchange, when, value, unavailable_reason=None):
+    recorder = getattr(source, "_market_input_evidence", None)
+    try:
+        if recorder is None:
+            recorder = MarketInputEvidence()
+            source._market_input_evidence = recorder
+        recorder.record_last_price(asset=asset, quote=quote, exchange=exchange, when=when,
+                                   value=value, unavailable_reason=unavailable_reason)
+    except Exception:
+        if recorder is not None:
+            with recorder.lock:
+                recorder.incomplete.add("capture_error")
+
+
 def _write_csv(path, fields, rows):
     temporary = None
     try:
@@ -526,14 +585,16 @@ def write_market_input_evidence(source, directory, *, prefix="", finalize=False)
                 ("market_inputs.csv", context_fields + ["rowSha256", "barTime", "firstObservedAt", "observedSequence"]
                  + sorted(MARKET_COLUMNS), recorder.rows.values(), len(recorder.rows)),
                 ("market_input_observations.csv", context_fields + ["purpose", "observedAt", "frameSha256", "returnedRows",
-                 "windowStart", "windowEnd", "sequence"], iter(recorder.observations), len(recorder.observations)),
+                 "windowStart", "windowEnd", "sequence", "method", "exchange", "value", "valueType",
+                 "unavailableReason"], iter(recorder.observations), len(recorder.observations)),
             )
             for name, fields, rows, count in records:
                 name = prefix + name
                 files[name] = {"rows": count, **_write_csv(directory / name, fields, rows)}
             manifest = {"schemaVersion": 1, "producer": "lumibot-framework",
-                        "scope": ("Observed market columns from history and indicator inputs; "
-                                  "not quotes, broker fills or raw custom data accesses."),
+                        "scope": ("Observed history and indicator frames and literal get_last_price returns; "
+                                  "last-price returns are not exchange quotes or broker fills. "
+                                  "Raw custom data accesses are not captured."),
                         "complete": not recorder.incomplete, "incompleteReasons": sorted(recorder.incomplete),
                         "rowLimit": recorder.max_rows, "observationLimit": recorder.max_observations,
                         "serializationCacheLimit": recorder.max_cache_rows, "storage": "disk-spool",

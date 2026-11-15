@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.72 - Unreleased
+## 4.6.72 - 2026-11-15
 
 ### Added
 - New documentation page, Draw Boxes, Lines, Labels and Tables from an Indicator, for the existing `self.draw` indicator drawing objects (Pine's `box.new`, `line.new`, `label.new`, `table.new`), with a working example and the 500-per-kind limit. No behavior change.

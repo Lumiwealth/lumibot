@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "package_version": "4.6.71",
+  "package_version": "4.6.72",
   "cases": [],
-  "no_cases_reason": "Author review for 4.6.71: the only runtime change adds optional request-bound observed candle facts to the existing Binance perpetual archive-tail exception. It does not alter dates, provider selection, history fetching, cache identity, prices, quantities, orders or fills. The retained in-memory Pandas option/attention fixtures never construct RoutedBacktestingPandas or its Binance adapter and never enter this exception path; their prompts, tool schemas/results, prices, cash, decisions, orders and verdicts are unchanged. Three native parameter cases reproduced the absent diagnostic before implementation; eight focused cases preserve timestamp/timezone bounds, ordinary history, missing symbols and the existing partial-tail cache repair. One additional recorded-provider native backtest proves the public backtest entrypoint propagates the same structured exception to the documented catch. No agent prompt, skill, tool schema or eval fixture changed. Reuse original actor/judge source, dates, SDK tuple, call identities, timestamps and verdicts; zero new model calls or hosted proof is claimed."
+  "no_cases_reason": "Author review for 4.6.72: docs-only release. The only change since 4.6.71 is the version string, a new public documentation page and a changelog line; no runtime code, agent prompt, skill, tool schema or eval fixture changed. Reuse original actor/judge evidence; zero new model calls."
 }

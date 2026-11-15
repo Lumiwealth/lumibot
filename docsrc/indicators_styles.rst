@@ -404,3 +404,6 @@ What is not an output
 Tables pinned to a corner of the chart and horizontal bars growing from the
 side of the chart (volume at each price) are not part of the indicator
 contract yet.
+
+Boxes, lines, labels and tables placed at a bar time and price are not outputs.
+See :doc:`indicators_drawings`.

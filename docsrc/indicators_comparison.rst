@@ -152,6 +152,45 @@ What this means in plain words
 - **NinjaTrader** and **MetaTrader** are desktop platforms with their own
   languages (C# and MQL5) and their own brokers and data connections.
 
+LumiBot with BotSpot
+--------------------
+
+LumiBot on its own is a Python library: no charting website, no hosting. If
+you want what TradingView gives you in the browser, with LumiBot's Python
+underneath, that is `BotSpot <https://botspot.trade/charts?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_indicators&utm_content=indicators_comparison>`_,
+the hosted app built on LumiBot by the same team.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 33 33
+
+   * - You want
+     - LumiBot alone
+     - LumiBot on BotSpot
+   * - Where it runs
+     - Your computer or server
+     - BotSpot's cloud, in your browser
+   * - Live charts with your indicator
+     - You plot the values yourself
+     - Built in
+   * - Writing the indicator
+     - You write Python
+     - An AI builder writes it, or converts Pine Script you paste in
+   * - Backtests and live bots on your broker
+     - Yes, you host them
+     - Yes, hosted for you
+   * - Sharing a strategy that uses it
+     - Share the Python file
+     - Publish the strategy on the Marketplace
+   * - Cost
+     - Free, open source
+     - Free to start; paid plans for heavier use
+
+BotSpot keeps its own comparisons of the whole product:
+`BotSpot vs TradingView <https://botspot.trade/compare/botspot-vs-tradingview?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_indicators&utm_content=indicators_comparison>`_
+and
+`BotSpot vs QuantConnect <https://botspot.trade/compare/botspot-vs-quantconnect?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_indicators&utm_content=indicators_comparison>`_.
+
 Nothing here says any tool makes money. Indicators describe the past; test
 any idea on paper first.
 

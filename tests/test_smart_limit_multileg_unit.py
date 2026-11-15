@@ -831,6 +831,41 @@ def test_multileg_smart_limit_replacement_keeps_parent_gtc(mocker):
     assert replacement.order_type == Order.OrderType.SMART_LIMIT
 
 
+def test_partly_filled_schwab_package_is_resubmitted_for_its_remainder(mocker):
+    """Schwab legs record no fills; the parent's remainder sizes the replacement."""
+    broker = _BrokerStub(name="Schwab")
+    replacement = Order("unit", Asset("SPY"), 1, Order.OrderSide.BUY)
+    broker.submit_orders = mocker.Mock(return_value=[replacement])
+    strategy = _MinimalStrategy(broker)
+    strategy.logger = SimpleNamespace(error=lambda *_a, **_k: None)
+    executor = StrategyExecutor(strategy=strategy)
+
+    legs = [
+        _leg("unit", _option("SPY", 500), Order.OrderSide.BUY_TO_OPEN),
+        _leg("unit", _option("SPY", 505), Order.OrderSide.SELL_TO_OPEN),
+    ]
+    for leg in legs:
+        leg.quantity = 2
+    parent = Order(
+        "unit",
+        asset=Asset("SPY"),
+        quantity=2,
+        side=Order.OrderSide.BUY,
+        order_class=Order.OrderClass.MULTILEG,
+        child_orders=legs,
+    )
+    parent.add_transaction(0.40, 1)
+    parent._smart_limit_state = {"created_at": 0.0, "step_seconds": 1, "steps": 3, "final_hold_seconds": 999}
+    _confirmed_cancel(parent)
+
+    executor._advance_smart_limit_replacement(
+        {"order": parent, "price": 0.40, "order_type": "credit", "multileg": True},
+        10,
+    )
+
+    assert [leg.quantity for leg in broker.submit_orders.call_args.args[0]] == [1, 1]
+
+
 def test_multileg_smart_limit_replacement_duration_is_unchanged_on_other_brokers(mocker):
     """Only Schwab receives the parent duration; other brokers get the call they got before."""
     broker = _BrokerStub(name="tradier")

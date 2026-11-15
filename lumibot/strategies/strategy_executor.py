@@ -1028,7 +1028,9 @@ class StrategyExecutor(Thread):
                 children = []
                 for child in order.child_orders:
                     expected = Decimal(str(child.quantity)) * remaining / Decimal(str(order.quantity))
-                    if self._smart_limit_remaining(child) != expected:
+                    # Schwab records package fills on the parent only; its legs hold
+                    # none, so the parent's remainder above is the one to trust.
+                    if not self._broker_is_schwab() and self._smart_limit_remaining(child) != expected:
                         # Do not duplicate an asymmetrically executed leg while
                         # the package/leg observations are still inconsistent.
                         return

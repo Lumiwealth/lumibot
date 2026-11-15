@@ -2604,6 +2604,10 @@ class Schwab(Broker):
                 cumulative_filled = float(getattr(observed_order, "_schwab_cumulative_filled_quantity", 0) or 0)
             except (TypeError, ValueError):
                 cumulative_filled = 0.0
+            # A repriced package's new order counts from zero; add what filled before it.
+            base_id, base_filled = getattr(stored_order, "_schwab_replace_fill_base", (None, 0.0))
+            if cumulative_filled > 0 and identifier == base_id:
+                cumulative_filled += base_filled
             if Order.is_equivalent_status(observed_status, self.FILLED_ORDER) and cumulative_filled <= 0:
                 cumulative_filled = float(stored_order.quantity or observed_order.quantity or 0)
 
@@ -4410,10 +4414,7 @@ class Schwab(Broker):
             order.limit_price = original_limit_price
         # A replace creates a new order from this body, so filled packages must not
         # be sent again: send only the unfilled packages, with legs scaled to match.
-        filled = max(
-            float(getattr(self, "_schwab_observed_fill_quantities", {}).get(order.identifier, 0.0)),
-            sum(float(item.quantity) for item in getattr(order, "transactions", None) or []),
-        )
+        filled = self._schwab_package_fills_recorded(order)
         if order_spec and filled > 0:
             packages = int(order_spec["quantity"])
             remaining = packages - filled
@@ -4428,6 +4429,13 @@ class Schwab(Broker):
                 leg["quantity"] = int(leg["quantity"]) // packages * remaining
             order_spec["quantity"] = remaining
         return order_spec
+
+    def _schwab_package_fills_recorded(self, order):
+        """Packages filled so far across this order and every order it replaced."""
+        return max(
+            float(getattr(self, "_schwab_observed_fill_quantities", {}).get(order.identifier, 0.0)),
+            sum(float(item.quantity) for item in getattr(order, "transactions", None) or []),
+        )
 
     def _prepare_futures_order_builder(self, order, OrderBuilder):
         """
@@ -4614,6 +4622,10 @@ class Schwab(Broker):
 
             order.previous_identifiers = getattr(order, "previous_identifiers", None) or []
             order.previous_identifiers.append(order.identifier)
+            if order.order_class == Order.OrderClass.MULTILEG:
+                # The new order was sent only the unfilled packages and counts its
+                # fills from zero; remember the packages filled before it.
+                order._schwab_replace_fill_base = (new_order_id, self._schwab_package_fills_recorded(order))
             order.identifier = new_order_id
             order._local_order_ownership = True
             # Update price information

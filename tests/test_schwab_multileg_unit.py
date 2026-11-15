@@ -1,4 +1,5 @@
 import importlib.util
+from copy import deepcopy
 from datetime import date
 from pathlib import Path
 from queue import Empty
@@ -1519,6 +1520,48 @@ def test_a_partly_filled_close_package_can_still_be_repriced_after_sync(lifecycl
     # The replace is a new order: only the one unfilled package is sent again.
     assert transport.replace_calls[-1][1]["quantity"] == 1
     assert [leg["quantity"] for leg in transport.replace_calls[-1][1]["orderLegCollection"]] == [1, 1]
+
+
+def test_the_replacement_fill_completes_a_partly_filled_package(lifecycle):
+    """The new order counts its fills from zero; its one package completes the two."""
+    transport, broker, _queues = lifecycle
+    legs = [
+        _option_leg(500, "PUT", Order.OrderSide.SELL_TO_OPEN, quantity=2),
+        _option_leg(490, "PUT", Order.OrderSide.BUY_TO_OPEN, quantity=2),
+    ]
+    for leg in legs:
+        leg.strategy = "fixture"
+    parent = broker.submit_orders(legs, is_multileg=True, order_type="credit", price=1.25)[0]
+    execution = {"activityType": "EXECUTION", "executionLegs": [
+        {"legId": 1, "quantity": 1, "price": 2.10},
+        {"legId": 2, "quantity": 1, "price": 0.80},
+    ]}
+    transport.queue_order_reads(parent.identifier, {
+        "status": "PARTIALLY_FILLED",
+        "filledQuantity": 1,
+        "orderActivityCollection": [execution],
+    })
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+
+    assert broker.modify_order(parent, limit_price=1.15) is True
+    # Register the one-package replacement order with the fixture, then fill it.
+    replacement = deepcopy(transport.replace_calls[-1][1])
+    replacement.update(orderId=parent.identifier, status="WORKING", filledQuantity=0)
+    for leg in replacement["orderLegCollection"]:
+        leg["orderLegType"] = "OPTION"
+    transport._base[parent.identifier] = replacement
+    transport._latest[parent.identifier] = deepcopy(replacement)
+    transport.queue_order_reads(parent.identifier, {
+        "status": "FILLED",
+        "filledQuantity": 1,
+        "orderActivityCollection": [execution],
+    })
+    observed = broker._parse_broker_order(broker._pull_broker_order(parent.identifier), parent.strategy)
+    broker._process_schwab_order_snapshot(observed)
+
+    assert parent.is_filled()
+    assert sum(float(item.quantity) for item in parent.transactions) == 2
 
 
 def test_a_replace_without_a_location_is_confirmed_against_the_price_sent(lifecycle):

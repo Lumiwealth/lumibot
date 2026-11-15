@@ -385,7 +385,9 @@ Lifecycle:
   position book: its legs were validated on submit, and after a partial close
   fill the synced book no longer holds the full leg. Because a replace creates
   a new order, it sends only the unfilled packages, with each leg scaled to
-  match, and is refused when no whole package is left. A replace that returns no
+  match, and is refused when no whole package is left. The new order counts
+  its fills from zero, so the packages filled before the replace are added to
+  what it reports (`_schwab_replace_fill_base`). A replace that returns no
   new order id follows the order Schwab lists in the replaced order's
   `replacingOrderCollection` when it names exactly one (read up to three
   times, half a second apart, since Schwab may not mark it `REPLACED` at

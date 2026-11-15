@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.73 - Unreleased
+## 4.6.73 - 2026-11-15
 
 ### Added
 - Backtest input observations retain literal last-price API results, their asset/quote identity, simulation time and unavailable reasons. History remains separate, repeated cached observations deduplicate, and scalar evidence has a 10 MiB payload budget with explicit incomplete-capture reporting. Checksums and cleanup apply without another data request or changes to trading behavior.

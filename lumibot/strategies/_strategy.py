@@ -564,6 +564,7 @@ class _Strategy:
         lumiwealth_api_key=None,
         include_cash_positions=False,
         synchronize_broker_on_start=True,
+        budget_conversion=None,
         **kwargs,
     ):
         """Initializes a Strategy object.
@@ -883,6 +884,7 @@ class _Strategy:
         # replace this with configured starting cash below; live strategies replace
         # it with the first broker-verified account equity snapshot.
         self._initial_budget = None
+        self._budget_conversion = None
 
         # Setting execution parameters
         self._last_on_trading_iteration_datetime = None
@@ -939,6 +941,27 @@ class _Strategy:
                                 "yellow",
                             )
                         )
+
+            from lumibot.backtesting.budget import convert_backtest_budget
+
+            effective_budget, self._budget_conversion = convert_backtest_budget(
+                effective_budget, self._quote_asset, budget_conversion,
+                environment_value=os.environ.get("BACKTESTING_BUDGET_CONVERSION"),
+                start=getattr(self.broker.data_source, "datetime_start", None),
+            )
+            if self._budget_conversion is not None:
+                self.logger.info(
+                    "Starting backtest cash converted from %s %s to %s %s using a caller-supplied rate",
+                    self._budget_conversion["input_amount"], self._budget_conversion["budget_currency"],
+                    self._budget_conversion["quote_amount"], self._budget_conversion["quote_currency"],
+                )
+                relation = self._budget_conversion["time_relation"]
+                if relation != "at_start" or self._budget_conversion["source"] is None:
+                    self.logger.warning(
+                        "Budget conversion is a caller-supplied assumption; date relation=%s, source=%s. "
+                        "It is not independently verified as a simulation-start rate.",
+                        relation, self._budget_conversion["source"],
+                    )
 
             if effective_budget is None:
                 effective_budget = 100000  # Default budget
@@ -3154,6 +3177,7 @@ class _Strategy:
         trader_class = None,
         include_cash_positions=False,
         save_stats_file = True,
+        budget_conversion=None,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -3189,6 +3213,14 @@ class _Strategy:
             The name of the strategy.
         budget : float
             The initial budget to use for the backtest.
+        budget_conversion : dict, optional
+            Explicit starting-capital conversion. Required fields are budget_currency,
+            quote_currency (matching quote_asset), and positive finite quote_per_budget.
+            The existing budget amount is in budget_currency and is multiplied by that
+            caller-supplied rate to initialize quote-wallet cash. Optional as_of, source,
+            note and other metadata remain visible in settings.json. No prices are fetched;
+            missing, approximate and known later dates are disclosed, not blocked.
+            BACKTESTING_BUDGET_CONVERSION JSON replaces this record when configured.
         benchmark_asset : str or Asset or None
             The benchmark asset to use for the backtest to compare to. If it is a string then it will be converted
             to a stock Asset object. If it is None, no benchmarking will occur.
@@ -3672,6 +3704,7 @@ class _Strategy:
                 sell_trading_slippages=sell_trading_slippages,
                 save_logfile=save_logfile,
                 include_cash_positions=include_cash_positions,
+                **({"budget_conversion": budget_conversion} if budget_conversion is not None else {}),
                 **kwargs,
             )
             self._trader.add_strategy(strategy)

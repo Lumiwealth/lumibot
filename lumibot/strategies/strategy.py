@@ -231,6 +231,18 @@ class Strategy(_Strategy):
         return self._initial_budget
 
     @property
+    def budget_conversion(self):
+        """Caller-supplied backtest capital conversion and its provenance, or None.
+
+        Returned data is a copy. Rates are not fetched or independently verified;
+        missing, approximate and known later dates remain visible in the receipt.
+        Live balances and legacy quote-unit backtest budgets are unchanged.
+        """
+        from copy import deepcopy
+
+        return deepcopy(getattr(self, "_budget_conversion", None))
+
+    @property
     def quote_asset(self):
         """Returns the quote asset for the strategy. The quote asset is what is considered
         "cash" (as in `self.cash`), and it is the currency that `self.portfolio_value` uses.
@@ -4772,6 +4784,9 @@ class Strategy(_Strategy):
             "backtesting_data_sources": backtesting_data_sources,
             "backtest_time_seconds": backtest_time_seconds,
         }
+        conversion = self.budget_conversion
+        if conversion is not None:
+            settings["budget_conversion"] = conversion
         profiling_enabled = bool(getattr(self, "_backtest_profiling_enabled", False))
         if profiling_enabled:
             settings["profiling_enabled"] = True
@@ -6221,6 +6236,7 @@ class Strategy(_Strategy):
         quiet_logs: bool = True,
         trader_class: Type[Trader] | None = None,
         save_stats_file: bool = True,
+        budget_conversion: dict | None = None,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -6255,6 +6271,10 @@ class Strategy(_Strategy):
             The name of the strategy.
         budget : float
             The initial budget to use for the backtest.
+        budget_conversion : dict, optional
+            Caller-supplied starting-capital conversion; see run_backtest. With this
+            record, budget is in its budget_currency and quote_per_budget converts it
+            into quote_asset units. Without it, budget retains its existing quote units.
         benchmark_asset : str or Asset
             The benchmark asset to use for the backtest to compare to. If it is a string then it will be converted
             to a stock Asset object.
@@ -6447,6 +6467,7 @@ class Strategy(_Strategy):
             quiet_logs=quiet_logs,
             trader_class=trader_class,
             save_stats_file=save_stats_file,
+            **({"budget_conversion": budget_conversion} if budget_conversion is not None else {}),
             **kwargs,
         )
         return results

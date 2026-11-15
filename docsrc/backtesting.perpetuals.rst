@@ -52,6 +52,9 @@ Both inverse and linear products use provider metadata rather than a guessed
 currency suffix. For example, Phemex's ``BTC/USD:BTC`` is priced in USD, settles
 in BTC and has a USD face value per contract; ``BTC/USDT:USDT`` settles in USDT.
 Choose a reporting wallet deliberately; a BTC balance is not a dollar balance.
+Give ``budget`` in that wallet's units, or declare the original denomination and
+your supplied conversion rate with :ref:`explicit starting-capital conversion
+<backtest-budget-conversion>`. This never converts live collateral automatically.
 
 If the process selects automatic ``public`` crypto routes, the existing
 ``exchange_id`` backtest option selects the requested CCXT venue without changing
@@ -60,7 +63,8 @@ that process's provider map:
 .. code-block:: python
 
    MyStrategy.backtest(datasource_class=None, exchange_id="phemex",
-                       quote_asset=Asset("BTC", "crypto"), benchmark_asset=None)
+                       quote_asset=Asset("BTC", "crypto"), budget=0.1,
+                       benchmark_asset=None)  # 0.1 BTC, not USD 0.1
 
 With no exchange option, the automatic route keeps its Coinbase/Binance defaults.
 An explicit provider route such as ``{"crypto_future":"binance"}`` remains

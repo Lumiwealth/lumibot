@@ -239,6 +239,15 @@ Single-backtest execution is intentionally **serial**.
   3. advance the simulated clock
 - This ordering is correctness-critical because cash, positions, OCO/bracket/multileg dependencies, option lifecycle tasks, and mark-to-market all depend on the prior state.
 
+Partial execution tracking uses the same pending snapshot for ordinary processing
+and between-run discovery: unprocessed, new and partially filled orders belonging
+to the strategy, deduplicated by object identity. A custom fill model's requested
+execution quantity is capped at the transaction ledger's remaining quantity.
+The final chunk produces a filled event, with quantity-based fees charged on that
+chunk and the order's average price weighted across all executions. Custom fill
+price hooks still opt out of between-run discovery. Native regression coverage:
+`tests/backtest/test_partial_order_continuation.py`.
+
 This has an important performance implication:
 
 - **Do not assume that “more threads” inside one backtest will preserve behavior.**

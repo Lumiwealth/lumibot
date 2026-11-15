@@ -37,6 +37,20 @@ def _broker():
     return broker
 
 
+def _nothing_sent(result):
+    """True when a package was refused without reaching Schwab.
+
+    A refusal before any parent exists returns None. A parent the package
+    builder refuses comes back marked error, so the strategy sees the refusal
+    (Schwab.submit_order's visible-refusal contract); _submit_orders wraps it
+    in a list.
+    """
+    if result is None:
+        return True
+    orders = result if isinstance(result, list) else [result]
+    return bool(orders) and all(order.status == "error" and order.error_message for order in orders)
+
+
 def _option_leg(strike, right, side, symbol="SPY", quantity=1):
     return Order(
         "unit-test",
@@ -226,14 +240,14 @@ def test_invalid_multileg_shapes_are_rejected_without_placing_legs():
 
     for order in (five_legs, stock_leg, two_underlyings, empty_parent, market_parent):
         assert broker._prepare_multileg_option_order_builder(order) is None
-        assert broker._submit_order(order) is None
+        assert _nothing_sent(broker._submit_order(order))
 
-    assert broker._submit_orders(
+    assert _nothing_sent(broker._submit_orders(
         [_option_leg(500, "CALL", Order.OrderSide.BUY_TO_OPEN) for _ in range(5)],
         is_multileg=True,
         order_type="debit",
         price=0.10,
-    ) is None
+    ))
     assert broker.client.place_calls == []
 
 
@@ -575,7 +589,7 @@ def test_unsendable_package_type_or_duration_is_rejected_before_any_request():
         {"order_type": "stop_limit", "price": 1.25},
         {"order_type": "credit", "price": 1.25, "duration": "pre"},
     ):
-        assert broker._submit_orders(_put_credit_children(), is_multileg=True, **kwargs) is None
+        assert _nothing_sent(broker._submit_orders(_put_credit_children(), is_multileg=True, **kwargs))
 
     assert broker.client.place_calls == []
 
@@ -700,7 +714,7 @@ def test_invalid_package_details_are_rejected_without_a_request(order):
     """Invalid package details are rejected without a request."""
     broker = _broker()
 
-    assert broker._submit_order(order) is None
+    assert _nothing_sent(broker._submit_order(order))
     assert broker.client.place_calls == []
 
 
@@ -710,15 +724,15 @@ def test_leg_without_right_or_credit_effect_without_price_is_rejected():
     no_right = _option_leg(500, "CALL", Order.OrderSide.BUY_TO_OPEN)
     no_right.asset.right = None
 
-    assert broker._submit_order(_parent([no_right, _option_leg(510, "CALL", Order.OrderSide.SELL_TO_OPEN)])) is None
-    assert broker._submit_orders(_put_credit_children(), is_multileg=True, order_type="credit", price=None) is None
-    assert broker._submit_orders(_put_credit_children(), is_multileg=True, order_type="credit", price="abc") is None
-    assert broker._submit_orders([], is_multileg=True, order_type="credit", price=1.0) is None
+    assert _nothing_sent(broker._submit_order(_parent([no_right, _option_leg(510, "CALL", Order.OrderSide.SELL_TO_OPEN)])))
+    assert _nothing_sent(broker._submit_orders(_put_credit_children(), is_multileg=True, order_type="credit", price=None))
+    assert _nothing_sent(broker._submit_orders(_put_credit_children(), is_multileg=True, order_type="credit", price="abc"))
+    assert _nothing_sent(broker._submit_orders([], is_multileg=True, order_type="credit", price=1.0))
     fractional = [
         _option_leg(500, "PUT", Order.OrderSide.SELL_TO_OPEN, quantity=0.5),
         _option_leg(490, "PUT", Order.OrderSide.BUY_TO_OPEN, quantity=0.5),
     ]
-    assert broker._submit_orders(fractional, is_multileg=True, order_type="credit", price=1.0) is None
+    assert _nothing_sent(broker._submit_orders(fractional, is_multileg=True, order_type="credit", price=1.0))
     assert broker.client.place_calls == []
 
 
@@ -832,7 +846,7 @@ def test_generic_leg_sides_resolve_against_the_package_and_never_over_close(life
     over_close.strategy = "fixture"
     for leg in over_close.child_orders:
         leg.strategy = "fixture"
-    assert broker.submit_order(over_close) is None
+    assert _nothing_sent(broker.submit_order(over_close))
     assert len(transport.attempted_orders) == 1
 
 
@@ -895,7 +909,7 @@ def test_package_cancel_and_http_rejection_reach_the_strategy(lifecycle):
     assert all(child.is_canceled() and child._closed_event.is_set() for child in parent.child_orders)
 
     transport.queue_submission_response(400, "Invalid request data")
-    assert broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=1.25) is None
+    assert _nothing_sent(broker.submit_orders(_fixture_put_credit_legs(), is_multileg=True, order_type="credit", price=1.25))
     _TRANSPORT.drain_stream_events(broker)
     names = [name for name, _payload in _priority_events(queues)]
     while True:
@@ -979,17 +993,17 @@ def test_unusable_package_inputs_are_rejected_without_a_request():
     zero_quantity = _option_leg(500, "PUT", Order.OrderSide.SELL_TO_OPEN)
     zero_quantity.quantity = 0
 
-    assert broker._submit_order(_parent([long_root, _option_leg(510, "CALL", Order.OrderSide.SELL_TO_OPEN)])) is None
-    assert broker._submit_order(_parent([negative_strike, _option_leg(510, "CALL", Order.OrderSide.SELL_TO_OPEN)])) is None
-    assert broker._submit_orders(
+    assert _nothing_sent(broker._submit_order(_parent([long_root, _option_leg(510, "CALL", Order.OrderSide.SELL_TO_OPEN)])))
+    assert _nothing_sent(broker._submit_order(_parent([negative_strike, _option_leg(510, "CALL", Order.OrderSide.SELL_TO_OPEN)])))
+    assert _nothing_sent(broker._submit_orders(
         [zero_quantity, _option_leg(490, "PUT", Order.OrderSide.BUY_TO_OPEN)],
         is_multileg=True,
         order_type="credit",
         price=1.0,
-    ) is None
-    assert broker._submit_orders(_put_credit_children(), is_multileg=True, order_type="credit", price=0) is None
-    assert broker._submit_orders(_put_credit_children(), is_multileg=True, order_type="debit", price=float("nan")) is None
-    assert broker._submit_orders(_put_credit_children(), is_multileg=True, order_type="limit", price=float("inf")) is None
+    ))
+    assert _nothing_sent(broker._submit_orders(_put_credit_children(), is_multileg=True, order_type="credit", price=0))
+    assert _nothing_sent(broker._submit_orders(_put_credit_children(), is_multileg=True, order_type="debit", price=float("nan")))
+    assert _nothing_sent(broker._submit_orders(_put_credit_children(), is_multileg=True, order_type="limit", price=float("inf")))
     assert broker.client.place_calls == []
 
 
@@ -1061,7 +1075,7 @@ def test_explicit_close_legs_cannot_over_close_the_same_contract(lifecycle):
     for leg in over_close.child_orders:
         leg.strategy = "fixture"
 
-    assert broker.submit_order(over_close) is None
+    assert _nothing_sent(broker.submit_order(over_close))
     assert transport.attempted_orders == []
 
 
@@ -1081,10 +1095,10 @@ def test_sub_tick_prices_are_judged_as_schwab_receives_them():
     broker = _broker()
 
     # 0.00004 is sent as "0.00": a credit or debit at zero is refused...
-    assert broker._submit_orders(_put_credit_children(), is_multileg=True, order_type="credit", price=0.00004) is None
+    assert _nothing_sent(broker._submit_orders(_put_credit_children(), is_multileg=True, order_type="credit", price=0.00004))
     debit = _parent(_put_credit_children(), side=Order.OrderSide.BUY, limit_price=0.00004)
     debit._multileg_effect = "debit"
-    assert broker._submit_order(debit) is None
+    assert _nothing_sent(broker._submit_order(debit))
     assert broker.client.place_calls == []
 
     # ...and an unhinted price that rounds to zero is an even package, not NET_CREDIT 0.00.
@@ -1100,7 +1114,7 @@ def test_non_finite_parent_or_replacement_price_is_refused():
     """Non finite parent or replacement price is refused."""
     broker = _broker()
 
-    assert broker._submit_order(_parent(_put_credit_children(), side=Order.OrderSide.SELL, limit_price=float("nan"))) is None
+    assert _nothing_sent(broker._submit_order(_parent(_put_credit_children(), side=Order.OrderSide.SELL, limit_price=float("nan"))))
     credit = _parent(_put_credit_children(), side=Order.OrderSide.SELL, limit_price=1.25)
     assert broker._prepare_multileg_option_order_spec(credit, limit_price=float("inf")) is None
     assert credit.limit_price == 1.25
@@ -1160,8 +1174,8 @@ def test_stop_and_market_parents_are_not_sent_as_plain_net_limits():
         order_type=Order.OrderType.SMART_LIMIT,
     )
 
-    assert broker._submit_order(stop_limit) is None
-    assert broker._submit_order(market) is None
+    assert _nothing_sent(broker._submit_order(stop_limit))
+    assert _nothing_sent(broker._submit_order(market))
     assert _spec(broker, smart)["orderType"] == "NET_CREDIT"
     assert broker.client.place_calls == []
 
@@ -1170,9 +1184,9 @@ def test_sub_tick_debit_is_not_sent_as_a_zero_price():
     """Sub-tick debit is not sent as a zero price."""
     broker = _broker()
 
-    assert broker._submit_orders(
+    assert _nothing_sent(broker._submit_orders(
         _put_credit_children(), is_multileg=True, order_type="debit", price=0.00006,
-    ) is None
+    ))
     assert broker.client.place_calls == []
 
     broker._submit_orders(_put_credit_children(), is_multileg=True, order_type="credit", price=0.00005)
@@ -1291,7 +1305,7 @@ def test_explicit_close_without_a_position_is_rejected(lifecycle):
     for leg in closing.child_orders:
         leg.strategy = "fixture"
 
-    assert broker.submit_order(closing) is None
+    assert _nothing_sent(broker.submit_order(closing))
     assert transport.attempted_orders == []
 
 
@@ -1319,7 +1333,7 @@ def test_working_package_reserves_its_close_leg(lifecycle):
     first = _closing(490)
     assert broker.submit_order(first) is first
 
-    assert broker.submit_order(_closing(480)) is None
+    assert _nothing_sent(broker.submit_order(_closing(480)))
     assert len(transport.attempted_orders) == 1
 
     assert broker.modify_order(first, limit_price=0.35) is True
@@ -1365,7 +1379,7 @@ def test_partial_package_fill_reserves_only_the_unfilled_remainder(lifecycle):
             leg.strategy = "fixture"
         return order
 
-    assert broker.submit_order(_closing(2, 480)) is None
+    assert _nothing_sent(broker.submit_order(_closing(2, 480)))
     assert broker.submit_order(_closing(1, 470)) is not None
     assert len(transport.attempted_orders) == 2
 
@@ -1406,7 +1420,7 @@ def test_held_submit_error_closes_the_package_legs(lifecycle):
     broker._hold_trade_events = True
     transport.queue_submission_response(400, "Invalid request data")
 
-    assert broker.submit_order(parent) is None
+    assert _nothing_sent(broker.submit_order(parent))
     _TRANSPORT.drain_stream_events(broker)
     assert broker._held_trades
     assert any(child.is_active() for child in parent.child_orders)
@@ -1435,7 +1449,7 @@ def test_a_package_leg_with_an_unlisted_strike_is_refused():
         _option_leg(490, "PUT", Order.OrderSide.BUY_TO_OPEN),
     ]
 
-    assert broker._submit_orders(children, is_multileg=True, order_type="credit", price=1.25) is None
+    assert _nothing_sent(broker._submit_orders(children, is_multileg=True, order_type="credit", price=1.25))
     assert broker.client.place_calls == []
 
 
@@ -1589,7 +1603,7 @@ def test_partial_fill_reopens_legs_closed_by_a_local_error(lifecycle):
     for leg in closing.child_orders:
         leg.strategy = "fixture"
     # One contract is still committed to the reopened package.
-    assert broker.submit_order(closing) is None
+    assert _nothing_sent(broker.submit_order(closing))
 
 
 def test_a_replace_without_a_location_follows_the_replacing_order(lifecycle):

@@ -403,6 +403,12 @@ Lifecycle:
   (`submit_orders`, a hand-built parent, modify): `day`/`gtc` in any case are
   sent; anything else is refused instead of being sent with no duration.
   `time_in_force` is accepted as an alias for `duration` on `submit_orders`.
+- A package the builder refuses follows `Schwab._submit_order`'s visible
+  refusal: the parent comes back with status `error` and an error message and
+  an error-order event is dispatched, so the strategy learns nothing was sent.
+  The builder logs the specific reason just before. A list request refused
+  before a parent exists (for example a `market` package type) still returns
+  `None`.
 
 ### Tradier (equities/options)
 

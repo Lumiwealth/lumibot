@@ -3195,10 +3195,18 @@ class Schwab(Broker):
             if not order_builder:
                 # Refuse visibly: a builder failure used to leave the order unprocessed
                 # with only a log line, so the strategy never learned nothing was sent.
-                error = LumibotBrokerAPIError(
-                    f"This {order.order_type} {order.order_class} order is not supported by Schwab in LumiBot; "
-                    "nothing was sent."
-                )
+                if order.order_class is Order.OrderClass.MULTILEG:
+                    # Packages are supported; the builder refused this one and logged
+                    # the specific reason (leg shape, price, duration, close reservation).
+                    error = LumibotBrokerAPIError(
+                        "Schwab refused this multi-leg option package before sending it; nothing was sent. "
+                        "The logged error above gives the reason."
+                    )
+                else:
+                    error = LumibotBrokerAPIError(
+                        f"This {order.order_type} {order.order_class} order is not supported by Schwab in LumiBot; "
+                        "nothing was sent."
+                    )
                 logger.error(colored(str(error), "red"))
                 order.set_error(error)
                 self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=str(error))

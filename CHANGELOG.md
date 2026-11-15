@@ -1,6 +1,16 @@
 # Changelog
 
-## 4.6.68 - Unreleased
+## 4.6.68 - 2026-11-15
+
+Deploy marker: 076789e042b3e6a08d0c7025834c3f1fed1639ac
+
+### Fixed
+- Preserve an explicitly selected public CCXT exchange in automatically routed backtests, including native inverse and linear perpetual contracts. Existing automatic defaults and explicit provider maps remain compatible.
+- Bound cached funding coverage by actual observed settlements; an empty minute no longer suppresses later funding events, and missing history remains disclosed.
+- Preserve all observed funding rows when shared-cache writers overlap or publish from stale snapshots.
+
+### Added
+- Share public CCXT market metadata, sparse funding history and separately keyed historical mark candles across backtests, with native contract and settlement units. See the perpetual backtesting documentation for exchange selection and data limits.
 
 ## 4.6.67 - 2026-11-15
 

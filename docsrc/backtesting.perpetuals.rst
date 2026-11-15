@@ -249,3 +249,5 @@ Things to know:
   assumptions in its log.
 - Candles are cached in LumiBot's shared bar cache when it is enabled, so a
   second run of the same window does not download them again.
+
+Provider data-use terms apply to API access and cache reuse; confirm the provider grants the rights required before redistributing market data.

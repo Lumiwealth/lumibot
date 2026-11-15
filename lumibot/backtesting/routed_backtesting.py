@@ -81,7 +81,10 @@ class PerpetualDataUnavailable(RoutingProviderError):
             payload["observed_request_tail"] = observed_request_tail
         others = ", ".join(f"{item['routing']} ({item['kind']})" for item in self.alternatives)
         super().__init__(
-            f"{message} Data source: {source}. Other crypto_future data sources: {others}.\n"
+            f"{message} Data source: {source}. Other crypto_future data sources: {others}. "
+            "Native CCXT history may be available where the venue lists the exact contract and supplies the required data. "
+            "With automatic public routing, exchange_id selects the venue; explicit crypto_future provider routes take precedence. "
+            "Preserve contract and settlement currency.\n"
             f"{self.MARKER} {json.dumps(payload, sort_keys=True)}"
         )
 

@@ -445,8 +445,12 @@ class BacktestingBroker(Broker):
         else:
             new_datetime = update_dt
 
-        # This is needed to handle Daylight Savings Time changes
-        new_datetime = tz.normalize(new_datetime) if is_pytz else new_datetime
+        # pytz.normalize reads pytz-specific tzinfo fields. Convert other aware
+        # timezone implementations first, preserving the instant and broker zone.
+        if is_pytz:
+            if new_datetime.tzinfo is not None:
+                new_datetime = new_datetime.astimezone(tz)
+            new_datetime = tz.normalize(new_datetime)
 
         # Guard against non-advancing timestamps (e.g., DST ambiguity)
         if new_datetime <= previous_datetime:
@@ -1007,6 +1011,8 @@ class BacktestingBroker(Broker):
             target = update_dt
         tz = now.tzinfo
         if isinstance(tz, (pytz.tzinfo.StaticTzInfo, pytz.tzinfo.DstTzInfo)):
+            if target.tzinfo is not None:
+                target = target.astimezone(tz)
             target = tz.normalize(target)
         target = min(target, self.data_source.datetime_end)
         if target <= now:

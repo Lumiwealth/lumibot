@@ -15,7 +15,7 @@ Want her call options too? The :doc:`agents_example_nancy_pelosi_copy_trading_bo
 How it works
 ------------
 
-The bot has just two AI agents, and both run every day:
+The bot has just two AI agents, and both run every iteration:
 
 1. **Research agent** reads the newest eligible annual snapshot and subsequent transactions on the `House Clerk website <https://disclosures-clerk.house.gov/>`__. It returns every included issuer's numeric asset-value range, snapshot date, eligible share changes and sources. Transactions after the snapshot date apply once, even if filed before the annual report. Full sales remove a holding; partial sales reduce it.
 2. **Trading agent** estimates shares from each range midpoint and its snapshot-date price, applies later share changes and values the remaining inventory at current prices. It allocates 99% of account capital across the complete feasible basket. Current quotes size trades; small constituents remain part of replication. New disclosures trigger a full rebalance, including exits and additions. On quiet days established positions within 2 percentage points of target stay in place.
@@ -26,6 +26,33 @@ Run it on BotSpot
 -----------------
 
 Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_examples&utm_content=agents_example_nancy_pelosi_trading_bot>`_ without installing anything. BotSpot runs LumiBot in the cloud, backtests it, and connects it to your broker.
+
+Recorded validation and limits
+------------------------------
+
+Local recorded construction on November 11, 2026 established all 27 researched
+stock holdings from a $100,000 account, leaving $2,620.31 cash. Independent
+arithmetic subsequently found one sizing error: XYZ had two shares versus
+three using the correct snapshot-date price. The example now explicitly keys
+reused baseline prices by snapshot date and ticker, and asks for successor
+history when an old ticker has no matching row. Execution of that correction
+has not yet been verified. An earlier January diagnostic completed funding
+sales, two full exits and two additions; it is a separate local observation.
+
+A separate, non-AI disclosure-midpoint calculation for November 14, 2025 through
+November 13, 2026 returned approximately 9.98% after an assumed 0.10% cost per
+trade side, versus 14.51% for SPY with dividends. Maximum modeled drawdown was
+16.78%. This is illustrative reconstruction arithmetic, **not this AI bot's
+backtest or actual broker performance**. It uses date-only filing availability,
+whole shares, split reconstruction, dividends credited on ex-date, estimated
+cash for fractional spinoff shares, and WBD cash merger proceeds. Those timing
+and sizing approximations affect results; the calculation trailed SPY.
+
+The planned hosted paper schedule checks Tuesday and Friday at 9:35 AM Eastern.
+Estimated Luna High Standard usage is $2-$4 per month in AI credits, excluding
+hosting and subscription charges. These are estimates, not a usage cap. Initial
+paper execution, the corrected sizing instruction, holiday behavior and missed-run
+notifications remain launch checks. No verified public paper record is claimed.
 
 The code
 --------

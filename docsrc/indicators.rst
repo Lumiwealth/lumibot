@@ -43,6 +43,14 @@ as ``self.indicators.<name>(asset, timestep="day", **kwargs)``::
     macd   = self.indicators.macd(asset, fast=12, slow=26, signal=9)  # multi-column
     bb     = self.indicators.bbands(asset, length=20, std=2)           # multi-column
 
+``sma``, ``ema``, ``rsi``, ``macd``, ``bbands`` and ``atr`` called with only
+their period parameters (``length``, ``fast``/``slow``/``signal``, ``std``) run on
+``fin-primitives``' float64 kernels instead of pandas-ta-classic. Values, warm-up
+rows and column names are the same as pandas-ta-classic's; it is only faster. Any
+other parameter (``talib``, ``offset``, ``mamode``, ``ddof``, ``fillna``, signal
+columns...), missing values in the bars, or a series shorter than the period uses
+pandas-ta-classic as before.
+
 Single-column indicators (``sma``, ``rsi``, ``ema``, …) return a float — the
 indicator value at the current bar.
 

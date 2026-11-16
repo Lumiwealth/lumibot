@@ -2,8 +2,8 @@
 
 Drex (https://console.nace.ai/docs/drex) is a decision model: it reads a state
 and returns a probability for each label of a typed question, never free text.
-An agent qualifies when it has no tools and every ``output_schema`` property is
-a string enum or a boolean. Drex then answers instead of the agent's model, and
+An agent qualifies when it has no tools or skills and every ``output_schema``
+property is a string enum or an unconstrained boolean. Drex then answers instead of the agent's model, and
 the agent's model stays the fallback for any Drex error.
 """
 
@@ -30,19 +30,34 @@ def drex_questions(schema_json: dict[str, Any], system_prompt: str) -> dict[str,
     properties = schema_json.get("properties")
     if not os.environ.get("NACE_API_KEY") or not isinstance(properties, dict) or not properties:
         return None
+    defs = schema_json.get("$defs") or {}
     questions: dict[str, Any] = {}
     for name, prop in properties.items():
         if not isinstance(prop, dict):
             return None
+        if "$ref" in prop:
+            # Pydantic keeps an Enum field's labels in $defs.
+            prop = {**defs.get(str(prop["$ref"]).removeprefix("#/$defs/"), {}), **prop}
         instructions = f"{system_prompt.strip()}\n\n{prop.get('description') or name}".strip()
         enum = prop.get("enum")
         if isinstance(enum, list) and enum and all(isinstance(label, str) for label in enum):
             questions[name] = {"type": "choice", "instructions": instructions, "criteria": dict.fromkeys(enum)}
-        elif prop.get("type") == "boolean":
+        elif prop.get("type") == "boolean" and "enum" not in prop and "const" not in prop:
             questions[name] = {"type": "noul", "instructions": instructions}
         else:
             return None
     return questions
+
+
+def _answer(question: dict[str, Any], answer: dict[str, Any]) -> str | bool:
+    if question["type"] == "choice":
+        if answer["choice"] not in question["criteria"]:
+            raise ValueError(f"Drex returned an unknown label {answer['choice']!r}")
+        return answer["choice"]
+    probability = float(answer["noul"])
+    if not 0.0 <= probability <= 1.0:
+        raise ValueError(f"Drex returned an invalid probability {answer['noul']!r}")
+    return probability >= 0.5
 
 
 def run_drex_decision(request: Any, questions: dict[str, Any]) -> AgentRunResult:
@@ -51,19 +66,25 @@ def run_drex_decision(request: Any, questions: dict[str, Any]) -> AgentRunResult
     base_url = os.environ.get("NACE_BASE_URL") or "https://console.nace.ai"
     client = f"lumibot/{__version__}"
     headers = {"Authorization": f"Bearer {os.environ['NACE_API_KEY']}", "X-Nace-Client": client, "User-Agent": client}
+    # This one request is the whole run, so both of the agent's timeouts bound it.
+    timeouts = [
+        timeout
+        for timeout in (
+            GoogleADKRuntime._model_request_timeout_seconds_for_request(request),
+            GoogleADKRuntime._run_timeout_seconds_for_request(request),
+        )
+        if timeout is not None
+    ]
     response = httpx.post(
         f"{base_url.rstrip('/')}/v1/systemone",
         headers=headers,
         json={"model": drex_model(), "state": state, "questions": questions},
-        timeout=request.model_request_timeout_seconds or 60.0,
+        timeout=min(timeouts) if timeouts else None,
     )
     response.raise_for_status()
     body = response.json()
     answers = body["answers"]
-    answer = {
-        name: answers[name]["choice"] if question["type"] == "choice" else answers[name]["noul"] >= 0.5
-        for name, question in questions.items()
-    }
+    answer = {name: _answer(question, answers[name]) for name, question in questions.items()}
     summary = json.dumps(answer, sort_keys=True)
     # The probabilities stay in the trace so a strategy can audit or re-threshold a verdict.
     event = AgentTraceEvent(

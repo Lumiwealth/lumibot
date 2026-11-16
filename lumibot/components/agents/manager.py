@@ -1620,6 +1620,12 @@ class AgentHandle:
         return "\n".join(lines).strip()
 
     def _compose_system_prompt(self, runtime_context: dict[str, Any]) -> str:
+        return "\n\n".join(
+            [self._base_system_prompt(runtime_context), self._user_instructions(runtime_context)]
+        ).strip()
+
+    def _user_instructions(self, runtime_context: dict[str, Any]) -> str:
+        """The user's system prompt and active strategy rules, without LumiBot's base prompt."""
         strategy_rules = runtime_context.get("strategy_rules") or {
             "document": {"version": 1, "rules": []},
             "content_hash": None,
@@ -1628,7 +1634,6 @@ class AgentHandle:
         }
         return "\n\n".join(
             [
-                self._base_system_prompt(runtime_context),
                 "USER SYSTEM PROMPT:",
                 "Treat this as the strategy-specific trading objective. It may override the default investor style, but not hard safety, broker, look-ahead-bias, or active strategy rules.",
                 self.system_prompt.strip(),
@@ -1636,7 +1641,7 @@ class AgentHandle:
                 "These are the user's current cross-agent instructions. Follow every active rule on every call. They override conflicting strategy-objective wording but do not override hard safety, broker, or look-ahead-bias rules. An empty rules array means no additional active rules.",
                 json.dumps(strategy_rules.get("document"), sort_keys=True, ensure_ascii=True),
             ]
-        ).strip()
+        )
 
     def _append_memory(self, result: AgentRunResult) -> None:
         state = self._state_bucket()
@@ -2465,10 +2470,17 @@ class AgentHandle:
                 # Added only when set so existing replay-cache keys are unchanged.
                 cache_payload["max_output_tokens"] = resolved_max_output_tokens
             decision_questions = None
-            if schema_json is not None and not self._ensure_bound_tools():
+            # Skills load through tools Drex cannot call, so an agent with skills keeps its model.
+            if (
+                schema_json is not None
+                and not self._ensure_bound_tools()
+                and not self.include_builtin_skills
+                and not self.skill_dirs
+            ):
                 from .drex import drex_model, drex_questions
 
-                decision_questions = drex_questions(schema_json, self.system_prompt)
+                # The base prompt is tool and order guidance; Drex only answers the labels.
+                decision_questions = drex_questions(schema_json, self._user_instructions(runtime_context))
                 if decision_questions is not None:
                     # Added only when Drex answers, so the agent model's replay keys are unchanged.
                     cache_payload["decision_model"] = drex_model()

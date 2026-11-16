@@ -158,6 +158,54 @@ def test_unsupported_perpetual_symbols_say_why(raw, reason):
     assert caught.value.reason == reason
 
 
+@pytest.mark.parametrize("raw", ["BTCUSD", "BTC/USD:BTC", "BTCUSD_PERP"])
+def test_inverse_error_is_scoped_to_selected_binance_source(raw):
+    with pytest.raises(BinanceBulkDataError) as caught:
+        perpetual_symbol(Asset(raw, "crypto_future"))
+    assert caught.value.reason == "coin_margined_unsupported"
+    # A route's limitation must not declare all venues unsupported or change the instrument.
+    message = str(caught.value)
+    assert message.startswith(f"The selected Binance USD-M bulk route cannot serve {raw}.")
+    assert "USDT- and USDC-margined perpetuals" in message
+    assert "not coin-margined/inverse contracts" in message
+    assert "use the USDT-margined contract" not in message
+
+
+@pytest.mark.parametrize("source,reason", [
+    ("binance", "coin_margined_unsupported"),
+    ("ccxt:phemex", "contract_not_listed"),
+])
+def test_perpetual_unavailable_explains_existing_native_ccxt_selection(source, reason):
+    error = PerpetualDataUnavailable("Requested contract unavailable.", reason=reason,
+                                    source=source, symbol="BTC/USD:BTC")
+    message = str(error)
+    assert "Native CCXT history may be available" in message
+    assert "venue lists the exact contract and supplies the required data" in message
+    assert "automatic public routing, exchange_id selects the venue" in message
+    assert "explicit crypto_future provider routes take precedence" in message
+    assert "Preserve contract and settlement currency" in message
+
+
+def test_perpetual_unavailable_preserves_reason_source_symbol_and_proxy_limits():
+    tail = {"scope": "returned_request", "last_bar_open": "2026-08-03T23:00:00+00:00"}
+    error = PerpetualDataUnavailable("Requested contract unavailable.",
+        reason="coin_margined_unsupported", source="binance", symbol="BTC/USD:BTC",
+        observed_request_tail=tail)
+    payload = json.loads(str(error).split("PERPETUAL_DATA_UNAVAILABLE ", 1)[1])
+    assert payload == {
+        "reason": error.reason, "source": error.source, "symbol": error.symbol,
+        "asset_class": "crypto_future", "alternatives": error.alternatives,
+        "observed_request_tail": tail,
+    }
+    assert error.reason == "coin_margined_unsupported"
+    assert error.source == "binance" and error.symbol == "BTC/USD:BTC"
+    assert error.observed_request_tail is tail
+    assert {item["routing"] for item in error.alternatives} == {"bitunix", "coinbase", "ibkr"}
+    proxies = [item for item in error.alternatives if item["kind"] == "spot_proxy"]
+    assert len(proxies) == 2
+    assert all("perpetual orders cannot fill" in item["provides"] for item in proxies)
+
+
 def test_bare_coin_with_usd_quote_is_not_guessed_for_perpetuals():
     with pytest.raises(BinanceBulkDataError) as caught:
         perpetual_symbol(Asset("BTC", "crypto_future"), Asset("USD", "forex"))
@@ -375,10 +423,15 @@ def test_unpublished_symbol_is_unavailable_with_a_hint(monkeypatch):
 
 
 def test_coin_margined_contract_fails_before_any_order(monkeypatch):
-    router = _router({"crypto_future": "binance", "default": "ibkr"}, monkeypatch, _perp_archive())
+    archive = _perp_archive()
+    router = _router({"crypto_future": "binance", "default": "ibkr"}, monkeypatch, archive)
     with pytest.raises(PerpetualDataUnavailable) as caught:
         router._update_pandas_data(Asset("BTCUSD", "crypto_future"), None, 2, "hour")
     assert caught.value.reason == "coin_margined_unsupported"
+    assert caught.value.source == "binance" and caught.value.symbol == "BTCUSD"
+    assert "selected Binance USD-M bulk route" in str(caught.value)
+    assert "exchange_id selects the venue" in str(caught.value)
+    assert archive.calls == []  # A clearer diagnostic must not fetch or substitute another contract.
 
 
 def test_binance_is_listed_as_a_perpetual_alternative(monkeypatch):

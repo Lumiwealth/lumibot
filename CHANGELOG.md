@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.6.76 - Unreleased
+
 ## 4.6.75 - 2026-11-16
 
 Version 4.6.74 was tagged but never published to PyPI (its release gate failed); everything below ships in 4.6.75.

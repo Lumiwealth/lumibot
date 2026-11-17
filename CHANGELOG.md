@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.6.74 - 2026-11-15
+## 4.6.75 - 2026-11-16
+
+Version 4.6.74 was tagged but never published to PyPI (its release gate failed); everything below ships in 4.6.75.
 
 Deploy marker: 2397fcc2f2b7f32b75b28902ca740d02c87b8511
 

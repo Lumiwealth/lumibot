@@ -2722,7 +2722,42 @@ class Broker(ABC):
         check if the limit timestamp was reached"""
         return True
 
+    def _session_close_time(self, now_utc=None):
+        """Close (UTC, with extended minutes) of the initialized-calendar session open now.
+
+        Sessions such as ``us_futures`` open in the evening and belong to the next calendar
+        row, so the row for today's date can already be closed while the market is open.
+        Returns ``None`` when no initialized session contains ``now_utc``.
+        """
+        trading_days = getattr(self, "_trading_days", None)
+        if trading_days is None or getattr(trading_days, "empty", False):
+            return None
+        try:
+            now_utc = now_utc or datetime.now(timezone.utc)
+            now_utc = now_utc.replace(tzinfo=timezone.utc) if now_utc.tzinfo is None else now_utc.astimezone(timezone.utc)
+            rows = trading_days
+            if "market_close" not in getattr(rows, "columns", ()):
+                rows = rows.reset_index()
+            for row in rows.itertuples(index=False):
+                market_open = getattr(row, "market_open", None)
+                market_close = getattr(row, "market_close", None)
+                if market_open is None or market_close is None:
+                    continue
+                market_open = pd.Timestamp(market_open)
+                market_close = pd.Timestamp(market_close)
+                market_open = market_open.tz_localize("UTC") if market_open.tzinfo is None else market_open.tz_convert("UTC")
+                market_close = market_close.tz_localize("UTC") if market_close.tzinfo is None else market_close.tz_convert("UTC")
+                market_close = market_close + timedelta(minutes=self.extended_trading_minutes)
+                if market_open <= now_utc <= market_close:
+                    return market_close
+        except Exception:
+            return None
+        return None
+
     def market_close_time(self):
+        session_close = self._session_close_time()
+        if session_close is not None:
+            return self.utc_to_local(session_close)
         return self.utc_to_local(self.market_hours(close=True))
 
     def market_open_time(self):
@@ -2875,7 +2910,8 @@ class Broker(ABC):
 
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
-        market_hours = self.market_hours(close=True)
+        session_close = self._session_close_time()
+        market_hours = session_close if session_close is not None else self.market_hours(close=True)
         close_time = self.utc_to_local(market_hours)
         current_time = datetime.now().astimezone(tz=_local_tz())
         if self.is_market_open():

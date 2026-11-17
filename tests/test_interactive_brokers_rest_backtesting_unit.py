@@ -13,7 +13,8 @@ from lumibot.entities import Asset
 @pytest.mark.parametrize("when,expected", [
     ("2026-09-18 17:55", 104.),
     ("2026-09-20 17:55", 104.),
-    ("2026-09-20 18:05", None),
+    ("2026-09-20 18:05", 104.),  # within the 4.6.76 reopening grace
+    ("2026-09-20 19:30", None),
 ])
 def test_futures_valuation_preserves_close_only_across_known_closure(monkeypatch, when, expected):
     from lumibot.tools import ibkr_helper

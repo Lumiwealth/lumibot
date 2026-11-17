@@ -3971,7 +3971,19 @@ def _minute_session_markers(
 # each fetched their own window). Only a hole of at least this long while the exchange was
 # open is fetched again; shorter quiet stretches are ordinary no-trade minutes.
 IBKR_FUTURES_MINUTE_GAP_MIN = timedelta(hours=2)
+# A hole the provider answered with no bars gets a note at its first bar time, so later
+# backtests do not ask again until the note expires (IBKR_GAP_RETRY_TTL_SECONDS).
+IBKR_FUTURES_GAP_MARKER_REASON = "futures_gap_empty"
 _RUNTIME_FUTURES_GAPS_TRIED: Dict[str, set] = {}
+
+
+def _futures_series_bar_step(timestep: str) -> pd.Timedelta:
+    """Bar length of an intraday series ("minute", "5 minutes", "30minute"); one minute if unknown."""
+    try:
+        seconds = int(_timestep_to_ibkr_bar(timestep)[1])
+    except Exception:
+        seconds = 60
+    return pd.Timedelta(seconds=seconds if 0 < seconds < 24 * 60 * 60 else 60)
 
 
 def _futures_minute_interior_gaps(
@@ -3980,32 +3992,64 @@ def _futures_minute_interior_gaps(
     symbol: Optional[str],
     start_dt: datetime,
     end_dt: datetime,
+    bar_step: Optional[timedelta] = None,
+    now: Optional[datetime] = None,
 ) -> list[tuple[pd.Timestamp, pd.Timestamp]]:
     """Stretches between two cached real bars, inside the window, where the exchange was open.
 
     The maintenance break, weekends and exchange holiday halts are closures, not holes.
     Window edges are the caller's job; only gaps between two real bars count.
+
+    ``bar_step`` is the bar length of the series. A bar is labelled by its start, so the
+    first bar that can be missing after a real one starts one whole bar later: on 5 minute
+    bars the last bar before the 17:00 ET close starts at 16:55 and nothing is missing
+    until 17:00. A gap also needs IBKR_FUTURES_MINUTE_GAP_MIN of open time inside it, so a
+    contract that stopped printing shortly before a close is not asked across the closure.
+    A gap holding an unexpired empty-answer note is skipped.
     """
     if df_cache is None or df_cache.empty:
         return []
-    idx = pd.DatetimeIndex(df_cache.index)
-    idx = idx.tz_localize(LUMIBOT_DEFAULT_PYTZ) if idx.tz is None else idx.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+    all_idx = pd.DatetimeIndex(df_cache.index)
+    all_idx = all_idx.tz_localize(LUMIBOT_DEFAULT_PYTZ) if all_idx.tz is None else all_idx.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+    idx = all_idx
+    noted = pd.DatetimeIndex([], tz=LUMIBOT_DEFAULT_PYTZ)
     if "missing" in df_cache.columns:
-        idx = idx[~df_cache["missing"].fillna(False).astype(bool).to_numpy()]
+        missing_mask = df_cache["missing"].fillna(False).astype(bool).to_numpy()
+        idx = all_idx[~missing_mask]
+        if bool(missing_mask.any()) and {"missing_reason", "missing_retry_after"}.issubset(df_cache.columns):
+            note_mask = missing_mask & (
+                df_cache["missing_reason"].fillna("").astype(str).to_numpy() == IBKR_FUTURES_GAP_MARKER_REASON)
+            if bool(note_mask.any()):
+                now_utc = pd.Timestamp(now or _ibkr_history_now_utc())
+                now_utc = now_utc.tz_localize(timezone.utc) if now_utc.tzinfo is None else now_utc.tz_convert(timezone.utc)
+                retry_after = pd.to_datetime(df_cache.loc[note_mask, "missing_retry_after"], utc=True, errors="coerce")
+                fresh = (retry_after > now_utc).fillna(False).to_numpy()
+                noted = all_idx[note_mask][fresh]
     idx = idx.sort_values()
     start = pd.Timestamp(_to_utc(start_dt)).tz_convert(LUMIBOT_DEFAULT_PYTZ)
     end = pd.Timestamp(_to_utc(end_dt)).tz_convert(LUMIBOT_DEFAULT_PYTZ)
     idx = idx[(idx >= start) & (idx <= end)]
     if len(idx) < 2:
         return []
-    step = pd.Timedelta(minutes=1)
+    step = pd.Timedelta(bar_step) if bar_step is not None else pd.Timedelta(minutes=1)
+    if not pd.Timedelta(0) < step < pd.Timedelta(days=1):
+        step = pd.Timedelta(minutes=1)
+    minimum = pd.Timedelta(IBKR_FUTURES_MINUTE_GAP_MIN)
     gaps: list[tuple[pd.Timestamp, pd.Timestamp]] = []
     spans = idx[1:] - idx[:-1]
-    for position in np.flatnonzero(spans > pd.Timedelta(IBKR_FUTURES_MINUTE_GAP_MIN)):
+    for position in np.flatnonzero(spans > minimum):
         gap_start, gap_end = idx[position] + step, idx[position + 1]
+        if gap_end <= gap_start:
+            continue
         if (_us_futures_closed_interval(gap_start.to_pydatetime(), gap_end.to_pydatetime())
                 or _futures_exchange_holiday_closed_interval(
                     symbol, gap_start.to_pydatetime(), gap_end.to_pydatetime())):
+            continue
+        open_time = sum(((seg_end - seg_start) for seg_start, seg_end in
+                         _futures_open_segments(gap_start, gap_end, symbol)), pd.Timedelta(0))
+        if open_time < minimum:
+            continue
+        if len(noted) and bool(((noted >= gap_start) & (noted < gap_end)).any()):
             continue
         gaps.append((gap_start, gap_end))
     return gaps
@@ -4035,6 +4079,26 @@ def _futures_open_segments(
     return segments
 
 
+def _futures_gap_empty_notes(
+    gaps: list[tuple[pd.Timestamp, pd.Timestamp]], *, retry_after: datetime
+) -> pd.DataFrame:
+    """One placeholder row per gap the provider answered empty. Never a price."""
+    count = len(gaps)
+    return pd.DataFrame(
+        {
+            "open": [pd.NA] * count,
+            "high": [pd.NA] * count,
+            "low": [pd.NA] * count,
+            "close": [pd.NA] * count,
+            "volume": [pd.NA] * count,
+            "missing": [True] * count,
+            "missing_retry_after": [retry_after.isoformat()] * count,
+            "missing_reason": [IBKR_FUTURES_GAP_MARKER_REASON] * count,
+        },
+        index=pd.DatetimeIndex([gap_start for gap_start, _ in gaps]),
+    )
+
+
 def _repair_futures_minute_gaps(
     df_cache: pd.DataFrame,
     *,
@@ -4049,18 +4113,26 @@ def _repair_futures_minute_gaps(
     source: str,
     source_was_explicit: bool,
 ) -> pd.DataFrame:
-    """Fetch the hours missing inside a cached dated-futures minute series, once per process.
+    """Fetch the hours missing inside a cached dated-futures intraday series, once per process.
 
     WHY (2026-11-16): a six month MNQ backtest holding the December contract failed after
     21 minutes because the shared cache had no bars for 22 hours (Thursday 18:00 to Friday
     15:55 ET) between two earlier downloads. Only stock and index minute caches had hole
     repair, so the hole was served silently and every valuation in it counted as missing
-    data. A failed or empty answer writes nothing and is not asked again by this process.
+    data.
+
+    WHY (2026-11-17): gaps are measured in bars of the series, not minutes. With a one
+    minute step on 5 minute bars every weekend and holiday close looked like a hole and a
+    three month backtest sent 23 requests that could only come back empty before its first
+    simulated bar. A hole the provider answers with no bars at all now gets a note in the
+    cache so later backtests do not ask again until it expires; a failed request writes
+    nothing and the next process retries it.
     """
     series_key = str(cache_file)
     tried = _RUNTIME_FUTURES_GAPS_TRIED.setdefault(series_key, set())
+    bar_step = _futures_series_bar_step(timestep)
     gaps = [gap for gap in _futures_minute_interior_gaps(
-        df_cache, symbol=getattr(asset, "symbol", None), start_dt=start_dt, end_dt=end_dt)
+        df_cache, symbol=getattr(asset, "symbol", None), start_dt=start_dt, end_dt=end_dt, bar_step=bar_step)
         if gap not in tried]
     if not gaps:
         return df_cache
@@ -4068,8 +4140,11 @@ def _repair_futures_minute_gaps(
                 len(gaps), getattr(asset, "symbol", None), gaps[0][0], gaps[-1][1])
     working = df_cache
     symbol = getattr(asset, "symbol", None)
+    answered_empty: list[tuple[pd.Timestamp, pd.Timestamp]] = []
     for gap in reversed(gaps):
         tried.add(gap)
+        failed = False
+        got_bars = False
         # One request per open stretch: history pages backward and stops at the first
         # empty page, so a window that ends inside a closure or spans one comes back short.
         for open_start, open_end in reversed(_futures_open_segments(gap[0], gap[1], symbol)):
@@ -4082,11 +4157,25 @@ def _repair_futures_minute_gaps(
                     _record_missing_on_empty=False,
                 )
             except Exception as exc:
+                failed = True
                 logger.warning("IBKR futures minute cache repair could not fetch %s %s to %s: %s",
                                symbol, open_start, open_end, exc)
                 continue
             if fetched is not None and not fetched.empty:
                 working = _merge_frames(working, fetched)
+                fetched_idx = pd.DatetimeIndex(fetched.index)
+                fetched_idx = (fetched_idx.tz_localize(LUMIBOT_DEFAULT_PYTZ) if fetched_idx.tz is None
+                               else fetched_idx.tz_convert(LUMIBOT_DEFAULT_PYTZ))
+                if "missing" in fetched.columns:
+                    fetched_idx = fetched_idx[~fetched["missing"].fillna(False).astype(bool).to_numpy()]
+                if bool(((fetched_idx >= gap[0]) & (fetched_idx < gap[1])).any()):
+                    got_bars = True
+        if not failed and not got_bars:
+            # Every open stretch was answered and none had a bar: remember that, for a while.
+            answered_empty.append(gap)
+    if answered_empty:
+        retry_after = _ibkr_history_now_utc() + timedelta(seconds=IBKR_GAP_RETRY_TTL_SECONDS)
+        working = _merge_frames(working, _futures_gap_empty_notes(answered_empty, retry_after=retry_after))
     if not working.equals(df_cache):
         published = _write_cache_frame(cache_file, working)
         if published is not None:

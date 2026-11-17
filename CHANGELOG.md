@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.6.80 - 2026-11-17
+
+Deploy marker: ca0d6f57514998779f437a84bf428deb65770ae1
+
+### Fixed
+- Futures backtests on 5, 15 or 30 minute bars no longer wait on provider requests for closed sessions. The futures cache hole check added in 4.6.76 measured gaps with a one minute step on every intraday series, so on multi-minute bars each weekend and holiday close looked like a hole (the last 5 minute bar before the 17:00 ET close starts at 16:55) and was requested again in every backtest: a three month MNQ run on 5 minute bars sent 23 requests that could only come back empty before its first simulated bar, about 10 minutes of waiting. Gaps are now measured in bars of the series and need two hours of open exchange time, so closures are never requested; one minute series behave as before. A real hole the provider answers with no bars gets a dated note in the cache (never a price) so later backtests do not ask again for 24 hours; a failed request writes nothing and is retried. Documented in `docsrc/backtesting.ibkr.rst`.
+
 ## 4.6.79 - 2026-11-17
 
 Deploy marker: 231864e2cc8492fa3de72c2f21d664e18fc98f0a

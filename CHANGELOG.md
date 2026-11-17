@@ -3,6 +3,7 @@
 ## 4.6.76 - Unreleased
 
 ### Fixed
+- A strategy lookback longer than a symbol's history (200 daily bars on a newly listed ETF) no longer marks the Interactive Brokers backtest failed when the provider holds nothing before the first bar and the returned bars have no holes. `data_health.history_starts` states "History for X starts on DATE". Failed requests and holes still fail the run.
 - Binance perpetual and spot backtests whose requested end is later than the last published bulk file (files arrive about a day late, so "backtest the last 3 months ending today" always reached past them) no longer fail with `PERPETUAL_DATA_UNAVAILABLE`. The run ends at the last published bar and the data provenance `notices` carry a `data_ends_before_requested_end` entry ("Data for SYMBOL ends on DATE ...") with the requested end. No bar after the last real one is filled or invented. A window that starts after the last published bar still stops with `no_data_for_window`. Documented in `docsrc/backtesting.perpetuals.rst`.
 
 ### Added

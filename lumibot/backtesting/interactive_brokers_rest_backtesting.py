@@ -407,7 +407,8 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                 pass
             if asset_type in {"future", "cont_future"}:
                 return ibkr_helper.closed_futures_mark(
-                    data.df, timestep="minute", when=now, symbol=getattr(base_asset, "symbol", None))
+                    data.df, timestep="minute", when=now, symbol=getattr(base_asset, "symbol", None),
+                    reopen_grace=ibkr_helper.QUIET_REOPEN_GRACE)
         return None
 
     def _refresh_stale_minute_series_for_valuation(self, asset, quote_asset, exchange, now) -> bool:

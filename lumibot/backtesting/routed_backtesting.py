@@ -2312,7 +2312,8 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
             return None
         if not data.df.empty and pd.Timestamp(when) >= data.df.index.max() + pd.Timedelta(minutes=1):
             return ibkr_helper.closed_futures_mark(
-                data.df, timestep="minute", when=when, symbol=getattr(base, "symbol", None))
+                data.df, timestep="minute", when=when, symbol=getattr(base, "symbol", None),
+                reopen_grace=ibkr_helper.QUIET_REOPEN_GRACE)
         try:
             price = data.get_last_price(when)
         except ValueError:
@@ -2320,7 +2321,8 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         if price is not None:
             return price
         return ibkr_helper.closed_futures_mark(
-                data.df, timestep="minute", when=when, symbol=getattr(base, "symbol", None))
+                data.df, timestep="minute", when=when, symbol=getattr(base, "symbol", None),
+                reopen_grace=ibkr_helper.QUIET_REOPEN_GRACE)
 
     def get_price_snapshot(self, asset, quote=None, timestep="minute", **kwargs):
         base = asset[0] if isinstance(asset, tuple) else asset

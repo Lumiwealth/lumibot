@@ -257,3 +257,72 @@ def test_open_futures_position_on_early_close_day_does_not_fail_the_backtest(mon
     reset_ibkr_history_health_for_testing()
     assert price == float(frame.close.iloc[-1])
     assert "missing_valuation_price" not in str(failures)
+
+
+def _reopen_source(monkeypatch, bars_after_reopen_start):
+    """Made-up MNQ minute bars: a normal Thursday session to 17:00, a quiet reopen, then trading."""
+    from lumibot.backtesting import InteractiveBrokersRESTBacktesting
+    from lumibot.tools import ibkr_helper
+    from lumibot.tools.ibkr_history_health import reset_ibkr_history_health_for_testing
+
+    reset_ibkr_history_health_for_testing()
+    tz = "America/New_York"
+    before = pd.date_range("2026-11-05 15:00", "2026-11-05 16:59", freq="min", tz=tz)
+    after = pd.date_range(bars_after_reopen_start, "2026-11-05 19:00", freq="min", tz=tz)
+    index = before.append(after)
+    values = pd.Series(range(len(index)), index=index, dtype=float) + 100
+    frame = pd.DataFrame({"open": values, "high": values + 1, "low": values - 1, "close": values + .5,
+                          "volume": 10.}, index=index)
+    now = pd.Timestamp("2026-11-05 18:00", tz=tz)
+    asset, quote = Asset("MNQ", "future", expiration=datetime(2026, 12, 18).date()), Asset("USD", "forex")
+    source = InteractiveBrokersRESTBacktesting(now.to_pydatetime(), (now + pd.Timedelta(hours=2)).to_pydatetime())
+    source._update_datetime(now.to_pydatetime())
+    monkeypatch.setattr(ibkr_helper, "get_price_data", lambda **kwargs: frame.loc[
+        (frame.index >= kwargs["start_dt"]) & (frame.index <= kwargs["end_dt"])].copy())
+    source._update_pandas_data(asset, quote, "minute", start_dt=frame.index[-60], end_dt=now.to_pydatetime(),
+                               exchange=None, include_after_hours=True)
+    return source, asset, quote, frame, now
+
+
+@pytest.mark.parametrize("first_bar,expect_price", [
+    ("2026-11-05 18:03", True),    # nothing traded in the first minutes after the reopen
+    ("2026-11-05 18:00", True),    # a bar prints at the reopen
+], ids=["quiet-reopen", "bar-at-reopen"])
+def test_open_futures_position_is_valued_at_last_real_price_before_first_print_after_reopen(
+        monkeypatch, first_bar, expect_price):
+    from lumibot.tools.ibkr_history_health import ibkr_history_health_snapshot, reset_ibkr_history_health_for_testing
+
+    source, asset, quote, frame, now = _reopen_source(monkeypatch, first_bar)
+    price = source.get_last_price(asset, quote=quote)
+    if price is None:
+        source.record_missing_valuation(asset)
+    failures = ibkr_history_health_snapshot()
+    reset_ibkr_history_health_for_testing()
+    assert price is not None
+    assert price <= float(frame.loc[frame.index <= now].close.iloc[-1]) + 1e-9 or first_bar.endswith("18:00")
+    assert "missing_valuation_price" not in str(failures)
+
+
+@pytest.mark.parametrize("when,marked", [
+    ("2026-11-05 18:00", True), ("2026-11-05 18:14", True),
+    ("2026-11-05 18:20", False),   # open for a while with no bar: a real gap
+    ("2026-11-05 16:59:59", False),  # not a closure at all
+], ids=["reopen-instant", "inside-grace", "real-gap-after-grace", "mid-session"])
+def test_reopen_grace_values_at_last_close_only_while_nothing_has_traded_yet(when, marked):
+    from lumibot.tools.ibkr_helper import QUIET_REOPEN_GRACE, closed_futures_mark
+
+    frame = pd.DataFrame({"close": [104.]}, index=pd.DatetimeIndex(["2026-11-05 14:00"], tz="America/New_York"))
+    if when != "2026-11-05 16:59:59":
+        frame = pd.DataFrame({"close": [104.]}, index=pd.DatetimeIndex(["2026-11-05 16:59"], tz="America/New_York"))
+    when = pd.Timestamp(when, tz="America/New_York")
+    mark = closed_futures_mark(frame, timestep="minute", when=when, symbol="MNQ", reopen_grace=QUIET_REOPEN_GRACE)
+    assert mark == (104. if marked else None)
+    # Without the grace the reopening instant is still not treated as closed.
+    assert closed_futures_mark(frame, timestep="minute", when=pd.Timestamp("2026-11-05 18:00", tz="America/New_York"),
+                               symbol="MNQ") is None
+
+
+def test_quiet_reopen_never_uses_a_price_from_after_the_valuation_time(monkeypatch):
+    source, asset, quote, frame, now = _reopen_source(monkeypatch, "2026-11-05 18:03")
+    price = source.get_last_price(asset, quote=quote)
+    assert price == float(frame.loc[frame.index < pd.Timestamp("2026-11-05 17:00", tz="America/New_York")].close.iloc[-1])

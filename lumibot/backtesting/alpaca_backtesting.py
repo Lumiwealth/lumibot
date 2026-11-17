@@ -2121,11 +2121,13 @@ class AlpacaBacktesting(DataSourceBacktesting):
             data_datetime_end: datetime,
             auto_adjust: bool,
             request_end: datetime | None = None,
+            adjustment: str | None = None,
     ):
         """Return the Alpaca client and bar request for this asset.
 
         ``request_end`` replaces the default end (``data_datetime_end`` plus one day), for a
-        history segment that must stop where the loaded window begins.
+        history segment that must stop where the loaded window begins. ``adjustment``
+        overrides the stock price adjustment (``"raw"`` for prices as traded).
         """
         end = request_end if request_end is not None else data_datetime_end + timedelta(days=1)
         # A window that reaches today (for example an end clamped to "now") used to ask for
@@ -2157,7 +2159,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             timeframe=timeframe,
             start=data_datetime_start,
             end=end,
-            adjustment="all" if auto_adjust else "split",
+            adjustment=adjustment or ("all" if auto_adjust else "split"),
         )
         return self._stock_client, request
 
@@ -2333,7 +2335,104 @@ class AlpacaBacktesting(DataSourceBacktesting):
                                 max_workers=max_workers, quote=quote, exchange=exchange,
                                 include_after_hours=include_after_hours, sleep_time=sleep_time)
 
-    def _stock_bars_in_groups(self, members, timestep, start, end, *, request_end=None, refresh=False):
+    # ------------------------------------------------------------------
+    # As-traded closes (what a share cost that day, before any adjustment)
+    # ------------------------------------------------------------------
+    def prefetch_backtest_as_traded_daily_closes(self, assets) -> None:
+        """Load the daily closes ``get_backtest_as_traded_daily_closes`` needs for many stocks.
+
+        Grouped requests (``ALPACA_STOCK_SYMBOLS_PER_REQUEST`` symbols each) instead of two
+        requests per stock. Anything this does not load is loaded per stock when it is read.
+        """
+        stocks, seen = [], set()
+        for asset in assets or []:
+            if isinstance(asset, str):
+                asset = Asset(symbol=asset)
+            if str(getattr(asset, "asset_type", "")).lower() != "stock" or asset.symbol in seen:
+                continue
+            seen.add(asset.symbol)
+            stocks.append(asset)
+        if len(stocks) < 2:
+            return
+        try:
+            self._prefetch_stock_history(stocks, 1, "day", None, None)
+        except Exception as exc:
+            logger.debug("Grouped Alpaca stock history download skipped: %s", exc)
+        closes = self._state("_as_traded_daily_closes", dict)
+        wanted = [asset for asset in stocks if asset.symbol not in closes]
+        if not wanted:
+            return
+        rows = self._stock_bars_in_groups(
+            [(asset, self.LUMIBOT_DEFAULT_QUOTE_ASSET) for asset in wanted], "day",
+            self._data_datetime_start, self._data_datetime_end,
+            refresh=bool(getattr(self, "_refresh_cache", False)), adjustment="raw",
+        )
+        for asset in wanted:
+            closes[asset.symbol] = self._closes_by_session(rows.get(asset.symbol))
+        logger.info("Loaded as-traded daily closes for %d stock symbols", len(wanted))
+
+    def get_backtest_as_traded_daily_closes(self, asset, quote=None):
+        """Daily ``close`` (as this backtest prices it) and ``as_traded_close`` for a stock, or None.
+
+        Alpaca backtest prices are adjusted for splits, and with ``auto_adjust`` (the default)
+        for dividends too, so a price from years ago is not what a share cost that day.
+        ``as_traded_close`` is Alpaca's unadjusted close. Anything that needs the price traded
+        on a date (market cap = shares outstanding x price) multiplies the backtest price by
+        ``as_traded_close / close`` of that day. One row per session Alpaca has a real bar for.
+        """
+        if isinstance(asset, str):
+            asset = Asset(symbol=asset)
+        if str(getattr(asset, "asset_type", "")).lower() != "stock":
+            return None
+        frames = self._state("_as_traded_frames", dict)
+        if asset.symbol in frames:
+            return frames[asset.symbol]
+        closes = self._state("_as_traded_daily_closes", dict)
+        if asset.symbol not in closes:
+            try:
+                rows = self._stock_bars_in_groups(
+                    [(asset, quote or self.LUMIBOT_DEFAULT_QUOTE_ASSET)], "day",
+                    self._data_datetime_start, self._data_datetime_end,
+                    refresh=bool(getattr(self, "_refresh_cache", False)), adjustment="raw",
+                )
+            except Exception as exc:
+                logger.debug("As-traded closes for %s unavailable: %s", asset.symbol, exc)
+                rows = {}
+            closes[asset.symbol] = self._closes_by_session(rows.get(asset.symbol))
+        traded = closes[asset.symbol]
+        frame = None
+        if traded is not None:
+            try:
+                adjusted = self._closes_by_session(
+                    self.get_historical_prices_between_dates(base_asset=asset, quote_asset=quote, timestep="day")
+                )
+            except Exception as exc:
+                logger.debug("Daily closes for %s unavailable: %s", asset.symbol, exc)
+                adjusted = None
+            if adjusted is not None:
+                frame = pd.DataFrame({"close": adjusted, "as_traded_close": traded}).dropna()
+                frame.index = pd.DatetimeIndex(frame.index, name="session")
+                if frame.empty:
+                    frame = None
+        frames[asset.symbol] = frame
+        return frame
+
+    @staticmethod
+    def _closes_by_session(rows):
+        """Close per New York session date from daily bars (``timestamp`` as a column or the index)."""
+        if rows is None or len(rows) == 0 or "close" not in rows.columns:
+            return None
+        stamps = rows["timestamp"] if "timestamp" in rows.columns else rows.index
+        stamps = pd.DatetimeIndex(pd.to_datetime(stamps))
+        stamps = stamps.tz_localize("UTC") if stamps.tz is None else stamps
+        sessions = pd.DatetimeIndex(stamps.tz_convert("America/New_York").date)
+        closes = pd.Series(pd.to_numeric(rows["close"], errors="coerce").to_numpy(), index=sessions).dropna()
+        closes = closes[closes > 0]
+        closes = closes[~closes.index.duplicated(keep="last")].sort_index()
+        return closes if len(closes) else None
+
+    def _stock_bars_in_groups(self, members, timestep, start, end, *, request_end=None, refresh=False,
+                              adjustment=None):
         """Rows per symbol for ``members`` ([(asset, quote), ...]), a few symbols-per-request at a time."""
         by_symbol = {}
         size = max(1, int(self.ALPACA_STOCK_SYMBOLS_PER_REQUEST))
@@ -2344,7 +2443,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             client, request = self._history_request(
                 base_asset=first_asset, quote_asset=first_quote, timestep=timestep,
                 data_datetime_start=start, data_datetime_end=end, auto_adjust=self._auto_adjust,
-                request_end=request_end,
+                request_end=request_end, adjustment=adjustment,
             )
             request = request.model_copy(update={"symbol_or_symbols": chunk})
             what = f"{len(chunk)} stock symbols"

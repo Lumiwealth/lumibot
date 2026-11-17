@@ -112,8 +112,35 @@ backtest date (or ``as_of``), and is ``None`` when it cannot be computed:
 
 Price-based metrics use ``price=`` when you pass it (``prices={...}`` for the
 table), otherwise the strategy's last price at the current bar. ``price=`` is
-the price as traded on that date. A backtest price that is adjusted for a later
-stock split is converted back to the price traded that day.
+the price as traded on that date.
+
+**The market cap rule.** Market cap as of a date is the shares outstanding on
+that date's share basis times the price a share actually traded at that day.
+Backtest prices are often adjusted: lowered for every later stock split, and by
+some data sources for every later dividend too, so a ten-year-old adjusted price
+can be a small fraction of what a share cost then. LumiBot never multiplies an
+adjusted price by a share count. It first turns the backtest price back into the
+price traded that day:
+
+- When the data source can also read unadjusted prices (Alpaca backtests), the
+  ratio of the day's unadjusted close to its adjusted close undoes splits and
+  dividends exactly. A jump in that ratio also dates each split to the day.
+- Otherwise the splits listed in the price data after the date are undone.
+- When neither is possible and a later split is known, the value is ``None``
+  with the reason. An adjusted price is never used as if it had traded.
+
+A data source of your own can support this by implementing
+``get_backtest_as_traded_daily_closes(asset)``: return a daily DataFrame with
+``close`` (the close your backtest prices use) and ``as_traded_close``.
+
+**Share counts filed at the wrong scale.** Companies sometimes file the
+cover-page share count a thousand or a million times too large or too small.
+LumiBot uses a filed count only when it is within 50 times of another count the
+company filed (the usual value of the same line in its earlier filings, or the
+weighted average shares of the latest period). A count that disagrees with all
+of them is skipped and the latest earlier count that passes is used. When no
+filed count can be confirmed, ``shares_outstanding`` and ``market_cap`` are
+``None`` and the reason says so.
 
 **Stock splits.** A filing reports EPS and share counts on the share basis of
 the day it was filed. After a 10-for-1 split, a filing made before the split
@@ -184,8 +211,12 @@ Revenue growth over 20% and debt to equity under 0.5, fastest growers first:
   equity for 402 of 503.
 
   - ``market_cap`` is missing when today's ticker points to a company that had
-    not filed yet on that date (a spin-off or new listing), or when a stock
-    split cannot be dated.
+    not filed yet on that date (a spin-off or new listing), when a stock
+    split cannot be dated, when the price traded that day cannot be recovered
+    from an adjusted backtest price, or when no filed share count can be
+    confirmed.
+  - A share-class ticker can be written with a dot, dash, slash or space
+    (``BRK.B``, ``BRK-B``, ``BRK/B``, ``BRK B``): all find the same company.
   - ``debt_to_equity`` is missing for most banks, insurers and asset managers
     (they do not file a long-term debt line), for companies with no long-term
     debt line at all, and when stockholders' equity is zero or negative (about

@@ -1,6 +1,16 @@
 # Changelog
 
-## 4.6.76 - Unreleased
+## 4.6.77 - 2026-11-17
+
+Deploy marker: 587dec8f7c7e370f78bfd2717f6ca92816a4cb38
+
+### Fixed
+- `fundamentals.get_metrics` / `get_metrics_table`: market cap as of a past date is right or it is `None` with a reason. Ranking a 500-company universe by market cap in a ten-year backtest on adjusted prices put two mid-size companies first and left out the largest ones. Four causes: (1) a cover-page share count filed a thousand or a million times too large was used as filed; a filed count more than 50 times away from the company's other filed share counts is now skipped and the latest count that agrees is used. (2) Backtest prices adjusted for later splits and dividends, from a data source with no split history, were refused for every company that split later and otherwise used as if they had traded (about a third too low for a high-dividend stock ten years back); the price is now turned back into the price traded that day from the data source's as-traded closes. (3) An EPS restatement with no share count to compare was read as a stock split, which removed the company until the next filings. (4) A share-class ticker written with a dot, slash or space (`BRK.B`) was not found. Existing results change only toward the real numbers: P/E, P/S, P/B and market cap on adjusted backtest data now use the traded price. Documented in `docsrc/fundamentals.rst` ("The market cap rule").
+
+### Added
+- Backtest data sources can implement `get_backtest_as_traded_daily_closes(asset)` (and optionally `prefetch_backtest_as_traded_daily_closes(assets)`) to give the unadjusted close next to the close their backtest prices use. Alpaca backtests implement both with grouped requests for unadjusted daily bars (about 100 symbols per request, stored in the shared bar cache like every other bar).
+
+## 4.6.76 - 2026-11-17
 
 ### Fixed
 - Option backtests value every leg for the same moment. A held option contract was marked at its last trade, so one leg of a position could be valued at this bar's trade and another at a trade from hours or a day earlier while the underlying moved in between; the account value then swung for one row and came back (a call ratio spread read -56.6% and then +57.4% inside one day, with a 35-wide spread "worth" 62.71). Now a contract with a real quote or trade on the valuation bar keeps that real price, and any other contract is valued at a model estimate for that moment (the underlying's price now, volatility implied by the contract's own last real trade). On daily bars a day's first trade has no time of day, so the day's bar is used as a real mark only once the session has closed; before that the contract is estimated from earlier sessions, and today's bar is never read before the open. `data_provenance.json` counts the two kinds under `optionValuationMarks` (`real`, `estimated`). Valuation only: fills, trades and final cash are unchanged, so a closed position's profit is the same; account values between trades and the maximum drawdown can change. Documented in `docsrc/backtesting.how_orders_fill.rst`.

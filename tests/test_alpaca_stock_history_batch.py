@@ -13,6 +13,7 @@ by symbol, only for the symbols requested, only inside the requested window). No
 from datetime import datetime, timedelta
 
 import pandas as pd
+import pytest
 from alpaca.data.models import BarSet
 
 from lumibot.entities import Asset
@@ -148,3 +149,90 @@ def test_grouped_history_falls_back_to_one_by_one_when_the_grouped_request_fails
     source._stock_client.get_stock_bars = refuse_groups
     got = _frames(source.get_bars(assets, 5, timestep="day"))
     assert all(frame is not None and len(frame) == 5 for frame in got.values())
+
+
+# -- as-traded closes (market cap needs the price traded that day) ---------------------------
+
+
+class _AdjustedAndRawClient(_StockBarsClient):
+    """Answers like Alpaca: ``adjustment=raw`` is the price traded, anything else is adjusted.
+
+    Made-up history: every symbol has a 4-for-1 split on 2026-07-01 and a dividend adjustment
+    of 10% before 2026-08-03, so before the split the traded price is 4 / 0.9 times the
+    adjusted one.
+    """
+
+    SPLIT = pd.Timestamp("2026-07-01", tz="UTC")
+    DIVIDEND = pd.Timestamp("2026-08-03", tz="UTC")
+
+    def __init__(self):
+        super().__init__()
+        self.adjustments = []
+
+    def get_stock_bars(self, request):
+        adjustment = getattr(request.adjustment, "value", request.adjustment)
+        self.adjustments.append(adjustment)
+        bars = super().get_stock_bars(request)
+        if adjustment != "raw":
+            return bars
+        out = {}
+        for symbol, rows in bars.data.items():
+            out[symbol] = []
+            for bar in rows:
+                stamp = pd.Timestamp(bar.timestamp)
+                factor = (4.0 if stamp < self.SPLIT else 1.0) / (0.9 if stamp < self.DIVIDEND else 1.0)
+                out[symbol].append(dict(
+                    t=stamp.isoformat(), o=bar.open * factor, h=bar.high * factor, l=bar.low * factor,
+                    c=bar.close * factor, v=bar.volume, n=10, vw=bar.close * factor,
+                ))
+        return BarSet(out)
+
+
+def _as_traded_source(monkeypatch, tmp_path):
+    source = _alpaca_source(
+        monkeypatch, tmp_path, timestep="day", start=datetime(2026, 6, 1), end=datetime(2026, 8, 14)
+    )
+    source._stock_client = _AdjustedAndRawClient()
+    return source
+
+
+def test_as_traded_daily_closes_undo_split_and_dividend_adjustment(monkeypatch, tmp_path):
+    source = _as_traded_source(monkeypatch, tmp_path)
+    frame = source.get_backtest_as_traded_daily_closes(Asset("SYM000"))
+
+    assert "raw" in source._stock_client.adjustments
+    ratio = frame["as_traded_close"] / frame["close"]
+    assert ratio[pd.Timestamp("2026-06-30")] == pytest.approx(4.0 / 0.9)   # before the split
+    assert ratio[pd.Timestamp("2026-07-01")] == pytest.approx(1.0 / 0.9)   # split day: new share basis
+    assert ratio[pd.Timestamp("2026-08-03")] == pytest.approx(1.0)         # nothing left to adjust
+    # Only sessions with a real traded bar, each once.
+    assert frame.index.is_unique and frame.index.is_monotonic_increasing
+    assert len(frame) <= len(pd.bdate_range("2026-06-01", "2026-08-14"))
+
+    # Asking again reads nothing more.
+    before = len(source._stock_client.requests)
+    assert source.get_backtest_as_traded_daily_closes(Asset("SYM000")) is frame
+    assert len(source._stock_client.requests) == before
+
+
+def test_as_traded_closes_for_a_universe_come_from_grouped_requests(monkeypatch, tmp_path):
+    source = _as_traded_source(monkeypatch, tmp_path)
+    assets = [Asset(symbol) for symbol in SYMBOLS]
+    source.prefetch_backtest_as_traded_daily_closes(assets)
+
+    requests = source._stock_client.requests
+    # 250 symbols: three grouped requests for the backtest's own closes, three for as-traded.
+    assert [len(r) for r in requests] == [100, 100, 50, 100, 100, 50]
+    assert source._stock_client.adjustments[3:] == ["raw", "raw", "raw"]
+
+    frame = source.get_backtest_as_traded_daily_closes(Asset("SYM007"))
+    assert frame is not None and len(requests) == 6  # already loaded
+    # A symbol Alpaca has no bars for has no as-traded close: None, never a made-up price.
+    assert source.get_backtest_as_traded_daily_closes(Asset(NO_BARS)) is None
+
+
+def test_only_stocks_have_as_traded_closes(monkeypatch, tmp_path):
+    source = _as_traded_source(monkeypatch, tmp_path)
+
+    assert source.get_backtest_as_traded_daily_closes(Asset("BTC", asset_type="crypto")) is None
+    assert source._stock_client.requests == []

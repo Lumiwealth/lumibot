@@ -729,6 +729,23 @@ class DataSource(ABC):
                 return False
         return DataSource._asset_values_match(data_quote, requested_quote)
 
+    def get_backtest_as_traded_daily_closes(self, asset, quote=None):
+        """Daily closes as traded next to the closes this backtest uses, or None.
+
+        A backtest data source whose prices are adjusted (for splits, dividends or both) and
+        that can also read unadjusted prices returns a DataFrame indexed by session day with
+        two columns: ``close`` (the close its backtest prices use) and ``as_traded_close``
+        (what a share actually cost that day). ``as_traded_close / close`` turns any of that
+        day's backtest prices into the price traded, which is what a market cap (shares
+        outstanding x price) needs. Sources with as-traded prices, or without access to
+        unadjusted ones, return None (the default).
+        """
+        return None
+
+    def prefetch_backtest_as_traded_daily_closes(self, assets) -> None:
+        """Optional shortcut: load ``get_backtest_as_traded_daily_closes`` data for many assets at once."""
+        return None
+
     def _get_backtest_daily_corporate_action_frame(self, asset, quote=None):
         """Return the full preloaded daily frame for backtest corporate actions, when available.
 

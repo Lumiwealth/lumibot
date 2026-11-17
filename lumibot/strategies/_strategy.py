@@ -1572,6 +1572,22 @@ class _Strategy:
 
     # =============Auto updating functions=============
 
+    @staticmethod
+    def _position_fill_price(position):
+        """The price this position was opened at, or None: its own average fill price, otherwise
+        the newest filled order it holds. Used to value a position no market mark exists for yet."""
+        candidates = [getattr(position, "avg_fill_price", None)]
+        for order in reversed(getattr(position, "orders", None) or []):
+            candidates.append(getattr(order, "avg_fill_price", None))
+        for candidate in candidates:
+            try:
+                value = float(candidate)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(value) and value > 0:
+                return value
+        return None
+
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""
         # Live runs don't need to recalculate portfolio value here, as the broker sync should handle it
@@ -1719,6 +1735,14 @@ class _Strategy:
                         price = self._last_known_prices[asset]
                         base_asset = asset[0] if isinstance(asset, tuple) else asset
                         carried_marks.append(str(base_asset))
+                    elif self._position_fill_price(position) is not None:
+                        # No market mark has ever been seen for this position (it was just opened,
+                        # before its contract printed or outside option marking hours). Its own fill
+                        # price is a known price from the moment it was opened, so every leg of a
+                        # new multi-leg position is valued from that same moment instead of some
+                        # legs being left out. Valuation only: it is not stored as a market mark,
+                        # so the first real mark replaces it.
+                        price = self._position_fill_price(position)
                     else:
                         # No price history - must skip this position
                         if isinstance(asset, Asset):

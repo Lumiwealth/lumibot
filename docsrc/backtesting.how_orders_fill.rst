@@ -252,3 +252,18 @@ call settles for +10.00 and the short call for -5.00, so the spread pays 5.00 pe
 
 Options that deliver in one direction only (a single long call, a covered call, a
 cash-secured put) keep the normal exercise and assignment behavior.
+
+How open positions are valued between fills
+--------------------------------------------
+
+The account value in a backtest uses, for each open position, in this order:
+
+1. the current price from the data source,
+2. the last real price seen for that asset earlier in the run (thinly traded options can go
+   days without a trade),
+3. the position's own fill price, when no market price has been seen since it was opened.
+
+Rule 3 matters right after a multi-leg option order fills: every leg is valued from the moment
+of the fill until its own first market price arrives, so the account value never counts only
+some legs of a new spread. A position with no known price at all is left out and a warning is
+logged. None of these valuation prices creates a bar, a trade or a fill.

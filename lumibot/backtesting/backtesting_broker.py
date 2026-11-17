@@ -5946,16 +5946,23 @@ class BacktestingBroker(Broker):
             # [0.01, 1000] are far below a cent. The library solver rounds too coarsely here.
             days_then = years_then * 365.0
             low, high = 0.01, 1000.0
-            if not (value(reference_spot, reference_strike, days_then, low) <= reference_price
-                    <= value(reference_spot, reference_strike, days_then, high)):
-                return None
-            for _ in range(80):
-                mid = (low + high) / 2.0
-                if value(reference_spot, reference_strike, days_then, mid) < reference_price:
-                    low = mid
-                else:
-                    high = mid
-            estimate = value(spot, asset.strike, years_now * 365.0, (low + high) / 2.0)
+            if reference_price > value(reference_spot, reference_strike, days_then, high):
+                return None  # above anything a volatility can reach: an unusable print
+            if reference_price <= value(reference_spot, reference_strike, days_then, low):
+                # At or below its value with no volatility (a deep in-the-money contract whose
+                # print and the underlying bar were not stamped at the same instant): the trade
+                # carried no time value, so the estimate carries none either. Returning nothing
+                # here left the order, and any package holding this leg, unfilled forever.
+                volatility = low
+            else:
+                for _ in range(80):
+                    mid = (low + high) / 2.0
+                    if value(reference_spot, reference_strike, days_then, mid) < reference_price:
+                        low = mid
+                    else:
+                        high = mid
+                volatility = (low + high) / 2.0
+            estimate = value(spot, asset.strike, years_now * 365.0, volatility)
         except Exception:
             return None
         return estimate if math.isfinite(estimate) and estimate >= 0 else None

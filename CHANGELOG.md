@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.6.79 - 2026-11-17
+
+Deploy marker: 231864e2cc8492fa3de72c2f21d664e18fc98f0a
+
+### Fixed
+- Option backtests: an order for a deep in-the-money contract with no quote and no trade on its bar now fills at a labeled estimate instead of never filling. When the contract's last real trade was at or below its value with no volatility (it printed while the underlying was somewhere else in that bar), no volatility explains it and the estimate used to be skipped; the order, and every multi-leg package containing that leg, then stayed open until expiry (in a one-year monthly call ratio spread 4 of 10 expiry-day closes never filled, and one sold call was assigned into 100 short shares). The trade carried no time value, so the estimate is the contract's in-the-money value at the current underlying price, marked `price_source="estimated"` and counted in `optionFillPrices`. All legs of a package still fill on the same bar or not at all; a real quote or trade on the bar still wins; a print above anything a volatility can reach still gets no estimate. Documented in `docsrc/backtesting.how_orders_fill.rst`.
+
 ## 4.6.78 - 2026-11-17
 
 Deploy marker: 2998bad9c2da92dd74c9f2df3b33225a6b2656b2

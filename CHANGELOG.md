@@ -2,6 +2,8 @@
 
 ## 4.6.82 - 2026-11-17
 
+Deploy marker: 920fefbdcd993495ed96ccb8772e98a84922ece4
+
 ### Changed
 - Backtests that rank a large stock universe by SEC fundamentals every month are faster, with the same results. Measured on a warm hosted run (top 5 of 503 stocks by market cap, 10 years, Alpaca daily bars): 767 seconds, of which 229 in the first rebalance and about 2.7 per later rebalance. Four causes are removed here. (1) Every daily price lookup on Alpaca data converted the whole trading calendar to dates to find one session (about 1 ms per price, 503 prices per rebalance, and every position on every simulated day); the calendar is now indexed by date once. (2) Exact filing times were read from each company's whole submissions file (hundreds of kilobytes) one company after another inside the loop; they now come from a small per-company file (`sec/submissions_acceptance/`, same freshness rules) and a table loads the ones it needs together. (3) Share counts filed per share class were read from each filing's XBRL data (megabytes) on every backtest; the counts read from a filing are now kept per company (`sec/cover_share_counts/`) in the local and shared cache. (4) Each stock symbol's daily frame logged several pandas `SettingWithCopyWarning` lines while it was built, and every cached bar partition built a new empty frame before decoding. On a warm local cache the monthly table for 503 companies went from 0.69 to 0.33 seconds; the 13 tables compared are identical value for value. Documented in `docsrc/fundamentals.rst`.
 

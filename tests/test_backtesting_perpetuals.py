@@ -206,3 +206,45 @@ def test_normal_strategy_backtest_round_trip(kind):
     expected = 1940 if kind == "fractional-short" else .1 + 1000*(1/50000 - 1/55000) if inverse else 2100
     assert strategy.cash == pytest.approx(expected)
     assert strategy._update_portfolio_value() == pytest.approx(expected)
+
+
+# -- flipping a position (short to long or long to short) ------------------------------------
+# One order that closes the old position and opens the opposite one only needs initial
+# margin for the net new exposure: the closing part frees its margin first. A customer
+# backtest of an always-long-or-short bot showed rejected flips; the cause was a price gap
+# between the decision price and the fill price, not the closing part (checked here).
+def _flip_quantity(equity, price, leverage=2, fraction="0.95"):
+    return (Decimal(str(equity)) * Decimal(fraction) * leverage / Decimal(str(price)))
+
+
+def test_flip_short_to_long_needs_margin_only_for_the_net_new_exposure(account):
+    strategy, broker, asset = account(unit="base", budget=10000, fees=True)
+    fill(strategy, broker, asset, "0.38", "sell", 50000, custom_params={"leverage": 2})
+    # price fell to 48000, the short is up 760: equity about 10,760, size 95% of it at 2x long
+    long_qty = _flip_quantity(10700, 48000)
+    order = fill(strategy, broker, asset, str((Decimal("0.38") + long_qty).quantize(Decimal("0.001"))),
+                 "buy", 48000, custom_params={"leverage": 2})
+    assert order.status != "error", order.error_message
+    position = broker.get_tracked_position(strategy.name, asset)
+    assert position.quantity == pytest.approx(float(long_qty), abs=0.002)
+
+
+def test_flip_long_to_short_needs_margin_only_for_the_net_new_exposure(account):
+    strategy, broker, asset = account(unit="base", budget=10000, fees=True)
+    fill(strategy, broker, asset, "0.38", "buy", 50000, custom_params={"leverage": 2})
+    short_qty = _flip_quantity(10700, 52000)
+    order = fill(strategy, broker, asset, str((Decimal("0.38") + short_qty).quantize(Decimal("0.001"))),
+                 "sell", 52000, custom_params={"leverage": 2})
+    assert order.status != "error", order.error_message
+    assert broker.get_tracked_position(strategy.name, asset).quantity == pytest.approx(-float(short_qty), abs=0.002)
+
+
+def test_flip_sized_at_full_leverage_is_rejected_when_the_fill_gaps_against_it(account):
+    # Sized on the decision price, filled after a +10% gap against the short: equity fell
+    # below the margin of the new position, so an exchange would refuse it too.
+    strategy, broker, asset = account(unit="base", budget=10000)
+    fill(strategy, broker, asset, "0.38", "sell", 50000, custom_params={"leverage": 2})
+    long_qty = _flip_quantity(10000, 50000, fraction="0.99")
+    order = fill(strategy, broker, asset, str((Decimal("0.38") + long_qty).quantize(Decimal("0.001"))),
+                 "buy", 55000, custom_params={"leverage": 2})
+    assert order.status == "error" and "Insufficient USDT collateral" in str(order.error_message)

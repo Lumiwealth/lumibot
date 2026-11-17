@@ -3418,6 +3418,13 @@ class _Strategy:
                     if isinstance(parsed, dict):
                         env_override_name = "router"
                         env_override_routing = parsed
+                        # A map whose default is Alpaca keeps Alpaca as the engine: its option
+                        # chains, real-trade option marks and fill rules live in AlpacaBacktesting.
+                        # The routed source inherits ThetaData's option chains, so it must not run
+                        # these maps. AlpacaBacktesting sends only the other asset types in the map
+                        # (an index, for example) to their provider.
+                        if str(parsed.get("default") or "").strip().lower() == "alpaca":
+                            env_override_name = "alpaca"
                     else:
                         env_override_name = trimmed.lower()
                 else:

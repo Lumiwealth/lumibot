@@ -5,6 +5,7 @@
 Deploy marker: 2397fcc2f2b7f32b75b28902ca740d02c87b8511
 
 ### Fixed
+- An options backtest on Alpaca data that also reads an index (`BACKTESTING_DATA_SOURCE={"default":"alpaca","index":"ibkr"}`) gets its option chains, option prices and fills from Alpaca again. Such a map was handed to the routed source, which asked ThetaData for every chain and expiration. Alpaca now stays the engine and only the other listed asset types are read from their provider. Plain `alpaca` and every map with another default are unchanged.
 - Native backtest partial executions continue through the remaining quantity without duplicate fills or fees. Final chunks finish the order and preserve its weighted fill price; canceled remainders and OCO protection stay respected.
 - Perpetual data errors describe the selected provider's limits and explain existing native CCXT selection without suggesting a different contract or settlement currency. Routing, machine-readable reasons and successful data access are unchanged.
 

@@ -63,6 +63,28 @@ request, saved in the Alpaca cache folder so a rerun downloads nothing, and neve
 a symbol simply has fewer bars (a recent listing, an option that rarely trades), you get the bars
 that exist, so check ``len(bars.df)`` before using a long lookback.
 
+Index data (VIX, SPX) in an Alpaca options backtest
+---------------------------------------------------
+
+Alpaca has no index history, so an option strategy that reads the VIX or SPX needs those bars
+from another provider. Give ``BACKTESTING_DATA_SOURCE`` a JSON map whose ``default`` is
+``alpaca`` and name the provider for the other asset types:
+
+.. code-block:: bash
+
+   export BACKTESTING_DATA_SOURCE='{"default":"alpaca","index":"ibkr"}'
+
+- Alpaca stays the backtest engine. Stocks, ETFs, crypto, option chains, option prices and option
+  fills all come from Alpaca, exactly as with ``BACKTESTING_DATA_SOURCE=alpaca``.
+- Only the asset types the map gives to another provider (``index`` above) are read from that
+  provider, at the same simulated time and bar size.
+- A map without another provider behaves like plain ``alpaca``.
+
+.. code-block:: python
+
+   vix = self.get_last_price(Asset("VIX", asset_type="index"))   # from the "index" provider
+   chains = self.get_chains(Asset("SPY"))                        # from Alpaca
+
 5, 10, 15 and 30-minute bars from the minute cache
 --------------------------------------------------
 

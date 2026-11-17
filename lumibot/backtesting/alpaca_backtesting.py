@@ -229,6 +229,19 @@ class AlpacaBacktesting(DataSourceBacktesting):
         # ALPACA_IS_PAPER=true, and the customer's ALPACA_API_KEY/ALPACA_API_SECRET or
         # ALPACA_OAUTH_TOKEN are injected. Before 2026-09-23 config=None raised, so no existing
         # caller depends on the defaults below.
+        # A routing map (BACKTESTING_DATA_SOURCE={"default": "alpaca", "index": "ibkr"}) arrives
+        # inside the config. It is not credentials: take it out, so a config that held nothing
+        # else is still environment mode.
+        routing = None
+        if isinstance(config, dict) and self._ROUTING_CONFIG_KEY in config:
+            config = dict(config)
+            routing = config.pop(self._ROUTING_CONFIG_KEY)
+            if not config:
+                config = None
+        self._other_source_routes = self._routes_to_other_sources(routing)
+        self._routed_companion = None
+        self._routed_companion_window = (datetime_start, datetime_end)
+
         environment_mode = config is None
         if environment_mode:
             config = self._config_from_environment()
@@ -416,6 +429,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
         bucket, otherwise the close of the latest earlier print, otherwise ``None``.
         """
 
+        other_source = self._other_source_for(asset)
+        if other_source is not None:
+            return other_source.get_last_price(asset, timestep=self._timestep, quote=quote, exchange=exchange)
+
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
 
         if self._is_option(asset):
@@ -585,6 +602,14 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         if timestep is None:
             timestep = self._timestep
+
+        other_source = self._other_source_for(asset)
+        if other_source is not None:
+            return other_source.get_historical_prices(
+                asset, length, timestep=timestep, timeshift=timeshift, quote=quote, exchange=exchange,
+                include_after_hours=include_after_hours, return_polars=return_polars,
+            )
+
         source_timestep, resample_rule = self._normalize_timestep_for_source(timestep)
 
         if quote is None:
@@ -898,6 +923,62 @@ class AlpacaBacktesting(DataSourceBacktesting):
     @staticmethod
     def _is_option(asset) -> bool:
         return str(getattr(asset, "asset_type", "")).lower() == "option"
+
+    # ------------------------------------------------------------------
+    # Asset types another provider serves (routing map with "default": "alpaca")
+    # ------------------------------------------------------------------
+    _ROUTING_CONFIG_KEY = "backtesting_data_routing"
+
+    @staticmethod
+    def _routing_asset_type(value) -> str:
+        raw = str(value or "").strip().lower()
+        return raw.split(".")[-1] if "." in raw else raw
+
+    @classmethod
+    def _routes_to_other_sources(cls, routing) -> dict:
+        """``{asset type: provider}`` for the map entries that name a provider other than Alpaca.
+
+        Alpaca has no history for some asset types (indexes such as VIX or SPX). A routing map
+        names who serves them. Everything the map leaves to Alpaca, options included, stays here.
+        """
+        routes = {}
+        if not isinstance(routing, dict):
+            return routes
+        for key, provider in routing.items():
+            asset_type = cls._routing_asset_type(key)
+            provider_name = str(provider or "").strip()
+            if asset_type in ("", "default") or not provider_name or provider_name.lower() == "alpaca":
+                continue
+            routes[asset_type] = provider_name
+        return routes
+
+    def _other_source_for(self, asset):
+        """The routed source that serves ``asset``, set to this backtest's clock, or ``None``."""
+        routes = self.__dict__.get("_other_source_routes")
+        if not routes:
+            return None
+        base = asset[0] if isinstance(asset, tuple) else asset
+        if self._routing_asset_type(getattr(base, "asset_type", "")) not in routes:
+            return None
+        companion = self.__dict__.get("_routed_companion")
+        if companion is None:
+            from lumibot.backtesting.routed_backtesting import RoutedBacktestingPandas
+
+            companion_routes = dict(routes)
+            # Only the listed asset types are ever asked of it; its default is never used.
+            companion_routes["default"] = next(iter(routes.values()))
+            start, end = self._routed_companion_window
+            companion = RoutedBacktestingPandas(
+                datetime_start=start,
+                datetime_end=end,
+                config={self._ROUTING_CONFIG_KEY: companion_routes},
+                show_progress_bar=False,
+            )
+            self._routed_companion = companion
+        # One clock: the companion answers at this backtest's simulated time and bar size.
+        companion._datetime = self._datetime
+        companion._timestep = self._timestep
+        return companion
 
     @staticmethod
     def _config_from_environment() -> dict:

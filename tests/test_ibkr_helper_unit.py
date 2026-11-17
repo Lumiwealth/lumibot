@@ -2154,7 +2154,8 @@ def test_ibkr_older_page_that_keeps_failing_uses_bounded_requests_and_is_reporte
     assert gap[0]["requested_end"] <= datetime(2026, 9, 18, 13, 30, tzinfo=timezone.utc)
 
 
-def test_stock_lookup_tries_the_space_form_of_a_share_class_symbol(monkeypatch):
+@pytest.mark.parametrize("written", ["ABC.B", "ABC-B"])
+def test_stock_lookup_tries_the_space_form_of_a_share_class_symbol(monkeypatch, written):
     """A share-class symbol written with a dot ("ABC.B") found no contract: Interactive Brokers
     lists share classes with a space ("ABC B"). Seen Nov 17 2026 for two S&P 500 members, which
     then had no price history at all on this provider. Response shape copied from the recorded
@@ -2174,8 +2175,8 @@ def test_stock_lookup_tries_the_space_form_of_a_share_class_symbol(monkeypatch):
     recorded = []
     monkeypatch.setattr(helper, "queue_request", request)
     monkeypatch.setattr(helper, "_record_negative_conid", lambda **kwargs: recorded.append(kwargs))
-    assert helper._lookup_conid_remote(asset=Asset("ABC.B", asset_type="stock"), quote=None, exchange=None) == 303
-    assert searched[0] == "ABC.B" and "ABC B" in searched  # the written form is still asked first
+    assert helper._lookup_conid_remote(asset=Asset(written, asset_type="stock"), quote=None, exchange=None) == 303
+    assert searched[0] == written and "ABC B" in searched  # the written form is still asked first
     assert recorded == []
 
 

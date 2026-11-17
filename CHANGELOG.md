@@ -3,7 +3,7 @@
 ## 4.6.83 - Unreleased
 
 ### Fixed
-- IBKR: a stock share class written with a dot (for example `ABC.B`) now finds its contract. IBKR lists share classes with a space, so the lookup found nothing and the symbol had no price history.
+- IBKR: a stock share class written with a dot or a dash (for example `ABC.B` or `ABC-B`) now finds its contract. IBKR lists share classes with a space, so the lookup found nothing and the symbol had no price history.
 - Backtests: a multi-leg `SMART_LIMIT` package on option data without bid and ask no longer waits until its timeout cancels it when one contract did not trade on the bar. The log already said the order was downgraded to market, but the market-style fallback needed a bar open for every leg, and it filled legs one after another, so an earlier leg could fill while a later one could not. The fallback now prices every leg first and fills the package whole or not at all. A leg with a bar still fills at that bar's open. An option leg without one is priced as a multi-leg market order prices it (a quote or trade on the current bar, else the model estimate) and is marked `estimated` in the trade log and price-source counts. Packages whose legs all had bars fill exactly as before. Documented in `docsrc/smart_limit.rst`.
 - Total Return in `*_tearsheet.csv` and `*_tearsheet_metrics.json` keeps two decimals like every other row. It was written as a whole percent, so an account that went from 100,000 to 101,673 read as `2%` next to `CAGR 6.81%`. The figure is refined only when the compounded return of the same series rounds to the whole percent already shown; otherwise it is left as written. The HTML page is unchanged. Documented in `docsrc/backtesting.tearsheet_html.rst`.
 

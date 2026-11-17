@@ -5516,11 +5516,14 @@ def _lookup_conid_remote(
     base_url = _downloader_base_url()
     url = f"{base_url}/ibkr/iserver/secdef/search"
 
-    # The symbol as written first. A stock share class written with a dot ("ABC.B") is listed by
-    # IBKR with a space ("ABC B"), so that form is asked next when the written one finds nothing.
+    # The symbol as written first. A stock share class written with a dot or a dash ("ABC.B",
+    # "ABC-B") is listed by IBKR with a space ("ABC B"), so that form is asked next when the
+    # written one finds nothing.
     search_symbols = [asset.symbol]
-    if asset_type == "stock" and "." in str(asset.symbol):
-        spaced = str(asset.symbol).replace(".", " ")
+    # Only a short class suffix counts ("ABC.B", "ABC-A"); other dashed or dotted symbols are
+    # asked as written, so an unknown symbol still costs the same two lookups.
+    if asset_type == "stock" and re.fullmatch(r"[A-Za-z]+[.-][A-Za-z]{1,2}", str(asset.symbol)):
+        spaced = str(asset.symbol).replace(".", " ").replace("-", " ")
         if spaced not in search_symbols:
             search_symbols.append(spaced)
 

@@ -2,6 +2,12 @@
 
 ## 4.6.77 - Unreleased
 
+### Fixed
+- `fundamentals.get_metrics` / `get_metrics_table`: market cap as of a past date is right or it is `None` with a reason. Ranking a 500-company universe by market cap in a ten-year backtest on adjusted prices put two mid-size companies first and left out the largest ones. Four causes: (1) a cover-page share count filed a thousand or a million times too large was used as filed; a filed count more than 50 times away from the company's other filed share counts is now skipped and the latest count that agrees is used. (2) Backtest prices adjusted for later splits and dividends, from a data source with no split history, were refused for every company that split later and otherwise used as if they had traded (about a third too low for a high-dividend stock ten years back); the price is now turned back into the price traded that day from the data source's as-traded closes. (3) An EPS restatement with no share count to compare was read as a stock split, which removed the company until the next filings. (4) A share-class ticker written with a dot, slash or space (`BRK.B`) was not found. Existing results change only toward the real numbers: P/E, P/S, P/B and market cap on adjusted backtest data now use the traded price. Documented in `docsrc/fundamentals.rst` ("The market cap rule").
+
+### Added
+- Backtest data sources can implement `get_backtest_as_traded_daily_closes(asset)` (and optionally `prefetch_backtest_as_traded_daily_closes(assets)`) to give the unadjusted close next to the close their backtest prices use. Alpaca backtests implement both with grouped requests for unadjusted daily bars (about 100 symbols per request, stored in the shared bar cache like every other bar).
+
 ## 4.6.76 - Unreleased
 
 ### Fixed

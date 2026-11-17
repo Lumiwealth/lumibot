@@ -1910,6 +1910,13 @@ class SECFundamentals:
             data_source = self._backtest_data_source()
             if data_source is None:
                 return None
+            traded = self._as_traded_prices(symbol)
+            if traded is not None and traded.days:
+                cached["value"] = (
+                    traded.split_events(sec_events), traded.days[0], traded.days[-1],
+                    "the backtest price data", None, data_source,
+                )
+                return cached["value"]
             getter = getattr(data_source, "_get_backtest_daily_corporate_action_frame", None)
             frame = None
             if callable(getter):
@@ -1920,13 +1927,7 @@ class SECFundamentals:
                 except Exception:
                     frame = None
             if frame is None or getattr(frame, "empty", True) or "stock_splits" not in frame.columns:
-                traded = self._as_traded_prices(symbol)
-                if traded is not None and traded.days:
-                    cached["value"] = (
-                        traded.split_events(sec_events), traded.days[0], traded.days[-1],
-                        "the backtest price data", None, data_source,
-                    )
-                return cached["value"]
+                return None
             start, end = _frame_dates(frame)
             if start is None:
                 return None
@@ -3230,6 +3231,7 @@ class _AsTradedPrices:
     def __init__(self, days: list[date], ratios: list[float]):
         self.days = days
         self.ratios = ratios
+        self._jumps: list[tuple[date, float]] | None = None
 
     @classmethod
     def from_frame(cls, frame) -> "_AsTradedPrices":
@@ -3274,21 +3276,22 @@ class _AsTradedPrices:
         ratios (under 3-for-2) are only counted when SEC filings show a split of that ratio
         around that day, so an unusually large special dividend is not read as a split.
         """
-        events: list[tuple[date, float]] = []
-        for position in range(1, len(self.days)):
-            jump = self.ratios[position - 1] / self.ratios[position]
-            if 0.84 < jump < 1.19:
-                continue
-            ratio = _split_like_ratio(jump * 1000.0, 1000.0)
-            if ratio is None:
-                continue
-            day = self.days[position]
-            if max(ratio, 1.0 / ratio) < 1.45 and not any(
-                after < day <= by and abs(ratio / other - 1) <= 0.03 for after, by, other in sec_events
-            ):
-                continue
-            events.append((day, ratio))
-        return events
+        if self._jumps is None:
+            jumps: list[tuple[date, float]] = []
+            for position in range(1, len(self.days)):
+                jump = self.ratios[position - 1] / self.ratios[position]
+                if 0.84 < jump < 1.19:
+                    continue
+                ratio = _split_like_ratio(jump * 1000.0, 1000.0)
+                if ratio is not None:
+                    jumps.append((self.days[position], ratio))
+            self._jumps = jumps
+        return [
+            (day, ratio)
+            for day, ratio in self._jumps
+            if max(ratio, 1.0 / ratio) >= 1.45
+            or any(after < day <= by and abs(ratio / other - 1) <= 0.03 for after, by, other in sec_events)
+        ]
 
 
 def _to_date(value: Any) -> date | None:

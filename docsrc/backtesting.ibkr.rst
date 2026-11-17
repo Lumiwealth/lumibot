@@ -234,6 +234,25 @@ seven days and repaired in bounded 2000-hour pages under a five-minute
 per-series deadline. These checks never turn partial data into a backtest
 exception, and complete warm caches do not call the downloader.
 
+Dated futures intraday bars (1, 5, 15 and 30 minute series, each cached under its
+own bar size) are checked the same way. A hole is a stretch of at least two hours
+with the exchange open and no bar between two cached bars. Gaps are measured in
+bars of the series: a 5 minute bar is labelled by its start, so the last bar
+before the 17:00 ET close starts at 16:55 and nothing is missing until the
+reopening. The daily maintenance break, weekends and exchange holiday halts are
+closures and are never requested. A real hole is requested once per open stretch.
+When the provider answers a hole with no bars at all, the cache keeps a dated
+note (never a price) so later backtests do not ask again until the note expires
+after 24 hours; a failed request writes nothing and is retried by the next
+backtest. A backtest whose window is fully cached therefore starts without any
+provider request, whatever the bar size:
+
+.. code-block:: python
+
+    # Served from the cached 5 minute series; weekends and holidays cost nothing.
+    bars = self.get_historical_prices(asset, 300, "5 minutes")
+    trend = self.indicators.supertrend(asset, length=10, multiplier=3.0, timestep="5 minutes")
+
 History health is classified as ``complete``, ``partial``,
 ``confirmed_no_data``, or ``transient_failure``. Only confirmed absence may
 create a durable no-data marker. That marker includes a reason and retry

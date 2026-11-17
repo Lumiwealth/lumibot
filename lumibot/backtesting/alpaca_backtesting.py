@@ -497,6 +497,24 @@ class AlpacaBacktesting(DataSourceBacktesting):
         num_decimals = get_decimals(price)
         return quantize_to_num_decimals(price, num_decimals)
 
+    def _session_bounds(self, session_date):
+        """(market_open, market_close) of the loaded calendar's session on ``session_date``, or None.
+
+        PERF: a daily mark is asked for every symbol on every iteration. Finding the session
+        by converting the whole calendar to dates on each call cost about 1 ms per price; the
+        calendar is indexed by date once instead (rebuilt if the calendar object changes).
+        """
+        sessions = self._trading_days
+        cached = getattr(self, "_session_bounds_index", None)
+        if cached is None or cached[0] is not sessions or cached[1] != len(sessions):
+            lookup = {}
+            dates = sessions["market_open"].dt.tz_convert("America/New_York").dt.date
+            for day, opened, closed in zip(dates, sessions["market_open"], sessions["market_close"]):
+                lookup.setdefault(day, (opened, closed))  # the first matching session, as before
+            cached = (sessions, len(sessions), lookup)
+            self._session_bounds_index = cached
+        return cached[2].get(session_date)
+
     def _daily_bar_mark(self, frame, asset, quote):
         """Use the opening mark during a session and its close after completion.
 
@@ -509,12 +527,11 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if str(getattr(asset, "asset_type", "")).lower() == "crypto":
             opened, closed = stamp, stamp + pd.Timedelta(days=1)
         else:
-            sessions = self._trading_days
             # Alpaca equity daily labels denote the New York session even
             # when the caller requested another display timezone.
             session_date = stamp.tz_convert("America/New_York").date()
-            matched = sessions[sessions["market_open"].dt.tz_convert("America/New_York").dt.date == session_date]
-            if matched.empty or self.market in ("24/7", "24/5"):
+            bounds = None if self.market in ("24/7", "24/5") else self._session_bounds(session_date)
+            if bounds is None:
                 # Warmup may precede the loaded backtest calendar. Stock marks
                 # also retain equity sessions when the strategy trades crypto.
                 matched = get_trading_days(
@@ -523,10 +540,11 @@ class AlpacaBacktesting(DataSourceBacktesting):
                     end_date=pd.Timestamp(session_date) + pd.Timedelta(days=1),
                     tzinfo=self.tzinfo,
                 )
-            if matched.empty:
-                return None
-            opened = max(pd.Timestamp(matched.iloc[0]["market_open"]), stamp)
-            closed = pd.Timestamp(matched.iloc[0]["market_close"])
+                if matched.empty:
+                    return None
+                bounds = (matched.iloc[0]["market_open"], matched.iloc[0]["market_close"])
+            opened = max(pd.Timestamp(bounds[0]), stamp)
+            closed = pd.Timestamp(bounds[1])
         if now < opened:
             previous = self.get_historical_prices(
                 asset=asset, quote=quote, length=1, timestep="day",
@@ -2283,7 +2301,9 @@ class AlpacaBacktesting(DataSourceBacktesting):
         else:
             df['timestamp'] = df['timestamp'].dt.tz_convert(tzinfo)
 
-        df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
+        # A real copy: the fills below then write to this frame, not to a view of the
+        # provider's rows (pandas logged several SettingWithCopyWarning lines per symbol).
+        df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']].copy()
 
         if timestep in ("day", "minute"):
             trading_times = self._get_trading_times_for_timestep(

@@ -544,3 +544,120 @@ def test_compact_facts_are_shared_through_the_remote_backtest_cache(monkeypatch,
     for got, want in zip(_tables(make(tmp_path / "machine_b", remote_cache=compact_only), symbols), expected):
         pd.testing.assert_frame_equal(got, want)
     assert not [url for url in calls if "companyfacts" in url]
+
+
+
+# ---- speed: small derived files instead of large SEC files inside a backtest's loop ----
+
+def _recording(monkeypatch):
+    """Record every SEC request made from here on (wraps the fake already installed)."""
+    import lumibot.fundamentals.sec as module
+
+    inner, calls = module.requests.get, []
+
+    def get(url, **kwargs):
+        calls.append(url)
+        return inner(url, **kwargs)
+
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", get)
+    return calls
+
+
+def _machine(cache_dir, store):
+    return SECFundamentals(
+        cache_dir=cache_dir, min_request_interval_seconds=0, remote_cache=_FakeRemote(store),
+        split_history=lambda _symbol: [], cache_mode="backtest", backtest_end=datetime(2024, 12, 31, tzinfo=NY),
+    )
+
+
+def test_cover_share_counts_are_read_from_a_filing_once_and_shared(monkeypatch, tmp_path):
+    """The per-class counts of a filing are a few numbers: later runs must not download its XBRL again."""
+    _share_classes(monkeypatch, tmp_path / "unused")
+    calls = _recording(monkeypatch)
+    store = {}
+    asks = [("BRK-B", AFTER_Q1), ("BRK-B", datetime(2015, 6, 1, 10, tzinfo=NY)), ("V", AFTER_Q1)]
+
+    first = _machine(tmp_path / "machine_a", store)
+    expected = [first.get_metrics(symbol, ["shares_outstanding"], as_of=day) for symbol, day in asks]
+    assert expected[0]["values"]["shares_outstanding"] == 562_539 * 1500 + 1_311_384_883
+    assert [url for url in calls if url.endswith(".xml")]  # the first run reads the filings
+
+    # Another machine: the filings themselves are not in the shared cache, only what was read from them.
+    calls.clear()
+    small = {key: value for key, value in store.items() if "/filings/" not in key}
+    assert any(key.startswith("sec/cover_share_counts/") for key in small)
+    second = _machine(tmp_path / "machine_b", small)
+    got = [second.get_metrics(symbol, ["shares_outstanding"], as_of=day) for symbol, day in asks]
+
+    assert [g["values"] for g in got] == [e["values"] for e in expected]
+    assert [g["periods"] for g in got] == [e["periods"] for e in expected]
+    assert not [url for url in calls if "/Archives/" in url or url.endswith((".xml", "index.json"))]
+
+
+def test_acceptance_times_come_from_a_small_shared_file_with_the_same_answers(monkeypatch, tmp_path):
+    """Exact filing times are two columns of a large submissions file: a later run reads only those."""
+    from tests.test_sec_fundamentals_point_in_time import CIK as TIMING_CIK
+    from tests.test_sec_fundamentals_point_in_time import _FakeSEC, _timing_facts, _timing_submissions
+
+    fake = _FakeSEC(companyfacts={TIMING_CIK: _timing_facts()}, submissions={TIMING_CIK: _timing_submissions()})
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake)
+    store = {}
+    moments = [
+        datetime(2024, 2, 1, 17, 30, tzinfo=NY),  # after hours on a filing day
+        datetime(2024, 2, 2, 9, 30, tzinfo=NY),
+        datetime(2024, 11, 1, 9, 30, tzinfo=NY),  # accepted 7:00 AM: visible at that open
+    ]
+
+    def revenue(sec):
+        return [sec.get_income_statement("EXM", as_of=moment)["values"]["revenue"]["value"] for moment in moments]
+
+    def machine(name, remote):
+        return SECFundamentals(
+            cache_dir=tmp_path / name, min_request_interval_seconds=0, remote_cache=_FakeRemote(remote),
+            split_history=lambda _symbol: [], cache_mode="backtest", backtest_end=datetime(2024, 12, 31, tzinfo=NY),
+        )
+
+    expected = revenue(machine("machine_a", store))
+    assert expected == [1, 2, 4] and fake.count("submissions") == 1
+
+    fake.calls.clear()
+    without_submissions = {key: value for key, value in store.items() if not key.startswith("sec/submissions/")}
+    assert any(key.startswith("sec/submissions_acceptance/") for key in without_submissions)
+    assert revenue(machine("machine_b", without_submissions)) == expected
+    assert fake.count("submissions") == 0
+
+
+def test_a_universe_table_loads_needed_acceptance_times_before_the_company_loop(monkeypatch, tmp_path):
+    """Same table; the acceptance files a date needs are requested together, not one company after another."""
+    from tests.test_sec_fundamentals_point_in_time import _FakeSEC
+
+    symbols = [f"S{index}" for index in range(6)]
+    tickers = {str(i): {"ticker": s, "cik_str": 900 + i, "title": s} for i, s in enumerate(symbols)}
+    facts, submissions = {}, {}
+    for i, _symbol in enumerate(symbols):
+        cik = f"{900 + i:010d}"
+        payload = _facts()
+        payload["cik"] = 900 + i
+        facts[cik] = payload
+        submissions[cik] = {"filings": {"recent": {"accessionNumber": [], "acceptanceDateTime": []}}}
+    fake = _FakeSEC(companyfacts=facts, submissions=submissions, tickers=tickers, delay=0.05)
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake)
+    day = datetime(2024, 5, 3, 15, 0, tzinfo=NY)  # a filing day: exact times matter for every company
+    metrics = ["ttm_revenue", "shares_outstanding"]
+
+    def new(name):
+        return SECFundamentals(cache_dir=tmp_path / name, min_request_interval_seconds=0, remote_cache=None,
+                               split_history=lambda _symbol: [])
+
+    sec = new("a")
+    sec.preload(symbols)
+    fake.max_active = 0
+    got = sec.get_metrics_table(symbols, metrics, as_of=day, preload=False)
+
+    assert fake.count("submissions") == len(symbols)
+    assert fake.max_active > 1, "acceptance times were requested one company at a time"
+    one_by_one = new("b")
+    for symbol in symbols:
+        row = one_by_one.get_metrics(symbol, metrics, as_of=day)["values"]
+        assert got.loc[symbol, "ttm_revenue"] == row["ttm_revenue"]
+        assert got.loc[symbol, "shares_outstanding"] == row["shares_outstanding"]

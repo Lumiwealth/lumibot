@@ -236,3 +236,39 @@ def test_only_stocks_have_as_traded_closes(monkeypatch, tmp_path):
 
     assert source.get_backtest_as_traded_daily_closes(Asset("BTC", asset_type="crypto")) is None
     assert source._stock_client.requests == []
+
+
+
+def test_daily_marks_find_their_session_without_rescanning_the_calendar(monkeypatch, tmp_path):
+    """A daily price is asked for every symbol on every bar: the calendar is indexed by date once."""
+    source = _source(monkeypatch, tmp_path, start=datetime(2026, 6, 1), end=datetime(2026, 8, 14))
+    assets = [Asset(symbol) for symbol in SYMBOLS[:20]]
+    moments = [
+        datetime(2026, 6, 15, 9, 30),   # at the open: the open
+        datetime(2026, 6, 15, 16, 0),   # at the close: the close
+        datetime(2026, 7, 2, 12, 0),    # mid session: that day's open
+    ]
+
+    def marks():
+        out = []
+        for moment in moments:
+            source._datetime = source.tzinfo.localize(moment)
+            out.append([source.get_last_price(asset) for asset in assets])
+        return out
+
+    expected = marks()  # loads the bars
+    assert expected[0] != expected[1] and all(price is not None for row in expected for price in row)
+
+    calendar = source._trading_days["market_open"]
+    accessor = type(calendar.dt)
+    real_tz_convert = accessor.tz_convert
+    scans = []
+
+    def counting(self, *args, **kwargs):
+        if len(self._parent) == len(calendar):
+            scans.append(1)
+        return real_tz_convert(self, *args, **kwargs)
+
+    monkeypatch.setattr(accessor, "tz_convert", counting)
+    assert marks() == expected
+    assert len(scans) <= 1, f"the whole calendar was converted {len(scans)} times for {3 * len(assets)} prices"

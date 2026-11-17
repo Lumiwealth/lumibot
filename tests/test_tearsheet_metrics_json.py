@@ -222,3 +222,89 @@ def test_create_tearsheet_writes_placeholder_metrics_json_on_insufficient_data(t
     assert payload["metadata"]["summary_only"] is True
     assert payload["metadata"]["status"] == "unavailable"
     assert payload["metadata"]["reason"] in {"insufficient_data", "degenerate_returns"}
+
+
+# ---------------------------------------------------------------------------------------
+# The strategy's own numbers do not depend on a benchmark.
+#
+# WHY (2026-11-17): a futures backtest run without a benchmark (or with one that does not
+# cover the window) got a metrics file saying "unavailable / insufficient_data" although
+# the strategy's daily returns were all there, so nothing downstream could read its Sharpe
+# ratio or drawdown. A missing benchmark only removes the comparison numbers.
+# ---------------------------------------------------------------------------------------
+
+
+def _intraday_futures_values(days: int = 40) -> pd.DataFrame:
+    """Made-up account values stamped like a futures session: every 5 minutes, evenings included."""
+    index = pd.date_range("2026-08-17 18:00", periods=days * 276, freq="5min", tz="America/New_York")
+    index = index[(index.hour != 17) & (index.dayofweek != 5)]
+    steps = pd.Series(range(len(index)), index=index, dtype="float64")
+    wave = (steps % 277 - 138) * 3.0 + (steps % 1913) * 0.4 - (steps % 97) * 2.5
+    return pd.DataFrame({"portfolio_value": 100_000.0 + wave + steps * 0.05}, index=index)
+
+
+def _strategy_only_tearsheet(tmp_path, strategy_df, benchmark_df, benchmark_asset=None) -> dict:
+    tearsheet_file = tmp_path / "tearsheet.html"
+    metrics_file = tmp_path / "tearsheet_metrics.json"
+    create_tearsheet(
+        strategy_df=strategy_df,
+        strat_name="FuturesNoBenchmark",
+        tearsheet_file=str(tearsheet_file),
+        benchmark_df=benchmark_df,
+        benchmark_asset=benchmark_asset,
+        show_tearsheet=False,
+        save_tearsheet=True,
+        risk_free_rate=0.0,
+        tearsheet_metrics_file=str(metrics_file),
+    )
+    assert tearsheet_file.exists()
+    return json.loads(metrics_file.read_text(encoding="utf-8"))
+
+
+def _assert_strategy_numbers(payload: dict, reason: str) -> None:
+    assert payload["metadata"].get("status", "ok") == "ok", payload["metadata"]
+    numbers = payload["scalar_metrics"]
+    found = {name: value for name, value in numbers.items()
+             if any(word in name.lower() for word in ("sharpe", "drawdown", "total return", "cumulative return"))}
+    assert any("sharpe" in name.lower() for name in found), sorted(numbers)
+    assert any("drawdown" in name.lower() for name in found), sorted(numbers)
+    assert all(value is not None for value in found.values()), found
+    # The missing comparison is stated, and no comparison numbers are invented.
+    assert payload["metadata"]["benchmark"] == {"status": "unavailable", "reason": reason}
+    assert not payload.get("benchmark_scalar_metrics")
+
+
+def test_strategy_metrics_are_written_without_a_benchmark(tmp_path):
+    payload = _strategy_only_tearsheet(tmp_path, _intraday_futures_values(), None)
+    _assert_strategy_numbers(payload, "no_benchmark")
+
+
+def test_strategy_metrics_are_written_with_an_empty_benchmark_frame(tmp_path):
+    payload = _strategy_only_tearsheet(tmp_path, _intraday_futures_values(), pd.DataFrame(), "SPY")
+    _assert_strategy_numbers(payload, "no_benchmark")
+
+
+def test_strategy_metrics_are_written_when_the_benchmark_does_not_overlap(tmp_path):
+    old = pd.date_range("2024-01-02", periods=30, freq="1D", tz="America/New_York")
+    benchmark_df = pd.DataFrame({"symbol_cumprod": [1.0 + 0.001 * i for i in range(30)]}, index=old)
+    payload = _strategy_only_tearsheet(tmp_path, _intraday_futures_values(), benchmark_df, "SPY")
+    _assert_strategy_numbers(payload, "benchmark_does_not_cover_window")
+
+
+def test_a_covering_benchmark_still_gives_comparison_numbers(tmp_path):
+    strategy_df = _intraday_futures_values()
+    days = pd.date_range("2026-08-14", "2026-10-05", freq="1D", tz="America/New_York")
+    benchmark_df = pd.DataFrame(
+        {"symbol_cumprod": [1.0 + 0.002 * i - 0.0007 * (i % 5) for i in range(len(days))]}, index=days)
+    payload = _strategy_only_tearsheet(tmp_path, strategy_df, benchmark_df, "SPY")
+    assert payload["metadata"].get("status", "ok") == "ok"
+    assert "benchmark" not in payload["metadata"]
+    assert any("sharpe" in name.lower() for name in payload["scalar_metrics"])
+
+
+def test_strategy_metrics_are_written_when_the_benchmark_never_moves(tmp_path):
+    strategy_df = _intraday_futures_values()
+    days = pd.date_range("2026-08-14", "2026-10-05", freq="1D", tz="America/New_York")
+    benchmark_df = pd.DataFrame({"symbol_cumprod": [1.0] * len(days)}, index=days)
+    payload = _strategy_only_tearsheet(tmp_path, strategy_df, benchmark_df, "SPY")
+    _assert_strategy_numbers(payload, "benchmark_is_flat")

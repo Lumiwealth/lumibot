@@ -39,6 +39,21 @@ Alongside ``*_tearsheet.html``, LumiBot also writes ``*_tearsheet_metrics.json``
   ``Strategy.tearsheet_custom_metrics(...)``.
 - Percentage-style built-in tearsheet metrics are stored as raw decimals in JSON.
 - The monthly downside row is named ``Worst 1-Month Return``.
+- The strategy's own numbers (``Sharpe``, ``Sortino``, ``Max Drawdown``,
+  ``Total Return`` and the rest of ``scalar_metrics``) do not need a benchmark.
+  A backtest run with ``benchmark_asset=None``, or with a benchmark that has no
+  prices for the tested window, still gets the full report and
+  ``metadata.status`` ``"ok"``. Only the comparison is left out, and the file
+  says so::
+
+      "metadata": {"status": "ok", "benchmark": {"status": "unavailable", "reason": "no_benchmark"}}
+
+  ``reason`` is ``no_benchmark``, ``benchmark_does_not_cover_window`` or
+  ``benchmark_is_flat``. No ``benchmark_scalar_metrics`` are written in that
+  case, and benchmark returns are never filled in for days it does not have.
+- ``metadata.status`` ``"unavailable"`` now only means the strategy itself has
+  no usable return series (``insufficient_data``: no account values;
+  ``degenerate_returns``: the account value never moved, usually zero trades).
 
 Cashflow-adjusted returns
 -------------------------

@@ -355,6 +355,21 @@ def _normalize(frame: pd.DataFrame | None) -> pd.DataFrame:
     return rows
 
 
+_EMPTY_ROWS: pd.DataFrame | None = None
+
+
+def _empty_rows() -> pd.DataFrame:
+    """A new empty bar frame, equal to ``_normalize(None)``.
+
+    PERF: every partition object starts with one, and a ten-year daily universe creates
+    thousands of them; copying a template is several times cheaper than building the frame.
+    """
+    global _EMPTY_ROWS
+    if _EMPTY_ROWS is None:
+        _EMPTY_ROWS = _normalize(None)
+    return _EMPTY_ROWS.copy()
+
+
 # --------------------------------------------------------------------------- remote store
 
 
@@ -496,7 +511,7 @@ class _Partition:
     start: pd.Timestamp
     stop: pd.Timestamp
     path: Path
-    rows: pd.DataFrame = field(default_factory=lambda: _normalize(None))
+    rows: pd.DataFrame = field(default_factory=lambda: _empty_rows())
     coverage: list[tuple[pd.Timestamp, pd.Timestamp]] = field(default_factory=list)
     epoch: int = 0
     # Written by an adapter that rejects inconsistent OHLC (see ``strict_ohlcv``).

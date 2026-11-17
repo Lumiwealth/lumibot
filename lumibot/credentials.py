@@ -371,6 +371,12 @@ CACHE_REMOTE_CONFIG = {
     "s3_secret_access_key": os.environ.get("LUMIBOT_CACHE_S3_SECRET_ACCESS_KEY"),
     "s3_session_token": os.environ.get("LUMIBOT_CACHE_S3_SESSION_TOKEN"),
     "s3_version": os.environ.get("LUMIBOT_CACHE_S3_VERSION", "v1"),
+    # Optional read-only second location: reads that miss the cache above are retried here.
+    # Never written. "off" disables it without removing the settings.
+    "fallback_s3_bucket": os.environ.get("LUMIBOT_CACHE_FALLBACK_S3_BUCKET"),
+    "fallback_s3_prefix": os.environ.get("LUMIBOT_CACHE_FALLBACK_S3_PREFIX", ""),
+    "fallback_s3_version": os.environ.get("LUMIBOT_CACHE_FALLBACK_S3_VERSION"),
+    "fallback_mode": os.environ.get("LUMIBOT_CACHE_FALLBACK_MODE", "readonly"),
 }
 
 # Alpaca Configuration

@@ -34,6 +34,13 @@ Notes:
   when placeholder semantics or schema changes.
 * Encryption, ACLs, and lifecycle policies remain the responsibility of the
   bucket configuration so we avoid adding client-side overhead.
+* Optional read-only fallback: set `LUMIBOT_CACHE_FALLBACK_S3_BUCKET` (and
+  `LUMIBOT_CACHE_FALLBACK_S3_PREFIX`, optionally `LUMIBOT_CACHE_FALLBACK_S3_VERSION`)
+  and a read that misses the primary location is retried at the same relative key
+  there. Writes only ever go to the primary location. Use it when a fresh cache
+  should borrow from an established one without being able to change it. Set
+  `LUMIBOT_CACHE_FALLBACK_MODE=off` for an isolated run. The run summary reports
+  `fallback_hits` and `fallback_bytes`.
 * `LUMIBOT_CACHE_FOLDER` is the local cache root (default: OS app cache dir). It
   can be overridden via the `LUMIBOT_CACHE_FOLDER` environment variable (must be
   set **before importing** `lumibot`) to simulate “fresh container” disks or to

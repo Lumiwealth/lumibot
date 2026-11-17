@@ -401,6 +401,12 @@ These env vars are used by the ThetaData chain cache/builder in `lumibot/tools/t
 - Purpose: Namespace/version the remote cache without deleting anything.
 - Practical use: set a unique version to simulate a “cold S3” run safely.
 
+### `LUMIBOT_CACHE_FALLBACK_S3_BUCKET`, `LUMIBOT_CACHE_FALLBACK_S3_PREFIX`, `LUMIBOT_CACHE_FALLBACK_S3_VERSION`, `LUMIBOT_CACHE_FALLBACK_MODE`
+- Purpose: an optional second, **read-only** cache location. A cache read that misses the primary location (`LUMIBOT_CACHE_S3_*`) is retried at the same relative key in this one. Everything LumiBot downloads or computes is still written only to the primary location; the fallback is never written, overwritten or deleted.
+- Defaults: the version is the primary version, and the mode is `readonly`. Set `LUMIBOT_CACHE_FALLBACK_MODE=off` to ignore the fallback settings (an isolated run).
+- Uses the same credentials and region as the primary location, so grant those credentials read-only access to the fallback location. If the fallback cannot be read (for example no permission), LumiBot logs one warning and carries on without it.
+- Results: the run's cache telemetry has a `fallback_cache` layer, and the `[REMOTE_CACHE][SUMMARY]` line shows `fallback_hits` and `fallback_bytes`.
+
 ### `LUMIBOT_CACHE_S3_ACCESS_KEY_ID`, `LUMIBOT_CACHE_S3_SECRET_ACCESS_KEY`, `LUMIBOT_CACHE_S3_SESSION_TOKEN`
 - Purpose: Credentials for S3 access when not using an instance/task role.
 - Values: **never commit**.

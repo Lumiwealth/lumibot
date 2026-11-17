@@ -2,6 +2,9 @@
 
 ## 4.6.76 - Unreleased
 
+### Added
+- Optional read-only fallback cache. Set `LUMIBOT_CACHE_FALLBACK_S3_BUCKET` (plus prefix and version if different) and a remote cache read that misses is retried in that second location; anything downloaded or computed is still written only to the primary cache, and the fallback is never written. `LUMIBOT_CACHE_FALLBACK_MODE=off` turns it off per run, and an unreadable fallback degrades to a normal cache miss. Cache telemetry and the run summary report fallback hits. Documented in `docs/REMOTE_CACHE.md` and `docs/ENV_VARS.md`.
+
 ## 4.6.75 - 2026-11-16
 
 Version 4.6.74 was tagged but never published to PyPI (its release gate failed); everything below ships in 4.6.75.

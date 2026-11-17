@@ -38,6 +38,30 @@ which accept ``TradingSlippage`` objects and default to zero when unset.
 If bid/ask quotes are missing in a backtest, SMART_LIMIT downgrades to a market
 order fill (next-bar open).
 
+Multi-leg packages without quotes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Some option data has trades but no historical bid and ask. A multi-leg SMART_LIMIT
+package on such data fills market-style, the same way a multi-leg market order does:
+
+- Every leg is priced before any leg fills. The package fills whole on one bar, or
+  not at all on that bar.
+- A leg that has a bar fills at that bar's open.
+- An option leg whose contract did not trade on the bar is priced from a quote or
+  trade on the current bar when one exists, otherwise from the model estimate. That
+  fill is marked ``estimated`` in the trade log and counted in the run's price
+  sources. An estimate is never shown as a real price.
+- If a leg cannot be priced at all, nothing fills and the order keeps waiting until
+  the SMART_LIMIT timeout cancels it.
+
+Example: a call debit spread submitted as one SMART_LIMIT package (see "Multi-leg
+orders" below for how to build it) on trade-only option data, checked every 15
+minutes. If the short call did not trade in that minute, the long call fills at its
+bar open and the short call at its marked estimate, both on the same bar.
+
+Limit: with no quotes there is no spread to walk, so the fill is a market-style
+fill, not a mid-price fill.
+
 Trade logs for backtests include a ``trade_slippage`` column (CSV) and show slippage
 in trade marker tooltips (HTML).
 

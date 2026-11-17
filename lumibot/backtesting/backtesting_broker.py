@@ -6275,6 +6275,13 @@ class BacktestingBroker(Broker):
 
         Fill each child order at its own OHLC open (market-style) so the backtest
         doesn't stall or fill only the parent placeholder.
+
+        Every leg is priced before any leg fills, so the package fills whole or not at
+        all. An option leg with no bar to open on is priced the way a market package
+        prices it (``_option_fill_price_at_bar``: a quote or trade on this bar, else the
+        labeled estimate) and keeps that price source in the trade log. Without this a
+        contract that did not trade on the bar left the whole package waiting until the
+        SMART_LIMIT timeout canceled it, and an earlier leg could already have filled.
         """
         if not order.child_orders:
             return False
@@ -6286,6 +6293,7 @@ class BacktestingBroker(Broker):
             except Exception:
                 shared_underlying_fields = {}
 
+        priced_legs: list[tuple[Any, float, str]] = []
         for leg in order.child_orders:
             asset = leg.asset if getattr(leg.asset, "asset_type", None) != "crypto" else (leg.asset, leg.quote)
             try:
@@ -6325,30 +6333,41 @@ class BacktestingBroker(Broker):
             except Exception:
                 ohlc = None
 
-            if ohlc is None or getattr(ohlc, "df", None) is None:
-                return False
-
             open_price = None
-            df = ohlc.df
-            try:
-                if hasattr(df, "index"):
-                    open_price = df["open"].iloc[-1]
-                else:
-                    open_price = df["open"][-1]
-            except Exception:
-                open_price = None
+            df = getattr(ohlc, "df", None) if ohlc is not None else None
+            if df is not None:
+                try:
+                    if hasattr(df, "index"):
+                        open_price = df["open"].iloc[-1]
+                    else:
+                        open_price = df["open"][-1]
+                except Exception:
+                    open_price = None
 
             open_price = self._coerce_price(open_price)
+            price_source = "market"
             if open_price is None or self._is_invalid_price(open_price):
-                return False
+                open_price = None
+                if self._is_option_asset(getattr(leg, "asset", None)):
+                    open_price, price_source = self._option_fill_price_at_bar(leg)
+                    open_price = self._coerce_price(open_price)
+                if open_price is None or self._is_invalid_price(open_price):
+                    return False
+            priced_legs.append((leg, float(open_price), price_source))
 
+        for leg, open_price, price_source in priced_legs:
             leg.trade_slippage = 0.0
-            setattr(leg, "_price_source", "market")
+            setattr(leg, "_price_source", price_source)
+            if price_source != "market":
+                self._record_fill_price_source(price_source)
             if audit_enabled:
                 self._audit_merge(
                     leg,
                     {
-                        "fill.model": "market_open_fallback_leg",
+                        "fill.model": (
+                            "market_open_fallback_leg" if price_source == "market"
+                            else f"market_{price_source}_fallback_leg"
+                        ),
                         "fill.price": float(open_price),
                         "parent.identifier": getattr(order, "identifier", None),
                         "bar.open": float(open_price),

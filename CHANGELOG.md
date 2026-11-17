@@ -2,6 +2,9 @@
 
 ## 4.6.83 - Unreleased
 
+### Fixed
+- Backtests: a multi-leg `SMART_LIMIT` package on option data without bid and ask no longer waits until its timeout cancels it when one contract did not trade on the bar. The log already said the order was downgraded to market, but the market-style fallback needed a bar open for every leg, and it filled legs one after another, so an earlier leg could fill while a later one could not. The fallback now prices every leg first and fills the package whole or not at all. A leg with a bar still fills at that bar's open. An option leg without one is priced as a multi-leg market order prices it (a quote or trade on the current bar, else the model estimate) and is marked `estimated` in the trade log and price-source counts. Packages whose legs all had bars fill exactly as before. Documented in `docsrc/smart_limit.rst`.
+
 ### Added
 - Read-only fallback cache: `LUMIBOT_CACHE_FALLBACK_MODE=prefer_larger` reads the fallback copy of a cache file when it is larger than the primary copy of the same key, so a cache that holds a short copy of a series borrows the fuller one instead of downloading the difference. Default behaviour (`readonly`: fallback only on a miss) is unchanged; the fallback is never written.
 

@@ -19,7 +19,7 @@ import pandas as pd
 from lumibot.constants import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset
 from lumibot.tools.backtest_cache import CacheMode, get_backtest_cache
-from lumibot.tools.data_downloader_queue_client import queue_request
+from lumibot.tools.data_downloader_queue_client import DownloaderQueueTimeout, queue_request
 from lumibot.tools.ibkr_secdef import (
     IbkrFuturesExchangeAmbiguousError,
     select_futures_exchange_from_secdef_search_payload,
@@ -91,6 +91,16 @@ IBKR_LEGACY_INFERRED_TAIL_REASON = "successful_history_response_confirmed_no_new
 IBKR_DAILY_GAP_REPAIR_TIMEOUT_SECONDS = 45.0
 IBKR_DAILY_GAP_REPAIR_MAX_SEGMENTS_PER_SERIES = 4
 IBKR_DAILY_GAP_REPAIR_MAX_SESSIONS_PER_SEGMENT = 10
+# A daily session the provider answered around but has no bar for is stored with the
+# shared file as a confirmed-missing marker (never a price), so later runs do not ask
+# again until the marker expires. Recent sessions are never marked: the bar may not be
+# published yet.
+IBKR_DAILY_GAP_MARKER_REASON = "daily_session_absent_in_provider_response"
+IBKR_DAILY_GAP_MARKER_RETRY_DAYS = 30
+IBKR_DAILY_GAP_MARKER_MIN_AGE_DAYS = 5
+# After a repair request missed the queue deadline, later repairs in this process do not
+# wait again until this pause is over. The run continues with the bars it has.
+IBKR_DAILY_GAP_REPAIR_QUEUE_PAUSE_SECONDS = 120.0
 IBKR_HOURLY_GAP_REPAIR_TIMEOUT_SECONDS = 300.0
 IBKR_HOURLY_INTERNAL_GAP_THRESHOLD = timedelta(days=7)
 IBKR_HOURLY_GAP_REPAIR_MAX_SEGMENTS_PER_SERIES = 4
@@ -157,6 +167,7 @@ _RUNTIME_HISTORY_NO_DATA_WINDOWS: Dict[str, Tuple[datetime, datetime]] = {}
 # so a later process still retries (see the history integrity contract).
 _RUNTIME_ATTEMPTED_HISTORY_SEGMENTS: Dict[str, list[Tuple[datetime, datetime]]] = {}
 _RUNTIME_DAILY_GAP_CHECKED_WINDOWS: set[tuple[str, str, str]] = set()
+_RUNTIME_DAILY_GAP_REPAIR_PAUSED_UNTIL: float = 0.0
 _RUNTIME_HOURLY_GAP_CHECKED_SERIES: Dict[
     str,
     tuple[tuple[int, str, str, int], datetime, datetime],
@@ -3312,9 +3323,50 @@ def _daily_missing_placeholders(
             "volume": [pd.NA] * count,
             "missing": [True] * count,
             "missing_retry_after": [retry_after.isoformat()] * count,
+            "missing_reason": [IBKR_DAILY_GAP_MARKER_REASON] * count,
+            "missing_outcome": [HistoryOutcome.CONFIRMED_NO_DATA.value] * count,
         },
         index=index,
     )
+
+
+def _confirmed_missing_daily_sessions(
+    working: pd.DataFrame,
+    answered: list[tuple[list[pd.Timestamp], pd.DataFrame]],
+) -> list[pd.Timestamp]:
+    """Sessions a non-empty provider response skipped while returning a real bar before them."""
+    if not answered or working is None or working.empty:
+        return []
+
+    def _real_dates(frame: pd.DataFrame) -> set:
+        mask = (
+            frame["missing"].fillna(False).astype(bool)
+            if "missing" in frame.columns
+            else pd.Series(False, index=frame.index)
+        )
+        idx = pd.DatetimeIndex(frame.index[~mask])
+        idx = idx.tz_localize(LUMIBOT_DEFAULT_PYTZ) if idx.tz is None else idx.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+        return {ts.date() for ts in idx}
+
+    have = _real_dates(working)
+    newest_allowed = (
+        datetime.now(timezone.utc) - timedelta(days=IBKR_DAILY_GAP_MARKER_MIN_AGE_DAYS)
+    ).date()
+    confirmed: list[pd.Timestamp] = []
+    for group, fetched in answered:
+        response_dates = _real_dates(fetched)
+        if not response_dates:
+            continue
+        for session in group:
+            day = pd.Timestamp(session).tz_convert(LUMIBOT_DEFAULT_PYTZ).date()
+            if day in have or day > newest_allowed:
+                continue
+            if not any(d < day for d in response_dates):
+                continue
+            if not any(d > day for d in have):
+                continue
+            confirmed.append(session)
+    return confirmed
 
 
 def _repair_us_stock_index_daily_gaps(
@@ -3396,8 +3448,17 @@ def _repair_us_stock_index_daily_gaps(
         )
         return aligned
 
+    global _RUNTIME_DAILY_GAP_REPAIR_PAUSED_UNTIL
+    if time.monotonic() < _RUNTIME_DAILY_GAP_REPAIR_PAUSED_UNTIL:
+        # The queue just missed a repair deadline. Do not make this symbol wait too;
+        # forget the check so the repair is tried again once the pause is over.
+        _RUNTIME_DAILY_GAP_CHECKED_WINDOWS.discard(check_key)
+        return aligned
+
     working = aligned
     attempted: list[pd.Timestamp] = []
+    answered: list[tuple[list[pd.Timestamp], pd.DataFrame]] = []
+    queue_missed_deadline = False
     effective_end = min(_to_utc(end_dt), datetime.now(timezone.utc))
     expected = _expected_us_daily_sessions(start_dt=start_dt, end_dt=effective_end)
     groups = split_session_groups(
@@ -3436,8 +3497,14 @@ def _repair_us_stock_index_daily_gaps(
             if fetched is not None and not fetched.empty:
                 fetched = _align_stock_index_daily_to_session_close(fetched)
                 working = _merge_frames(working, fetched)
+                answered.append((list(group), fetched))
         except Exception as exc:
             attempted.extend(group)
+            if isinstance(exc, DownloaderQueueTimeout):
+                queue_missed_deadline = True
+                _RUNTIME_DAILY_GAP_REPAIR_PAUSED_UNTIL = (
+                    time.monotonic() + IBKR_DAILY_GAP_REPAIR_QUEUE_PAUSE_SECONDS
+                )
             logger.warning(
                 "IBKR daily gap repair skipped for %s %s through %s: %s",
                 getattr(asset, "symbol", None),
@@ -3451,7 +3518,8 @@ def _repair_us_stock_index_daily_gaps(
     # the missing sessions, keeping the same instrument/source and deadline.
     real = working.loc[~working.get("missing", pd.Series(False, index=working.index)).fillna(False).astype(bool)]
     remaining_sessions = [session for session in gaps if session.date() not in set(real.index.date)]
-    if remaining_sessions and not real.empty and deadline > time.perf_counter():
+    alternate_failed = False
+    if remaining_sessions and not real.empty and deadline > time.perf_counter() and not queue_missed_deadline:
         try:
             alt_start, alt_end = padded_repair_window(remaining_sessions, padding_days=4)
             alternate = _fetch_history_between_dates(
@@ -3478,7 +3546,33 @@ def _repair_us_stock_index_daily_gaps(
             else:
                 logger.warning("IBKR alternate daily route lacks compatible overlap for %s", getattr(asset, "symbol", None))
         except Exception as exc:
+            alternate_failed = True
+            if isinstance(exc, DownloaderQueueTimeout):
+                _RUNTIME_DAILY_GAP_REPAIR_PAUSED_UNTIL = (
+                    time.monotonic() + IBKR_DAILY_GAP_REPAIR_QUEUE_PAUSE_SECONDS
+                )
             logger.warning("IBKR alternate daily route unavailable for %s: %s", getattr(asset, "symbol", None), type(exc).__name__)
+
+    # Remember sessions the provider answered around but has no bar for. Evidence
+    # required: the same response holds a real bar before the session, a real bar after
+    # it exists (in the response or already in the file), and the session is old enough
+    # that its bar cannot simply be unpublished. A failed or empty request proves nothing
+    # and stores nothing.
+    confirmed_missing = _confirmed_missing_daily_sessions(working, answered)
+    if confirmed_missing:
+        retry_days = 1 if alternate_failed else IBKR_DAILY_GAP_MARKER_RETRY_DAYS
+        working = _merge_frames(
+            working,
+            _daily_missing_placeholders(
+                confirmed_missing,
+                retry_after=datetime.now(timezone.utc) + timedelta(days=retry_days),
+            ),
+        )
+        logger.info(
+            "IBKR daily sessions without a provider bar remembered for %s: %s",
+            getattr(asset, "symbol", None),
+            ", ".join(session.date().isoformat() for session in confirmed_missing[:10]),
+        )
 
     missing_mask = (
         working["missing"].fillna(False).astype(bool)

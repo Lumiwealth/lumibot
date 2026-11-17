@@ -2,6 +2,10 @@
 
 ## 4.6.84 - Unreleased
 
+### Fixed
+- IBKR daily history: a session the provider answers around but has no bar for (it returns the days before and after) is now stored with the cached file as a confirmed-missing marker, never a price, and is not asked again for 30 days. Before, the answer was thrown away, so every backtest (and every parallel backtest) asked for the same old session again and waited for it. Sessions from the last 5 days are never marked, and a failed or empty request stores nothing.
+- IBKR daily history: after one gap repair request misses its queue deadline, later repairs in the same run do not wait for 120 seconds, so a busy data line costs a run one repair wait instead of one per symbol. The run continues with the bars it has and the repair is tried again later.
+
 ## 4.6.83 - 2026-11-17
 
 Deploy marker: cd39397acd7998874a8ddaebe4b086a9f1702eb2

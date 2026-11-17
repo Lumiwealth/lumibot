@@ -1189,3 +1189,117 @@ def test_index_alternate_route_cannot_merge_incompatible_prices(monkeypatch, tmp
         exchange='CBOE', include_after_hours=False, source='Midpoint', source_was_explicit=False)
     pd.testing.assert_frame_equal(result, cached)
     assert any(c.get('_backend') == 'tws' for c in calls)
+
+
+# ---------------------------------------------------------------------------
+# Daily gap repair remembers its result and never stalls a run on a busy queue
+# (2026-11-17). A ten-year, sixty-stock backtest waited 45 s on one old session
+# the provider does not have, in every run and in five parallel runs at once,
+# because the answer was never stored with the shared file.
+# ---------------------------------------------------------------------------
+
+def _repair(frame, tmp_path, symbol="ZZZ", start=(2018, 4, 2), end=(2018, 4, 10)):
+    return ibkr_helper._repair_us_stock_index_daily_gaps(
+        frame,
+        cache_file=tmp_path / f"{symbol}-day.parquet",
+        asset=Asset(symbol, asset_type=Asset.AssetType.STOCK),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="day",
+        start_dt=datetime(*start, tzinfo=timezone.utc),
+        end_dt=datetime(*end, 23, tzinfo=timezone.utc),
+        exchange=None,
+        include_after_hours=True,
+        source="Trades",
+        source_was_explicit=False,
+    )
+
+
+def _new_daily_process(monkeypatch):
+    ibkr_helper._RUNTIME_DAILY_GAP_CHECKED_WINDOWS.clear()
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_DAILY_GAP_REPAIR_PAUSED_UNTIL", 0.0, raising=False)
+
+
+_OLD_WEEK = ["2018-04-02", "2018-04-03", "2018-04-04", "2018-04-06", "2018-04-09", "2018-04-10"]
+
+
+def test_daily_session_the_provider_does_not_have_is_asked_once_then_remembered(monkeypatch, tmp_path) -> None:
+    """The provider answers the days around Thursday April 5 but has no bar for it. The
+    answer is stored with the file, so the next run (a new process) asks nothing."""
+    calls = []
+
+    def _fake_fetch(**kwargs):
+        calls.append(kwargs)
+        return _daily_frame(["2018-04-04", "2018-04-06"])  # neighbours, never the session
+
+    stored = {}
+    monkeypatch.setattr(ibkr_helper, "_fetch_history_between_dates", _fake_fetch)
+    monkeypatch.setattr(ibkr_helper, "_write_cache_frame", lambda path, updated: stored.__setitem__("frame", updated.copy()))
+
+    _new_daily_process(monkeypatch)
+    first = _repair(_daily_frame(_OLD_WEEK), tmp_path)
+    assert calls, "the first run must ask the provider"
+    asked_first_run = len(calls)
+
+    marker = pd.Timestamp("2018-04-05 16:00", tz="America/New_York")
+    assert "frame" in stored, "the confirmed answer must be written to the shared file"
+    row = stored["frame"].loc[marker]
+    assert bool(row["missing"]) is True
+    assert pd.isna(row["close"])  # never a price
+    assert row["missing_outcome"] == ibkr_helper.HistoryOutcome.CONFIRMED_NO_DATA.value
+    assert row["missing_reason"] == ibkr_helper.IBKR_DAILY_GAP_MARKER_REASON
+    # Real bars are untouched.
+    neighbours = first.loc[first.index != marker]
+    assert len(neighbours) == len(_OLD_WEEK) and neighbours["close"].notna().all()
+    assert not neighbours["missing"].fillna(False).astype(bool).any()
+
+    _new_daily_process(monkeypatch)  # the next backtest, reading the stored file
+    _repair(stored["frame"], tmp_path)
+    assert len(calls) == asked_first_run, "a remembered missing session must not be asked again"
+
+
+def test_recent_missing_daily_session_is_not_remembered_as_missing(monkeypatch, tmp_path) -> None:
+    """A bar for the last few days may simply not be published yet."""
+    now = pd.Timestamp.now(tz="America/New_York").normalize()
+    days = [d.date().isoformat() for d in pd.bdate_range(end=now - pd.Timedelta(days=1), periods=4)]
+    hole = days[2]
+    kept = [d for d in days if d != hole]
+    stored = {}
+    monkeypatch.setattr(ibkr_helper, "_fetch_history_between_dates", lambda **_k: _daily_frame(kept))
+    monkeypatch.setattr(ibkr_helper, "_write_cache_frame", lambda path, updated: stored.__setitem__("frame", updated.copy()))
+    _new_daily_process(monkeypatch)
+    first = pd.Timestamp(days[0]).to_pydatetime()
+    last = pd.Timestamp(days[-1]).to_pydatetime()
+    result = _repair(_daily_frame(kept), tmp_path, start=(first.year, first.month, first.day), end=(last.year, last.month, last.day))
+    assert pd.Timestamp(f"{hole} 16:00", tz="America/New_York") not in result.index
+    assert "frame" not in stored
+
+
+def test_daily_gap_repair_stops_waiting_after_the_queue_missed_its_deadline(monkeypatch, tmp_path) -> None:
+    """One repair that the busy queue could not serve in time must not cost every later
+    symbol of the same run the full repair budget again. After the pause the repair
+    works again in the same process."""
+    from lumibot.tools.data_downloader_queue_client import DownloaderQueueTimeout
+
+    calls = []
+    state = {"busy": True}
+
+    def _fake_fetch(**kwargs):
+        calls.append(kwargs["asset"].symbol)
+        if state["busy"]:
+            raise DownloaderQueueTimeout("Downloader request exceeded its total queue deadline")
+        return _daily_frame(["2018-04-04", "2018-04-05", "2018-04-06"])
+
+    monkeypatch.setattr(ibkr_helper, "_fetch_history_between_dates", _fake_fetch)
+    monkeypatch.setattr(ibkr_helper, "_write_cache_frame", lambda path, updated: updated)
+    _new_daily_process(monkeypatch)
+
+    for symbol in ("AAA", "BBB", "CCC"):
+        result = _repair(_daily_frame(_OLD_WEEK), tmp_path, symbol=symbol)
+        assert len(result) == len(_OLD_WEEK)  # the run continues with the bars it has
+    assert calls == ["AAA"], "later symbols must not wait on a queue that just missed its deadline"
+
+    # The line clears and the pause is over: the same symbols are repaired in this process.
+    state["busy"] = False
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_DAILY_GAP_REPAIR_PAUSED_UNTIL", 0.0)
+    healed = _repair(_daily_frame(_OLD_WEEK), tmp_path, symbol="BBB")
+    assert pd.Timestamp("2018-04-05 16:00", tz="America/New_York") in healed.index

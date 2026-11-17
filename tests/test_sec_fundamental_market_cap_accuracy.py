@@ -188,6 +188,29 @@ def test_a_restatement_is_not_a_split_when_one_restated_period_has_no_share_coun
     assert result["values"]["market_cap"] == pytest.approx(220_000.0)
 
 
+def test_one_filing_at_the_wrong_scale_is_not_two_splits(monkeypatch, tmp_path):
+    # One quarterly report files EPS 1,000 times too large and the share count 1,000 times
+    # too small; the reports before and after it agree with each other. That used to read as
+    # a 1-for-1000 split followed by a 1000-for-1 split, so share counts went None (or were
+    # multiplied by 1,000) for months around the bad filing.
+    eps = [_r("k23", Q1_23, 0.40), _r("q124", Q1_23, 400.0), _r("q224", Q1_23, 0.40)]
+    weighted_diluted = [_r("k23", Q1_23, 1_000_000.0), _r("q124", Q1_23, 1_000.0), _r("q224", Q1_23, 1_000_000.0)]
+    facts = _payload(
+        cover=[
+            _r("k23", "2024-01-31", 1_000_000.0), _r("q124", "2024-04-25", 1_000_000.0),
+            _r("q224", "2024-07-26", 1_000_000.0),
+        ],
+        eps=eps,
+        weighted_diluted=weighted_diluted,
+    )
+    sec = _sec(monkeypatch, tmp_path, facts)  # a split history that lists no split at all
+
+    for when in (datetime(2024, 5, 6, 11, 0, tzinfo=NY), datetime(2024, 8, 5, 11, 0, tzinfo=NY)):
+        result = sec.get_metrics("CAP", ["shares_outstanding", "market_cap"], as_of=when, price=50.0)
+        assert result["values"]["shares_outstanding"] == pytest.approx(1_000_000.0), result["reasons"]
+        assert result["values"]["market_cap"] == pytest.approx(50_000_000.0)
+
+
 # -- 4. share-class tickers -------------------------------------------------------------------
 
 

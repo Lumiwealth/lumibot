@@ -2773,6 +2773,9 @@ def _fetch_history_between_dates_impl(
     if not chunks:
         return pd.DataFrame()
 
+    for _older_page, _newer_page in zip(chunks[1:], chunks[:-1]):
+        # Pages are fetched newest first; every join must be on one price scale.
+        _assert_one_price_scale(_newer_page, _older_page)
     merged = pd.concat(chunks, axis=0).sort_index()
     merged = merged[~merged.index.duplicated(keep="last")]
     if conid_refreshed or paging_stalled:
@@ -3192,6 +3195,75 @@ def _derive_bid_ask_from_bid_ask_and_midpoint(
     return out
 
 
+# Two frames joined into one daily series must be on one price scale. A ratio this close
+# to a whole split factor between the same bar in both frames, or between the two bars
+# that meet at the join, means one side is adjusted for a split and the other is not.
+_SPLIT_SIZED_FACTORS = (1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0, 15.0, 20.0, 25.0, 50.0)
+_SPLIT_SIZED_TOLERANCE = 0.03
+
+
+def _split_sized_ratio(ratio: float) -> Optional[float]:
+    if not math.isfinite(ratio) or ratio <= 0:
+        return None
+    for factor in _SPLIT_SIZED_FACTORS:
+        for target in (factor, 1.0 / factor):
+            if abs(ratio / target - 1.0) <= _SPLIT_SIZED_TOLERANCE:
+                return target
+    return None
+
+
+def _assert_one_price_scale(existing: pd.DataFrame, incoming: pd.DataFrame) -> None:
+    """Refuse to join daily bars that sit on two split scales. Never changes a price."""
+    if "close" not in existing.columns or "close" not in incoming.columns:
+        return
+
+    def _real_daily_close(frame: pd.DataFrame) -> Optional[pd.Series]:
+        if not isinstance(frame.index, pd.DatetimeIndex) or len(frame) < 2:
+            return None
+        mask = (
+            frame["missing"].fillna(False).astype(bool)
+            if "missing" in frame.columns
+            else pd.Series(False, index=frame.index)
+        )
+        close = pd.to_numeric(frame.loc[~mask, "close"], errors="coerce").dropna()
+        close = close[close > 0]
+        if len(close) < 2:
+            return None
+        close = close[~close.index.duplicated(keep="last")].sort_index()
+        spacing = close.index.to_series().diff().dropna()
+        if spacing.empty or spacing.min() < pd.Timedelta(hours=20):
+            return None  # only daily (or slower) series are judged
+        return close
+
+    left = _real_daily_close(existing)
+    right = _real_daily_close(incoming)
+    if left is None or right is None:
+        return
+    shared = left.index.intersection(right.index)
+    if len(shared):
+        ratios = (right.loc[shared] / left.loc[shared]).astype(float)
+        sized = [r for r in ratios if _split_sized_ratio(float(r)) is not None]
+        if sized and len(sized) * 2 >= len(ratios):
+            raise ValueError(
+                "IBKR daily history is on more than one price scale: the same sessions differ by "
+                f"about {sized[0]:.3g}x between the cached bars and the new page (first {shared[0].date()}). "
+                "Nothing was merged; reload this series from the provider."
+            )
+        return
+    older, newer = (left, right) if left.index.max() < right.index.min() else (right, left)
+    if older.index.max() >= newer.index.min():
+        return  # interleaved without shared sessions: not a simple join
+    if newer.index.min() - older.index.max() > pd.Timedelta(days=5):
+        return  # a real gap between the pages proves nothing about scale
+    ratio = float(newer.iloc[0]) / float(older.iloc[-1])
+    if _split_sized_ratio(ratio) is not None:
+        raise ValueError(
+            "IBKR daily history is on more than one price scale: the pages that meet at "
+            f"{newer.index.min().date()} differ by about {ratio:.3g}x in one session. "
+            "Nothing was merged; reload this series from the provider."
+        )
+
+
 def _merge_frames(existing: pd.DataFrame, incoming: pd.DataFrame) -> pd.DataFrame:
     if existing is None or existing.empty:
         merged = incoming
@@ -3202,6 +3274,7 @@ def _merge_frames(existing: pd.DataFrame, incoming: pd.DataFrame) -> pd.DataFram
         # Unknown/unknown non-equity frames retain their existing behavior.
         # A known equity basis may never mix with unknown or another split basis.
         assert_same_basis(existing, incoming)
+        _assert_one_price_scale(existing, incoming)
         merged = pd.concat([existing, incoming], axis=0)
     if merged is None or merged.empty:
         return merged

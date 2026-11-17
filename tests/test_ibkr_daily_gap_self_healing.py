@@ -1353,3 +1353,51 @@ def test_history_fetch_marks_the_download_active_so_progress_shows_what_a_run_wa
             exchange=None, include_after_hours=True, source="Trades", source_was_explicit=False,
         )
     assert thetadata_helper.get_download_status().get("active") is False
+
+
+# ---------------------------------------------------------------------------
+# Two price scales in one daily file (2026-11-17). A cached daily stock file held
+# bars before one date at ten times the scale of the bars after it (a later
+# 10-for-1 split applied to only part of the history). Market cap came out ten
+# times too big for seven years and a holding across the join booked a fake 90%
+# loss. Joined history must be on one scale or fail visibly.
+# ---------------------------------------------------------------------------
+
+def _scaled_daily(dates, start_price, factor=1.0):
+    frame = _daily_frame(dates)
+    for col in ["open", "high", "low", "close"]:
+        frame[col] = [(start_price + n) * factor for n in range(len(dates))]
+    return frame
+
+
+def test_merge_refuses_a_page_whose_overlap_is_on_another_price_scale() -> None:
+    existing = _scaled_daily(["2023-11-14", "2023-11-15", "2023-11-16"], 45.0)
+    incoming = _scaled_daily(["2023-11-10", "2023-11-13", "2023-11-14"], 43.0, factor=10.0)
+    with pytest.raises(ValueError, match="price scale"):
+        ibkr_helper._merge_frames(existing, incoming)
+
+
+def test_merge_refuses_an_adjacent_page_on_another_price_scale() -> None:
+    newer = _scaled_daily(["2023-11-15", "2023-11-16", "2023-11-17"], 45.0)
+    older = _scaled_daily(["2023-11-10", "2023-11-13", "2023-11-14"], 44.0, factor=10.0)
+    with pytest.raises(ValueError, match="price scale"):
+        ibkr_helper._merge_frames(newer, older)
+    with pytest.raises(ValueError, match="price scale"):
+        ibkr_helper._merge_frames(older, newer)
+
+
+def test_merge_keeps_ordinary_moves_and_real_crashes_inside_one_page() -> None:
+    # Same scale across the join: merges as before.
+    newer = _scaled_daily(["2023-11-15", "2023-11-16"], 45.0)
+    older = _scaled_daily(["2023-11-13", "2023-11-14"], 43.0)
+    assert len(ibkr_helper._merge_frames(newer, older)) == 4
+    # A 30% gap across a join is a price move, not a scale break.
+    gap = _scaled_daily(["2023-11-13", "2023-11-14"], 62.0)
+    assert len(ibkr_helper._merge_frames(newer, gap)) == 4
+    # A crash inside one provider page is the provider's data and is never judged here.
+    crash = _scaled_daily(["2023-11-13", "2023-11-14", "2023-11-15"], 100.0)
+    crash.loc[crash.index[-1], ["open", "high", "low", "close"]] = 50.0
+    assert len(ibkr_helper._merge_frames(crash, crash.copy())) == 3
+    # Placeholders are not judged.
+    marker = _daily_frame(["2023-11-14"], missing=True)
+    assert len(ibkr_helper._merge_frames(newer, marker)) == 3

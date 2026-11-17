@@ -2392,7 +2392,29 @@ _OLDER_PAGE_RETRY_ATTEMPTS = 2
 _OLDER_PAGE_RETRY_WAIT_SECONDS = 2.0
 
 
-def _fetch_history_between_dates(
+def _fetch_history_between_dates(*, asset: Asset, quote: Optional[Asset], timestep: str, **kwargs) -> pd.DataFrame:
+    """Fetch history, marking the download active for the progress heartbeat.
+
+    The queue client adds queue position and estimated wait to an active download, so a
+    run that waits on market data reports what it waits on instead of looking frozen.
+    """
+    try:
+        from lumibot.tools.thetadata_helper import finalize_download_status, set_download_status
+
+        set_download_status(asset, quote, "ohlc", str(timestep), 0, 1)
+    except Exception:  # progress reporting must never break a fetch
+        finalize_download_status = None  # type: ignore[assignment]
+    try:
+        return _fetch_history_between_dates_impl(asset=asset, quote=quote, timestep=timestep, **kwargs)
+    finally:
+        if finalize_download_status is not None:
+            try:
+                finalize_download_status()
+            except Exception:
+                pass
+
+
+def _fetch_history_between_dates_impl(
     *,
     asset: Asset,
     quote: Optional[Asset],

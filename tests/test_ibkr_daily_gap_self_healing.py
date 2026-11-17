@@ -1303,3 +1303,53 @@ def test_daily_gap_repair_stops_waiting_after_the_queue_missed_its_deadline(monk
     monkeypatch.setattr(ibkr_helper, "_RUNTIME_DAILY_GAP_REPAIR_PAUSED_UNTIL", 0.0)
     healed = _repair(_daily_frame(_OLD_WEEK), tmp_path, symbol="BBB")
     assert pd.Timestamp("2018-04-05 16:00", tz="America/New_York") in healed.index
+
+
+def test_history_fetch_marks_the_download_active_so_progress_shows_what_a_run_waits_on(monkeypatch) -> None:
+    """While a run waits on a history request, its progress heartbeat said nothing
+    (`download_status` was empty), so a waiting run looked frozen. The fetch now marks
+    the download active (symbol and bar size); the queue client adds queue position and
+    estimated wait to an active download."""
+    from lumibot.tools import thetadata_helper
+
+    thetadata_helper.clear_download_status()
+    seen = {}
+
+    def _impl(**kwargs):
+        seen.update(thetadata_helper.get_download_status())
+        thetadata_helper.update_download_status_queue_info(
+            request_id="r1", queue_status="pending", queue_position=4, estimated_wait=12.0, submitted_at=1.0
+        )
+        seen["queue_position"] = thetadata_helper.get_download_status().get("queue_position")
+        return _daily_frame(["2026-07-28"])
+
+    monkeypatch.setattr(ibkr_helper, "_fetch_history_between_dates_impl", _impl, raising=False)
+    result = ibkr_helper._fetch_history_between_dates(
+        asset=Asset("QQQ", asset_type=Asset.AssetType.STOCK),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="day",
+        start_dt=datetime(2026, 7, 27, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 7, 30, tzinfo=timezone.utc),
+        exchange=None,
+        include_after_hours=True,
+        source="Trades",
+        source_was_explicit=False,
+    )
+    assert len(result) == 1
+    assert seen.get("active") is True
+    assert seen["asset"]["symbol"] == "QQQ"
+    assert seen["timespan"] == "day"
+    assert seen["queue_position"] == 4
+    assert thetadata_helper.get_download_status().get("active") is False
+
+    def _boom(**kwargs):
+        raise TimeoutError("queue")
+
+    monkeypatch.setattr(ibkr_helper, "_fetch_history_between_dates_impl", _boom)
+    with pytest.raises(TimeoutError):
+        ibkr_helper._fetch_history_between_dates(
+            asset=Asset("QQQ", asset_type=Asset.AssetType.STOCK), quote=None, timestep="day",
+            start_dt=datetime(2026, 7, 27, tzinfo=timezone.utc), end_dt=datetime(2026, 7, 30, tzinfo=timezone.utc),
+            exchange=None, include_after_hours=True, source="Trades", source_was_explicit=False,
+        )
+    assert thetadata_helper.get_download_status().get("active") is False

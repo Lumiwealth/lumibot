@@ -3004,6 +3004,7 @@ def _sec_split_events(timeline: "_CompanyTimeline") -> list[tuple[date, date, fl
         for row in series.rows:
             shares_by_filing[(row[_R_START], row[_R_END], row[_R_ACCN])] = row[_R_VAL]
     pairs: list[tuple[date, date, float, bool, float]] = []
+    pair_filings: list[tuple[Any, Any]] = []
     refuted: list[tuple[date, date, float]] = []
     for tag in _SPLIT_DETECT_TAGS:
         for series in timeline.series.get(tag, {}).values():
@@ -3033,6 +3034,21 @@ def _sec_split_events(timeline: "_CompanyTimeline") -> list[tuple[date, date, fl
                         confirmed = True
                     size = max(abs(float(earlier[_R_VAL])), abs(float(later[_R_VAL])))
                     pairs.append((after, by, ratio, confirmed, size))
+                    pair_filings.append((earlier[_R_ACCN], later[_R_ACCN]))
+    # One filing at the wrong scale (EPS a thousand times too large, shares a thousand times
+    # too small) differs from the filing before it by a factor and from the filing after it by
+    # the inverse. That is one bad filing, not a split followed by its exact reversal.
+    into = {(later, round(ratio, 6)) for (_earlier, later), (_a, _b, ratio, _c, _s) in zip(pair_filings, pairs)}
+    outliers = {
+        earlier
+        for (earlier, _later), (_a, _b, ratio, _c, _s) in zip(pair_filings, pairs)
+        if any(filing == earlier and abs(before * ratio - 1) <= 0.03 for filing, before in into)
+    }
+    if outliers:
+        pairs = [
+            pair for pair, (earlier, later) in zip(pairs, pair_filings)
+            if earlier not in outliers and later not in outliers
+        ]
     merged: list[list] = []
     for after, by, ratio, confirmed, size in sorted(pairs):
         for event in merged:

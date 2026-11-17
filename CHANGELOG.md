@@ -2,6 +2,9 @@
 
 ## 4.6.78 - Unreleased
 
+### Fixed
+- `fundamentals`: one filing at the wrong scale (EPS a thousand times too large with the share count a thousand times too small) is no longer read as a stock split followed by its exact reversal. Share counts, EPS-based ratios and market cap for that company were `None` (or on the wrong share basis) for the months around the bad filing.
+
 ## 4.6.77 - 2026-11-17
 
 Deploy marker: 587dec8f7c7e370f78bfd2717f6ca92816a4cb38

@@ -92,7 +92,11 @@ def _safe_notices(notices: Iterable[Any]) -> List[Dict[str, Any]]:
     return safe
 
 
-def build_backtest_data_provenance(data_source: Any, fill_price_counts: Dict[str, int] | None = None) -> Dict[str, Any]:
+def build_backtest_data_provenance(
+    data_source: Any,
+    fill_price_counts: Dict[str, int] | None = None,
+    valuation_mark_counts: Dict[str, int] | None = None,
+) -> Dict[str, Any]:
     observed = None
     notices: List[Dict[str, Any]] = []
     getter = getattr(data_source, "get_data_provenance", None)
@@ -127,16 +131,31 @@ def build_backtest_data_provenance(data_source: Any, fill_price_counts: Dict[str
         provenance["optionFillPrices"] = {
             str(key): int(value) for key, value in fill_price_counts.items() if isinstance(value, int)
         }
+    # How held option contracts were valued, counted per contract per valuation: "real" is a real
+    # quote or trade on the valuation bar, "estimated" is a model value for that moment used
+    # because the contract had no real price on the bar (see option_marks_for_valuation).
+    if valuation_mark_counts:
+        provenance["optionValuationMarks"] = {
+            str(key): int(value) for key, value in valuation_mark_counts.items() if isinstance(value, int)
+        }
     return provenance
 
 
 def write_backtest_data_provenance(
-    data_source: Any, directory: str | Path = "logs", fill_price_counts: Dict[str, int] | None = None
+    data_source: Any,
+    directory: str | Path = "logs",
+    fill_price_counts: Dict[str, int] | None = None,
+    valuation_mark_counts: Dict[str, int] | None = None,
 ) -> Path:
     artifact = Path(directory) / "data_provenance.json"
     artifact.parent.mkdir(parents=True, exist_ok=True)
     artifact.write_text(
-        json.dumps(build_backtest_data_provenance(data_source, fill_price_counts), indent=2, sort_keys=True) + "\n",
+        json.dumps(
+            build_backtest_data_provenance(data_source, fill_price_counts, valuation_mark_counts),
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
         encoding="utf-8",
     )
     return artifact

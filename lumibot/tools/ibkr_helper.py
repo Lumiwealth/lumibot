@@ -19,7 +19,7 @@ import pandas as pd
 from lumibot.constants import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset
 from lumibot.tools.backtest_cache import CacheMode, get_backtest_cache
-from lumibot.tools.data_downloader_queue_client import queue_request
+from lumibot.tools.data_downloader_queue_client import DownloaderQueueTimeout, queue_request
 from lumibot.tools.ibkr_secdef import (
     IbkrFuturesExchangeAmbiguousError,
     select_futures_exchange_from_secdef_search_payload,
@@ -91,6 +91,16 @@ IBKR_LEGACY_INFERRED_TAIL_REASON = "successful_history_response_confirmed_no_new
 IBKR_DAILY_GAP_REPAIR_TIMEOUT_SECONDS = 45.0
 IBKR_DAILY_GAP_REPAIR_MAX_SEGMENTS_PER_SERIES = 4
 IBKR_DAILY_GAP_REPAIR_MAX_SESSIONS_PER_SEGMENT = 10
+# A daily session the provider answered around but has no bar for is stored with the
+# shared file as a confirmed-missing marker (never a price), so later runs do not ask
+# again until the marker expires. Recent sessions are never marked: the bar may not be
+# published yet.
+IBKR_DAILY_GAP_MARKER_REASON = "daily_session_absent_in_provider_response"
+IBKR_DAILY_GAP_MARKER_RETRY_DAYS = 30
+IBKR_DAILY_GAP_MARKER_MIN_AGE_DAYS = 5
+# After a repair request missed the queue deadline, later repairs in this process do not
+# wait again until this pause is over. The run continues with the bars it has.
+IBKR_DAILY_GAP_REPAIR_QUEUE_PAUSE_SECONDS = 120.0
 IBKR_HOURLY_GAP_REPAIR_TIMEOUT_SECONDS = 300.0
 IBKR_HOURLY_INTERNAL_GAP_THRESHOLD = timedelta(days=7)
 IBKR_HOURLY_GAP_REPAIR_MAX_SEGMENTS_PER_SERIES = 4
@@ -157,6 +167,7 @@ _RUNTIME_HISTORY_NO_DATA_WINDOWS: Dict[str, Tuple[datetime, datetime]] = {}
 # so a later process still retries (see the history integrity contract).
 _RUNTIME_ATTEMPTED_HISTORY_SEGMENTS: Dict[str, list[Tuple[datetime, datetime]]] = {}
 _RUNTIME_DAILY_GAP_CHECKED_WINDOWS: set[tuple[str, str, str]] = set()
+_RUNTIME_DAILY_GAP_REPAIR_PAUSED_UNTIL: float = 0.0
 _RUNTIME_HOURLY_GAP_CHECKED_SERIES: Dict[
     str,
     tuple[tuple[int, str, str, int], datetime, datetime],
@@ -2381,7 +2392,29 @@ _OLDER_PAGE_RETRY_ATTEMPTS = 2
 _OLDER_PAGE_RETRY_WAIT_SECONDS = 2.0
 
 
-def _fetch_history_between_dates(
+def _fetch_history_between_dates(*, asset: Asset, quote: Optional[Asset], timestep: str, **kwargs) -> pd.DataFrame:
+    """Fetch history, marking the download active for the progress heartbeat.
+
+    The queue client adds queue position and estimated wait to an active download, so a
+    run that waits on market data reports what it waits on instead of looking frozen.
+    """
+    try:
+        from lumibot.tools.thetadata_helper import finalize_download_status, set_download_status
+
+        set_download_status(asset, quote, "ohlc", str(timestep), 0, 1)
+    except Exception:  # progress reporting must never break a fetch
+        finalize_download_status = None  # type: ignore[assignment]
+    try:
+        return _fetch_history_between_dates_impl(asset=asset, quote=quote, timestep=timestep, **kwargs)
+    finally:
+        if finalize_download_status is not None:
+            try:
+                finalize_download_status()
+            except Exception:
+                pass
+
+
+def _fetch_history_between_dates_impl(
     *,
     asset: Asset,
     quote: Optional[Asset],
@@ -2740,6 +2773,9 @@ def _fetch_history_between_dates(
     if not chunks:
         return pd.DataFrame()
 
+    for _older_page, _newer_page in zip(chunks[1:], chunks[:-1]):
+        # Pages are fetched newest first; every join must be on one price scale.
+        _assert_one_price_scale(_newer_page, _older_page)
     merged = pd.concat(chunks, axis=0).sort_index()
     merged = merged[~merged.index.duplicated(keep="last")]
     if conid_refreshed or paging_stalled:
@@ -3159,6 +3195,75 @@ def _derive_bid_ask_from_bid_ask_and_midpoint(
     return out
 
 
+# Two frames joined into one daily series must be on one price scale. A ratio this close
+# to a whole split factor between the same bar in both frames, or between the two bars
+# that meet at the join, means one side is adjusted for a split and the other is not.
+_SPLIT_SIZED_FACTORS = (1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0, 15.0, 20.0, 25.0, 50.0)
+_SPLIT_SIZED_TOLERANCE = 0.03
+
+
+def _split_sized_ratio(ratio: float) -> Optional[float]:
+    if not math.isfinite(ratio) or ratio <= 0:
+        return None
+    for factor in _SPLIT_SIZED_FACTORS:
+        for target in (factor, 1.0 / factor):
+            if abs(ratio / target - 1.0) <= _SPLIT_SIZED_TOLERANCE:
+                return target
+    return None
+
+
+def _assert_one_price_scale(existing: pd.DataFrame, incoming: pd.DataFrame) -> None:
+    """Refuse to join daily bars that sit on two split scales. Never changes a price."""
+    if "close" not in existing.columns or "close" not in incoming.columns:
+        return
+
+    def _real_daily_close(frame: pd.DataFrame) -> Optional[pd.Series]:
+        if not isinstance(frame.index, pd.DatetimeIndex) or len(frame) < 2:
+            return None
+        mask = (
+            frame["missing"].fillna(False).astype(bool)
+            if "missing" in frame.columns
+            else pd.Series(False, index=frame.index)
+        )
+        close = pd.to_numeric(frame.loc[~mask, "close"], errors="coerce").dropna()
+        close = close[close > 0]
+        if len(close) < 2:
+            return None
+        close = close[~close.index.duplicated(keep="last")].sort_index()
+        spacing = close.index.to_series().diff().dropna()
+        if spacing.empty or spacing.min() < pd.Timedelta(hours=20):
+            return None  # only daily (or slower) series are judged
+        return close
+
+    left = _real_daily_close(existing)
+    right = _real_daily_close(incoming)
+    if left is None or right is None:
+        return
+    shared = left.index.intersection(right.index)
+    if len(shared):
+        ratios = (right.loc[shared] / left.loc[shared]).astype(float)
+        sized = [r for r in ratios if _split_sized_ratio(float(r)) is not None]
+        if sized and len(sized) * 2 >= len(ratios):
+            raise ValueError(
+                "IBKR daily history is on more than one price scale: the same sessions differ by "
+                f"about {sized[0]:.3g}x between the cached bars and the new page (first {shared[0].date()}). "
+                "Nothing was merged; reload this series from the provider."
+            )
+        return
+    older, newer = (left, right) if left.index.max() < right.index.min() else (right, left)
+    if older.index.max() >= newer.index.min():
+        return  # interleaved without shared sessions: not a simple join
+    if newer.index.min() - older.index.max() > pd.Timedelta(days=5):
+        return  # a real gap between the pages proves nothing about scale
+    ratio = float(newer.iloc[0]) / float(older.iloc[-1])
+    if _split_sized_ratio(ratio) is not None:
+        raise ValueError(
+            "IBKR daily history is on more than one price scale: the pages that meet at "
+            f"{newer.index.min().date()} differ by about {ratio:.3g}x in one session. "
+            "Nothing was merged; reload this series from the provider."
+        )
+
+
 def _merge_frames(existing: pd.DataFrame, incoming: pd.DataFrame) -> pd.DataFrame:
     if existing is None or existing.empty:
         merged = incoming
@@ -3169,6 +3274,7 @@ def _merge_frames(existing: pd.DataFrame, incoming: pd.DataFrame) -> pd.DataFram
         # Unknown/unknown non-equity frames retain their existing behavior.
         # A known equity basis may never mix with unknown or another split basis.
         assert_same_basis(existing, incoming)
+        _assert_one_price_scale(existing, incoming)
         merged = pd.concat([existing, incoming], axis=0)
     if merged is None or merged.empty:
         return merged
@@ -3312,9 +3418,50 @@ def _daily_missing_placeholders(
             "volume": [pd.NA] * count,
             "missing": [True] * count,
             "missing_retry_after": [retry_after.isoformat()] * count,
+            "missing_reason": [IBKR_DAILY_GAP_MARKER_REASON] * count,
+            "missing_outcome": [HistoryOutcome.CONFIRMED_NO_DATA.value] * count,
         },
         index=index,
     )
+
+
+def _confirmed_missing_daily_sessions(
+    working: pd.DataFrame,
+    answered: list[tuple[list[pd.Timestamp], pd.DataFrame]],
+) -> list[pd.Timestamp]:
+    """Sessions a non-empty provider response skipped while returning a real bar before them."""
+    if not answered or working is None or working.empty:
+        return []
+
+    def _real_dates(frame: pd.DataFrame) -> set:
+        mask = (
+            frame["missing"].fillna(False).astype(bool)
+            if "missing" in frame.columns
+            else pd.Series(False, index=frame.index)
+        )
+        idx = pd.DatetimeIndex(frame.index[~mask])
+        idx = idx.tz_localize(LUMIBOT_DEFAULT_PYTZ) if idx.tz is None else idx.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+        return {ts.date() for ts in idx}
+
+    have = _real_dates(working)
+    newest_allowed = (
+        datetime.now(timezone.utc) - timedelta(days=IBKR_DAILY_GAP_MARKER_MIN_AGE_DAYS)
+    ).date()
+    confirmed: list[pd.Timestamp] = []
+    for group, fetched in answered:
+        response_dates = _real_dates(fetched)
+        if not response_dates:
+            continue
+        for session in group:
+            day = pd.Timestamp(session).tz_convert(LUMIBOT_DEFAULT_PYTZ).date()
+            if day in have or day > newest_allowed:
+                continue
+            if not any(d < day for d in response_dates):
+                continue
+            if not any(d > day for d in have):
+                continue
+            confirmed.append(session)
+    return confirmed
 
 
 def _repair_us_stock_index_daily_gaps(
@@ -3396,8 +3543,17 @@ def _repair_us_stock_index_daily_gaps(
         )
         return aligned
 
+    global _RUNTIME_DAILY_GAP_REPAIR_PAUSED_UNTIL
+    if time.monotonic() < _RUNTIME_DAILY_GAP_REPAIR_PAUSED_UNTIL:
+        # The queue just missed a repair deadline. Do not make this symbol wait too;
+        # forget the check so the repair is tried again once the pause is over.
+        _RUNTIME_DAILY_GAP_CHECKED_WINDOWS.discard(check_key)
+        return aligned
+
     working = aligned
     attempted: list[pd.Timestamp] = []
+    answered: list[tuple[list[pd.Timestamp], pd.DataFrame]] = []
+    queue_missed_deadline = False
     effective_end = min(_to_utc(end_dt), datetime.now(timezone.utc))
     expected = _expected_us_daily_sessions(start_dt=start_dt, end_dt=effective_end)
     groups = split_session_groups(
@@ -3436,8 +3592,14 @@ def _repair_us_stock_index_daily_gaps(
             if fetched is not None and not fetched.empty:
                 fetched = _align_stock_index_daily_to_session_close(fetched)
                 working = _merge_frames(working, fetched)
+                answered.append((list(group), fetched))
         except Exception as exc:
             attempted.extend(group)
+            if isinstance(exc, DownloaderQueueTimeout):
+                queue_missed_deadline = True
+                _RUNTIME_DAILY_GAP_REPAIR_PAUSED_UNTIL = (
+                    time.monotonic() + IBKR_DAILY_GAP_REPAIR_QUEUE_PAUSE_SECONDS
+                )
             logger.warning(
                 "IBKR daily gap repair skipped for %s %s through %s: %s",
                 getattr(asset, "symbol", None),
@@ -3451,7 +3613,8 @@ def _repair_us_stock_index_daily_gaps(
     # the missing sessions, keeping the same instrument/source and deadline.
     real = working.loc[~working.get("missing", pd.Series(False, index=working.index)).fillna(False).astype(bool)]
     remaining_sessions = [session for session in gaps if session.date() not in set(real.index.date)]
-    if remaining_sessions and not real.empty and deadline > time.perf_counter():
+    alternate_failed = False
+    if remaining_sessions and not real.empty and deadline > time.perf_counter() and not queue_missed_deadline:
         try:
             alt_start, alt_end = padded_repair_window(remaining_sessions, padding_days=4)
             alternate = _fetch_history_between_dates(
@@ -3478,7 +3641,33 @@ def _repair_us_stock_index_daily_gaps(
             else:
                 logger.warning("IBKR alternate daily route lacks compatible overlap for %s", getattr(asset, "symbol", None))
         except Exception as exc:
+            alternate_failed = True
+            if isinstance(exc, DownloaderQueueTimeout):
+                _RUNTIME_DAILY_GAP_REPAIR_PAUSED_UNTIL = (
+                    time.monotonic() + IBKR_DAILY_GAP_REPAIR_QUEUE_PAUSE_SECONDS
+                )
             logger.warning("IBKR alternate daily route unavailable for %s: %s", getattr(asset, "symbol", None), type(exc).__name__)
+
+    # Remember sessions the provider answered around but has no bar for. Evidence
+    # required: the same response holds a real bar before the session, a real bar after
+    # it exists (in the response or already in the file), and the session is old enough
+    # that its bar cannot simply be unpublished. A failed or empty request proves nothing
+    # and stores nothing.
+    confirmed_missing = _confirmed_missing_daily_sessions(working, answered)
+    if confirmed_missing:
+        retry_days = 1 if alternate_failed else IBKR_DAILY_GAP_MARKER_RETRY_DAYS
+        working = _merge_frames(
+            working,
+            _daily_missing_placeholders(
+                confirmed_missing,
+                retry_after=datetime.now(timezone.utc) + timedelta(days=retry_days),
+            ),
+        )
+        logger.info(
+            "IBKR daily sessions without a provider bar remembered for %s: %s",
+            getattr(asset, "symbol", None),
+            ", ".join(session.date().isoformat() for session in confirmed_missing[:10]),
+        )
 
     missing_mask = (
         working["missing"].fillna(False).astype(bool)

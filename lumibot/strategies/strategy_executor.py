@@ -2281,7 +2281,14 @@ class StrategyExecutor(Thread):
             self.lifecycle_last_date['before_market_opens'] = current_date
 
     def _ensure_progress_inside_open_session(self, time_to_close):
-        """Advance the broker clock if we're stuck while the market is open."""
+        """Advance a simulated broker clock if it is stuck while the market is open.
+
+        Live brokers run on the wall clock and have no clock to move.
+        """
+        if not getattr(self.broker, "IS_BACKTESTING_BROKER", False) or not callable(
+            getattr(self.broker, "_update_datetime", None)
+        ):
+            return time_to_close
         if self.broker.is_market_open() and (time_to_close is None or time_to_close <= 0):
             self.strategy.logger.debug(
                 "Broker clock stalled with market open; nudging forward by one second."

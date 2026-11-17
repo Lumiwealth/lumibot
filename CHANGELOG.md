@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.6.84 - 2026-11-17
+
+Deploy marker: 24d02fd89098ecb0b17118158b0822e5d05d1b6f
+
+### Fixed
+- Live futures bots: a live bot on a calendar whose sessions open the evening before their date (`us_futures`, for example ProjectX/TopstepX) no longer crash-loops when started after the 6 PM ET reopen. `get_time_to_close()` measured to today's calendar row, which had already closed while the market was open, so it went negative, and the executor then tried to move the clock with `_update_datetime`, which only backtesting brokers have (`'ProjectX' object has no attribute '_update_datetime'`). The bot never ran an iteration. Time to close and `market_close_time()` now use the session that is open now, and the clock nudge runs only for backtesting brokers. Backtests are unchanged.
+- IBKR daily history: a session the provider answers around but has no bar for (it returns the days before and after) is now stored with the cached file as a confirmed-missing marker, never a price, and is not asked again for 30 days. Before, the answer was thrown away, so every backtest (and every parallel backtest) asked for the same old session again and waited for it. Sessions from the last 5 days are never marked, and a failed or empty request stores nothing.
+- IBKR daily history: bars joined into one daily series must be on one price scale. When a fetched page and the cached bars (or two pages of one fetch) differ by a whole split factor on the same sessions, or in the one session where they meet, the fetch now fails visibly and nothing is merged or stored. Before, such a page was stored, so one file could hold years of prices at ten times the scale of the rest (seen after a 10-for-1 split), which made market cap ten times too large and booked a fake loss at the join. No price is ever changed by this check, and moves inside one provider page are not judged.
+- IBKR history: while a backtest waits on a history request, its progress heartbeat now reports the download as active (symbol, bar size, queue position and estimated wait) instead of an empty `download_status`, so a run that waits on market data no longer looks frozen.
+- IBKR daily history: after one gap repair request misses its queue deadline, later repairs in the same run do not wait for 120 seconds, so a busy data line costs a run one repair wait instead of one per symbol. The run continues with the bars it has and the repair is tried again later.
+
 ## 4.6.83 - 2026-11-17
 
 Deploy marker: cd39397acd7998874a8ddaebe4b086a9f1702eb2

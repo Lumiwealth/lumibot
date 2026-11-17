@@ -1762,6 +1762,24 @@ def get_price_data(
             source=history_source,
             source_was_explicit=source_was_explicit,
         )
+    elif (
+        not df_cache.empty
+        and asset_type == "future"
+        and str(timestep_component).endswith("minute")
+    ):
+        df_cache = _repair_futures_minute_gaps(
+            df_cache,
+            cache_file=cache_file,
+            asset=asset,
+            quote=quote,
+            timestep=timestep,
+            start_dt=start_utc,
+            end_dt=end_utc,
+            exchange=effective_exchange,
+            include_after_hours=include_after_hours,
+            source=history_source,
+            source_was_explicit=source_was_explicit,
+        )
 
     if df_cache.empty:
         return df_cache
@@ -3947,6 +3965,133 @@ def _minute_session_markers(
         },
         index=pd.DatetimeIndex([session_open for session_open, _ in sessions]),
     )
+
+
+# A futures minute cache can hold a hole between two earlier downloads (two backtests that
+# each fetched their own window). Only a hole of at least this long while the exchange was
+# open is fetched again; shorter quiet stretches are ordinary no-trade minutes.
+IBKR_FUTURES_MINUTE_GAP_MIN = timedelta(hours=2)
+_RUNTIME_FUTURES_GAPS_TRIED: Dict[str, set] = {}
+
+
+def _futures_minute_interior_gaps(
+    df_cache: pd.DataFrame,
+    *,
+    symbol: Optional[str],
+    start_dt: datetime,
+    end_dt: datetime,
+) -> list[tuple[pd.Timestamp, pd.Timestamp]]:
+    """Stretches between two cached real bars, inside the window, where the exchange was open.
+
+    The maintenance break, weekends and exchange holiday halts are closures, not holes.
+    Window edges are the caller's job; only gaps between two real bars count.
+    """
+    if df_cache is None or df_cache.empty:
+        return []
+    idx = pd.DatetimeIndex(df_cache.index)
+    idx = idx.tz_localize(LUMIBOT_DEFAULT_PYTZ) if idx.tz is None else idx.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+    if "missing" in df_cache.columns:
+        idx = idx[~df_cache["missing"].fillna(False).astype(bool).to_numpy()]
+    idx = idx.sort_values()
+    start = pd.Timestamp(_to_utc(start_dt)).tz_convert(LUMIBOT_DEFAULT_PYTZ)
+    end = pd.Timestamp(_to_utc(end_dt)).tz_convert(LUMIBOT_DEFAULT_PYTZ)
+    idx = idx[(idx >= start) & (idx <= end)]
+    if len(idx) < 2:
+        return []
+    step = pd.Timedelta(minutes=1)
+    gaps: list[tuple[pd.Timestamp, pd.Timestamp]] = []
+    spans = idx[1:] - idx[:-1]
+    for position in np.flatnonzero(spans > pd.Timedelta(IBKR_FUTURES_MINUTE_GAP_MIN)):
+        gap_start, gap_end = idx[position] + step, idx[position + 1]
+        if (_us_futures_closed_interval(gap_start.to_pydatetime(), gap_end.to_pydatetime())
+                or _futures_exchange_holiday_closed_interval(
+                    symbol, gap_start.to_pydatetime(), gap_end.to_pydatetime())):
+            continue
+        gaps.append((gap_start, gap_end))
+    return gaps
+
+
+def _futures_open_segments(
+    start: pd.Timestamp, end: pd.Timestamp, symbol: Optional[str]
+) -> list[tuple[pd.Timestamp, pd.Timestamp]]:
+    """Split [start, end) into the stretches in which the exchange was open (30 minute steps)."""
+    step = pd.Timedelta(minutes=30)
+    segments: list[tuple[pd.Timestamp, pd.Timestamp]] = []
+    open_from: Optional[pd.Timestamp] = None
+    cursor = start
+    while cursor < end:
+        nxt = min(cursor + step, end)
+        closed = (_us_futures_closed_interval(cursor.to_pydatetime(), nxt.to_pydatetime())
+                  or _futures_exchange_holiday_closed_interval(symbol, cursor.to_pydatetime(), nxt.to_pydatetime()))
+        if closed:
+            if open_from is not None:
+                segments.append((open_from, cursor))
+                open_from = None
+        elif open_from is None:
+            open_from = cursor
+        cursor = nxt
+    if open_from is not None:
+        segments.append((open_from, end))
+    return segments
+
+
+def _repair_futures_minute_gaps(
+    df_cache: pd.DataFrame,
+    *,
+    cache_file: Path,
+    asset: Asset,
+    quote: Optional[Asset],
+    timestep: str,
+    start_dt: datetime,
+    end_dt: datetime,
+    exchange: Optional[str],
+    include_after_hours: bool,
+    source: str,
+    source_was_explicit: bool,
+) -> pd.DataFrame:
+    """Fetch the hours missing inside a cached dated-futures minute series, once per process.
+
+    WHY (2026-11-16): a six month MNQ backtest holding the December contract failed after
+    21 minutes because the shared cache had no bars for 22 hours (Thursday 18:00 to Friday
+    15:55 ET) between two earlier downloads. Only stock and index minute caches had hole
+    repair, so the hole was served silently and every valuation in it counted as missing
+    data. A failed or empty answer writes nothing and is not asked again by this process.
+    """
+    series_key = str(cache_file)
+    tried = _RUNTIME_FUTURES_GAPS_TRIED.setdefault(series_key, set())
+    gaps = [gap for gap in _futures_minute_interior_gaps(
+        df_cache, symbol=getattr(asset, "symbol", None), start_dt=start_dt, end_dt=end_dt)
+        if gap not in tried]
+    if not gaps:
+        return df_cache
+    logger.info("IBKR futures minute cache repair: %d hole(s) inside the cached window for %s (%s to %s)",
+                len(gaps), getattr(asset, "symbol", None), gaps[0][0], gaps[-1][1])
+    working = df_cache
+    symbol = getattr(asset, "symbol", None)
+    for gap in reversed(gaps):
+        tried.add(gap)
+        # One request per open stretch: history pages backward and stops at the first
+        # empty page, so a window that ends inside a closure or spans one comes back short.
+        for open_start, open_end in reversed(_futures_open_segments(gap[0], gap[1], symbol)):
+            try:
+                fetched = _fetch_history_between_dates(
+                    asset=asset, quote=quote, timestep=timestep,
+                    start_dt=open_start.to_pydatetime(), end_dt=open_end.to_pydatetime(),
+                    exchange=exchange, include_after_hours=include_after_hours,
+                    source=source, source_was_explicit=source_was_explicit,
+                    _record_missing_on_empty=False,
+                )
+            except Exception as exc:
+                logger.warning("IBKR futures minute cache repair could not fetch %s %s to %s: %s",
+                               symbol, open_start, open_end, exc)
+                continue
+            if fetched is not None and not fetched.empty:
+                working = _merge_frames(working, fetched)
+    if not working.equals(df_cache):
+        published = _write_cache_frame(cache_file, working)
+        if published is not None:
+            working = published
+    return working
 
 
 def _repair_us_stock_index_minute_gaps(

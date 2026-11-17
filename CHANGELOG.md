@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.84 - Unreleased
+## 4.6.84 - 2026-11-17
 
 ### Fixed
 - Live futures bots: a live bot on a calendar whose sessions open the evening before their date (`us_futures`, for example ProjectX/TopstepX) no longer crash-loops when started after the 6 PM ET reopen. `get_time_to_close()` measured to today's calendar row, which had already closed while the market was open, so it went negative, and the executor then tried to move the clock with `_update_datetime`, which only backtesting brokers have (`'ProjectX' object has no attribute '_update_datetime'`). The bot never ran an iteration. Time to close and `market_close_time()` now use the session that is open now, and the clock nudge runs only for backtesting brokers. Backtests are unchanged.

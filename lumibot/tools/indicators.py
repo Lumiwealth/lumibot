@@ -1813,6 +1813,32 @@ def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataF
     return df_final
 
 
+def _total_return_with_two_decimals(shown, returns) -> object:
+    """``shown`` with two decimals when it is the series' total return rounded to a whole percent.
+
+    The report library prints Total Return without decimals ("2%") while every other row
+    keeps two ("6.81%"), so a 1.67% result reads as 2%. The figure is refined only when the
+    compounded return of ``returns`` rounds to the same whole percent; anything else
+    (already has decimals, not a percent, or a different number) is returned unchanged.
+    """
+    if not isinstance(shown, str) or returns is None:
+        return shown
+    text = shown.strip()
+    if not text.endswith("%") or "." in text:
+        return shown
+    try:
+        whole = float(text[:-1].replace(",", ""))
+        series = pd.to_numeric(pd.Series(returns), errors="coerce").dropna()
+        if series.empty:
+            return shown
+        total = float((1.0 + series).prod() - 1.0) * 100.0
+    except Exception:
+        return shown
+    if not math.isfinite(total) or f"{total:,.0f}%" != f"{whole:,.0f}%":
+        return shown
+    return f"{total:,.2f}%"
+
+
 def create_tearsheet(
     strategy_df: pd.DataFrame,
     strat_name: str,
@@ -2201,6 +2227,33 @@ def create_tearsheet(
         except Exception as exc:
             logger.warning("Failed to generate tearsheet metrics JSON: %s", exc)
             _write_tearsheet_metrics_json(f"metrics_json_error: {exc}")
+
+    # Total Return keeps two decimals like the other rows (returned frame, which becomes
+    # the tearsheet CSV, and the metrics JSON).
+    try:
+        if isinstance(result, pd.DataFrame) and "Total Return" in result.index:
+            strategy_column = "Strategy" if "Strategy" in result.columns else result.columns[-1]
+            for column in result.columns:
+                series = df_final["strategy"] if column == strategy_column else benchmark_series
+                result.loc["Total Return", column] = _total_return_with_two_decimals(
+                    result.loc["Total Return", column], series
+                )
+        if tearsheet_metrics_file and os.path.exists(str(tearsheet_metrics_file)):
+            with open(str(tearsheet_metrics_file), "r", encoding="utf-8") as handle:
+                written = json.load(handle)
+            changed = False
+            for key, series in (("scalar_metrics", df_final["strategy"]), ("benchmark_scalar_metrics", benchmark_series)):
+                block = written.get(key) if isinstance(written, dict) else None
+                if isinstance(block, dict) and "Total Return" in block:
+                    refined = _total_return_with_two_decimals(block["Total Return"], series)
+                    if refined != block["Total Return"]:
+                        block["Total Return"] = refined
+                        changed = True
+            if changed:
+                with open(str(tearsheet_metrics_file), "w", encoding="utf-8") as handle:
+                    json.dump(written, handle, indent=2)
+    except Exception as exc:
+        logger.warning("Could not refine the Total Return display: %s", exc)
 
     disable_ui = _env_flag_enabled("LUMIBOT_DISABLE_UI", default=False) or bool(os.environ.get("PYTEST_CURRENT_TEST"))
 

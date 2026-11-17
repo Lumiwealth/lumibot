@@ -5516,23 +5516,35 @@ def _lookup_conid_remote(
     base_url = _downloader_base_url()
     url = f"{base_url}/ibkr/iserver/secdef/search"
 
-    if preferred_sec_types:
-        for sec_type in preferred_sec_types:
-            payload = queue_request(
-                url=url,
-                querystring={"symbol": asset.symbol, "secType": sec_type},
-                headers=None,
-                timeout=None,
-            )
-            conid = _extract_conid(payload, (sec_type,))
-            if conid is not None:
-                return int(conid)
+    # The symbol as written first. A stock share class written with a dot or a dash ("ABC.B",
+    # "ABC-B") is listed by IBKR with a space ("ABC B"), so that form is asked next when the
+    # written one finds nothing.
+    search_symbols = [asset.symbol]
+    # Only a short class suffix counts ("ABC.B", "ABC-A"); other dashed or dotted symbols are
+    # asked as written, so an unknown symbol still costs the same two lookups.
+    if asset_type == "stock" and re.fullmatch(r"[A-Za-z]+[.-][A-Za-z]{1,2}", str(asset.symbol)):
+        spaced = str(asset.symbol).replace(".", " ").replace("-", " ")
+        if spaced not in search_symbols:
+            search_symbols.append(spaced)
 
-    # Default: fall back to secdef search, but still filter ambiguous symbols by asset type.
-    payload = queue_request(url=url, querystring={"symbol": asset.symbol}, headers=None, timeout=None)
-    conid = _extract_conid(payload, preferred_sec_types)
-    if conid is not None:
-        return int(conid)
+    for search_symbol in search_symbols:
+        if preferred_sec_types:
+            for sec_type in preferred_sec_types:
+                payload = queue_request(
+                    url=url,
+                    querystring={"symbol": search_symbol, "secType": sec_type},
+                    headers=None,
+                    timeout=None,
+                )
+                conid = _extract_conid(payload, (sec_type,))
+                if conid is not None:
+                    return int(conid)
+
+        # Default: fall back to secdef search, but still filter ambiguous symbols by asset type.
+        payload = queue_request(url=url, querystring={"symbol": search_symbol}, headers=None, timeout=None)
+        conid = _extract_conid(payload, preferred_sec_types)
+        if conid is not None:
+            return int(conid)
 
     currency_detail = f", currency={requested_currency}" if requested_currency else ""
     message = f"Unable to resolve IBKR conid for {asset.symbol} (type={asset_type}{currency_detail})"

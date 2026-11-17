@@ -17,6 +17,9 @@ browser.
 
 - **Average Annual Return:** The yearly return of the strategy.
 - **Total Return:** The overall return from the start to the end of the backtest period.
+  In ``*_tearsheet.csv`` and ``*_tearsheet_metrics.json`` it is written with two
+  decimals, like the other rows (for example ``1.67%``, not ``2%``). The HTML page
+  keeps the report library's whole-percent figure.
 - **Sharpe Ratio:** A measure of risk-adjusted return.
 - **RoMaD (Return over Maximum Drawdown):** A ratio that compares return to the maximum drawdown.
 - **Sortino Ratio:** A variation of the Sharpe ratio that differentiates harmful volatility from total overall volatility.

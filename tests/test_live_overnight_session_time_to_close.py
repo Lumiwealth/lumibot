@@ -49,7 +49,9 @@ def live_broker_at(monkeypatch, market, local_time):
     class FrozenDatetime(real_datetime):
         @classmethod
         def now(cls, tz=None):
-            moment = now.astimezone(tz) if tz is not None else now.astimezone(NEW_YORK).replace(tzinfo=None)
+            # A naive now() is the machine's own local time (CI and servers run in UTC),
+            # exactly like the real datetime.now().
+            moment = now.astimezone(tz) if tz is not None else now.astimezone().replace(tzinfo=None)
             return cls(
                 moment.year, moment.month, moment.day, moment.hour, moment.minute, moment.second,
                 tzinfo=moment.tzinfo,

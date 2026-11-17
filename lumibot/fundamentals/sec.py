@@ -129,6 +129,8 @@ _METRIC_TAG_SET = tuple(dict.fromkeys(tag for tags in _METRIC_TAGS.values() for 
 # gzip file beside the full SEC companyfacts file (which is several MB per company). Later runs
 # read the compact file first and open the full file only for a tag outside this set.
 _COMPACT_FACTS_VERSION = 1
+_ACCEPTANCE_TIMES_VERSION = 1
+_COVER_COUNTS_VERSION = 1
 _COMPACT_TAGS = tuple(sorted({*_PRIORITY_COMPANY_FACT_TAGS, *_METRIC_TAG_SET}))
 _COMPACT_ROW_FIELDS = ("end", "start", "val", "accn", "form", "fy", "fp", "frame", "filed")
 
@@ -575,6 +577,7 @@ class SECFundamentals:
         self._timeline_locks_guard = threading.Lock()
         self._cover_counts: dict[tuple[str, str], dict[str, Any] | None] = {}
         self._cover_counts_lock = threading.Lock()
+        self._cover_count_files: dict[str, dict[str, Any]] = {}
         self._as_traded_memo: dict[str, tuple[Any, "_AsTradedPrices"]] = {}
         self._as_traded_lock = threading.Lock()
 
@@ -1056,20 +1059,96 @@ class SECFundamentals:
         with self._timeline_lock(timeline.cik):
             if timeline.acceptance_loaded:
                 return
-            acceptance: dict[str, str] = {}
             try:
-                recent = self._get_submissions_payload(symbol, timeline.cik).get("filings", {}).get("recent", {})
-                accessions = recent.get("accessionNumber") or []
-                accepted = recent.get("acceptanceDateTime") or []
-                for index, accession in enumerate(accessions):
-                    if index < len(accepted) and accepted[index]:
-                        acceptance[str(accession)] = str(accepted[index])
+                acceptance = self._load_acceptance_times(symbol, timeline.cik)
             except Exception:
                 # Without acceptance times every filing stays at the conservative
                 # "next day" availability. Never retried within this process.
                 acceptance = {}
             with timeline.lock:
                 timeline.apply_acceptance(acceptance)
+
+    def _acceptance_times_location(self, cik: str) -> tuple[Path, str]:
+        name = f"CIK{cik}.v{_ACCEPTANCE_TIMES_VERSION}.json"
+        return self._cache_path("submissions_acceptance", name), f"sec/submissions_acceptance/{name}"
+
+    def _load_acceptance_times(self, symbol: str, cik: str) -> dict[str, str]:
+        """Accession number -> SEC acceptance time for a company's recent filings.
+
+        PERF: only these two columns of the company's submissions file are used, and that file
+        is hundreds of kilobytes. They are kept in a small file of their own (local and shared
+        cache) that carries the submissions file's SEC fetch time, so the same freshness rules
+        decide whether it can be used. A missing or stale small file is rebuilt from the
+        submissions file exactly as before.
+        """
+        cache_path, remote_relative = self._acceptance_times_location(cik)
+        from_remote = False
+        usable = self._cache_is_usable(cache_path, mutable=True)
+        if not usable and self._pull_remote(cache_path, remote_relative):
+            from_remote = True
+        if usable or from_remote:
+            try:
+                stored = json.loads(cache_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                stored = None
+            if isinstance(stored, dict) and isinstance(stored.get("acceptance"), dict):
+                meta_path = self._cache_meta_path(cache_path)
+                if stored.get("fetched_at") and (from_remote or not meta_path.exists()):
+                    meta_path.write_text(json.dumps({"fetched_at": stored["fetched_at"]}), encoding="utf-8")
+                if self._cache_is_usable(cache_path, mutable=True):
+                    return {str(key): str(value) for key, value in stored["acceptance"].items()}
+        payload = self._get_submissions_payload(symbol, cik)
+        recent = payload.get("filings", {}).get("recent", {})
+        accessions = recent.get("accessionNumber") or []
+        accepted = recent.get("acceptanceDateTime") or []
+        acceptance: dict[str, str] = {}
+        for index, accession in enumerate(accessions):
+            if index < len(accepted) and accepted[index]:
+                acceptance[str(accession)] = str(accepted[index])
+        fetched_at = str(payload.get("fetched_at") or "")
+        try:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp_path = cache_path.with_name(f"{cache_path.name}.tmp-{os.getpid()}-{threading.get_ident()}")
+            tmp_path.write_text(
+                json.dumps({"cik": cik, "fetched_at": fetched_at, "acceptance": acceptance}, separators=(",", ":")),
+                encoding="utf-8",
+            )
+            os.replace(tmp_path, cache_path)
+            self._cache_meta_path(cache_path).write_text(json.dumps({"fetched_at": fetched_at}), encoding="utf-8")
+        except OSError:
+            return acceptance
+        self._push_remote(cache_path, remote_relative)
+        return acceptance
+
+    def _prefetch_acceptance_times(self, symbols: list[str], as_of: Any | None) -> None:
+        """Load, in parallel, the acceptance times the companies in ``symbols`` need at ``as_of``.
+
+        The same companies and the same files as the per-company lookup that follows; only the
+        waiting is shared instead of one company after another.
+        """
+        try:
+            as_ts = _timestamp(self._resolve_as_of(as_of))
+        except Exception:
+            return  # the per-company lookup reports the problem as before
+        needed: list[tuple[str, _CompanyTimeline]] = []
+        for symbol in symbols:
+            try:
+                timeline = self._timelines.get(self.ticker_to_cik(symbol))
+            except Exception:
+                continue
+            if timeline is not None and not timeline.acceptance_loaded and timeline.needs_acceptance(as_ts):
+                needed.append((symbol, timeline))
+        if len(needed) < 2:
+            return
+        with ThreadPoolExecutor(max_workers=min(8, len(needed)), thread_name_prefix="sec-acceptance") as pool:
+            list(pool.map(lambda item: self._ensure_acceptance(item[0], item[1], as_ts), needed))
+
+    def _timeline_ready(self, symbol: str) -> bool:
+        try:
+            timeline = self._timelines.get(self.ticker_to_cik(symbol))
+        except Exception:
+            return False
+        return timeline is not None and self._timeline_is_fresh(timeline)
 
     def _point_in_time(self, symbol: str, as_of: Any | None, extra_tags: Iterable[str] = ()):
         as_of_dt = self._resolve_as_of(as_of)
@@ -1749,7 +1828,11 @@ class SECFundamentals:
         requested = list(FUNDAMENTAL_METRICS) if metrics is None else [str(name) for name in metrics]
         symbol_list = list(dict.fromkeys(str(symbol).upper().strip() for symbol in symbols if str(symbol or "").strip()))
         if preload:
-            self.preload(symbol_list)
+            # Companies already loaded and fresh need no second pass (one thread task each).
+            pending = [symbol for symbol in symbol_list if not self._timeline_ready(symbol)]
+            if pending:
+                self.preload(pending)
+        self._prefetch_acceptance_times(symbol_list, as_of)
         price_map = {str(key).upper(): value for key, value in (prices or {}).items()}
         if any(name in _PRICE_METRICS for name in requested):
             self._prefetch_as_traded_prices([symbol for symbol in symbol_list if price_map.get(symbol) is None])
@@ -1812,7 +1895,53 @@ class SECFundamentals:
             self._cover_counts[memo_key] = result
         return result
 
+    def _cover_counts_location(self, cik: str) -> tuple[Path, str]:
+        name = f"CIK{cik}.v{_COVER_COUNTS_VERSION}.json"
+        return self._cache_path("cover_share_counts", name), f"sec/cover_share_counts/{name}"
+
+    def _company_cover_counts(self, cik: str) -> dict[str, Any]:
+        """Accession number -> cover-page share counts already read for this company.
+
+        PERF: reading one filing's counts needs its file list and its XBRL data (megabytes).
+        The result is a few numbers and a filing never changes, so results are kept per
+        company in one small file (local and shared cache) and each filing is read once.
+        """
+        with self._cover_counts_lock:
+            known = self._cover_count_files.get(cik)
+        if known is not None:
+            return known
+        cache_path, remote_relative = self._cover_counts_location(cik)
+        if not cache_path.exists():
+            self._pull_remote(cache_path, remote_relative)
+        try:
+            stored = json.loads(cache_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            stored = None
+        counts = stored.get("filings") if isinstance(stored, dict) else None
+        with self._cover_counts_lock:
+            return self._cover_count_files.setdefault(cik, counts if isinstance(counts, dict) else {})
+
     def _load_cover_share_counts(self, cik: str, accession: str) -> dict[str, Any] | None:
+        known = self._company_cover_counts(cik)
+        with self._cover_counts_lock:
+            if accession in known:
+                return known[accession]
+        counts = self._read_cover_share_counts(cik, accession)
+        cache_path, remote_relative = self._cover_counts_location(cik)
+        with self._cover_counts_lock:
+            known[accession] = counts
+            body = json.dumps({"cik": cik, "filings": known}, separators=(",", ":"))
+        try:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp_path = cache_path.with_name(f"{cache_path.name}.tmp-{os.getpid()}-{threading.get_ident()}")
+            tmp_path.write_text(body, encoding="utf-8")
+            os.replace(tmp_path, cache_path)
+        except OSError:
+            return counts
+        self._push_remote(cache_path, remote_relative)
+        return counts
+
+    def _read_cover_share_counts(self, cik: str, accession: str) -> dict[str, Any] | None:
         derived = self._cache_path("filings", cik, accession, "cover_share_counts.json")
         if derived.exists():
             return json.loads(derived.read_text(encoding="utf-8"))

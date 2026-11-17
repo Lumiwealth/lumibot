@@ -326,6 +326,23 @@ freshness rules. A fact outside the compact set (``get_fact_history`` with any
 other tag, ``get_company_facts(raw=True)``) opens the full file for that
 company only.
 
+Two more small files keep large SEC files out of a backtest's loop. Both hold
+values read from SEC files, nothing estimated, and both are stored in the local
+cache and in the remote backtest cache when one is configured:
+
+- ``sec/submissions_acceptance/``: the exact acceptance time of each recent
+  filing of a company (two columns of its submissions file, which is hundreds
+  of kilobytes). It carries the submissions file's SEC fetch time and follows
+  the same freshness rules. ``get_metrics_table`` loads the ones a date needs
+  for the whole universe together.
+- ``sec/cover_share_counts/``: for companies that file share counts per share
+  class, the counts read from each filing's cover page. A filing never changes,
+  so its XBRL data (megabytes) is read once, not once per backtest.
+
+Measured on the 503 companies of a large-cap index, one ``market_cap`` table per
+month on a warm local cache: 0.69 seconds per table before, 0.33 seconds after,
+same values.
+
 .. code-block:: python
 
    symbols = ["AAPL", "MSFT", "NVDA", ...]              # your universe

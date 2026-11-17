@@ -3,7 +3,7 @@
   "source_commit": "b131985383a06f69e60c8b16fce0ef03ea8f60b1",
   "receipt_sha256": "348979ded0fc98f5a74972e19f478eb8c73fb37919af72e81293b4cfb882ade5",
   "author_review": {
-    "candidate_runtime_fingerprint": "d4ff8f61a57a0b8d2447f7269aea6baba0a23977e601d51e3b8888c8edff95fd",
+    "candidate_runtime_fingerprint": "c7bac70cad5f1829121a48c6625b61384cf275b8d7d8008bee1923e9af6bda82",
     "case_ids": [
       "options_single_leg_chain_and_quote",
       "options_unequal_call_ratio_atomic_open"

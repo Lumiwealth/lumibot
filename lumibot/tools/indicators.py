@@ -1623,12 +1623,25 @@ def plot_returns(
     fig.write_html(plot_file_html, auto_open=show_plot and not disable_ui)
 
 
-def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataFrame):
-    if strategy_df is None or benchmark_df is None:
-        return None
+def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataFrame, *,
+                               benchmark_optional: bool = False):
+    """Daily strategy and benchmark returns for the tearsheet.
 
-    if strategy_df.empty or benchmark_df.empty:
+    By default a missing or incomplete benchmark makes the whole result None (a comparison
+    was asked for and cannot be made). With ``benchmark_optional`` the strategy's own
+    returns are still returned, without a ``benchmark`` column, and
+    ``result.attrs["benchmark_unavailable_reason"]`` says why the comparison is missing:
+    ``no_benchmark`` or ``benchmark_does_not_cover_window``. Benchmark returns are never
+    invented for days the benchmark does not have.
+    """
+    if strategy_df is None or strategy_df.empty:
         return None
+    benchmark_reason = None
+    if benchmark_df is None or benchmark_df.empty:
+        if not benchmark_optional:
+            return None
+        benchmark_reason = "no_benchmark"
+        benchmark_df = pd.DataFrame({"symbol_cumprod": pd.Series(dtype="float64")})
 
     # PERF/MEMORY: Backtests can carry very wide `strategy_df` frames (positions, orders, debug
     # columns, etc.). QuantStats only needs the cash-flow-adjusted return series (preferred) or
@@ -1728,7 +1741,10 @@ def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataF
         benchmark_cumprod = pd.to_numeric(_benchmark_df["symbol_cumprod"], errors="coerce")
         benchmark_cumprod = benchmark_cumprod.sort_index().groupby(level=0).last().dropna()
         if benchmark_cumprod.empty:
-            return None
+            if not benchmark_optional:
+                return None
+            benchmark_reason = benchmark_reason or "no_benchmark"
+            benchmark_returns = None
         else:
             benchmark_daily = benchmark_cumprod.resample("D").last().ffill()
             benchmark_returns = benchmark_daily.pct_change(fill_method=None).fillna(0.0)
@@ -1737,12 +1753,19 @@ def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataF
                 benchmark_returns.loc[strategy_anchor_day] = 0.0
             if benchmark_returns.isna().any():
                 logger.warning("Benchmark does not cover the strategy valuation window; comparison unavailable.")
-                return None
-            benchmark_returns.name = "benchmark"
+                if not benchmark_optional:
+                    return None
+                benchmark_reason = "benchmark_does_not_cover_window"
+                benchmark_returns = None
+            else:
+                benchmark_returns.name = "benchmark"
     else:
         benchmark_returns = pd.Series(0.0, index=strategy_returns.index, name="benchmark")
 
-    df_final = pd.concat([strategy_returns, benchmark_returns], axis=1)
+    if benchmark_returns is None:
+        df_final = strategy_returns.to_frame()
+    else:
+        df_final = pd.concat([strategy_returns, benchmark_returns], axis=1)
     df_final.index = pd.to_datetime(df_final.index)
     df_final.index = df_final.index.tz_localize(None)
 
@@ -1771,14 +1794,21 @@ def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataF
         if needs_anchor:
             anchor_index = df_final.index[0] - pd.Timedelta(days=1)
             anchor_row = pd.DataFrame(
-                {"strategy": [0.0], "benchmark": [0.0]},
+                {column: [0.0] for column in df_final.columns},
                 index=[anchor_index],
             )
             df_final = pd.concat([anchor_row, df_final], axis=0)
             df_final = df_final[~df_final.index.duplicated(keep="last")]
 
-    if df_final.empty or df_final["benchmark"].isnull().all() or df_final["strategy"].isnull().all():
+    if df_final.empty or df_final["strategy"].isnull().all():
         return None
+    if "benchmark" in df_final.columns and df_final["benchmark"].isnull().all():
+        if not benchmark_optional:
+            return None
+        df_final = df_final.drop(columns=["benchmark"])
+        benchmark_reason = benchmark_reason or "no_benchmark"
+    if benchmark_reason is not None:
+        df_final.attrs["benchmark_unavailable_reason"] = benchmark_reason
 
     return df_final
 
@@ -1851,7 +1881,9 @@ def create_tearsheet(
                 exc,
             )
 
-    df_final = _prepare_tearsheet_returns(strategy_df, benchmark_df)
+    # The strategy's own numbers never depend on a benchmark: a missing or non-overlapping
+    # benchmark only removes the comparison, and the metrics file says so.
+    df_final = _prepare_tearsheet_returns(strategy_df, benchmark_df, benchmark_optional=True)
 
     if df_final is None:
         logger.warning("No data to create tearsheet; writing placeholder and skipping QuantStats.")
@@ -1865,14 +1897,23 @@ def create_tearsheet(
     # df.to_csv(f"df.csv")
     # df_final.to_csv(f"df_final.csv")
 
-    bm_text = f"Compared to {benchmark_asset}" if benchmark_asset else ""
-    title = f"{strat_name} {bm_text}"
+    benchmark_unavailable_reason = df_final.attrs.get("benchmark_unavailable_reason")
+    if "benchmark" in df_final.columns and benchmark_unavailable_reason is None:
+        if df_final["benchmark"].dropna().nunique() <= 1 and df_final["strategy"].dropna().nunique() > 1:
+            # A benchmark that never moves cannot be compared with; keep the strategy's numbers.
+            benchmark_unavailable_reason = "benchmark_is_flat"
+            df_final = df_final.drop(columns=["benchmark"])
+    has_benchmark = "benchmark" in df_final.columns
+    benchmark_series = df_final["benchmark"] if has_benchmark else None
+
+    bm_text = f"Compared to {benchmark_asset}" if benchmark_asset and has_benchmark else ""
+    title = f"{strat_name} {bm_text}".strip()
 
     # QuantStats (via seaborn/scipy) can raise (e.g., LinAlgError) when the return series is
     # degenerate, such as no trades and a flat portfolio value. In these cases we must not
     # crash the backtest; write a placeholder tearsheet instead.
     strategy_returns = df_final["strategy"].dropna()
-    benchmark_returns = df_final["benchmark"].dropna()
+    benchmark_returns = df_final["benchmark"].dropna() if has_benchmark else strategy_returns
     if strategy_returns.empty or benchmark_returns.empty or strategy_returns.nunique() <= 1 or benchmark_returns.nunique() <= 1:
         logger.warning(
             "Not enough return variation to generate QuantStats tearsheet (strategy unique=%d, benchmark unique=%d); writing placeholder.",
@@ -1895,14 +1936,15 @@ def create_tearsheet(
         return
     '''
     # Set the name of the benchmark column so that quantstats can use it in the report
-    df_final["benchmark"].name = str(benchmark_asset)
+    if has_benchmark:
+        df_final["benchmark"].name = str(benchmark_asset)
 
     # Run quantstats reports surpressing any logs because it can be noisy for no reason
     try:
         with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
             result = qs.reports.html(
                 df_final["strategy"],
-                df_final["benchmark"],
+                benchmark_series,
                 title=title,
                 output=tearsheet_file,
                 download_filename=tearsheet_file,  # Consider if you need a different name for clarity
@@ -1988,7 +2030,7 @@ def create_tearsheet(
                 with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
                     result = qs.reports.html(
                         df_final["strategy"],
-                        df_final["benchmark"],
+                        benchmark_series,
                         title=title,
                         output=tearsheet_file,
                         download_filename=tearsheet_file,
@@ -2072,7 +2114,7 @@ def create_tearsheet(
         with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
             metrics_df = qs.reports.metrics(
                 df_final["strategy"],
-                df_final["benchmark"],
+                benchmark_series,
                 rf=risk_free_rate,
                 display=False,
                 custom_metrics=custom_metrics,
@@ -2116,7 +2158,7 @@ def create_tearsheet(
             },
             "scalar_metrics": scalar_metrics,
         }
-        if benchmark_scalar_metrics:
+        if benchmark_scalar_metrics and has_benchmark:
             payload["benchmark_scalar_metrics"] = benchmark_scalar_metrics
 
         with open(str(tearsheet_metrics_file), "w", encoding="utf-8") as handle:
@@ -2132,7 +2174,7 @@ def create_tearsheet(
                 with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
                     metrics_json_fn(
                         df_final["strategy"],
-                        df_final["benchmark"],
+                        benchmark_series,
                         rf=risk_free_rate,
                         output=tearsheet_metrics_file,
                         summary_only=True,
@@ -2141,6 +2183,20 @@ def create_tearsheet(
                     )
             else:
                 _write_tearsheet_metrics_json_fallback()
+            if benchmark_unavailable_reason is not None:
+                # Say that the comparison is missing and why; the strategy numbers stand.
+                with open(str(tearsheet_metrics_file), "r", encoding="utf-8") as handle:
+                    written = json.load(handle)
+                if isinstance(written, dict):
+                    metadata = written.get("metadata")
+                    if not isinstance(metadata, dict):
+                        metadata = {}
+                        written["metadata"] = metadata
+                    metadata.setdefault("status", "ok")
+                    metadata["benchmark"] = {"status": "unavailable", "reason": benchmark_unavailable_reason}
+                    written.pop("benchmark_scalar_metrics", None)
+                    with open(str(tearsheet_metrics_file), "w", encoding="utf-8") as handle:
+                        json.dump(written, handle, indent=2)
             logger.info("Tearsheet metrics JSON saved to %s", tearsheet_metrics_file)
         except Exception as exc:
             logger.warning("Failed to generate tearsheet metrics JSON: %s", exc)

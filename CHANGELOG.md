@@ -2,6 +2,9 @@
 
 ## 4.6.82 - Unreleased
 
+### Fixed
+- A backtest without a benchmark now gets its own performance numbers. With `benchmark_asset=None` (common for futures runs), or with a benchmark that had no prices for the tested window, the tearsheet step wrote a placeholder page and a metrics file saying `unavailable` / `insufficient_data`, although the strategy's daily returns were all there, so nothing downstream could read its Sharpe ratio, Sortino ratio or drawdown. The strategy's numbers are now written whenever its return series exists. A missing, non-overlapping or flat benchmark only leaves out the comparison, and `*_tearsheet_metrics.json` says so in `metadata.benchmark` (`status: unavailable`, `reason: no_benchmark`, `benchmark_does_not_cover_window` or `benchmark_is_flat`); benchmark returns are never invented. Runs with a covering benchmark are unchanged. Documented in `docsrc/backtesting.tearsheet_html.rst`.
+
 ## 4.6.81 - 2026-11-17
 
 Deploy marker: 14cac31043f0bac29bf27547235cc5cc0f2bbefd

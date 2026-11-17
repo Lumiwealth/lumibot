@@ -1572,6 +1572,22 @@ class _Strategy:
 
     # =============Auto updating functions=============
 
+    @staticmethod
+    def _position_fill_price(position):
+        """The price this position was opened at, or None: its own average fill price, otherwise
+        the newest filled order it holds. Used to value a position no market mark exists for yet."""
+        candidates = [getattr(position, "avg_fill_price", None)]
+        for order in reversed(getattr(position, "orders", None) or []):
+            candidates.append(getattr(order, "avg_fill_price", None))
+        for candidate in candidates:
+            try:
+                value = float(candidate)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(value) and value > 0:
+                return value
+        return None
+
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""
         # Live runs don't need to recalculate portfolio value here, as the broker sync should handle it
@@ -1658,6 +1674,24 @@ class _Strategy:
                         source = data_source
                     prices[asset] = self._get_price_from_source(source, asset)
 
+            # Every option leg is valued for the same moment: a leg with no real price on this
+            # bar gets an estimate for now instead of a trade from an earlier bar. See
+            # BacktestingBroker.option_marks_for_valuation.
+            option_marker = getattr(self.broker, "option_marks_for_valuation", None)
+            if callable(option_marker) and option_marking_allowed:
+                held_options = [
+                    asset for asset in prices
+                    if isinstance(asset, Asset) and _asset_type_key(asset) == "option"
+                ]
+                if held_options:
+                    try:
+                        estimated_marks = option_marker(held_options, quote_asset)
+                    except Exception:
+                        self.logger.debug("Option valuation estimates unavailable", exc_info=True)
+                        estimated_marks = None
+                    if isinstance(estimated_marks, dict):
+                        prices.update(estimated_marks)
+
             for position in positions:
                 position_asset = position.asset
                 position_asset_type = _asset_type_key(position_asset)
@@ -1719,6 +1753,14 @@ class _Strategy:
                         price = self._last_known_prices[asset]
                         base_asset = asset[0] if isinstance(asset, tuple) else asset
                         carried_marks.append(str(base_asset))
+                    elif self._position_fill_price(position) is not None:
+                        # No market mark has ever been seen for this position (it was just opened,
+                        # before its contract printed or outside option marking hours). Its own fill
+                        # price is a known price from the moment it was opened, so every leg of a
+                        # new multi-leg position is valued from that same moment instead of some
+                        # legs being left out. Valuation only: it is not stored as a market mark,
+                        # so the first real mark replaces it.
+                        price = self._position_fill_price(position)
                     else:
                         # No price history - must skip this position
                         if isinstance(asset, Asset):
@@ -3747,6 +3789,7 @@ class _Strategy:
                     data_source,
                     logdir,
                     fill_price_counts=getattr(self.broker, "_option_fill_price_counts", None),
+                    valuation_mark_counts=getattr(self.broker, "_option_valuation_mark_counts", None),
                 )
             except Exception as exc:
                 # Diagnostics must not make an otherwise valid simulation fail.

@@ -319,63 +319,48 @@ def test_binance_route_serves_perpetual_candles(monkeypatch):
     assert (spec.base, spec.quote) == ("BTC", "USDT")
 
 
-def test_window_past_published_files_is_reported_unavailable(monkeypatch):
+def test_window_past_published_files_runs_to_the_last_bar_and_says_so(monkeypatch):
     router = _router({"crypto_future": "binance", "default": "ibkr"}, monkeypatch, _perp_archive(),
                      end="2026-08-04 05:00")
-    with pytest.raises(PerpetualDataUnavailable) as caught:
-        router._update_pandas_data(PERP, USDT, 2, "hour")
-    assert caught.value.reason == "no_data_for_window"
-    assert "2026-08-03 23:00" in str(caught.value) and "PERPETUAL_DATA_UNAVAILABLE" in str(caught.value)
+    router._update_pandas_data(PERP, USDT, 2, "hour")  # must not raise
+    # The run ends where the data ends (last bar opens 23:00, so it closes at midnight): nothing is invented.
+    assert pd.Timestamp(router.datetime_end) == pd.Timestamp("2026-08-04 00:00", tz="UTC")
+    notice = next(n for n in router.get_data_provenance()["notices"] if n["kind"] == "data_ends_before_requested_end")
+    assert notice["symbol"] == "BTCUSDT" and notice["source"] == "binance_usdm_bulk"
+    assert notice["through"] == "2026-08-04T00:00:00+00:00"
+    assert notice["requested_end"] == "2026-08-04T04:59:00+00:00"  # the router stops one minute early
+    assert "Data for BTCUSDT ends on 2026-08-03 23:00 UTC" in notice["message"]
 
 
-@pytest.mark.parametrize("timestep,interval,periods,last_open,seconds", [
-    ("hour", "1h", 24, "2026-08-03T23:00:00+00:00", 3600),
-    ("minute", "1m", 1440, "2026-08-03T23:59:00+00:00", 60),
-])
-def test_unpublished_tail_reports_request_bound_bar_facts(
-    monkeypatch, timestep, interval, periods, last_open, seconds,
-):
-    archive = _Archive()
-    archive.add(f"futures/um/daily/klines/BTCUSDT/{interval}/BTCUSDT-{interval}-2026-08-03.zip",
-                _kline_rows("2026-08-03", periods, pd.Timedelta(seconds=seconds), 100))
-    router = _router({"crypto_future": "binance", "default": "ibkr"}, monkeypatch, archive,
+def test_second_symbol_after_the_clamp_does_not_repeat_the_notice_or_move_the_end(monkeypatch):
+    router = _router({"crypto_future": "binance", "default": "ibkr"}, monkeypatch, _perp_archive(),
                      end="2026-08-04 05:00")
-    original_window = (router.datetime_start, router.datetime_end)
-    with pytest.raises(PerpetualDataUnavailable) as caught:
-        router._update_pandas_data(PERP, USDT, 2, timestep)
-
-    payload = json.loads(str(caught.value).split("PERPETUAL_DATA_UNAVAILABLE ", 1)[1])
-    tail = payload["observed_request_tail"]
-    assert tail == caught.value.observed_request_tail
-    assert tail["scope"] == "returned_request"
-    assert tail["requested_start"] == pd.Timestamp(original_window[0]).tz_convert("UTC").isoformat()
-    assert tail["requested_end"] == pd.Timestamp(original_window[1]).tz_convert("UTC").isoformat()
-    assert tail["last_bar_open"] == last_open
-    assert tail["bar_duration_seconds"] == seconds
-    assert tail["observed_end_exclusive"] == "2026-08-04T00:00:00+00:00"
-    assert pd.Timestamp(tail["fetch_start"]) <= pd.Timestamp(tail["first_bar_open"])
-    assert set(tail) == {"scope", "requested_start", "requested_end", "requested_timezone", "fetch_start",
-                         "first_bar_open", "last_bar_open", "bar_duration_seconds", "observed_end_exclusive"}
-    assert (router.datetime_start, router.datetime_end) == original_window
-    assert payload["source"] == "binance" and payload["reason"] == "no_data_for_window"
+    router._update_pandas_data(PERP, USDT, 2, "hour")
+    router._update_pandas_data(PERP, USDT, 2, "hour")
+    kinds = [n["kind"] for n in router.get_data_provenance()["notices"]]
+    assert kinds.count("data_ends_before_requested_end") == 1
+    assert pd.Timestamp(router.datetime_end) == pd.Timestamp("2026-08-04 00:00", tz="UTC")
 
 
-def test_unpublished_tail_preserves_the_requested_timezone_and_dates(monkeypatch):
+def test_window_entirely_after_the_published_files_still_fails(monkeypatch):
+    router = _router({"crypto_future": "binance", "default": "ibkr"}, monkeypatch, _perp_archive(),
+                     start="2026-08-04 02:00", end="2026-08-04 05:00")
+    with pytest.raises(PerpetualDataUnavailable):
+        router._update_pandas_data(PERP, USDT, 2, "hour")
+
+
+def test_clamp_keeps_the_requested_timezone(monkeypatch):
     router = _router({"crypto_future": "binance", "default": "ibkr"}, monkeypatch, _perp_archive())
     router.datetime_start = pd.Timestamp("2026-08-03", tz="America/New_York").to_pydatetime()
-    router.datetime_end = pd.Timestamp("2026-08-04", tz="America/New_York").to_pydatetime()
-    original_window = (router.datetime_start, router.datetime_end)
-    with pytest.raises(PerpetualDataUnavailable) as caught:
-        router._update_pandas_data(PERP, USDT, 2, "hour")
-    tail = caught.value.observed_request_tail
-    assert tail["requested_timezone"] == "America/New_York"
-    assert tail["requested_start"] == "2026-08-03T04:00:00+00:00"
-    assert tail["requested_end"] == "2026-08-04T04:00:00+00:00"
-    assert tail["observed_end_exclusive"] == "2026-08-04T00:00:00+00:00"
-    assert (router.datetime_start, router.datetime_end) == original_window
+    router.datetime_end = pd.Timestamp("2026-08-04 23:59", tz="America/New_York").to_pydatetime()
+    router._update_pandas_data(PERP, USDT, 2, "hour")
+    assert pd.Timestamp(router.datetime_end) == pd.Timestamp("2026-08-04 00:00", tz="UTC")
+    assert str(pd.Timestamp(router.datetime_end).tzinfo) == "America/New_York"
+    notice = router.get_data_provenance()["notices"][0]
+    assert notice["requested_end"] == "2026-08-05T03:59:00+00:00"
 
 
-def test_backtest_entrypoint_preserves_unpublished_tail_exception(monkeypatch, tmp_path):
+def test_backtest_entrypoint_runs_to_the_last_bar_when_the_end_is_unpublished(monkeypatch, tmp_path):
     from lumibot.strategies import Strategy
     import lumibot.tools.thetadata_helper as thetadata_helper
 
@@ -383,6 +368,7 @@ def test_backtest_entrypoint_preserves_unpublished_tail_exception(monkeypatch, t
     monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *_a, **_k: None)
     monkeypatch.setattr(thetadata_helper, "reset_theta_terminal_tracking", lambda *_a, **_k: None)
     archive = _perp_archive()
+    seen = []
 
     class RecordedArchiveRouter(RoutedBacktestingPandas):
         def __init__(self, *args, **kwargs):
@@ -396,20 +382,20 @@ def test_backtest_entrypoint_preserves_unpublished_tail_exception(monkeypatch, t
             self.sleeptime = "1H"
 
         def on_trading_iteration(self):
-            self.get_historical_prices(PERP, 2, timestep="hour", quote=USDT)
+            bars = self.get_historical_prices(PERP, 2, timestep="hour", quote=USDT)
+            seen.append((self.get_datetime(), None if bars is None else float(bars.df["close"].iloc[-1])))
 
-    with pytest.raises(PerpetualDataUnavailable) as caught:
-        ArchiveReader.backtest(
-            RecordedArchiveRouter, datetime(2026, 8, 3), datetime(2026, 8, 4),
-            quote_asset=USDT, budget=1000, benchmark_asset=None, risk_free_rate=0,
-            analyze_backtest=False, show_plot=False, show_tearsheet=False,
-            save_tearsheet=False, show_indicators=False, save_logfile=False,
-            save_stats_file=False, logdir=str(tmp_path),
-        )
-    tail = caught.value.observed_request_tail
-    assert tail["scope"] == "returned_request"
-    assert tail["observed_end_exclusive"] == "2026-08-04T00:00:00+00:00"
-    assert json.loads(str(caught.value).split("PERPETUAL_DATA_UNAVAILABLE ", 1)[1])["observed_request_tail"] == tail
+    ArchiveReader.backtest(
+        RecordedArchiveRouter, datetime(2026, 8, 3), datetime(2026, 8, 5),
+        quote_asset=USDT, budget=1000, benchmark_asset=None, risk_free_rate=0,
+        analyze_backtest=False, show_plot=False, show_tearsheet=False,
+        save_tearsheet=False, show_indicators=False, save_logfile=False,
+        save_stats_file=False, logdir=str(tmp_path),
+    )
+    assert seen, "the strategy never ran"
+    last_time = max(t for t, _ in seen)
+    assert pd.Timestamp(last_time) <= pd.Timestamp("2026-08-04 00:00", tz="UTC"), (seen[:2], seen[-2:], len(seen))
+    assert all(price is not None for _, price in seen)  # no tail without prices
 
 
 def test_unpublished_symbol_is_unavailable_with_a_hint(monkeypatch):

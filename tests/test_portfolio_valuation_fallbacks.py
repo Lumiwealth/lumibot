@@ -397,13 +397,58 @@ class TestForwardFill:
         assert value == pytest.approx(expected_value)
         assert strategy._last_known_prices[option_asset] == 80.0
 
+    def _no_price_source(self, strategy, now):
+        source = FakeSourceWithQuote()
+        strategy.broker.option_source = source
+        strategy.broker.data_source = MagicMock()
+        strategy.broker.data_source.get_last_price = MagicMock(return_value=None)
+        strategy.broker.data_source.get_datetime = MagicMock(return_value=now)
+        if hasattr(strategy, '_last_known_prices'):
+            del strategy._last_known_prices
+
+    def test_new_multileg_position_is_valued_at_its_fill_prices_until_marks_arrive(self):
+        """A spread opened before any mark exists is valued with every leg at its own fill price.
+
+        Before, a leg with no current price and no earlier mark was left out of the account value.
+        A just-opened short call plus two long calls was then valued with only some of its legs,
+        so the account value jumped by the whole premium of the missing legs for one row
+        (an account of about 180,000 read as about -289,000 for one row, then recovered).
+        """
+        strategy, short_call = self._setup_strategy_with_option()
+        long_call = Asset("GOOG", asset_type="option", expiration=date(2027, 6, 17), strike=200.0, right="CALL")
+        long_call.multiplier = 100
+
+        # Bought legs carry the fill price on the position; the sold leg only on its filled order.
+        from lumibot.entities import Order
+
+        sold_order = Order(strategy._name, short_call, 10, Order.OrderSide.SELL_TO_OPEN)
+        sold_order.avg_fill_price = 27.0
+        sold = Position(strategy._name, short_call, quantity=-10, orders=[sold_order])
+        bought = Position(strategy._name, long_call, quantity=20, avg_fill_price=12.0)
+        strategy.broker.get_tracked_positions = MagicMock(return_value=[sold, bought])
+        strategy._quote_asset = Asset("USD", asset_type="forex")
+        self._no_price_source(strategy, LUMIBOT_DEFAULT_PYTZ.localize(datetime(2024, 1, 5, 10, 0, 0)))
+
+        starting_cash = strategy.cash
+        value = strategy._update_portfolio_value()
+
+        # -10 x 27 x 100 + 20 x 12 x 100 = -3,000: both legs counted, from the same moment (the fill).
+        assert value == pytest.approx(starting_cash - 3_000)
+        # A fill price is not a market mark: it must not be remembered as one.
+        assert short_call not in strategy._last_known_prices
+        assert long_call not in strategy._last_known_prices
+
     def test_forward_fill_skips_position_with_no_history(self):
         """
-        When no last known price exists, position should be skipped (not crash).
+        When no last known price and no fill price exists, position should be skipped (not crash).
+
+        Changed 2026-11-17: this case used to pass avg_fill_price=150.0 and still expect the
+        position to be left out. A known fill price is now used (see the test above), so the
+        skip only applies when nothing at all is known about the position's price.
         """
         strategy, option_asset = self._setup_strategy_with_option()
 
-        position = Position(strategy._name, option_asset, quantity=10, avg_fill_price=150.0)
+        position = Position(strategy._name, option_asset, quantity=10)
         strategy.broker.get_tracked_positions = MagicMock(return_value=[position])
         strategy._quote_asset = Asset("USD", asset_type="forex")
 

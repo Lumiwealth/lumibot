@@ -5977,6 +5977,226 @@ class BacktestingBroker(Broker):
             return None, None
         return self._penalized_estimate(estimate, order.is_buy_order()), "estimated"
 
+    # ------------------------------------------------------------------
+    # Account valuation: every option leg is valued for the same moment
+    # ------------------------------------------------------------------
+    # An option contract is marked from its real trades. Legs of one position rarely print in
+    # the same bar, so a plain "last trade" mark values one leg at this bar's trade and another
+    # at a trade from hours or a day earlier while the underlying moved in between. The account
+    # value then swings for one row and comes back (a call spread can read as worth more than
+    # the distance between its strikes). Rule:
+    #   1. a leg with a real quote or a real trade on the valuation bar keeps that real price;
+    #   2. any other leg is valued at a model estimate for this moment: the underlying's price
+    #      now and the volatility implied by the leg's own last real trade (with the underlying
+    #      price of that trade's bar). Counted as "estimated" in the run's data provenance.
+    # A price from an earlier bar is never used as if it were current. On daily bars a day's
+    # first trade carries no time of day, so the day's bar counts as a real mark only once the
+    # session has closed (its close); before that the leg is estimated from the earlier bars.
+    # Valuation only: no bar, quote, trade or fill is created or changed.
+
+    class _MarkProbe:
+        """The few things the quote lookup reads from an order, for a held contract."""
+
+        order_type = Order.OrderType.MARKET
+
+        def __init__(self, asset, quote):
+            self.asset = asset
+            self.quote = quote
+
+        @staticmethod
+        def is_buy_order():
+            return True
+
+    def option_valuation_mark_counts(self) -> dict:
+        """How option positions were valued so far: {"real": n, "estimated": n}."""
+        return dict(getattr(self, "_option_valuation_mark_counts", None) or {})
+
+    def _count_option_valuation_mark(self, source: str) -> None:
+        counts = getattr(self, "_option_valuation_mark_counts", None)
+        if counts is None:
+            counts = {}
+            self._option_valuation_mark_counts = counts
+        counts[source] = counts.get(source, 0) + 1
+
+    def _daily_session_phase(self, now) -> str:
+        """"before", "open" or "closed" for today's session at ``now`` (daily bars only)."""
+        try:
+            if not self._sessions_built:
+                self._build_daily_sessions()
+            sessions = [s for s in self._daily_sessions.get(now.date(), []) if s[1].date() == now.date()]
+        except Exception:
+            sessions = []
+        if not sessions:
+            return "before"
+        start = min(s[0] for s in sessions)
+        end = max(s[1] for s in sessions)
+        if now >= end:
+            # One timestamp per day (open == close): that instant is the day's bar.
+            return "closed"
+        return "before" if now < start else "open"
+
+    def _valuation_bars(self, asset, quote, length: int, bucket):
+        """``_recent_real_bars`` remembered for the current valuation bar.
+
+        On daily bars the answer is the same for every valuation row of one day, so the
+        lookup is paid once per contract per day, not once per row.
+        """
+        cache = getattr(self, "_option_valuation_bar_cache", None)
+        if cache is None:
+            cache = {}
+            self._option_valuation_bar_cache = cache
+        key = (asset, length)
+        hit = cache.get(key)
+        if hit is not None and hit[0] == bucket:
+            return hit[1]
+        frame = self._recent_real_bars(asset, quote, length)
+        cache[key] = (bucket, frame)
+        return frame
+
+    def option_marks_for_valuation(self, assets, quote) -> dict:
+        """{contract: estimated price} for held option contracts with no real price on this bar.
+
+        Contracts that have a real quote or trade on the valuation bar, and contracts that cannot
+        be estimated, are left out: the caller keeps the price it already has for them.
+        """
+        from lumibot.tools.option_price_estimate import black_scholes_forward_price, implied_volatility_forward
+
+        marks = {}
+        now = pd.Timestamp(self.datetime)
+        if now.tz is None:
+            now = now.tz_localize("America/New_York")
+        daily = str(getattr(self.data_source, "_timestep", "minute")) == "day"
+        today = now.date()
+        phase = self._daily_session_phase(now) if daily else None
+        bucket = today if daily else now.floor("min")
+        lookback = self.OPTION_IV_LOOKBACK_DAY_BARS if daily else self.OPTION_IV_LOOKBACK_MINUTE_BARS
+        iv_cache = getattr(self, "_option_valuation_iv_cache", None)
+        if iv_cache is None:
+            iv_cache = {}
+            self._option_valuation_iv_cache = iv_cache
+        spot_now = {}
+
+        def earlier_rows(frame):
+            # Daily bars: today's bar is not a mark for this moment (see the rule above).
+            if frame is None or not daily:
+                return frame
+            rows = frame[[pd.Timestamp(ts).date() < today for ts in frame.index]]
+            return rows if not rows.empty else None
+
+        for asset in assets:
+            try:
+                if getattr(asset, "strike", None) is None or getattr(asset, "right", None) is None:
+                    continue
+                # A short look first: most rows only need to know when the contract last traded.
+                frame = self._valuation_bars(asset, quote, 3, bucket)
+                if frame is None:
+                    frame = self._valuation_bars(asset, quote, lookback, bucket)
+                    if frame is None:
+                        continue  # no trade history to judge by: keep the source's own mark
+                last_ts = pd.Timestamp(frame.index[-1])
+                if daily:
+                    if last_ts.date() == today and phase == "closed":
+                        self._count_option_valuation_mark("real")
+                        continue
+                elif self._bar_matches_now(last_ts):
+                    self._count_option_valuation_mark("real")
+                    continue
+                if self._quote_price_now(self._MarkProbe(asset, quote)) is not None:
+                    self._count_option_valuation_mark("real")
+                    continue
+
+                earlier = earlier_rows(frame)
+                if earlier is None:
+                    earlier = earlier_rows(self._valuation_bars(asset, quote, lookback, bucket))
+                    if earlier is None:
+                        continue
+
+                underlying = self._option_underlying_asset(asset)
+                if underlying not in spot_now:
+                    try:
+                        price = self.data_source.get_last_price(underlying, quote=quote)
+                        price = None if price is None else float(price)
+                    except Exception:
+                        price = None
+                    spot_now[underlying] = price if price is not None and math.isfinite(price) and price > 0 else None
+                spot = spot_now[underlying]
+                if spot is None:
+                    continue
+
+                if daily and phase == "before":
+                    # Before the open nothing has traded since the last completed session. A leg
+                    # whose last trade is from that session keeps it: all such legs share a bar.
+                    sessions = earlier_rows(self._valuation_bars(underlying, quote, 3, bucket))
+                    if sessions is not None and (
+                        pd.Timestamp(earlier.index[-1]).date() == pd.Timestamp(sessions.index[-1]).date()
+                    ):
+                        self._count_option_valuation_mark("real")
+                        continue
+
+                reference = None
+                for ts, close in zip(reversed(earlier.index), reversed(earlier["close"].tolist())):
+                    value = self._coerce_price(close)
+                    if value is not None and not self._is_invalid_price(value) and float(value) > 0:
+                        reference = (pd.Timestamp(ts), float(value))
+                        break
+                years_now = self._option_years_to_expiry(asset, now)
+                if reference is None or years_now is None:
+                    continue
+                reference_ts, reference_price = reference
+                is_call = str(asset.right).lower().startswith("c")
+                strike = float(asset.strike)
+
+                cached = iv_cache.get(asset)
+                if cached is not None and cached[0] == reference_ts:
+                    volatility = cached[1]
+                else:
+                    # Computed once per real trade of the contract, then reused on every row.
+                    underlying_frame = self._valuation_bars(underlying, quote, lookback, bucket)
+                    # A daily bar's close is the end of that session, not the midnight it is labeled with.
+                    reference_time = reference_ts.normalize() + pd.Timedelta(hours=16) if daily else reference_ts
+                    years_then = self._option_years_to_expiry(asset, reference_time)
+                    if underlying_frame is None or years_then is None:
+                        continue
+                    if daily:
+                        prior = underlying_frame[
+                            [pd.Timestamp(ts).date() <= reference_ts.date() for ts in underlying_frame.index]
+                        ]
+                    else:
+                        prior = underlying_frame[underlying_frame.index <= reference_ts]
+                    if prior.empty:
+                        continue
+                    reference_spot = self._coerce_price(prior["close"].iloc[-1])
+                    if reference_spot is None or self._is_invalid_price(reference_spot):
+                        continue
+                    reference_spot = float(reference_spot)
+                    low, high = 1e-4, 8.0
+                    volatility = float(
+                        implied_volatility_forward(
+                            reference_price, reference_spot, strike, years_then, is_call, low=low, high=high
+                        )
+                    )
+                    if not math.isfinite(volatility):
+                        # No volatility reproduces the trade against that underlying price (the
+                        # two were not stamped at the same instant). At or below the no-volatility
+                        # value the trade carried no time value; above the ceiling it is unusable.
+                        floor_value = float(
+                            black_scholes_forward_price(reference_spot, strike, years_then, low, is_call)
+                        )
+                        if reference_price <= floor_value + 1e-9:
+                            volatility = low
+                        else:
+                            continue
+                    iv_cache[asset] = (reference_ts, volatility)
+
+                estimate = float(black_scholes_forward_price(spot, strike, years_now, volatility, is_call))
+                if not math.isfinite(estimate) or estimate < 0:
+                    continue
+                marks[asset] = estimate
+                self._count_option_valuation_mark("estimated")
+            except Exception:
+                logger.debug("Option valuation estimate unavailable for %s; keeping its last trade", asset, exc_info=True)
+        return marks
+
     def _leg_package_fill_price(self, leg) -> tuple:
         """(price, source) for one package leg at the current bar."""
         if self._is_option_asset(getattr(leg, "asset", None)):

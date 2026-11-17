@@ -33,6 +33,11 @@ class BacktestCacheSettings:
     secret_access_key: Optional[str] = None
     session_token: Optional[str] = None
     version: str = "v1"
+    # Optional read-only fallback location (same S3 account and credentials). A read that misses
+    # the primary location is retried here. Nothing is ever written to it.
+    fallback_bucket: Optional[str] = None
+    fallback_prefix: str = ""
+    fallback_version: Optional[str] = None  # None means "same version as the primary location"
 
     @staticmethod
     def from_env(env: Dict[str, Optional[str]]) -> Optional["BacktestCacheSettings"]:
@@ -69,6 +74,19 @@ class BacktestCacheSettings:
         if not version:
             version = "v1"
 
+        fallback_bucket = None
+        fallback_prefix = ""
+        fallback_version = None
+        fallback_mode = (env.get("fallback_mode") or "readonly").strip().lower()
+        candidate = (env.get("fallback_s3_bucket") or "").strip()
+        if candidate and fallback_mode not in ("off", "disabled", "false", "0"):
+            fb_prefix = (env.get("fallback_s3_prefix") or "").strip().strip("/")
+            fb_version = (env.get("fallback_s3_version") or "").strip().strip("/") or None
+            if not (candidate == bucket and fb_prefix == prefix and fb_version in (None, version)):
+                fallback_bucket = candidate
+                fallback_prefix = fb_prefix
+                fallback_version = fb_version
+
         return BacktestCacheSettings(
             backend=backend,
             mode=mode,
@@ -79,6 +97,9 @@ class BacktestCacheSettings:
             secret_access_key=secret_access_key,
             session_token=session_token,
             version=version,
+            fallback_bucket=fallback_bucket,
+            fallback_prefix=fallback_prefix,
+            fallback_version=fallback_version,
         )
 
 
@@ -100,6 +121,112 @@ def _telemetry_cache(event: str, payload: dict | None, *, nbytes: float = 0, sec
                                         nbytes=int(nbytes or 0), seconds=float(seconds or 0.0))
     except Exception:
         pass
+
+
+class _FallbackReadClient:
+    """Wraps the primary S3 client so reads that miss fall back to a second, read-only location.
+
+    Only ``get_object`` and ``download_file`` can reach the fallback location. Every other call
+    (uploads, conditional puts) passes straight to the primary client and its own bucket, so the
+    fallback is never written, overwritten or deleted through this path.
+    """
+
+    def __init__(self, primary, settings: BacktestCacheSettings, manager: "BacktestCacheManager") -> None:
+        self._primary = primary
+        self._settings = settings
+        self._manager = manager
+        self._unusable = False
+        self._missing: set[str] = set()
+        self._lock = threading.Lock()
+
+    def __getattr__(self, name):
+        return getattr(self._primary, name)
+
+    def _fallback_key(self, bucket: str, key: str) -> Optional[str]:
+        settings = self._settings
+        if self._unusable or bucket != settings.bucket:
+            return None
+        primary_root = "/".join(c.strip("/") for c in (settings.prefix, settings.version) if c) + "/"
+        if not key.startswith(primary_root):
+            return None
+        fallback_root = "/".join(
+            c.strip("/") for c in (settings.fallback_prefix, settings.fallback_version or settings.version) if c
+        ) + "/"
+        return fallback_root + key[len(primary_root):]
+
+    def _try_fallback(self, key: str, read):
+        """Run ``read(bucket, fallback_key)``; None when the fallback cannot serve the key."""
+        with self._lock:
+            if key in self._missing:
+                return None
+        started = time.perf_counter()
+        try:
+            result = read(self._settings.fallback_bucket, key)
+        except Exception as exc:
+            if BacktestCacheManager._is_not_found_error(exc):
+                with self._lock:
+                    self._missing.add(key)
+            else:
+                # Cannot read the fallback at all (for example no permission): stop trying and
+                # behave as if there were no fallback, so the run still falls through to the provider.
+                with self._lock:
+                    already = self._unusable
+                    self._unusable = True
+                if not already:
+                    logger.warning(
+                        "[REMOTE_CACHE][FALLBACK_DISABLED] fallback cache not readable (%s); "
+                        "continuing without it", BacktestCacheManager._describe_error(exc),
+                    )
+            return None
+        return result, time.perf_counter() - started
+
+    def get_object(self, *args, **kwargs):
+        bucket = kwargs.get("Bucket")
+        key = kwargs.get("Key")
+        try:
+            return self._primary.get_object(*args, **kwargs)
+        except Exception as exc:
+            if not BacktestCacheManager._is_not_found_error(exc) or not isinstance(key, str):
+                raise
+            fallback_key = self._fallback_key(bucket, key)
+            if fallback_key is None:
+                raise
+            served = self._try_fallback(
+                fallback_key,
+                lambda fb_bucket, fb_key: self._primary.get_object(**{**kwargs, "Bucket": fb_bucket, "Key": fb_key}),
+            )
+            if served is None:
+                raise exc
+            response, elapsed = served
+            nbytes = int(response.get("ContentLength") or 0) if isinstance(response, dict) else 0
+            self._manager._record_fallback_hit(key, nbytes, elapsed)
+            # The fallback's version tag must never become a condition on a write to the primary.
+            return {k: v for k, v in dict(response).items() if k not in ("ETag", "VersionId")}
+
+    def download_file(self, bucket, key, filename, *args, **kwargs):
+        try:
+            return self._primary.download_file(bucket, key, filename, *args, **kwargs)
+        except Exception as exc:
+            if not BacktestCacheManager._is_not_found_error(exc) or not isinstance(key, str):
+                raise
+            fallback_key = self._fallback_key(bucket, key)
+            if fallback_key is None:
+                raise
+
+            def read(fb_bucket, fb_key):
+                self._primary.download_file(fb_bucket, fb_key, filename, *args, **kwargs)
+                return None
+
+            served = self._try_fallback(fallback_key, read)
+            if served is None:
+                raise exc
+            _, elapsed = served
+            try:
+                nbytes = Path(filename).stat().st_size
+            except Exception:
+                nbytes = 0
+            self._manager._record_fallback_hit(key, nbytes, elapsed)
+            return None
 
 
 class BacktestCacheManager:
@@ -141,7 +268,23 @@ class BacktestCacheManager:
             "uploads": 0.0,
             "upload_bytes": 0.0,
             "upload_s": 0.0,
+            "fallback_hits": 0.0,
+            "fallback_bytes": 0.0,
         }
+
+    def _record_fallback_hit(self, key: str, nbytes: int, seconds: float) -> None:
+        with self._stats_lock:
+            self._stats["fallback_hits"] += 1.0
+            self._stats["fallback_bytes"] += float(nbytes or 0)
+        try:
+            from lumibot.tools import backtest_telemetry
+
+            backtest_telemetry.record_cache(
+                "hit", layer="fallback_cache", source=None, asset_class=None,
+                nbytes=int(nbytes or 0), seconds=float(seconds or 0.0),
+            )
+        except Exception:
+            pass
 
     @property
     def enabled(self) -> bool:
@@ -480,7 +623,7 @@ class BacktestCacheManager:
         logger.info(
             "[REMOTE_CACHE][SUMMARY] mode=%s bucket=%s prefix=%s version=%s "
             "downloads=%d misses=%d local_reuse=%d inprocess_reuse=%d download_bytes=%d download_s=%.3f "
-            "uploads=%d upload_bytes=%d upload_s=%.3f",
+            "uploads=%d upload_bytes=%d upload_s=%.3f fallback_hits=%d fallback_bytes=%d",
             settings.mode,
             settings.bucket,
             settings.prefix,
@@ -494,6 +637,8 @@ class BacktestCacheManager:
             int(snap.get("uploads", 0.0)),
             int(snap.get("upload_bytes", 0.0)),
             float(snap.get("upload_s", 0.0)),
+            int(snap.get("fallback_hits", 0.0)),
+            int(snap.get("fallback_bytes", 0.0)),
         )
 
     def remote_key_for(
@@ -545,9 +690,12 @@ class BacktestCacheManager:
             with self._client_lock:
                 if self._client is None:
                     if self._client_factory:
-                        self._client = self._client_factory(self._settings)
+                        client = self._client_factory(self._settings)
                     else:
-                        self._client = self._create_s3_client()
+                        client = self._create_s3_client()
+                    if self._settings and self._settings.fallback_bucket:
+                        client = _FallbackReadClient(client, self._settings, self)
+                    self._client = client
         return self._client
 
     def _create_s3_client(self):

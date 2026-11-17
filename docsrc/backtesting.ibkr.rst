@@ -254,6 +254,16 @@ no valuation price, or a decision required an unavailable delayed-feed tail.
 Consumers must not present such a run as a valid completed result. A fully
 supplied strategy that legitimately chooses no trades remains valid.
 
+A lookback longer than a symbol's history is not missing data. When the provider
+was asked for the earlier window, returned nothing before the first bar, and
+there is no hole inside the bars it did return (for example a lookback of 200
+daily bars on a symbol listed 60 sessions ago), the run stays valid. The strategy
+receives the bars that exist, so it cannot signal on the longer lookback until
+enough bars exist, and ``data_health`` lists the series under ``history_starts``
+with ``first_available`` ("History for X starts on DATE"). A failed request,
+a hole inside the returned bars, or no request for the earlier window still
+fails the run.
+
 Conid lookups also maintain cache files under ``LUMIBOT_CACHE_FOLDER/ibkr``:
 
 - ``conids.json`` stores successful conid resolutions.

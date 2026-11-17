@@ -13,7 +13,10 @@ from tests.test_ccxt_unified_spot import make_broker
 
 @pytest.mark.parametrize("when,expected", [
     ("2026-09-18 17:55", 104.), ("2026-09-20 17:55", 104.),
-    ("2026-09-20 18:05", None),
+    # Within the short grace after a reopening with no bar yet, the last real close values the
+    # position (4.6.76); a later gap with still no bar stays missing.
+    ("2026-09-20 18:05", 104.),
+    ("2026-09-20 19:30", None),
 ])
 def test_routed_futures_closed_market_mark(monkeypatch, when, expected):
     from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas

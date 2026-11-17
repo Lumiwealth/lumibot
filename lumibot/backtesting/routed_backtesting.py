@@ -1519,25 +1519,48 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
                 stamp = stamp.tz_localize("UTC") if stamp.tzinfo is None else stamp.tz_convert("UTC")
                 return stamp.isoformat()
 
-            # These are observed bars for this one fetch, including its lookback.
-            # They are not global archive bounds or proof of an interior gap-free window.
-            observed_request_tail = {
-                "scope": "returned_request",
-                "requested_start": utc_iso(self._router.datetime_start),
-                "requested_end": utc_iso(window_end_ts),
-                "requested_timezone": str(pd.Timestamp(window_end).tzinfo or "UTC"),
-                "fetch_start": utc_iso(fetch_start),
-                "first_bar_open": utc_iso(df.index[0]),
-                "last_bar_open": utc_iso(last_open),
-                "bar_duration_seconds": int(step.total_seconds()),
-                "observed_end_exclusive": utc_iso(last_open + step),
-            }
-            exc = BinanceBulkDataError(
-                f"Binance bulk files for {symbol} end at {last_open:%Y-%m-%d %H:%M} UTC, before the backtest end "
-                f"{window_end_ts.tz_convert('UTC'):%Y-%m-%d %H:%M} UTC. Binance publishes each day's file about one "
-                "day later; end the backtest on or before the last published day. Nothing is filled in.",
-                reason="no_data_for_window")
-            raise self._unavailable(exc, symbol, market, observed_request_tail=observed_request_tail)
+            observed_end = last_open + step
+            start_ts = pd.Timestamp(self._router.datetime_start)
+            start_ts = start_ts.tz_localize("UTC") if start_ts.tzinfo is None else start_ts
+            if observed_end <= start_ts:
+                # Nothing at all inside the requested window: there is no run to shorten.
+                # These are observed bars for this one fetch, including its lookback.
+                # They are not global archive bounds or proof of an interior gap-free window.
+                observed_request_tail = {
+                    "scope": "returned_request",
+                    "requested_start": utc_iso(self._router.datetime_start),
+                    "requested_end": utc_iso(window_end_ts),
+                    "requested_timezone": str(pd.Timestamp(window_end).tzinfo or "UTC"),
+                    "fetch_start": utc_iso(fetch_start),
+                    "first_bar_open": utc_iso(df.index[0]),
+                    "last_bar_open": utc_iso(last_open),
+                    "bar_duration_seconds": int(step.total_seconds()),
+                    "observed_end_exclusive": utc_iso(observed_end),
+                }
+                exc = BinanceBulkDataError(
+                    f"Binance bulk files for {symbol} end at {last_open:%Y-%m-%d %H:%M} UTC, before the backtest "
+                    f"start {start_ts.tz_convert('UTC'):%Y-%m-%d %H:%M} UTC. Binance publishes each day's file about "
+                    "one day later. Nothing is filled in.",
+                    reason="no_data_for_window")
+                raise self._unavailable(exc, symbol, market, observed_request_tail=observed_request_tail)
+            # The published files end before the requested end. Run to the last published bar and say so;
+            # never fill, repeat or invent bars after it.
+            clamped = observed_end.tz_convert(window_end_ts.tzinfo) if window_end_ts.tzinfo else observed_end
+            if pd.Timestamp(self._router.datetime_end) > clamped:
+                self._router.datetime_end = clamped.to_pydatetime()
+            if not any(n.get("kind") == "data_ends_before_requested_end" and n.get("symbol") == symbol
+                       for n in self.notices):
+                notice = {
+                    "kind": "data_ends_before_requested_end", "source": "binance_usdm_bulk" if market == "um"
+                    else "binance_spot_bulk", "symbol": symbol,
+                    "through": utc_iso(observed_end), "requested_end": utc_iso(window_end_ts),
+                    "message": (f"Data for {symbol} ends on {last_open:%Y-%m-%d %H:%M} UTC (Binance publishes each "
+                                f"day's file about one day later), so the backtest ran to that point instead of the "
+                                f"requested end {window_end_ts.tz_convert('UTC'):%Y-%m-%d %H:%M} UTC. "
+                                "Nothing was filled in after it."),
+                }
+                self.notices.append(notice)
+                logger.warning("%s %s", PerpetualDataUnavailable.MARKER, notice["message"])
         if market == "um":
             self._funding_rows(symbol)
         self._fully_loaded_series.add(canonical_key)
@@ -2289,7 +2312,8 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
             return None
         if not data.df.empty and pd.Timestamp(when) >= data.df.index.max() + pd.Timedelta(minutes=1):
             return ibkr_helper.closed_futures_mark(
-                data.df, timestep="minute", when=when, symbol=getattr(base, "symbol", None))
+                data.df, timestep="minute", when=when, symbol=getattr(base, "symbol", None),
+                reopen_grace=ibkr_helper.QUIET_REOPEN_GRACE)
         try:
             price = data.get_last_price(when)
         except ValueError:
@@ -2297,7 +2321,8 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         if price is not None:
             return price
         return ibkr_helper.closed_futures_mark(
-                data.df, timestep="minute", when=when, symbol=getattr(base, "symbol", None))
+                data.df, timestep="minute", when=when, symbol=getattr(base, "symbol", None),
+                reopen_grace=ibkr_helper.QUIET_REOPEN_GRACE)
 
     def get_price_snapshot(self, asset, quote=None, timestep="minute", **kwargs):
         base = asset[0] if isinstance(asset, tuple) else asset

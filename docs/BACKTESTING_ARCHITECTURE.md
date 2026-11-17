@@ -446,6 +446,13 @@ During backtests, portfolio value is recalculated in strategy code (not fetched 
   - `_update_portfolio_value()` iterates tracked positions and calls `_get_price_from_source()` per asset.
   - `_get_price_from_source()` prefers a **snapshot** when the data source supports it (faster and richer than `get_last_price()`).
 
+Option legs are valued for one moment (all providers, since 4.6.76):
+- After the per-asset prices are read, `_update_portfolio_value()` asks `BacktestingBroker.option_marks_for_valuation()` which held option contracts have **no real quote or trade on the valuation bar**. Those get a model estimate for now (underlying price now, volatility implied by the contract's own last real trade); contracts with a real price on the bar keep it. This stops one leg being valued from this bar and another from hours or a day earlier.
+- Daily bars: today's bar is a real mark only once the session has closed (a day's open has no time of day). Before the open today's bar is never read.
+- Counted in `data_provenance.json` as `optionValuationMarks` (`real`, `estimated`). Valuation only: no bar, trade or fill is created.
+- Cost: one short bar lookup per held contract per valuation bar (cached per day on daily bars); the implied volatility is recomputed only when the contract prints a new trade.
+- Tests: `tests/backtest/test_option_legs_marked_at_one_time.py`.
+
 For ThetaData option backtests specifically:
 - The MTM path prefers **quote-derived mark** (mid) when bid/ask are available (broker-like option MTM).
 - If bid/ask are unavailable, it falls back to **last trade** (trade-only).

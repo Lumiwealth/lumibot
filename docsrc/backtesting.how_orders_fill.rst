@@ -252,3 +252,51 @@ call settles for +10.00 and the short call for -5.00, so the spread pays 5.00 pe
 
 Options that deliver in one direction only (a single long call, a covered call, a
 cash-secured put) keep the normal exercise and assignment behavior.
+
+How open positions are valued between fills
+--------------------------------------------
+
+The account value in a backtest uses, for each open position, in this order:
+
+1. the current price from the data source,
+2. the last real price seen for that asset earlier in the run (thinly traded options can go
+   days without a trade),
+3. the position's own fill price, when no market price has been seen since it was opened.
+
+Rule 3 matters right after a multi-leg option order fills: every leg is valued from the moment
+of the fill until its own first market price arrives, so the account value never counts only
+some legs of a new spread. A position with no known price at all is left out and a warning is
+logged. None of these valuation prices creates a bar, a trade or a fill.
+
+Option legs are valued for the same moment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Two option contracts rarely trade in the same bar. If each held contract were simply valued at
+its last trade, one leg of a spread could be priced from this bar and the other from hours or a
+day earlier, while the stock moved in between. The account value would then jump for one row
+and come back, and a spread could appear to be worth more than the distance between its strikes.
+
+So, for every held option contract, on every valuation:
+
+1. A real quote or a real trade **on the valuation bar** is used as it is.
+2. Otherwise the contract is valued at a model estimate **for that moment**: the underlying's
+   price now, and the volatility implied by the contract's own last real trade (together with
+   the underlying's price in the bar of that trade). A last trade that no volatility explains
+   is treated as having had no time value.
+
+A price from an earlier bar is never used as if it were current.
+
+Daily bars need one more rule. A daily bar has no time of day: its open is the day's first
+trade, whenever that happened. So on daily bars a contract's bar for today counts as a real
+price only after the session has closed (its close). During the session the contract is
+estimated from earlier sessions and the underlying's price now, and today's bar is never read
+before the open. Before the open, a contract that traded in the last completed session keeps
+that real close.
+
+``data_provenance.json`` counts how held contracts were valued under ``optionValuationMarks``
+(``real`` and ``estimated``, one count per contract per valuation). Estimates only affect the
+account value between trades (and so the drawdown shown). Fills, the trade log and cash are not
+changed, so the profit of a closed position is the same.
+
+Limit to know: on daily bars the closing price of each leg is still that leg's last trade of the
+day, and two legs' last trades can be minutes or hours apart. Minute bars do not have this limit.

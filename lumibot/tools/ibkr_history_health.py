@@ -207,6 +207,8 @@ _HEALTH_LOCK = Lock()
 _HEALTH_BY_SERIES: dict[str, dict[str, Any]] = {}
 _HEALTH_EVENT_IDS: set[tuple[str, str]] = set()
 _REQUIRED_FAILURES: dict[tuple, dict[str, Any]] = {}
+# Series whose real history begins after the lookback a strategy asked for (listing, first bar).
+_HISTORY_STARTS: dict[tuple, dict[str, Any]] = {}
 _OPTIONAL_ISSUES: dict[tuple, dict[str, Any]] = {}
 _RECOVERABLE_HISTORY_REQUEST: ContextVar[bool] = ContextVar(
     "lumibot_recoverable_history_request", default=False,
@@ -346,6 +348,19 @@ def record_required_history(*, asset, timestep, requested_bars, frame, when, req
                         gap_start = pd.Timestamp(health["requested_start"]).date().isoformat()
                         gap_end = pd.Timestamp(health["requested_end"]).date().isoformat()
                         unresolved_contract |= gap_start <= last and gap_end >= first
+        if (requirement == "history" and 0 < returned < requested and not missing and not unresolved_contract
+                and isinstance(usable.index, pd.DatetimeIndex)
+                and _series_history_starts_at(symbol, asset_type, str(timestep), usable.index.min())):
+            # The provider was asked for the earlier window and holds nothing before the first bar:
+            # that is where the symbol's history begins, not missing data. The strategy gets the bars
+            # that exist (it cannot signal on a longer lookback until they do) and the run says so.
+            first_day = usable.index.min().date().isoformat()
+            _HISTORY_STARTS[(symbol, asset_type, str(timestep))] = {
+                "symbol": symbol, "asset_type": asset_type, "timestep": str(timestep),
+                "first_available": first_day, "requested_bars": requested, "returned_bars": returned,
+                "message": f"History for {symbol} starts on {first_day}; "
+                           f"{requested} bars were requested and {returned} exist."}
+            return
         reason = "insufficient_required_history" if returned < requested else (
             "missing_required_sessions" if missing else (
                 "unresolved_required_contract" if unresolved_contract else None))
@@ -405,6 +420,34 @@ def record_required_history(*, asset, timestep, requested_bars, frame, when, req
                 "first_observed_at": when.isoformat(), "last_observed_at": when.isoformat(),
                 "missing_sessions": sorted(set(missing))[:100], "occurrences": 1,
             }
+
+
+def _series_history_starts_at(symbol, asset_type, timestep, first_bar) -> bool:
+    """True when a non-failed request reached back before `first_bar` and found nothing earlier.
+
+    Caller holds _HEALTH_LOCK. A transient failure, an unresolved hole at or after the first bar,
+    or no request for an earlier window at all is NOT evidence that history starts here.
+    """
+    first = pd.Timestamp(first_bar).date()
+    evidence = False
+    for health in _HEALTH_BY_SERIES.values():
+        if not (health["symbol"] == symbol and health["asset_type"] == asset_type and health["timestep"] == timestep):
+            continue
+        if pd.Timestamp(health["requested_start"]).date() >= first:
+            continue
+        outcome = health["outcome"]
+        if outcome == HistoryOutcome.TRANSIENT_FAILURE.value:
+            return False
+        missing = health.get("missing_sessions") or []
+        if outcome == HistoryOutcome.PARTIAL.value:
+            if not missing or any(day >= first.isoformat() for day in missing):
+                return False
+            # The stored list is capped (earliest first). A longer true count is fine only while it
+            # still fits in the days before the first bar, so it cannot hide gaps after it.
+            if health.get("missing_session_count", len(missing)) > (first - pd.Timestamp(health["requested_start"]).date()).days:
+                return False
+        evidence = True
+    return evidence
 
 
 def record_history_health(
@@ -470,6 +513,7 @@ def ibkr_history_health_snapshot() -> dict[str, Any]:
         series = [dict(value) for _, value in sorted(_HEALTH_BY_SERIES.items())]
         required_failures = [dict(value) for value in _REQUIRED_FAILURES.values()]
         warnings = [dict(value) for value in _OPTIONAL_ISSUES.values()]
+        history_starts = [dict(value) for value in _HISTORY_STARTS.values()]
     incomplete = sum(1 for value in series if value.get("outcome") != HistoryOutcome.COMPLETE.value)
     return {
         "provider": "ibkr",
@@ -479,6 +523,7 @@ def ibkr_history_health_snapshot() -> dict[str, Any]:
         "series": series,
         "required_complete": not required_failures,
         "required_failures": required_failures,
+        "history_starts": history_starts,
         "warnings": warnings,
     }
 
@@ -488,6 +533,7 @@ def reset_ibkr_history_health() -> None:
         _HEALTH_BY_SERIES.clear()
         _HEALTH_EVENT_IDS.clear()
         _REQUIRED_FAILURES.clear()
+        _HISTORY_STARTS.clear()
         _OPTIONAL_ISSUES.clear()
     # A Strategy backtest startup already resets this provider's run telemetry.
     # Reset the price-basis memo at the same boundary, without importing a data

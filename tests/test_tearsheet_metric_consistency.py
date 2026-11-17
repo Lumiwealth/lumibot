@@ -114,3 +114,59 @@ def test_prepare_tearsheet_returns_does_not_let_benchmark_rows_erase_strategy_mo
 
     assert result.loc[pd.Timestamp("2026-04-13"), "strategy"] == 0.20
     assert round((1 + result["strategy"]).prod() - 1, 10) == 0.44
+
+
+def _total_return_tearsheet(monkeypatch, tmp_path, shown):
+    """Run create_tearsheet with a report library that shows Total Return as ``shown``."""
+    import json
+
+    import quantstats_lumi
+
+    def fake_html(returns, benchmark, **kwargs):
+        with open(kwargs["output"], "w", encoding="utf-8") as handle:
+            handle.write("<html></html>")
+        return pd.DataFrame(
+            {"Strategy": [shown, "6.81%"]},
+            index=["Total Return", "CAGR% (Annual Return)"],
+        )
+
+    def fake_metrics_json(returns, benchmark, **kwargs):
+        with open(kwargs["output"], "w", encoding="utf-8") as handle:
+            json.dump({"metadata": {}, "scalar_metrics": {"Total Return": shown}}, handle)
+
+    monkeypatch.setattr(quantstats_lumi, "reports", SimpleNamespace(html=fake_html, metrics_json=fake_metrics_json))
+    index = pd.date_range("2026-04-07", periods=4, freq="D")
+    strategy_df = pd.DataFrame(
+        {"return": [0.0, 0.01, 0.004, 0.00266], "portfolio_value": [100000, 101000, 101404, 101673]},
+        index=index,
+    )
+    metrics_file = tmp_path / "tearsheet_metrics.json"
+    result = indicators.create_tearsheet(
+        strategy_df=strategy_df,
+        strat_name="Example",
+        tearsheet_file=str(tmp_path / "tearsheet.html"),
+        benchmark_df=None,
+        benchmark_asset=None,
+        show_tearsheet=False,
+        save_tearsheet=True,
+        risk_free_rate=0.0,
+        tearsheet_metrics_file=str(metrics_file),
+    )
+    return result, json.loads(metrics_file.read_text())
+
+
+def test_total_return_keeps_two_decimals_like_the_other_rows(monkeypatch, tmp_path):
+    # An account that went from 100,000 to 101,673 made 1.67%, not "2%".
+    result, written = _total_return_tearsheet(monkeypatch, tmp_path, "2%")
+
+    assert result.loc["Total Return", "Strategy"] == "1.67%"
+    assert result.loc["CAGR% (Annual Return)", "Strategy"] == "6.81%"
+    assert written["scalar_metrics"]["Total Return"] == "1.67%"
+
+
+def test_total_return_that_does_not_match_the_account_is_left_alone(monkeypatch, tmp_path):
+    # The whole-percent figure is only refined when it is the same number rounded.
+    result, written = _total_return_tearsheet(monkeypatch, tmp_path, "9%")
+
+    assert result.loc["Total Return", "Strategy"] == "9%"
+    assert written["scalar_metrics"]["Total Return"] == "9%"

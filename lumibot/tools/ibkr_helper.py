@@ -543,14 +543,22 @@ def _futures_exchange_holiday_closed_interval(symbol: Optional[str], start: date
         return False
 
 
+QUIET_REOPEN_GRACE = pd.Timedelta(minutes=15)
+
+
 def closed_futures_mark(frame: pd.DataFrame, *, timestep: str, when: datetime,
-                        symbol: Optional[str] = None) -> Optional[float]:
+                        symbol: Optional[str] = None,
+                        reopen_grace: Optional[pd.Timedelta] = None) -> Optional[float]:
     """Use a completed trade close only when every later instant was closed.
 
     This is a valuation fallback, never an executable bar or a gap repair. An
     absent bar after the next opening remains missing. With ``symbol``, a holiday
     halt or early close on that product's exchange calendar also counts as closed;
     without it only the conservative maintenance/weekend calendar applies.
+
+    ``reopen_grace`` is for valuation after a fresh data lookup already found no bar:
+    for that long after a reopening nothing may have traded yet, so the last real
+    close still values the position. Without it the reopening instant is not closed.
     """
     if frame is None or frame.empty or "close" not in frame:
         return None
@@ -569,8 +577,18 @@ def closed_futures_mark(frame: pd.DataFrame, *, timestep: str, when: datetime,
         # Include the valuation instant itself: [last close, reopening) is
         # closed, but at reopening a new executable price may already exist.
         closed_until = (now + pd.Timedelta(microseconds=1)).to_pydatetime()
-        if not (_us_futures_closed_interval(end.to_pydatetime(), closed_until)
-                or _futures_exchange_holiday_closed_interval(symbol, end.to_pydatetime(), closed_until)):
+        # Right after a reopening nothing may have traded yet. The market was closed
+        # from the last bar until a short grace period ago: still no bar, so the last
+        # real close values the position. After the grace period a missing bar is a
+        # real gap and stays missing. Never a price from after ``now``.
+        quiet_until = (now - reopen_grace).to_pydatetime() if reopen_grace is not None else None
+        closed_now = (_us_futures_closed_interval(end.to_pydatetime(), closed_until)
+                      or _futures_exchange_holiday_closed_interval(symbol, end.to_pydatetime(), closed_until))
+        quiet_after_reopen = (quiet_until is not None and quiet_until > end.to_pydatetime()
+                              and (_us_futures_closed_interval(end.to_pydatetime(), quiet_until)
+                                   or _futures_exchange_holiday_closed_interval(
+                                       symbol, end.to_pydatetime(), quiet_until)))
+        if not (closed_now or quiet_after_reopen):
             return None
         price = float(row["close"])
         return price if math.isfinite(price) else None

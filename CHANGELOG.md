@@ -2,6 +2,9 @@
 
 ## 4.6.83 - Unreleased
 
+### Added
+- Read-only fallback cache: `LUMIBOT_CACHE_FALLBACK_MODE=prefer_larger` reads the fallback copy of a cache file when it is larger than the primary copy of the same key, so a cache that holds a short copy of a series borrows the fuller one instead of downloading the difference. Default behaviour (`readonly`: fallback only on a miss) is unchanged; the fallback is never written.
+
 ## 4.6.82 - 2026-11-17
 
 Deploy marker: 920fefbdcd993495ed96ccb8772e98a84922ece4

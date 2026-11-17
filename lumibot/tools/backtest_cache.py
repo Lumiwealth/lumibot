@@ -38,6 +38,9 @@ class BacktestCacheSettings:
     fallback_bucket: Optional[str] = None
     fallback_prefix: str = ""
     fallback_version: Optional[str] = None  # None means "same version as the primary location"
+    # fallback_mode "prefer_larger": when both locations hold the same key, read the fallback copy
+    # if it is larger (a fuller copy of the same series). The fallback is still never written.
+    fallback_prefer_larger: bool = False
 
     @staticmethod
     def from_env(env: Dict[str, Optional[str]]) -> Optional["BacktestCacheSettings"]:
@@ -100,6 +103,7 @@ class BacktestCacheSettings:
             fallback_bucket=fallback_bucket,
             fallback_prefix=fallback_prefix,
             fallback_version=fallback_version,
+            fallback_prefer_larger=bool(fallback_bucket) and fallback_mode in ("prefer_larger", "prefer-larger"),
         )
 
 
@@ -123,6 +127,10 @@ def _telemetry_cache(event: str, payload: dict | None, *, nbytes: float = 0, sec
         pass
 
 
+class _PreferFallback(Exception):
+    """Internal signal: read this key from the fallback first."""
+
+
 class _FallbackReadClient:
     """Wraps the primary S3 client so reads that miss fall back to a second, read-only location.
 
@@ -137,6 +145,7 @@ class _FallbackReadClient:
         self._manager = manager
         self._unusable = False
         self._missing: set[str] = set()
+        self._larger: dict[str, bool] = {}
         self._lock = threading.Lock()
 
     def __getattr__(self, name):
@@ -180,12 +189,55 @@ class _FallbackReadClient:
             return None
         return result, time.perf_counter() - started
 
+    def _fallback_is_larger(self, bucket, key) -> bool:
+        """True when the fallback holds the same key with more bytes than the primary copy.
+
+        Size is the test because both copies are the same series under the same name, so the
+        fuller one is the larger file. Any doubt (no size, no permission, missing copy) keeps the
+        normal order: primary first, fallback only on a miss.
+        """
+        if not self._settings.fallback_prefer_larger or not isinstance(key, str):
+            return False
+        with self._lock:
+            if self._unusable:
+                return False
+            known = self._larger.get(key)
+        if known is not None:
+            return known
+        fallback_key = self._fallback_key(bucket, key)
+        larger = False
+        if fallback_key is not None:
+            try:
+                fallback_size = int(self._primary.head_object(
+                    Bucket=self._settings.fallback_bucket, Key=fallback_key).get("ContentLength") or 0)
+                primary_size = int(self._primary.head_object(Bucket=bucket, Key=key).get("ContentLength") or 0)
+                larger = fallback_size > primary_size > 0
+            except Exception:
+                larger = False
+        with self._lock:
+            self._larger[key] = larger
+        return larger
+
     def get_object(self, *args, **kwargs):
         bucket = kwargs.get("Bucket")
         key = kwargs.get("Key")
         try:
+            if self._fallback_is_larger(bucket, key):
+                raise _PreferFallback()
             return self._primary.get_object(*args, **kwargs)
         except Exception as exc:
+            preferred = isinstance(exc, _PreferFallback)
+            if preferred:
+                served = self._try_fallback(
+                    self._fallback_key(bucket, key),
+                    lambda fb_bucket, fb_key: self._primary.get_object(**{**kwargs, "Bucket": fb_bucket, "Key": fb_key}),
+                )
+                if served is None:
+                    return self._primary.get_object(*args, **kwargs)
+                response, elapsed = served
+                nbytes = int(response.get("ContentLength") or 0) if isinstance(response, dict) else 0
+                self._manager._record_fallback_hit(key, nbytes, elapsed)
+                return {k: v for k, v in dict(response).items() if k not in ("ETag", "VersionId")}
             if not BacktestCacheManager._is_not_found_error(exc) or not isinstance(key, str):
                 raise
             fallback_key = self._fallback_key(bucket, key)
@@ -205,8 +257,24 @@ class _FallbackReadClient:
 
     def download_file(self, bucket, key, filename, *args, **kwargs):
         try:
+            if self._fallback_is_larger(bucket, key):
+                raise _PreferFallback()
             return self._primary.download_file(bucket, key, filename, *args, **kwargs)
         except Exception as exc:
+            if isinstance(exc, _PreferFallback):
+                def read_preferred(fb_bucket, fb_key):
+                    self._primary.download_file(fb_bucket, fb_key, filename, *args, **kwargs)
+                    return None
+
+                served = self._try_fallback(self._fallback_key(bucket, key), read_preferred)
+                if served is None:
+                    return self._primary.download_file(bucket, key, filename, *args, **kwargs)
+                try:
+                    nbytes = Path(filename).stat().st_size
+                except Exception:
+                    nbytes = 0
+                self._manager._record_fallback_hit(key, nbytes, served[1])
+                return None
             if not BacktestCacheManager._is_not_found_error(exc) or not isinstance(key, str):
                 raise
             fallback_key = self._fallback_key(bucket, key)

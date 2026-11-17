@@ -166,3 +166,63 @@ def test_no_fallback_configured_keeps_old_behaviour(tmp_path, monkeypatch):
     manager = _manager(fake, fallback_bucket=None, fallback_prefix="")
     assert manager.ensure_local_file(tmp_path / REL) is False
     assert fake.reads == [("dev-bucket", DEV_KEY)]
+
+
+# --- fallback_mode="prefer_larger": a fuller fallback object beats a thinner primary one ---------
+
+
+class HeadS3(FakeS3):
+    def head_object(self, *, Bucket, Key, **_):
+        if Bucket in self.deny_buckets:
+            raise Denied("denied")
+        if (Bucket, Key) not in self.objects:
+            raise NotFound("missing")
+        return {"ContentLength": len(self.objects[(Bucket, Key)])}
+
+
+def test_from_env_reads_prefer_larger_mode():
+    env = {"backend": "s3", "mode": "readwrite", "s3_bucket": "b", "s3_prefix": "dev/cache", "s3_version": "v9",
+           "fallback_s3_bucket": "p", "fallback_s3_prefix": "prod/cache"}
+    assert BacktestCacheSettings.from_env(env).fallback_prefer_larger is False
+    preferred = BacktestCacheSettings.from_env({**env, "fallback_mode": "prefer_larger"})
+    assert preferred.fallback_bucket == "p" and preferred.fallback_prefer_larger is True
+
+
+def test_prefer_larger_serves_the_fuller_fallback_object_and_never_writes_it(tmp_path, monkeypatch):
+    # A cache that is filled only by occasional runs can hold a short copy of a series (few
+    # months, holes) under the same name as a complete copy in the fallback. Reading the short
+    # one sends the run to the provider for the rest.
+    monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", tmp_path)
+    fake = HeadS3({("dev-bucket", DEV_KEY): b"short", ("prod-bucket", PROD_KEY): b"complete-two-year-series"})
+    manager = _manager(fake, fallback_prefer_larger=True)
+    local = tmp_path / REL
+    assert manager.ensure_local_file(local) is True
+    assert local.read_bytes() == b"complete-two-year-series"
+    assert fake.writes == []
+    assert manager.stats_snapshot()["fallback_hits"] == 1.0
+
+
+def test_prefer_larger_keeps_the_primary_when_it_is_as_large_or_larger(tmp_path, monkeypatch):
+    monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", tmp_path)
+    fake = HeadS3({("dev-bucket", DEV_KEY): b"dev-is-the-longer-copy", ("prod-bucket", PROD_KEY): b"prod"})
+    manager = _manager(fake, fallback_prefer_larger=True)
+    manager.ensure_local_file(tmp_path / REL)
+    assert (tmp_path / REL).read_bytes() == b"dev-is-the-longer-copy"
+    assert manager.stats_snapshot()["fallback_hits"] == 0.0
+
+
+def test_default_mode_still_reads_a_present_primary_even_when_the_fallback_is_larger(tmp_path, monkeypatch):
+    monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", tmp_path)
+    fake = HeadS3({("dev-bucket", DEV_KEY): b"short", ("prod-bucket", PROD_KEY): b"complete-two-year-series"})
+    manager = _manager(fake)
+    manager.ensure_local_file(tmp_path / REL)
+    assert (tmp_path / REL).read_bytes() == b"short"
+
+
+def test_prefer_larger_with_an_unreadable_fallback_reads_the_primary(tmp_path, monkeypatch):
+    monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", tmp_path)
+    fake = HeadS3({("dev-bucket", DEV_KEY): b"short"}, deny_buckets={"prod-bucket"})
+    manager = _manager(fake, fallback_prefer_larger=True)
+    manager.ensure_local_file(tmp_path / REL)
+    assert (tmp_path / REL).read_bytes() == b"short"
+    assert fake.writes == []

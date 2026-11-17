@@ -41,6 +41,8 @@ Notes:
   should borrow from an established one without being able to change it. Set
   `LUMIBOT_CACHE_FALLBACK_MODE=off` for an isolated run. The run summary reports
   `fallback_hits` and `fallback_bytes`.
+  With `LUMIBOT_CACHE_FALLBACK_MODE=prefer_larger` a key present in both places is
+  read from the fallback when that copy is larger (a fuller copy of the same series).
 * `LUMIBOT_CACHE_FOLDER` is the local cache root (default: OS app cache dir). It
   can be overridden via the `LUMIBOT_CACHE_FOLDER` environment variable (must be
   set **before importing** `lumibot`) to simulate “fresh container” disks or to

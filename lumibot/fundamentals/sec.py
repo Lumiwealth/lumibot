@@ -164,6 +164,10 @@ _UNSET = object()
 # A fact whose latest filed period ended more than this long before the date is too old to use
 # as "current": the metric is None instead of carrying an old number forward.
 _METRIC_STALE_DAYS = 548
+# Filed share counts of one company that differ by more than this (after converting both to
+# one share basis) cannot both be right: one was filed at the wrong scale. Real changes between
+# filings (buybacks, offerings, mergers) are far smaller; scale errors are 1,000 or 1,000,000.
+_SHARE_COUNT_MAX_DISAGREEMENT = 50.0
 
 def _parse_dt(value: Any) -> datetime | None:
     if isinstance(value, datetime):
@@ -571,6 +575,8 @@ class SECFundamentals:
         self._timeline_locks_guard = threading.Lock()
         self._cover_counts: dict[tuple[str, str], dict[str, Any] | None] = {}
         self._cover_counts_lock = threading.Lock()
+        self._as_traded_memo: dict[str, tuple[Any, "_AsTradedPrices"]] = {}
+        self._as_traded_lock = threading.Lock()
 
     @staticmethod
     def _cache_meta_path(cache_path: Path) -> Path:
@@ -856,8 +862,19 @@ class SECFundamentals:
             return mapping
 
     def ticker_to_cik(self, symbol: str) -> str:
+        """SEC company id for a ticker.
+
+        The SEC ticker file writes a share class with a dash ("AB-B"). Brokers and data
+        providers also write it with a dot, a slash or a space ("AB.B", "AB/B", "AB B"), so
+        those spellings are looked up as the dash form when the ticker is not found as given.
+        """
         symbol_upper = str(symbol).upper().strip()
-        cik = self._ticker_map().get(symbol_upper)
+        tickers = self._ticker_map()
+        cik = tickers.get(symbol_upper)
+        if cik is None:
+            dashed = re.sub(r"[./ ]", "-", symbol_upper)
+            if dashed != symbol_upper:
+                cik = tickers.get(dashed)
         if cik is None:
             raise SECTickerNotFoundError(f"No SEC CIK found for ticker {symbol!r}.")
         return cik
@@ -1646,8 +1663,18 @@ class SECFundamentals:
 
         Price-based metrics (``market_cap``, ``pe_ratio``, ``ps_ratio``, ``pb_ratio``) use
         ``price`` when given, otherwise the strategy's last price at the current bar. ``price``
-        is the price as traded on ``as_of``. A strategy price from split-adjusted backtest data
-        is converted back to the price traded that day.
+        is the price as traded on ``as_of``.
+
+        Market cap rule: shares outstanding on the ``as_of`` share basis x the price a share
+        traded at on ``as_of``. A backtest price adjusted for later splits or dividends is
+        first turned back into the price traded that day (from the data source's as-traded
+        closes when it has them, otherwise from the splits its price data lists). When that
+        is not possible the value is None with a reason: an adjusted price is never
+        multiplied by a share count as if it had traded.
+
+        Share counts: a filed count that is more than 50 times away from the company's other
+        filed share counts (a filing at the wrong scale) is not used; see
+        ``_filed_share_count``.
 
         Stock splits: diluted EPS, shares outstanding and book value per share are converted to
         the share basis in force at ``as_of`` (a filing made before a 10-for-1 split reports
@@ -1664,9 +1691,10 @@ class SECFundamentals:
         as_of_dt, as_ts, timeline = self._point_in_time(symbol, as_of)
         context = _MetricContext(self, timeline, as_of_dt, as_ts)
         context.symbol = str(symbol).upper().strip()
-        price_loader = self._price_source_splits(symbol)
+        sec_events = _sec_split_events(timeline)
+        price_loader = self._price_source_splits(symbol, sec_events)
         context.basis = _SplitBasis(
-            _sec_split_events(timeline),
+            sec_events,
             _sec_horizon(timeline),
             price_loader=price_loader,
             fallback_loader=lambda: self._external_split_history(symbol),
@@ -1723,6 +1751,8 @@ class SECFundamentals:
         if preload:
             self.preload(symbol_list)
         price_map = {str(key).upper(): value for key, value in (prices or {}).items()}
+        if any(name in _PRICE_METRICS for name in requested):
+            self._prefetch_as_traded_prices([symbol for symbol in symbol_list if price_map.get(symbol) is None])
         rows: dict[str, dict[str, Any]] = {}
         for symbol in symbol_list:
             try:
@@ -1813,10 +1843,63 @@ class SECFundamentals:
         derived.write_text(json.dumps(counts), encoding="utf-8")
         return counts
 
-    def _price_source_splits(self, symbol: str):
+    def _backtest_data_source(self):
+        strategy = self.strategy
+        if strategy is None or not bool(getattr(strategy, "is_backtesting", False)):
+            return None
+        return getattr(getattr(strategy, "broker", None), "data_source", None)
+
+    def _as_traded_prices(self, symbol: str) -> "_AsTradedPrices | None":
+        """The backtest price source's as-traded daily closes for ``symbol``, or None.
+
+        A price source whose backtest prices are adjusted (for splits, and often dividends)
+        can implement ``get_backtest_as_traded_daily_closes(asset)`` returning a daily frame
+        with ``close`` (the close its backtest prices use) and ``as_traded_close`` (the close
+        actually traded that day). Their ratio on a day turns any of that day's backtest
+        prices into the price traded, and a jump in the ratio dates a stock split exactly.
+        """
+        data_source = self._backtest_data_source()
+        getter = getattr(data_source, "get_backtest_as_traded_daily_closes", None)
+        if not callable(getter):
+            return None
+        key = str(symbol).upper().strip()
+        try:
+            from lumibot.entities import Asset
+
+            frame = getter(Asset(key, asset_type="stock"))
+        except Exception:
+            frame = None
+        if frame is None or getattr(frame, "empty", True):
+            return None
+        with self._as_traded_lock:
+            known = self._as_traded_memo.get(key)
+            if known is not None and known[0] is frame:
+                return known[1]
+        prices = _AsTradedPrices.from_frame(frame)
+        with self._as_traded_lock:
+            self._as_traded_memo[key] = (frame, prices)
+        return prices
+
+    def _prefetch_as_traded_prices(self, symbols: list[str]) -> None:
+        """Let the price source load as-traded closes for a whole universe in grouped requests."""
+        data_source = self._backtest_data_source()
+        prefetch = getattr(data_source, "prefetch_backtest_as_traded_daily_closes", None)
+        if not callable(prefetch) or not symbols:
+            return
+        try:
+            from lumibot.entities import Asset
+
+            prefetch([Asset(symbol, asset_type="stock") for symbol in symbols])
+        except Exception:
+            # Only a shortcut: each symbol is loaded (and its failure reported) when it is read.
+            pass
+
+    def _price_source_splits(self, symbol: str, sec_events=()):
         """Loader for the backtest price data's split history.
 
-        Returns ``(events, start, end, label, frame, data_source)`` or None.
+        Returns ``(events, start, end, label, frame, data_source)`` or None. The split history
+        is the price data's own ``stock_splits`` column when it has one, otherwise the splits
+        its as-traded closes show (see ``_as_traded_prices``).
         """
         cached: dict[str, Any] = {}
 
@@ -1824,21 +1907,26 @@ class SECFundamentals:
             if "value" in cached:
                 return cached["value"]
             cached["value"] = None
-            strategy = self.strategy
-            if strategy is None or not bool(getattr(strategy, "is_backtesting", False)):
+            data_source = self._backtest_data_source()
+            if data_source is None:
                 return None
-            data_source = getattr(getattr(strategy, "broker", None), "data_source", None)
             getter = getattr(data_source, "_get_backtest_daily_corporate_action_frame", None)
-            if not callable(getter):
-                return None
-            try:
-                from lumibot.entities import Asset
+            frame = None
+            if callable(getter):
+                try:
+                    from lumibot.entities import Asset
 
-                frame = getter(Asset(str(symbol).upper(), asset_type="stock"))
-            except Exception:
-                frame = None
+                    frame = getter(Asset(str(symbol).upper(), asset_type="stock"))
+                except Exception:
+                    frame = None
             if frame is None or getattr(frame, "empty", True) or "stock_splits" not in frame.columns:
-                return None
+                traded = self._as_traded_prices(symbol)
+                if traded is not None and traded.days:
+                    cached["value"] = (
+                        traded.split_events(sec_events), traded.days[0], traded.days[-1],
+                        "the backtest price data", None, data_source,
+                    )
+                return cached["value"]
             start, end = _frame_dates(frame)
             if start is None:
                 return None
@@ -1895,6 +1983,12 @@ class SECFundamentals:
             return None, None
         if not bool(getattr(strategy, "is_backtesting", False)):
             return value, None
+        traded = self._as_traded_prices(symbol)
+        if traded is not None:
+            ratio, reason = traded.ratio_on(context.as_of_date)
+            if ratio is None:
+                return None, reason
+            return value * ratio, None
         return self._as_traded_backtest_price(symbol, value, context, price_loader)
 
     def _as_traded_backtest_price(self, symbol, value, context: "_MetricContext", price_loader):
@@ -2595,9 +2689,11 @@ class _MetricContext:
         basic weighted average share count of the latest filed period (shortest period ending
         last): companies with several share classes file no single total.
         """
-        shares, reason = self._balance("shares", "shares outstanding")
+        shares, reason, final = self._filed_share_count()
         if shares is not None:
             return shares, None
+        if final:
+            return None, reason
         weighted = [row for row in self._periods("shares_weighted") if row["days"] is not None and row["value"] > 0]
         record = SHARE_CLASS_UNITS.get(self.timeline.cik)
         if record is not None or not weighted:
@@ -2619,6 +2715,90 @@ class _MetricContext:
         if rows is None:
             return None, split_reason
         return rows[0], None
+
+    def _filed_share_count(self):
+        """(latest usable filed share count on the as_of share basis, reason when None, final).
+
+        Filers sometimes report the cover-page count at the wrong scale (a thousand or a
+        million times too large or too small). A count is used only when it is within
+        ``_SHARE_COUNT_MAX_DISAGREEMENT`` times of another share count the company filed: the
+        typical value of the same fact in its earlier filings, or the weighted average of the
+        latest period. A count that disagrees with all of them is skipped and the next latest
+        filed count is tried. ``final`` is True when counts were filed but none could be
+        confirmed: the caller must not fall back to another source, because nothing says which
+        number is the wrong one.
+        """
+        label = "shares outstanding"
+        candidates = sorted(
+            (row for row in self._periods("shares") if row["days"] is None),
+            key=lambda row: (row["end"], row["available_at"] or ""),
+            reverse=True,
+        )
+        if not candidates:
+            return None, f"no {label} filed as of {self.as_of_date.isoformat()}", False
+        doubt = None
+        for index, row in enumerate(candidates[:8]):
+            if self._stale(row["end"]):
+                if index == 0:
+                    return None, (
+                        f"latest filed {label} is dated {row['end'].isoformat()}, more than 18 months before "
+                        f"{self.as_of_date.isoformat()}"
+                    ), False
+                break
+            rows, reason = self._on_as_of_basis("shares", [row])
+            if rows is None:
+                if index == 0:
+                    return None, reason, False
+                break
+            times = self._share_count_disagreement(rows[0], candidates[index + 1:])
+            if times is None:
+                return rows[0], None, False
+            doubt = doubt or (row, times)
+        row, times = doubt
+        return None, (
+            f"the share count filed for {row['end'].isoformat()} ({row['value']:,.0f}, {row['form']} filed "
+            f"{row['filed']}) is about {times:,.0f} times away from the company's other filed share counts, so "
+            "it looks filed at the wrong scale, and no other current filed count confirms a number"
+        ), True
+
+    def _share_count_disagreement(self, row: dict[str, Any], earlier: list[dict[str, Any]]) -> float | None:
+        """None when another filed share count confirms ``row``; otherwise how many times it is off.
+
+        ``row`` is already on the as_of share basis; every count it is compared with is
+        converted to the same basis first (so a real split between two filings is not read
+        as a disagreement). With nothing to compare against, the count is accepted.
+        """
+        witnesses: list[float] = []
+        # The typical value of the same fact in the company's earlier filings (about three
+        # years of them, so a run of two or three wrong filings does not outvote the rest).
+        priors: list[float] = []
+        for other in earlier:
+            if len(priors) >= 12:
+                break
+            if other["tag"] != row["tag"]:
+                continue
+            rows, _reason = self._on_as_of_basis("shares", [other])
+            if rows is not None and rows[0]["value"] > 0:
+                priors.append(rows[0]["value"])
+        if priors:
+            priors.sort()
+            witnesses.append(priors[(len(priors) - 1) // 2])
+        if SHARE_CLASS_UNITS.get(self.timeline.cik) is None:
+            weighted = [
+                item for item in self._periods("shares_weighted") if item["days"] is not None and item["value"] > 0
+            ]
+            if weighted:
+                latest = min(weighted, key=lambda item: (-item["end"].toordinal(), item["days"]))
+                rows, _reason = self._on_as_of_basis("shares_weighted", [latest])
+                if rows is not None and not self._stale(latest["end"]):
+                    witnesses.append(rows[0]["value"])
+        value = row["value"]
+        if not witnesses or not value > 0:
+            return None
+        off = [max(value / witness, witness / value) for witness in witnesses]
+        if min(off) < _SHARE_COUNT_MAX_DISAGREEMENT:
+            return None
+        return min(off)
 
     def _shares_from_classes(self, record: dict[str, Any] | None):
         """(whole-company share count row in the asked ticker's class, reason when None)."""
@@ -2823,6 +3003,7 @@ def _sec_split_events(timeline: "_CompanyTimeline") -> list[tuple[date, date, fl
         for row in series.rows:
             shares_by_filing[(row[_R_START], row[_R_END], row[_R_ACCN])] = row[_R_VAL]
     pairs: list[tuple[date, date, float, bool, float]] = []
+    refuted: list[tuple[date, date, float]] = []
     for tag in _SPLIT_DETECT_TAGS:
         for series in timeline.series.get(tag, {}).values():
             by_period: dict[tuple, list[tuple]] = {}
@@ -2845,7 +3026,9 @@ def _sec_split_events(timeline: "_CompanyTimeline") -> list[tuple[date, date, fl
                         except (TypeError, ValueError, ZeroDivisionError):
                             share_ratio = 0.0
                         if abs(share_ratio / ratio - 1) > 0.05:
-                            continue  # EPS moved but the share count did not: a restatement, not a split
+                            # EPS moved but the share count did not: a restatement, not a split.
+                            refuted.append((after, by, ratio))
+                            continue
                         confirmed = True
                     size = max(abs(float(earlier[_R_VAL])), abs(float(later[_R_VAL])))
                     pairs.append((after, by, ratio, confirmed, size))
@@ -2860,10 +3043,20 @@ def _sec_split_events(timeline: "_CompanyTimeline") -> list[tuple[date, date, fl
                 break
         else:
             merged.append([after, by, ratio, confirmed, 1, size])
+    def restated(after: date, by: date, ratio: float) -> bool:
+        # A restatement (for example a new accounting rule) moves the EPS of several periods by
+        # the same factor in the same filings. When the share count filed with one of those
+        # periods did not move, the others are the same restatement, not a split, even where
+        # no share count was filed to compare.
+        return any(
+            abs(other / ratio - 1) <= 0.03 and after < other_by and other_after < by
+            for other_after, other_by, other in refuted
+        )
+
     events = [
         (after, by, ratio)
         for after, by, ratio, confirmed, count, size in merged
-        if confirmed or (count >= 2 and size >= 0.25) or size >= 1.0
+        if confirmed or (((count >= 2 and size >= 0.25) or size >= 1.0) and not restated(after, by, ratio))
     ]
     timeline.memo["split_events"] = events
     return events
@@ -3019,6 +3212,83 @@ class _SplitBasis:
                 if unchecked_from < day <= end:
                     factor *= value
         return factor, None
+
+
+class _AsTradedPrices:
+    """Per day, how a price source's backtest prices relate to the prices actually traded.
+
+    ``ratios[i]`` is ``as_traded_close / close`` on ``days[i]``. Multiplying any backtest
+    price of that day by it gives the price traded that day, whatever the source adjusted for
+    (splits, dividends or both). The ratio only changes on the day a later corporate action
+    takes effect, so it says nothing about where the price goes next.
+    """
+
+    # A day's ratio is used for at most this many calendar days after it (weekends, holidays,
+    # a halt). Beyond that the price is treated as unknown rather than carried forward.
+    MAX_GAP_DAYS = 10
+
+    def __init__(self, days: list[date], ratios: list[float]):
+        self.days = days
+        self.ratios = ratios
+
+    @classmethod
+    def from_frame(cls, frame) -> "_AsTradedPrices":
+        days: list[date] = []
+        ratios: list[float] = []
+        try:
+            index = frame.index
+            if getattr(index, "tz", None) is not None:
+                index = index.tz_convert(_NEW_YORK)
+            closes = frame["close"].tolist()
+            traded = frame["as_traded_close"].tolist()
+            stamps = list(index)
+        except Exception:
+            return cls(days, ratios)
+        for stamp, close, as_traded in zip(stamps, closes, traded):
+            try:
+                close, as_traded = float(close), float(as_traded)
+            except (TypeError, ValueError):
+                continue
+            if not close > 0 or not as_traded > 0:  # also drops NaN
+                continue
+            day = stamp.date() if hasattr(stamp, "date") else _to_date(stamp)
+            if day is None or (days and day <= days[-1]):
+                continue
+            days.append(day)
+            ratios.append(as_traded / close)
+        return cls(days, ratios)
+
+    def ratio_on(self, day: date) -> tuple[float | None, str | None]:
+        position = bisect_right(self.days, day) - 1
+        if position < 0 or (day - self.days[position]).days > self.MAX_GAP_DAYS:
+            return None, (
+                f"the backtest price data has no as-traded close on or shortly before {day.isoformat()}, so its "
+                "adjusted price cannot be turned into the price traded that day"
+            )
+        return self.ratios[position], None
+
+    def split_events(self, sec_events=()) -> list[tuple[date, float]]:
+        """``(day, ratio)`` for each day the ratio jumps by a split-like factor (4.0 = 4-for-1).
+
+        A dividend moves the ratio by the dividend yield, far below any split. Small split
+        ratios (under 3-for-2) are only counted when SEC filings show a split of that ratio
+        around that day, so an unusually large special dividend is not read as a split.
+        """
+        events: list[tuple[date, float]] = []
+        for position in range(1, len(self.days)):
+            jump = self.ratios[position - 1] / self.ratios[position]
+            if 0.84 < jump < 1.19:
+                continue
+            ratio = _split_like_ratio(jump * 1000.0, 1000.0)
+            if ratio is None:
+                continue
+            day = self.days[position]
+            if max(ratio, 1.0 / ratio) < 1.45 and not any(
+                after < day <= by and abs(ratio / other - 1) <= 0.03 for after, by, other in sec_events
+            ):
+                continue
+            events.append((day, ratio))
+        return events
 
 
 def _to_date(value: Any) -> date | None:

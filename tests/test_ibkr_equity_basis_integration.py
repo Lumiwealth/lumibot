@@ -102,16 +102,15 @@ def test_current_actions_use_latest_session_on_weekend(monkeypatch):
     assert h._get_current_equity_basis("SPY") is basis and len(calls)==1
 
 
-def test_missing_split_morning_metadata_preserves_native_price_basis(monkeypatch):
+def test_split_metadata_one_session_behind_on_a_trading_day_still_verifies(monkeypatch):
+    # 2026-11-16: the source has no row for today's session until after the close. Requiring it
+    # sent every trading-day run to the private cache (a cold 10-year download per stock).
     monkeypatch.setattr(h,"_IBKR_EQUITY_BASIS_CACHE",{})
     monkeypatch.setattr(h,"_ibkr_history_now_utc",lambda:pd.Timestamp("2024-06-10T13:00Z").to_pydatetime())
     frame=pd.DataFrame(columns=["Dividends","Stock Splits"]);frame.attrs["coverage_through"]="2024-06-07"
     monkeypatch.setattr(h,"_get_cached_equity_actions",lambda *a,**k:frame)
-    # 2026-10-21: a missing event ledger is not a price-data failure. IBKR's
-    # native prices are already split-adjusted; unknown events stay unverified.
     basis = h._get_current_equity_basis("NVDA")
-    assert basis.actions_verified is False and basis.coverage_through is None
-    assert basis.events == ()
+    assert basis.actions_verified is True and basis.coverage_through == "2024-06-07"
 
 
 def test_placeholder_merge_does_not_invent_or_require_price_basis(isolated):

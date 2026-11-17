@@ -2152,3 +2152,44 @@ def test_ibkr_older_page_that_keeps_failing_uses_bounded_requests_and_is_reporte
     assert len(gap) == 1
     assert gap[0]["requested_start"] == datetime(2026, 9, 17, 8, 0, tzinfo=timezone.utc)
     assert gap[0]["requested_end"] <= datetime(2026, 9, 18, 13, 30, tzinfo=timezone.utc)
+
+
+def test_stock_lookup_tries_the_space_form_of_a_share_class_symbol(monkeypatch):
+    """A share-class symbol written with a dot ("ABC.B") found no contract: Interactive Brokers
+    lists share classes with a space ("ABC B"). Seen Nov 17 2026 for two S&P 500 members, which
+    then had no price history at all on this provider. Response shape copied from the recorded
+    secdef/search entries above; the symbols are synthetic."""
+    from lumibot.tools import ibkr_helper as helper
+
+    searched = []
+
+    def request(url, querystring, headers=None, timeout=None):
+        assert url.endswith("/secdef/search")
+        searched.append(querystring.get("symbol"))
+        if querystring.get("symbol") == "ABC B":
+            return [{"conid": "303", "symbol": "ABC B", "companyName": "SAMPLE HOLDINGS CL B",
+                     "description": "VALUE", "sections": [{"secType": "STK"}]}]
+        return []
+
+    recorded = []
+    monkeypatch.setattr(helper, "queue_request", request)
+    monkeypatch.setattr(helper, "_record_negative_conid", lambda **kwargs: recorded.append(kwargs))
+    assert helper._lookup_conid_remote(asset=Asset("ABC.B", asset_type="stock"), quote=None, exchange=None) == 303
+    assert searched[0] == "ABC.B" and "ABC B" in searched  # the written form is still asked first
+    assert recorded == []
+
+
+def test_stock_lookup_without_a_share_class_asks_only_the_written_symbol(monkeypatch):
+    from lumibot.tools import ibkr_helper as helper
+
+    searched = []
+
+    def request(url, querystring, headers=None, timeout=None):
+        searched.append(querystring.get("symbol"))
+        return []
+
+    monkeypatch.setattr(helper, "queue_request", request)
+    monkeypatch.setattr(helper, "_record_negative_conid", lambda **kwargs: None)
+    with pytest.raises(RuntimeError, match="Unable to resolve IBKR conid for SAMPLE"):
+        helper._lookup_conid_remote(asset=Asset("SAMPLE", asset_type="stock"), quote=None, exchange=None)
+    assert set(searched) == {"SAMPLE"}

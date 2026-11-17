@@ -163,7 +163,13 @@ it uses, in this order:
      forward price implied by calls and puts that traded at the same strike.
    * Otherwise it uses the implied volatility backed out from the contract's own most
      recent real trade. If the contract never traded, it uses the nearest strike with the
-     same expiry and type.
+     same expiry and type. A deep in-the-money contract often last traded at, or a little
+     below, what it was worth in the money at that bar's underlying price, so no volatility
+     explains the trade. That trade carried no time value, and the estimate carries none
+     either: the contract is valued at what it is worth in the money at the current
+     underlying price. (Before 4.6.79 such a contract got no estimate, so its order, and
+     any package containing it, never filled; a spread could not be closed on its expiry
+     day.) A last trade above anything a volatility can reach still gets no estimate.
 
    Only trades that happened before the fill bar are used, and nothing extra is downloaded
    for this. The estimate is used as computed: no penalty is added. If you want estimated

@@ -211,3 +211,93 @@ def test_index_options_price_in_the_money_contracts_from_the_parity_forward():
     _, price, source = _fill(datas, target, side=Order.OrderSide.BUY, underlying=INDEX)
     assert source == "estimated"
     assert price == pytest.approx(truth, abs=0.60)
+
+
+# ----------------------------------------------------------------------------------------------
+# A deep in-the-money contract whose last trade no volatility explains.
+# Such a contract trades rarely and near its in-the-money value. When its last print is at or
+# below that value for the underlying price of that bar (the two were not stamped at the same
+# instant), no volatility reproduces it. It used to get no estimate at all, so the order, and
+# every package containing that leg, never filled: a spread could not be closed on its expiry
+# day and was left to be assigned. The trade carried no time value, so the estimate is the
+# contract's value with no time value at the current underlying price.
+# ----------------------------------------------------------------------------------------------
+
+DEEP_CALL = _option(500, "call")
+ATM_CALL = _option(590, "call")
+DEEP_LAST_TRADE = 88.50  # below 590 - 500 = 90
+
+
+def _package_fill(datas, legs):
+    """Submit one market package at FILL_MINUTE; return {contract: (minute, price, source)}."""
+    pandas_data = {(data.asset, QUOTE): data for data in datas}
+    pandas_data[(STOCK, QUOTE)] = _data(STOCK, {m: SPOT for m in range(60)})
+    data_source = PandasDataBacktesting(
+        pandas_data=pandas_data,
+        datetime_start=datetime(2025, 1, 13, 9, 30),
+        datetime_end=datetime(2025, 1, 13, 10, 30),
+        show_progress_bar=False,
+        market="24/7",
+    )
+    data_source.load_data()
+    broker = BacktestingBroker(data_source=data_source)
+    broker.initialize_market_calendars(data_source.get_trading_days_pandas())
+    start = START.tz_localize(NY)
+
+    class OnePackage(Strategy):
+        def initialize(self):
+            self.sleeptime = "1M"
+            self.sent = False
+            self.fills = {}
+
+        def on_trading_iteration(self):
+            if not self.sent and self.get_datetime() >= start + pd.Timedelta(minutes=FILL_MINUTE):
+                self.sent = True
+                orders = [self.create_order(asset, Decimal(str(quantity)), side, quote=QUOTE)
+                          for asset, quantity, side in legs]
+                self.submit_orders(orders, is_multileg=True)
+
+        def on_filled_order(self, position, order, price, quantity, multiplier):
+            minute = int((self.get_datetime() - start).total_seconds() // 60)
+            self.fills[order.asset] = (minute, float(price), order.identifier)
+
+    strategy = OnePackage(broker=broker, budget=1_000_000.0, analyze_backtest=False)
+    trader = Trader(logfile="", backtest=True)
+    trader.add_strategy(strategy)
+    trader.run_all(show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False)
+    log = strategy.broker._trade_event_log_df
+    rows = log[log["status"] == "fill"]
+    source = dict(zip(rows["identifier"], rows["price_source"]))
+    return {asset: (minute, price, source.get(identifier)) for asset, (minute, price, identifier) in strategy.fills.items()}
+
+
+def test_deep_in_the_money_contract_with_an_unexplainable_last_trade_still_gets_an_estimate():
+    minute, price, source = _fill([_data(DEEP_CALL, {2: DEEP_LAST_TRADE})], DEEP_CALL, side=Order.OrderSide.BUY)
+
+    assert (minute, source) == (FILL_MINUTE, "estimated")
+    assert price == pytest.approx(SPOT - 500, abs=0.05)  # worth what it is in the money, no time value
+
+
+def test_package_fills_on_its_bar_when_one_leg_has_no_print_and_is_marked_estimated():
+    """Closing a spread on expiry day: the at-the-money leg prints, the deep leg does not."""
+    atm_now = _true_price(590, "call", FILL_MINUTE)
+    datas = [
+        _data(DEEP_CALL, {2: DEEP_LAST_TRADE}),
+        _data(ATM_CALL, {2: _true_price(590, "call", 2), FILL_MINUTE: atm_now}),
+    ]
+    legs = [(DEEP_CALL, 1, Order.OrderSide.BUY), (ATM_CALL, 2, Order.OrderSide.SELL)]
+
+    fills = _package_fill(datas, legs)
+
+    assert set(fills) == {DEEP_CALL, ATM_CALL}, "the package did not fill"
+    assert fills[ATM_CALL] == (FILL_MINUTE, pytest.approx(atm_now, abs=0.005), "trade")
+    assert fills[DEEP_CALL][0] == FILL_MINUTE  # same bar as the other leg
+    assert fills[DEEP_CALL][2] == "estimated"
+    assert fills[DEEP_CALL][1] == pytest.approx(SPOT - 500, abs=0.05)
+
+
+def test_a_last_trade_above_any_possible_value_still_gets_no_estimate():
+    """Opposite case: a print no volatility can reach from above is unusable, so nothing is invented."""
+    datas = [_data(DEEP_CALL, {2: SPOT * 3})]
+    with pytest.raises(AssertionError, match="did not fill"):
+        _fill(datas, DEEP_CALL, side=Order.OrderSide.BUY)

@@ -146,6 +146,33 @@ class IndicatorRow:
 class Indicators:
     """Per-strategy indicator accessor. See module docstring for usage."""
 
+    # Backtests calculate these built-in indicators once over the stored bar series and
+    # read the row of the current bar, instead of recalculating over the history on every
+    # bar. Every name is pinned by tests/test_indicators_call_cost.py, which compares this
+    # path with the per-bar calculation bar by bar; a name that fails there must be removed.
+    #
+    # Prefix-stable: row i depends only on rows 0..i, so when the bars seen so far are the
+    # leading rows of the stored series, row i of one whole-series calculation is the
+    # same number. (stoch and t3 fail this in pandas-ta-classic and are not listed.)
+    _WHOLE_SERIES_BUILTINS = frozenset({
+        "supertrend", "ema", "rsi", "atr", "macd", "adx", "bbands", "obv", "cci", "willr", "roc", "mom",
+        "wma", "donchian", "psar", "hma", "dema", "tema", "mfi", "rma", "aroon", "cmf",
+        "kama", "vwma", "stdev", "zscore",
+    })
+    # Window-stable: the input is the most recent ``_fallback_length`` bars, which no longer
+    # start at the first stored row. These either look at a fixed number of recent bars with
+    # exact arithmetic (highest/lowest, differences, weighted means) or forget their start
+    # (smoothing whose memory of the first bar has decayed to nothing over that many bars).
+    # Running totals (obv, cmf) and rolling sums (sma, bbands, cci, mfi, stdev) are not
+    # listed: their last digits depend on where the calculation started.
+    _WINDOW_STABLE_BUILTINS = frozenset({
+        "supertrend", "ema", "rsi", "atr", "macd", "adx", "rma", "dema", "tema", "willr", "roc", "mom",
+        "wma", "hma", "donchian", "aroon", "psar", "kama",
+    })
+    # Below this many visible bars the per-bar path runs: it is cheap there, and it owns
+    # the warm-up answers (None until an indicator has enough bars).
+    _WHOLE_SERIES_MIN_BARS = 500
+
     def __init__(self, strategy):
         self._strategy = strategy
         self._cache: dict = {}
@@ -153,6 +180,8 @@ class Indicators:
         # (asset, timestep, key, version, inputs, quote, exchange).
         self._streams: dict = {}
         self._fallback_length: int = 10_000
+        # Backtests: one calculation per stored series for prefix-stable built-ins.
+        self._whole_series: dict = {}
 
     def __getattr__(self, name: str):
         if name.startswith("_"):
@@ -321,11 +350,14 @@ class Indicators:
         """
         if asset is None:
             self._cache.clear()
+            self._whole_series.clear()
             self._streams.clear()
             return
         asset_key = self._asset_key(asset)
         for key in [k for k in self._cache if k[0] == asset_key]:
             self._cache.pop(key, None)
+        for key in [k for k in self._whole_series if k[0] == asset_key]:
+            self._whole_series.pop(key, None)
         for key in [k for k in self._streams if k[0] == asset_key]:
             self._streams.pop(key, None)
 
@@ -443,6 +475,12 @@ class Indicators:
         self._record_consumed_input(asset, timestep, df, quote=quote)
         if df.empty:
             return None
+        if (name in self._WHOLE_SERIES_BUILTINS and window is None and history_length is None
+                and custom_fn is None):
+            found, value = self._whole_series_value(
+                key, name, kwargs, self._stored_backtest_series(asset, df, quote=quote), df)
+            if found:
+                return value
         digest = hashlib.sha256(pd.util.hash_pandas_object(df, index=True).values.tobytes()).hexdigest()
         data_tag = (tuple(df.columns), digest, custom_fn)
         cached = self._cache.get(key)
@@ -450,6 +488,105 @@ class Indicators:
             result = self._compute(df, name, kwargs, custom_fn)
             self._cache[key] = (data_tag, result)
         return self._at_current_bar(self._cache[key][1])
+
+    _OHLCV = ("open", "high", "low", "close", "volume")
+
+    def _stored_backtest_series(self, asset, observed, *, quote=None):
+        """``(stored frame, position of the last observed bar)`` when ``observed`` is a run of
+        consecutive rows of a bar series stored for this backtest, else None.
+
+        Matched by content, not by how the bar size was spelled: same asset, the observed
+        first and last bars sit exactly ``len(observed) - 1`` rows apart in the stored
+        frame and carry the same prices there.
+        """
+        if not getattr(self._strategy, "is_backtesting", False) or observed is None or len(observed) < 2:
+            return None
+        broker = getattr(self._strategy, "broker", None)
+        data_source = getattr(broker, "data_source", None) if broker is not None else None
+        store = getattr(data_source, "_data_store", None) if data_source is not None else None
+        if not store:
+            return None
+        from lumibot.entities import Data
+
+        columns = [column for column in self._OHLCV if column in observed.columns]
+        if "close" not in columns:
+            return None
+        first_at, last_at, count = observed.index[0], observed.index[-1], len(observed)
+        for stored_key, data_obj in list(store.items()):
+            if not isinstance(data_obj, Data):
+                continue
+            stored_asset = stored_key[0] if isinstance(stored_key, tuple) else stored_key
+            stored_quote = None
+            if isinstance(stored_asset, tuple) and stored_asset:
+                stored_asset, stored_quote = stored_asset[0], stored_asset[1] if len(stored_asset) > 1 else None
+            elif isinstance(stored_key, tuple) and len(stored_key) > 1 and hasattr(stored_key[1], "symbol"):
+                stored_quote = stored_key[1]
+            if stored_asset != asset or (quote is not None and stored_quote is not None and stored_quote != quote):
+                continue
+            stored = data_obj.df
+            if (stored is None or len(stored) < count or not isinstance(stored.index, pd.DatetimeIndex)
+                    or not stored.index.is_monotonic_increasing or not stored.index.is_unique
+                    or any(column not in stored.columns for column in columns)):
+                continue
+            try:
+                position = int(stored.index.searchsorted(last_at, side="left"))
+                start = position + 1 - count
+                if (position >= len(stored) or start < 0 or stored.index[position] != last_at
+                        or stored.index[start] != first_at):
+                    continue
+                same = all(
+                    np.array_equal(stored[column].to_numpy()[[start, position]].astype(float),
+                                   observed[column].to_numpy()[[0, -1]].astype(float), equal_nan=True)
+                    for column in columns)
+            except (TypeError, ValueError):
+                continue
+            if same:
+                return stored, position
+        return None
+
+    def _whole_series_value(self, key, name, kwargs, located, observed):
+        """``(True, value)`` read from one calculation over the stored series, or ``(False, None)``.
+
+        ``observed`` is the input the per-bar path would calculate from and its last row is
+        the row read here, so no later bar can reach the answer. The per-bar path keeps
+        every case this cannot prove equal: few bars, options that move or fill values, an
+        input that is neither the leading rows of the stored series nor a full window of a
+        window-stable indicator, a result that is not one row per bar.
+        """
+        end = len(observed)
+        if located is None or end < self._WHOLE_SERIES_MIN_BARS:
+            return False, None
+        stored, position = located
+        start = position + 1 - end
+        if start != 0 and not (name in self._WINDOW_STABLE_BUILTINS and end >= self._fallback_length):
+            return False, None
+        sizes = []
+        for option, setting in kwargs.items():
+            if option in {"offset", "fillna", "fill_method"} and setting:
+                return False, None
+            if isinstance(setting, bool) or setting is None or isinstance(setting, str):
+                continue
+            if not isinstance(setting, (int, float)) or not np.isfinite(setting):
+                return False, None
+            sizes.append(abs(float(setting)))
+        if sizes and end < 4 * max(sizes) + 100:
+            return False, None  # still near the warm-up of a long setting
+        last = stored.iloc[-1]
+        fingerprint = (id(stored), len(stored), stored.index[0], stored.index[-1],
+                       tuple(str(last.get(column)) for column in self._OHLCV))
+        cached = self._whole_series.get(key)
+        if cached is None or cached[0] != fingerprint:
+            result = self._compute(stored.copy(), name, kwargs, None)
+            if not isinstance(result, (pd.Series, pd.DataFrame)) or len(result) != len(stored) or not result.index.equals(
+                    stored.index):
+                result = None
+            cached = (fingerprint, result)
+            self._whole_series[key] = cached
+        result = cached[1]
+        if result is None:
+            return False, None
+        row = result.iloc[position]
+        return True, (IndicatorRow(row) if isinstance(result, pd.DataFrame) else row)
 
     def _record_consumed_input(self, asset, timestep, frame, *, quote=None):
         normalize = getattr(self._strategy, "_sanitize_user_asset", None)

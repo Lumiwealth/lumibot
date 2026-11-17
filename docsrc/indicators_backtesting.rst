@@ -19,6 +19,39 @@ indicator's values for the current bar as a dict::
 - ``timestep="minute"`` (or ``"day"``, the default) picks the bar size.
 - ``version=1`` pins the math so a later change cannot move your results.
 
+Built-in indicators by name, and backtest speed
+-----------------------------------------------
+
+The short form ``self.indicators.<name>(asset, ...)`` runs any pandas-ta-classic
+indicator on the bars seen so far::
+
+    trend = self.indicators.supertrend(asset, length=10, multiplier=3.0, timestep="5 minutes")
+    fast = self.indicators.ema(asset, length=21, timestep="5 minutes")
+
+Calling it once per bar is fine in a long backtest. For the indicators listed
+below LumiBot calculates the indicator once over the stored bar series and reads
+the row of the current bar, instead of recalculating the whole history on every
+bar. The row of a bar depends only on that bar and earlier ones, so the value is
+the same number the bar-by-bar calculation gives and nothing after the current bar
+can reach it; the test suite compares both paths bar by bar. A three month
+backtest on 5 minute bars that reads Supertrend on every bar went from about four
+minutes of simulation to about one.
+
+- Always (the bars seen so far start at the first stored bar): ``supertrend``,
+  ``ema``, ``rsi``, ``atr``, ``macd``, ``adx``, ``bbands``, ``obv``, ``cci``,
+  ``willr``, ``roc``, ``mom``, ``wma``, ``donchian``, ``psar``, ``hma``, ``dema``,
+  ``tema``, ``mfi``, ``rma``, ``aroon``, ``cmf``, ``kama``, ``vwma``, ``stdev``,
+  ``zscore``.
+- Also when the data source hands over only the most recent 10,000 bars:
+  ``supertrend``, ``ema``, ``rsi``, ``atr``, ``macd``, ``adx``, ``rma``, ``dema``,
+  ``tema``, ``willr``, ``roc``, ``mom``, ``wma``, ``hma``, ``donchian``,
+  ``aroon``, ``psar``, ``kama``. Running totals and rolling sums (``obv``,
+  ``bbands``, ``cci`` and others) keep the bar-by-bar calculation there, because
+  their last digits depend on where the calculation started.
+
+Limits: every other indicator, custom functions, the first 500 bars, calls with
+``offset`` or fill options, and live trading are calculated bar by bar as before.
+
 A complete strategy
 -------------------
 

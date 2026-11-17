@@ -2,6 +2,9 @@
 
 ## 4.6.76 - Unreleased
 
+### Fixed
+- Binance perpetual and spot backtests whose requested end is later than the last published bulk file (files arrive about a day late, so "backtest the last 3 months ending today" always reached past them) no longer fail with `PERPETUAL_DATA_UNAVAILABLE`. The run ends at the last published bar and the data provenance `notices` carry a `data_ends_before_requested_end` entry ("Data for SYMBOL ends on DATE ...") with the requested end. No bar after the last real one is filled or invented. A window that starts after the last published bar still stops with `no_data_for_window`. Documented in `docsrc/backtesting.perpetuals.rst`.
+
 ### Added
 - Optional read-only fallback cache. Set `LUMIBOT_CACHE_FALLBACK_S3_BUCKET` (plus prefix and version if different) and a remote cache read that misses is retried in that second location; anything downloaded or computed is still written only to the primary cache, and the fallback is never written. `LUMIBOT_CACHE_FALLBACK_MODE=off` turns it off per run, and an unreadable fallback degrades to a normal cache miss. Cache telemetry and the run summary report fallback hits. Documented in `docs/REMOTE_CACHE.md` and `docs/ENV_VARS.md`.
 

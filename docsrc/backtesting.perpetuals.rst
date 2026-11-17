@@ -281,6 +281,14 @@ Things to know:
   other ``crypto_future`` routing values and what each provides. The exception is
   ``lumibot.backtesting.routed_backtesting.PerpetualDataUnavailable`` with the same
   values as attributes.
+- **A window that ends after the last published Binance day runs to the last bar.**
+  Binance publishes each day's bulk file about one day later, so a request that
+  ends "today" or "yesterday" reaches past the data. The backtest now runs to the
+  last published bar instead of failing, and the data provenance ``notices`` list
+  a ``data_ends_before_requested_end`` entry that says plainly "Data for SYMBOL
+  ends on DATE" with the requested end. No bar after that point is filled,
+  repeated or invented. A window that starts after the last published bar still
+  stops with ``PERPETUAL_DATA_UNAVAILABLE``.
 - **Missing funding history is reported, not treated as zero.** Bitunix funding
   history starts on 2024-03-04. When a position is held where the source has no
   funding settlements, nothing is charged there and the run says so in its log

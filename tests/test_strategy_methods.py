@@ -376,7 +376,9 @@ class TestStrategyMethods:
             original_value = strategy.get_portfolio_value()
             updated_value = strategy._update_portfolio_value()
 
-        assert updated_value == original_value
+        # No raise. Since 4.6.76 a position with no market price yet is valued at its fill price
+        # instead of being dropped from the portfolio value.
+        assert updated_value == original_value + 430.0
 
     def _setup_strategy_with_option_position(self):
         date_start = datetime(2024, 1, 1)

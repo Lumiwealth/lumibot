@@ -234,6 +234,49 @@ class TestBacktestingDataSourceEnv:
             for record in caplog.records
         )
 
+    def test_routing_map_with_alpaca_default_selects_the_alpaca_engine(self, monkeypatch):
+        """A map such as {"default": "alpaca", "index": "ibkr"} keeps Alpaca as the engine.
+
+        The routed source inherits ThetaData's option chains, so an Alpaca option backtest that
+        also reads an index must not be handed to it: chains, quotes and bars stay on Alpaca and
+        the map travels with the config so only the other asset types are routed.
+        """
+        seen = {}
+
+        class _AlpacaSelected(Exception):
+            pass
+
+        class AlpacaBacktesting:
+            def __init__(self, *args, **kwargs):
+                seen["config"] = kwargs.get("config")
+                raise _AlpacaSelected()
+
+        class RoutedBacktestingPandas:
+            def __init__(self, *args, **kwargs):
+                raise AssertionError("the routed source must not run an Alpaca-default map")
+
+        import lumibot.strategies._strategy as strategy_module
+
+        monkeypatch.setattr(strategy_module, "AlpacaBacktesting", AlpacaBacktesting)
+        monkeypatch.setattr(strategy_module, "RoutedBacktestingPandas", RoutedBacktestingPandas, raising=False)
+        monkeypatch.setenv("BACKTESTING_DATA_SOURCE", '{"default": " Alpaca ", "index": "ibkr"}')
+
+        with pytest.raises(_AlpacaSelected):
+            SimpleTestStrategy.run_backtest(
+                None,
+                backtesting_start=datetime(2023, 1, 1),
+                backtesting_end=datetime(2023, 1, 10),
+                show_plot=False,
+                show_tearsheet=False,
+                show_indicators=False,
+                show_progress_bar=False,
+                save_tearsheet=False,
+                save_stats_file=False,
+                save_logfile=False,
+            )
+
+        assert seen["config"] == {"backtesting_data_routing": {"default": " Alpaca ", "index": "ibkr"}}
+
     def test_backtest_allows_omitting_datasource_class_when_env_is_set(self, monkeypatch, caplog):
         import logging
 

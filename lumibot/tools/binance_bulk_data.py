@@ -61,15 +61,15 @@ def _epoch_to_utc(values: pd.Series) -> pd.DatetimeIndex:
 def perpetual_symbol(asset, quote=None) -> str:
     """Binance USD-M perpetual symbol, e.g. ``BTCUSDT`` or ``1000PEPEUSDT`` (used as written).
 
-    A base coin alone needs an explicit USDT or USDC quote; a USD quote would mean a
-    coin-margined contract, which is not supported. Dated contracts are not perpetuals.
+    A base coin alone needs an explicit USDT or USDC quote. This USD-M route does
+    not serve coin-margined/inverse contracts or dated futures.
     """
     raw = str(getattr(asset, "symbol", asset) or "").strip().upper()
     symbol = raw.split(":")[0].replace("/", "").replace("-", "")
     if symbol.endswith("_PERP") or (symbol.endswith("USD") and not symbol.endswith(LINEAR_QUOTES)):
         raise BinanceBulkDataError(
-            f"{raw} is a coin-margined (inverse) perpetual. Backtests of coin-margined perpetuals are not "
-            f"supported; use the USDT-margined contract, for example {symbol.split('USD')[0]}USDT.",
+            f"The selected Binance USD-M bulk route cannot serve {raw}. "
+            "This route supports USDT- and USDC-margined perpetuals, not coin-margined/inverse contracts.",
             reason="coin_margined_unsupported",
         )
     if "_" in symbol:

@@ -176,6 +176,7 @@ Supported values
   - JSON mapping (multi-provider routing by asset type), e.g. ``{"default":"thetadata","stock":"thetadata","option":"thetadata","index":"thetadata","future":"ibkr","crypto":"ibkr"}``
 
     - Provider values are case/whitespace/_/- insensitive.
+    - A map whose ``default`` is ``alpaca`` (for example ``{"default":"alpaca","index":"ibkr"}``) keeps Alpaca as the backtest engine, option chains and option prices included, and reads only the other listed asset types from their provider. See the Alpaca Backtesting page.
     - Supported values include ``thetadata``, ``ibkr``, ``polygon``, ``alpaca``, ``ccxt``, and ``polymarket``.
     - For CCXT backtesting, you may use ``ccxt`` (auto-select exchange from existing env/credentials) **or** specify a supported CCXT backtesting exchange id directly. Documented backtesting examples are ``kraken``, ``binance``, ``kucoin``, ``bitmex``, ``bybit``, and ``okx``.
     - Routing keys are the canonical asset types (``future``, ``cont_future``, ``crypto``, etc.). Common plural aliases like ``futures``/``cont_futures`` are accepted.

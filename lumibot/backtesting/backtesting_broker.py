@@ -773,11 +773,15 @@ class BacktestingBroker(Broker):
 
     def _between_run_pending_orders(self, strategy_name) -> list:
         pending = []
-        for bucket in (getattr(self, "_unprocessed_orders", None), getattr(self, "_new_orders", None)):
+        seen = set()
+        for bucket in (getattr(self, "_unprocessed_orders", None), getattr(self, "_new_orders", None),
+                       getattr(self, "_partially_filled_orders", None)):
             if not bucket:
                 continue
-            for order in bucket.get_list():
-                if getattr(order, "strategy", None) == strategy_name:
+            get_list = getattr(bucket, "get_list", None)
+            for order in get_list() if callable(get_list) else bucket:
+                if getattr(order, "strategy", None) == strategy_name and id(order) not in seen:
+                    seen.add(id(order))
                     pending.append(order)
         return pending
 
@@ -1313,8 +1317,15 @@ class BacktestingBroker(Broker):
         previous_quantity = existing_position._quantity if existing_position is not None else Decimal(0)
         previous_average = existing_position.avg_fill_price if existing_position is not None else None
 
-        # Currently perfect fill price in backtesting!
-        order.avg_fill_price = price
+        # The terminal event carries this execution's price, not a cumulative
+        # average. Preserve the value of earlier partial executions.
+        prior_quantity = sum((Decimal(str(fill.quantity)) for fill in order.transactions), Decimal(0))
+        prior_value = sum((Decimal(str(fill.price)) * Decimal(str(fill.quantity))
+                           for fill in order.transactions), Decimal(0))
+        order.avg_fill_price = float(
+            (prior_value + Decimal(str(price)) * Decimal(str(quantity)))
+            / (prior_quantity + Decimal(str(quantity)))
+        )
 
         position = super()._process_filled_order(order, price, quantity)
         if existing_position:
@@ -2377,15 +2388,17 @@ class BacktestingBroker(Broker):
 
         is_multileg_parent = order.is_parent() and order.order_class is Order.OrderClass.MULTILEG
 
+        prior_filled = sum(Decimal(str(fill.quantity)) for fill in order.transactions)
+        remaining_before = Decimal(str(order.quantity)) - prior_filled
         partial_model_fill = (
             callable(getattr(self.data_source, "get_backtest_fill_quantity", None))
-            and Decimal(str(filled_quantity)) < Decimal(str(order.quantity))
+            and Decimal(str(filled_quantity)) < remaining_before
         ) or capped_perpetual
         if is_perpetual:
             # Perpetual fees were applied in the actual settlement wallet.
             trade_cost = settled_fee
             order.trade_cost_currency = self.get_contract_spec(order.asset).settle
-        elif partial_model_fill:
+        elif partial_model_fill or prior_filled:
             trade_cost = self.calculate_trade_cost(order, strategy, price, quantity=filled_quantity)
         else:
             trade_cost = Decimal("0") if is_multileg_parent else self.calculate_trade_cost(order, strategy, price)
@@ -2654,28 +2667,7 @@ class BacktestingBroker(Broker):
         if perpetuals is not None:
             perpetuals.process_events(strategy)
 
-        unprocessed_bucket = getattr(self, "_unprocessed_orders", None)
-        new_bucket = getattr(self, "_new_orders", None)
-        if not unprocessed_bucket and not new_bucket:
-            self._run_backtest_lifecycle_tasks(strategy)
-            return
-
-        def _iter_bucket(bucket):
-            if not bucket:
-                return ()
-            get_list = getattr(bucket, "get_list", None)
-            if callable(get_list):
-                return get_list()
-            return bucket
-
-        pending_orders: list[Order] = []
-        for order in _iter_bucket(unprocessed_bucket):
-            if getattr(order, "strategy", None) == strategy_name:
-                pending_orders.append(order)
-        for order in _iter_bucket(new_bucket):
-            if getattr(order, "strategy", None) == strategy_name:
-                pending_orders.append(order)
-
+        pending_orders = self._between_run_pending_orders(strategy_name)
         if not pending_orders:
             self._run_backtest_lifecycle_tasks(strategy)
             return
@@ -2833,6 +2825,10 @@ class BacktestingBroker(Broker):
                 price = fill_model(order)
                 quantity_model = getattr(self.data_source, "get_backtest_fill_quantity", None)
                 count = quantity_model(order, self) if callable(quantity_model) else order.quantity
+                remaining = Decimal(str(order.quantity)) - sum(
+                    Decimal(str(fill.quantity)) for fill in order.transactions
+                )
+                count = min(Decimal(str(count)), remaining)
                 if price is not None and count > 0:
                     self._execute_filled_order(order, price, count, strategy)
                 if order.is_active():

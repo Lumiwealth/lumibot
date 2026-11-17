@@ -1516,3 +1516,73 @@ def test_intraday_bars_from_minutes_has_no_bar_where_nothing_traded(tmp_path, mo
     source._datetime = _NY.localize(datetime(2025, 11, 26, 9, 40))
     source.get_historical_prices(asset, 1, timestep="5 minutes")
     assert source.native_requests == ["5minute"]
+
+
+# ---------------------------------------------------------------------------
+# A routing map whose default is Alpaca: Alpaca stays the engine, other asset types are routed
+# ---------------------------------------------------------------------------
+class _RecordingCompanion:
+    """Stands in for the routed source that serves the asset types Alpaca has no history for."""
+
+    def __init__(self):
+        self.calls = []
+        self._datetime = None
+        self._timestep = None
+
+    def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
+        self.calls.append(("last", asset.symbol, self._datetime, timestep))
+        return 17.25
+
+    def get_historical_prices(self, asset, length, timestep="minute", **kwargs):
+        self.calls.append(("bars", asset.symbol, self._datetime, timestep, length))
+        return "index-bars"
+
+
+def test_routing_map_with_alpaca_default_runs_in_environment_mode(monkeypatch, tmp_path):
+    _select_alpaca_through_environment(monkeypatch, tmp_path)
+    start = _NY_TZ.localize(datetime(2026, 8, 3))
+    source = AlpacaBacktesting(
+        datetime_start=start, datetime_end=_NY_TZ.localize(datetime(2026, 8, 8)),
+        config={"backtesting_data_routing": {"default": "alpaca", "index": "ibkr"}},
+    )
+    # Same defaults as BACKTESTING_DATA_SOURCE=alpaca: credentials from the environment, minute bars.
+    assert source._timestep == "minute"
+    assert source._history_before_start is True
+    assert source._other_source_routes == {"index": "ibkr"}
+
+
+def test_index_requests_go_to_the_routed_source_and_everything_else_stays_on_alpaca(monkeypatch, tmp_path):
+    _select_alpaca_through_environment(monkeypatch, tmp_path)
+    start = _NY_TZ.localize(datetime(2026, 8, 3))
+    source = AlpacaBacktesting(
+        datetime_start=start, datetime_end=_NY_TZ.localize(datetime(2026, 8, 8)),
+        config={"backtesting_data_routing": {"default": "alpaca", "index": "ibkr"}},
+    )
+    companion = _RecordingCompanion()
+    source._routed_companion = companion
+    now = _NY_TZ.localize(datetime(2026, 8, 3, 10, 0))
+    source._datetime = now
+    vix = Asset("VIX", asset_type=Asset.AssetType.INDEX)
+
+    assert source.get_last_price(vix) == 17.25
+    assert source.get_historical_prices(vix, 5, "day") == "index-bars"
+    assert source.get_quote(vix).price == 17.25
+    # The routed source answers at the simulated time of the backtest, never its own clock.
+    assert companion.calls == [
+        ("last", "VIX", now, "minute"),
+        ("bars", "VIX", now, "day", 5),
+        ("last", "VIX", now, "minute"),
+    ]
+
+    # Options and stocks never leave Alpaca.
+    assert source._other_source_for(Asset("SPY")) is None
+    contract = Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration=date(2026, 8, 21), strike=650, right="CALL")
+    assert source._other_source_for(contract) is None
+
+
+def test_plain_alpaca_backtest_has_no_routed_source(monkeypatch, tmp_path):
+    _select_alpaca_through_environment(monkeypatch, tmp_path)
+    start = _NY_TZ.localize(datetime(2026, 8, 3))
+    source = AlpacaBacktesting(datetime_start=start, datetime_end=_NY_TZ.localize(datetime(2026, 8, 8)), config=None)
+    assert source._other_source_routes == {}
+    assert source._other_source_for(Asset("VIX", asset_type=Asset.AssetType.INDEX)) is None

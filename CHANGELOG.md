@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.6.74 - 2026-11-15
+
+Deploy marker: 2397fcc2f2b7f32b75b28902ca740d02c87b8511
+
+### Fixed
+- Interactive Brokers stock and ETF daily history now reads and fills the shared cache on a trading day. The corporate-action table (splits and dividends) used to be required through today's session, which its source cannot supply until after the close, so every run on a trading day fell back to a private, never-shared cache and downloaded each symbol's whole history again (about 2.5 minutes per stock). One session of lag is now accepted; the split list is part of the cache key, so a split on the missing day changes the key and the data is refetched. After a weekend or holiday the last closed session is still required, and two or more sessions behind stays unverified.
+- An options backtest on Alpaca data that also reads an index (`BACKTESTING_DATA_SOURCE={"default":"alpaca","index":"ibkr"}`) gets its option chains, option prices and fills from Alpaca again. Such a map was handed to the routed source, which asked ThetaData for every chain and expiration. Alpaca now stays the engine and only the other listed asset types are read from their provider. Plain `alpaca` and every map with another default are unchanged.
+- Native backtest partial executions continue through the remaining quantity without duplicate fills or fees. Final chunks finish the order and preserve its weighted fill price; canceled remainders and OCO protection stay respected.
+- Perpetual data errors describe the selected provider's limits and explain existing native CCXT selection without suggesting a different contract or settlement currency. Routing, machine-readable reasons and successful data access are unchanged.
+
 ## 4.6.73 - 2026-11-15
 
 Deploy marker: dadfd7128af4fd61a96de0d7869897c82160d560

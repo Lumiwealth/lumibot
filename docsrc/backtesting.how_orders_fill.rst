@@ -13,6 +13,17 @@ Market orders
 
 A market order fills at the open of the next bar after it is submitted.
 
+Partial executions
+------------------
+
+When a data source supplies a partial execution quantity, the unfilled remainder
+stays eligible on later bars until the order fills or is canceled. Each execution
+is capped at the quantity still open, and the order becomes filled when the total
+executed quantity reaches its requested size. Its average fill price includes all
+executions, weighted by their quantities. Quantity-based fees use each actual
+execution quantity, including the final remainder. This also applies to an OCO
+child; its sibling cancellation behavior is unchanged.
+
 Limit orders
 ------------
 

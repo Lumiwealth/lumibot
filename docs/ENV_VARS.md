@@ -119,6 +119,7 @@ This page documents environment variables used by LumiBot, with an emphasis on *
   - `router` (multi-provider routing; defaults to Theta for stock/option/index and IBKR for futures/crypto)
   - JSON mapping (multi-provider routing by asset type), e.g.:
     - `{"default":"thetadata","stock":"thetadata","option":"thetadata","index":"thetadata","future":"ibkr","cont_future":"ibkr","crypto":"ibkr","crypto_future":"ibkr"}`
+    - `{"default":"alpaca","index":"ibkr"}`: Alpaca stays the engine (chains, option prices, fills); only the other listed asset types go to their provider. The routed source inherits ThetaData option chains, so `_strategy.py` never hands it an Alpaca-default map.
     - Provider values are case/whitespace/_/- insensitive. Supported values include:
       - `thetadata`, `ibkr`, `polygon`, `alpaca`
       - `polymarket` / `polymarket_clob` for prediction-contract assets

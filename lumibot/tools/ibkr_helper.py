@@ -6009,7 +6009,13 @@ def _verified_current_equity_basis(symbol, now):
     # Friday, not an impossible Saturday daily row that causes full-history fetches.
     closes = pd.DatetimeIndex(sessions["market_close"]).tz_convert(LUMIBOT_DEFAULT_PYTZ)
     closes = closes[closes.date <= local.date()]
-    latest_session = closes[-1]
+    # The source (Yahoo) has no row for a session until after it closes and the
+    # source updates, so demanding today's row sent every trading-day run to the
+    # private cache (cold, never shared). One session of lag is accepted: the
+    # split list is part of the cache key, so a split on the missing day changes the
+    # key and refetches. Two or more sessions behind stays unverified.
+    # After a weekend or holiday the last closed session is still required.
+    latest_session = closes[-2] if len(closes) >= 2 and closes[-1].date() == local.date() else closes[-1]
     needed = latest_session.normalize().to_pydatetime()
     # A historical replay must still learn splits effective since its end date.
     # Reuse the provider's existing persistent cache, but demand current coverage.

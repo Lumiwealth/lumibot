@@ -260,3 +260,35 @@ def test_unavailable_daily_enrichment_is_idempotent_and_recovers_verified_empty(
         assert changed is False, 'An unchanged unknown-action cache must stay warm'
         pd.testing.assert_frame_equal(first, second)
     assert first.dividend.isna().all() and first.attrs['actions_verified'] is False
+
+
+def _yahoo_actions_through(last_day):
+    index = pd.bdate_range('2026-10-26', last_day, tz='America/New_York') + pd.Timedelta(hours=16)
+    return pd.DataFrame({'Dividends': 0.0, 'Stock Splits': 0.0}, index=index)
+
+
+def test_actions_one_session_behind_still_verify_so_the_shared_cache_is_used(monkeypatch):
+    """Yahoo has no row for today's session until after the close. A trading-day run
+    must still verify the basis (one session of lag), not drop to the private cache."""
+    monkeypatch.setattr(h, '_IBKR_EQUITY_ACTIONS_CACHE', {})
+    asked = []
+
+    def fake(symbol, **kwargs):
+        asked.append(kwargs.get('last_needed_datetime'))
+        return _yahoo_actions_through('2026-11-13')
+
+    monkeypatch.setattr(YahooHelper, 'get_symbol_data', staticmethod(fake))
+    now = pd.Timestamp('2026-11-16T15:00Z').to_pydatetime()  # Monday 10:00 AM New York
+    snapshot = h._verified_current_equity_basis('MMM', now)
+    assert snapshot.actions_verified is True
+    # The cached Yahoo table already counts as current for Friday's session: no re-download per run.
+    assert asked and asked[0].date().isoformat() == '2026-11-13'
+
+
+def test_actions_two_sessions_behind_are_still_unverified(monkeypatch):
+    monkeypatch.setattr(h, '_IBKR_EQUITY_ACTIONS_CACHE', {})
+    monkeypatch.setattr(YahooHelper, 'get_symbol_data',
+                        staticmethod(lambda symbol, **kwargs: _yahoo_actions_through('2026-11-12')))
+    now = pd.Timestamp('2026-11-16T15:00Z').to_pydatetime()
+    with pytest.raises(RuntimeError, match='corporate_actions_unavailable'):
+        h._verified_current_equity_basis('MMM', now)

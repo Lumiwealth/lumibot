@@ -126,6 +126,40 @@ def test_missing_fin_primitives_falls_back_to_pandas_ta(monkeypatch):
     assert fast_backend.compute(_bars(300), "rsi", {"length": 14}) is None
 
 
+def test_numeric_strings_fall_back_to_pandas_ta():
+    df = _bars(40)
+    df["close"] = [str(i) for i in range(1, 41)]  # parses as float64, but is not numeric
+    assert fast_backend.compute(df, "rsi", {}) is None
+    df = _bars(40)
+    df["close"] = df["close"] > df["close"].median()
+    assert fast_backend.compute(df, "sma", {}) is None
+
+
+@pytest.mark.parametrize(
+    "installed,active",
+    [("0.6.52", False), ("0.8.9", False), ("0.9.0", True), ("0.9.1.dev271", True), ("1.0.0", True), (None, False)],
+)
+def test_fast_path_only_on_the_matching_pandas_ta_baseline(monkeypatch, installed, active):
+    monkeypatch.setattr(fast_backend, "_installed_pandas_ta_version", lambda: installed)
+    assert fast_backend.baseline_matches() is active
+    monkeypatch.setattr(fast_backend, "_BASELINE_OK", fast_backend.baseline_matches())
+    result = fast_backend.compute(_bars(300), "rsi", {"length": 14})
+    assert (result is not None) is active
+
+
+def test_flat_close_bbands_and_rsi_first_value_match_installed_pandas_ta():
+    if not fast_backend.baseline_matches():
+        pytest.skip("pandas-ta-classic below the fin-primitives baseline: fast path is off")
+    flat = _bars(60, flat=True)
+    want = _pandas_ta(flat, "bbands", {})
+    got = fast_backend.compute(flat, "bbands", {})
+    pd.testing.assert_frame_equal(got, want, check_exact=False, rtol=1e-12)
+    df = _bars(60)
+    want = _pandas_ta(df, "rsi", {"length": 14})
+    got = fast_backend.compute(df, "rsi", {"length": 14})
+    assert got.first_valid_index() == want.first_valid_index()
+
+
 class _Strategy:
     def __init__(self, now):
         self.now = now

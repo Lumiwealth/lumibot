@@ -144,7 +144,7 @@ def main() -> None:
     for name, ta_fn, fp_fn, (cls, inputs) in cases:
         t_ta = median_ms(ta_fn, args.repeats)
         t_fp = median_ms(fp_fn, args.repeats)
-        t_v2 = "skipped" if args.skip_v2 else f"{median_ms(lambda: v2_per_bar(cls, df, **inputs), 1):,.0f}"
+        t_v2 = "skipped" if args.skip_v2 else f"{median_ms(lambda: v2_per_bar(cls, df, **inputs), args.repeats):,.0f}"
         print(f"| {name} | {t_ta:,.1f} | {t_fp:,.1f} | {t_fp / t_ta:.2f}x | {t_v2} | {parity[name]():.1e} |")
     if not args.skip_v2:
         v2_atr = [r["atr"] if r["atr"] is not None else np.nan

@@ -9,9 +9,13 @@ pandas-ta-classic).
 
 Only the plain form of each call is handled here. Any other parameter
 (``talib``, ``offset`` > 0, ``fillna``, ``mamode``, ``ddof``, signal columns...),
-missing or non-finite input, a series shorter than the period, or a missing
-``fin_primitives`` install returns ``None`` and the caller uses
-pandas-ta-classic as before.
+missing, non-finite or non-numeric input (strings that happen to parse as numbers
+included), a series shorter than the period, a missing ``fin_primitives`` install,
+or a pandas-ta-classic older than 0.9.0 returns ``None`` and the caller uses
+pandas-ta-classic as before. The kernels follow pandas-ta-classic 0.9.0; older
+releases seed RSI's average one bar earlier and give a flat window's Bollinger %B
+another value, so the fast path stays off there and results never depend on which
+backend ran.
 """
 
 from __future__ import annotations
@@ -29,6 +33,45 @@ except Exception:  # ImportError, or an older fin-primitives without ``fast``
 
 # Flat-window tolerance pandas-ta-classic uses for the band width (utils.degenerate_zero).
 _DEGENERATE_ATOL = 1e-12
+
+# The pandas-ta-classic release whose numbers the fin_primitives kernels reproduce.
+PANDAS_TA_BASELINE = (0, 9, 0)
+
+
+def _version_tuple(text: str) -> tuple:
+    parts = []
+    for piece in text.split("."):
+        digits = ""
+        for ch in piece:
+            if not ch.isdigit():
+                break
+            digits += ch
+        if not digits:
+            break
+        parts.append(int(digits))
+        if len(digits) != len(piece):
+            break
+    return tuple(parts)
+
+
+def _installed_pandas_ta_version():
+    try:
+        from importlib.metadata import version
+
+        return version("pandas-ta-classic")
+    except Exception:
+        return None
+
+
+def baseline_matches(installed=None) -> bool:
+    """True when the installed pandas-ta-classic is at least ``PANDAS_TA_BASELINE``."""
+    text = installed if installed is not None else _installed_pandas_ta_version()
+    if not text:
+        return False
+    return _version_tuple(text) >= PANDAS_TA_BASELINE
+
+
+_BASELINE_OK = baseline_matches()
 
 
 def _period(kwargs: dict, name: str, default: int, *, minimum: int = 1):
@@ -53,8 +96,13 @@ def _number(kwargs: dict, name: str, default: float):
 def _column(df: pd.DataFrame, name: str):
     if name not in df.columns:
         return None
+    source = df[name]
+    # Only real numeric columns: object or string columns ("1", "2", ...) would convert
+    # to float64 here, while pandas-ta-classic works on the original column.
+    if not pd.api.types.is_numeric_dtype(source) or pd.api.types.is_bool_dtype(source):
+        return None
     try:
-        values = df[name].to_numpy(dtype=np.float64)
+        values = source.to_numpy(dtype=np.float64)
     except (TypeError, ValueError):
         return None
     return values if np.isfinite(values).all() else None
@@ -167,7 +215,7 @@ def compute(df: pd.DataFrame, name: str, kwargs: dict):
     """pandas-ta-classic's result for ``name(**kwargs)`` over ``df``, or ``None``
     when this backend does not handle the call (the caller then uses pandas-ta)."""
     handler = _HANDLERS.get(name)
-    if handler is None or _fast is None:
+    if handler is None or _fast is None or not _BASELINE_OK:
         return None
     remaining = dict(kwargs)
     if remaining.pop("offset", None) not in (None, 0):

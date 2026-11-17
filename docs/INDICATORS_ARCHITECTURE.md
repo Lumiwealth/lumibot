@@ -79,6 +79,9 @@ backend returns the same Series/DataFrame type, index, `name`, `category` and
 column names; `bbands` derives `BBB`/`BBP` from the bands with pandas-ta's
 formulas. Anything else returns `None` and the call goes to pandas-ta-classic
 unchanged, so new pandas-ta parameters never silently change meaning.
+The backend is also off when the installed pandas-ta-classic is older than 0.9.0
+(`fast_backend.PANDAS_TA_BASELINE`), the release whose RSI seeding and flat-window
+%B the kernels reproduce, and for non-numeric columns (numeric strings included).
 `tests/test_indicator_fast_backend.py` pins parity with pandas-ta-classic
 (rtol 1e-12, identical NaN rows) and the fallback cases;
 `benchmarks/indicators_bench.py` times both. Indicator v2 builtins do not use it:

@@ -203,7 +203,7 @@ def test_rebuilt_example_ends_with_the_standard_main_block(name):
 # Prompts are plain English a non-technical trader could write. LumiBot's
 # skills and tools know the mechanics; the example never names them.
 TECH_WORDS = ("duckdb", "sql", "skill", "multi-leg", "multileg", "get_filings", "get_filing", "http_request",
-              "house_public_disclosures", "get_indicator", "rules.json")
+              "house_public_disclosures", "get_indicator", "rules.json", "tool")
 
 
 @pytest.mark.parametrize("name", sorted(set(REBUILT) - OWNED_ELSEWHERE))
@@ -342,12 +342,5 @@ def test_pelosi_bots_run_both_agents_every_day_with_no_python_gate(name):
             strategy.on_trading_iteration()
         finally:
             del type(strategy).agents
-        roles = [call[0] for call in calls]
-        assert set(roles) == {"researcher", "trader"}, "both agents run on every iteration"
-        assert roles[0] == "researcher" and roles[-1] == "trader"
-        # An agent may audit its answer or plan before executing. Those phases
-        # still use the same two agents and must pass the research to each
-        # trading phase; a fixed number of calls is not the daily contract.
-        for role, context in calls:
-            if role == "trader":
-                assert answer in context.values(), "the trader gets the research"
+        assert [call[0] for call in calls] == ["researcher", "trader"]
+        assert answer in calls[1][1].values(), "the trader gets the research"

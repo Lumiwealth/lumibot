@@ -20,7 +20,7 @@ class NancyPelosiTradingBot(Strategy):
                 "Start with the newest eligible annual snapshot; use its reporting year-end when implicit and "
                 "disclose that convention. Apply eligible transactions AFTER that valuation date once, including "
                 "transactions filed before the annual. Earlier transactions are already reflected in the baseline. "
-                "Never use a disclosure known to be after as_of. Read every continuation chunk of each selected annual and transaction report until next_start is null. Do not treat a first page as the complete report. Read every asset-section text chunk, including "
+                "Never use a disclosure known to be after as_of. Read every asset-section text chunk, including "
                 "wrapped issuer names, tickers, type labels and value ranges. Return the actual numeric lower and "
                 "upper ASSET VALUE bounds for every included annual issuer, with report ID and page or text chunk. "
                 "None ASSET VALUE is zero modeled baseline exposure; None INCOME does not erase a positive value. "
@@ -30,16 +30,16 @@ class NancyPelosiTradingBot(Strategy):
                 "Treat each security row separately: an issuer can have both share and option purchases. Classify "
                 "each transaction from its own description and share or contract quantity, not another row for that issuer. "
                 "Exclude unexercised options, funds, bonds, private assets and property. Distinguish full sales from partial sales: an explicit full exit removes that "
-                "holding, not merely a share subtraction from an uncertain baseline estimate. House transaction type S means a full sale; S (partial) means a partial sale. Preserve the row's own type and transaction date. Partial sales, "
-                "gifts and contributions reduce shares; exercises add shares. Corporate actions may change "
-                "share counts, listings or holdings before a personal filing. Reconcile splits, spinoffs, mergers "
-                "and delistings from dated issuer or exchange evidence. Return BOTH snapshot and as_of tickers; "
-                "a renamed ticker is not an exit. For an effective distribution without confirmed shares, give "
-                "its parent ticker and ratio. Later confirmations replace that estimate rather than adding it again. "
+                "holding, not merely a share subtraction from an uncertain baseline estimate. Partial sales, "
+                "gifts and contributions reduce shares; exercises add shares. Reconcile amendments, splits, "
+                "spinoffs, mergers and delistings from eligible evidence. Do not apply an estimated spinoff again "
+                "when a later filing confirms it. Return BOTH snapshot and as_of tickers for every issuer. "
+                "Resolve renamed listings from dated issuer announcements; a stopped ticker is not an exited issuer. For Block, only on/after 2025-01-09 check its dated ticker announcement at "
+                "https://investors.block.xyz/investor-news/news-details/2025/Block-Announces-Ticker-Symbol-Change-to-XYZ-To-Report-Fourth-Quarter-Results/default.aspx; apply changes only when effective by as_of. "
                 "Return compact JSON with as_of, snapshot_date, ledger, zero_exclusions, source_checks and limitations. "
                 "The ledger's issuers are the union of positive annual stock/unit rows and later share additions, "
                 "including new issuers created by exercises, purchases or spinoffs. Each issuer row gives "
-                "snapshot_ticker, as_of_ticker, baseline_lower, baseline_upper, baseline_kind, share_changes, corporate_actions and full_exit. "
+                "snapshot_ticker, as_of_ticker, baseline_lower, baseline_upper, baseline_kind, share_changes and full_exit. "
                 "Each share_changes entry gives its transaction_date, signed numeric shares, kind and source_id. "
                 "A new issuer has a modeled zero baseline and its known positive share changes; include it even "
                 "when the annual lists only options. An exercise label without the numeric share count is incomplete. "
@@ -53,10 +53,8 @@ class NancyPelosiTradingBot(Strategy):
             allow_trading=True, model_request_timeout_seconds=0, run_timeout_seconds=0,
             system_prompt=(
                 "Mirror the full source-ledger stock and listed-partnership basket, scaled to this account. "
-                "Reuse a verified baseline price only for the identical snapshot date and ticker. When the annual snapshot changes, refresh every baseline price. If a historical ticker has no row on that date, query the successor ticker history for that exact date; never substitute a close from an earlier snapshot. Estimate unknown baseline shares from the asset-value midpoint and the snapshot-date price, "
-                "apply eligible later share changes once, and mark remaining shares at current prices. Apply "
-                "corporate-action ratios only when not already reflected in the price/share basis; reconcile "
-                "later confirmed quantities without adding an estimated distribution twice. Polygon and Yahoo historical bars are split-adjusted: midpoint divided by an adjusted snapshot close already yields shares on that adjusted basis. Never multiply those shares by the split again when current prices use the same adjusted basis. Label adjusted backtest units separately from literal historical shares. An "
+                "Estimate unknown baseline shares from the asset-value midpoint and the snapshot-date price, "
+                "apply eligible later share changes once, and mark remaining shares at current prices. An "
                 "explicit full sale sets the holding to zero; do not invent a residual from midpoint uncertainty. "
                 "Recheck contradictory quantities and dates. Use a labeled baseline-value proxy only when "
                 "quantity reconciliation or an eligible historical price genuinely remains unavailable. Check "
@@ -80,25 +78,15 @@ class NancyPelosiTradingBot(Strategy):
     def on_trading_iteration(self):
         as_of = self.get_datetime().isoformat()
         previous = self.vars.get("last_research", "none yet")
-        inventory = self.agents["researcher"].run(
-            task_prompt="Update the complete numeric inventory from new eligible filings. Initially read the supplied filing URLs directly; otherwise reuse the verified baseline and prior ledger. Retain known corporate actions. A separate corporate-action pass follows.",
+        research = self.agents["researcher"].run(
+            task_prompt="Return the complete numeric source ledger with snapshot and as_of tickers, inventory audit, eligible changes and newly checked filings.",
             context={"as_of": as_of, "your_last_answer": previous},
         )
-        research = self.agents["researcher"].run(
-            task_prompt="Finish this inventory as of as_of. Initially audit every original annual asset-section chunk AND every continuation chunk of each eligible transaction report. Rebuild the final issuer set as the UNION of positive annual stocks, later share acquisitions and distributed stocks; an annual-only reread must never discard later additions. Recheck each change date against snapshot_date: changes on or before that date are already reflected and must not be applied again. Resolve omitted positive rows independently before corporate-action work. Check each positive issuer separately for dated corporate actions from snapshot_date through as_of, including the current calendar year. Thereafter reuse verified actions and check the unreviewed interval or unresolved/changed issuers; do not redo verified old work. For web_search set the provider argument backend=\"yahoo\"; do not put the provider name in the query. Read dated issuer or exchange notices and apply effective distributed stocks and listing changes. Reuse verified filings. Return the complete updated ledger and each issuer's checked-through date or specific source failure.",
-            context={"as_of": as_of, "inventory": inventory.summary, "your_last_answer": previous},
-        )
         self.vars.set("last_research", research.summary)
-        valuation = self.agents["trader"].run(
-            task_prompt="Calculate the complete numeric basket weights using tool-based math, eligible source changes and current prices. Use each snapshot_ticker for its dated baseline price and as_of_ticker for current quotes. Use the disclosed ratios or labeled proxies for uncertain quantities. Return all weights and their price/share basis. Do not submit orders in this planning pass; execution follows.",
-            context={"as_of": as_of, "research": research.summary, "your_last_answer": self.vars.get("last_valuation", "none yet")},
+        self.agents["trader"].run(
+            task_prompt="Value the full disclosed basket and complete every feasible target position change in this account.",
+            context={"as_of": as_of, "research": research.summary, "previous_research": previous},
         )
-        self.vars.set("last_valuation", valuation.summary)
-        trade = self.agents["trader"].run(
-            task_prompt="Execute the planned complete basket. Finish any remaining calculations with tools, then establish or rebalance every feasible target. A full exit is a zero target and overrides any midpoint proxy. Keep the same split-adjusted share basis; never apply the split twice. An unconfirmed exact source quantity is not a blocker when a ratio or proxy was authorized. Reconcile actual fills, holdings, open orders and cash before finishing.",
-            context={"as_of": as_of, "research": research.summary, "valuation": valuation.summary, "previous_research": previous, "your_last_answer": self.vars.get("last_trade", "none yet")},
-        )
-        self.vars.set("last_trade", trade.summary)
 
 
 if __name__ == "__main__":

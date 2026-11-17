@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.6.81 - 2026-11-17
+
+Deploy marker: 14cac31043f0bac29bf27547235cc5cc0f2bbefd
+
+### Changed
+- Backtests that read a built-in indicator on every bar are much faster. `self.indicators.supertrend(...)` (and 25 other built-in indicators) used to be recalculated over the whole history seen so far on every call: a three month backtest on 5 minute bars spent 85% of its simulation there (about 18,900 calculations over up to 10,000 bars each). In a backtest these indicators are now calculated once over the stored bar series and the row of the current bar is read. The row of a bar depends only on that bar and earlier ones, so the value is the same number and no later bar can reach it; `tests/test_indicators_call_cost.py` compares both paths bar by bar for every listed indicator, on a series read from its first bar and on a moving 10,000 bar window. Indicators that are not prefix-stable (for example `stoch`, `t3`), running totals and rolling sums on a moving window, custom functions, the first 500 bars and live trading keep the bar-by-bar calculation. Results do not change. Documented in `docsrc/indicators_backtesting.rst`.
+
 ## 4.6.80 - 2026-11-17
 
 Deploy marker: ca0d6f57514998779f437a84bf428deb65770ae1

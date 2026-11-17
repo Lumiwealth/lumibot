@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.83 - Unreleased
+## 4.6.83 - 2026-11-17
 
 ### Fixed
 - IBKR: a stock share class written with a dot or a dash (for example `ABC.B` or `ABC-B`) now finds its contract. IBKR lists share classes with a space, so the lookup found nothing and the symbol had no price history.

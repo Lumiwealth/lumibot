@@ -199,6 +199,10 @@ How option data works
   listed. Contracts are cached per underlying and expiration month in memory and on disk, so
   each month is fetched from Alpaca once and calling ``get_chains()`` every bar is cheap. A
   2-year backtest makes a few dozen contract-listing calls, not one per day.
+- **Index options.** Write ``Asset("SPX", asset_type="option", ...)`` for any expiration.
+  Alpaca lists weekly and 0DTE index contracts under their own root (SPXW, NDXP, RUTW, VIXW)
+  and the standard monthly under the index (SPX, NDX, RUT, VIX); LumiBot picks the right one
+  from the expiration, and the chain for SPX includes both. Naming SPXW yourself also works.
 - **Prices.** Option bars are real trades. LumiBot never fills the gaps between trades.
   ``get_last_price()`` returns the open of a bar that traded in the current minute (or day),
   otherwise the close of the most recent earlier trade, and ``None`` before the first trade.

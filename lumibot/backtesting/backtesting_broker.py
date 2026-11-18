@@ -78,12 +78,7 @@ TYPICAL_FUTURES_MARGINS = {
     "DEFAULT": 5000,  # Conservative default
 }
 
-INDEX_ROOT_ALIASES = {
-    "SPXW": "SPX",
-    "RUTW": "RUT",
-    "VIXW": "VIX",
-    "NDXP": "NDX",
-}
+from lumibot.tools.index_option_roots import INDEX_WEEKLY_ROOTS as INDEX_ROOT_ALIASES  # noqa: E402
 
 INDEX_LIKE_SYMBOLS = {
     "SPX", "SPXW",

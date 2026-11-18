@@ -7,6 +7,7 @@ from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
 from .broker import Broker
 from lumibot.brokers.broker import ORDER_NATIVE, ORDER_SIMULATED, ORDER_UNSUPPORTED  # noqa: F401
+from lumibot.tools.index_option_roots import index_option_root
 
 logger = LazyLogger(__name__)
 datetime = LazyModule("datetime")
@@ -1102,7 +1103,7 @@ class Alpaca(Broker):
             if order.asset.asset_type == Asset.AssetType.OPTION:
                 strike_formatted = f"{order.asset.strike:08.3f}".replace('.', '').rjust(8, '0')
                 date = order.asset.expiration.strftime("%y%m%d")
-                option_symbol = f"{order.asset.symbol}{date}{order.asset.right[0]}{strike_formatted}"
+                option_symbol = f"{index_option_root(order.asset.symbol, order.asset.expiration)}{date}{order.asset.right[0]}{strike_formatted}"
             else:
                 option_symbol = order.asset.symbol
             # Determine leg side + position intent for Alpaca's mleg payload.
@@ -1210,7 +1211,7 @@ class Alpaca(Broker):
         if order.asset.asset_type == Asset.AssetType.OPTION:
             strike_formatted = f"{order.asset.strike:08.3f}".replace('.', '').rjust(8, '0')
             date = order.asset.expiration.strftime("%y%m%d")
-            trade_symbol = f"{order.asset.symbol}{date}{order.asset.right[0]}{strike_formatted}"
+            trade_symbol = f"{index_option_root(order.asset.symbol, order.asset.expiration)}{date}{order.asset.right[0]}{strike_formatted}"
         elif order.asset.asset_type == Asset.AssetType.CRYPTO:
             trade_symbol = f"{order.asset.symbol}/{order.quote.symbol}"
         else:

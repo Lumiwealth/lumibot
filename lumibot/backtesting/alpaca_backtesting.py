@@ -1305,7 +1305,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
                     with open(path, "r", encoding="utf-8") as handle:
                         rows = json.load(handle)
                     memory[(symbol, month)] = [
-                        (date.fromisoformat(exp), str(right), float(strike)) for exp, right, strike in rows
+                        (date.fromisoformat(row[0]), str(row[1]), float(row[2]), str(row[3] if len(row) > 3 else symbol))
+                        for row in rows
                     ]
                     hit = True
                 except (OSError, ValueError, TypeError) as exc:
@@ -1348,7 +1349,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, "w", encoding="utf-8") as handle:
-                json.dump([[exp.isoformat(), right, strike] for exp, right, strike in rows], handle,
+                json.dump([[row[0].isoformat(), *row[1:]] for row in rows], handle,
                           separators=(",", ":"))
             if remote_cache is not None and self._option_month_is_final(month):
                 remote_cache.on_local_update(Path(path))
@@ -1368,13 +1369,15 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         listing_end = last_expiration
         root = self._option_root(symbol)
+        weekly_root = self._index_weekly_root(symbol)
         client = self._get_trading_client()
         contracts = []
         for status in (AssetStatus.INACTIVE, AssetStatus.ACTIVE):
             page_token = None
             while True:
                 request = GetOptionContractsRequest(
-                    underlying_symbols=[symbol],
+                    # Index options also trade under a weekly/PM-settled root (SPX and SPXW).
+                    underlying_symbols=[symbol] + ([weekly_root] if weekly_root else []),
                     status=status,
                     expiration_date_gte=first_expiration,
                     expiration_date_lte=listing_end,
@@ -1397,7 +1400,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
                         what=f"{symbol} option contracts ({status.value})",
                     )
                 for contract in getattr(response, "option_contracts", None) or []:
-                    parsed = self._parse_option_contract(contract, root)
+                    parsed = self._parse_option_contract(contract, root, weekly_root)
                     if parsed is not None:
                         contracts.append(parsed)
                 page_token = getattr(response, "next_page_token", None)
@@ -1406,7 +1409,39 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         return contracts
 
-    def _parse_option_contract(self, contract, root: str):
+    @staticmethod
+    def _index_weekly_root(symbol: str) -> Optional[str]:
+        from lumibot.tools.index_option_roots import index_weekly_root
+
+        return index_weekly_root(symbol)
+
+    def _alpaca_option_root(self, asset: Asset) -> str:
+        """The root Alpaca lists this contract under. SPX expiring on a non-monthly date is SPXW.
+
+        A root the listing reported for this exact contract wins; when the listing has both
+        (a monthly date lists AM-settled SPX and PM-settled SPXW), the monthly root is used.
+        A strategy that names the weekly root itself (SPXW) keeps it.
+        """
+        symbol = str(asset.symbol)
+        weekly = self._index_weekly_root(symbol)
+        if weekly is None:
+            return symbol
+        expiration = self._as_date(asset.expiration)
+        if expiration is None:
+            return symbol
+        side = "CALL" if str(asset.right or "").upper().startswith("C") else "PUT"
+        try:
+            strike = float(asset.strike)
+        except (TypeError, ValueError):
+            strike = None
+        listed = self._state("_listed_option_roots", dict).get((symbol.upper(), expiration.isoformat(), side, strike))
+        if listed and len(listed) == 1:
+            return next(iter(listed))
+        from lumibot.tools.index_option_roots import index_option_root
+
+        return index_option_root(symbol, expiration)
+
+    def _parse_option_contract(self, contract, root: str, weekly_root: Optional[str] = None):
         try:
             size = float(getattr(contract, "size", 100) or 100)
         except (TypeError, ValueError):
@@ -1415,7 +1450,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
             # Adjusted deliverables after corporate actions are not the standard contract.
             return None
         contract_root = getattr(contract, "root_symbol", None)
-        if contract_root and self._option_root(contract_root) != root:
+        contract_root_clean = self._option_root(contract_root) if contract_root else root
+        if contract_root and contract_root_clean not in {root, self._option_root(weekly_root or root)}:
             return None
         expiration = self._as_date(getattr(contract, "expiration_date", None))
         right = str(getattr(getattr(contract, "type", None), "value", getattr(contract, "type", "")) or "").upper()
@@ -1425,7 +1461,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             strike = float(getattr(contract, "strike_price"))
         except (TypeError, ValueError):
             return None
-        return expiration, right, strike
+        return expiration, right, strike, contract_root_clean
 
     @staticmethod
     def _empty_chain(symbol: str) -> dict:
@@ -1483,8 +1519,11 @@ class AlpacaBacktesting(DataSourceBacktesting):
         # The day's chain is built from per-expiration-month contract lists, which are cached in
         # memory, on disk and in the shared remote cache (see _list_option_contracts).
         chain = self._empty_chain(symbol)
-        for expiration, right, strike in self._list_option_contracts(symbol, first_expiration, last_expiration):
+        listed_roots = self._state("_listed_option_roots", dict)
+        for expiration, right, strike, *root in self._list_option_contracts(symbol, first_expiration, last_expiration):
             chain["Chains"][right].setdefault(expiration.isoformat(), set()).add(strike)
+            if root:
+                listed_roots.setdefault((symbol, expiration.isoformat(), right, float(strike)), set()).add(root[0])
         for side in ("CALL", "PUT"):
             chain["Chains"][side] = {
                 expiry: sorted(strikes) for expiry, strikes in sorted(chain["Chains"][side].items())
@@ -1510,7 +1549,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
             try:
                 expiry = asset.expiration.isoformat() if hasattr(asset.expiration, "isoformat") else str(asset.expiration)
                 side = "CALL" if str(asset.right or "").upper().startswith("C") else "PUT"
-                key = (str(asset.symbol).upper(), expiry[:10], side)
+                from lumibot.tools.index_option_roots import index_underlying_symbol
+
+                # A strategy naming the weekly root (SPXW) uses the index's chain (SPX).
+                key = (index_underlying_symbol(asset.symbol).upper(), expiry[:10], side)
                 if float(asset.strike) in listed.get(key, ()):
                     out.add(self._occ_symbol(asset))
             except (AttributeError, TypeError, ValueError):
@@ -2163,9 +2205,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
         key = key.replace("/", "-")
         return key
 
-    @staticmethod
-    def _occ_symbol(asset: Asset) -> str:
-        """Build the Alpaca OCC symbol for one listed option."""
+    def _occ_symbol(self, asset: Asset) -> str:
+        """Build the Alpaca OCC symbol for one listed option (index weeklies use their own root)."""
         strike_formatted = f"{float(asset.strike):08.3f}".replace(".", "").rjust(8, "0")
         expiration = asset.expiration
         if hasattr(expiration, "strftime"):
@@ -2173,7 +2214,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         else:
             date = datetime.strptime(str(expiration)[:10], "%Y-%m-%d").strftime("%y%m%d")
         right = str(asset.right or "C")[0].upper()
-        return f"{asset.symbol}{date}{right}{strike_formatted}"
+        return f"{self._alpaca_option_root(asset)}{date}{right}{strike_formatted}"
 
     @staticmethod
     def _option_request_end(assets, start, end):

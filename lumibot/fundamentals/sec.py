@@ -1164,6 +1164,14 @@ class SECFundamentals:
         self._ensure_acceptance(symbol, timeline, as_ts)
         return as_of_dt, as_ts, timeline
 
+    def _has_filings_at(self, symbol: str, as_of: Any | None) -> bool:
+        """True unless the company is known to have filed nothing by ``as_of`` (then no price is needed)."""
+        try:
+            _as_of_dt, as_ts, timeline = self._point_in_time(symbol, as_of)
+            return self._no_history_reason(symbol, timeline, as_ts) is None
+        except Exception:
+            return True  # unknown: keep the old behavior and let get_metrics report it
+
     def _no_history_reason(self, symbol: str, timeline: _CompanyTimeline, as_ts: float) -> str | None:
         """Why a ticker has no SEC history at ``as_ts``, when its registrant had filed nothing yet.
 
@@ -1778,12 +1786,14 @@ class SECFundamentals:
             price_loader=price_loader,
             fallback_loader=lambda: self._external_split_history(symbol),
         )
-        if any(name in _PRICE_METRICS for name in requested):
+        no_history = self._no_history_reason(symbol, timeline, as_ts)
+        # PERF: a company with no filing yet has no price metric either way; loading its price
+        # would only download history (one request per company in a many-company screen).
+        if not no_history and any(name in _PRICE_METRICS for name in requested):
             context.price, context.price_reason = self._metric_price(symbol, price, context, price_loader)
         values: dict[str, Any] = {}
         reasons: dict[str, str] = {}
         periods: dict[str, Any] = {}
-        no_history = self._no_history_reason(symbol, timeline, as_ts)
         with timeline.lock:
             for name in requested:
                 if no_history:
@@ -1852,7 +1862,9 @@ class SECFundamentals:
         self._prefetch_acceptance_times(symbol_list, as_of)
         price_map = {str(key).upper(): value for key, value in (prices or {}).items()}
         if any(name in _PRICE_METRICS for name in requested):
-            self._prefetch_as_traded_prices([symbol for symbol in symbol_list if price_map.get(symbol) is None])
+            self._prefetch_as_traded_prices(
+                [s for s in symbol_list if price_map.get(s) is None and self._has_filings_at(s, as_of)]
+            )
         rows: dict[str, dict[str, Any]] = {}
         for symbol in symbol_list:
             try:

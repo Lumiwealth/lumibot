@@ -1849,8 +1849,18 @@ class SECFundamentals:
                 )
                 frame.index.name = "symbol"
                 return frame
-            rest = self.get_metrics_table(symbol_list, requested, as_of=as_of, prices=prices, preload=preload)
-            rows = {s: stored[s] if s in stored else rest.loc[s].to_dict() for s in all_symbols}
+            # The stored rows cover this date, so they are the screen's source: a symbol they leave
+            # out (no filing data or no reliable close that day) gets no value. Pricing it live would
+            # download its history (one request per left-out company, hundreds in an S&P 500 screen).
+            # Symbols with a given price are computed from that price as before.
+            given = [s for s in symbol_list if s in given_prices]
+            rest = self.get_metrics_table(given, requested, as_of=as_of, prices=prices, preload=preload) if given else None
+            reason = "not in the stored daily fundamentals table for this date (no filing data or no reliable close)"
+            missing = {**{name: None for name in requested}, "cik": None, "reasons": {name: reason for name in requested}}
+            rows = {
+                s: stored[s] if s in stored else (rest.loc[s].to_dict() if rest is not None and s in given else dict(missing))
+                for s in all_symbols
+            }
             frame = pd.DataFrame.from_dict(rows, orient="index", columns=[*requested, "cik", "reasons"], dtype=object)
             frame.index.name = "symbol"
             return frame

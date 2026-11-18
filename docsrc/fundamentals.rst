@@ -140,8 +140,10 @@ instead: one row per company per trading session, built with the same rules as
 ``get_metrics`` at that day's 4:00 PM New York close and that day's traded close.
 Your strategy code does not change, and only the stocks you buy need price
 history. A stored row is used only after its session closed (a strategy running
-at the open sees the previous close) and never more than 7 days later; anything
-not stored is computed as described above. Build your own tables with
+at the open sees the previous close) and never more than 7 days later. When a
+table covers the date, a company it leaves out (no filing data or no reliable
+close that day) has no value, so the screen never downloads its prices. When no
+table covers the date, values are computed as described above. Build your own tables with
 ``lumibot.fundamentals.metrics_history.build_metrics_history(sec, closes)`` and
 ``save_metrics_history(sec, frame)``, where ``closes`` maps each symbol to a
 Series of the closes actually traded each day. Set

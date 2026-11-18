@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.6.90 - 2026-11-18
+
+### Changed
+- SEC fundamentals: when stored daily fundamentals rows cover a backtest date, `get_metrics_table` uses only them. A company the table leaves out (no filing data or no reliable close) has no value instead of being priced live, so an S&P 500 market-cap screen no longer downloads price history for hundreds of companies. Dates no table covers are computed as before; `LUMIBOT_SEC_METRICS_HISTORY=0` turns stored tables off.
+
 ## 4.6.89 - 2026-11-18
 
 ### Fixed

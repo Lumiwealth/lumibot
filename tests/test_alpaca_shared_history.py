@@ -743,7 +743,8 @@ def _chain_source(monkeypatch, listed):
         listed.append(symbol)
         return [(date(2025, 3, 21), "CALL", 580.0), (date(2025, 3, 21), "PUT", 570.0)]
 
-    monkeypatch.setattr(source, "_list_option_contracts", list_contracts)
+    # The raw Alpaca listing (one call per gap of missing expiration months).
+    monkeypatch.setattr(source, "_fetch_option_contracts", list_contracts)
     return source
 
 
@@ -768,3 +769,84 @@ def test_chain_that_can_still_change_is_not_shared(tmp_path, monkeypatch):
     monkeypatch.setattr(source, "get_datetime", lambda: today)
     source.get_chains(Asset("SPY"))
     assert not any("/alpaca/option_chains/" in key for key in objects)
+
+
+# 2026-11-17: a 2-year Alpaca options backtest fetched the option chain again for every
+# simulated day, and a day's chain was only shared once every expiration in its 90-day window
+# had passed, so recent windows never hit the shared cache (0 of 7 hits in a 48-day run, about
+# 500 lookups in a 2-year run). The contract list for one expiration month is the same answer
+# for every simulated day and every Alpaca connection, so it is cached and shared per month.
+def _two_year_contracts(today):
+    from alpaca.trading.enums import AssetStatus
+
+    from tests.test_alpaca_backtesting_multitimeframe_unit import _contract
+
+    rows = {"inactive": [], "active": []}
+    friday = today - pd.Timedelta(days=760).to_pytimedelta()
+    while friday.weekday() != 4:
+        friday += pd.Timedelta(days=1).to_pytimedelta()
+    while friday <= today + pd.Timedelta(days=200).to_pytimedelta():
+        status = "inactive" if friday < today else "active"
+        for strike in (500, 505, 510):
+            for right in ("C", "P"):
+                occ = f"SPY{friday:%y%m%d}{right}{strike * 1000:08d}"
+                rows[status].append(_contract(occ, friday, right, strike,
+                                              status=AssetStatus.INACTIVE if status == "inactive" else AssetStatus.ACTIVE))
+        friday += pd.Timedelta(days=7).to_pytimedelta()
+    return {status: [contracts] for status, contracts in rows.items()}, rows
+
+
+def _run_two_years_of_chains(monkeypatch, root, objects, pages):
+    import pytz
+
+    from tests.test_alpaca_backtesting_multitimeframe_unit import _alpaca_source, _FakeTradingClient
+
+    today = datetime.now(pytz.UTC).date()
+    start = today - pd.Timedelta(days=730).to_pytimedelta()
+    source = _alpaca_source(monkeypatch, root, start=datetime(start.year, start.month, start.day),
+                            end=datetime(today.year, today.month, today.day))
+    _shared_remote(monkeypatch, root, objects)
+    source._trading_client = _FakeTradingClient(pages)
+    ny = pytz.timezone("America/New_York")
+    chains = {}
+    for day in pd.bdate_range(start, today):
+        source._datetime = ny.localize(datetime(day.year, day.month, day.day, 10, 0))
+        chains[day.date()] = dict(source.get_chains(Asset("SPY"))["Chains"])
+    return source._trading_client.requests, chains
+
+
+def test_two_years_of_option_chains_list_and_share_each_expiration_month_once(tmp_path, monkeypatch):
+    import pytz
+
+    today = datetime.now(pytz.UTC).date()
+    pages, rows = _two_year_contracts(today)
+    objects = {}
+    requests_a, chains_a = _run_two_years_of_chains(monkeypatch, tmp_path / "container-a", objects, pages)
+
+    # Every day's chain is exactly the listed contracts expiring in [day, day + 90 days].
+    every = [c for status in rows.values() for c in status]
+    for day, chain in chains_a.items():
+        horizon = day + pd.Timedelta(days=90).to_pytimedelta()
+        expected = {}
+        for c in every:
+            if day <= c.expiration_date <= horizon:
+                side = "CALL" if c.type.value.upper() == "CALL" else "PUT"
+                expected.setdefault(side, {}).setdefault(c.expiration_date.isoformat(), set()).add(c.strike_price)
+        for side in ("CALL", "PUT"):
+            got = {e: set(k) for e, k in chain[side].items()}
+            assert got == expected.get(side, {}), (day, side)
+
+    # About 520 simulated days: a handful of listings, not one per window, and shared files are
+    # one per expiration month, not one per simulated day.
+    assert len(requests_a) <= 30, len(requests_a)
+    chain_objects = [key for key in objects if "/alpaca/option_chains/" in key]
+    assert 0 < len(chain_objects) <= 30, len(chain_objects)
+
+    # A second container (another customer) reuses every finished month and lists only the
+    # months that can still change.
+    requests_b, chains_b = _run_two_years_of_chains(monkeypatch, tmp_path / "container-b", objects, pages)
+    assert chains_b == chains_a
+    current_month = today.replace(day=1)
+    assert requests_b, "open months are listed fresh"
+    assert all(r.expiration_date_gte >= current_month - pd.Timedelta(days=1).to_pytimedelta() for r in requests_b)
+    assert len(requests_b) <= 4, len(requests_b)

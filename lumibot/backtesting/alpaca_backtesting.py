@@ -70,11 +70,12 @@ class AlpacaBacktesting(DataSourceBacktesting):
       holds expirations from the simulated date through ``OPTION_CHAIN_MAX_DAYS`` (90)
       days later, or the ``min/max_expiration_date`` hint that ``OptionsHelper`` sets.
       Only standard 100-share contracts whose root is the underlying are included.
-    - Chains are cached per (underlying, simulated date, expiration window) in memory
-      and as JSON under ``<LUMIBOT_CACHE_FOLDER>/alpaca/option_chains/``. One contract
-      listing is reused for later dates while it still covers their window, so a
-      strategy that calls ``get_chains()`` every bar makes about three API calls per
-      listing, not one per bar.
+    - Contracts are cached per (underlying, expiration month) in memory and as JSON under
+      ``<LUMIBOT_CACHE_FOLDER>/alpaca/option_chains/by_expiration_month/``; each simulated
+      day's chain is built from those months and kept in memory. A month is listed from
+      Alpaca once (one listing covers every missing month in a row plus one ahead), and
+      once all of its expirations have passed it is shared through the remote cache with
+      every other backtest. A 2-year run makes a few dozen listing calls, not one per day.
     - Option prices come from Alpaca historical option bars, which are trade prints.
       They are kept as-is: no reindexing, no forward fill, no back fill (RULE #1 in
       ``docs/BACKTESTING_ARCHITECTURE.md``). ``get_last_price()`` returns the open of a
@@ -123,8 +124,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
     LUMIBOT_DEFAULT_QUOTE_ASSET = AlpacaData._default_quote_asset()
     # Option chain horizon (days after the simulated date) when no expiration hint is set.
     OPTION_CHAIN_MAX_DAYS = 90
-    # Extra expiration days fetched per contract listing so later simulated days reuse it.
-    OPTION_CHAIN_LISTING_EXTRA_DAYS = 30
+    # Extra expiration months fetched per contract listing so later simulated days reuse it.
+    OPTION_CHAIN_LISTING_EXTRA_MONTHS = 1
     OPTION_CONTRACTS_PAGE_LIMIT = 10000
     # Alpaca free-tier keys allow about 200 data/trading requests per minute.
     ALPACA_MAX_REQUESTS_PER_MINUTE = 180
@@ -1228,22 +1229,144 @@ class AlpacaBacktesting(DataSourceBacktesting):
     def _option_root(symbol: str) -> str:
         return "".join(ch for ch in str(symbol or "").upper() if ch.isalnum())
 
+    @staticmethod
+    def _month_start(day: date) -> date:
+        return day.replace(day=1)
+
+    @staticmethod
+    def _next_month(month: date) -> date:
+        return (month.replace(day=28) + timedelta(days=4)).replace(day=1)
+
+    @classmethod
+    def _month_end(cls, month: date) -> date:
+        return cls._next_month(month) - timedelta(days=1)
+
+    def _option_month_file(self, symbol: str, month: date) -> str:
+        return os.path.join(
+            LUMIBOT_CACHE_FOLDER, self.CACHE_SUBFOLDER, "option_chains", "by_expiration_month",
+            f"{symbol}_{month.strftime('%Y-%m')}.json",
+        )
+
+    def _option_month_is_final(self, month: date) -> bool:
+        """True once every expiration in the month has passed, so the listing can no longer grow."""
+        return self._month_end(month) < datetime.now(pytz.UTC).date() - timedelta(days=1)
+
     def _list_option_contracts(self, symbol: str, first_expiration: date, last_expiration: date) -> list:
         """Return (expiration, right, strike) for standard contracts expiring in the window.
 
+        Contracts are kept per (underlying, expiration month): every simulated day whose window
+        touches a month reuses that month's list, in memory, on disk and through the shared
+        remote cache. Alpaca's contract listing has no as-of date, so a month's list is the same
+        answer for every simulated day and every Alpaca connection; filtering it to the window
+        gives exactly the chain a per-day listing would. A month is shared only once all of its
+        expirations have passed, because an open month can still gain contracts.
+        """
+        months = []
+        month = self._month_start(first_expiration)
+        while month <= last_expiration:
+            months.append(month)
+            month = self._next_month(month)
+
+        memory = self._state("_option_contract_months", dict)
+        missing = [m for m in months if (symbol, m) not in memory]
+        if missing:
+            self._load_option_months(symbol, missing)
+        out = []
+        for m in months:
+            out.extend(c for c in memory[(symbol, m)] if first_expiration <= c[0] <= last_expiration)
+        return out
+
+    def _load_option_months(self, symbol: str, months: list) -> None:
+        """Fill the month cache from local disk, then the shared cache, then Alpaca (one listing per gap)."""
+        from lumibot.tools import backtest_telemetry
+
+        memory = self._state("_option_contract_months", dict)
+        remote_cache = None
+        try:
+            from lumibot.tools.backtest_cache import get_backtest_cache
+
+            remote_cache = get_backtest_cache()
+            if remote_cache is not None and not remote_cache.enabled:
+                remote_cache = None
+        except Exception as exc:  # the remote cache must never break a chain lookup
+            logger.debug("Alpaca option chain remote cache unavailable (%s)", type(exc).__name__)
+
+        to_fetch = []
+        for month in months:
+            path = self._option_month_file(symbol, month)
+            if remote_cache is not None and not os.path.exists(path):
+                try:
+                    remote_cache.ensure_local_file(Path(path))
+                except Exception as exc:  # a remote miss or outage falls through to Alpaca
+                    logger.debug("Alpaca option chain remote read skipped (%s)", type(exc).__name__)
+            hit = False
+            if os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as handle:
+                        rows = json.load(handle)
+                    memory[(symbol, month)] = [
+                        (date.fromisoformat(exp), str(right), float(strike)) for exp, right, strike in rows
+                    ]
+                    hit = True
+                except (OSError, ValueError, TypeError) as exc:
+                    logger.warning("Ignoring unreadable Alpaca option chain cache %s: %s", path, exc)
+            backtest_telemetry.record_cache("hit" if hit else "miss", layer="alpaca_option_chains",
+                                            source="alpaca", asset_class="option")
+            if not hit:
+                to_fetch.append(month)
+        if not to_fetch:
+            return
+
+        # One listing per run of consecutive missing months, plus a little extra ahead so the
+        # next simulated days find their months already loaded.
+        groups = []
+        for month in to_fetch:
+            if groups and self._next_month(groups[-1][-1]) == month:
+                groups[-1].append(month)
+            else:
+                groups.append([month])
+        for group in groups:
+            fetch_months = list(group)
+            for _ in range(int(self.OPTION_CHAIN_LISTING_EXTRA_MONTHS)):
+                extra = self._next_month(fetch_months[-1])
+                if (symbol, extra) in memory or os.path.exists(self._option_month_file(symbol, extra)):
+                    break
+                fetch_months.append(extra)
+            contracts = self._fetch_option_contracts(symbol, fetch_months[0], self._month_end(fetch_months[-1]))
+            by_month = {m: [] for m in fetch_months}
+            for contract in contracts:
+                key = self._month_start(contract[0])
+                if key in by_month:
+                    by_month[key].append(contract)
+            for month, rows in by_month.items():
+                rows = sorted(set(rows))
+                memory[(symbol, month)] = rows
+                self._write_option_month(symbol, month, rows, remote_cache)
+
+    def _write_option_month(self, symbol: str, month: date, rows: list, remote_cache) -> None:
+        path = self._option_month_file(symbol, month)
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump([[exp.isoformat(), right, strike] for exp, right, strike in rows], handle,
+                          separators=(",", ":"))
+            if remote_cache is not None and self._option_month_is_final(month):
+                remote_cache.on_local_update(Path(path))
+        except OSError as exc:
+            logger.warning("Could not write Alpaca option chain cache %s: %s", path, exc)
+        except Exception as exc:  # an upload failure must never break a chain lookup
+            logger.debug("Alpaca option chain upload skipped (%s)", type(exc).__name__)
+
+    def _fetch_option_contracts(self, symbol: str, first_expiration: date, last_expiration: date) -> list:
+        """One Alpaca contract listing for the expiration window.
+
         Expired contracts are ``status=inactive`` and live ones ``status=active``; a historical
-        chain needs both. One listing is kept per underlying and reused for later simulated
-        days while it still covers their window.
+        chain needs both. Follows ``next_page_token`` to the end.
         """
         from alpaca.trading.enums import AssetStatus
         from alpaca.trading.requests import GetOptionContractsRequest
 
-        listings = self._state("_option_contract_listings", dict)
-        cached = listings.get(symbol)
-        if cached is not None and cached[0] <= first_expiration and last_expiration <= cached[1]:
-            return [c for c in cached[2] if first_expiration <= c[0] <= last_expiration]
-
-        listing_end = last_expiration + timedelta(days=int(self.OPTION_CHAIN_LISTING_EXTRA_DAYS))
+        listing_end = last_expiration
         root = self._option_root(symbol)
         client = self._get_trading_client()
         contracts = []
@@ -1281,8 +1404,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 if not page_token:
                     break
 
-        listings[symbol] = (first_expiration, listing_end, contracts)
-        return [c for c in contracts if first_expiration <= c[0] <= last_expiration]
+        return contracts
 
     def _parse_option_contract(self, contract, root: str):
         try:
@@ -1358,34 +1480,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if cache_key in memory:
             return self._copy_chain(memory[cache_key])
 
-        cache_dir = os.path.join(LUMIBOT_CACHE_FOLDER, self.CACHE_SUBFOLDER, "option_chains")
-        cache_file = os.path.join(cache_dir, "_".join(cache_key) + ".json")
-        from lumibot.tools import backtest_telemetry
-
-        # Option chains are the same for every Alpaca connection, so they are shared through the
-        # remote cache (one GET on a local miss). Only final chains are ever uploaded: see below.
-        remote_cache = None
-        try:
-            from lumibot.tools.backtest_cache import get_backtest_cache
-
-            remote_cache = get_backtest_cache()
-            if remote_cache is not None and remote_cache.enabled and not os.path.exists(cache_file):
-                remote_cache.ensure_local_file(Path(cache_file))
-        except Exception as exc:  # the remote cache must never break a chain lookup
-            logger.debug("Alpaca option chain remote cache unavailable (%s)", type(exc).__name__)
-
-        backtest_telemetry.record_cache("hit" if os.path.exists(cache_file) else "miss", layer="alpaca_option_chains",
-                                        source="alpaca", asset_class="option")
-        if os.path.exists(cache_file):
-            try:
-                with open(cache_file, "r", encoding="utf-8") as handle:
-                    chain = json.load(handle)
-                memory[cache_key] = chain
-                self._remember_listed_contracts(chain)
-                return self._copy_chain(chain)
-            except (OSError, ValueError) as exc:
-                logger.warning("Ignoring unreadable Alpaca option chain cache %s: %s", cache_file, exc)
-
+        # The day's chain is built from per-expiration-month contract lists, which are cached in
+        # memory, on disk and in the shared remote cache (see _list_option_contracts).
         chain = self._empty_chain(symbol)
         for expiration, right, strike in self._list_option_contracts(symbol, first_expiration, last_expiration):
             chain["Chains"][right].setdefault(expiration.isoformat(), set()).add(strike)
@@ -1393,20 +1489,6 @@ class AlpacaBacktesting(DataSourceBacktesting):
             chain["Chains"][side] = {
                 expiry: sorted(strikes) for expiry, strikes in sorted(chain["Chains"][side].items())
             }
-
-        try:
-            os.makedirs(cache_dir, exist_ok=True)
-            with open(cache_file, "w", encoding="utf-8") as handle:
-                json.dump(chain, handle, separators=(",", ":"))
-            # Alpaca's contract listing is not point-in-time: a window that reaches today or later
-            # can still gain contracts. Share a chain only once every expiration in it has passed,
-            # so the shared file is the same answer anyone would get later.
-            if remote_cache is not None and remote_cache.enabled and last_expiration < datetime.now(pytz.UTC).date() - timedelta(days=1):
-                remote_cache.on_local_update(Path(cache_file))
-        except OSError as exc:
-            logger.warning("Could not write Alpaca option chain cache %s: %s", cache_file, exc)
-        except Exception as exc:  # an upload failure must never break a chain lookup
-            logger.debug("Alpaca option chain upload skipped (%s)", type(exc).__name__)
         memory[cache_key] = chain
         self._remember_listed_contracts(chain)
         return self._copy_chain(chain)

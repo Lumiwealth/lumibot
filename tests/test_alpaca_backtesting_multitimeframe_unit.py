@@ -325,7 +325,8 @@ def test_alpaca_backtesting_get_chains_lists_expired_and_active_contracts(monkey
     assert any(r.page_token == "1" for r in source._trading_client.requests), "pagination was not followed"
     for request in source._trading_client.requests:
         assert request.underlying_symbols == ["SPY"]
-        assert request.expiration_date_gte == date(2026, 8, 3)
+        # Listings cover whole expiration months (2026-11-17) so each month is cached once.
+        assert request.expiration_date_gte == date(2026, 8, 1)
         assert request.expiration_date_lte >= date(2026, 8, 3) + timedelta(days=AlpacaBacktesting.OPTION_CHAIN_MAX_DAYS)
     # Nothing past the chain horizon, even though the listing is wider.
     assert "2027-01-15" not in chains["Chains"]["CALL"]
@@ -352,9 +353,11 @@ def test_alpaca_backtesting_get_chains_caches_per_day_in_memory_and_on_disk(monk
     assert "2026-08-07" not in later["Chains"]["CALL"]  # expired before this simulated day
     assert later["Chains"]["CALL"]["2026-08-21"] == [650.0]
 
-    cached_files = list((tmp_path / "alpaca" / "option_chains").glob("SPY_2026-08-03*.json"))
-    assert cached_files, "chain was not cached on disk"
-    assert json.loads(cached_files[0].read_text())["Chains"]["CALL"]["2026-08-07"] == [640.0, 645.0]
+    # Since 2026-11-17 the contract list is cached per expiration month, not per simulated day.
+    month_file = tmp_path / "alpaca" / "option_chains" / "by_expiration_month" / "SPY_2026-08.json"
+    assert month_file.exists(), "contract list was not cached on disk"
+    rows = json.loads(month_file.read_text())
+    assert ["2026-08-07", "CALL", 640.0] in rows and ["2026-08-07", "CALL", 645.0] in rows
 
     # A fresh process reads the disk cache instead of calling Alpaca.
     fresh = _alpaca_source(monkeypatch, tmp_path)

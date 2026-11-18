@@ -196,8 +196,9 @@ How option data works
 
 - **Chains.** Expirations run from the simulated date through 90 days later. ``OptionsHelper``
   can narrow or widen that with its expiration hints. Only standard 100-share contracts are
-  listed. Chains are cached per underlying and simulated date in memory and on disk, and one
-  contract listing is reused for later days, so calling ``get_chains()`` every bar is cheap.
+  listed. Contracts are cached per underlying and expiration month in memory and on disk, so
+  each month is fetched from Alpaca once and calling ``get_chains()`` every bar is cheap. A
+  2-year backtest makes a few dozen contract-listing calls, not one per day.
 - **Prices.** Option bars are real trades. LumiBot never fills the gaps between trades.
   ``get_last_price()`` returns the open of a bar that traded in the current minute (or day),
   otherwise the close of the most recent earlier trade, and ``None`` before the first trade.

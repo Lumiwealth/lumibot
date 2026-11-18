@@ -2059,7 +2059,7 @@ class TestAlpacaBacktestingOptionsApi:
         assert min(calls) <= "2026-08-07"
         assert all("2026-08-04" <= expiry <= "2026-11-02" for expiry in calls)
         assert calls["2026-08-21"] == sorted(calls["2026-08-21"])
-        assert list((tmp_path / "alpaca" / "option_chains").glob("SPY_2026-08-04_*.json"))
+        assert list((tmp_path / "alpaca" / "option_chains" / "by_expiration_month").glob("SPY_2026-0*.json"))
 
         call_760 = Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration=date(2026, 8, 21), strike=760, right="CALL")
         price = source.get_last_price(call_760)

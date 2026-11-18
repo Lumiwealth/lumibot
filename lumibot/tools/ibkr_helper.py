@@ -138,6 +138,9 @@ IBKR_INTRADAY_HISTORY_DELAY = timedelta(minutes=20)
 IBKR_STOCK_INDEX_HOURLY_REPAIR_PERIOD = "2000h"
 
 IBKR_CONID_NEGATIVE_CACHE_TTL_SECONDS = 24 * 60 * 60  # 24h (persisted via BacktestCacheManager when enabled)
+# Raise when the stock/index lookup learns new symbol forms, so misses stored by an older lookup are
+# asked again instead of blocking the improved lookup for up to a day.
+IBKR_CONID_NEGATIVE_LOOKUP_VERSION = 2
 
 
 class IbkrFuturesConidLookupError(RuntimeError):
@@ -350,13 +353,30 @@ def symbol_not_found(asset: Asset) -> bool:
     )
 
 
+def _negative_conid_entry_is_current(entry: Dict[str, Any]) -> bool:
+    """A stored miss counts only while it is younger than the expiry and was written by the
+    current lookup. Long-running processes check the age here, not only when the file loads."""
+    try:
+        ts = float(entry.get("ts"))
+    except Exception:
+        return False
+    if (float(time.time()) - ts) > IBKR_CONID_NEGATIVE_CACHE_TTL_SECONDS:
+        return False
+    return entry.get("lookup_version") == IBKR_CONID_NEGATIVE_LOOKUP_VERSION
+
+
 def _record_negative_conid(*, key: str, reason: str, message: str) -> None:
     """Persist a negative cache marker so we stop hammering IBKR for invalid roots/expirations."""
     if not key:
         return
     _load_negative_conid_cache()
     now = float(time.time())
-    _NEGATIVE_CONID_CACHE[key] = {"ts": now, "reason": str(reason), "message": str(message)}
+    _NEGATIVE_CONID_CACHE[key] = {
+        "ts": now,
+        "reason": str(reason),
+        "message": str(message),
+        "lookup_version": IBKR_CONID_NEGATIVE_LOOKUP_VERSION,
+    }
 
     path = _negative_conid_cache_file()
     try:
@@ -5263,7 +5283,7 @@ def _resolve_conid(
         _load_negative_conid_cache()
         for key in candidates:
             neg_hit = _NEGATIVE_CONID_CACHE.get(key)
-            if isinstance(neg_hit, dict):
+            if isinstance(neg_hit, dict) and _negative_conid_entry_is_current(neg_hit):
                 cached_msg = str(neg_hit.get("message") or "").strip() or (
                     f"IBKR conid lookup is negatively cached for {asset.symbol} (type={asset_type})."
                 )
@@ -5720,6 +5740,15 @@ def _lookup_conid_remote(
         if spaced not in search_symbols:
             search_symbols.append(spaced)
 
+    # Only a list of contracts (empty or not) or the queue's explicit no-data answer says the
+    # contract does not exist. Any other answer (a gateway or error object) is not stored as a miss.
+    definite_answers = True
+
+    def _note_answer(payload: Any) -> None:
+        nonlocal definite_answers
+        if payload is not None and not isinstance(payload, list):
+            definite_answers = False
+
     for search_symbol in search_symbols:
         if preferred_sec_types:
             for sec_type in preferred_sec_types:
@@ -5729,19 +5758,24 @@ def _lookup_conid_remote(
                     headers=None,
                     timeout=None,
                 )
+                _note_answer(payload)
                 conid = _extract_conid(payload, (sec_type,))
                 if conid is not None:
                     return int(conid)
 
         # Default: fall back to secdef search, but still filter ambiguous symbols by asset type.
         payload = queue_request(url=url, querystring={"symbol": search_symbol}, headers=None, timeout=None)
+        _note_answer(payload)
         conid = _extract_conid(payload, preferred_sec_types)
         if conid is not None:
             return int(conid)
 
     currency_detail = f", currency={requested_currency}" if requested_currency else ""
     message = f"Unable to resolve IBKR conid for {asset.symbol} (type={asset_type}{currency_detail})"
-    _record_negative_conid(key=_conid_key(asset=asset, quote=quote, exchange=exchange).to_key(), reason="no_conid", message=message)
+    if definite_answers:
+        _record_negative_conid(key=_conid_key(asset=asset, quote=quote, exchange=exchange).to_key(), reason="no_conid", message=message)
+    else:
+        logger.warning("IBKR conid lookup for %s got a non-definite answer; not stored as a miss.", asset.symbol)
     raise RuntimeError(message)
 
 

@@ -480,6 +480,10 @@ bound to one deployment or backtest.
 - Purpose: Override the local SEC fundamentals and filing cache.
 - Default: `~/.lumibot/cache/sec`.
 
+### `LUMIBOT_SEC_METRICS_HISTORY`
+- Purpose: Read stored daily fundamentals rows (`lumibot/fundamentals/metrics_history.py`) in `get_metrics_table` during backtests.
+- Values: `1` (default) or `0` (emergency off).
+
 ### `FRED_API_KEY`
 - Purpose: Required official FRED/ALFRED API key for macro data tools.
 - Default: unset.

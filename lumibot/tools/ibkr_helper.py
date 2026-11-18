@@ -3444,8 +3444,12 @@ def _confirmed_missing_daily_sessions(
         return {ts.date() for ts in idx}
 
     have = _real_dates(working)
+    # Sessions are exchange-local dates, so measure their age on the same calendar. A UTC
+    # date runs a day ahead every evening after 7 PM New York and would mark a session as
+    # old one day early.
     newest_allowed = (
-        datetime.now(timezone.utc) - timedelta(days=IBKR_DAILY_GAP_MARKER_MIN_AGE_DAYS)
+        datetime.now(timezone.utc).astimezone(LUMIBOT_DEFAULT_PYTZ)
+        - timedelta(days=IBKR_DAILY_GAP_MARKER_MIN_AGE_DAYS)
     ).date()
     confirmed: list[pd.Timestamp] = []
     for group, fetched in answered:

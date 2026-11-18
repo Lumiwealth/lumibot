@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.6.85 - 2026-11-17
+
+Deploy marker: 950105a5859b0e60b7ba0217eb88853c569bf2ee
+
+### Fixed
+- IBKR daily history: the 5-day minimum age before a session can be remembered as confirmed missing is now measured on the exchange calendar (New York) instead of the UTC date. After 7 PM New York the UTC date is a day ahead, so a session 4 days old could be marked one day early.
+
+### Release note
+- 4.6.84 was tagged but not published: its release tests hit that date boundary. 4.6.85 carries everything in 4.6.84 (including the live futures session fix) plus this fix.
+
 ## 4.6.84 - 2026-11-17
 
 Deploy marker: 24d02fd89098ecb0b17118158b0822e5d05d1b6f

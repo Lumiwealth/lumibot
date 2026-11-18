@@ -1505,6 +1505,12 @@ CONSTRAINED_BOOLEAN_SCHEMA = {
     "required": ["verdict"],
 }
 
+# Drex answers each property on its own, so it cannot enforce an object-level constraint.
+EXCLUSIVE_GATE_SCHEMA = {
+    **GATE_SCHEMA,
+    "not": {"properties": {"verdict": {"const": "PASS"}, "trim": {"const": True}}, "required": ["verdict", "trim"]},
+}
+
 
 @pytest.mark.parametrize(
     "api_key, strategy_class, create_kwargs",
@@ -1512,6 +1518,7 @@ CONSTRAINED_BOOLEAN_SCHEMA = {
         (None, GateStrategy, GateStrategy.create_kwargs),
         ("nace_sk_test", GateStrategy, {**GateStrategy.create_kwargs, "output_schema": VERDICT_SCHEMA}),  # free text
         ("nace_sk_test", GateStrategy, {**GateStrategy.create_kwargs, "output_schema": CONSTRAINED_BOOLEAN_SCHEMA}),
+        ("nace_sk_test", GateStrategy, {**GateStrategy.create_kwargs, "output_schema": EXCLUSIVE_GATE_SCHEMA}),
         ("nace_sk_test", GateStrategy, {"output_schema": GATE_SCHEMA}),  # built-in skills on
         ("nace_sk_test", ToolGateStrategy, GateStrategy.create_kwargs),  # agent has tools
     ],

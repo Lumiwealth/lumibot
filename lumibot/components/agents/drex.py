@@ -20,6 +20,11 @@ from lumibot import __version__
 from .runtime import GoogleADKRuntime, _utc_iso_timestamp
 from .schemas import AgentRunResult, AgentTraceEvent
 
+# Drex answers each property on its own, so object-level constraints (oneOf, not, ...) go to the agent's model.
+_OBJECT_KEYWORDS = {
+    "$schema", "$defs", "type", "title", "description", "properties", "required", "additionalProperties",
+}
+
 
 def drex_model() -> str:
     return os.environ.get("NACE_DEFAULT_DECISION_MODEL") or "drex-max-finance"
@@ -29,6 +34,8 @@ def drex_questions(schema_json: dict[str, Any], system_prompt: str) -> dict[str,
     """Map a bounded output schema to Drex questions, or None when Drex is off or cannot answer it."""
     properties = schema_json.get("properties")
     if not os.environ.get("NACE_API_KEY") or not isinstance(properties, dict) or not properties:
+        return None
+    if not set(schema_json) <= _OBJECT_KEYWORDS:
         return None
     defs = schema_json.get("$defs") or {}
     questions: dict[str, Any] = {}

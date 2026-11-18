@@ -969,6 +969,19 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
 class _PolygonRoutingAdapter(_DataFrameRoutingAdapter):
     provider_key = "polygon"
 
+    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
+        """Option chain for ``asset`` from Polygon as of the router's simulated date."""
+        polygon_key = (os.environ.get("POLYGON_API_KEY") or POLYGON_API_KEY or "").strip()
+        if not polygon_key:
+            raise RoutingProviderError("Routing selected Polygon for options but POLYGON_API_KEY is not configured.")
+        return polygon_helper.get_chains_cached(
+            api_key=polygon_key,
+            asset=asset,
+            quote=quote,
+            exchange=exchange,
+            current_date=self._router.get_datetime().date(),
+        )
+
     def _fetch_df(
         self,
         *,
@@ -1045,20 +1058,18 @@ class _AlpacaRoutingAdapter(_DataFrameRoutingAdapter):
         super().__init__(router)
         self._source = None
 
-    def _fetch_df(
-        self,
-        *,
-        asset: Asset,
-        quote_asset: Asset,
-        ts_unit: str,
-        start_datetime: datetime,
-        end_dt: datetime,
-        length: int,
-        canonical_key: Any,
-        provider_spec: ProviderSpec,
-        require_quote_data: bool,
-        require_ohlc_data: bool,
-    ) -> pd.DataFrame | None:
+    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
+        """Option chain for ``asset`` from Alpaca as of the router's simulated time.
+
+        The Alpaca source builds chains from its own clock and chain constraints, so both are
+        synced from the router before each lookup.
+        """
+        source = self._ensure_source()
+        source._datetime = self._router.get_datetime()
+        source._chain_constraints = getattr(self._router, "_chain_constraints", None)
+        return source.get_chains(asset, quote=quote)
+
+    def _ensure_source(self):
         if self._source is None:
             if not (
                 ALPACA_CONFIG.get("OAUTH_TOKEN")
@@ -1076,7 +1087,23 @@ class _AlpacaRoutingAdapter(_DataFrameRoutingAdapter):
                 config=ALPACA_CONFIG,
                 show_progress_bar=False,
             )
+        return self._source
 
+    def _fetch_df(
+        self,
+        *,
+        asset: Asset,
+        quote_asset: Asset,
+        ts_unit: str,
+        start_datetime: datetime,
+        end_dt: datetime,
+        length: int,
+        canonical_key: Any,
+        provider_spec: ProviderSpec,
+        require_quote_data: bool,
+        require_ohlc_data: bool,
+    ) -> pd.DataFrame | None:
+        self._ensure_source()
         df = self._source.get_historical_prices_between_dates(
             base_asset=asset,
             quote_asset=quote_asset,
@@ -2459,4 +2486,41 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                 ):
                     timestep = "day"
 
+        # The snapshot fast path inherited from the ThetaData source asks ThetaData directly.
+        # Intraday quotes for assets routed elsewhere use the normal routed quote path instead.
+        # (Day-aligned snapshot requests never reach ThetaData; the parent falls back itself.)
+        if spec.provider != "thetadata" and not _is_day_like_timestep(str(timestep or "")):
+            kwargs.pop("snapshot_only", None)
+
         return super().get_quote(asset, quote=quote, exchange=exchange, timestep=timestep, **kwargs)
+
+    def _option_provider_spec(self) -> ProviderSpec:
+        if getattr(self, "_registry", None) is None:
+            self._registry = _ProviderRegistry(self)
+        raw = self._routing.get("option") or self._routing.get("default") or "thetadata"
+        return self._registry.resolve_provider_spec(raw)
+
+    def get_chains(self, asset, quote=None, exchange=None):
+        """Return option chains from the provider the routing map assigns to options.
+
+        WHY (2026-11-17): this class inherited ThetaData's get_chains(), so a map routing
+        "option" to another provider still asked ThetaData for chains. Chains now follow the
+        option route. A provider that cannot supply chains raises a clear error; there is no
+        silent fallback to another provider.
+        """
+        from lumibot.entities import Chains
+
+        spec = self._option_provider_spec()
+        if spec.provider == "thetadata":
+            return super().get_chains(asset)
+        adapter = self._registry.adapter_for_spec(spec)
+        chain_fn = getattr(adapter, "get_chains", None)
+        if chain_fn is None:
+            raise RoutingProviderError(
+                f"Options are routed to provider {spec.provider!r}, which cannot supply option chains "
+                "in backtests. Route options to a provider that supports option chains."
+            )
+        chains = chain_fn(asset, quote=quote, exchange=exchange)
+        if chains is None or isinstance(chains, Chains):
+            return chains
+        return Chains(chains)

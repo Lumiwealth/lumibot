@@ -801,6 +801,11 @@ class ProjectX(Broker):
                 # Use helper to build synthetic bracket metadata (pure, low-risk extraction)
                 order._synthetic_bracket = create_bracket_meta(tp_price, sl_price)
                 order._is_bracket_parent = True
+                # Order(order_class=BRACKET) builds local exit placeholders. ProjectX
+                # never sends them: it places its own exits after the entry fills.
+                # Kept, they stay "unprocessed" forever, so a filled entry looks
+                # active and order sync keeps looking up exits the venue never had.
+                order.child_orders = []
                 # Early store meta with a temporary key (will update key once broker id returned)
                 # Early provisional meta store under temp key
                 temp_key = getattr(order, 'id', None) or f"temp_{id(order)}"
@@ -1956,6 +1961,8 @@ class ProjectX(Broker):
         # Mark as child to bypass bracket detection
         child._is_bracket_child = True
         child._bracket_parent_id = parent.identifier
+        # Lets strategies link the real exits to the entry that opened them.
+        child.parent_identifier = parent.identifier
         try:
             from datetime import datetime
             child.created_at = datetime.now()

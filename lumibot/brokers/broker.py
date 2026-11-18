@@ -2427,7 +2427,9 @@ class Broker(ABC):
             self._partially_filled_orders.remove(order.identifier, key="identifier")
             order.status = self.CANCELED_ORDER
             order.set_canceled()
-            self._canceled_orders.append(order)
+            # A repeated cancel event for the same order must not track it twice.
+            if order not in self._canceled_orders:
+                self._canceled_orders.append(order)
         return order
 
     def _process_partially_filled_order(self, order, price, quantity):

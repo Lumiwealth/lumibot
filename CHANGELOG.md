@@ -2,6 +2,9 @@
 
 ## 4.6.87 - Unreleased
 
+### Fixed
+- **Routed backtests: option chains and intraday snapshot quotes now follow the `"option"` route.** The mixed data source inherited the ThetaData source's `get_chains()` and snapshot-quote path, so a map like `{"default":"ibkr","option":"alpaca"}` still asked ThetaData for chains and snapshot quotes, and option backtests failed at their first chain lookup when ThetaData was unavailable. Chains now come from the routed option provider (ThetaData, Alpaca or Polygon), and a provider without option chains raises an error naming it; there is no fallback to another provider. Maps that route options to ThetaData are unchanged.
+
 ## 4.6.86 - 2026-11-17
 
 Deploy marker: 3e03a0560b5f958b99fef3913e7b619a66afbac0

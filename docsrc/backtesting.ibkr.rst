@@ -303,6 +303,8 @@ To use multiple providers in a single backtest (example: ThetaData for options/s
 
 Routing values are case/whitespace/_/- insensitive. For crypto, you may also route to documented CCXT backtesting paths by using either ``"ccxt"`` (auto-select exchange) or a supported CCXT backtesting exchange id directly (for example: ``"kraken"`` or ``"binance"``).
 
+Option lookups follow the ``"option"`` route (or ``"default"`` when no option route is set): option chains (``get_chains()``), quotes and prices all come from that one provider. Chains are available from ``thetadata``, ``alpaca`` and ``polygon``; routing options to a provider without option chains raises a clear error naming that provider instead of silently using another one.
+
 Crypto futures and perpetuals
 -----------------------------
 

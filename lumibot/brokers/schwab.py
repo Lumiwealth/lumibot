@@ -284,6 +284,8 @@ def _apply_external_schwab_token_to_session(oauth_session, token: dict) -> None:
             pass
 
 
+from lumibot.tools.index_option_roots import index_underlying_symbol as _index_underlying_symbol  # noqa: E402
+
 class SchwabTokenPersistenceError(RuntimeError):
     """Raised when a refreshed Schwab OAuth token cannot be durably written."""
 
@@ -1355,8 +1357,10 @@ class Schwab(Broker):
             if option_parts:
                 return self._attach_raw_broker_data(
                     Asset(
-                        symbol=self._normalize_symbol_for_internal(
-                            option_parts["underlying"], asset_type=Asset.AssetType.OPTION
+                        symbol=_index_underlying_symbol(
+                            self._normalize_symbol_for_internal(
+                                option_parts["underlying"], asset_type=Asset.AssetType.OPTION
+                            )
                         ),
                         asset_type=Asset.AssetType.OPTION,
                         expiration=option_parts["expiry_date"],
@@ -3104,7 +3108,11 @@ class Schwab(Broker):
 
             # Construct the option symbol in Schwab format
             # Get option data from the order's asset
-            underlying_symbol = self._normalize_symbol_for_broker(order.asset.symbol, asset_type=order.asset.asset_type)
+            from lumibot.tools.index_option_roots import index_option_root
+
+            underlying_symbol = self._normalize_symbol_for_broker(
+                index_option_root(order.asset.symbol, order.asset.expiration), asset_type=order.asset.asset_type
+            )
             expiration_date = order.asset.expiration
             strike_price = order.asset.strike
             option_type = 'C' if order.asset.right == 'CALL' else 'P'

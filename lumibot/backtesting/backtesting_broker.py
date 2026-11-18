@@ -5785,18 +5785,31 @@ class BacktestingBroker(Broker):
             return None
         return seconds / (365.0 * 86400.0)
 
+    # The newest real trade is looked for in the newest few bars first, then in the full
+    # lookback. The newest few bars are the newest part of the full lookback, so the answer is
+    # the same; a contract that traded recently no longer needs (and on data sources that load
+    # history lazily, no longer loads) a week of bars.
+    OPTION_IV_FIRST_LOOK_MINUTE_BARS = 60
+    OPTION_IV_FIRST_LOOK_DAY_BARS = 5
+
     def _last_real_trade(self, asset, quote, before_now: bool = True):
         timestep = str(getattr(self.data_source, "_timestep", "minute"))
-        lookback = self.OPTION_IV_LOOKBACK_DAY_BARS if timestep == "day" else self.OPTION_IV_LOOKBACK_MINUTE_BARS
-        frame = self._recent_real_bars(asset, quote, lookback)
-        if frame is None:
-            return None
-        if before_now:
-            frame = frame[~self._bars_match_now(frame.index)]
-        for ts, close in zip(reversed(frame.index), reversed(frame["close"].tolist())):
-            price = self._coerce_price(close)
-            if price is not None and not self._is_invalid_price(price) and float(price) > 0:
-                return ts, float(price)
+        if timestep == "day":
+            lookbacks = (self.OPTION_IV_FIRST_LOOK_DAY_BARS, self.OPTION_IV_LOOKBACK_DAY_BARS)
+        else:
+            lookbacks = (self.OPTION_IV_FIRST_LOOK_MINUTE_BARS, self.OPTION_IV_LOOKBACK_MINUTE_BARS)
+        for lookback in sorted(set(int(n) for n in lookbacks if n)):
+            frame = self._recent_real_bars(asset, quote, lookback)
+            if frame is None:
+                if lookback == max(lookbacks):
+                    return None
+                continue
+            if before_now:
+                frame = frame[~self._bars_match_now(frame.index)]
+            for ts, close in zip(reversed(frame.index), reversed(frame["close"].tolist())):
+                price = self._coerce_price(close)
+                if price is not None and not self._is_invalid_price(price) and float(price) > 0:
+                    return ts, float(price)
         return None
 
     def _underlying_price_at(self, underlying, quote, ts) -> Optional[float]:

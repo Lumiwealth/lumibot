@@ -133,6 +133,20 @@ A data source of your own can support this by implementing
 ``get_backtest_as_traded_daily_closes(asset)``: return a daily DataFrame with
 ``close`` (the close your backtest prices use) and ``as_traded_close``.
 
+**Stored daily tables make screens fast.** Ranking 500 companies by market
+cap needs a price for every one of them on every rebalance date. When a stored
+daily table is available in the backtest cache, ``get_metrics_table`` reads it
+instead: one row per company per trading session, built with the same rules as
+``get_metrics`` at that day's 4:00 PM New York close and that day's traded close.
+Your strategy code does not change, and only the stocks you buy need price
+history. A stored row is used only after its session closed (a strategy running
+at the open sees the previous close) and never more than 7 days later; anything
+not stored is computed as described above. Build your own tables with
+``lumibot.fundamentals.metrics_history.build_metrics_history(sec, closes)`` and
+``save_metrics_history(sec, frame)``, where ``closes`` maps each symbol to a
+Series of the closes actually traded each day. Set
+``LUMIBOT_SEC_METRICS_HISTORY=0`` to ignore stored tables.
+
 **Share counts filed at the wrong scale.** Companies sometimes file the
 cover-page share count a thousand or a million times too large or too small.
 LumiBot uses a filed count only when it is within 50 times of another count the

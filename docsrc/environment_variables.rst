@@ -1230,6 +1230,13 @@ LUMIBOT_SEC_CACHE_DIR
 - Purpose: Override local SEC fundamentals and filing cache.
 - Default: ``~/.lumibot/cache/sec``.
 
+LUMIBOT_SEC_METRICS_HISTORY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Read stored daily fundamentals tables in backtests (see the fundamentals page).
+- Values: ``1`` (on) or ``0`` (off; compute every value from SEC files and the strategy's prices).
+- Default: ``1``. Off is for emergencies only.
+
 FRED_API_KEY
 ^^^^^^^^^^^^
 

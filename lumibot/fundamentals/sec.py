@@ -1827,6 +1827,23 @@ class SECFundamentals:
 
         requested = list(FUNDAMENTAL_METRICS) if metrics is None else [str(name) for name in metrics]
         symbol_list = list(dict.fromkeys(str(symbol).upper().strip() for symbol in symbols if str(symbol or "").strip()))
+        given_prices = {str(key).upper() for key, value in (prices or {}).items() if value is not None}
+        stored = self._stored_metric_rows([s for s in symbol_list if s not in given_prices], requested, as_of)
+        if stored:
+            # PERF: rows built ahead of time (metrics_history.py) need no SEC load and no price
+            # history here. Each row is get_metrics at an earlier session close, so no look-ahead.
+            all_symbols, symbol_list = symbol_list, [s for s in symbol_list if s not in stored]
+            if not symbol_list:
+                frame = pd.DataFrame.from_dict(
+                    {s: stored[s] for s in all_symbols}, orient="index", columns=[*requested, "cik", "reasons"], dtype=object
+                )
+                frame.index.name = "symbol"
+                return frame
+            rest = self.get_metrics_table(symbol_list, requested, as_of=as_of, prices=prices, preload=preload)
+            rows = {s: stored[s] if s in stored else rest.loc[s].to_dict() for s in all_symbols}
+            frame = pd.DataFrame.from_dict(rows, orient="index", columns=[*requested, "cik", "reasons"], dtype=object)
+            frame.index.name = "symbol"
+            return frame
         if preload:
             # Companies already loaded and fresh need no second pass (one thread task each).
             pending = [symbol for symbol in symbol_list if not self._timeline_ready(symbol)]
@@ -1853,6 +1870,20 @@ class SECFundamentals:
         frame = pd.DataFrame.from_dict(rows, orient="index", columns=[*requested, "cik", "reasons"], dtype=object)
         frame.index.name = "symbol"
         return frame
+
+    def _stored_metric_rows(self, symbols: list[str], metrics: list[str], as_of: Any | None) -> dict[str, dict[str, Any]]:
+        """Stored daily rows usable at ``as_of`` (backtests only); {} when none apply."""
+        from . import metrics_history
+
+        if not symbols or self._resolved_cache_mode() != "backtest" or not metrics_history.reading_enabled():
+            return {}
+        try:
+            history = self.__dict__.get("_metrics_history")
+            if history is None:
+                history = self.__dict__["_metrics_history"] = metrics_history.MetricsHistory(self)
+            return history.lookup(symbols, metrics, self._resolve_as_of(as_of))
+        except Exception:
+            return {}  # stored rows are only a shortcut: compute as before
 
     def _cover_share_counts(self, timeline: _CompanyTimeline, as_ts: float) -> dict[str, Any] | None:
         """Per-class share counts from the cover page of the latest 10-K or 10-Q public at ``as_ts``.

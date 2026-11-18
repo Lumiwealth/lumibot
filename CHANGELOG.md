@@ -2,6 +2,9 @@
 
 ## 4.6.88 - Unreleased
 
+### Added
+- Stored daily fundamentals for fast screens: `lumibot.fundamentals.metrics_history.build_metrics_history` and `save_metrics_history` store every ready-made metric (market cap, P/E, revenue growth and the rest) per symbol per trading session, each row being `get_metrics` at that session's 16:00 New York close with that day's traded close. In a backtest, `get_metrics_table` reads a usable stored row instead of loading SEC files and price history for every candidate, so a "biggest companies" or P/E screen over many symbols needs prices only for the stocks it buys. A row is seen only after its session closed and is never used more than 7 days later; symbols, dates and metrics with no stored row are computed as before, and `prices=` still wins. Off switch for emergencies: `LUMIBOT_SEC_METRICS_HISTORY=0`. Tests: `tests/test_sec_metrics_history.py`.
+
 ## 4.6.87 - Unreleased
 
 ### Fixed

@@ -3,12 +3,18 @@ from __future__ import annotations
 import os
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
-from lumibot.tools.index_option_roots import index_option_root
 
 from .data_source import DataSource
 from .exceptions import InvalidBars, UnsupportedAsset
 
 logger = LazyLogger(__name__)
+
+
+def index_option_root(symbol, expiration):
+    """Lazy wrapper: keeps index_option_roots (datetime, typing) out of the startup import path."""
+    from lumibot.tools.index_option_roots import index_option_root as _root
+
+    return _root(symbol, expiration)
 TYPE_CHECKING = False
 dt = LazyModule("datetime")
 pd = LazyModule("pandas")

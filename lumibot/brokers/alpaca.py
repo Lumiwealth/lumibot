@@ -7,9 +7,15 @@ from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
 from .broker import Broker
 from lumibot.brokers.broker import ORDER_NATIVE, ORDER_SIMULATED, ORDER_UNSUPPORTED  # noqa: F401
-from lumibot.tools.index_option_roots import index_option_root
 
 logger = LazyLogger(__name__)
+
+
+def index_option_root(symbol, expiration):
+    """Lazy wrapper: keeps index_option_roots (datetime, typing) out of the startup import path."""
+    from lumibot.tools.index_option_roots import index_option_root as _root
+
+    return _root(symbol, expiration)
 datetime = LazyModule("datetime")
 timezone = lazy_class("datetime", "timezone")
 mcal = LazyModule("pandas_market_calendars")

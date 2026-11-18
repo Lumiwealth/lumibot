@@ -284,7 +284,12 @@ def _apply_external_schwab_token_to_session(oauth_session, token: dict) -> None:
             pass
 
 
-from lumibot.tools.index_option_roots import index_underlying_symbol as _index_underlying_symbol  # noqa: E402
+def _index_underlying_symbol(symbol):
+    """Lazy wrapper: keeps index_option_roots (datetime, typing) out of the startup import path."""
+    from lumibot.tools.index_option_roots import index_underlying_symbol
+
+    return index_underlying_symbol(symbol)
+
 
 class SchwabTokenPersistenceError(RuntimeError):
     """Raised when a refreshed Schwab OAuth token cannot be durably written."""

@@ -18,6 +18,7 @@ import math
 from datetime import date, datetime
 from decimal import Decimal
 
+import numpy as np
 import pandas as pd
 
 from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting
@@ -192,23 +193,44 @@ def _fingerprints(strategy, broker):
     )
 
 
-# Captured on origin/version/4.6.86 at 6ca6c83b2, before the per-bar read reuse.
-EXPECTED_TRADE_LOG_SHA = "0d380ec89c5b1e9fc656f9e271039b2e50da3bedc6cf9390f611e1ed00ecbbcf"
-EXPECTED_VALUES_SHA = "7b1b81997c70e953916f8e3d2636dd6eb23de44b82f126181d839bcb348e751c"
+# Read counts captured on origin/version/4.6.86 at 6ca6c83b2, before the per-bar read reuse.
+# The trade log and account values are compared with a run of the old (no reuse) read path in
+# the same process, not with a stored hash: estimated option prices depend on the installed
+# numeric libraries, so a hash captured on one machine does not hold on another.
 EXPECTED_FILLS = 20
+
+
+def _run_without_reuse(monkeypatch):
+    """Same run with the pre-4.6.86 read path: every lookup reads, every timestamp checked alone."""
+    from lumibot.backtesting.backtesting_broker import BacktestingBroker as _Broker
+
+    def _direct(self, asset, quote, length):
+        timestep = str(getattr(self.data_source, "_timestep", "minute"))
+        frame, _ = self._read_recent_real_bars(asset, quote, length, timestep)
+        return frame
+
+    def _scalar(self, index):
+        return np.array([self._bar_matches_now(ts) for ts in pd.DatetimeIndex(index)], dtype=bool)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(_Broker, "_recent_real_bars", _direct)
+        patch.setattr(_Broker, "_bars_match_now", _scalar)
+        return _run()
 FILL_READS_BEFORE = 2241
 VALUATION_READS_BEFORE = 991
 
 
-def test_fill_and_valuation_results_are_identical_and_history_reads_drop():
+def test_fill_and_valuation_results_are_identical_and_history_reads_drop(monkeypatch):
+    base_strategy, base_broker, _, _ = _run_without_reuse(monkeypatch)
+    expected_trade_sha, expected_values_sha, _ = _fingerprints(base_strategy, base_broker)
     strategy, broker, reads, valuation_reads = _run()
     trade_sha, values_sha, fills = _fingerprints(strategy, broker)
     print(f"\nTRADE={trade_sha}\nVALUES={values_sha}\nFILLS={fills}\nREADS={reads}\nVALUATION={valuation_reads}")
     counts = getattr(broker, "_option_fill_price_counts", {}) or {}
     assert counts.get("estimated", 0) >= 1, "the run must exercise estimated fills"
     assert fills >= 8, "the run must open and close packages"
-    assert trade_sha == EXPECTED_TRADE_LOG_SHA
-    assert values_sha == EXPECTED_VALUES_SHA
+    assert trade_sha == expected_trade_sha
+    assert values_sha == expected_values_sha
     assert fills == EXPECTED_FILLS
     # At most half the order-fill history reads of the old code; valuation never reads more.
     assert reads * 2 <= FILL_READS_BEFORE

@@ -223,6 +223,36 @@ def test_price_defaults_to_the_strategys_last_price_at_the_bar(monkeypatch, tmp_
     assert values["pe_ratio"] == pytest.approx(50 / 5.5)
 
 
+def test_no_price_is_loaded_for_a_company_with_no_filing_yet(monkeypatch, tmp_path):
+    """A screen over many companies must not load price history for one that had filed
+    nothing yet: its price metrics are None either way, and each price load is a download."""
+
+    class _Strategy:
+        is_backtesting = True
+        _backtesting_end = datetime(2024, 12, 31, tzinfo=NY)
+
+        def __init__(self):
+            self.asked = []
+
+        def get_datetime(self):
+            return datetime(2021, 6, 1, 10, tzinfo=NY)
+
+        def get_last_price(self, asset):
+            self.asked.append(getattr(asset, "symbol", asset))
+            return 50.0
+
+    strategy = _Strategy()
+    sec = _sec(monkeypatch, tmp_path, strategy=strategy)
+
+    metrics = sec.get_metrics("EXM", ["market_cap", "pe_ratio"])
+    table = sec.get_metrics_table(["EXM"], ["market_cap"])
+
+    assert strategy.asked == []
+    assert metrics["values"]["market_cap"] is None
+    assert "no SEC filings" in metrics["reasons"]["market_cap"]
+    assert table.loc["EXM", "market_cap"] is None
+
+
 @pytest.mark.parametrize(
     "facts_kwargs, as_of, price, metric, reason_fragment",
     [

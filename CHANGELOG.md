@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.6.89 - 2026-11-18
+
+### Fixed
+- SEC fundamentals: a company that had filed nothing yet on the backtest date no longer loads price history for its price metrics (market cap, P/E, P/S, P/B are None either way). A market-cap screen over the S&P 500 starting in 2010 used to download prices for every company not yet filing in XBRL.
+
 ## 4.6.88 - 2026-11-18
 
 Deploy marker: 0cb6049770ad30c03da8eb31c13772c95e855be7

@@ -2,6 +2,8 @@
 
 ## 4.6.85 - 2026-11-17
 
+Deploy marker: 950105a5859b0e60b7ba0217eb88853c569bf2ee
+
 ### Fixed
 - IBKR daily history: the 5-day minimum age before a session can be remembered as confirmed missing is now measured on the exchange calendar (New York) instead of the UTC date. After 7 PM New York the UTC date is a day ahead, so a session 4 days old could be marked one day early.
 

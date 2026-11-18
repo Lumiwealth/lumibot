@@ -13,6 +13,7 @@ from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 import json
+import logging
 import sys
 from threading import Lock
 from typing import Any, Iterable, Optional, Sequence
@@ -210,6 +211,13 @@ _REQUIRED_FAILURES: dict[tuple, dict[str, Any]] = {}
 # Series whose real history begins after the lookback a strategy asked for (listing, first bar).
 _HISTORY_STARTS: dict[tuple, dict[str, Any]] = {}
 _OPTIONAL_ISSUES: dict[tuple, dict[str, Any]] = {}
+# Assets that had no history on some dates (not listed yet, delisted, unknown to the provider,
+# provider returned nothing) in a run where other assets had data. They are skipped on those
+# dates instead of failing the whole backtest. See record_skipped_asset.
+_SKIPPED_ASSETS: dict[tuple, dict[str, Any]] = {}
+# (symbol, asset_type) pairs that received at least one real bar this run.
+_SERIES_WITH_DATA: set[tuple[str, str]] = set()
+_logger = logging.getLogger(__name__)
 _RECOVERABLE_HISTORY_REQUEST: ContextVar[bool] = ContextVar(
     "lumibot_recoverable_history_request", default=False,
 )
@@ -305,6 +313,55 @@ def record_required_data_issue(*, asset, timestep, when, reason, recovery_cause=
                 entry["provider"] = str(provider)[:64]
             _REQUIRED_FAILURES[key] = entry
 
+def mark_asset_has_data(asset) -> None:
+    """Note that an asset returned real data this run (any provider)."""
+    base = asset[0] if isinstance(asset, tuple) else asset
+    kind = getattr(base, "asset_type", "")
+    with _HEALTH_LOCK:
+        _SERIES_WITH_DATA.add((str(getattr(base, "symbol", base)).upper(), str(getattr(kind, "value", kind))))
+
+
+def record_skipped_asset(*, asset, timestep, when, reason, provider=None, occurrences=1,
+                         recovery_cause="history_unavailable", requested_bars=None) -> None:
+    """Record that an asset had no price on a date, without failing the backtest.
+
+    The strategy got no bars for it and cannot trade it then; nothing is invented. A WARNING
+    names the asset once. If no asset has any data at the end of the run, the snapshot reports
+    these as required failures instead (the strategy's only asset had nothing).
+    """
+    base = asset[0] if isinstance(asset, tuple) else asset
+    symbol = str(getattr(base, "symbol", base)).upper()
+    kind = getattr(base, "asset_type", "")
+    kind = str(getattr(kind, "value", kind))
+    day = pd.Timestamp(when).date().isoformat()
+    key = (symbol, kind, str(timestep))
+    first_time = False
+    with _HEALTH_LOCK:
+        entry = _SKIPPED_ASSETS.get(key)
+        if entry is None:
+            if len(_SKIPPED_ASSETS) >= 500:
+                return
+            first_time = True
+            entry = _SKIPPED_ASSETS[key] = {
+                "symbol": symbol, "asset_type": kind, "timestep": str(timestep),
+                "reason": str(reason)[:200], "first_date": day, "last_date": day,
+                "occurrences": 0, "recovery_cause": recovery_cause,
+            }
+            if requested_bars is not None:
+                entry["requested_bars"] = int(requested_bars)
+            if provider:
+                entry["provider"] = str(provider)[:64]
+        entry["first_date"] = min(entry["first_date"], day)
+        entry["last_date"] = max(entry["last_date"], day)
+        entry["occurrences"] += int(occurrences)
+    if first_time:
+        _logger.warning(
+            "No %s price history for %s from %s (%s: not listed yet, delisted, unknown symbol, "
+            "or the provider returned nothing). It is skipped on those dates: the strategy gets "
+            "no price for it and cannot trade it. No price is invented. The run report lists it "
+            "under skipped_assets.", timestep, symbol, day, reason)
+
+
 def record_required_history(*, asset, timestep, requested_bars, frame, when, requirement="history") -> None:
     """Record history actually consumed by a strategy, separately from prefetch.
 
@@ -326,6 +383,8 @@ def record_required_history(*, asset, timestep, requested_bars, frame, when, req
     missing = []
     unresolved_contract = False
     with _HEALTH_LOCK:
+        if returned:
+            _SERIES_WITH_DATA.add((symbol, asset_type))
         if returned and isinstance(usable.index, pd.DatetimeIndex):
             first, last = usable.index.min().date().isoformat(), usable.index.max().date().isoformat()
             from lumibot.tools.helpers import parse_canonical_timestep
@@ -381,8 +440,13 @@ def record_required_history(*, asset, timestep, requested_bars, frame, when, req
             for h in correlated)
         recovery_cause = ("data_not_yet_available" if requirement == "availability" else
                           "temporary_download_failure" if transient else "unknown")
+        # One asset with no bars at all on this date (most often: not listed yet) is skipped
+        # there instead of failing the run; the snapshot restores the failure if no asset
+        # had any data. A temporary download failure is never skipped: the data exists.
+        skip_asset = (requirement == "history" and returned == 0 and not transient
+                      and not _RECOVERABLE_HISTORY_REQUEST.get())
         key = (symbol, asset_type, str(getattr(base, "expiration", "")), str(timestep), reason)
-        if _RECOVERABLE_HISTORY_REQUEST.get() and requirement != "valuation":
+        if not skip_asset and _RECOVERABLE_HISTORY_REQUEST.get() and requirement != "valuation":
             # Do not return an indicator computed from known missing inputs.
             # Keep the failed request as evidence, not a sticky claim that the
             # strategy necessarily consumed it after the tool reported failure.
@@ -405,8 +469,10 @@ def record_required_history(*, asset, timestep, requested_bars, frame, when, req
                 "No result was calculated from this incomplete request. Retry with available "
                 "history, another source or another asset; disclose the limitation."
             )
-        previous = _REQUIRED_FAILURES.get(key)
-        if previous:
+        previous = None if skip_asset else _REQUIRED_FAILURES.get(key)
+        if skip_asset:
+            pass
+        elif previous:
             previous["occurrences"] += 1
             previous["last_observed_at"] = when.isoformat()
             previous["retryable"] = previous.get("retryable", False) and transient
@@ -420,6 +486,9 @@ def record_required_history(*, asset, timestep, requested_bars, frame, when, req
                 "first_observed_at": when.isoformat(), "last_observed_at": when.isoformat(),
                 "missing_sessions": sorted(set(missing))[:100], "occurrences": 1,
             }
+    if skip_asset:
+        record_skipped_asset(asset=base, timestep=timestep, when=when, reason=reason,
+                             recovery_cause=recovery_cause, requested_bars=requested)
 
 
 def _series_history_starts_at(symbol, asset_type, timestep, first_bar) -> bool:
@@ -514,6 +583,21 @@ def ibkr_history_health_snapshot() -> dict[str, Any]:
         required_failures = [dict(value) for value in _REQUIRED_FAILURES.values()]
         warnings = [dict(value) for value in _OPTIONAL_ISSUES.values()]
         history_starts = [dict(value) for value in _HISTORY_STARTS.values()]
+        skipped_assets = [dict(value) for value in _SKIPPED_ASSETS.values()]
+        any_asset_had_data = bool(_SERIES_WITH_DATA)
+    if skipped_assets and not any_asset_had_data:
+        # No asset had any data: there is nothing to skip to, the run cannot trade at all.
+        for entry in skipped_assets:
+            required_failures.append({
+                "symbol": entry["symbol"], "asset_type": entry["asset_type"], "timestep": entry["timestep"],
+                "reason": entry["reason"], "recovery_cause": entry.get("recovery_cause", "history_unavailable"),
+                "retryable": False, "requested_bars": entry.get("requested_bars", entry["occurrences"]),
+                "returned_bars": 0,
+                "first_observed_at": entry["first_date"], "last_observed_at": entry["last_date"],
+                "occurrences": entry["occurrences"],
+                **({"provider": entry["provider"]} if "provider" in entry else {}),
+            })
+        skipped_assets = []
     incomplete = sum(1 for value in series if value.get("outcome") != HistoryOutcome.COMPLETE.value)
     return {
         "provider": "ibkr",
@@ -524,6 +608,7 @@ def ibkr_history_health_snapshot() -> dict[str, Any]:
         "required_complete": not required_failures,
         "required_failures": required_failures,
         "history_starts": history_starts,
+        "skipped_assets": skipped_assets,
         "warnings": warnings,
     }
 
@@ -535,6 +620,8 @@ def reset_ibkr_history_health() -> None:
         _REQUIRED_FAILURES.clear()
         _HISTORY_STARTS.clear()
         _OPTIONAL_ISSUES.clear()
+        _SKIPPED_ASSETS.clear()
+        _SERIES_WITH_DATA.clear()
     # A Strategy backtest startup already resets this provider's run telemetry.
     # Reset the price-basis memo at the same boundary, without importing a data
     # adapter into runs that never use IBKR. Within one run it remains frozen.

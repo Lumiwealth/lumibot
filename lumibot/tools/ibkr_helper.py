@@ -88,6 +88,14 @@ IBKR_GAP_RETRY_TTL_SECONDS = 24 * 60 * 60
 # Older writers mistook a successful page of only older bars for confirmed
 # tail absence. Those persisted records must remain retryable after recovery.
 IBKR_LEGACY_INFERRED_TAIL_REASON = "successful_history_response_confirmed_no_newer_bars"
+# A daily stock/index window that lies wholly before the first bar the cache holds and was
+# answered empty (usually the days before a listing) is remembered so later runs do not ask
+# again. Only windows that ended at least IBKR_EMPTY_DAILY_HEAD_MIN_AGE ago qualify, and the
+# memory expires after IBKR_EMPTY_DAILY_HEAD_TTL_SECONDS, so it can never hide a recent bar and
+# a provider that later serves older history is asked again.
+IBKR_EMPTY_DAILY_HEAD_REASON = "empty_daily_history_before_first_cached_bar"
+IBKR_EMPTY_DAILY_HEAD_TTL_SECONDS = 7 * 24 * 60 * 60
+IBKR_EMPTY_DAILY_HEAD_MIN_AGE = timedelta(days=7)
 IBKR_DAILY_GAP_REPAIR_TIMEOUT_SECONDS = 45.0
 IBKR_DAILY_GAP_REPAIR_MAX_SEGMENTS_PER_SERIES = 4
 IBKR_DAILY_GAP_REPAIR_MAX_SESSIONS_PER_SEGMENT = 10
@@ -938,6 +946,25 @@ def _previous_close_if_only_session_start_is_open(
         return None
 
 
+def _last_finished_us_equity_session_close(now: datetime) -> Optional[datetime]:
+    """Close (UTC) of the last regular US equity session that finished at or before ``now``."""
+    try:
+        now_ts = pd.Timestamp(_to_utc(now))
+        year = int(now_ts.tz_convert("America/New_York").year)
+        closes = np.concatenate(
+            [
+                _us_equity_session_bounds_for_year(year - 1, False)[1],
+                _us_equity_session_bounds_for_year(year, False)[1],
+            ]
+        )
+        idx = int(np.searchsorted(closes, int(now_ts.value), side="right")) - 1
+        if idx < 0:
+            return None
+        return pd.Timestamp(int(closes[idx]), unit="ns", tz="UTC").to_pydatetime()
+    except Exception:
+        return None
+
+
 def _previous_equity_session_close_before(
     *,
     asset_type: str,
@@ -1359,6 +1386,7 @@ def get_price_data(
         pass
 
     df_cache = _read_cache_frame_with_legacy_name(cache_file, timestep)
+    df_cache = _drop_expired_empty_daily_head_markers(df_cache)
     if equity_basis is not None:
         df_cache = _verified_equity_cache(df_cache, equity_basis)
     # If this series came from a cached parquet (e.g., prefilled via TWS), it may not include the
@@ -1693,6 +1721,20 @@ def get_price_data(
                     except Exception:
                         pass
                 fetched = pd.DataFrame()
+                if (
+                    not classification.persist_negative_cache
+                    and classification.outcome is not HistoryOutcome.TRANSIENT_FAILURE
+                    and _remember_empty_daily_head(
+                        df_cache, asset=asset, quote=quote, timestep=timestep,
+                        exchange=effective_exchange, source=history_source,
+                        include_after_hours=include_after_hours, seg_start=seg_start, seg_end=seg_end,
+                        equity_basis=equity_basis.split_fingerprint if equity_basis else None,
+                    )
+                ):
+                    # A non-transient answer with no usable bars for a wholly past window
+                    # before the first cached bar (observed: a few bytes for the months before
+                    # a listing). Remember it for a bounded time, as for an empty answer.
+                    df_cache = _drop_expired_empty_daily_head_markers(_read_cache_frame(cache_file))
                 if classification.persist_negative_cache:
                     # No-data terminal errors are not recoverable by trying more segments in the
                     # same iteration/window.
@@ -1705,8 +1747,18 @@ def get_price_data(
             # frame captured before paging started.
             df_cache = checkpoint_state["frame"]
             if fetched is None or fetched.empty:
-                # Empty payloads are ambiguous in IBKR. Cool down this process, but do not
-                # persist a cross-process negative marker.
+                # A wholly past window before the first cached bar (the days before a
+                # listing) is remembered for a bounded time so the next run does not wait
+                # in the queue for the same empty answer. Nothing is returned for it.
+                if _remember_empty_daily_head(
+                    df_cache, asset=asset, quote=quote, timestep=timestep,
+                    exchange=effective_exchange, source=history_source,
+                    include_after_hours=include_after_hours, seg_start=seg_start, seg_end=seg_end,
+                    equity_basis=equity_basis.split_fingerprint if equity_basis else None,
+                ):
+                    df_cache = _drop_expired_empty_daily_head_markers(_read_cache_frame(cache_file))
+                # Other empty payloads are ambiguous in IBKR. Cool down this process, but do
+                # not persist a cross-process negative marker.
                 existing_block = _RUNTIME_HISTORY_NO_DATA_WINDOWS.get(runtime_no_data_key)
                 if existing_block is None:
                     _RUNTIME_HISTORY_NO_DATA_WINDOWS[runtime_no_data_key] = (start_utc, end_utc)
@@ -2177,6 +2229,7 @@ def _get_cached_bars_for_source(
         pass
 
     df_cache = _read_cache_frame_with_legacy_name(cache_file, timestep)
+    df_cache = _drop_expired_empty_daily_head_markers(df_cache)
     if equity_basis is not None:
         df_cache = _verified_equity_cache(df_cache, equity_basis)
     if not df_cache.empty:
@@ -2478,6 +2531,21 @@ def _fetch_history_between_dates_impl(
     )
     if first_page_close is not None and start_dt < first_page_close < cursor_end:
         cursor_end = first_page_close
+    # Never ask for bars after now. A daily window that ends tomorrow (a backtest that ends
+    # today, or a padded repair window) used to send a page dated in the future; it can only
+    # come back empty and waits in the shared download queue first. Intraday stock, index and
+    # futures ends are already clamped to the delayed-feed limit in get_price_data.
+    if (bar or "").strip().lower().endswith("d"):
+        history_now = _to_utc(_ibkr_history_now_utc())
+        if cursor_end > history_now:
+            cursor_end = history_now
+        if asset_type in {"stock", "index"}:
+            last_close = _last_finished_us_equity_session_close(history_now)
+            if last_close is not None and start_dt >= last_close:
+                # No finished session lies in the window: there is no daily bar to ask for.
+                return pd.DataFrame()
+        elif start_dt >= cursor_end:
+            return pd.DataFrame()
     chunks: list[pd.DataFrame] = []
     closed_pages_skipped = 0
     futures_empty_open_pages = 0
@@ -4735,6 +4803,90 @@ def _window_is_placeholder_covered(
         return False
 
 
+def _real_bar_index(df_cache: pd.DataFrame) -> pd.DatetimeIndex:
+    if df_cache is None or df_cache.empty:
+        return pd.DatetimeIndex([])
+    if "missing" in df_cache.columns:
+        mask = ~df_cache["missing"].fillna(False).astype(bool)
+        return pd.DatetimeIndex(df_cache.index[mask.to_numpy()])
+    return pd.DatetimeIndex(df_cache.index)
+
+
+def _drop_expired_empty_daily_head_markers(df_cache: pd.DataFrame, *, now: Optional[datetime] = None) -> pd.DataFrame:
+    """Forget empty-head markers whose retry time has passed, so the window is asked again.
+
+    Only rows written by ``_remember_empty_daily_head`` are touched. A marker is a cache
+    bookkeeping row and is never returned to a strategy as a bar.
+    """
+    needed = {"missing", "missing_reason", "missing_retry_after"}
+    if df_cache is None or df_cache.empty or not needed.issubset(df_cache.columns):
+        return df_cache
+    try:
+        ours = (df_cache["missing"].fillna(False).astype(bool)
+                & df_cache["missing_reason"].fillna("").astype(str).eq(IBKR_EMPTY_DAILY_HEAD_REASON))
+        if not bool(ours.any()):
+            return df_cache
+        retry_after = pd.to_datetime(df_cache["missing_retry_after"], utc=True, errors="coerce")
+        now_ts = pd.Timestamp(_to_utc(now or datetime.now(timezone.utc)))
+        expired = ours & (retry_after.isna() | (retry_after <= now_ts))
+        if not bool(expired.any()):
+            return df_cache
+        return df_cache.loc[~expired.to_numpy()]
+    except Exception:
+        return df_cache
+
+
+def _remember_empty_daily_head(
+    df_cache: pd.DataFrame,
+    *,
+    asset: Asset,
+    quote: Optional[Asset],
+    timestep: str,
+    exchange: Optional[str],
+    source: str,
+    include_after_hours: bool,
+    seg_start: datetime,
+    seg_end: datetime,
+    equity_basis: str | None = None,
+) -> bool:
+    """Persist a bounded "nothing here" marker for an empty, wholly past daily head window.
+
+    Qualifies only when every condition holds: US stock or index, daily bars, the cache holds
+    real bars and the window ends at or before the first of them, and the window ended at
+    least ``IBKR_EMPTY_DAILY_HEAD_MIN_AGE`` ago. Returns True when a marker was written.
+    """
+    try:
+        if _normalize_asset_type(getattr(asset, "asset_type", "")) not in {"stock", "index"}:
+            return False
+        if not str(_timestep_component(timestep)).endswith("day"):
+            return False
+        real = _real_bar_index(df_cache)
+        if real.empty:
+            return False
+        first_real = pd.Timestamp(real.min())
+        first_real = first_real.tz_localize(LUMIBOT_DEFAULT_PYTZ) if first_real.tzinfo is None else first_real
+        seg_start_ts, seg_end_ts = pd.Timestamp(_to_utc(seg_start)), pd.Timestamp(_to_utc(seg_end))
+        if seg_end_ts > first_real.tz_convert("UTC") or seg_start_ts >= seg_end_ts:
+            return False
+        if seg_end_ts > pd.Timestamp(_to_utc(_ibkr_history_now_utc())) - IBKR_EMPTY_DAILY_HEAD_MIN_AGE:
+            return False
+        marker_end = (seg_end_ts - pd.Timedelta(seconds=1)).to_pydatetime()
+        _record_missing_window(
+            asset=asset, quote=quote, timestep=timestep, exchange=exchange, source=source,
+            include_after_hours=include_after_hours, start_dt=seg_start_ts.to_pydatetime(),
+            end_dt=marker_end, reason=IBKR_EMPTY_DAILY_HEAD_REASON,
+            outcome=HistoryOutcome.CONFIRMED_NO_DATA, equity_basis=equity_basis,
+            retry_after_seconds=IBKR_EMPTY_DAILY_HEAD_TTL_SECONDS,
+        )
+        logger.info(
+            "IBKR daily history for %s holds no bars before %s; remembered for %d days",
+            getattr(asset, "symbol", None), first_real.date(), IBKR_EMPTY_DAILY_HEAD_TTL_SECONDS // 86400,
+        )
+        return True
+    except Exception:
+        return False
+
+
 def _record_missing_window(
     *,
     asset: Asset,
@@ -4748,6 +4900,7 @@ def _record_missing_window(
     reason: str,
     outcome: HistoryOutcome,
     equity_basis: str | None = None,
+    retry_after_seconds: int = IBKR_GAP_RETRY_TTL_SECONDS,
 ) -> None:
     if outcome is not HistoryOutcome.CONFIRMED_NO_DATA:
         raise ValueError("Only confirmed_no_data may be persisted as a missing window")
@@ -4781,7 +4934,7 @@ def _record_missing_window(
 
     df = _read_cache_frame(cache_file)
     retry_after = datetime.now(timezone.utc) + timedelta(
-        seconds=IBKR_GAP_RETRY_TTL_SECONDS
+        seconds=int(retry_after_seconds)
     )
     placeholder = pd.DataFrame(
         {

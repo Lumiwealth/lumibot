@@ -179,7 +179,9 @@ it uses, in this order:
 Every option fill is marked in the trades file (``price_source`` is ``quote``, ``trade``
 or ``estimated``), and ``data_provenance.json`` counts them under ``optionFillPrices``.
 If no price can be found (for example nothing has traded yet in that expiry), the order
-keeps waiting.
+keeps waiting. When the contract expires first, the order is canceled at expiry with
+the reason on the order (``[OPTION_EXPIRY][CANCEL]`` in the log), as a broker would; a
+multi-leg order is canceled whole.
 
 Spreads and condors: submit all legs as one order
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -258,6 +260,21 @@ call settles for +10.00 and the short call for -5.00, so the spread pays 5.00 pe
 
 Options that deliver in one direction only (a single long call, a covered call, a
 cash-secured put) keep the normal exercise and assignment behavior.
+
+Cash-settled index options (for example SPX and SPXW) always settle in cash at intrinsic
+value against the index's closing level on the expiry day. Settlement uses the same-day
+close, never the next day's. Contracts settled from the morning opening value (AM-settled
+monthlies) also use that day's close, because the official opening settlement value is
+not in the price data; treat AM-settled results as approximate.
+
+Index and stock prices during the day
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In an intraday backtest that routes stocks or indexes to another provider (for example
+``{"default": "alpaca", "index": "ibkr"}``), ``get_last_price()`` on the underlying uses
+intraday bars, so the price moves during the session. If the provider has no intraday
+bars for that symbol, the last completed daily close is used and the log says so once
+(``[ROUTED][INTRADAY_UNAVAILABLE]``). Daily backtests use daily bars.
 
 How open positions are valued between fills
 --------------------------------------------

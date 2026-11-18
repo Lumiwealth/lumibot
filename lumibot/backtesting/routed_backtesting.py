@@ -2372,7 +2372,8 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
             source_timestep = str(getattr(self, "_timestep", "") or "").strip().lower()
             if asset_type not in {"crypto", "crypto_future"} and not self._has_loaded_intraday_series(asset_obj, quote):
                 if prefer_native_day and asset_type in {"stock", "equity", "index"}:
-                    timestep = "day"
+                    if not self._stock_index_runs_intraday(source_timestep):
+                        timestep = "day"
                 elif _is_day_like_timestep(source_timestep):
                     timestep = "day"
                 elif not bool(getattr(self, "_observed_intraday_cadence", False)) and bool(
@@ -2380,7 +2381,47 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                 ):
                     timestep = "day"
 
-        return super().get_last_price(asset, timestep=timestep, quote=quote, exchange=exchange, **kwargs)
+        price = super().get_last_price(asset, timestep=timestep, quote=quote, exchange=exchange, **kwargs)
+        if price is None and timestep == "minute" and self._is_routed_stock_index_minute_lookup(spec, base):
+            # The provider returned no intraday bars for this stock/index. Use the completed
+            # daily close rather than nothing, and say so once: decisions then see the previous
+            # session's close all day, not a moving price.
+            self._warn_stock_index_minute_unavailable(base)
+            price = super().get_last_price(asset, timestep="day", quote=quote, exchange=exchange, **kwargs)
+        return price
+
+    def _stock_index_runs_intraday(self, source_timestep: str) -> bool:
+        """True when this run steps intraday, so stock/index prices must move intraday.
+
+        Before 4.6.86 routed (non-Theta) stock and index point-in-time lookups were always
+        pinned to daily bars. In an intraday run the price read at 10:00 and at 15:45 was then
+        the same previous-session close all day (an index 0DTE strategy picked strikes off the
+        prior close). Daily runs, and runs that have not shown intraday cadence, keep daily bars.
+        """
+        if _is_day_like_timestep(source_timestep):
+            return False
+        return bool(getattr(self, "_observed_intraday_cadence", False))
+
+    def _is_routed_stock_index_minute_lookup(self, spec, base) -> bool:
+        if spec is None or spec.provider == "thetadata":
+            return False
+        if _normalize_asset_type(getattr(base, "asset_type", "")) not in {"stock", "equity", "index"}:
+            return False
+        if not bool(getattr(self, "PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX", False)):
+            return False
+        return self._stock_index_runs_intraday(str(getattr(self, "_timestep", "") or "").strip().lower())
+
+    def _warn_stock_index_minute_unavailable(self, base) -> None:
+        warned = self.__dict__.setdefault("_stock_index_minute_unavailable_warned", set())
+        key = (getattr(base, "symbol", None), str(getattr(base, "asset_type", "")))
+        if key in warned:
+            return
+        warned.add(key)
+        logger.warning(
+            "[ROUTED][INTRADAY_UNAVAILABLE] No intraday bars for %s; using the last completed "
+            "daily close, so this price does not move during the session.",
+            getattr(base, "symbol", base),
+        )
 
     def get_quote(self, asset, quote=None, exchange=None, timestep="minute", **kwargs):
         """Align routed quote lookups away from minute bars in daily non-Theta runs.
@@ -2409,7 +2450,8 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
             source_timestep = str(getattr(self, "_timestep", "") or "").strip().lower()
             if asset_type not in {"crypto", "crypto_future"} and not self._has_loaded_intraday_series(asset_obj, quote):
                 if prefer_native_day and asset_type in {"stock", "equity", "index"}:
-                    timestep = "day"
+                    if not self._stock_index_runs_intraday(source_timestep):
+                        timestep = "day"
                 elif _is_day_like_timestep(source_timestep):
                     timestep = "day"
                 elif not bool(getattr(self, "_observed_intraday_cadence", False)) and bool(

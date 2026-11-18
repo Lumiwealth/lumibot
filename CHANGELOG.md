@@ -2,6 +2,10 @@
 
 ## 4.6.86 - Unreleased
 
+### Fixed
+- ⚠️ **Routed stock and index prices now move during the day in intraday backtests.** With a routing map that sends stocks or indexes to a non-Theta provider (for example `{"default":"alpaca","index":"ibkr"}`), `get_last_price()` and `get_quote()` were pinned to daily bars, so an intraday strategy read the previous session's close all day (an SPX 0DTE run read 7376.86, the prior close, at 10:00 and 15:45 on a day the index traded 7422 to 7577, and picked its strikes off that). Once a run steps intraday these lookups use intraday bars. Daily runs, and lookups before intraday cadence is seen, keep daily bars. If the provider returns no intraday bars, the daily close is used and a one-time `[ROUTED][INTRADAY_UNAVAILABLE]` warning says so. What changes in existing results: intraday option strategies with a routed stock or index underlying now see the real intraday underlying price, so strike selection, intraday rules and stock fills change toward the live result; the first such lookup per symbol loads that symbol's intraday history for the run window, which can add download time. Option expiry settlement already used the expiry day's closing index level and is unchanged.
+- **Working orders on expired option contracts are now canceled.** An option order that never filled (no prints for the contract, or a limit never reached) and had no position behind it stayed active forever with no fill, rejection or cancel. It is now canceled at expiry with the reason on the order (`[OPTION_EXPIRY][CANCEL]`); multi-leg packages are canceled whole.
+
 ## 4.6.85 - 2026-11-17
 
 Deploy marker: 950105a5859b0e60b7ba0217eb88853c569bf2ee

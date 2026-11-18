@@ -2274,6 +2274,8 @@ class BacktestingBroker(Broker):
         # Calculate the number of seconds before market close
         seconds_before_closing = strategy.minutes_before_closing * 60
 
+        self._cancel_working_orders_on_expired_options(strategy, time_to_close, seconds_before_closing)
+
         positions = self.get_tracked_positions(strategy.name)
         expiring_options = []
         for position in positions:
@@ -2297,6 +2299,59 @@ class BacktestingBroker(Broker):
 
         for position in self._cash_settle_offsetting_expiring_options(expiring_options, strategy):
             self.settle_expired_option_contract(position, strategy)
+
+    def _cancel_working_orders_on_expired_options(self, strategy, time_to_close, seconds_before_closing) -> None:
+        """Cancel working orders on option contracts that have expired.
+
+        Expiry handling above works from positions, so an order that never filled (no prints
+        for the contract, or a limit never reached) had nothing behind it and stayed active
+        forever: no fill, no rejection, no cancel. A broker cancels it when the contract
+        expires. Multi-leg packages are canceled as a whole when any leg has expired.
+        """
+        today = self.datetime.date()
+
+        def _expired(asset) -> bool:
+            if getattr(asset, "asset_type", None) != Asset.AssetType.OPTION:
+                return False
+            expiration = getattr(asset, "expiration", None)
+            if expiration is None or expiration > today:
+                return False
+            return not (expiration == today and time_to_close > seconds_before_closing)
+
+        try:
+            open_orders = self.get_active_tracked_orders(strategy=strategy.name)
+        except Exception:
+            return
+        child_ids = {
+            child.identifier
+            for order in open_orders
+            for child in (getattr(order, "child_orders", None) or [])
+        }
+        in_stream_thread = threading.current_thread().name.startswith(f"broker_{self.name}")
+        for order in open_orders:
+            if order.identifier in child_ids or not order.is_active():
+                continue
+            legs = [order, *(getattr(order, "child_orders", None) or [])]
+            expired_leg = next((leg for leg in legs if _expired(getattr(leg, "asset", None))), None)
+            if expired_leg is None:
+                continue
+            reason = f"option contract {expired_leg.asset} expired before the order filled"
+            logger.warning("[OPTION_EXPIRY][CANCEL] Canceling order %s: %s", order.identifier, reason)
+            try:
+                strategy.log_message(f"[OPTION_EXPIRY] Order {order.identifier} canceled: {reason}", color="yellow")
+            except Exception:
+                pass
+            for target in legs:
+                try:
+                    target.error_message = reason
+                except Exception:
+                    pass
+            if in_stream_thread:
+                for target in legs:
+                    if target.is_active():
+                        self._process_trade_event(target, self.CANCELED_ORDER)
+            else:
+                self.cancel_order(order)
 
     def _cash_settle_offsetting_expiring_options(self, positions, strategy) -> list:
         """Cash-settle in-the-money options whose deliveries offset; return the rest.

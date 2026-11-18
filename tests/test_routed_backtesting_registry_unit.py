@@ -116,11 +116,60 @@ def test_routed_get_last_price_aligns_1d_source_timestep_to_day_for_non_theta(mo
     assert seen == ["day"]
 
 
-def test_routed_get_last_price_keeps_ibkr_stock_on_day_even_after_intraday_cadence(monkeypatch):
-    ds = _make_ds(routing={"stock": "ibkr", "default": "thetadata"}, monkeypatch=monkeypatch)
+# Changed in 4.6.86 (was: "keeps_ibkr_stock_on_day_even_after_intraday_cadence", May 2026).
+# Pinning intraday runs to daily bars made a routed stock/index price the previous session's
+# close all day: a Dev SPX 0DTE run (Nov 9-13 2026) read 7376.86 at 10:00 and 15:45 on Nov 9
+# while the index traded 7422-7577. Intraday runs now read intraday bars; daily runs and runs
+# with no observed intraday cadence keep daily bars (tests below).
+@pytest.mark.parametrize("asset_type", ["stock", "index"])
+def test_routed_get_last_price_uses_intraday_bars_for_ibkr_stock_index_in_intraday_runs(monkeypatch, asset_type):
+    ds = _make_ds(routing={asset_type: "ibkr", "default": "thetadata"}, monkeypatch=monkeypatch)
     ds._timestep = "minute"
     ds._observed_intraday_cadence = True
     ds._effective_day_mode = False
+
+    seen: list[str] = []
+
+    def _fake_super_get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
+        seen.append(str(timestep))
+        # Minute bars move during the session; the daily close does not.
+        return 7450.0 if timestep == "minute" else 7376.86
+
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "get_last_price", _fake_super_get_last_price)
+
+    price = ds.get_last_price(Asset("SPX", asset_type=asset_type))
+    assert price == 7450.0
+    assert seen == ["minute"]
+
+
+def test_routed_get_last_price_falls_back_to_daily_close_with_warning_when_no_intraday_bars(monkeypatch, caplog):
+    ds = _make_ds(routing={"index": "ibkr", "default": "thetadata"}, monkeypatch=monkeypatch)
+    ds._timestep = "minute"
+    ds._observed_intraday_cadence = True
+    ds._effective_day_mode = False
+
+    seen: list[str] = []
+
+    def _fake_super_get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
+        seen.append(str(timestep))
+        return None if timestep == "minute" else 7376.86
+
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "get_last_price", _fake_super_get_last_price)
+
+    with caplog.at_level("WARNING"):
+        assert ds.get_last_price(Asset("SPX", asset_type="index")) == 7376.86
+        assert ds.get_last_price(Asset("SPX", asset_type="index")) == 7376.86
+    assert seen == ["minute", "day", "minute", "day"]
+    warnings = [r for r in caplog.records if "INTRADAY_UNAVAILABLE" in r.getMessage()]
+    assert len(warnings) == 1
+
+
+def test_routed_get_last_price_keeps_ibkr_stock_on_day_before_intraday_cadence_is_seen(monkeypatch):
+    ds = _make_ds(routing={"stock": "ibkr", "default": "thetadata"}, monkeypatch=monkeypatch)
+    ds._timestep = "minute"
+    ds._observed_intraday_cadence = False
+    ds._effective_day_mode = True
+    monkeypatch.setattr(ds, "_update_cadence_from_dt", lambda dt: None)
 
     seen: list[str] = []
 
@@ -130,8 +179,7 @@ def test_routed_get_last_price_keeps_ibkr_stock_on_day_even_after_intraday_caden
 
     monkeypatch.setattr(ThetaDataBacktestingPandas, "get_last_price", _fake_super_get_last_price)
 
-    price = ds.get_last_price(Asset("PARR", asset_type="stock"))
-    assert price == 123.45
+    assert ds.get_last_price(Asset("PARR", asset_type="stock")) == 123.45
     assert seen == ["day"]
 
 
@@ -151,7 +199,9 @@ def test_routed_get_quote_aligns_1d_source_timestep_to_day_for_non_theta(monkeyp
     assert seen == ["day"]
 
 
-def test_routed_get_quote_keeps_ibkr_stock_on_day_even_after_intraday_cadence(monkeypatch):
+def test_routed_get_quote_uses_intraday_bars_for_ibkr_stock_in_intraday_runs(monkeypatch):
+    # Changed in 4.6.86 with get_last_price above: quote marks and fills of a routed stock
+    # in an intraday run follow the intraday bars, not the previous session's close.
     ds = _make_ds(routing={"stock": "ibkr", "default": "thetadata"}, monkeypatch=monkeypatch)
     ds._timestep = "minute"
     ds._observed_intraday_cadence = True
@@ -166,4 +216,4 @@ def test_routed_get_quote_keeps_ibkr_stock_on_day_even_after_intraday_cadence(mo
     monkeypatch.setattr(ThetaDataBacktestingPandas, "get_quote", _fake_super_get_quote)
 
     _ = ds.get_quote(Asset("PARR", asset_type="stock"))
-    assert seen == ["day"]
+    assert seen == ["minute"]

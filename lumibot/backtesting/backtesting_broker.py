@@ -127,6 +127,10 @@ def get_futures_margin_requirement(asset: Asset) -> float:
     return TYPICAL_FUTURES_MARGINS["DEFAULT"]
 
 
+# Marks a remembered "no recent bars" answer in BacktestingBroker._recent_real_bars.
+_NO_RECENT_BARS = object()
+
+
 class BacktestingBroker(Broker):
     # Metainfo
     IS_BACKTESTING_BROKER = True
@@ -5641,9 +5645,33 @@ class BacktestingBroker(Broker):
 
         Returns a frame indexed by tz-aware bar start, or None. Nothing after the current
         backtest time is returned.
+
+        The answer for one (asset, quote, length) cannot change while the backtest clock stays
+        on one bar, yet the fill and valuation paths ask for it many times per bar (every leg of
+        every pending package, every estimate step, every valuation row). It is read once per
+        bar and reused. Callers only read the returned frame. "No bars" is remembered too; a
+        lookup that raised is not, so it is tried again exactly as before.
         """
-        lookup_asset = asset if getattr(asset, "asset_type", None) != "crypto" else (asset, quote)
         timestep = str(getattr(self.data_source, "_timestep", "minute"))
+        now_key = self.datetime
+        memo = getattr(self, "_recent_real_bars_memo", None)
+        if memo is None or memo[0] != now_key:
+            memo = (now_key, {})
+            self._recent_real_bars_memo = memo
+        try:
+            key = (asset, quote, int(length), timestep)
+            hit = memo[1].get(key)
+        except TypeError:  # an unhashable asset: no reuse
+            key, hit = None, None
+        if hit is not None:
+            return None if hit is _NO_RECENT_BARS else hit
+        frame, cacheable = self._read_recent_real_bars(asset, quote, length, timestep)
+        if key is not None and cacheable:
+            memo[1][key] = _NO_RECENT_BARS if frame is None else frame
+        return frame
+
+    def _read_recent_real_bars(self, asset, quote, length: int, timestep: str):
+        lookup_asset = asset if getattr(asset, "asset_type", None) != "crypto" else (asset, quote)
         source_name = str(getattr(self.data_source, "SOURCE", "") or "").upper()
         try:
             if source_name in {"CCXT", "YAHOO", "ALPACA", "DATABENTO", "DATABENTO_POLARS"}:
@@ -5656,10 +5684,10 @@ class BacktestingBroker(Broker):
                     asset=lookup_asset, length=max(3, int(length) + 1), quote=quote, timeshift=-1, timestep=timestep
                 )
         except Exception:
-            return None
+            return None, False
         df = getattr(bars, "df", None)
         if df is None or df.empty:
-            return None
+            return None, True
         now = pd.Timestamp(self.datetime)
         index = pd.DatetimeIndex(df.index)
         if index.tz is None:
@@ -5675,7 +5703,7 @@ class BacktestingBroker(Broker):
             frame = frame[[ts.date() <= now.date() for ts in frame.index]]
         else:
             frame = frame[frame.index.floor("min") <= now.floor("min")]
-        return frame if not frame.empty else None
+        return (frame if not frame.empty else None), True
 
     def _bar_matches_now(self, ts) -> bool:
         now = pd.Timestamp(self.datetime)
@@ -5687,6 +5715,25 @@ class BacktestingBroker(Broker):
         if str(getattr(self.data_source, "_timestep", "minute")) == "day":
             return ts.date() == now.date()
         return ts.floor("min") == now.floor("min")
+
+    def _bars_match_now(self, index) -> np.ndarray:
+        """``_bar_matches_now`` for every timestamp of an index at once (same rule, one pass)."""
+        index = pd.DatetimeIndex(index)
+        if len(index) == 0:
+            return np.zeros(0, dtype=bool)
+        now = pd.Timestamp(self.datetime)
+        if index.tz is not None:
+            if now.tz is None:
+                now = now.tz_localize(index.tz)
+            else:
+                index = index.tz_convert(now.tz)
+        elif now.tz is not None:
+            # Naive bar times against an aware clock: the scalar rule compares them as given.
+            return np.array([self._bar_matches_now(ts) for ts in index], dtype=bool)
+        if str(getattr(self.data_source, "_timestep", "minute")) == "day":
+            target = now.date()
+            return np.array([d == target for d in index.date], dtype=bool)
+        return np.asarray(index.floor("min") == now.floor("min"), dtype=bool)
 
     def _leg_bar_open_now(self, leg) -> Optional[float]:
         """Open of a real (observed) bar starting at the current backtest time, else None.
@@ -5745,7 +5792,7 @@ class BacktestingBroker(Broker):
         if frame is None:
             return None
         if before_now:
-            frame = frame[[not self._bar_matches_now(ts) for ts in frame.index]]
+            frame = frame[~self._bars_match_now(frame.index)]
         for ts, close in zip(reversed(frame.index), reversed(frame["close"].tolist())):
             price = self._coerce_price(close)
             if price is not None and not self._is_invalid_price(price) and float(price) > 0:

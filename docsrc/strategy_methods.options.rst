@@ -38,3 +38,8 @@ Covered: Alpaca (backtesting, live broker, live data), Tradier (broker and data,
 chains), Schwab (broker orders, positions and option quotes). Polygon looks contracts up by
 underlying, so it needs no mapping. Interactive Brokers uses its own trading class rule and is
 not changed by this mapping.
+
+Known limits: Tradier's per-expiration chain and greeks lookups still request the ``SPX``
+chain, so greeks for an SPX weekly may come back empty until that path is confirmed against
+Tradier's chain endpoint. Schwab has no multi-leg option order path in LumiBot today.
+Interactive Brokers sends ``SPX`` with the expiration and no trading class.

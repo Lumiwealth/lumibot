@@ -80,3 +80,54 @@ def test_schwab_position_under_spxw_maps_to_spx():
     )
     assert asset.symbol == "SPX"
     assert asset.expiration == WEEKLY
+
+
+def test_tradier_non_index_and_monthly_symbols_unchanged():
+    """Regression guard: everything except index weeklies is byte-identical to the old builder."""
+    from lumibot.brokers.tradier import _create_options_symbol as broker_sym
+    from lumibot.data_sources.tradier_data import _create_options_symbol as data_sym
+    from lumibot.tools.helpers import create_options_symbol as old
+
+    cases = [("SPY", WEEKLY, "put", 555), ("AAPL", WEEKLY, "call", 210.5), ("QQQ", MONTHLY, "put", 480),
+             ("SPX", MONTHLY, "put", 7555), ("SPX", MONTHLY, "call", 7555.5), ("XSP", WEEKLY, "call", 555)]
+    for case in cases:
+        assert broker_sym(*case) == old(*case)
+        assert data_sym(*case) == old(*case)
+
+
+def _schwab_order_symbol(asset):
+    from schwab.orders.options import OptionSymbol
+
+    from lumibot.brokers.schwab import Schwab
+    from lumibot.entities import Order
+
+    broker = Schwab.__new__(Schwab)
+    broker.resolve_option_order_intent = lambda order: None
+    broker._normalize_symbol_for_broker = lambda s, asset_type=None: s
+    order = MagicMock()
+    order.asset = asset
+    order.quantity = 1
+    order.limit_price = None
+    order.side = Order.OrderSide.BUY_TO_OPEN
+    order.order_type = Order.OrderType.MARKET
+    seen = []
+    capture = lambda symbol, qty: seen.append(symbol) or object()  # noqa: E731
+    Schwab._prepare_option_order_builder(broker, order, *([capture] * 8), OptionSymbol)
+    return seen[0]
+
+
+def test_schwab_order_builder_symbols():
+    assert _schwab_order_symbol(_opt("SPX", WEEKLY)) == "SPXW  261113P07555000"
+    assert _schwab_order_symbol(_opt("SPX", MONTHLY)) == "SPX   261120P07555000"
+    assert _schwab_order_symbol(_opt("SPY", WEEKLY, strike=555)) == "SPY   261113P00555000"
+    assert _schwab_order_symbol(_opt("AAPL", WEEKLY, right="call", strike=210)) == "AAPL  261113C00210000"
+
+
+def test_interactive_brokers_legacy_contract_current_behavior():
+    """Documents current behavior only: IB keeps symbol SPX and sets no trading class."""
+    from lumibot.brokers.interactive_brokers import IBApp
+
+    contract = IBApp.create_contract(IBApp.__new__(IBApp), _opt("SPX", WEEKLY))
+    assert contract.symbol == "SPX"
+    assert contract.lastTradeDateOrContractMonth == "20261113"
+    assert getattr(contract, "tradingClass", "") == ""

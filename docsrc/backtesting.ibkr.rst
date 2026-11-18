@@ -283,6 +283,26 @@ with ``first_available`` ("History for X starts on DATE"). A failed request,
 a hole inside the returned bars, or no request for the earlier window still
 fails the run.
 
+**One asset without any bars on a date does not fail a multi-asset backtest.**
+A ranking strategy over many symbols often asks for a name before it was listed
+(for example a 2020 backtest that includes a company listed in September 2020),
+after it was delisted, or under a symbol the provider does not know. On those
+dates the strategy gets no bars for that asset (``None`` or an empty result), so
+it cannot trade it; no price is invented and nothing is forward filled. LumiBot
+logs one WARNING naming the asset and the first date, and ``data_health`` lists
+it under ``skipped_assets`` with ``first_date``, ``last_date``, ``occurrences``
+and ``reason``. The run still fails when no asset had any data at all (for
+example the strategy's only symbol is wrong), and a temporary download failure
+(such as a rate limit) still fails it, because then the data exists.
+
+Daily requests never ask the provider for bars after the current time, and a
+window with no finished session is not requested at all. A daily window that
+lies wholly before the first bar the cache holds, ended at least 7 days ago and
+came back empty (usually the days before a listing) is remembered in the shared
+cache for 7 days, so later backtests do not wait in the download queue for the
+same empty answer. Recent windows are never remembered, so a bar published later
+is always picked up.
+
 Conid lookups also maintain cache files under ``LUMIBOT_CACHE_FOLDER/ibkr``:
 
 - ``conids.json`` stores successful conid resolutions.

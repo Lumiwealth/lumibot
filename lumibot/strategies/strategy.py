@@ -3156,7 +3156,18 @@ class Strategy(_Strategy):
         missing = [(asset, entry) for asset, entry in seen.items() if not entry["found"] and entry["requests"]]
         if not missing:
             return
-        from lumibot.tools.ibkr_history_health import record_required_data_issue
+        from lumibot.tools.ibkr_history_health import (
+            mark_asset_has_data, record_required_data_issue, record_skipped_asset,
+        )
+
+        # When other assets returned data, an asset that never did (unknown symbol, not listed
+        # in the window, delisted) is skipped and reported, not a failure of the whole run.
+        # The run still fails when no asset returned any data.
+        found_any = False
+        for asset, entry in seen.items():
+            if entry.get("found"):
+                found_any = True
+                mark_asset_has_data(asset)
 
         source = getattr(self.broker, "data_source", None)
         provider = getattr(source, "SOURCE", None) or type(source).__name__
@@ -3174,6 +3185,10 @@ class Strategy(_Strategy):
                 asset_provider = named(asset) if callable(named) else provider
             except Exception:
                 asset_provider = provider
+            if found_any:
+                record_skipped_asset(asset=asset, timestep="backtest", when=when, reason=reason,
+                                     provider=str(asset_provider), occurrences=entry["requests"])
+                continue
             record_required_data_issue(asset=asset, timestep="backtest", when=when, reason=reason,
                                        recovery_cause="history_unavailable", retryable=False,
                                        requested_bars=entry["requests"], returned_bars=0,
@@ -4854,7 +4869,7 @@ class Strategy(_Strategy):
                 getattr(source, "SOURCE", None) in ("InteractiveBrokersREST", "InteractiveBrokers")
                 for source in sources
             )
-            if uses_ibkr or any(history_health.get(key) for key in ("series", "required_failures", "warnings")):
+            if uses_ibkr or any(history_health.get(key) for key in ("series", "required_failures", "skipped_assets", "warnings")):
                 settings["data_health"] = history_health
         except Exception:
             pass

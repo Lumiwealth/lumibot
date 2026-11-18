@@ -1,6 +1,7 @@
 """A backtest that never gets any data for an asset it asked about says so in data_health.
 
-The host marks such a run failed instead of "completed with no trades". An ordinary run
+When no asset had data the host marks the run failed instead of "completed with no trades".
+When other assets had data, the asset without data is listed under skipped_assets. An ordinary run
 that simply made no trades, with data for everything it asked about, is not affected.
 Nothing is fabricated: the record only says which asset had no data, from which source, why.
 """
@@ -67,17 +68,19 @@ class _NoTrades(Strategy):
         self.get_historical_prices(Asset("SPY"), 5, "minute")
 
 
-def test_an_asset_with_no_data_for_the_whole_run_is_a_required_failure(tmp_path, monkeypatch):
+def test_an_asset_with_no_data_while_others_have_data_is_skipped_and_reported(tmp_path, monkeypatch):
+    # Changed 2026-11-18 (owner-approved): one asset with no data (unknown symbol, not listed,
+    # delisted) no longer fails a run whose other assets have data. It is reported, by name,
+    # source and reason, under skipped_assets; nothing is invented for it.
     health = _run(_UnknownSymbol, tmp_path, monkeypatch)
-    assert health is not None and health["required_complete"] is False
-    [failure] = [f for f in health["required_failures"] if f["symbol"] == "LANCX"]
-    assert failure["asset_type"] == "stock"
-    assert failure["reason"] in {"symbol_not_found", "no_data_for_backtest"}
-    assert failure["returned_bars"] == 0 and failure["requested_bars"] >= 1
-    assert failure["retryable"] is False
-    assert failure["provider"]
-    assert failure["occurrences"] >= 1 and failure["first_observed_at"]
-    assert not [f for f in health["required_failures"] if f["symbol"] == "SPY"]
+    assert health is not None and health["required_complete"] is True
+    assert not health["required_failures"]
+    [skipped] = [f for f in health["skipped_assets"] if f["symbol"] == "LANCX"]
+    assert skipped["asset_type"] == "stock"
+    assert skipped["reason"] in {"symbol_not_found", "no_data_for_backtest"}
+    assert skipped["provider"]
+    assert skipped["occurrences"] >= 1 and skipped["first_date"]
+    assert not [f for f in health["skipped_assets"] if f["symbol"] == "SPY"]
 
 
 def test_history_requests_count_too(tmp_path, monkeypatch):
@@ -124,6 +127,6 @@ def test_the_failure_names_the_provider_and_the_not_found_reason(tmp_path, monke
     monkeypatch.setattr(PandasDataBacktesting, "symbol_not_found", lambda self, asset: asset.symbol == "LANCX",
                         raising=False)
     health = _run(_UnknownSymbol, tmp_path, monkeypatch)
-    [failure] = health["required_failures"]
-    assert failure["reason"] == "symbol_not_found"
-    assert failure["provider"]
+    [skipped] = health["skipped_assets"]
+    assert skipped["reason"] == "symbol_not_found"
+    assert skipped["provider"]

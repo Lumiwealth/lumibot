@@ -236,6 +236,15 @@ quantity when their remaining quantity changes. Later entry fills can receive
 fresh protective orders after the previous accepted exits are confirmed
 terminal; filled or canceled order identifiers are never reopened.
 
+Because ProjectX places the exits itself, a bracket entry's ``child_orders``
+list is empty after submission; the local placeholders that ``create_order``
+builds are never sent. The real take-profit and stop orders arrive through
+``on_new_order`` with ``parent_identifier`` set to the entry's identifier, so
+link exits to entries with that field. A filled entry is no longer active; its
+exits are tracked as their own orders. Record an order's identifier after
+``submit_order`` returns, because the venue assigns the identifier on
+acceptance.
+
 A cancellation response acknowledges the request; it does not by itself prove
 that the order is canceled. Failed cancellations remain pending reconciliation.
 Explicitly canceling an exit does not authorize LumiBot to re-arm that exit.

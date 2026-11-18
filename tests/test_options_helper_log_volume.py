@@ -85,7 +85,10 @@ def test_repeated_trade_only_evaluations_log_once_then_debug():
         assert evaluation.buy_price == 2.5  # behaviour unchanged
 
     assert _count(strategy.info_lines, "Option market evaluation for") == 1
-    assert _count(strategy.info_lines, "Using last-price fallback") == 1
+    # The normal price for a source with trade bars and no bid/ask: worded as normal, never
+    # as a "fallback", so an agent reading the log does not report a problem (2026-11-18).
+    assert _count(strategy.info_lines, "at its last trade price") == 1
+    assert not any("fallback" in line.lower() for line in strategy.info_lines)
     assert _count(strategy.logger.debug_lines, "Option market evaluation for") == 59
 
 

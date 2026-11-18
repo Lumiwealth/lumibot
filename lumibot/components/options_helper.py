@@ -2144,7 +2144,8 @@ class OptionsHelper:
                 # otherwise repeat this on every evaluation.
                 self._detail(
                     self._first_time("last_price_fallback", option_asset),
-                    f"Using last-price fallback for {option_asset} due to missing bid/ask quotes.",
+                    f"Pricing {option_asset} at its last trade price: this data source has no bid/ask "
+                    "quote for it here. This is the normal backtest price for such data, not an error.",
                     color="yellow",
                 )
         elif not has_bid_ask and allow_fallback and last_price is None:
@@ -2185,7 +2186,7 @@ class OptionsHelper:
                     f"bid={bid}, ask={ask}, last={last_price}, spread={spread_str}, "
                     f"max_spread={max_spread_str}, missing_bid_ask={missing_bid_ask}, "
                     f"missing_last_price={missing_last_price}, spread_too_wide={spread_too_wide}, "
-                    f"used_last_price_fallback={used_last_price_fallback}, "
+                    f"priced_at_last_trade={used_last_price_fallback}, "
                     f"buy_price={buy_price}, sell_price={sell_price}, "
                     f"data_quality_flags={data_quality_flags}"
                 ),

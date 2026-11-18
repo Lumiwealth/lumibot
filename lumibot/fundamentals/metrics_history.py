@@ -11,8 +11,9 @@ a stored row never shows a price or filing from after the backtest clock.
 Files: one Parquet file per calendar year, ``metrics_daily/v1/<year>.parquet`` in the SEC cache
 directory and under ``sec/metrics_daily/v1/<year>.parquet`` in the shared backtest cache.
 Anyone with SEC access and as-traded closes can build them with ``build_metrics_history`` and
-``save_metrics_history``. When no file covers a symbol and date, LumiBot computes the value as
-before; nothing is estimated or carried forward beyond ``MAX_ROW_AGE``.
+``save_metrics_history``. When a file covers the date, a symbol it leaves out has no value (no
+price is loaded for it, 4.6.90). When no file covers the date, LumiBot computes values as before;
+nothing is estimated or carried forward beyond ``MAX_ROW_AGE``.
 """
 from __future__ import annotations
 

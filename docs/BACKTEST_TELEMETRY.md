@@ -103,6 +103,7 @@ To attribute new work, wrap a fetch in `backtest_telemetry.provider_scope(source
 - **Counters that missed a cache.** `[REMOTE_CACHE][SUMMARY]` showed 0 for Alpaca because the shared bar cache talks to S3 itself. It now has `[SHARED_BARS][SUMMARY]`, and both feed this file.
 - **trades.html on long minute runs.** plotly copied the time axis once per line. It is now encoded once: about 4.5 s down to 1.3 s on a 12-month run.
 - **Option picks.** A delta pick reads only from the pick month, batched up to 100 contracts per request. Later lookups extend those contracts once. Chain listings are fetched once per run.
+- **Single option contracts (4.6.90).** The first read of one contract (a nearest-strike pick, an order leg, a fill) used to load the whole window from the backtest start to its expiry: one monthly shared-cache partition per elapsed month, nearly all from before the contract was listed. A warm two-year weekly QQQ call spread on a 1-vCPU cloud task read 3,648 partitions (about 8 KB each); the profile showed S3 GET plus Parquet decode of those partitions as the top cost. The first read now uses the pick path (from the month a week before now). Guarded by `tests/backtest/test_alpaca_option_first_load_month_identical_results.py` (identical trade log and account values, first reads start in the lookup month).
 
 ## Regression guards (counts, never time)
 

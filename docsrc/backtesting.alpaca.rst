@@ -215,6 +215,11 @@ How option data works
   keeps working until one can, or until its time in force ends. See
   :doc:`backtesting.how_orders_fill`.
 - **No data.** A contract with no bars at all logs one clear error and its price is ``None``.
+- **Speed on long backtests.** The first time a strategy reads an option contract, LumiBot loads
+  its trades from the month a week before the simulated date through its expiry, not from the
+  backtest start. Earlier trades load only when a lookup needs them (a contract with no trade
+  yet, or a longer history request). Results are the same; a two-year
+  weekly spread backtest reads far fewer cached files.
 
 Known limits
 ------------

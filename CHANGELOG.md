@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.6.90 - 2026-11-18
+
+### Changed
+- **Faster Alpaca option backtests, warm or cold.** The first read of a single option contract (a nearest-strike leg, an order, a fill) loads its trades from the month a week before the simulated date instead of from the backtest start. In a two-year backtest each contract used to read one cached file per elapsed month, nearly all from before it was listed (3,648 files for a weekly QQQ call spread). Earlier trades still load when a lookup needs them, so results are identical. The option fill estimate also looks for the contract's last real trade in its newest 60 minute bars (5 daily bars) before asking for its full week of history, which gives the same trade and no longer forces that older history to load. Tests: `tests/test_alpaca_option_first_load_month.py`, `tests/backtest/test_alpaca_option_first_load_month_identical_results.py`, `tests/test_option_last_real_trade_staged_lookback.py`.
+- Options: the log line for an option priced at its last trade (data sources with trade bars and no bid/ask, such as Alpaca option history) now says this is the normal backtest price. It used to say "last-price fallback ... missing bid/ask quotes", which AI agents reading the log reported to customers as a problem. Pricing is unchanged.
+- SEC fundamentals: when stored daily fundamentals rows cover a backtest date, `get_metrics_table` uses only them. A company the table leaves out (no filing data or no reliable close) has no value instead of being priced live, so an S&P 500 market-cap screen no longer downloads price history for hundreds of companies. Dates no table covers are computed as before; `LUMIBOT_SEC_METRICS_HISTORY=0` turns stored tables off.
+
 ## 4.6.89 - 2026-11-18
 
 ### Fixed

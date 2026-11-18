@@ -1567,7 +1567,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
     OPTION_PICK_LOOKBACK_DAYS = 7
 
     def prefetch_option_bars(self, assets, quote: Asset | None = None, timestep: str | None = None,
-                             until: datetime | None = None) -> int:
+                             until: datetime | None = None, through_window_end: bool = False) -> int:
         """Load real trade bars for many option contracts with as few requests as possible.
 
         A delta or price search probes many strikes. Each probe used to download one
@@ -1581,6 +1581,9 @@ class AlpacaBacktesting(DataSourceBacktesting):
         needs nothing later; the rest of the window is loaded once, the first time a later
         lookup on that contract needs it (``_get_option_bars_frame``). Partial frames are
         never written to the per-window CSV cache.
+
+        ``through_window_end`` (with ``until``) keeps the late start but loads through the end
+        of the window (each contract's expiry), so nothing needs extending later.
         """
         timestep = timestep or self.__dict__.get("_timestep") or "minute"
         source_timestep, _ = self._normalize_timestep_for_source(timestep)
@@ -1616,7 +1619,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         loaded_from = None
         if until is not None:
             day_end = pd.Timestamp(until).tz_convert(self.tzinfo).normalize() + pd.Timedelta(days=1) - pd.Timedelta(microseconds=1)
-            if day_end < pd.Timestamp(self._data_datetime_end):
+            if day_end < pd.Timestamp(self._data_datetime_end) and not through_window_end:
                 covered_until = day_end
             # Load from the start of the month a week before the pick (a shared-cache partition),
             # not the start of the backtest: earlier prints are read only if a lookup needs them
@@ -1639,7 +1642,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 data_datetime_end=self._data_datetime_end,
                 auto_adjust=self._auto_adjust,
             )
-            update = {"symbol_or_symbols": symbols}
+            # One contract keeps the plain-string request a single download sends.
+            update = {"symbol_or_symbols": symbols[0] if len(symbols) == 1 else symbols}
             if covered_until is not None:
                 update["end"] = covered_until.to_pydatetime()
             if loaded_from is not None:
@@ -1791,6 +1795,13 @@ class AlpacaBacktesting(DataSourceBacktesting):
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
         key = self._get_asset_key(base_asset=asset, quote_asset=quote, timestep=timestep)
         store = self._state("_data_store", dict)
+        if key not in store and self._first_load_from_lookup_month(asset):
+            # First read of a single contract: load it from the month a week before now (as a
+            # pick does) through its expiry, not the whole window from the backtest start. In a
+            # long backtest that whole-window read planned one shared-cache partition per
+            # elapsed month, nearly all from before the contract was listed. Earlier prints are
+            # still loaded the first time a lookup needs them, so every answer is the same.
+            self.prefetch_option_bars([asset], quote, timestep, until=self._datetime, through_window_end=True)
         covered = self._state("_option_covered_until", dict)
         if key in store and key in covered and pd.Timestamp(self._datetime) > covered[key]:
             self._extend_option_frame(key, asset, quote, timestep)
@@ -1809,6 +1820,18 @@ class AlpacaBacktesting(DataSourceBacktesting):
             store[key] = empty
             self._state("_refreshed_keys", dict)[key] = True
             return empty
+
+    # First single-contract reads load from the lookup month (see ``_get_option_bars_frame``).
+    # Class attribute so a test can compare against the whole-window read.
+    OPTION_FIRST_LOAD_FROM_LOOKUP_MONTH = True
+
+    def _first_load_from_lookup_month(self, asset) -> bool:
+        """True when a first read of ``asset`` should start at the lookup month."""
+        if not self.OPTION_FIRST_LOAD_FROM_LOOKUP_MONTH or not self._is_option(asset):
+            return False
+        if getattr(asset, "expiration", None) is None or getattr(self, "_datetime", None) is None:
+            return False
+        return getattr(self._datetime, "tzinfo", None) is not None
 
     def _extend_option_frame(self, key: str, asset: Asset, quote: Asset, timestep: str) -> None:
         """Load the rest of the window for a contract prefetched only up to an earlier day."""

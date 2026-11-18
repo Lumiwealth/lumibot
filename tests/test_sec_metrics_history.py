@@ -102,13 +102,17 @@ def test_a_session_is_only_seen_after_its_close(tmp_path):
     assert after_close.get_metrics_table(["EXM"], ["market_cap"]).loc["EXM", "market_cap"] == pytest.approx(700)
 
 
-def test_symbols_not_stored_are_computed_as_before(tmp_path):
+def test_a_symbol_the_stored_table_leaves_out_gets_no_value_and_no_price_load(tmp_path):
+    # Changed in 4.6.90: when stored rows cover the date, the table is the screen's source. A
+    # symbol it leaves out (no filing data, no reliable close) is None with a reason; pricing
+    # it live meant one history download per left-out company (hundreds in an S&P 500 screen).
     store, _ = _stored(tmp_path)
     strategy = _Strategy(datetime(2024, 6, 3, 10, 0, tzinfo=NY), price=20.0)
     table = _sec(tmp_path / "machine", store, strategy).get_metrics_table(["EXM", "OTH"], ["market_cap"])
-    assert strategy.asked == ["OTH"]
+    assert strategy.asked == []
     assert table.loc["EXM", "market_cap"] == pytest.approx(500)
-    assert table.loc["OTH", "market_cap"] == pytest.approx(200)
+    assert pd.isna(table.loc["OTH", "market_cap"])
+    assert "stored daily fundamentals" in table.loc["OTH", "reasons"]["market_cap"]
 
 
 def test_an_old_stored_row_is_never_carried_forward(tmp_path):

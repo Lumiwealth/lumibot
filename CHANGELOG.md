@@ -1,5 +1,14 @@
 # Changelog
 
+## Next release (after 4.6.87) - Unreleased
+
+### Fixed
+- **Daily backtests no longer ask the data provider for future dates.** A daily window that ended tomorrow (a backtest ending today, or the padded window of a daily gap repair) sent a page dated in the future, which can only come back empty and first waited in the shared download queue (observed 18 to 98 seconds per request). Daily requests now end at the current time, and a window with no finished session is not requested. Bars returned are unchanged. Tests: `tests/test_ibkr_daily_edge_requests.py`.
+- **An empty pre-listing window is asked once, not on every run.** A wholly past daily window before the first cached bar that comes back empty (or with no usable bars, not a temporary failure) is remembered in the shared cache for 7 days. Windows that ended less than 7 days ago are never remembered, so a later bar is never hidden. Markers are never returned as bars. Tests: `tests/test_ibkr_daily_edge_requests.py`.
+
+### Changed
+- **One asset without history no longer fails a multi-asset backtest (owner-approved).** When an asset has no bars on a date (not listed yet, delisted, unknown symbol, or the provider returned nothing) while other assets have data, the strategy gets no price for it there and cannot trade it, one WARNING names the asset, and `settings.json` `data_health.skipped_assets` lists it with its date range and reason. No price is invented. The run still fails when no asset had any data, and a temporary download failure still fails it. Previously a 60-symbol top-N backtest over 2020 to 2026 completed all 2,513 days and was then marked "Required historical data unavailable" because one symbol had not listed yet on the first day. Tests: `tests/test_backtest_skipped_assets.py`, `tests/test_backtest_unknown_symbol_health.py`.
+
 ## 4.6.87 - Unreleased
 
 ### Fixed

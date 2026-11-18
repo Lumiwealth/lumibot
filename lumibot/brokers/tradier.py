@@ -85,10 +85,30 @@ def _order_leg(*args, **kwargs):
     return OrderLeg(*args, **kwargs)
 
 
-def _create_options_symbol(*args, **kwargs):
-    from lumibot.tools.helpers import create_options_symbol
 
-    return create_options_symbol(*args, **kwargs)
+def _tradier_option_asset(occ_symbol):
+    """Parse a Tradier OCC symbol; weekly index roots map back to the index (SPXW -> SPX)."""
+    from lumibot.tools.index_option_roots import index_underlying_symbol
+
+    asset = Asset.symbol2asset(occ_symbol)
+    underlying = index_underlying_symbol(asset.symbol)
+    if asset.asset_type == Asset.AssetType.OPTION and underlying != asset.symbol:
+        asset = Asset(
+            underlying,
+            asset_type=asset.asset_type,
+            expiration=asset.expiration,
+            strike=asset.strike,
+            right=asset.right,
+            multiplier=asset.multiplier,
+        )
+    return asset
+
+def _create_options_symbol(stock_symbol, expiration_date, *args, **kwargs):
+    """OCC symbol for Tradier; index weeklies use their weekly root (SPX -> SPXW)."""
+    from lumibot.tools.helpers import create_options_symbol
+    from lumibot.tools.index_option_roots import index_option_root
+
+    return create_options_symbol(index_option_root(stock_symbol, expiration_date), expiration_date, *args, **kwargs)
 
 
 def _botspot_force_broker_token_refresh() -> bool:
@@ -1721,7 +1741,7 @@ class Tradier(Broker):
 
         if raw_option_symbol:
             try:
-                asset = Asset.symbol2asset(raw_option_symbol)
+                asset = _tradier_option_asset(raw_option_symbol)
             except Exception:
                 asset = Asset(raw_symbol or raw_option_symbol, asset_type=Asset.AssetType.UNKNOWN)
                 self._attach_tradier_parse_metadata(
@@ -1744,7 +1764,7 @@ class Tradier(Broker):
 
         if raw_asset_type_key == "option":
             try:
-                asset = Asset.symbol2asset(raw_symbol)
+                asset = _tradier_option_asset(raw_symbol)
             except Exception:
                 logger.warning(
                     "Could not parse Tradier option symbol for %s; preserving broker row as unknown.",
@@ -1821,7 +1841,7 @@ class Tradier(Broker):
             )
 
         normalized_symbol = self._normalize_symbol_for_internal(raw_symbol, asset_type=Asset.AssetType.STOCK)
-        asset = Asset.symbol2asset(normalized_symbol)
+        asset = _tradier_option_asset(normalized_symbol)
         return self._attach_tradier_parse_metadata(
             asset,
             raw_asset_type=raw_asset_type,

@@ -72,7 +72,9 @@ def _parse_timestep_qty_and_unit(*args, **kwargs):
 
 def _schwab_option_symbol(asset) -> str:
     """Schwab OCC-style option symbol used by quotes and price history."""
-    root_symbol = asset.symbol.ljust(6)
+    from lumibot.tools.index_option_roots import index_option_root
+
+    root_symbol = index_option_root(asset.symbol, asset.expiration).ljust(6)
     year_str = asset.expiration.strftime("%y")
     month_str = asset.expiration.strftime("%m")
     day_str = asset.expiration.strftime("%d")

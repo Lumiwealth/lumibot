@@ -8,6 +8,13 @@ from .data_source import DataSource
 from .exceptions import InvalidBars, UnsupportedAsset
 
 logger = LazyLogger(__name__)
+
+
+def index_option_root(symbol, expiration):
+    """Lazy wrapper: keeps index_option_roots (datetime, typing) out of the startup import path."""
+    from lumibot.tools.index_option_roots import index_option_root as _root
+
+    return _root(symbol, expiration)
 TYPE_CHECKING = False
 dt = LazyModule("datetime")
 pd = LazyModule("pandas")
@@ -953,7 +960,7 @@ class AlpacaData(DataSource):
         def _option_symbol(a: Asset) -> str:
             strike_formatted = f"{a.strike:08.3f}".replace('.', '').rjust(8, '0')
             date = a.expiration.strftime("%y%m%d")
-            return f"{a.symbol}{date}{a.right[0]}{strike_formatted}"
+            return f"{index_option_root(a.symbol, a.expiration)}{date}{a.right[0]}{strike_formatted}"
 
         # Chunking utility
         def _chunks(lst, size):
@@ -1224,7 +1231,7 @@ class AlpacaData(DataSource):
             elif asset.asset_type == Asset.AssetType.OPTION:
                 strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
                 date = asset.expiration.strftime("%y%m%d")
-                symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
+                symbol = f"{index_option_root(asset.symbol, asset.expiration)}{date}{asset.right[0]}{strike_formatted}"
                 client = self._get_option_client()
 
                 # noinspection PyArgumentList
@@ -1385,7 +1392,7 @@ class AlpacaData(DataSource):
     def _latest_quote_option_symbol(asset: Asset) -> str:
         strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
         date = asset.expiration.strftime("%y%m%d")
-        return f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
+        return f"{index_option_root(asset.symbol, asset.expiration)}{date}{asset.right[0]}{strike_formatted}"
 
     @staticmethod
     def _option_latest_quote(asset: Asset, symbol: str, t):
@@ -1453,7 +1460,7 @@ class AlpacaData(DataSource):
         # Format option symbol for Alpaca Data API
         strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
         date = asset.expiration.strftime("%y%m%d")
-        option_symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
+        option_symbol = f"{index_option_root(asset.symbol, asset.expiration)}{date}{asset.right[0]}{strike_formatted}"
 
         # Initialize the historical data client
         from alpaca.data.requests import OptionSnapshotRequest

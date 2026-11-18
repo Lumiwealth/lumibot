@@ -65,7 +65,7 @@
 | `shared_bars_s3` | The S3 side of the same cache: GETs that found (hit) or did not find (miss) an object, and uploads. Cold runs also read S3 before each upload, to merge with other writers. |
 | `backtest_cache` | `BacktestCacheManager` (ThetaData and IBKR parquet files in S3). Counted only when the S3 backend is on. |
 | `alpaca_files` | Alpaca's per-window CSV files. Option keys always miss for picks: partial frames are never written. |
-| `alpaca_option_chains` | Alpaca's per-day option chain files. |
+| `alpaca_option_chains` | Alpaca's per-expiration-month option contract files (one count per month looked up). |
 
 ### Where the counters come from
 

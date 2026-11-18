@@ -96,6 +96,51 @@ def test_working_order_on_an_expired_option_is_cancelled(monkeypatch, tmp_path, 
     assert after["exit_status"] in ("canceled", "cancelled")
 
 
+def test_open_order_that_never_filled_is_cancelled_when_its_contract_expires(
+    monkeypatch, tmp_path, disable_datasource_override
+):
+    """An order with no position behind it must still end when its contract expires.
+
+    Dev run 2b65e895 (Nov 10 2026): a 0DTE spread order found no option prints, never
+    filled, and stayed 'new' forever with no fill, rejection or cancel. Expiry handling only
+    looked at positions. A live broker cancels it at expiry; the backtest now does too,
+    with the reason on the order.
+    """
+    monkeypatch.setattr(ab, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    contract = Asset("SPY", asset_type="option", expiration=date(2026, 8, 7), strike=645, right="CALL")
+
+    class NeverFills(Strategy):
+        def initialize(self):
+            self.sleeptime = "1M"
+            self.vars.order = None
+            self.vars.after = None
+
+        def on_trading_iteration(self):
+            if self.vars.order is None:
+                # Every print is near 0.50, so a 0.01 buy limit never fills (like an order
+                # whose contract never trades). No position ever exists behind it.
+                self.vars.order = self.submit_order(self.create_order(contract, 1, "buy", limit_price=0.01))
+            if self.get_datetime().date() == date(2026, 8, 10) and self.vars.after is None:
+                self.vars.after = {
+                    "status": str(self.vars.order.status),
+                    "error": getattr(self.vars.order, "error_message", None),
+                    "options": [str(p.asset) for p in self.get_positions() if p.asset.asset_type == "option"],
+                }
+
+    _results, strategy = NeverFills.run_backtest(
+        _offline(_OPTION_BARS),
+        backtesting_start=_NY_TZ.localize(datetime(2026, 8, 3)),
+        backtesting_end=_NY_TZ.localize(datetime(2026, 8, 13)),
+        benchmark_asset=None, analyze_backtest=False, show_plot=False, save_tearsheet=False,
+        show_tearsheet=False, show_progress_bar=False, budget=100_000, timestep="minute", market="NYSE",
+        config={"API_KEY": "test-key", "API_SECRET": "test-secret", "PAPER": True},
+    )
+    after = strategy.vars.after
+    assert after["options"] == []
+    assert after["status"] in ("canceled", "cancelled")
+    assert after["error"] and "expired" in after["error"]
+
+
 def test_in_the_money_long_call_is_exercised_at_the_real_underlying_close(monkeypatch, tmp_path, disable_datasource_override):
     after = _run(640, _ITM_BARS, working_exit=False, timestep="minute", monkeypatch=monkeypatch, tmp_path=tmp_path)
     assert after["options"] == []

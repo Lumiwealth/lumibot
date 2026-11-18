@@ -1,5 +1,20 @@
 # Changelog
 
+## 4.6.86 - 2026-11-17
+
+Deploy marker: 3e03a0560b5f958b99fef3913e7b619a66afbac0
+
+### Fixed
+- ⚠️ **Routed stock and index prices now move during the day in intraday backtests.** With a routing map that sends stocks or indexes to a non-Theta provider (for example `{"default":"alpaca","index":"ibkr"}`), `get_last_price()` and `get_quote()` were pinned to daily bars, so an intraday strategy read the previous session's close all day (an SPX 0DTE run read 7376.86, the prior close, at 10:00 and 15:45 on a day the index traded 7422 to 7577, and picked its strikes off that). Once a run steps intraday these lookups use intraday bars. Daily runs, and lookups before intraday cadence is seen, keep daily bars. If the provider returns no intraday bars, the daily close is used and a one-time `[ROUTED][INTRADAY_UNAVAILABLE]` warning says so. What changes in existing results: intraday option strategies with a routed stock or index underlying now see the real intraday underlying price, so strike selection, intraday rules and stock fills change toward the live result; the first such lookup per symbol loads that symbol's intraday history for the run window, which can add download time. Option expiry settlement already used the expiry day's closing index level and is unchanged.
+- **Weekly index options use their weekly root (SPX -> SPXW, NDX -> NDXP, RUT -> RUTW, VIX -> VIXW).** An SPX option expiring on a non-monthly date got no price and no trades in Alpaca backtests, because Alpaca lists those contracts under SPXW. One shared rule (`lumibot/tools/index_option_roots.py`) now picks the root from the index and expiration for Alpaca backtesting, the Alpaca live broker and data source, and the Tradier and Schwab brokers and data sources. Monthly AM-settled contracts keep the index root (including the Thursday monthly when the third Friday is a holiday); XSP and an explicit SPXW are unchanged. What changes live: Tradier and Schwab order symbols change for weekly SPX/NDX/RUT/VIX options only. The Tradier and Schwab change is unit-tested only and has not yet been proven with a real order at either broker.
+- **IBKR contract lookups: a stored "no such contract" answer no longer blocks a fixed lookup.** Misses carry a lookup version and expire; gateway or error answers are never stored as misses. A share class like BRK.B that failed before the 4.6.83 share-class fix now finds its contract.
+- **Yahoo corporate-action lookups ask share classes with a dash (BRK.B -> BRK-B).** The dot form failed and was retried every simulated day, which made multi-year stock backtests with a share-class symbol take hours.
+- **Working orders on expired option contracts are now canceled.** An option order that never filled (no prints for the contract, or a limit never reached) and had no position behind it stayed active forever with no fill, rejection or cancel. It is now canceled at expiry with the reason on the order (`[OPTION_EXPIRY][CANCEL]`); multi-leg packages are canceled whole.
+
+### Performance
+- **Alpaca option chains are cached per underlying and expiration month** (memory, disk and the shared cache) instead of per simulated day. Chains are unchanged; a 2-year synthetic run goes from 48 listing calls to under 30.
+- **Faster option fills in backtests, same results.** The fill path read the same contract and underlying bars many times per bar (every leg of every waiting package, every estimate step). Each (contract, length) is now read once per bar and reused, and the "did this bar trade now" check runs over the whole window at once instead of row by row. On a synthetic run with two waiting packages the order-fill path made 661 history reads instead of 2,241; the trade log and every per-minute account value are byte-identical (`tests/backtest/test_option_fill_path_memo_identical_results.py`). Account valuation reads are unchanged.
+
 ## 4.6.85 - 2026-11-17
 
 Deploy marker: 950105a5859b0e60b7ba0217eb88853c569bf2ee

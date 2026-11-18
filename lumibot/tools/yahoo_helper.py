@@ -1,5 +1,6 @@
 import os
 import pickle
+import re
 import time
 import random
 from pathlib import Path
@@ -415,6 +416,9 @@ class YahooHelper:
         auto_adjust=False, # Keep parameter name consistent
         last_needed_datetime=None,
     ):
+        # Yahoo writes share classes with a dash ("ABC-B"); the dot form ("ABC.B") finds nothing.
+        if isinstance(symbol, str) and re.fullmatch(r"[A-Za-z]+\.[A-Za-z]{1,2}", symbol):
+            symbol = symbol.replace(".", "-").upper()
         if interval in ["1m", "15m", "1d"]:
             df = YahooHelper.fetch_symbol_data(
                 symbol,

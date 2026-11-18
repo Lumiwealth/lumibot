@@ -21,10 +21,12 @@ if TYPE_CHECKING:
     from lumibot.entities import Quote
 
 
-def _create_options_symbol(*args, **kwargs):
+def _create_options_symbol(stock_symbol, expiration_date, *args, **kwargs):
+    """OCC symbol for Tradier; index weeklies use their weekly root (SPX -> SPXW)."""
     from lumibot.tools.helpers import create_options_symbol
+    from lumibot.tools.index_option_roots import index_option_root
 
-    return create_options_symbol(*args, **kwargs)
+    return create_options_symbol(index_option_root(stock_symbol, expiration_date), expiration_date, *args, **kwargs)
 
 
 def _date_n_trading_days_from_date(*args, **kwargs):
@@ -180,7 +182,13 @@ class TradierData(DataSource):
                            chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
                          Expiration Date Format: 2023-07-31
         """
-        df_chains = self.tradier.market.get_option_expirations(asset.symbol)
+        from lumibot.tools.index_option_roots import index_weekly_root
+
+        if index_weekly_root(asset.symbol):
+            # Index weeklies (SPXW, NDXP, ...) are listed under their own root; include them.
+            df_chains = self.tradier.market.get_option_expirations(asset.symbol, include_all_roots=True)
+        else:
+            df_chains = self.tradier.market.get_option_expirations(asset.symbol)
         if not isinstance(df_chains, pd.DataFrame) or df_chains.empty:
             raise LookupError(f"Could not find Tradier option chains for {asset.symbol}")
 

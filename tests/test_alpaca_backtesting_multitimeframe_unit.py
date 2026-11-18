@@ -325,7 +325,8 @@ def test_alpaca_backtesting_get_chains_lists_expired_and_active_contracts(monkey
     assert any(r.page_token == "1" for r in source._trading_client.requests), "pagination was not followed"
     for request in source._trading_client.requests:
         assert request.underlying_symbols == ["SPY"]
-        assert request.expiration_date_gte == date(2026, 8, 3)
+        # Listings cover whole expiration months (2026-11-17) so each month is cached once.
+        assert request.expiration_date_gte == date(2026, 8, 1)
         assert request.expiration_date_lte >= date(2026, 8, 3) + timedelta(days=AlpacaBacktesting.OPTION_CHAIN_MAX_DAYS)
     # Nothing past the chain horizon, even though the listing is wider.
     assert "2027-01-15" not in chains["Chains"]["CALL"]
@@ -352,9 +353,11 @@ def test_alpaca_backtesting_get_chains_caches_per_day_in_memory_and_on_disk(monk
     assert "2026-08-07" not in later["Chains"]["CALL"]  # expired before this simulated day
     assert later["Chains"]["CALL"]["2026-08-21"] == [650.0]
 
-    cached_files = list((tmp_path / "alpaca" / "option_chains").glob("SPY_2026-08-03*.json"))
-    assert cached_files, "chain was not cached on disk"
-    assert json.loads(cached_files[0].read_text())["Chains"]["CALL"]["2026-08-07"] == [640.0, 645.0]
+    # Since 2026-11-17 the contract list is cached per expiration month, not per simulated day.
+    month_file = tmp_path / "alpaca" / "option_chains" / "by_expiration_month" / "SPY_2026-08.json"
+    assert month_file.exists(), "contract list was not cached on disk"
+    rows = json.loads(month_file.read_text())
+    assert ["2026-08-07", "CALL", 640.0] in [r[:3] for r in rows] and ["2026-08-07", "CALL", 645.0] in [r[:3] for r in rows]
 
     # A fresh process reads the disk cache instead of calling Alpaca.
     fresh = _alpaca_source(monkeypatch, tmp_path)
@@ -1586,3 +1589,65 @@ def test_plain_alpaca_backtest_has_no_routed_source(monkeypatch, tmp_path):
     source = AlpacaBacktesting(datetime_start=start, datetime_end=_NY_TZ.localize(datetime(2026, 8, 8)), config=None)
     assert source._other_source_routes == {}
     assert source._other_source_for(Asset("VIX", asset_type=Asset.AssetType.INDEX)) is None
+
+
+# 2026-11-17: an SPX option expiring on a non-monthly date got no price on any day (zero
+# trades) because Alpaca lists those contracts under the weekly root SPXW, and the Alpaca OCC
+# symbol was always built from the index root (SPX261113P07555000 instead of SPXW...).
+def _index_option(symbol, expiration, strike=7555, right="PUT"):
+    return Asset(symbol, asset_type=Asset.AssetType.OPTION, expiration=expiration, strike=strike, right=right)
+
+
+@pytest.mark.parametrize(
+    "symbol,expiration,expected",
+    [
+        ("SPX", date(2026, 11, 13), "SPXW261113P07555000"),  # weekly Friday
+        ("SPX", date(2026, 11, 17), "SPXW261117P07555000"),  # 0DTE Tuesday
+        ("SPX", date(2026, 11, 20), "SPX261120P07555000"),   # third Friday: AM-settled monthly
+        ("SPX", date(2025, 4, 17), "SPX250417P07555000"),     # Good Friday 2025-04-18: monthly moves to Thursday
+        ("NDX", date(2026, 11, 13), "NDXP261113P07555000"),
+        ("NDX", date(2026, 11, 20), "NDX261120P07555000"),
+        ("RUT", date(2026, 11, 13), "RUTW261113P07555000"),
+        ("RUT", date(2026, 11, 20), "RUT261120P07555000"),
+        ("VIX", date(2026, 11, 18), "VIX261118P07555000"),   # Wednesday 30 days before Dec 18
+        ("VIX", date(2026, 11, 10), "VIXW261110P07555000"),
+        ("XSP", date(2026, 11, 13), "XSP261113P07555000"),   # XSP has one root
+        ("SPXW", date(2026, 11, 13), "SPXW261113P07555000"), # strategy already names the weekly root
+        ("SPY", date(2026, 11, 13), "SPY261113P07555000"),
+    ],
+)
+def test_alpaca_index_option_symbol_uses_the_listed_root(monkeypatch, tmp_path, symbol, expiration, expected):
+    source = _alpaca_source(monkeypatch, tmp_path)
+    assert source._occ_symbol(_index_option(symbol, expiration)) == expected
+
+
+def test_alpaca_index_chain_includes_weekly_root_contracts(monkeypatch, tmp_path):
+    weekly, monthly = date(2026, 8, 7), date(2026, 8, 21)
+    pages = {
+        "inactive": [[
+            _contract("SPXW260807P06000000", weekly, "P", 6000, root="SPXW"),
+            _contract("SPX260821P06000000", monthly, "P", 6000, root="SPX"),
+            _contract("SPXW260821P06000000", monthly, "P", 6000, root="SPXW"),
+            _contract("SPXW260821P06100000", monthly, "P", 6100, root="SPXW"),
+        ]],
+        "active": [[]],
+    }
+    source = _alpaca_source(monkeypatch, tmp_path)
+    source._trading_client = _FakeTradingClient(pages)
+    source._datetime = _NY_TZ.localize(datetime(2026, 8, 3, 9, 30))
+
+    chains = source.get_chains(Asset("SPX"))
+
+    assert chains["Chains"]["PUT"] == {"2026-08-07": [6000.0], "2026-08-21": [6000.0, 6100.0]}
+    assert all("SPXW" in r.underlying_symbols for r in source._trading_client.requests)
+    # Listed only under SPXW, so that root is used even on the monthly date.
+    assert source._occ_symbol(_index_option("SPX", monthly, 6100)) == "SPXW260821P06100000"
+    # Listed under both: the AM-settled monthly root.
+    assert source._occ_symbol(_index_option("SPX", monthly, 6000)) == "SPX260821P06000000"
+    assert source._occ_symbol(_index_option("SPX", weekly, 6000)) == "SPXW260807P06000000"
+
+
+def test_spxw_options_are_cash_settled_index_options():
+    broker = BacktestingBroker.__new__(BacktestingBroker)
+    option = _index_option("SPXW", date(2026, 11, 13))
+    assert broker._is_cash_settled_index_option(option, Asset("SPX", asset_type=Asset.AssetType.INDEX))

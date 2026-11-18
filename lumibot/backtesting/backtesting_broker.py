@@ -78,12 +78,7 @@ TYPICAL_FUTURES_MARGINS = {
     "DEFAULT": 5000,  # Conservative default
 }
 
-INDEX_ROOT_ALIASES = {
-    "SPXW": "SPX",
-    "RUTW": "RUT",
-    "VIXW": "VIX",
-    "NDXP": "NDX",
-}
+from lumibot.tools.index_option_roots import INDEX_WEEKLY_ROOTS as INDEX_ROOT_ALIASES  # noqa: E402
 
 INDEX_LIKE_SYMBOLS = {
     "SPX", "SPXW",
@@ -130,6 +125,10 @@ def get_futures_margin_requirement(asset: Asset) -> float:
         f"Consider adding this contract to TYPICAL_FUTURES_MARGINS."
     )
     return TYPICAL_FUTURES_MARGINS["DEFAULT"]
+
+
+# Marks a remembered "no recent bars" answer in BacktestingBroker._recent_real_bars.
+_NO_RECENT_BARS = object()
 
 
 class BacktestingBroker(Broker):
@@ -2279,6 +2278,8 @@ class BacktestingBroker(Broker):
         # Calculate the number of seconds before market close
         seconds_before_closing = strategy.minutes_before_closing * 60
 
+        self._cancel_working_orders_on_expired_options(strategy, time_to_close, seconds_before_closing)
+
         positions = self.get_tracked_positions(strategy.name)
         expiring_options = []
         for position in positions:
@@ -2302,6 +2303,59 @@ class BacktestingBroker(Broker):
 
         for position in self._cash_settle_offsetting_expiring_options(expiring_options, strategy):
             self.settle_expired_option_contract(position, strategy)
+
+    def _cancel_working_orders_on_expired_options(self, strategy, time_to_close, seconds_before_closing) -> None:
+        """Cancel working orders on option contracts that have expired.
+
+        Expiry handling above works from positions, so an order that never filled (no prints
+        for the contract, or a limit never reached) had nothing behind it and stayed active
+        forever: no fill, no rejection, no cancel. A broker cancels it when the contract
+        expires. Multi-leg packages are canceled as a whole when any leg has expired.
+        """
+        today = self.datetime.date()
+
+        def _expired(asset) -> bool:
+            if getattr(asset, "asset_type", None) != Asset.AssetType.OPTION:
+                return False
+            expiration = getattr(asset, "expiration", None)
+            if expiration is None or expiration > today:
+                return False
+            return not (expiration == today and time_to_close > seconds_before_closing)
+
+        try:
+            open_orders = self.get_active_tracked_orders(strategy=strategy.name)
+        except Exception:
+            return
+        child_ids = {
+            child.identifier
+            for order in open_orders
+            for child in (getattr(order, "child_orders", None) or [])
+        }
+        in_stream_thread = threading.current_thread().name.startswith(f"broker_{self.name}")
+        for order in open_orders:
+            if order.identifier in child_ids or not order.is_active():
+                continue
+            legs = [order, *(getattr(order, "child_orders", None) or [])]
+            expired_leg = next((leg for leg in legs if _expired(getattr(leg, "asset", None))), None)
+            if expired_leg is None:
+                continue
+            reason = f"option contract {expired_leg.asset} expired before the order filled"
+            logger.warning("[OPTION_EXPIRY][CANCEL] Canceling order %s: %s", order.identifier, reason)
+            try:
+                strategy.log_message(f"[OPTION_EXPIRY] Order {order.identifier} canceled: {reason}", color="yellow")
+            except Exception:
+                pass
+            for target in legs:
+                try:
+                    target.error_message = reason
+                except Exception:
+                    pass
+            if in_stream_thread:
+                for target in legs:
+                    if target.is_active():
+                        self._process_trade_event(target, self.CANCELED_ORDER)
+            else:
+                self.cancel_order(order)
 
     def _cash_settle_offsetting_expiring_options(self, positions, strategy) -> list:
         """Cash-settle in-the-money options whose deliveries offset; return the rest.
@@ -5591,9 +5645,33 @@ class BacktestingBroker(Broker):
 
         Returns a frame indexed by tz-aware bar start, or None. Nothing after the current
         backtest time is returned.
+
+        The answer for one (asset, quote, length) cannot change while the backtest clock stays
+        on one bar, yet the fill and valuation paths ask for it many times per bar (every leg of
+        every pending package, every estimate step, every valuation row). It is read once per
+        bar and reused. Callers only read the returned frame. "No bars" is remembered too; a
+        lookup that raised is not, so it is tried again exactly as before.
         """
-        lookup_asset = asset if getattr(asset, "asset_type", None) != "crypto" else (asset, quote)
         timestep = str(getattr(self.data_source, "_timestep", "minute"))
+        now_key = self.datetime
+        memo = getattr(self, "_recent_real_bars_memo", None)
+        if memo is None or memo[0] != now_key:
+            memo = (now_key, {})
+            self._recent_real_bars_memo = memo
+        try:
+            key = (asset, quote, int(length), timestep)
+            hit = memo[1].get(key)
+        except TypeError:  # an unhashable asset: no reuse
+            key, hit = None, None
+        if hit is not None:
+            return None if hit is _NO_RECENT_BARS else hit
+        frame, cacheable = self._read_recent_real_bars(asset, quote, length, timestep)
+        if key is not None and cacheable:
+            memo[1][key] = _NO_RECENT_BARS if frame is None else frame
+        return frame
+
+    def _read_recent_real_bars(self, asset, quote, length: int, timestep: str):
+        lookup_asset = asset if getattr(asset, "asset_type", None) != "crypto" else (asset, quote)
         source_name = str(getattr(self.data_source, "SOURCE", "") or "").upper()
         try:
             if source_name in {"CCXT", "YAHOO", "ALPACA", "DATABENTO", "DATABENTO_POLARS"}:
@@ -5606,10 +5684,10 @@ class BacktestingBroker(Broker):
                     asset=lookup_asset, length=max(3, int(length) + 1), quote=quote, timeshift=-1, timestep=timestep
                 )
         except Exception:
-            return None
+            return None, False
         df = getattr(bars, "df", None)
         if df is None or df.empty:
-            return None
+            return None, True
         now = pd.Timestamp(self.datetime)
         index = pd.DatetimeIndex(df.index)
         if index.tz is None:
@@ -5625,7 +5703,7 @@ class BacktestingBroker(Broker):
             frame = frame[[ts.date() <= now.date() for ts in frame.index]]
         else:
             frame = frame[frame.index.floor("min") <= now.floor("min")]
-        return frame if not frame.empty else None
+        return (frame if not frame.empty else None), True
 
     def _bar_matches_now(self, ts) -> bool:
         now = pd.Timestamp(self.datetime)
@@ -5637,6 +5715,25 @@ class BacktestingBroker(Broker):
         if str(getattr(self.data_source, "_timestep", "minute")) == "day":
             return ts.date() == now.date()
         return ts.floor("min") == now.floor("min")
+
+    def _bars_match_now(self, index) -> np.ndarray:
+        """``_bar_matches_now`` for every timestamp of an index at once (same rule, one pass)."""
+        index = pd.DatetimeIndex(index)
+        if len(index) == 0:
+            return np.zeros(0, dtype=bool)
+        now = pd.Timestamp(self.datetime)
+        if index.tz is not None:
+            if now.tz is None:
+                now = now.tz_localize(index.tz)
+            else:
+                index = index.tz_convert(now.tz)
+        elif now.tz is not None:
+            # Naive bar times against an aware clock: the scalar rule compares them as given.
+            return np.array([self._bar_matches_now(ts) for ts in index], dtype=bool)
+        if str(getattr(self.data_source, "_timestep", "minute")) == "day":
+            target = now.date()
+            return np.array([d == target for d in index.date], dtype=bool)
+        return np.asarray(index.floor("min") == now.floor("min"), dtype=bool)
 
     def _leg_bar_open_now(self, leg) -> Optional[float]:
         """Open of a real (observed) bar starting at the current backtest time, else None.
@@ -5695,7 +5792,7 @@ class BacktestingBroker(Broker):
         if frame is None:
             return None
         if before_now:
-            frame = frame[[not self._bar_matches_now(ts) for ts in frame.index]]
+            frame = frame[~self._bars_match_now(frame.index)]
         for ts, close in zip(reversed(frame.index), reversed(frame["close"].tolist())):
             price = self._coerce_price(close)
             if price is not None and not self._is_invalid_price(price) and float(price) > 0:

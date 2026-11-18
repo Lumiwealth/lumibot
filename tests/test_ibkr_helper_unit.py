@@ -2194,3 +2194,76 @@ def test_stock_lookup_without_a_share_class_asks_only_the_written_symbol(monkeyp
     with pytest.raises(RuntimeError, match="Unable to resolve IBKR conid for SAMPLE"):
         helper._lookup_conid_remote(asset=Asset("SAMPLE", asset_type="stock"), quote=None, exchange=None)
     assert set(searched) == {"SAMPLE"}
+
+
+def _fresh_negative_cache(monkeypatch, tmp_path):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    ibkr_helper._RUNTIME_CONID_CACHE.clear()
+    ibkr_helper._NEGATIVE_CONID_CACHE.clear()
+    monkeypatch.setattr(ibkr_helper, "_NEGATIVE_CONID_CACHE_LOADED", False)
+    return ibkr_helper
+
+
+def test_stock_lookup_error_answer_is_not_stored_as_no_such_contract(monkeypatch, tmp_path):
+    """A gateway or error answer (not a list of contracts) says nothing about whether the contract
+    exists, so it must not be remembered as "no such contract" for 24 hours."""
+    helper = _fresh_negative_cache(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        helper, "queue_request", lambda url, querystring, headers=None, timeout=None: {"error": "gateway unavailable"}
+    )
+    with pytest.raises(RuntimeError, match="Unable to resolve IBKR conid"):
+        helper._resolve_conid(
+            asset=Asset("SAMPLE", asset_type="stock"), quote=Asset("USD", asset_type="forex"), exchange=None
+        )
+    assert helper._NEGATIVE_CONID_CACHE == {}
+
+
+def test_negative_conid_from_an_older_lookup_is_ignored(monkeypatch, tmp_path):
+    """A miss stored before the lookup learned a new symbol form (Nov 17 2026: share classes with a
+    dot, stored by the old lookup, kept the fixed lookup from ever running) is asked again."""
+    import time as _time
+
+    helper = _fresh_negative_cache(monkeypatch, tmp_path)
+    key = "stock|ABC.B|USD||"
+    helper._NEGATIVE_CONID_CACHE[key] = {"ts": _time.time(), "reason": "no_conid", "message": "old miss"}
+    monkeypatch.setattr(helper, "_NEGATIVE_CONID_CACHE_LOADED", True)
+
+    def request(url, querystring, headers=None, timeout=None):
+        if querystring.get("symbol") == "ABC B":
+            return [{"conid": "303", "symbol": "ABC B", "sections": [{"secType": "STK"}]}]
+        return []
+
+    monkeypatch.setattr(helper, "queue_request", request)
+    monkeypatch.setattr(helper, "_fetch_contract_info", lambda conid: {"currency": "USD"})
+    conid = helper._resolve_conid(
+        asset=Asset("ABC.B", asset_type="stock"), quote=Asset("USD", asset_type="forex"), exchange=None
+    )
+    assert conid == 303
+    assert key not in helper._NEGATIVE_CONID_CACHE
+
+
+def test_expired_negative_conid_in_memory_is_ignored(monkeypatch, tmp_path):
+    """A long-running process keeps entries in memory; one older than the expiry is asked again."""
+    import time as _time
+
+    helper = _fresh_negative_cache(monkeypatch, tmp_path)
+    key = "stock|SAMPLE|USD||"
+    helper._NEGATIVE_CONID_CACHE[key] = {
+        "ts": _time.time() - helper.IBKR_CONID_NEGATIVE_CACHE_TTL_SECONDS - 60,
+        "reason": "no_conid",
+        "message": "stale miss",
+        "lookup_version": helper.IBKR_CONID_NEGATIVE_LOOKUP_VERSION,
+    }
+    monkeypatch.setattr(helper, "_NEGATIVE_CONID_CACHE_LOADED", True)
+    calls = []
+    monkeypatch.setattr(
+        helper, "queue_request", lambda url, querystring, headers=None, timeout=None: calls.append(1) or []
+    )
+    with pytest.raises(RuntimeError, match="Unable to resolve IBKR conid for SAMPLE"):
+        helper._resolve_conid(
+            asset=Asset("SAMPLE", asset_type="stock"), quote=Asset("USD", asset_type="forex"), exchange=None
+        )
+    assert calls  # asked the provider again
+    assert helper._NEGATIVE_CONID_CACHE[key]["ts"] > _time.time() - 60

@@ -764,8 +764,10 @@ df = df[~all_zero]
    and stay sparse. Option cache keys end in `_TRADES` so older filled files are never reused.
 3. `get_chains()` lists contracts from the Trading API (`status=inactive` plus `active`,
    paginated), for expirations from the simulated date through 90 days (or the
-   `OptionsHelper` hint). One listing is reused across simulated days; each day's chain is
-   cached in memory and as JSON in `LUMIBOT_CACHE_FOLDER/alpaca/option_chains`.
+   `OptionsHelper` hint). Contracts are cached per (underlying, expiration month) in memory
+   and as JSON in `LUMIBOT_CACHE_FOLDER/alpaca/option_chains/by_expiration_month`; each day's
+   chain is filtered from those months. A month whose expirations have all passed is shared
+   through the remote cache (key: provider, underlying, month; never a user or key).
    The listing is not point-in-time. Alpaca's contracts API has no listing or first-trade date,
    so a strike or expiration listed after the simulated date can appear in that day's chain.
    Chain membership is therefore not proof that a contract existed on that date. A

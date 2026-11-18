@@ -67,3 +67,14 @@ def test_finished_bracket_leaves_no_active_unsent_orders(broker, mes):
     assert not any(
         order.is_active() for order in broker.get_tracked_orders("Strat", mes)
     ), [str(o) for o in broker.get_tracked_orders("Strat", mes) if o.is_active()]
+
+
+def test_canceled_unfilled_entry_is_finished_and_tracked_once(broker, mes):
+    parent = _strategy_bracket(mes)
+    broker._submit_order(parent)
+    broker._process_trade_event(parent, broker.CANCELED_ORDER)
+    broker._process_trade_event(parent, broker.CANCELED_ORDER)  # a repeated cancel event
+
+    assert not parent.is_active()
+    matches = [o for o in broker.get_all_orders() if o.identifier == parent.identifier]
+    assert len(matches) == 1

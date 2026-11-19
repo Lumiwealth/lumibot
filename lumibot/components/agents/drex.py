@@ -3,7 +3,7 @@
 Drex (https://console.nace.ai/docs/drex) is a decision model: it reads a state
 and returns a probability for each label of a typed question, never free text.
 An agent qualifies when it has no tools or skills and every ``output_schema``
-property is a string enum or an unconstrained boolean. Drex then answers instead of the agent's model, and
+property is an unconstrained string enum or boolean. Drex then answers instead of the agent's model, and
 the agent's model stays the fallback for any Drex error.
 """
 
@@ -24,6 +24,8 @@ from .schemas import AgentRunResult, AgentTraceEvent
 _OBJECT_KEYWORDS = {
     "$schema", "$defs", "type", "title", "description", "properties", "required", "additionalProperties",
 }
+# Drex picks any label in the enum, so value constraints (const, pattern, ...) go to the agent's model too.
+_PROPERTY_KEYWORDS = {"$ref", "type", "title", "description", "default", "enum"}
 
 
 def drex_model() -> str:
@@ -45,11 +47,13 @@ def drex_questions(schema_json: dict[str, Any], system_prompt: str) -> dict[str,
         if "$ref" in prop:
             # Pydantic keeps an Enum field's labels in $defs.
             prop = {**defs.get(str(prop["$ref"]).removeprefix("#/$defs/"), {}), **prop}
+        if not set(prop) <= _PROPERTY_KEYWORDS:
+            return None
         instructions = f"{system_prompt.strip()}\n\n{prop.get('description') or name}".strip()
         enum = prop.get("enum")
         if isinstance(enum, list) and enum and all(isinstance(label, str) for label in enum):
             questions[name] = {"type": "choice", "instructions": instructions, "criteria": dict.fromkeys(enum)}
-        elif prop.get("type") == "boolean" and "enum" not in prop and "const" not in prop:
+        elif prop.get("type") == "boolean" and "enum" not in prop:
             questions[name] = {"type": "noul", "instructions": instructions}
         else:
             return None

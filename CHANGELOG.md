@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.6.92 - Unreleased
+
 ## 4.6.91 - 2026-11-18
 
 ### Changed

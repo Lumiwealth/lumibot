@@ -80,7 +80,8 @@ class _WindowClient:
         start = start.tz_localize("UTC") if start.tzinfo is None else start
         end = end.tz_localize("UTC") if end.tzinfo is None else end
         self.windows.append((tuple(symbols), start, end))
-        out = {s: [dict(t=t, o=o, h=h, l=l, c=c, v=v, n=1, vw=c) for (t, o, h, l, c, v) in ROWS.get(s, [])
+        rows = globals()["ROWS"]  # read at call time so a test can swap the price series
+        out = {s: [dict(t=t, o=o, h=h, l=l, c=c, v=v, n=1, vw=c) for (t, o, h, l, c, v) in rows.get(s, [])
                    if start <= pd.Timestamp(t) <= end] for s in symbols}
         return BarSet({s: r for s, r in out.items() if r})
 
@@ -92,12 +93,15 @@ def _call(strike):
     return Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration=EXPIRY, strike=strike, right="CALL")
 
 
-def _run(monkeypatch, tmp_path, month_first):
+def _run(monkeypatch, tmp_path, month_first, fast_marks=True):
     monkeypatch.setattr(ab, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
     option_client = _WindowClient()
 
     class Offline(ab.AlpacaBacktesting):
         OPTION_FIRST_LOAD_FROM_LOOKUP_MONTH = month_first
+        if not fast_marks:
+            # The broker's array lookup is optional: without it every lookup builds Bars.
+            recent_bar_arrays = None
 
         def __init__(self, *a, **k):
             super().__init__(*a, **k)

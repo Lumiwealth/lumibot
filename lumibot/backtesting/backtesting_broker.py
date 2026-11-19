@@ -6170,6 +6170,45 @@ class BacktestingBroker(Broker):
         cache[key] = (bucket, frame)
         return frame
 
+    def _valuation_arrays(self, asset, quote, length: int, bucket):
+        """(UTC nanosecond stamps, closes) of ``_recent_real_bars`` from the data source's arrays.
+
+        Only for data sources that offer ``recent_bar_arrays`` and only when it answers; None
+        means "use the frame path". Remembered for the current valuation bar like
+        ``_valuation_bars``. The rows are the ones ``_read_recent_real_bars`` keeps: the
+        execution-bar request, then nothing after the current minute.
+        """
+        lookup = getattr(self.data_source, "recent_bar_arrays", None)
+        if not callable(lookup) or getattr(asset, "asset_type", None) == "crypto":
+            return None
+        source_name = str(getattr(self.data_source, "SOURCE", "") or "").upper()
+        if source_name not in {"CCXT", "YAHOO", "ALPACA", "DATABENTO", "DATABENTO_POLARS"}:
+            return None
+        cache = getattr(self, "_option_valuation_array_cache", None)
+        if cache is None:
+            cache = {}
+            self._option_valuation_array_cache = cache
+        key = (asset, int(length))
+        hit = cache.get(key)
+        if hit is not None and hit[0] == bucket:
+            return hit[1]
+        result = None
+        try:
+            timeshift, kwargs = self._execution_bar_request(source_name)
+            got = lookup(asset=asset, length=max(1, int(length)), quote=quote, timeshift=timeshift, **kwargs)
+        except Exception:
+            got = None
+        if got is not None:
+            stamps, _opens, closes = got
+            now = pd.Timestamp(self.datetime)
+            if len(stamps) and now.tz is not None:
+                # _read_recent_real_bars keeps rows whose minute is at or before the current one.
+                keep = (stamps // 60_000_000_000) <= (now.value // 60_000_000_000)
+                stamps, closes = stamps[keep], closes[keep]
+                result = (stamps, closes) if len(stamps) else None
+        cache[key] = (bucket, result)
+        return result
+
     def option_marks_for_valuation(self, assets, quote) -> dict:
         """{contract: estimated price} for held option contracts with no real price on this bar.
 
@@ -6205,12 +6244,19 @@ class BacktestingBroker(Broker):
                 if getattr(asset, "strike", None) is None or getattr(asset, "right", None) is None:
                     continue
                 # A short look first: most rows only need to know when the contract last traded.
-                frame = self._valuation_bars(asset, quote, 3, bucket)
-                if frame is None:
-                    frame = self._valuation_bars(asset, quote, lookback, bucket)
+                # Minute bars: read the data source's stored arrays when it offers them (the
+                # same rows, no Bars object per leg per bar); otherwise the frame path below.
+                arrays = None if daily else self._valuation_arrays(asset, quote, 3, bucket)
+                if arrays is not None:
+                    stamps, closes = arrays
+                    last_ts = pd.Timestamp(int(stamps[-1]), tz="UTC").tz_convert(now.tz)
+                else:
+                    frame = self._valuation_bars(asset, quote, 3, bucket)
                     if frame is None:
-                        continue  # no trade history to judge by: keep the source's own mark
-                last_ts = pd.Timestamp(frame.index[-1])
+                        frame = self._valuation_bars(asset, quote, lookback, bucket)
+                        if frame is None:
+                            continue  # no trade history to judge by: keep the source's own mark
+                    last_ts = pd.Timestamp(frame.index[-1])
                 if daily:
                     if last_ts.date() == today and phase == "closed":
                         self._count_option_valuation_mark("real")
@@ -6218,15 +6264,21 @@ class BacktestingBroker(Broker):
                 elif self._bar_matches_now(last_ts):
                     self._count_option_valuation_mark("real")
                     continue
-                if self._quote_price_now(self._MarkProbe(asset, quote)) is not None:
+                # A source whose quotes never carry a bid or ask (trade-bar sources) cannot
+                # answer this check; asking costs a full quote lookup per leg per bar.
+                quotes_have_bid_ask = getattr(self.data_source, "quotes_have_bid_ask", None)
+                if (not callable(quotes_have_bid_ask) or quotes_have_bid_ask(asset)) and (
+                    self._quote_price_now(self._MarkProbe(asset, quote)) is not None
+                ):
                     self._count_option_valuation_mark("real")
                     continue
 
-                earlier = earlier_rows(frame)
-                if earlier is None:
-                    earlier = earlier_rows(self._valuation_bars(asset, quote, lookback, bucket))
+                if arrays is None:
+                    earlier = earlier_rows(frame)
                     if earlier is None:
-                        continue
+                        earlier = earlier_rows(self._valuation_bars(asset, quote, lookback, bucket))
+                        if earlier is None:
+                            continue
 
                 underlying = self._option_underlying_asset(asset)
                 if underlying not in spot_now:
@@ -6251,11 +6303,19 @@ class BacktestingBroker(Broker):
                         continue
 
                 reference = None
-                for ts, close in zip(reversed(earlier.index), reversed(earlier["close"].tolist())):
-                    value = self._coerce_price(close)
-                    if value is not None and not self._is_invalid_price(value) and float(value) > 0:
-                        reference = (pd.Timestamp(ts), float(value))
-                        break
+                if arrays is not None:
+                    for position in range(len(closes) - 1, -1, -1):
+                        value = self._coerce_price(closes[position].item())
+                        if value is not None and not self._is_invalid_price(value) and float(value) > 0:
+                            stamp = pd.Timestamp(int(stamps[position]), tz="UTC").tz_convert(now.tz)
+                            reference = (stamp, float(value))
+                            break
+                else:
+                    for ts, close in zip(reversed(earlier.index), reversed(earlier["close"].tolist())):
+                        value = self._coerce_price(close)
+                        if value is not None and not self._is_invalid_price(value) and float(value) > 0:
+                            reference = (pd.Timestamp(ts), float(value))
+                            break
                 years_now = self._option_years_to_expiry(asset, now)
                 if reference is None or years_now is None:
                     continue

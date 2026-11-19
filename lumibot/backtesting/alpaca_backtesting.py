@@ -2013,6 +2013,14 @@ class AlpacaBacktesting(DataSourceBacktesting):
             tzinfo=self.tzinfo,
         )
 
+    def quotes_have_bid_ask(self, asset) -> bool:
+        """False: quotes from this source never carry a bid or ask (see ``get_quote``).
+
+        The broker skips a bid/ask check that can only come back empty. An asset routed to
+        another data source keeps the check, since that source may have quotes.
+        """
+        return self._other_source_for(asset) is not None
+
     def get_quote(self, asset, quote=None, exchange=None, snapshot_only=False, **kwargs):
         """Quote at the simulated time built from real trades.
 
@@ -2055,6 +2063,59 @@ class AlpacaBacktesting(DataSourceBacktesting):
             cache.clear()
         cache[id(frame)] = (frame, marks)
         return marks
+
+    def recent_bar_arrays(self, asset, length: int, quote: Asset | None = None, timeshift=None,
+                          remove_incomplete_current_bar: Optional[bool] = None, _extend_history: bool = True):
+        """(UTC nanosecond stamps, opens, closes) of the rows ``get_historical_prices`` returns.
+
+        Same arguments and same rows as ``get_historical_prices(asset, length, quote=quote,
+        timeshift=timeshift, ...)`` with the source's own bar size, without building a Bars
+        object. The broker values held option legs on every bar and only reads the newest
+        trades' times and prices. Returns None whenever the answer needs the full history
+        path (a stock, another bar size, a shift, a reach before the window, not enough rows
+        in the loaded part, no row yet): the caller then uses ``get_historical_prices``.
+        """
+        if length is None or int(length) <= 0 or timeshift is not None or not self._is_option(asset):
+            return None
+        length = int(length)
+        timestep = self._timestep
+        if self._other_source_for(asset) is not None:
+            return None
+        source_timestep, resample_rule = self._normalize_timestep_for_source(timestep)
+        if resample_rule is not None or source_timestep != "minute" or timestep != source_timestep:
+            return None
+        now = getattr(self, "_datetime", None)
+        if now is None or getattr(now, "tzinfo", None) is None:
+            return None
+        if remove_incomplete_current_bar is None:
+            remove_incomplete_current_bar = self._remove_incomplete_current_bar
+        if quote is None:
+            quote = self.LUMIBOT_DEFAULT_QUOTE_ASSET
+        # The same first read as _get_option_historical_prices (a loaded month is enough when
+        # it holds ``length`` rows at or before now).
+        self.__dict__["_partial_frame_ok"] = True
+        try:
+            frame = self._get_option_bars_frame(asset, quote, source_timestep)
+        finally:
+            self.__dict__["_partial_frame_ok"] = False
+        if frame is None or frame.empty:
+            return None
+        sanitized, sanitized_quote = self._sanitize_base_and_quote_asset(asset, quote)
+        key = self._get_asset_key(base_asset=sanitized, quote_asset=sanitized_quote, timestep=source_timestep)
+        position = self._newest_bar_position(frame.index, now, timestep, remove_incomplete_current_bar)
+        if position < 0:
+            return None
+        if position + 1 < length and (
+            key in self._state("_option_loaded_from", dict)
+            or (_extend_history and getattr(self, "_history_before_start", False))
+        ):
+            return None  # earlier prints or prints before the window decide the answer
+        marks = self._option_mark_arrays(frame, source_timestep)
+        if marks is None:
+            return None
+        stamps, opens, closes = marks
+        first = max(0, position - length + 1)
+        return stamps[first:position + 1], opens[first:position + 1], closes[first:position + 1]
 
     def _get_option_last_price(self, asset: Asset, quote: Asset) -> float | Decimal | None:
         timestep = self.__dict__.get("_timestep") or "minute"

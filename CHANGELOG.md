@@ -1,6 +1,10 @@
 # Changelog
 
-## 4.6.91 - Unreleased
+## 4.6.91 - 2026-11-18
+
+### Changed
+- **Faster option backtests: held legs are valued without rebuilding price frames.** On every bar the broker values each held option leg. It used to ask the data source for the leg's newest bars through `get_historical_prices`, which builds a pandas Bars object, then copied and filtered that frame just to read the newest trade's time and close. A data source that keeps the trades as arrays can now answer directly (`recent_bar_arrays`, implemented by Alpaca backtests); the broker uses it for minute-bar valuation and keeps the old path otherwise. Alpaca option quotes never carry a bid or ask, so valuation no longer runs a quote lookup per leg per bar that could only come back empty (`quotes_have_bid_ask`). In a profiled two-year weekly QQQ call spread, valuation was about half of the loop. Results are identical: trade log and every per-iteration account value, cash and option price match the old path on sparse (estimated marks) and liquid (real marks) contracts. Tests: `tests/backtest/test_option_valuation_array_marks_identical_results.py`.
+- Note on 4.6.90: its single-contract first-read change cut cached-file reads by 79% in that backtest, but the wall time of a warm 15-minute run did not change (the reads ran in parallel with the loop); a 1-minute run was 15% faster.
 
 ## 4.6.90 - 2026-11-18
 

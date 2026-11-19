@@ -1505,6 +1505,12 @@ CONSTRAINED_BOOLEAN_SCHEMA = {
     "required": ["verdict"],
 }
 
+# Drex picks any label in the enum, so it cannot enforce a narrower value constraint.
+CONSTRAINED_ENUM_SCHEMA = {
+    **GATE_SCHEMA,
+    "properties": {"verdict": {**GATE_SCHEMA["properties"]["verdict"], "const": "PASS"}},
+}
+
 # Drex answers each property on its own, so it cannot enforce an object-level constraint.
 EXCLUSIVE_GATE_SCHEMA = {
     **GATE_SCHEMA,
@@ -1518,6 +1524,7 @@ EXCLUSIVE_GATE_SCHEMA = {
         (None, GateStrategy, GateStrategy.create_kwargs),
         ("nace_sk_test", GateStrategy, {**GateStrategy.create_kwargs, "output_schema": VERDICT_SCHEMA}),  # free text
         ("nace_sk_test", GateStrategy, {**GateStrategy.create_kwargs, "output_schema": CONSTRAINED_BOOLEAN_SCHEMA}),
+        ("nace_sk_test", GateStrategy, {**GateStrategy.create_kwargs, "output_schema": CONSTRAINED_ENUM_SCHEMA}),
         ("nace_sk_test", GateStrategy, {**GateStrategy.create_kwargs, "output_schema": EXCLUSIVE_GATE_SCHEMA}),
         ("nace_sk_test", GateStrategy, {"output_schema": GATE_SCHEMA}),  # built-in skills on
         ("nace_sk_test", ToolGateStrategy, GateStrategy.create_kwargs),  # agent has tools

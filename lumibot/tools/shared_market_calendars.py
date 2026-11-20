@@ -11,17 +11,18 @@ from __future__ import annotations
 
 import functools
 import threading
-from typing import Callable, Optional
 
+# No ``typing`` import: strategy_executor imports this module at startup, and
+# tests/test_lazy_exports.py keeps ``typing`` out of the startup import set.
 _LOCK = threading.Lock()
 
 
 @functools.lru_cache(maxsize=128)
-def _calendar(name: str, factory: Callable):
+def _calendar(name: str, factory):
     return factory(name)
 
 
-def get_market_calendar(name: str, factory: Optional[Callable] = None):
+def get_market_calendar(name: str, factory=None):
     """Return the shared calendar for ``name``.
 
     ``factory`` defaults to ``pandas_market_calendars.get_calendar``. Callers pass their own

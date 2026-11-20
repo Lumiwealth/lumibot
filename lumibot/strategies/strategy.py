@@ -4144,6 +4144,9 @@ class Strategy(_Strategy):
     def localize_datetime(self, dt: datetime.datetime):
         """Returns a datetime localized to the data source's timezone.
 
+        A naive time in the repeated hour when daylight saving time ends maps to the
+        earlier of the two instants; one in the skipped spring hour moves forward.
+
         Parameters
         ----------
         dt : datetime.datetime

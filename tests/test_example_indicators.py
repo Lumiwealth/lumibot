@@ -341,3 +341,19 @@ def test_funding_rate_demo_runs_with_recorded_data(capsys):
 
     rates = main("BTC-USDT-SWAP", hours=24, indicator_cls=Recorded)
     assert rates[-1] is not None and "funding" in capsys.readouterr().out
+
+
+def test_drawing_tour_uses_every_drawing_kind():
+    from lumibot.example_indicators import drawing_tour
+    from lumibot.indicators.drawings import DRAWING_KINDS
+
+    assert registry.get("drawing_tour", 1) is drawing_tour.DrawingTour
+    indicator = drawing_tour.DrawingTour(length=5)
+    indicator.feed(_frame(400, seed=3))
+    items = indicator.drawings()
+    assert {item["kind"] for item in items} == set(DRAWING_KINDS)
+    styles = {item.get("style") for item in items if item["kind"] == "label"}
+    assert {"circle", "flag", "none", "label_center", "label_down", "label_left"} <= styles
+    assert any(item.get("tooltip") for item in items if item["kind"] == "label")
+    extends = {item["extend"] for item in items if item["kind"] == "line"}
+    assert extends == {"none", "right", "both"}

@@ -42,7 +42,7 @@ from typing import Any
 
 import pandas as pd
 
-DRAWING_KINDS = ("box", "line", "label", "table")
+DRAWING_KINDS = ("box", "line", "label", "table", "polyline", "linefill")
 #: TradingView's own ceiling for ``max_boxes_count``, ``max_lines_count`` and ``max_labels_count``.
 MAX_DRAWINGS_PER_KIND = 500
 MAX_TEXT_LENGTH = 80
@@ -66,13 +66,47 @@ DRAWING_EXTENDS = ("none", "left", "right", "both")
 DRAWING_ARROWS = ("none", "left", "right", "both")
 DRAWING_TEXT_SIZES = ("tiny", "small", "normal", "large", "huge")
 DRAWING_TEXT_ALIGNS = ("left", "center", "right")
-#: ``none`` draws the text alone, without a bubble.
-LABEL_STYLES = ("label_up", "label_down", "label_left", "label_right", "label_center", "none")
+#: Pine's ``label.style_*``. ``none`` draws the text alone, without a bubble; ``text_outline``
+#: draws the text with an outline in ``color``; the shape styles (``circle`` to ``flag``) draw a
+#: small mark at the point with the text beside it (a TradingView pin or flag mark).
+LABEL_STYLES = (
+    "label_up",
+    "label_down",
+    "label_left",
+    "label_right",
+    "label_center",
+    "label_upper_left",
+    "label_upper_right",
+    "label_lower_left",
+    "label_lower_right",
+    "none",
+    "text_outline",
+    "circle",
+    "square",
+    "diamond",
+    "triangle_up",
+    "triangle_down",
+    "arrow_up",
+    "arrow_down",
+    "cross",
+    "xcross",
+    "flag",
+)
+#: Pine's own ceiling for ``polyline.new`` points (10,000) is far more than a chart can draw fast;
+#: 500 keeps one object light on the wire.
+MAX_POLYLINE_POINTS = 500
 _THEME_COLORS = ("chart.fg", "chart.bg")
-_PREFIX = {"box": "b", "line": "l", "label": "t", "table": "g"}
-_KIND_CAPS = {"box": MAX_DRAWINGS_PER_KIND, "line": MAX_DRAWINGS_PER_KIND, "label": MAX_DRAWINGS_PER_KIND, "table": MAX_TABLES}
+_PREFIX = {"box": "b", "line": "l", "label": "t", "table": "g", "polyline": "p", "linefill": "f"}
+_KIND_CAPS = {
+    "box": MAX_DRAWINGS_PER_KIND,
+    "line": MAX_DRAWINGS_PER_KIND,
+    "label": MAX_DRAWINGS_PER_KIND,
+    "table": MAX_TABLES,
+    "polyline": 100,
+    "linefill": MAX_DRAWINGS_PER_KIND,
+}
 #: Fields that are fixed when the object is created.
-_LOCKED = {"table": ("columns", "rows")}
+_LOCKED = {"table": ("columns", "rows"), "linefill": ("line1", "line2")}
 
 #: field name -> (check kind, choices); the defaults for each object kind follow.
 _FIELDS: dict[str, dict[str, tuple]] = {
@@ -120,6 +154,22 @@ _FIELDS: dict[str, dict[str, tuple]] = {
         "color": ("color", None),
         "text_color": ("color", None),
         "size": ("choice", DRAWING_TEXT_SIZES),
+        "text_align": ("choice", DRAWING_TEXT_ALIGNS),
+        "tooltip": ("text", None),
+    },
+    "polyline": {
+        "points": ("points", None),
+        "curved": ("bool", None),
+        "closed": ("bool", None),
+        "color": ("color", None),
+        "width": ("width", None),
+        "style": ("choice", DRAWING_LINE_STYLES),
+        "fill_color": ("color_or_none", None),
+    },
+    "linefill": {
+        "line1": ("ref", None),
+        "line2": ("ref", None),
+        "color": ("color", None),
     },
 }
 _DEFAULTS: dict[str, dict[str, Any]] = {
@@ -149,7 +199,11 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
         "color": "#2962FF",
         "text_color": "#FFFFFF",
         "size": "small",
+        "text_align": "center",
+        "tooltip": "",
     },
+    "polyline": {"curved": False, "closed": False, "color": "#2962FF", "width": 1, "style": "solid", "fill_color": None},
+    "linefill": {"color": "#2962FF33"},
 }
 
 
@@ -223,6 +277,29 @@ def _check(kind: str, name: str, value, how: str, choices):
         if any(ord(ch) < 32 and ch != "\n" for ch in value) or "\x7f" in value:
             raise ValueError(f"{what} must be plain text without control characters")
         return value
+    if how == "bool":
+        if not isinstance(value, bool):
+            raise ValueError(f"{what} must be True or False, got {value!r}")
+        return value
+    if how == "ref":
+        if not isinstance(value, str) or not value.startswith("l") or not value[1:].isdigit():
+            raise ValueError(f"{what} must be the id of a line (from draw.line), got {value!r}")
+        return value
+    if how == "points":
+        try:
+            points = list(value)
+        except TypeError as error:
+            raise ValueError(f"{what} must be a list of (time, price) points") from error
+        if not 2 <= len(points) <= MAX_POLYLINE_POINTS:
+            raise ValueError(f"{what} needs from 2 to {MAX_POLYLINE_POINTS} points, got {len(points)}")
+        out = []
+        for point in points:
+            if isinstance(point, dict):
+                x, y = point.get("x"), point.get("y")
+            else:
+                x, y = point
+            out.append({"x": _to_ms(x, f"{what} time"), "y": _check(kind, f"{name} price", y, "price", None)})
+        return out
     raise ValueError(f"unknown check {how}")  # pragma: no cover - table error
 
 
@@ -282,10 +359,117 @@ class Drawings:
     def label(self, x, y, text="", **style) -> str:
         """Text at one (time, price) point, with or without a bubble.
 
-        Style: ``style`` (``label_up``, ``label_down``, ``label_left``,
-        ``label_right``, ``label_center``, ``none``), ``color`` (bubble),
-        ``text_color`` and ``size``. Returns the object's id."""
+        Style: ``style`` (any of :data:`LABEL_STYLES`: Pine's bubble
+        directions, ``none``, ``text_outline`` or a shape mark such as
+        ``circle`` or ``flag``), ``color`` (bubble or mark), ``text_color``,
+        ``size``, ``text_align`` and ``tooltip`` (hover text). Returns the id."""
         return self._add("label", {**self._style("label", style), "x": x, "y": y, "text": text})
+
+    def polyline(self, points, **style) -> str:
+        """A line through many (time, price) points (Pine's ``polyline.new``), 2 to 500 of them.
+
+        Style: ``curved`` (smooth curve through the points), ``closed`` (joins
+        the last point to the first), ``color``, ``width``, ``style`` and
+        ``fill_color`` (shades the inside of a closed shape). Returns the id."""
+        return self._add("polyline", {**self._style("polyline", style), "points": points})
+
+    def linefill(self, line1, line2, color="#2962FF33") -> str:
+        """Shade the area between two lines from :meth:`line` (Pine's ``linefill.new``).
+
+        The fill follows the lines when they change and is removed with either
+        of them. Returns the id."""
+        for name, ref in (("line1", line1), ("line2", line2)):
+            if ref not in self._kinds["line"]:
+                raise ValueError(f"linefill {name} {ref!r} is not a line on the chart")
+        return self._add("linefill", {"line1": line1, "line2": line2, "color": color})
+
+    # ---- TradingView drawing tools, built from lines and labels ------------
+
+    def ray(self, x1, y1, x2, y2, **style) -> str:
+        """A line from the first point through the second and on to the right edge."""
+        return self.line(x1, y1, x2, y2, **{**style, "extend": "right"})
+
+    def extended_line(self, x1, y1, x2, y2, **style) -> str:
+        """A line through two points that runs to both edges of the chart."""
+        return self.line(x1, y1, x2, y2, **{**style, "extend": "both"})
+
+    def horizontal_line(self, price, x, **style) -> str:
+        """A level across the whole chart at ``price`` (``x`` is any bar time, it only anchors it)."""
+        return self.line(x, price, x, price, **{**style, "extend": "both"})
+
+    def horizontal_ray(self, x, price, **style) -> str:
+        """A level that starts at bar ``x`` and runs to the right edge."""
+        return self.line(x, price, x, price, **{**style, "extend": "right"})
+
+    def vertical_line(self, x, price=0.0, **style) -> str:
+        """A line from top to bottom of the pane at bar ``x``."""
+        return self.line(x, price, x, price, **{**style, "extend": "both"})
+
+    def crossline(self, x, price, **style) -> tuple[str, str]:
+        """A vertical and a horizontal line crossing at (``x``, ``price``). Returns both ids."""
+        return self.vertical_line(x, price, **style), self.horizontal_line(price, x, **style)
+
+    def trend_angle(self, x1, y1, x2, y2, label_color=None, **style) -> tuple[str, str]:
+        """A trend line with its angle written at the start, like TradingView's Trend Angle.
+
+        TradingView's angle depends on how the chart is zoomed. Here it is a
+        fixed measure that reads the same on every screen: the arctangent of the
+        percent change, so a 1% rise reads 45° and a flat line 0°.
+        Returns (line id, label id)."""
+        line_id = self.line(x1, y1, x2, y2, **style)
+        change = (float(y2) - float(y1)) / abs(float(y1)) * 100 if float(y1) else 0.0
+        degrees = math.degrees(math.atan(change))
+        color = label_color or style.get("color", _DEFAULTS["line"]["color"])
+        label_id = self.label(x1, y1, f"{degrees:,.1f}°", style="none", color=color)
+        return line_id, label_id
+
+    def info_line(self, x1, y1, x2, y2, label_color=None, **style) -> tuple[str, str]:
+        """A trend line with its price change and percent written at the end (TradingView's Info Line).
+        Returns (line id, label id)."""
+        line_id = self.line(x1, y1, x2, y2, **style)
+        diff = float(y2) - float(y1)
+        pct = diff / abs(float(y1)) * 100 if float(y1) else 0.0
+        color = label_color or style.get("color", _DEFAULTS["line"]["color"])
+        label_id = self.label(x2, y2, f"{diff:+,.2f} ({pct:+,.2f}%)", style="label_left", color=color)
+        return line_id, label_id
+
+    def text(self, x, y, text, **style) -> str:
+        """Text alone at a point, no bubble (TradingView's Text tool)."""
+        return self.label(x, y, text, **{"style": "none", "text_color": style.pop("color", "#2962FF"), **style})
+
+    def callout(self, x, y, text, **style) -> str:
+        """A speech bubble pointing at a point (TradingView's Callout)."""
+        return self.label(x, y, text, **{"style": "label_down", **style})
+
+    def note(self, x, y, text, tooltip="", **style) -> str:
+        """A text box at a point, with optional longer hover text (TradingView's Note)."""
+        return self.label(x, y, text, **{"style": "label_center", "tooltip": tooltip, **style})
+
+    def pin(self, x, y, tooltip, text="", **style) -> str:
+        """A small round marker that shows ``tooltip`` on hover (TradingView's Pin)."""
+        return self.label(x, y, text, **{"style": "circle", "tooltip": tooltip, "size": "tiny", **style})
+
+    def flag_mark(self, x, y, text="", **style) -> str:
+        """A flag at a point (TradingView's Flag Mark)."""
+        return self.label(x, y, text, **{"style": "flag", **style})
+
+    def price_label(self, x, price, **style) -> str:
+        """A tag showing ``price`` at a point (TradingView's Price Label)."""
+        return self.label(x, price, f"{float(price):,.2f}", **{"style": "label_left", **style})
+
+    def price_note(self, x1, price, x2, **style) -> tuple[str, str]:
+        """A short level from ``x1`` to ``x2`` at ``price`` with the price written at its end
+        (TradingView's Price Note). Returns (line id, label id)."""
+        color = style.pop("color", _DEFAULTS["line"]["color"])
+        line_id = self.line(x1, price, x2, price, color=color, **style)
+        return line_id, self.label(x2, price, f"{float(price):,.2f}", style="label_left", color=color)
+
+    def signpost(self, x, y, text, **style) -> tuple[str, str]:
+        """A vertical post at bar ``x`` with a sign reading ``text`` at ``y`` (TradingView's Signpost).
+        Returns (line id, label id)."""
+        color = style.pop("color", _DEFAULTS["line"]["color"])
+        post = self.vertical_line(x, y, color=color, style="dotted")
+        return post, self.label(x, y, text, **{"style": "label_down", "color": color, **style})
 
     def table(self, position="top_right", columns=1, rows=1, **style) -> str:
         """A grid of text cells pinned to a corner or edge of the chart (Pine's ``table.new``).
@@ -360,6 +544,10 @@ class Drawings:
         if items is None:
             return False
         del items[drawing_id]
+        if items is self._kinds["line"]:
+            fills = self._kinds["linefill"]
+            for fill_id in [k for k, v in fills.items() if drawing_id in (v["line1"], v["line2"])]:
+                del fills[fill_id]
         return True
 
     # ---- reading -----------------------------------------------------------
@@ -420,6 +608,7 @@ __all__ = [
     "Drawings",
     "LABEL_STYLES",
     "MAX_DRAWINGS_PER_KIND",
+    "MAX_POLYLINE_POINTS",
     "MAX_TABLES",
     "MAX_TABLE_COLUMNS",
     "MAX_TABLE_ROWS",

@@ -243,6 +243,9 @@ class OutputSpec:
         Pine's ``plotchar``).
     ``between``
         For ``fill`` outputs: two output ids or level values to shade between.
+        A side may also be a price name (``close``, ``open``, ``high``,
+        ``low``, ``hl2``, ``hlc3``, ``ohlc4``, ``hlcc4``) to shade against the
+        price itself, as Supertrend does.
     ``candle``
         For ``candle`` outputs: the ids of the open, high, low and close outputs.
     """
@@ -563,7 +566,9 @@ class Indicator:
         if dupes:
             raise ValueError(f"{cls.key or cls.__name__} has duplicate output ids {dupes}")
         for spec in cls.outputs:
-            missing = [ref for ref in spec.references() if ref not in ids]
+            # A fill may also shade against the price itself (Pine: fill between a plot of close and a line).
+            price_sides = set(spec.between or ()) & set(SOURCES) if spec.kind == "fill" else set()
+            missing = [ref for ref in spec.references() if ref not in ids and ref not in price_sides]
             if missing:
                 raise ValueError(f"{cls.key or cls.__name__} output {spec.id!r} refers to unknown output(s) {missing}")
 

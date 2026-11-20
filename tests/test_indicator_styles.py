@@ -261,3 +261,38 @@ class TestExampleIndicators:
         full = cls().compute(frame)
         for output_id, values in full.items():
             assert [row[output_id] for row in rows] == values
+
+
+def test_fill_may_shade_between_a_price_source_and_an_output():
+    """Pine fills between price and a plot (Supertrend shading). A price name is a valid side."""
+    from lumibot.indicators import Indicator, OutputSpec
+
+    class PriceFill(Indicator):
+        key = "test_price_fill"
+        title = "Price fill"
+        overlay = True
+        outputs = [
+            OutputSpec("trend", "Trend", "line"),
+            OutputSpec("shade", "Shade", "fill", "#4CAF501A", between=("ohlc4", "trend")),
+        ]
+
+    PriceFill.check_outputs()
+
+    class BadFill(PriceFill):
+        key = "test_bad_fill"
+        outputs = [OutputSpec("trend", "Trend", "line"), OutputSpec("shade", "Shade", "fill", between=("nope", "trend"))]
+
+    import pytest
+
+    with pytest.raises(ValueError):
+        BadFill.check_outputs()
+
+
+def test_builtin_supertrend_shades_green_and_red_like_tradingview():
+    from lumibot.indicators.builtin import SupertrendIndicator
+
+    specs = {spec.id: spec for spec in SupertrendIndicator.outputs}
+    assert specs["mid"].display == "none"
+    assert specs["up_fill"].kind == "fill" and specs["up_fill"].between == ("mid", "uptrend")
+    assert specs["down_fill"].kind == "fill" and specs["down_fill"].between == ("mid", "downtrend")
+    SupertrendIndicator.check_outputs()

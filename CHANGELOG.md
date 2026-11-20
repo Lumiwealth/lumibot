@@ -3,6 +3,7 @@
 ## 4.6.93 - 2026-11-20
 
 ### Added
+- **Indicators can draw every TradingView drawing tool.** `self.draw` adds `polyline` (Pine `polyline.new`: up to 500 points, curved, closed, filled) and `linefill` (Pine `linefill.new`, removed with its lines); labels take every Pine label style (`circle`, `flag`, `arrow_up`, `label_upper_left`, `text_outline` and the rest), `tooltip` hover text and `text_align`. Shortcuts for TradingView's toolbar build on lines and labels: `ray`, `extended_line`, `horizontal_line`, `horizontal_ray`, `vertical_line`, `crossline`, `trend_angle`, `info_line`, `text`, `callout`, `note`, `pin`, `flag_mark`, `price_label`, `price_note`, `signpost`. A `fill` output may shade against a price name (`between=("ohlc4", "trend")`). The built-in `supertrend` now shades green and red between price and its line like TradingView. Example: `lumibot/example_indicators/drawing_tour.py`. Docs: `docsrc/indicators_drawings.rst`. Tests: `tests/test_indicator_drawings.py`, `tests/test_indicator_styles.py`, `tests/test_example_indicators.py::test_drawing_tour_uses_every_drawing_kind`.
 - **Docs page for the built-in Supertrend indicator (`supertrend`, released in 4.6.92).** Settings, outputs, Buy and Sell markers and an example: `docsrc/indicators_supertrend.rst`.
 
 ### Changed

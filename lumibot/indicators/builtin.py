@@ -269,6 +269,10 @@ class SupertrendIndicator(Indicator):
             "sell", "Sell", "shape", "#F23645", shape="label_down", location="above_bar", size="small",
             text="Sell", text_color="#FFFFFF",
         ),
+        # TradingView shades between the price (ohlc4) and the active trend line.
+        OutputSpec("mid", "ohlc4", "line", display="none"),
+        OutputSpec("up_fill", "Up trend fill", "fill", "#22AB941A", between=("mid", "uptrend")),
+        OutputSpec("down_fill", "Down trend fill", "fill", "#F236451A", between=("mid", "downtrend")),
     ]
 
     def init_state(self):
@@ -288,7 +292,7 @@ class SupertrendIndicator(Indicator):
             tr = max(bar.high - bar.low, abs(bar.high - prev_close), abs(bar.low - prev_close))
         atr = state["rma"].update(tr)
         if atr is None:
-            return {"uptrend": None, "downtrend": None, "buy": None, "sell": None}
+            return {"uptrend": None, "downtrend": None, "buy": None, "sell": None, "mid": None}
         mid = (bar.high + bar.low) / 2.0
         factor = self.inputs["factor"]
         upper, lower = mid + factor * atr, mid - factor * atr
@@ -311,6 +315,7 @@ class SupertrendIndicator(Indicator):
             "downtrend": upper if new_direction == 1 else None,
             "buy": 1 if show and flipped and new_direction == -1 else None,
             "sell": 1 if show and flipped and new_direction == 1 else None,
+            "mid": (bar.open + bar.high + bar.low + bar.close) / 4.0,
         }
 
 

@@ -2,6 +2,9 @@
 
 ## 4.6.92 - Unreleased
 
+### Fixed
+- SEC fundamentals: `get_metrics_table` and `preload` given a universe as a string (for example an index name such as `"S&P 500"`) used to walk the string letter by letter and return a table of empty rows with no error, so a screen silently bought nothing. A bare ticker string (`"AAPL"`, `"BRK.B"`) is still one symbol; any other string now raises a `ValueError` that says to pass a list of tickers (LumiBot has no index membership lists). Test: `tests/test_sec_fundamental_metrics.py::test_a_universe_given_as_a_name_string_raises_instead_of_reading_letters`.
+
 ## 4.6.91 - 2026-11-18
 
 ### Changed

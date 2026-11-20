@@ -691,3 +691,21 @@ def test_a_universe_table_loads_needed_acceptance_times_before_the_company_loop(
         row = one_by_one.get_metrics(symbol, metrics, as_of=day)["values"]
         assert got.loc[symbol, "ttm_revenue"] == row["ttm_revenue"]
         assert got.loc[symbol, "shares_outstanding"] == row["shares_outstanding"]
+
+
+def test_a_universe_given_as_a_name_string_raises_instead_of_reading_letters(monkeypatch, tmp_path):
+    """A plain string used to be walked letter by letter ("S", "&", "P", ...), which returned a
+    table of empty rows with no error. A bare ticker is still one symbol; any other string is an
+    error that says what to pass instead."""
+    sec = _sec(monkeypatch, tmp_path)
+
+    for name in ("S&P 500", "Dow Jones Industrial Average", "sp500 members"):
+        with pytest.raises(ValueError, match="list of tickers"):
+            sec.get_metrics_table(name, ["pe_ratio"], as_of=AFTER_Q1, prices={"EXM": 100.0})
+        with pytest.raises(ValueError, match="list of tickers"):
+            sec.preload(name)
+
+    one = sec.get_metrics_table("EXM", ["pe_ratio"], as_of=AFTER_Q1, prices={"EXM": 100.0})
+    assert list(one.index) == ["EXM"]
+    many = sec.get_metrics_table(["EXM"], ["pe_ratio"], as_of=AFTER_Q1, prices={"EXM": 100.0})
+    assert list(many.index) == ["EXM"]

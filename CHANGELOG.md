@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.93 - Unreleased
+## 4.6.93 - 2026-11-20
 
 ### Added
 - **Docs page for the built-in Supertrend indicator (`supertrend`, released in 4.6.92).** Settings, outputs, Buy and Sell markers and an example: `docsrc/indicators_supertrend.rst`.

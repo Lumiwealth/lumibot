@@ -2,6 +2,9 @@
 
 ## 4.6.92 - Unreleased
 
+### Fixed
+- **Limit orders on bars with bid/ask now fill when the bar trades through them.** In a backtest whose data carries a bid and ask on each bar (common for futures, crypto and options), a limit order the quote did not reach was never compared with the bar's traded high and low, so it waited forever while the quote stayed above it. A strategy that cancels and re-places its limit every bar (a scalper refreshing its entry) never filled, although live the order rests the whole minute and fills on the dip. The run-time check now uses the same rule as the between-run checker: fill at the quote when it is marketable, otherwise check the bar's traded range. `IOC`/`FOK` orders are still canceled when the quote does not fill them. ⚠️ Backtests that use limit orders on quoted data may now show fills they did not show before (more accurate). Tests: `tests/test_backtesting_cancel_replace_limit.py`. Docs: `docsrc/backtesting.how_orders_fill.rst`.
+
 ## 4.6.91 - 2026-11-18
 
 ### Changed

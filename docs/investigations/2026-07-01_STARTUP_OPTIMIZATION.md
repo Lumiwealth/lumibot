@@ -105,6 +105,7 @@ LUMIBOT_DISABLE_DOTENV=1 LUMIBOT_DISABLE_DOTENV_LOCAL=1 LUMIBOT_LOG_LEVEL=ERROR
 - Made `lumibot.trading_builtins` lazily expose `CustomStream`, `PollingStream`, `SafeList`, and `SafeOrderDict`.
 - Moved polling stream imports behind `_get_stream_object()` in Alpaca, Bitunix, Tradier, IBKR REST, Tradovate, and Schwab.
 - Added `connect_stream` support to IBKR REST, Tradovate, and Schwab credential-created brokers so scheduled construction can avoid stream startup consistently.
+- Disconnected broker initialization now sets `stream = None` before worker startup. REST order reads can inspect that state safely. Tradovate cancellation dispatch checks for an actual stream; connected provider streams retain their existing object. No stream worker is created when streaming is disabled.
 - Moved broker timezone and option-chain helper imports to first use, and kept `DataSource` imports under `TYPE_CHECKING` for broker type hints.
 - Deferred `SmartLimitConfig`, `TradingFee`, and `TradingSlippage` imports from scheduled strategy/order paths.
 - Skipped importing runtime telemetry during scheduled execution unless `LUMIBOT_TELEMETRY` explicitly opts in.

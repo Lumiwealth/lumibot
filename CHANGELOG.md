@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.6.94 - unreleased
+
+### Changed
+- ⚠️ **Schwab: stock short sales that did not choose a time in force now go out as DAY.** `create_order()` defaults to GTC, and Schwab refuses GTC short sales on hard-to-borrow stocks ("Good until canceled short sale orders are not accepted for hard to borrow securities"), so a strategy that simply shorted a stock (for example a hedge) had every hard-to-borrow short rejected while its other leg sat unhedged. Schwab's own screens default to DAY. Orders that pass `time_in_force="gtc"` still go out GTC; long buys and sells, options and other brokers are unchanged; `order.time_in_force` still reads `"gtc"` and the new `order.time_in_force_defaulted` says whether the caller chose. Tests: `tests/test_schwab_short_sale_default_day.py` (red on 4.6.92), `tests/test_schwab_positions_unit.py`. Docs: `docsrc/common_mistakes.rst`.
+
 ## 4.6.93 - 2026-11-20
 
 ### Added

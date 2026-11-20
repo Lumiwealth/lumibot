@@ -238,7 +238,7 @@ Revenue growth over 20% and debt to equity under 0.5, fastest growers first:
     debt line at all, and when stockholders' equity is zero or negative (about
     30 large companies that bought back more stock than their book equity).
   - ``revenue_growth_yoy`` is missing until two years of revenue are public.
-- **You choose the universe.** LumiBot does not ship index membership lists.
+- **You choose the universe, as a list of tickers.** Passing an index name such as ``"S&P 500"`` raises a clear error. LumiBot does not ship index membership lists.
   If you pass today's members of an index to a backtest, the result has
   survivorship bias: companies that were dropped from the index (often after
   falling) are missing, and companies are included before they joined.

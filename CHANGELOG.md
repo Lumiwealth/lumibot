@@ -2,7 +2,10 @@
 
 ## 4.6.93 - Unreleased
 
-## 4.6.92 - Unreleased
+### Fixed
+- SEC fundamentals: `get_metrics_table` and `preload` given a universe as a string (for example an index name such as `"S&P 500"`) used to walk the string letter by letter and return a table of empty rows with no error, so a screen silently bought nothing. A bare ticker string (`"AAPL"`, `"BRK.B"`) is still one symbol; any other string now raises a `ValueError` that says to pass a list of tickers (LumiBot has no index membership lists). Test: `tests/test_sec_fundamental_metrics.py::test_a_universe_given_as_a_name_string_raises_instead_of_reading_letters`.
+
+## 4.6.92 - 2026-11-20
 
 ### Added
 - **Tradier daily account balance history.** `get_historical_account_value()` returns the daily equity dates and values supplied by Tradier. History depth depends on the broker account. Docs: `docsrc/brokers.tradier.rst`. Tests: `tests/test_tradier_account_value_history.py`.

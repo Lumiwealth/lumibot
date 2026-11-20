@@ -75,6 +75,8 @@ setuptools.setup(
         "polars>=1.32.3",
         "pandas_market_calendars>=5.4.0",
         "pandas-ta-classic>=0.6.52",
+        # Float64 Rust kernels for the common self.indicators calls (sma/ema/rsi/macd/bbands/atr).
+        "fin-primitives>=3.4.0",
         "plotly>=5.18.0",
         "sqlalchemy",
         "bcrypt",

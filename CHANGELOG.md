@@ -2,6 +2,9 @@
 
 ## 4.6.93 - Unreleased
 
+### Added
+- **Docs page for the built-in Supertrend indicator (`supertrend`, released in 4.6.92).** Settings, outputs, Buy and Sell markers and an example: `docsrc/indicators_supertrend.rst`.
+
 ### Changed
 - Option backtests: valuing a held leg checks whether its newest stored trade is in the current minute with integer minutes instead of building a pandas timestamp and converting time zones per leg per bar (about 77,000 calls in a 3-month minute iron condor). Same answers. Tests: `tests/backtest/test_option_valuation_array_marks_identical_results.py`.
 

@@ -3,6 +3,7 @@
 ## 4.6.92 - Unreleased
 
 ### Added
+- **Tradier daily account balance history.** `get_historical_account_value()` returns the daily equity dates and values supplied by Tradier. History depth depends on the broker account. Docs: `docsrc/brokers.tradier.rst`. Tests: `tests/test_tradier_account_value_history.py`.
 - **Built-in Supertrend indicator (`supertrend`).** Pine `ta.supertrend` semantics with a green up line, a red down line, and Buy and Sell labels where the trend flips, like TradingView. `signals=False` hides the labels. Docs: `docsrc/building_indicators.rst`. Tests: `tests/test_indicators_v2.py`.
 
 ### Fixed

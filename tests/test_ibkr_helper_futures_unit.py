@@ -384,3 +384,39 @@ def test_ibkr_helper_contract_info_lookup_runs_once_per_contract_even_when_it_fa
         ibkr_helper._maybe_apply_future_contract_metadata(asset=asset, exchange="NYMEX")
 
     assert calls == [4242]
+
+
+def test_failed_futures_exchange_lookup_is_not_queued_again_in_the_same_run(monkeypatch):
+    """Why: on 2026-11-20 the downloader queue sat still and a 3-month MNQ backtest waited the
+    full 30-minute lookup deadline twice for the same root before trading. One failed lookup
+    per root per process is enough; later requests reuse the same fallback exchange."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    calls = []
+
+    def failing_lookup(symbol):
+        calls.append(symbol)
+        raise RuntimeError("Downloader request exceeded its total queue deadline")
+
+    monkeypatch.setattr(ibkr_helper, "_resolve_futures_exchange", failing_lookup)
+    monkeypatch.setattr(ibkr_helper, "_FUTURES_EXCHANGE_FALLBACK_THIS_RUN", {})
+    monkeypatch.delenv("IBKR_FUTURES_EXCHANGE", raising=False)
+
+    asset = Asset(symbol="MNQ", asset_type="cont_future")
+    first = ibkr_helper._auto_futures_exchange(asset)
+    second = ibkr_helper._auto_futures_exchange(asset)
+
+    assert first == second == ibkr_helper.IBKR_DEFAULT_FUTURES_EXCHANGE_FALLBACK.strip().upper()
+    assert calls == ["MNQ"]
+    # A different root still gets its own lookup.
+    ibkr_helper._auto_futures_exchange(Asset(symbol="MGC", asset_type="cont_future"))
+    assert calls == ["MNQ", "MGC"]
+
+
+def test_successful_futures_exchange_lookup_is_not_memoized_as_a_fallback(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ibkr_helper, "_resolve_futures_exchange", lambda symbol: "COMEX")
+    monkeypatch.setattr(ibkr_helper, "_FUTURES_EXCHANGE_FALLBACK_THIS_RUN", {})
+    assert ibkr_helper._auto_futures_exchange(Asset(symbol="GC", asset_type="cont_future")) == "COMEX"
+    assert ibkr_helper._FUTURES_EXCHANGE_FALLBACK_THIS_RUN == {}

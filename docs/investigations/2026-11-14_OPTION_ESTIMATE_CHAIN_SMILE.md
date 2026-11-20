@@ -86,6 +86,21 @@ inside the call; an estimate is only needed when an order fills.
 - An American exercise model changed nothing measurable where it could be tested and cost
   about five times the time, so none is used.
 
+## Update 2026-11-20: data sources that keep their own option store
+
+`_loaded_option_contracts` only read a store of `Data` objects keyed by `(asset, quote)`. The
+Alpaca source keeps option trade bars as plain frames under string keys, so Alpaca backtests
+never reached the smile even after a delta search loaded the whole expiration. A data source
+may now implement `loaded_option_minute_frames(asset)` returning `(contract, minute trade
+frame)` pairs of the same underlying and expiration it already holds (never fetching); the
+Alpaca source does. Invariants 1 to 5 above are unchanged.
+
+An internal check on American-style ETF options with trade bars as the only input found
+the smile roughly halves the median error of the own-trade model on fully loaded
+expirations. Two generic adjustments to the own-trade volatility (volatility moving against
+the underlying; scaling by the change in realized volatility) were worse out of sample and
+were not adopted.
+
 ## Open
 
 - The gain only appears when the expiration's trade bars are in memory. Loading neighbours on

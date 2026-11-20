@@ -2615,6 +2615,39 @@ class _Strategy:
             self._dump_benchmark_stats()
 
 
+    def _routed_crypto_only_assets(self) -> list:
+        """Crypto assets this backtest traded or loaded, or [] when it touched anything else.
+
+        Used to keep a crypto-only backtest's benchmark off the stock data route. Quote
+        assets (USD, USDT) are not counted as traded assets.
+        """
+        seen = []
+        try:
+            for order in self.broker.get_all_orders() or []:
+                if getattr(order, "asset", None) is not None:
+                    seen.append(order.asset)
+        except Exception:
+            pass
+        try:
+            for key in list(getattr(self.broker.data_source, "_data_store", {}) or {}):
+                base = key[0] if isinstance(key, tuple) and key else key
+                if isinstance(base, Asset):
+                    seen.append(base)
+        except Exception:
+            pass
+        crypto_types = {"crypto", "crypto_future"}
+        quote_symbols = {str(getattr(self._quote_asset, "symbol", "") or "").upper()}
+        assets = [a for a in seen if str(getattr(a, "symbol", "")).upper() not in quote_symbols]
+        if not assets:
+            return []
+        if any(str(getattr(a, "asset_type", "")).lower() not in crypto_types for a in assets):
+            return []
+        unique = []
+        for a in assets:
+            if all(a.symbol != u.symbol for u in unique):
+                unique.append(a)
+        return unique
+
     def _dump_benchmark_stats(self):
         if not self.is_backtesting or not self._benchmark_asset:
             return
@@ -2805,6 +2838,7 @@ class _Strategy:
                     return
 
                 benchmark_asset = self._benchmark_asset
+                crypto_assets = _Strategy._routed_crypto_only_assets(self)
                 if isinstance(benchmark_asset, str):
                     parts = [p.strip() for p in benchmark_asset.split("/") if p.strip()]
                     if len(parts) == 2:
@@ -2813,8 +2847,42 @@ class _Strategy:
                             Asset(symbol=parts[1], asset_type="forex"),
                         )
                     else:
-                        # Keep behavior consistent with Yahoo benchmarks: use daily series.
-                        benchmark_asset = Asset(symbol=benchmark_asset, asset_type="stock")
+                        crypto_match = next(
+                            (a for a in crypto_assets if a.symbol.upper() == benchmark_asset.strip().upper()), None
+                        )
+                        if crypto_match is not None:
+                            # A crypto-only backtest naming one of its own coins ("BTC") means that coin,
+                            # not a stock with the same ticker.
+                            benchmark_asset = Asset(symbol=crypto_match.symbol, asset_type="crypto")
+                        else:
+                            # Keep behavior consistent with Yahoo benchmarks: use daily series.
+                            benchmark_asset = Asset(symbol=benchmark_asset, asset_type="stock")
+
+                if (
+                    crypto_assets
+                    and isinstance(benchmark_asset, Asset)
+                    and str(getattr(benchmark_asset, "asset_type", "")).lower() in {"stock", "index"}
+                ):
+                    # A crypto-only backtest never fetches its stock benchmark through the stock route
+                    # (a broker history line that may be cold or busy). The benchmark is only a
+                    # comparison line: read it from the public daily series or leave it empty.
+                    self.logger.info(
+                        "Crypto-only backtest: reading stock benchmark %s from the public daily series, "
+                        "not the stock data route.", benchmark_asset.symbol,
+                    )
+                    try:
+                        self._benchmark_returns_df = get_symbol_returns(
+                            benchmark_asset.symbol, self._backtesting_start, backtesting_end_adjusted,
+                        )
+                    except Exception:
+                        self._benchmark_returns_df = None
+                    if self._benchmark_returns_df is None or getattr(self._benchmark_returns_df, "empty", True):
+                        self.logger.warning(
+                            "Benchmark %s unavailable for this crypto-only backtest; leaving benchmark empty.",
+                            benchmark_asset.symbol,
+                        )
+                        self._benchmark_returns_df = None
+                    return
 
                 # Use daily bars for benchmark across intraday strategies to keep tearsheet cost bounded.
                 timestep = "day"

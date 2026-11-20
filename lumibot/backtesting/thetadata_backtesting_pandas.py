@@ -421,6 +421,14 @@ class ThetaDataBacktestingPandas(PandasData):
 
         # Some internal repair paths can create OHLC columns filled with nulls; treat that as "no OHLC".
         try:
+            # Fast exact path: one numeric row proves "has OHLC". Price reads call this on every
+            # bar, and the full-column scan below cost O(rows) per read on long daily frames.
+            for col in required:
+                series = frame.get(col)
+                if series is None:
+                    continue
+                if pd.to_numeric(series.iloc[-1:], errors="coerce").notna().any():
+                    return True
             for col in required:
                 series = frame.get(col)
                 if series is None:

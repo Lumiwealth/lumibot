@@ -429,6 +429,20 @@ If warm run #2 still submits a lot of the same request types:
 
 ## 6) Common slow patterns (what the logs look like)
 
+### Pattern 0 — Per-read work that scales with frame length (2026-11-20)
+
+**Symptoms**
+- daily backtests get slower per bar the longer the window (10 to 16 years)
+- a profile shows a helper called on every price read with time growing with frame rows
+  (examples fixed in 4.6.92: the split-adjusted marker and split-date scan, the OHLC presence check)
+- many calendar holiday builds (`MarketCalendar.holidays`) in one run
+
+**First action**
+- make the per-read check O(1): index the frame once (keyed by identity and shape) or look at the newest row first
+- reuse one calendar object per name (`lumibot.tools.shared_market_calendars.get_market_calendar`)
+- prove identical results with a with/without test (trade log and per-iteration values)
+
+
 ### Pattern A — Downloader storm
 
 **Symptoms**

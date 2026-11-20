@@ -8,6 +8,15 @@ This is a guide for using Tradier with the Lumibot library.
 
 .. include:: _snippets/botspot_mcp_callout.rst
 
+Account balance history
+-----------------------
+
+Call ``broker.get_historical_account_value()["day"]`` to get the account's
+daily equity history from Tradier. The returned DataFrame has an ``equity``
+column indexed by the dates Tradier supplies. UTC midnight encodes each date.
+History depth depends on the brokerage account. Earlier intraday balances and
+cash transactions are separate data from the daily balance series.
+
 Getting Started
 ---------------
 

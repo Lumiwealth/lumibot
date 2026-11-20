@@ -2754,7 +2754,7 @@ class Schwab(Broker):
 
             order_spec = self._build_order_spec_from_builder(
                 order_builder,
-                order.time_in_force,
+                self._schwab_time_in_force_for_order(order),
                 apply_defaults=order.order_class is not Order.OrderClass.OCO,
                 session=self._schwab_session_for_order(order),
             )
@@ -3271,6 +3271,26 @@ class Schwab(Broker):
 
         return Session.NORMAL
 
+    @staticmethod
+    def _schwab_time_in_force_for_order(order):
+        """Time in force to send to Schwab for this order.
+
+        Schwab refuses good-till-canceled short sales on hard-to-borrow stocks
+        ("Good until canceled short sale orders are not accepted for hard to
+        borrow securities"), while its own trading screens default to DAY. A
+        stock short sale whose strategy never chose a time in force therefore
+        goes out as DAY. An explicit choice, including 'gtc', is always kept.
+        """
+        tif = getattr(order, "time_in_force", None)
+        if not getattr(order, "time_in_force_defaulted", False):
+            return tif
+        asset = getattr(order, "asset", None)
+        if getattr(asset, "asset_type", None) != Asset.AssetType.STOCK:
+            return tif
+        if getattr(order, "side", None) in (Order.OrderSide.SELL_SHORT, Order.OrderSide.SELL_TO_OPEN):
+            return "day"
+        return tif
+
     def _build_order_spec_from_builder(self, order_builder, time_in_force=None, apply_defaults=True, session=None):
         """Apply Schwab defaults and return the final API order spec."""
         if not order_builder:
@@ -3354,7 +3374,7 @@ class Schwab(Broker):
             )
             return self._build_order_spec_from_builder(
                 order_builder,
-                order.time_in_force,
+                self._schwab_time_in_force_for_order(order),
                 session=self._schwab_session_for_order(order),
             )
         finally:

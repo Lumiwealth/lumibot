@@ -611,7 +611,7 @@ class Strategy(_Strategy):
         secondary_stop_limit_price: float = None,
         secondary_trail_price: float = None,
         secondary_trail_percent: float = None,
-        time_in_force: str = "gtc",
+        time_in_force: str = None,
         good_till_date: datetime.datetime = None,
         take_profit_price: float = None,  # Deprecated, use 'secondary_limit_price' instead
         stop_loss_price: float = None,  # Deprecated, use 'secondary_stop_price' instead
@@ -712,7 +712,11 @@ class Strategy(_Strategy):
                 - ``'gtd'`` Good until date.
             (Default: 'gtc'). Pass ``time_in_force='day'`` explicitly for an
             intraday order. Constructing ``Order`` directly defaults to 'day';
-            this Strategy API defaults to 'gtc'.
+            this Strategy API defaults to 'gtc'. Exception: on Schwab, a stock
+            short sale that does not pass ``time_in_force`` is sent as 'day',
+            because Schwab refuses good-till-canceled short sales on
+            hard-to-borrow stocks. Pass ``time_in_force='gtc'`` to keep a
+            short sale resting overnight.
         good_till_date : datetime.datetime
             This is the time order is valid for Good Though Date orders.
         take_profit_price : float
@@ -947,6 +951,12 @@ class Strategy(_Strategy):
             setattr(self.broker, "_backtest_order_seq", seq)
             identifier = f"bt_{seq}"
 
+        # Remember whether the caller chose a time in force, so a broker can apply
+        # its own safer default (for example Schwab short sales) only when none was asked for.
+        time_in_force_defaulted = time_in_force is None
+        if time_in_force_defaulted:
+            time_in_force = "gtc"
+
         order = Order(
             self.name,
             asset,
@@ -982,6 +992,8 @@ class Strategy(_Strategy):
             reduce_only=reduce_only,
             identifier=identifier,
         )
+
+        order.time_in_force_defaulted = time_in_force_defaulted
 
         # Add debug logging for custom_params
         if custom_params:

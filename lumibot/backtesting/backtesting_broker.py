@@ -8,6 +8,7 @@ import threading
 from collections import OrderedDict, defaultdict
 from datetime import datetime, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any, Optional, Union
 
 import numpy as np
@@ -5856,7 +5857,28 @@ class BacktestingBroker(Broker):
     OPTION_CHAIN_SOURCES = frozenset({"smile", "smile_parity", "smile_other_side", "neighbor"})
 
     def _loaded_option_contracts(self, asset) -> list:
-        """(contract, minute data) pairs of the same underlying and expiration held in memory."""
+        """(contract, minute data) pairs of the same underlying and expiration held in memory.
+
+        A data source that keeps its option trade bars outside a store of ``Data`` objects lists
+        them itself with ``loaded_option_minute_frames(asset)``: (contract, minute trade frame)
+        pairs it already holds, never fetching. Without that method the ``Data`` store is read.
+        """
+        lister = getattr(self.data_source, "loaded_option_minute_frames", None)
+        if callable(lister):
+            try:
+                listed = lister(asset) or []
+            except Exception:
+                logger.debug("Listing loaded option contracts failed; using the contract's own trade", exc_info=True)
+                listed = []
+            if listed:
+                return [
+                    (contract, SimpleNamespace(df=frame, timestep="minute"))
+                    for contract, frame in listed
+                    if self._is_option_asset(contract)
+                    and getattr(contract, "strike", None) is not None
+                    and getattr(contract, "right", None) is not None
+                    and isinstance(frame, pd.DataFrame)
+                ]
         store = getattr(self.data_source, "_data_store", None)
         if not isinstance(store, dict) or not store:
             return []

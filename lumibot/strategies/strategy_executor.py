@@ -1,4 +1,5 @@
 import re
+from lumibot.tools.shared_market_calendars import get_market_calendar
 import math
 import os
 import time
@@ -476,7 +477,7 @@ class StrategyExecutor(Thread):
                 self._market_type_cache[market_name] = True
                 return True
 
-            cal = mcal.get_calendar(market_name)
+            cal = get_market_calendar(market_name, mcal.get_calendar)
 
             # Sample ~1.5 weeks so we can observe weekend gaps as well as daily spans.
             reference_day = pd.Timestamp('2025-01-13', tz='UTC')  # Monday

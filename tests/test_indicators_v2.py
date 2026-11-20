@@ -36,7 +36,7 @@ from lumibot.indicators import (
 )
 
 TOL = 1e-9
-BUILTIN_KEYS = {"sma", "ema", "rsi", "macd", "bbands", "atr", "stoch", "vwap"}
+BUILTIN_KEYS = {"sma", "ema", "rsi", "macd", "bbands", "atr", "stoch", "vwap", "supertrend"}
 
 
 # --------------------------------------------------------------------------
@@ -349,6 +349,7 @@ DEFAULT_CASES = [
     ("atr", {}),
     ("stoch", {}),
     ("vwap", {}),
+    ("supertrend", {}),
 ]
 
 
@@ -483,7 +484,7 @@ def test_float_input_accepts_int_and_enforces_range():
 
 def test_describe_schema_for_every_builtin():
     allowed_types = {"int", "float", "bool", "color", "source", "string", "enum"}
-    allowed_kinds = {"line", "area", "histogram", "scatter", "markers"}
+    allowed_kinds = {"line", "area", "histogram", "scatter", "markers", "shape"}
     described = {d["key"]: d for d in registry.list()}
     for key in BUILTIN_KEYS:
         d = described[key]
@@ -843,3 +844,48 @@ def test_forming_bar_copy_handles_state_that_cannot_be_pickled():
     assert ind.update(forming, closed=False)["x"] == 6
     assert ind.update(forming, closed=False)["x"] == 6  # state did not advance
     assert ind.update(forming, closed=True)["x"] == 6
+
+
+# --------------------------------------------------------------------------
+# Supertrend (TradingView Pine ta.supertrend) with Buy and Sell markers
+# --------------------------------------------------------------------------
+
+
+def _supertrend_bars():
+    # A steady rise, then a steady fall, then a rise again: two trend flips.
+    closes = [100 + i for i in range(30)] + [129 - 2 * i for i in range(30)] + [70 + 2 * i for i in range(30)]
+    start = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    return [
+        {"t": start + timedelta(hours=i), "o": c, "h": c + 1.0, "l": c - 1.0, "c": c, "v": 1.0}
+        for i, c in enumerate(closes)
+    ]
+
+
+def test_supertrend_draws_both_lines_and_markers_on_the_flips():
+    out = registry.create("supertrend").compute(_supertrend_bars())
+    ups = [v for v in out["uptrend"] if v is not None]
+    downs = [v for v in out["downtrend"] if v is not None]
+    assert ups and downs, "both the green (up) and the red (down) line must appear"
+    # A bar is in exactly one trend.
+    assert all(a is None or d is None for a, d in zip(out["uptrend"], out["downtrend"]))
+    buys = [i for i, v in enumerate(out["buy"]) if v]
+    sells = [i for i, v in enumerate(out["sell"]) if v]
+    assert len(buys) >= 1 and len(sells) >= 1
+    # A Buy is the first bar of an up run, a Sell the first bar of a down run.
+    for i in buys:
+        assert out["uptrend"][i] is not None and out["downtrend"][i - 1] is not None
+    for i in sells:
+        assert out["downtrend"][i] is not None and out["uptrend"][i - 1] is not None
+
+
+def test_supertrend_markers_can_be_hidden():
+    out = registry.create("supertrend", signals=False).compute(_supertrend_bars())
+    assert not any(out["buy"]) and not any(out["sell"])
+    assert any(v is not None for v in out["uptrend"])
+
+
+def test_supertrend_outputs_declare_label_markers_below_and_above_the_bar():
+    outputs = {o["id"]: o for o in registry.get("supertrend").describe()["outputs"]}
+    assert outputs["buy"]["kind"] == "shape" and outputs["buy"]["location"] == "below_bar"
+    assert outputs["sell"]["kind"] == "shape" and outputs["sell"]["location"] == "above_bar"
+    assert outputs["buy"]["text"] == "Buy" and outputs["sell"]["text"] == "Sell"

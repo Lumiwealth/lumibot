@@ -71,6 +71,14 @@ An explicit provider route such as ``{"crypto_future":"binance"}`` remains
 authoritative. ``Asset`` has no ``exchange`` constructor field; declare this
 venue through the supported backtest option, not by attaching an attribute.
 
+.. note::
+
+   Benchmark for crypto-only backtests: when every asset a routed backtest trades or loads is crypto or a
+   perpetual, a stock benchmark (the default ``SPY``) is read from the public daily series instead of the
+   stock data route, so the comparison line can never hold up the run. ``benchmark_asset="BTC"`` (a coin the
+   strategy trades) means that coin. ``benchmark_asset=None`` turns the benchmark off.
+
+
 ``PerpetualDataUnavailable`` describes the selected source's limitation, not
 every venue's capability. A Binance USD-M rejection does not rule out native
 CCXT history for the requested contract; the chosen venue must list that exact

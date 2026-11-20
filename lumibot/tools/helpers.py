@@ -1,5 +1,6 @@
 from __future__ import annotations
 import hashlib
+from lumibot.tools.shared_market_calendars import get_market_calendar
 import os
 import re
 import sys
@@ -131,7 +132,7 @@ def _get_trading_schedule_for_year(market: str, year: int, tz_name: str) -> pd.D
     if market == "24/7":
         cal = TwentyFourSevenCalendar(tzinfo=tzinfo)
     else:
-        cal = mcal.get_calendar(market)
+        cal = get_market_calendar(market, mcal.get_calendar)
 
     schedule = cal.schedule(start_date=year_start, end_date=year_end, tz=tzinfo)
     return _normalize_schedule_index(schedule, tzinfo)
@@ -326,7 +327,7 @@ def get_trading_days(
         if market == "24/7":
             cal = TwentyFourSevenCalendar(tzinfo=tzinfo)
         else:
-            cal = mcal.get_calendar(market)
+            cal = get_market_calendar(market, mcal.get_calendar)
 
         days = cal.schedule(start_date=start_day, end_date=schedule_end_day, tz=tzinfo)
         days = _normalize_schedule_index(days, tzinfo)
@@ -523,7 +524,7 @@ def is_market_open(
         True if the market is open, False otherwise.
     """
     try:
-        cal = mcal.get_calendar(market)
+        cal = get_market_calendar(market, mcal.get_calendar)
     except RuntimeError:
         print(f"Market calendar '{market}' not found.")
         return False
@@ -548,7 +549,7 @@ def is_market_open(
 
 @lru_cache(maxsize=128)
 def _market_calendar_timezone_name(market: str) -> str:
-    cal = mcal.get_calendar(market)
+    cal = get_market_calendar(market, mcal.get_calendar)
     cal_tz = getattr(cal, "tz", None)
     return (
         getattr(cal_tz, "zone", None)
@@ -564,7 +565,7 @@ def _regular_trading_sessions_by_year(
         year: int,
         tz_name: str,
 ) -> dict[str, tuple[pd.Timestamp, pd.Timestamp]]:
-    cal = mcal.get_calendar(market)
+    cal = get_market_calendar(market, mcal.get_calendar)
     tzinfo = pytz.timezone(tz_name)
     schedule = cal.schedule(
         start_date=f"{year}-01-01",

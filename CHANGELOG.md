@@ -2,6 +2,9 @@
 
 ## 4.6.92 - Unreleased
 
+### Added
+- **Built-in Supertrend indicator (`supertrend`).** Pine `ta.supertrend` semantics with a green up line, a red down line, and Buy and Sell labels where the trend flips, like TradingView. `signals=False` hides the labels. Docs: `docsrc/building_indicators.rst`. Tests: `tests/test_indicators_v2.py`.
+
 ### Fixed
 - **Crypto-only backtests no longer stall on a stock benchmark.** The default benchmark is the stock ticker SPY. In a routed backtest that trades only crypto or perpetuals, its daily bars went through the stock data route (a broker history line that is cold for a crypto strategy), and a run could sit near the end waiting on that one comparison series. Such a backtest now reads a stock benchmark from the public daily series, or leaves the benchmark empty if that is unavailable. A bare benchmark name that matches one of the strategy's own coins (for example `benchmark_asset="BTC"`) now means that coin instead of a stock with the same ticker. Strategies that trade stocks or anything else keep the routed stock benchmark unchanged. Strategy results are not affected; only the comparison line is. Tests: `tests/test_routed_crypto_benchmark.py`.
 

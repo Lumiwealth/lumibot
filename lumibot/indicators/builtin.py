@@ -240,6 +240,80 @@ class VWAPIndicator(Indicator):
         return {"vwap": safe_div(state["pv"], state["volume"])}
 
 
+class SupertrendIndicator(Indicator):
+    """Pine ``ta.supertrend``: an ATR band that flips sides when price closes through it.
+
+    Draws a green line under price while the trend is up and a red line above it while the trend is
+    down, and (unless ``signals`` is off) a Buy label under the bar where the trend turns up and a
+    Sell label above the bar where it turns down, like TradingView's Supertrend.
+    """
+
+    key = "supertrend"
+    version = 1
+    title = "Supertrend"
+    short_title = "ST"
+    overlay = True
+    inputs = [
+        InputSpec("length", "int", 10, min=1, max=5000, step=1, label="ATR length"),
+        InputSpec("factor", "float", 3.0, min=0.1, max=100.0, step=0.1, label="ATR multiplier"),
+        InputSpec("signals", "bool", True, label="Show Buy and Sell markers"),
+    ]
+    outputs = [
+        OutputSpec("uptrend", "Up trend", "line", "#22AB94", line_width=2),
+        OutputSpec("downtrend", "Down trend", "line", "#F23645", line_width=2),
+        OutputSpec(
+            "buy", "Buy", "shape", "#22AB94", shape="label_up", location="below_bar", size="small",
+            text="Buy", text_color="#FFFFFF",
+        ),
+        OutputSpec(
+            "sell", "Sell", "shape", "#F23645", shape="label_down", location="above_bar", size="small",
+            text="Sell", text_color="#FFFFFF",
+        ),
+    ]
+
+    def init_state(self):
+        return {
+            "prev_close": Previous(),
+            "rma": SeededRMA(self.inputs["length"]),
+            "upper": None,
+            "lower": None,
+            "direction": None,
+        }
+
+    def step(self, state, bar):
+        prev_close = state["prev_close"].update(bar.close)
+        if prev_close is None:
+            tr = bar.high - bar.low
+        else:
+            tr = max(bar.high - bar.low, abs(bar.high - prev_close), abs(bar.low - prev_close))
+        atr = state["rma"].update(tr)
+        if atr is None:
+            return {"uptrend": None, "downtrend": None, "buy": None, "sell": None}
+        mid = (bar.high + bar.low) / 2.0
+        factor = self.inputs["factor"]
+        upper, lower = mid + factor * atr, mid - factor * atr
+        prev_upper, prev_lower, direction = state["upper"], state["lower"], state["direction"]
+        if prev_upper is not None:
+            lower = lower if lower > prev_lower or prev_close < prev_lower else prev_lower
+            upper = upper if upper < prev_upper or prev_close > prev_upper else prev_upper
+        # direction: -1 = up trend (line under price), 1 = down trend (line above price).
+        if direction is None:
+            new_direction = 1
+        elif direction == 1:
+            new_direction = -1 if bar.close > upper else 1
+        else:
+            new_direction = 1 if bar.close < lower else -1
+        state.update(upper=upper, lower=lower, direction=new_direction)
+        flipped = direction is not None and new_direction != direction
+        show = self.inputs["signals"]
+        return {
+            "uptrend": lower if new_direction == -1 else None,
+            "downtrend": upper if new_direction == 1 else None,
+            "buy": 1 if show and flipped and new_direction == -1 else None,
+            "sell": 1 if show and flipped and new_direction == 1 else None,
+        }
+
+
 BUILTIN_INDICATORS = (
     SMAIndicator,
     EMAIndicator,
@@ -249,6 +323,7 @@ BUILTIN_INDICATORS = (
     ATRIndicator,
     StochasticIndicator,
     VWAPIndicator,
+    SupertrendIndicator,
 )
 
 __all__ = [cls.__name__ for cls in BUILTIN_INDICATORS] + ["BUILTIN_INDICATORS"]

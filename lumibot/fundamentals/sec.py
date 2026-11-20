@@ -513,7 +513,7 @@ class _CompanyTimeline:
                 yield series_unit, rows[index], series.ts[index]
 
 
-_BARE_TICKER = re.compile(r"[A-Za-z][A-Za-z0-9]{0,5}([.\-/ ][A-Za-z]{1,2})?")
+_BARE_TICKER = re.compile(r"[A-Za-z]{1,6}([.\-/ ][A-Za-z]{1,2})?")  # no digits: "SP500" is an index name, not a ticker
 
 
 def _as_symbol_list(symbols: Any) -> list:

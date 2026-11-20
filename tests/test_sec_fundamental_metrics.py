@@ -699,7 +699,7 @@ def test_a_universe_given_as_a_name_string_raises_instead_of_reading_letters(mon
     error that says what to pass instead."""
     sec = _sec(monkeypatch, tmp_path)
 
-    for name in ("S&P 500", "Dow Jones Industrial Average", "sp500 members"):
+    for name in ("S&P 500", "SP500", "Dow Jones Industrial Average", "sp500 members"):
         with pytest.raises(ValueError, match="list of tickers"):
             sec.get_metrics_table(name, ["pe_ratio"], as_of=AFTER_Q1, prices={"EXM": 100.0})
         with pytest.raises(ValueError, match="list of tickers"):

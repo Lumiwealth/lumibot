@@ -729,8 +729,44 @@ def _equity_history_start_for_bars(end_dt: datetime, length: int, timestep: str,
     return end.to_pydatetime()
 
 
+@lru_cache(maxsize=4096)
+def _futures_session_bounds(day):
+    """(open, close) of the rule-calendar futures session for weekday ``day`` (D-1 18:00 to D 17:00 ET)."""
+    import pytz
+
+    ny = pytz.timezone("America/New_York")
+    opened = pd.Timestamp(ny.localize(datetime.combine(day - timedelta(days=1), datetime.min.time())
+                                      .replace(hour=18)))
+    closed = pd.Timestamp(ny.localize(datetime.combine(day, datetime.min.time()).replace(hour=17)))
+    return opened, closed
+
+
+_FUTURES_HISTORY_START_MEMO: Dict[tuple, datetime] = {}
+_FUTURES_HISTORY_START_MEMO_MAX = 4096
+
+
 def _futures_history_start_for_bars(end_dt: datetime, length: int, timestep: str, *,
                                     holiday_sessions: bool = True) -> datetime:
+    """Memoized ``_futures_history_start_for_bars_uncached`` (a pure function of its inputs).
+
+    A routed futures backtest asks for the same (end, length, bar size) several times per
+    simulated minute (valuation and indicator reads); each answer walks the session calendar.
+    """
+    end = pd.Timestamp(end_dt)
+    key = (end.value, end.tzinfo is None, int(length), str(timestep), bool(holiday_sessions))
+    memo = _FUTURES_HISTORY_START_MEMO
+    hit = memo.get(key)
+    if hit is not None:
+        return hit
+    result = _futures_history_start_for_bars_uncached(end_dt, length, timestep, holiday_sessions=holiday_sessions)
+    if len(memo) >= _FUTURES_HISTORY_START_MEMO_MAX:
+        memo.clear()  # simulated time only moves forward, so old answers are not asked again
+    memo[key] = result
+    return result
+
+
+def _futures_history_start_for_bars_uncached(end_dt: datetime, length: int, timestep: str, *,
+                                             holiday_sessions: bool = True) -> datetime:
     """Return a fetch start that can hold ``length`` completed intraday futures bars.
 
     A lookback of N bars is N *trading* bars. Sizing it as N x bar-length of wall
@@ -759,11 +795,7 @@ def _futures_history_start_for_bars(end_dt: datetime, length: int, timestep: str
     if step <= pd.Timedelta(0) or step >= pd.Timedelta(days=1):
         raise ValueError("futures session lookback needs an intraday timestep")
 
-    def session_bounds(day):
-        opened = pd.Timestamp(ny.localize(datetime.combine(day - timedelta(days=1), datetime.min.time())
-                                          .replace(hour=18)))
-        closed = pd.Timestamp(ny.localize(datetime.combine(day, datetime.min.time()).replace(hour=17)))
-        return opened, closed
+    session_bounds = _futures_session_bounds
 
     remaining = int(length)
     day = end.date() + timedelta(days=1)

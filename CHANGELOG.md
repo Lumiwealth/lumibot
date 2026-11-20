@@ -6,6 +6,7 @@
 - **Docs page for the built-in Supertrend indicator (`supertrend`, released in 4.6.92).** Settings, outputs, Buy and Sell markers and an example: `docsrc/indicators_supertrend.rst`.
 
 ### Changed
+- **Faster intraday futures backtests.** The fetch start for N futures bars (a walk back through the session calendar) was recomputed several times per simulated minute; a 3-month MNQ 1-minute backtest spent about a quarter of its profiled loop there (277,648 calls, 1.5 million session-bound calculations). The answer is now remembered per (end time, length, bar size), and each session's open and close is computed once per day. Same answers for naive and aware end times, across breaks, weekends, holidays and DST changes. Test: `tests/test_futures_history_start_memo.py`.
 - Option backtests: valuing a held leg checks whether its newest stored trade is in the current minute with integer minutes instead of building a pandas timestamp and converting time zones per leg per bar (about 77,000 calls in a 3-month minute iron condor). Same answers. Tests: `tests/backtest/test_option_valuation_array_marks_identical_results.py`.
 
 ### Fixed

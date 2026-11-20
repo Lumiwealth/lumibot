@@ -284,6 +284,7 @@ Table of Contents
    Settings and Outputs <indicators_settings_outputs>
    Outputs and Styles <indicators_styles>
    Price Chart or Own Pane <indicators_chart_placement>
+   Supertrend (Built In) <indicators_supertrend>
    Indicators in Backtests <indicators_backtesting>
    Indicators in Live Strategies <indicators_live_strategies>
    Stream Live from a Crypto Exchange <indicators_live_crypto_stream>

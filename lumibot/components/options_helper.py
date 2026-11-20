@@ -1643,8 +1643,10 @@ class OptionsHelper:
         """
         Find the listed strike whose delta is closest to the target delta.
 
-        Every candidate strike with a real price is checked (strikes from $20 below to $30
-        above the underlying price). Ties go to the smaller absolute delta (further out of
+        Every listed strike for that expiry and right can win, however far from the
+        underlying price (a 10 delta put on a volatile underlying can sit well below it).
+        The search starts near a closed-form estimate and walks outward, so only a few
+        strikes are priced. Ties go to the smaller absolute delta (further out of
         the money), then to the lower strike. Strikes with no price are skipped. Live trading
         and backtests use the same rule. The pick is remembered for the current bar only.
 
@@ -1735,20 +1737,18 @@ class OptionsHelper:
                     candidate_strikes.append(numeric)
 
         candidate_strikes = sorted(set(candidate_strikes))
-        if candidate_strikes:
-            filtered = [s for s in candidate_strikes if strike_min <= s <= strike_max]
-            if filtered:
-                candidate_strikes = filtered
-        else:
-            # Fallback for data sources that don't provide chains: preserve original behavior.
+        if not candidate_strikes:
+            # Data sources that list no chain: try whole-dollar strikes from $20 below to $30
+            # above the underlying. With a chain, every listed strike is a candidate: a fixed
+            # dollar band clipped low deltas on volatile or high-priced underlyings to its edge.
             candidate_strikes = [float(s) for s in range(int(strike_min), int(strike_max) + 1)]
 
         self._detail(search_loud,
-            f"🔍 Search range: strikes {strike_min:.2f} to {strike_max:.2f} (underlying=${underlying_price})",
+            f"🔍 Search range: strikes {candidate_strikes[0]:.2f} to {candidate_strikes[-1]:.2f} (underlying=${underlying_price})",
             color="blue",
         )
         self._detail(search_loud,
-            f"🔍 Search strikes: {len(candidate_strikes)} candidates (range {strike_min:.2f}-{strike_max:.2f})",
+            f"🔍 Search strikes: {len(candidate_strikes)} candidates (range {candidate_strikes[0]:.2f}-{candidate_strikes[-1]:.2f})",
             color="blue",
         )
 

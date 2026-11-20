@@ -80,12 +80,10 @@ class _Strategy:
 
 
 def _closest(strategy, target, right):
-    """Brute force over every listed strike in the search window, by the documented rule."""
+    """Brute force over every listed strike, by the documented rule."""
     helper = OptionsHelper(strategy)
     best = None
     for strike in STRIKES:
-        if not (UNDERLYING - 20 <= strike <= UNDERLYING + 30):
-            continue
         delta = helper.get_delta_for_strike(Asset("SPY"), UNDERLYING, strike, EXPIRY, right)
         if delta is None:
             continue
@@ -183,8 +181,6 @@ def _brute_force(strategy, target, right):
     helper = OptionsHelper(strategy)
     best = None
     for strike in STRIKES:
-        if not (UNDERLYING - 20 <= strike <= UNDERLYING + 30):
-            continue
         helper._per_bar_option_mark_cache = {}
         delta = helper.get_delta_for_strike(Asset("SPY"), UNDERLYING, strike, EXPIRY, right)
         if delta is not None:
@@ -197,7 +193,7 @@ def _brute_force(strategy, target, right):
 def test_live_pick_loads_all_quotes_in_one_request(target, right):
     strategy = _LiveQuoteStrategy(batched=True)
     picked = _pick(strategy, target, right)
-    assert strategy.source.bulk == [51]
+    assert strategy.source.bulk == [len(STRIKES)]
     assert strategy.source.single == 0
     assert picked == _brute_force(_LiveQuoteStrategy(batched=False), target, right)
 
@@ -207,4 +203,44 @@ def test_live_pick_without_bulk_quotes_prices_few_strikes(target, right):
     strategy = _LiveQuoteStrategy(batched=False)
     picked = _pick(strategy, target, right)
     assert picked == _brute_force(_LiveQuoteStrategy(batched=False), target, right)
-    assert strategy.source.single <= 15  # 51 listed strikes in the window
+    assert strategy.source.single <= 20  # of 61 listed strikes (low deltas now reach below $480)
+
+
+def test_a_far_out_of_the_money_delta_is_found_beyond_the_old_dollar_window():
+    """The closest delta is found wherever the listed strike is, not only $20 below to $30 above.
+
+    Before, candidates were cut to that fixed dollar band, so a low delta on a volatile or
+    high-priced underlying (a 16 delta put on a $500 ETF at 45% volatility is about $55 below)
+    came back as the band's edge strike, far from the delta asked for.
+    """
+    wide = [float(k) for k in range(300, 701, 5)]
+
+    class _Wide(_Strategy):
+        def get_last_price(self, asset, **_kwargs):
+            if getattr(asset, "asset_type", None) != "option":
+                return UNDERLYING
+            days = 31.0
+            model = BS([UNDERLYING, float(asset.strike), RATE * 100, days], volatility=45)
+            value = model.callPrice if str(asset.right).upper() == "CALL" else model.putPrice
+            return round(value, 2) if value >= 0.01 else None
+
+        def get_chains(self, _asset):
+            listed = {"2026-11-19": wide}
+            return {"Multiplier": 100, "Exchange": "SMART", "Chains": {"CALL": listed, "PUT": listed}}
+
+    expiry = date(2026, 11, 19)
+    for target, right in [(-0.16, "put"), (0.16, "call")]:
+        strategy = _Wide(_StubBroker)
+        helper = OptionsHelper(strategy)
+        picked = helper.find_strike_for_delta(Asset("SPY"), UNDERLYING, target, expiry, right)
+        best, best_gap = None, None
+        for strike in wide:
+            delta = OptionsHelper(_Wide(_StubBroker)).get_delta_for_strike(Asset("SPY"), UNDERLYING, strike, expiry, right)
+            if delta is None:
+                continue
+            gap = abs(delta - target)
+            if best_gap is None or gap < best_gap:
+                best, best_gap = strike, gap
+        assert picked == best, (target, right, picked, best)
+        assert not (UNDERLYING - 20 <= picked <= UNDERLYING + 30), picked
+

@@ -3115,8 +3115,7 @@ class BacktestingBroker(Broker):
                         )
                         continue
 
-                    # Quote was available but did not satisfy fill conditions; keep the order open
-                    # and retry on the next bar without forcing an OHLC download.
+                    # Quote was available but did not satisfy fill conditions.
                     if bid is not None and ask is not None:
                         if self._cancel_unfilled_immediate_time_in_force(
                             order,
@@ -3124,7 +3123,12 @@ class BacktestingBroker(Broker):
                             strategy=strategy,
                         ):
                             continue
-                        continue
+                        # A resting LIMIT rests through the whole execution bar, not only at the
+                        # quote snapshot. Check the bar's traded range below (the same rule the
+                        # between-run checker uses), so a limit the price trades through during
+                        # the bar fills even if the strategy cancels it at its next run.
+                        if order.order_type != Order.OrderType.LIMIT:
+                            continue
 
             #############################
             # Get OHLCV data for the asset

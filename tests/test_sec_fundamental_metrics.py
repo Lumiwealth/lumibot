@@ -709,3 +709,15 @@ def test_a_universe_given_as_a_name_string_raises_instead_of_reading_letters(mon
     assert list(one.index) == ["EXM"]
     many = sec.get_metrics_table(["EXM"], ["pe_ratio"], as_of=AFTER_Q1, prices={"EXM": 100.0})
     assert list(many.index) == ["EXM"]
+
+
+def test_an_unknown_metric_name_raises_in_the_table_instead_of_blanking_every_value(monkeypatch, tmp_path):
+    """A misspelt metric ("profit_margin") used to turn every column of every row into None, with
+    the reason buried in a dict column, so a screen silently bought nothing. The table now raises
+    and names the metrics that exist."""
+    sec = _sec(monkeypatch, tmp_path)
+
+    with pytest.raises(ValueError, match=r"profit_margin.*net_margin"):
+        sec.get_metrics_table(["EXM"], ["profit_margin", "pe_ratio"], as_of=AFTER_Q1, prices={"EXM": 100.0})
+    ok = sec.get_metrics_table(["EXM"], ["net_margin", "pe_ratio"], as_of=AFTER_Q1, prices={"EXM": 100.0})
+    assert list(ok.columns[:2]) == ["net_margin", "pe_ratio"]

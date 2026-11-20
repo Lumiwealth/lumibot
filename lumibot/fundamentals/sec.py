@@ -1854,6 +1854,9 @@ class SECFundamentals:
 
         requested = list(FUNDAMENTAL_METRICS) if metrics is None else [str(name) for name in metrics]
         symbols = _as_symbol_list(symbols)
+        unknown = [name for name in requested if name not in FUNDAMENTAL_METRICS]
+        if unknown:  # a misspelt name blanked every value with the reason buried in a dict column
+            raise ValueError(f"Unknown fundamental metric(s) {unknown}. Choose from: {', '.join(FUNDAMENTAL_METRICS)}.")
         symbol_list = list(dict.fromkeys(str(symbol).upper().strip() for symbol in symbols if str(symbol or "").strip()))
         given_prices = {str(key).upper() for key, value in (prices or {}).items() if value is not None}
         stored = self._stored_metric_rows([s for s in symbol_list if s not in given_prices], requested, as_of)

@@ -6,6 +6,7 @@
 - Option backtests: valuing a held leg checks whether its newest stored trade is in the current minute with integer minutes instead of building a pandas timestamp and converting time zones per leg per bar (about 77,000 calls in a 3-month minute iron condor). Same answers. Tests: `tests/backtest/test_option_valuation_array_marks_identical_results.py`.
 
 ### Fixed
+- SEC fundamentals: `get_metrics_table` with a metric name that does not exist (for example `"profit_margin"` instead of `"net_margin"`) used to turn every value of every row into `None`, with the reason only inside the `reasons` column, so a screen silently bought nothing. It now raises a `ValueError` that lists the metrics that exist. Test: `tests/test_sec_fundamental_metrics.py::test_an_unknown_metric_name_raises_in_the_table_instead_of_blanking_every_value`.
 - SEC fundamentals: `get_metrics_table` and `preload` given a universe as a string (for example an index name such as `"S&P 500"`) used to walk the string letter by letter and return a table of empty rows with no error, so a screen silently bought nothing. A bare ticker string (`"AAPL"`, `"BRK.B"`) is still one symbol; any other string now raises a `ValueError` that says to pass a list of tickers (LumiBot has no index membership lists). Test: `tests/test_sec_fundamental_metrics.py::test_a_universe_given_as_a_name_string_raises_instead_of_reading_letters`.
 
 ## 4.6.92 - 2026-11-20

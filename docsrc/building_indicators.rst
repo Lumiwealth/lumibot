@@ -26,11 +26,11 @@ Use a built-in
 --------------
 
 Built-ins: ``sma``, ``ema``, ``rsi``, ``macd``, ``bbands``, ``atr``,
-``stoch`` and ``vwap``. They follow TradingView Pine Script v6
+``stoch``, ``vwap`` and ``supertrend``. They follow TradingView Pine Script v6
 math: ``ema`` and ``rma`` are seeded with the simple average of the first
 ``length`` values, ``rsi`` and ``atr`` use Wilder smoothing (``rma``),
 Bollinger Bands use the population standard deviation, ``stoch`` is not
-clamped to 0..100, and ``vwap`` restarts at each UTC day.
+clamped to 0..100, and ``vwap`` restarts at each UTC day. ``supertrend`` (inputs ``length`` 10, ``factor`` 3 and ``signals``) draws a green line under price in an up trend and a red line above it in a down trend, with a Buy label under the bar where the trend turns up and a Sell label above the bar where it turns down; ``signals=False`` hides the labels.
 
 Inside a strategy::
 

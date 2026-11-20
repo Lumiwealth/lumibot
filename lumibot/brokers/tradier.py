@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import base64
+import math
 import time
 import threading
 from collections import Counter
@@ -154,6 +155,7 @@ class Tradier(Broker):
 
 
     POLL_EVENT = "poll"
+    ACCOUNT_HISTORY_RESOLUTIONS = frozenset({"day"})
     CASH_ACTIVITY_TYPES = (
         "ach",
         "wire",
@@ -1095,8 +1097,34 @@ class Tradier(Broker):
         return cash, positions_value, portfolio_value
 
     def get_historical_account_value(self):
-        logger.error("The function get_historical_account_value is not implemented yet for Tradier.")
-        return {"hourly": None, "daily": None}
+        """Return Tradier's dated account-equity observations at daily resolution."""
+        response = self.tradier.account.request(
+            endpoint=f"v1/accounts/{self._tradier_account_number}/historical-balances",
+            params={"period": "ALL"},
+        )
+        balances = response.get("historical_balances", response)["balances"]
+        if balances is None or balances == "null":
+            balances = []
+        if not isinstance(balances, list):
+            raise ValueError("Tradier returned an invalid balance history")
+        values_by_date = {}
+        for balance in balances:
+            date = balance["date"]
+            if not isinstance(date, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
+                raise ValueError("Tradier returned an invalid account balance date")
+            value = float(balance["value"])
+            if not math.isfinite(value):
+                raise ValueError("Tradier returned an invalid account balance value")
+            values_by_date[datetime.date.fromisoformat(date)] = value
+
+        dates = sorted(values_by_date)
+        return {
+            "day": pd.DataFrame(
+                {"equity": [values_by_date[date] for date in dates]},
+                # UTC midnight encodes the provider's date. It is not a quote timestamp.
+                index=pd.to_datetime(dates, utc=True),
+            )
+        }
 
     @staticmethod
     def _extract_history_amount(row: dict) -> float:

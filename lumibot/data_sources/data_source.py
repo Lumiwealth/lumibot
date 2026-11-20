@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import math
+import weakref
 import time
 from abc import ABC, abstractmethod
 
@@ -820,15 +821,10 @@ class DataSource(ABC):
 
     @staticmethod
     def _frame_prices_are_split_adjusted(frame):
-        if frame is None or not hasattr(frame, "columns") or "_split_adjusted" not in frame.columns:
-            return False
-        try:
-            marker = frame["_split_adjusted"]
-            if hasattr(marker, "fillna"):
-                return bool(marker.fillna(False).astype(bool).any())
-            return bool(marker)
-        except Exception:
-            return False
+        facts = _split_frame_facts(frame)
+        if facts is not None:
+            return facts[0]
+        return _frame_prices_are_split_adjusted_uncached(frame)
 
     def should_apply_stock_splits_to_positions(self, asset, quote=None):
         """Return whether split events should update held share quantities.
@@ -889,15 +885,24 @@ class DataSource(ABC):
         except Exception:
             return price
 
-        try:
-            matching_rows = frame.loc[[idx.date() == current_date for idx in frame.index]]
-        except Exception:
-            return price
-        if matching_rows.empty:
+        facts = _split_frame_facts(frame, with_events=True)
+        if facts is not None:
+            # Same rows as the scan below, read from a per-frame index of split rows
+            # (dates with a non-zero ratio, in index order) instead of a full pass per read.
+            day_events = facts[1].get(current_date, ())
+        else:
+            try:
+                matching_rows = frame.loc[[idx.date() == current_date for idx in frame.index]]
+            except Exception:
+                return price
+            day_events = [
+                (idx, self._normalize_stock_split_ratio(row.get("stock_splits", 0)))
+                for idx, row in matching_rows.iterrows()
+            ]
+        if not day_events:
             return price
 
-        for idx, row in matching_rows.iterrows():
-            ratio = self._normalize_stock_split_ratio(row.get("stock_splits", 0))
+        for idx, ratio in day_events:
             if not ratio:
                 continue
             try:
@@ -1391,3 +1396,67 @@ class DataSource(ABC):
             A Quote object with the quote information, eg. bid, ask, etc.
         """
         raise NotImplementedError("get_quote method not implemented")
+
+
+def _frame_prices_are_split_adjusted_uncached(frame):
+    if frame is None or not hasattr(frame, "columns") or "_split_adjusted" not in frame.columns:
+        return False
+    try:
+        marker = frame["_split_adjusted"]
+        if hasattr(marker, "fillna"):
+            return bool(marker.fillna(False).astype(bool).any())
+        return bool(marker)
+    except Exception:
+        return False
+
+
+# Per-frame split facts, keyed by frame identity and checked against row count, end
+# stamps and columns. Backtests read a price from the same daily frame on every bar;
+# scanning the whole frame for the split flag and the current date's rows on each read
+# cost O(rows) per read (about 35,000 reads x 2,500 rows on a 10-year daily run).
+_SPLIT_FACTS_CACHE: dict = {}
+_SPLIT_FACTS_CACHE_MAX = 512
+
+
+def _split_frame_facts(frame, with_events=False):
+    """Return ``(split_adjusted, events)`` for ``frame``, or None for the uncached path.
+
+    ``events`` maps ``index_stamp.date()`` (exactly as the per-read scan computed it) to
+    the rows with a non-zero normalized ``stock_splits`` ratio, in index order. It is built
+    only when ``with_events`` is true and is ``None`` otherwise. A frame is indexed once per
+    shape; a frame object seen for the first time costs the same as the old single check.
+    """
+    if frame is None or not hasattr(frame, "columns") or not hasattr(frame, "index"):
+        return None
+    try:
+        index = frame.index
+        rows = len(index)
+        first = index[0] if rows else None
+        last = index[-1] if rows else None
+        columns = tuple(frame.columns)
+        key = id(frame)
+        entry = _SPLIT_FACTS_CACHE.get(key)
+        if not (
+            entry is not None
+            and entry[0]() is frame
+            and entry[1] == rows
+            and entry[2] == first
+            and entry[3] == last
+            and entry[4] == columns
+        ):
+            if len(_SPLIT_FACTS_CACHE) >= _SPLIT_FACTS_CACHE_MAX:
+                _SPLIT_FACTS_CACHE.clear()
+            entry = [weakref.ref(frame), rows, first, last, columns,
+                     _frame_prices_are_split_adjusted_uncached(frame), None]
+            _SPLIT_FACTS_CACHE[key] = entry
+        if with_events and entry[6] is None:
+            events: dict = {}
+            if "stock_splits" in frame.columns:
+                for idx, value in zip(index, frame["stock_splits"].tolist()):
+                    ratio = DataSource._normalize_stock_split_ratio(value)
+                    if ratio:
+                        events.setdefault(idx.date(), []).append((idx, ratio))
+            entry[6] = {day: tuple(found) for day, found in events.items()}
+        return entry[5], entry[6]
+    except Exception:
+        return None

@@ -208,8 +208,11 @@ How option data works
   otherwise the close of the most recent earlier trade, and ``None`` before the first trade.
 - **Fills.** An option fill price always belongs to the fill bar. If the contract traded in the
   current minute (or day), the fill uses that real trade. If it did not, the fill is a
-  Black-Scholes estimate for that bar, built from the contract's most recent real trade (or the
-  nearest strike's when the contract never traded). Estimates are used as computed and marked
+  Black-Scholes estimate for that bar. When the strategy has already loaded at least five other
+  contracts of the same expiration (a delta or price search across strikes does this), the
+  estimate uses a volatility smile fitted across their recent trades. Otherwise it is built from
+  the contract's most recent real trade (or the nearest strike's when the contract never
+  traded). Nothing extra is downloaded for the smile. Estimates are used as computed and marked
   ``price_source=estimated`` in the trades file. Alpaca has no historical option quotes, so
   fills here are either ``trade`` or ``estimated``. If no price can be found at all, the order
   keeps working until one can, or until its time in force ends. See

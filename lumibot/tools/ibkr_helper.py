@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from lumibot.tools.shared_market_calendars import get_market_calendar
 import hashlib
 import logging
 import math
@@ -160,6 +161,8 @@ class IbkrFuturesConidLookupError(RuntimeError):
 
 
 _FUTURES_EXCHANGE_CACHE: Dict[str, str] = {}
+# Roots whose exchange lookup failed in this process, with the fallback that was used.
+_FUTURES_EXCHANGE_FALLBACK_THIS_RUN: Dict[str, str] = {}
 _FUTURES_EXCHANGE_CACHE_LOADED = False
 
 _NEGATIVE_CONID_CACHE: Dict[str, Dict[str, Any]] = {}
@@ -446,6 +449,35 @@ def _is_future_or_current_expiration(value: Any) -> bool:
     return expiration_date >= datetime.now(timezone.utc).date()
 
 
+def _auto_futures_exchange(asset) -> str:
+    """Exchange for a futures asset with no explicit exchange: shared cache, lookup, or fallback.
+
+    A failed lookup falls back to IBKR_FUTURES_EXCHANGE (default CME) and that fallback is kept
+    for the rest of this process, so the same lookup is not queued again: a stuck downloader
+    queue made each retry wait its full deadline (30 minutes, twice, on a 3-month MNQ backtest
+    on 2026-11-20).
+    """
+    root = str(getattr(asset, "symbol", "") or "").strip().upper()
+    failed_fallback = _FUTURES_EXCHANGE_FALLBACK_THIS_RUN.get(root)
+    if failed_fallback:
+        return failed_fallback
+    try:
+        return _resolve_futures_exchange(getattr(asset, "symbol", ""))
+    except IbkrFuturesExchangeAmbiguousError:
+        raise
+    except Exception as exc:
+        fallback = (os.environ.get("IBKR_FUTURES_EXCHANGE") or IBKR_DEFAULT_FUTURES_EXCHANGE_FALLBACK).strip().upper()
+        logger.warning(
+            "IBKR futures exchange auto-resolution failed for %s: %s. Falling back to %s",
+            getattr(asset, "symbol", None),
+            exc,
+            fallback,
+        )
+        if root:
+            _FUTURES_EXCHANGE_FALLBACK_THIS_RUN[root] = fallback
+        return fallback
+
+
 def _resolve_futures_exchange(symbol: str) -> str:
     symbol_upper = str(symbol or "").strip().upper()
     if not symbol_upper:
@@ -550,7 +582,7 @@ def _futures_holiday_session_bounds(calendar_name: str, year: int) -> tuple[np.n
     """Sorted (open, close) session bounds from an exchange calendar as UTC nanoseconds."""
     import pandas_market_calendars as mcal
 
-    schedule = mcal.get_calendar(calendar_name).schedule(
+    schedule = get_market_calendar(calendar_name, mcal.get_calendar).schedule(
         start_date=f"{int(year) - 1}-12-20", end_date=f"{int(year) + 1}-01-10")
     opens = pd.DatetimeIndex(pd.to_datetime(schedule["market_open"], utc=True)).as_unit("ns").asi8
     closes = pd.DatetimeIndex(pd.to_datetime(schedule["market_close"], utc=True)).as_unit("ns").asi8
@@ -645,7 +677,7 @@ def _us_equity_session_bounds_for_year(year: int, extended_hours: bool) -> tuple
     import pandas_market_calendars as mcal
 
     open_col, close_col = ("pre", "post") if extended_hours else ("market_open", "market_close")
-    schedule = mcal.get_calendar("NYSE").schedule(
+    schedule = get_market_calendar("NYSE", mcal.get_calendar).schedule(
         start_date=f"{int(year)}-01-01",
         end_date=f"{int(year)}-12-31",
         start=open_col,
@@ -1139,19 +1171,7 @@ def get_price_data(
         )
     effective_exchange = exchange
     if asset_type in {"future", "cont_future"} and not effective_exchange:
-        try:
-            effective_exchange = _resolve_futures_exchange(getattr(asset, "symbol", ""))
-        except IbkrFuturesExchangeAmbiguousError:
-            raise
-        except Exception as exc:
-            fallback = (os.environ.get("IBKR_FUTURES_EXCHANGE") or IBKR_DEFAULT_FUTURES_EXCHANGE_FALLBACK).strip().upper()
-            logger.warning(
-                "IBKR futures exchange auto-resolution failed for %s: %s. Falling back to %s",
-                getattr(asset, "symbol", None),
-                exc,
-                fallback,
-            )
-            effective_exchange = fallback
+        effective_exchange = _auto_futures_exchange(asset)
     if asset_type == "crypto" and not effective_exchange:
         effective_exchange = (os.environ.get("IBKR_CRYPTO_VENUE") or IBKR_DEFAULT_CRYPTO_VENUE).strip().upper()
 
@@ -5182,7 +5202,7 @@ def _get_futures_daily_bars(
     start_local = start_utc.astimezone(LUMIBOT_DEFAULT_PYTZ)
     end_local = end_utc.astimezone(LUMIBOT_DEFAULT_PYTZ)
 
-    cal = mcal.get_calendar("us_futures")
+    cal = get_market_calendar("us_futures", mcal.get_calendar)
     schedule = cal.schedule(
         start_date=pd.Timestamp(start_utc.date()) - pd.Timedelta(days=2),
         end_date=pd.Timestamp(end_utc.date()) + pd.Timedelta(days=2),

@@ -31,6 +31,18 @@ Limit orders
 * Otherwise, if the limit price is inside the bar's range, it fills at the limit price.
 * Otherwise it keeps waiting.
 
+When the data has a bid and ask on each bar (common for futures, crypto and options), a
+limit that can trade against the quote (a buy at or above the ask, a sell at or below the
+bid) fills at the quote. A limit the quote does not reach is still checked against the
+bar's traded range with the rules above, because the order rests through the whole bar.
+A strategy that cancels and re-places its limit every bar therefore fills on the bar
+that trades through its price, just like it would live. ``IOC`` and ``FOK`` orders are
+the exception: they are canceled if the quote does not fill them.
+
+Before 4.6.92 a limit on quoted bars was compared only with the quote, so a limit below
+the quote never filled even when the bar traded through it. Backtests that use limit
+orders on quoted data may now show fills they did not show before.
+
 Stop orders
 -----------
 

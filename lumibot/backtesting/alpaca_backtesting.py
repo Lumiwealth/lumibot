@@ -2287,7 +2287,34 @@ class AlpacaBacktesting(DataSourceBacktesting):
         ]
         key = "_".join(part for part in key_parts if part).upper()
         key = key.replace("/", "-")
+        if str(getattr(base_asset, "asset_type", "")).lower() == "option" and timestep == "minute":
+            # Remember which contract a minute option key belongs to, so the broker's estimate
+            # can read the contracts already loaded (loaded_option_minute_frames).
+            self._state("_option_key_assets", dict)[key] = base_asset
         return key
+
+    def loaded_option_minute_frames(self, asset) -> list:
+        """(contract, minute trade frame) pairs already in memory for ``asset``'s underlying and expiration.
+
+        Never fetches. Strike searches (delta or price picks) load many contracts of one
+        expiration; the broker's option estimate fits a volatility smile across them instead of
+        relying on one contract's own last trade. Contracts with no stored prints are left out.
+        Frames hold real trade prints only; the broker reads only bars before the current bar.
+        """
+        expiration = getattr(asset, "expiration", None)
+        symbol = getattr(asset, "symbol", None)
+        if expiration is None or symbol is None:
+            return []
+        store = self.__dict__.get("_data_store") or {}
+        owners = self.__dict__.get("_option_key_assets") or {}
+        out = []
+        for key, contract in list(owners.items()):
+            if contract.symbol != symbol or contract.expiration != expiration:
+                continue
+            frame = store.get(key)
+            if isinstance(frame, pd.DataFrame) and not frame.empty and "close" in frame.columns:
+                out.append((contract, frame))
+        return out
 
     def _occ_symbol(self, asset: Asset) -> str:
         """Build the Alpaca OCC symbol for one listed option (index weeklies use their own root)."""

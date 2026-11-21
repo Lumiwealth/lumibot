@@ -317,7 +317,18 @@ closes the managed client. ``connect_stream=False`` retains REST operation
 and initializes ``broker.stream`` to ``None``; REST order reads do not require
 a WebSocket connection.
 Phemex requires a symbol for REST open-order discovery, so a stream-disabled
-account-wide refresh scans metadata-discovered active markets.
+account-wide refresh scans metadata-discovered active markets (322 markets on
+Nov 20, 2026, about 39 seconds of rate limiting per read). A reader that only
+needs some markets names them first:
+
+.. code-block:: python
+
+    broker = Ccxt(config, connect_stream=False)
+    broker.set_order_read_markets(["BTC/USDT:USDT"])  # asks Phemex about this market only
+    orders = broker._pull_all_orders("reader", strategy)
+    broker.set_order_read_markets(None)               # back to the whole account
+
+An unknown market raises ``ValueError`` rather than reading as "no orders".
 
 Phemex qualification and remaining work
 ---------------------------------------

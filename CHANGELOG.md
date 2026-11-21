@@ -1,5 +1,12 @@
 # Changelog
 
+## Webull integration candidate (pending release qualification)
+
+- Webull OpenAPI candidate for individual accounts, with optional SDK installation,
+  an independently selectable data source, daily historical replay, and PaperTrade
+  qualification tests. The broker guide lists observed order lifecycles and remaining
+  qualification by product. See `docsrc/brokers.webull.rst`.
+
 ## 4.6.94 - Unreleased
 
 ## 4.6.93 - 2026-11-20

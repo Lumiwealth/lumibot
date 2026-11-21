@@ -26,8 +26,8 @@ _TYPES = {
 _SIDES = {
     Order.OrderSide.BUY: "BUY",
     Order.OrderSide.SELL: "SELL",
-    Order.OrderSide.SELL_SHORT: "SELL_SHORT",
-    Order.OrderSide.BUY_TO_COVER: "BUY_TO_COVER",
+    Order.OrderSide.SELL_SHORT: "SHORT",
+    Order.OrderSide.BUY_TO_COVER: "BUY",
     Order.OrderSide.BUY_TO_OPEN: "BUY",
     Order.OrderSide.BUY_TO_CLOSE: "BUY",
     Order.OrderSide.SELL_TO_OPEN: "SELL",
@@ -67,6 +67,9 @@ class Webull(Broker):
         self._webull_data = data_source if isinstance(data_source, WebullData) else WebullData(config)
         super().__init__("Webull", connect_stream=connect_stream, data_source=data_source or self._webull_data,
                          option_source=option_source, start_orders_thread=start_orders_thread, **kwargs)
+
+    def _order_checkpoint_account_identity(self):
+        return {"account_id": self.account_id, "environment": "paper" if self.is_paper else "live"}
 
     @property
     def trading_client(self):
@@ -180,8 +183,6 @@ class Webull(Broker):
             raise ValueError("Webull order duration is not supported for this order type")
         order_type = _TYPES.get(order.order_type)
         side = _SIDES.get(order.side)
-        if asset_type == "stock" and combo_type != "NORMAL":
-            side = "SELL" if order.is_sell_order() else "BUY"
         symbol = order.asset.symbol
         if asset_type == "future":
             config = getattr(order.asset, "contract_spec", None)
@@ -225,7 +226,7 @@ class Webull(Broker):
             if order.trail_price is not None:
                 trailing_type, step = "AMOUNT", order.trail_price
             else:
-                trailing_type, step = "PERCENTAGE", require_number(order.trail_percent, "trailing percent") * 100
+                trailing_type, step = "PERCENTAGE", order.trail_percent
             row.update(trailing_type=trailing_type, trailing_stop_step=positive_value(step, "trailing step"))
         return row
 
@@ -384,7 +385,8 @@ class Webull(Broker):
         if not response:
             return None
         rows = response.get("orders") or []
-        if not rows:
+        if not rows or any(not row.get("status") for row in rows):
+            # PaperTrade can return the ID before it publishes the new state.
             return None
         if len(rows) == 1:
             return self._parse_order_row(rows[0], strategy_name)
@@ -413,10 +415,16 @@ class Webull(Broker):
                     prices[key] = float(value)
         if order_type == Order.OrderType.STOP_LIMIT and "limit_price" in prices:
             prices["stop_limit_price"] = prices.pop("limit_price")
+        if order_type == Order.OrderType.TRAIL and row.get("trailing_stop_step") not in (None, ""):
+            field = {"PERCENTAGE": "trail_percent", "AMOUNT": "trail_price"}.get(row.get("trailing_type"))
+            if field is None:
+                raise ValueError("Webull returned an unrecognized trailing stop unit")
+            prices[field] = float(require_number(row["trailing_stop_step"], "trailing stop step"))
         avg_fill = row.get("filled_price")
         order = Order(strategy_name, asset, require_number(row.get("total_quantity"), "order quantity"),
                       side, order_type=order_type, status=status, identifier=row["client_order_id"],
                       order_class=order_class, child_orders=child_orders,
+                      quote=Asset(row.get("currency") or "USD", "forex") if row["instrument_type"] == "CRYPTO" else None,
                       time_in_force=row["time_in_force"].lower(),
                       avg_fill_price=float(require_number(avg_fill, "fill price")) if avg_fill not in (None, "") else None,
                       custom_params={"support_trading_session": row["support_trading_session"]}

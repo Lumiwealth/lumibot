@@ -189,3 +189,87 @@ def test_futures_cash_and_net_liquidation_keep_the_mark_to_market_difference(ven
                     connect_stream=False, start_orders_thread=False)
     assert broker._get_balances_at_broker(Asset("USD", "forex"), None) == (10000, -12.5, 9987.5)
     assert broker.get_buying_power() == 8000
+
+
+@pytest.mark.parametrize(("account", "paper"), [("another-test-account", True), ("sandbox-test", False)])
+def test_restart_rejects_wrong_webull_account_or_environment(broker, venue, account, paper):
+    broker.submit_order(order())
+    checkpoint = broker.export_order_state()
+    other = Webull({"ACCOUNT_ID": account, "PAPER": paper}, trading_client=venue,
+                   connect_stream=False, start_orders_thread=False)
+    with pytest.raises(ValueError, match="different account"):
+        other.restore_order_state(checkpoint)
+    assert not other.get_tracked_orders()
+
+
+def test_option_qualification_selects_listed_expiry_inside_weekend_query():
+    from datetime import date
+    from decimal import Decimal
+    from tests.test_webull_paper_apitest import _select_vertical_series
+
+    def series(expiry, strike):
+        return {"expiration_date": expiry, "strike_price": strike, "multiplier": "100"}
+
+    rows = [series("2026-11-20", "100"), series("2026-11-30", "101"),
+            series("2026-12-04", "100"), series("2026-12-04", "100.0"),
+            series("2026-12-04", "105"), series("2026-12-14", "110")]
+    selected = _select_vertical_series(rows, date(2026, 11, 28), date(2026, 12, 12), Decimal("101"))
+    assert [(r["expiration_date"], Decimal(r["strike_price"])) for r in selected] == [
+        ("2026-12-04", Decimal("100")), ("2026-12-04", Decimal("105"))]
+
+
+@pytest.mark.parametrize(("side", "native"), [("sell_short", "SHORT"), ("buy_to_cover", "BUY")])
+def test_equity_short_and_cover_use_webull_sides(broker, venue, side, native):
+    value = Order("qualification", Asset("SAMPLE"), 1, side, limit_price=20, order_type="limit")
+    assert broker._order_row(value)["side"] == native
+    assert broker._order_row(value, combo_type="MASTER")["side"] == native
+    if side == "sell_short":
+        assert broker._parse_broker_order(detail("test", side=native), "qualification").side == side
+
+
+@pytest.mark.parametrize(("params", "kind", "amount"), [
+    ({"trail_percent": 0.025}, "PERCENTAGE", "0.025"), ({"trail_price": 1.5}, "AMOUNT", "1.5")
+])
+def test_equity_trail_keeps_same_units_when_placed_and_observed(broker, params, kind, amount):
+    from decimal import Decimal
+    value = Order("qualification", Asset("SAMPLE"), 1, "sell", time_in_force="day", **params)
+    wire = broker._order_row(value)
+    assert wire["trailing_type"] == kind and Decimal(wire["trailing_stop_step"]) == Decimal(amount)
+    observed = broker._parse_broker_order(detail("test", order_type="TRAILING_STOP_LOSS", limit_price=None,
+                                         trailing_type=kind, trailing_stop_step=amount), "qualification")
+    assert getattr(observed, next(iter(params))) == pytest.approx(float(amount))
+
+
+def test_crypto_fill_detail_reconstructs_the_quote_for_checkpoint_recovery(broker, venue):
+    from decimal import Decimal
+    resting = Order("qualification", Asset("BTC", "crypto"), Decimal("0.0001"), "buy",
+                    quote=Asset("USD", "forex"), order_type="market", time_in_force="ioc")
+    broker.submit_order(resting)
+    checkpoint = broker.export_order_state(resting.strategy)
+    recovered = Webull({"ACCOUNT_ID": "sandbox-test"}, trading_client=venue,
+                       connect_stream=False, start_orders_thread=False)
+    recovered.restore_order_state(checkpoint)
+    venue.order_v3.get_order_detail.return_value = reply(detail(
+        resting.identifier, instrument_type="CRYPTO", symbol="BTCUSD", currency="USD", order_type="MARKET",
+        time_in_force="IOC", status="FILLED", total_quantity="0.0001", filled_quantity="0.0001",
+        filled_price="75000.25", limit_price=None))
+    order_from_checkpoint = recovered.get_tracked_order(resting.identifier)
+    recovered._poll_tracked_orders()
+    recovered._refresh_tracked_order(order_from_checkpoint)
+    assert order_from_checkpoint.is_filled()
+    assert order_from_checkpoint.quote == Asset("USD", "forex")
+    assert [(Decimal(str(tx.quantity)), Decimal(str(tx.price))) for tx in order_from_checkpoint.transactions] == [
+        (Decimal("0.0001"), Decimal("75000.25"))]
+
+
+def test_wait_for_status_after_crypto_cancel_without_changing_local_order(broker, venue):
+    resting = order()
+    broker.submit_order(resting)
+    incomplete = detail(resting.identifier)
+    incomplete["orders"][0].pop("status")
+    venue.order_v3.get_order_detail.return_value = reply(incomplete)
+    assert broker._pull_order(resting.identifier, resting.strategy) is None
+    assert resting.is_active()
+    venue.order_v3.get_order_detail.return_value = reply(detail(resting.identifier, status="CANCELLED"))
+    broker._refresh_tracked_order(resting)
+    assert resting.is_canceled()

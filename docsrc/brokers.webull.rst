@@ -54,6 +54,10 @@ Use the ordinary ``Strategy.create_order``, ``submit_order``, ``modify_order``,
 and ``cancel_order`` methods for orders. The adapter tracks the client order ID
 through placement and recovery. A placement or cancellation acknowledgment
 needs a separate order-detail observation before you rely on the result.
+An order preview can return a cost estimate while placement returns a
+closed-session error. Webull documents preview for simple orders and
+excludes crypto. Check the native order ID and order detail to establish
+acceptance. A fill also requires an executed quantity and price.
 
 Choose the equity session and order duration explicitly when your strategy
 depends on them. The candidate defaults to ``CORE`` when there is no session
@@ -68,8 +72,13 @@ Qualification status
 Locally observed Webull simulator paths include a passive equity limit
 through placement, amendment and cancellation, a spot crypto market round
 trip, a passive event-contract limit/cancel, and a matching private
-cancellation event. Full option trading, futures, equity stops and linked exits,
-event fills, public market-data delivery, reconnect recovery and production
+cancellation event. In a separate spot crypto test, a new Python process
+restored a working order after it filled during a stream outage. Two
+order-detail observations produced one fill and one strategy callback. A
+reconnected private stream delivered the closing order's final-fill event.
+Order checkpoints bind to the selected Webull account and environment.
+Full option trading, futures, equity stops and linked exits,
+event fills, market-data tick delivery and production
 access need additional qualification before use in trading. Use
 :doc:`backtesting.webull` for the scope of historical replay.
 

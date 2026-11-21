@@ -330,6 +330,21 @@ needs some markets names them first:
 
 An unknown market raises ``ValueError`` rather than reading as "no orders".
 
+Smallest order and quantity step
+--------------------------------
+
+``broker.get_order_size_rules(asset, quote=None)`` reads the exchange's market info and
+returns ``min_quantity``, ``quantity_step``, ``contract_size`` and ``quantity_unit``
+(``"contracts"`` for perpetuals and futures, ``"base"`` for spot). The published amount
+minimum wins; when the exchange publishes only a step (Phemex ``BTC/USDT:USDT``: 0.001
+contracts of 1 BTC each), the step is the smallest order. Other brokers return ``None``.
+
+.. code-block:: python
+
+    rules = broker.get_order_size_rules(Asset("BTC/USDT:USDT", asset_type="crypto_future"))
+    # {"min_quantity": Decimal("0.001"), "quantity_step": Decimal("0.001"),
+    #  "contract_size": Decimal("1.0"), "quantity_unit": "contracts"}
+
 Phemex qualification and remaining work
 ---------------------------------------
 

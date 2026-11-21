@@ -9,6 +9,7 @@
 ### Added
 - **Coin-margined (inverse) perpetual backtests.** `crypto_future` assets such as `BTCUSD`, `BTCUSD_PERP` or `BTC/USD:BTC` routed to `binance` or `public` now read Binance COIN-M public bulk files (candles, hourly mark prices, funding where published) with inverse contract terms (100 USD per BTC contract, 10 USD for other coins, settled in the coin). They used to stop with `coin_margined_unsupported`. Fund the coin wallet (`quote_asset=Asset("BTC", "crypto")`). Docs: `docsrc/backtesting.perpetuals.rst`. Tests: `tests/test_routed_binance_bulk.py`.
 
+- **Smallest order size for an instrument (`Broker.get_order_size_rules`).** Ccxt brokers return the exchange's minimum order, quantity step, contract size and unit (Phemex BTC/USDT:USDT: 0.001 contracts of 1 BTC). Readers such as a chart ticket start from the smallest valid order instead of 1 whole coin. Other brokers return `None`. Docs: `docsrc/brokers.ccxt.rst`. Tests: `tests/test_ccxt_order_size_rules.py`.
 - **Open-order reads for named markets (`Ccxt.set_order_read_markets`).** Phemex answers open orders one market at a time, so a broker built without a stream (account and chart readers) asked all 322 active Phemex markets on every read, about 39 seconds of rate limiting alone. A reader that shows one market names it and the read asks about that market only; `None` restores the whole-account read; an unknown market raises `ValueError`. Docs: `docsrc/brokers.ccxt.rst`. Tests: `tests/test_ccxt_scoped_order_reads.py`.
 
 ### Changed

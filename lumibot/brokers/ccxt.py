@@ -108,6 +108,34 @@ class Ccxt(Broker):
                          contract_spec=self.get_contract_spec(market["symbol"]))
         return Asset(market["base"], asset_type="crypto")
 
+    def get_order_size_rules(self, asset, quote=None):
+        """Smallest order and quantity step from the exchange's market info.
+
+        The published amount minimum when there is one, else the amount step (Phemex
+        BTC/USDT:USDT publishes only a 0.001 step). Contract markets size in contracts.
+        """
+        import ccxt
+        from decimal import Decimal
+
+        market = self.get_market(asset, quote)
+        precision = (market.get("precision") or {}).get("amount")
+        step = None
+        if precision is not None:
+            mode = getattr(self.api, "precisionMode", ccxt.DECIMAL_PLACES)
+            if mode == ccxt.TICK_SIZE:
+                step = Decimal(str(precision))
+            elif mode == ccxt.DECIMAL_PLACES:
+                step = Decimal(1).scaleb(-int(precision))
+        minimum = ((market.get("limits") or {}).get("amount") or {}).get("min")
+        contract = bool(market.get("contract"))
+        size = market.get("contractSize")
+        return {
+            "min_quantity": Decimal(str(minimum)) if minimum is not None else step,
+            "quantity_step": step,
+            "contract_size": Decimal(str(size)) if contract and size is not None else None,
+            "quantity_unit": "contracts" if contract else "base",
+        }
+
     def get_contract_spec(self, asset, quote=None):
         from lumibot.entities import ContractSpec
 

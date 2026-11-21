@@ -2,6 +2,9 @@
 
 ## 4.6.94 - Unreleased
 
+### Changed
+- **Faster N-minute bars from minute data.** A strategy that asks for 2-, 3-, 5-, 6-, 10-, 15- or 30-minute bars every few minutes moved its history window on every call, so the window was resampled from scratch each time (68 of 193 profiled seconds in a 1-month BTC perpetual 5-minute backtest). Bins wholly inside the window are now read from one resample of the whole series; only a first bin that starts before the window is rebuilt. Exactly the same frames (values, dtypes, index), checked on gaps, NaN prices and a DST change. Other bar sizes and integer-valued columns keep the per-window path. Test: `tests/test_data_window_resample_identical.py`.
+
 ## 4.6.93 - 2026-11-20
 
 ### Added

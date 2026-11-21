@@ -47,7 +47,7 @@ CRYPTO_FUTURE_ROUTE_ALTERNATIVES = (
     {"routing": "bitunix", "kind": "perpetual",
      "provides": "Bitunix perpetual candles, contract terms and funding (public, no key)"},
     {"routing": "binance", "kind": "perpetual",
-     "provides": "Binance USD-M perpetual candles, mark prices and funding from public bulk files (no key)"},
+     "provides": "Binance USD-M and COIN-M (coin-margined) perpetual candles, mark prices and funding from public bulk files (no key)"},
     {"routing": "coinbase", "kind": "spot_proxy",
      "provides": "spot candles only; perpetual orders cannot fill (no contract terms or funding)"},
     {"routing": "ibkr", "kind": "spot_proxy",
@@ -1359,7 +1359,7 @@ class _BitunixPerpetualRoutingAdapter(_DataFrameRoutingAdapter):
 
 
 class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
-    """Binance public bulk files (data.binance.vision): USD-M perpetuals and spot.
+    """Binance public bulk files (data.binance.vision): USD-M and COIN-M perpetuals and spot.
 
     Opt-in only, selected by routing ``crypto_future`` and/or ``crypto`` to ``binance``.
     Bulk files only (the live Binance API refuses some cloud regions). Daily files are
@@ -1370,7 +1370,7 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
     provider_key = "binance"
     _default_start_buffer = timedelta(0)
     uses_spot_proxy = False
-    _SOURCES = {"um": "binance_usdm_bulk", "spot": "binance_spot_bulk"}
+    _SOURCES = {"um": "binance_usdm_bulk", "cm": "binance_coinm_bulk", "spot": "binance_spot_bulk"}
 
     def __init__(self, router: "RoutedBacktestingPandas"):
         super().__init__(router)
@@ -1391,16 +1391,18 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
     def _market(asset: Asset) -> str:
         asset_type = _normalize_asset_type(getattr(asset, "asset_type", ""))
         if asset_type == "crypto_future":
-            return "um"
+            from lumibot.tools.binance_bulk_data import is_coin_margined
+
+            return "cm" if is_coin_margined(asset) else "um"
         if asset_type == "crypto":
             return "spot"
         raise RoutingProviderError(
-            f"Binance routing serves crypto (spot) and crypto_future (USD-M perpetuals) only; "
+            f"Binance routing serves crypto (spot) and crypto_future (USD-M and COIN-M perpetuals) only; "
             f"{asset!r} is a {asset_type or 'unknown'} asset."
         )
 
     def _unavailable(self, exc, symbol=None, market="um", *, observed_request_tail=None):
-        if market == "um":
+        if market in ("um", "cm"):
             return PerpetualDataUnavailable(str(exc), reason=getattr(exc, "reason", "source_error"),
                                             source="binance", symbol=symbol,
                                             observed_request_tail=observed_request_tail)
@@ -1408,10 +1410,17 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
 
     def resolve(self, asset: Asset, quote_asset: Asset | None = None) -> tuple[str, str, None]:
         """(market, Binance symbol, None). The quote is served exactly; USD is refused."""
-        from lumibot.tools.binance_bulk_data import BinanceBulkDataError, perpetual_symbol, spot_symbol
+        from lumibot.tools.binance_bulk_data import (
+            BinanceBulkDataError,
+            coin_margined_symbol,
+            perpetual_symbol,
+            spot_symbol,
+        )
 
         market = self._market(asset)
         try:
+            if market == "cm":
+                return market, coin_margined_symbol(asset, quote_asset), None
             if market == "um":
                 return market, perpetual_symbol(asset, quote_asset), None
             return market, spot_symbol(asset, quote_asset), None
@@ -1424,7 +1433,7 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
         except RoutingProviderError:
             return {}
         details = {"priceSource": self._SOURCES[market], "servedSymbol": symbol}
-        if market == "um":
+        if market in ("um", "cm"):
             details["fundingSource"] = self._SOURCES[market]
             details["markSource"] = self._SOURCES[market]
         return details
@@ -1433,25 +1442,32 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
         from lumibot.entities import ContractSpec
 
         market, symbol, _ = self.resolve(asset, quote_asset)
+        if market == "cm":
+            from lumibot.tools.binance_bulk_data import COIN_M_CONTRACT_USD, COIN_M_DEFAULT_CONTRACT_USD
+
+            base = symbol[: -len("USD_PERP")]
+            # COIN-M inverse perpetual: quantity in contracts worth a fixed USD amount, settled in the coin.
+            return ContractSpec(base, "USD", base, COIN_M_CONTRACT_USD.get(base, COIN_M_DEFAULT_CONTRACT_USD),
+                                inverse=True)
         if market != "um":
             raise ValueError("Derivative contract terms are unavailable; supply Asset.contract_spec or provider metadata")
         quote = "USDT" if symbol.endswith("USDT") else "USDC"
         # USD-M linear perpetual: quantity in the base coin (1000PEPE for 1000PEPEUSDT), settled in the quote.
         return ContractSpec(symbol[: -len(quote)], quote, quote, quantity_unit="base")
 
-    def _funding_rows(self, symbol: str) -> list:
+    def _funding_rows(self, symbol: str, market: str = "um") -> list:
         from lumibot.tools.binance_bulk_data import BinanceBulkDataError
 
         if symbol not in self._funding:
             start, end = self._router.datetime_start, self._router.datetime_end
             try:
-                rows, covered = self.client.funding_history(symbol, start, end)
+                rows, covered = self.client.funding_history(symbol, start, end, market)
             except BinanceBulkDataError as exc:
                 raise self._unavailable(exc, symbol) from exc
             end_ts = pd.Timestamp(end).tz_convert("UTC") if pd.Timestamp(end).tzinfo else pd.Timestamp(end, tz="UTC")
             if covered is None or covered < end_ts:
                 through = None if covered is None else covered.isoformat()
-                notice = {"kind": "funding_not_published", "source": "binance_usdm_bulk", "symbol": symbol,
+                notice = {"kind": "funding_not_published", "source": self._SOURCES[market], "symbol": symbol,
                           "through": through,
                           "message": (f"Binance publishes funding history monthly; {symbol} funding after "
                                       f"{through or 'the start of the window'} is not published yet and was not "
@@ -1462,8 +1478,8 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
         return self._funding[symbol]
 
     def funding_events(self, asset: Asset, start, end):
-        _, symbol, _ = self.resolve(asset)
-        rows = self._funding_rows(symbol)
+        market, symbol, _ = self.resolve(asset)
+        rows = self._funding_rows(symbol, market)
         return [row for row in DataSourceBacktesting._perpetual_rows(rows) if start <= row["timestamp"] <= end]
 
     def mark_at(self, asset: Asset, at):
@@ -1473,11 +1489,11 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
         """
         from lumibot.tools.binance_bulk_data import BinanceBulkDataError, cached_candles
 
-        _, symbol, _ = self.resolve(asset)
+        market, symbol, _ = self.resolve(asset)
         if symbol not in self._marks:
             try:
                 self._marks[symbol] = cached_candles(
-                    self.client, "um", symbol, "hour", pd.Timestamp(self._router.datetime_start).floor("h"),
+                    self.client, market, symbol, "hour", pd.Timestamp(self._router.datetime_start).floor("h"),
                     pd.Timestamp(self._router.datetime_end) + timedelta(hours=1), kind="markPriceKlines")
             except BinanceBulkDataError as exc:
                 raise self._unavailable(exc, symbol) from exc
@@ -1509,7 +1525,7 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
         if ts_unit not in {"minute", "hour", "day"}:
             raise RoutingProviderError(f"Binance routing supports minute/hour/day bars, got {ts_unit!r}.")
         market, symbol, _ = self.resolve(asset, quote_asset)
-        if market == "um":
+        if market in ("um", "cm"):
             # Fail before any simulated order when the contract cannot be modeled.
             self.contract_spec(asset, quote_asset)
         step = {"minute": timedelta(minutes=1), "hour": timedelta(hours=1), "day": timedelta(days=1)}[ts_unit]
@@ -1533,7 +1549,7 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
                 f" Binance lists some low-priced coins per 1000 units (for example 1000{symbol}); "
                 "check the contract name, and note delisted or renamed contracts have no newer files.")
             exc = BinanceBulkDataError(
-                f"Binance publishes no {'USD-M perpetual' if market == 'um' else 'spot'} {symbol} files between "
+                f"Binance publishes no {({'um': 'USD-M perpetual', 'cm': 'COIN-M perpetual'}).get(market, 'spot')} {symbol} files between "
                 f"{fetch_start} and {window_end}; spot prices are not substituted.{hint}",
                 reason="contract_not_listed")
             raise self._unavailable(exc, symbol, market)
@@ -1578,8 +1594,7 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
             if not any(n.get("kind") == "data_ends_before_requested_end" and n.get("symbol") == symbol
                        for n in self.notices):
                 notice = {
-                    "kind": "data_ends_before_requested_end", "source": "binance_usdm_bulk" if market == "um"
-                    else "binance_spot_bulk", "symbol": symbol,
+                    "kind": "data_ends_before_requested_end", "source": self._SOURCES[market], "symbol": symbol,
                     "through": utc_iso(observed_end), "requested_end": utc_iso(window_end_ts),
                     "message": (f"Data for {symbol} ends on {last_open:%Y-%m-%d %H:%M} UTC (Binance publishes each "
                                 f"day's file about one day later), so the backtest ran to that point instead of the "
@@ -1588,8 +1603,8 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
                 }
                 self.notices.append(notice)
                 logger.warning("%s %s", PerpetualDataUnavailable.MARKER, notice["message"])
-        if market == "um":
-            self._funding_rows(symbol)
+        if market in ("um", "cm"):
+            self._funding_rows(symbol, market)
         self._fully_loaded_series.add(canonical_key)
         df = df.copy()
         df.index = df.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
@@ -1601,7 +1616,7 @@ class _PublicCryptoRoutingAdapter(_RoutingAdapter):
 
     Route value ``public``. Fiat pairs (BTC/USD) read Coinbase public candles; stablecoin
     and coin-quoted pairs (BTC/USDT, BTC/USDC, BTC/FDUSD) read Binance bulk spot files;
-    perpetuals read Binance USD-M bulk files. No API key and no broker account. A USD
+    perpetuals read Binance USD-M or COIN-M bulk files. No API key and no broker account. A USD
     request is never served from a USDT pair.
     """
 

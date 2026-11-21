@@ -534,6 +534,18 @@ class CcxtCacheDB:
             return None, False
         return float(rows.iloc[-1]["open"]), stamp == minute
 
+    def _market_listed(self, symbol: str) -> bool:
+        """True when the exchange's own market list holds ``symbol`` (its empty answers are real)."""
+        markets = getattr(self.api, "markets", None) or {}
+        if symbol in markets:
+            return True
+        from lumibot.tools.symbol_normalization import resolve_ccxt_market_symbol
+
+        try:
+            return resolve_ccxt_market_symbol(markets, symbol, exchange_id=self.exchange_id) is not None
+        except Exception:
+            return False
+
     def shared_series(self, symbol: str, timeframe: str, *, price: str | None = None):
         """Shared bar cache identity of this exchange's public candles for ``symbol``.
 
@@ -576,22 +588,55 @@ class CcxtCacheDB:
         """
         from lumibot.tools import shared_bar_cache
 
+        bar = timedelta(seconds=_TIMEFRAME_SECONDS[timeframe])
+        tiny = timedelta(microseconds=1)
+
+        def ask(chunk_start: datetime, chunk_end: datetime) -> DataFrame:
+            count = max(1, self._count_timeframe_units(chunk_start, chunk_end, timeframe))
+            return self._filter_executable_rows(self._get_barset_from_api(
+                symbol, timeframe, count, chunk_start, chunk_end, **({"price": price} if price else {})))
+
+        def utc_ranges(ranges):
+            return [(pd.Timestamp(a, tz="UTC"), pd.Timestamp(b, tz="UTC")) for a, b in ranges]
+
         def fetch(gap_start: pd.Timestamp, gap_stop: pd.Timestamp) -> DataFrame | None:
             first = gap_start.tz_convert("UTC").tz_localize(None).to_pydatetime()
             last = (gap_stop - pd.Timedelta(microseconds=1)).tz_convert("UTC").tz_localize(None).to_pydatetime()
+            # A range the exchange answered with zero candles, for a market it lists,
+            # is remembered as empty, so a coin's pre-listing years are asked for once
+            # instead of on every later request that starts earlier (see shared_bar_cache).
+            listed = self._market_listed(symbol)
+            confirmed = []
             frames = []
             for chunk_start, chunk_end in self._split_download_range(first, last, timeframe, limit):
-                count = self._count_timeframe_units(chunk_start, chunk_end, timeframe)
-                args = (symbol, timeframe, count, chunk_start, chunk_end)
-                rows = self._filter_executable_rows(self._get_barset_from_api(
-                    *args, **({"price": price} if price else {})))
-                if not rows.empty:
-                    frames.append(rows)
+                rows = ask(chunk_start, chunk_end)
+                if rows.empty:
+                    if listed:
+                        confirmed.append((chunk_start, chunk_end + tiny))
+                    continue
+                first_bar = pd.Timestamp(rows["datetime"].min()).to_pydatetime().replace(tzinfo=None)
+                if listed and first_bar > chunk_start + bar:
+                    # The answer starts late. Ask for the skipped head on its own: real
+                    # candles there are kept, and only a zero-candle answer is remembered.
+                    head = ask(chunk_start, first_bar - tiny)
+                    if head.empty:
+                        confirmed.append((chunk_start, first_bar))
+                    else:
+                        frames.append(head)
+                frames.append(rows)
             if not frames:
-                return None
-            rows = pd.concat(frames).drop_duplicates(subset=["datetime"]).set_index("datetime")
+                if not confirmed:
+                    return None
+                empty = pd.DataFrame(columns=["open", "high", "low", "close", "volume"],
+                                     index=pd.DatetimeIndex([], tz="UTC"), dtype=float)
+                empty.attrs["confirmedEmpty"] = utc_ranges(confirmed)
+                return empty
+            rows = pd.concat(frames).drop_duplicates(subset=["datetime"]).sort_values("datetime")
+            rows = rows.set_index("datetime")
             rows.index = pd.DatetimeIndex(rows.index).tz_localize("UTC")
-            return rows[["open", "high", "low", "close", "volume"]].astype(float)
+            rows = rows[["open", "high", "low", "close", "volume"]].astype(float)
+            rows.attrs["confirmedEmpty"] = utc_ranges(confirmed)
+            return rows
 
         rows = shared_bar_cache.read_bars(
             self.shared_series(symbol, timeframe, price=price),

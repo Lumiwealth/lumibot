@@ -273,3 +273,36 @@ def test_wait_for_status_after_crypto_cancel_without_changing_local_order(broker
     venue.order_v3.get_order_detail.return_value = reply(detail(resting.identifier, status="CANCELLED"))
     broker._refresh_tracked_order(resting)
     assert resting.is_canceled()
+
+
+@pytest.mark.parametrize("asset_type,leg_sizes", [("option", [2]), ("multileg", [2, 4])])
+def test_option_replace_preserves_broker_leg_ids_and_scales_ratios(broker, venue, asset_type, leg_sizes):
+    from datetime import date
+
+    asset = Asset("SAMPLE", asset_type=asset_type, expiration=date(2028, 1, 21), strike=50, right="CALL")
+    o = Order("qualification", asset, 2, "buy", limit_price=1, time_in_force="gtc")
+    legs = [{"id": f"broker-leg-{i}", "quantity": str(q)} for i, q in enumerate(leg_sizes)]
+    venue.order_v3.get_order_detail.return_value = reply(detail(
+        o.identifier, instrument_type="OPTION", total_quantity="2", filled_quantity="1", legs=legs,
+    ))
+    broker._modify_order(o, limit_price=1.15, quantity=3)
+    _, [changed] = venue.order_v3.replace_order.call_args.args
+    assert changed["client_order_id"] == o.identifier
+    assert changed["quantity"] == "3" and changed["limit_price"] == "1.15"
+    assert changed["legs"] == [{"id": leg["id"], "quantity": str(3 * q // 2)} for leg, q in zip(legs, leg_sizes)]
+    with pytest.raises(ValueError, match="completed fills"):
+        broker._modify_order(o, quantity=1)
+    venue.order_v3.replace_order.assert_called_once()
+
+
+def test_option_replace_needs_a_unique_provider_id_for_each_leg(broker, venue):
+    from datetime import date
+
+    asset = Asset("SAMPLE", asset_type="option", expiration=date(2028, 1, 21), strike=50, right="PUT")
+    o = Order("qualification", asset, 1, "buy_to_open", limit_price=1)
+    venue.order_v3.get_order_detail.return_value = reply(detail(
+        o.identifier, instrument_type="OPTION", legs=[{"quantity": "1"}],
+    ))
+    with pytest.raises(ValueError, match="leg ID"):
+        broker._modify_order(o, limit_price=1.15)
+    venue.order_v3.replace_order.assert_not_called()

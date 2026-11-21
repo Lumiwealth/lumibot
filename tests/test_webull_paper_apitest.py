@@ -75,15 +75,25 @@ def _detail(observer, account, identifier, predicate):
 
 
 def test_paper_stock_limit_submit_replace_cancel(paper):
+    _qualify_equity_limit_amend(paper, "AAPL", "day")
+
+
+@pytest.mark.parametrize("paper", ["INDIVIDUAL_MARGIN"], indirect=True)
+@pytest.mark.parametrize("symbol", ["AAPL", "SPY"])
+def test_paper_gtc_equity_limit_submit_replace_cancel(paper, symbol):
+    _qualify_equity_limit_amend(paper, symbol, "gtc")
+
+
+def _qualify_equity_limit_amend(paper, symbol, duration):
     broker, observer, account = paper
     strategy = Strategy(broker=broker, name="webull_qualification", risk_free_rate=0,
                         synchronize_broker_on_start=False, should_backup_variables_to_database=False,
                         should_send_summary_to_discord=False)
-    asset = Asset("AAPL")
+    asset = Asset(symbol)
     quote = broker.data_source.get_quote(asset)
     limit = (Decimal(str(quote.price)) * Decimal("0.95")).quantize(Decimal("0.01"))
     replacement = limit - Decimal("0.01")
-    order = strategy.create_order(asset, 1, "buy", time_in_force="day", limit_price=limit,
+    order = strategy.create_order(asset, 1, "buy", time_in_force=duration, limit_price=limit,
                                   custom_params={"support_trading_session": "ALL"})
     before_positions = request_json("positions before", observer.account_v2.get_account_position, account)
     before_cash = request_json("balance before", observer.account_v2.get_account_balance, account)
@@ -94,7 +104,7 @@ def test_paper_stock_limit_submit_replace_cancel(paper):
         assert placed["symbol"] == asset.symbol
         assert placed["side"] == "BUY"
         assert placed["order_type"] == "LIMIT"
-        assert placed["time_in_force"] == "DAY"
+        assert placed["time_in_force"] == duration.upper()
         assert placed["support_trading_session"] == "ALL"
         assert Decimal(placed["total_quantity"]) == 1
         assert Decimal(placed["limit_price"]) == limit
@@ -410,23 +420,45 @@ def _listed_test_calls(broker, minimum_width=0):
 @pytest.mark.parametrize("paper", ["INDIVIDUAL_MARGIN"], indirect=True)
 @pytest.mark.parametrize("package", ["single", "vertical"])
 def test_paper_single_and_vertical_option_orders(paper, package):
+    _qualify_option_limit(paper, package, "day")
+
+
+@pytest.mark.parametrize("paper", ["INDIVIDUAL_MARGIN"], indirect=True)
+@pytest.mark.parametrize("package", ["single", "put", "vertical"])
+def test_paper_gtc_listed_option_limit_lifecycle(paper, package):
+    _qualify_option_limit(paper, package, "gtc")
+
+
+def _qualify_option_limit(paper, package, duration):
     broker, observer, account = paper
     strategy = Strategy(broker=broker, name="webull_option_qualification", risk_free_rate=0,
                         synchronize_broker_on_start=False, should_backup_variables_to_database=False,
                         should_send_summary_to_discord=False)
     assets = _listed_test_calls(broker)
 
-    def verify_and_cancel(order, native_legs):
+    def verify_and_cancel(order, expected_legs):
         assert order.status != order.OrderStatus.ERROR, order.error_message
         try:
             observed = _detail(observer, account, order.identifier, lambda row: bool(row.get("order_id")))
             assert observed["instrument_type"] == "OPTION"
             assert Decimal(observed["total_quantity"]) == 1
-            assert len(observed["legs"]) == native_legs
+            assert observed["time_in_force"] == duration.upper()
+            assert Decimal(observed["limit_price"]) == Decimal("0.05")
             assert observed["status"] not in {"FAILED", "REJECTED", "EXPIRED"}
-            assert {item["side"] for item in observed["legs"]} == (
-                {"BUY"} if native_legs == 1 else {"BUY", "SELL"}
-            )
+            def leg_terms(leg):
+                return (leg["symbol"], leg["option_expire_date"], Decimal(leg["strike_price"]),
+                        leg["option_type"], leg["side"], Decimal(leg["quantity"]))
+            expected = [(asset.symbol, asset.expiration.isoformat(), Decimal(str(asset.strike)),
+                         str(asset.right).upper(), side, Decimal(1)) for asset, side in expected_legs]
+            assert sorted(leg_terms(leg) for leg in observed["legs"]) == sorted(expected)
+            if duration == "gtc":
+                strategy.modify_order(order, limit_price=Decimal("0.10"), quantity=2)
+                modified = _detail(observer, account, order.identifier,
+                                   lambda row: Decimal(row.get("limit_price") or 0) == Decimal("0.10")
+                                   and Decimal(row.get("total_quantity") or 0) == 2)
+                assert modified["order_id"] == observed["order_id"]
+                doubled = [(*leg[:-1], leg[-1] * 2) for leg in expected]
+                assert sorted(leg_terms(leg) for leg in modified["legs"]) == sorted(doubled)
         finally:
             if order.was_transmitted():
                 strategy.cancel_order(order)
@@ -434,16 +466,21 @@ def test_paper_single_and_vertical_option_orders(paper, package):
                                    lambda row: row["status"] in {"CANCELED", "CANCELLED", "EXPIRED"})
                 assert Decimal(canceled["filled_quantity"]) == 0
 
-    if package == "single":
-        single = strategy.create_order(assets[0], 1, "buy_to_open", time_in_force="day", limit_price=0.05)
+    if package in {"single", "put"}:
+        asset = assets[0]
+        if package == "put":
+            asset = Asset(asset.symbol, asset_type="option", right="PUT", expiration=asset.expiration,
+                          strike=asset.strike, multiplier=asset.multiplier)
+            broker.data_source.option_symbol(asset)  # Verify the put is independently listed.
+        single = strategy.create_order(asset, 1, "buy_to_open", time_in_force=duration, limit_price=0.05)
         strategy.submit_order(single)
-        verify_and_cancel(single, 1)
+        verify_and_cancel(single, [(asset, "BUY")])
         return
 
-    legs = [strategy.create_order(asset, 1, side, time_in_force="day")
+    legs = [strategy.create_order(asset, 1, side, time_in_force=duration)
             for asset, side in zip(assets, ("buy_to_open", "sell_to_open"))]
-    [native] = strategy.submit_orders(legs, is_multileg=True, order_type="debit", duration="day", price=0.05)
-    verify_and_cancel(native, 2)
+    [native] = strategy.submit_orders(legs, is_multileg=True, order_type="debit", duration=duration, price=0.05)
+    verify_and_cancel(native, [(assets[0], "BUY"), (assets[1], "SELL")])
 
 
 @pytest.mark.parametrize("paper", ["CRYPTO"], indirect=True)
@@ -702,22 +739,34 @@ def _observe_terminal_or_cancel(strategy, observer, account, order):
 @pytest.mark.parametrize("type_name,wire_type", [("stop", "STOP_LOSS"), ("stop_limit", "STOP_LOSS_LIMIT")])
 def test_paper_equity_core_buy_stop_place_and_cancel(paper, type_name, wire_type):
     _require_equity_core_session()
+    _qualify_equity_stop(paper, "AAPL", "day", type_name, wire_type)
+
+
+@pytest.mark.parametrize("paper", ["INDIVIDUAL_MARGIN"], indirect=True)
+@pytest.mark.parametrize("symbol", ["AAPL", "SPY"])
+@pytest.mark.parametrize("type_name,wire_type", [("stop", "STOP_LOSS"), ("stop_limit", "STOP_LOSS_LIMIT")])
+def test_paper_gtc_equity_stop_place_and_cancel(paper, symbol, type_name, wire_type):
+    _qualify_equity_stop(paper, symbol, "gtc", type_name, wire_type)
+
+
+def _qualify_equity_stop(paper, symbol, duration, type_name, wire_type):
     broker, observer, account = paper
     strategy = Strategy(broker=broker, name="webull_core_stop_qualification", risk_free_rate=0,
                         synchronize_broker_on_start=False, should_backup_variables_to_database=False,
                         should_send_summary_to_discord=False)
-    asset = Asset("AAPL")
+    asset = Asset(symbol)
     quote = broker.data_source.get_quote(asset)
     stop = (Decimal(str(quote.price)) * Decimal("1.07")).quantize(Decimal("0.01"))
     prices = {"stop_price": stop}
     if type_name == "stop_limit":
         prices["stop_limit_price"] = stop + Decimal("0.01")
-    order = strategy.create_order(asset, 1, "buy", order_type=type_name, time_in_force="day", **prices)
+    order = strategy.create_order(asset, 1, "buy", order_type=type_name, time_in_force=duration, **prices)
     try:
         strategy.submit_order(order)
         assert order.status != order.OrderStatus.ERROR, order.error_message
         placed = _detail(observer, account, order.identifier, lambda row: bool(row.get("order_id")))
         assert placed["order_type"] == wire_type and Decimal(placed["stop_price"]) == stop
+        assert placed["time_in_force"] == duration.upper()
         if "stop_limit_price" in prices:
             assert Decimal(placed["limit_price"]) == prices["stop_limit_price"]
     finally:

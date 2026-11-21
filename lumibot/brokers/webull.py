@@ -331,6 +331,47 @@ class Webull(Broker):
     def _modify_order(self, order, limit_price=None, stop_price=None, *, quantity=None):
         if order.asset.asset_type == Asset.AssetType.CRYPTO:
             raise ValueError("Webull does not offer native crypto replacement")
+        if order.asset.asset_type in (Asset.AssetType.OPTION, Asset.AssetType.MULTILEG):
+            modify = self._option_replacement(order, quantity)
+        else:
+            modify = self._standard_replacement(order, quantity)
+        if limit_price is not None:
+            modify["limit_price"] = positive_value(limit_price, "limit price")
+        if stop_price is not None:
+            modify["stop_price"] = positive_value(stop_price, "stop price")
+        return request_json("replacement", self.trading_client.order_v3.replace_order,
+                            self._selected_account(), [modify])
+
+    def _option_replacement(self, order, quantity):
+        # Webull assigns leg IDs after placement. The parent client ID alone
+        # cannot amend a single option or a spread through the v3 endpoint.
+        group = self._pull_broker_order(order.identifier)
+        row = next((item for item in (group or {}).get("orders", [])
+                    if item.get("client_order_id") == str(order.identifier)), None)
+        if row is None or row.get("instrument_type") != "OPTION":
+            raise ValueError("Webull did not return the option order to replace")
+        total = require_number(row.get("total_quantity"), "option quantity")
+        target = total if quantity is None else require_number(quantity, "replacement quantity")
+        filled = require_number(row.get("filled_quantity") or 0, "filled quantity")
+        if total <= 0 or target <= filled or target != target.to_integral_value():
+            raise ValueError("Webull replacement quantity must be in whole contracts and exceed completed fills")
+        legs = []
+        seen = set()
+        for leg in row.get("legs") or []:
+            leg_id = leg.get("id")
+            if not leg_id or leg_id in seen:
+                raise ValueError("Webull did not return a unique option leg ID")
+            seen.add(leg_id)
+            size = require_number(leg.get("quantity"), "option leg quantity") * target / total
+            if size != size.to_integral_value():
+                raise ValueError("Webull replacement quantity must preserve whole-contract leg ratios")
+            legs.append({"id": leg_id, "quantity": positive_value(size, "option leg quantity")})
+        if not legs:
+            raise ValueError("Webull did not return any option leg IDs")
+        return {"client_order_id": str(order.identifier), "quantity": positive_value(target, "quantity"),
+                "legs": legs}
+
+    def _standard_replacement(self, order, quantity):
         row = self._order_row(order)
         modify = {
             "client_order_id": row["client_order_id"], "order_type": row["order_type"],
@@ -344,12 +385,7 @@ class Webull(Broker):
             if require_number(quantity, "quantity") <= filled:
                 raise ValueError("Webull replacement quantity must exceed completed fills")
             modify["quantity"] = positive_value(quantity, "quantity")
-        if limit_price is not None:
-            modify["limit_price"] = positive_value(limit_price, "limit price")
-        if stop_price is not None:
-            modify["stop_price"] = positive_value(stop_price, "stop price")
-        return request_json("replacement", self.trading_client.order_v3.replace_order,
-                            self._selected_account(), [modify])
+        return modify
 
     def _pull_broker_order(self, identifier):
         result = request_json("order detail", self.trading_client.order_v3.get_order_detail,

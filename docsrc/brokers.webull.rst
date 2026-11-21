@@ -77,7 +77,23 @@ restored a working order after it filled during a stream outage. Two
 order-detail observations produced one fill and one strategy callback. A
 reconnected private stream delivered the closing order's final-fill event.
 Order checkpoints bind to the selected Webull account and environment.
-Full option trading, futures, equity stops and linked exits,
+
+In a Saturday PaperTrade margin-account session, a stock and ETF GTC limit
+were placed, amended and canceled. A GTC buy stop and stop-limit on both
+instruments were accepted and canceled before a fill. DAY equity market
+orders received a closed-session response. A GTC overnight-only equity limit
+was rejected because that session requires DAY. GTC trailing and market
+orders also received explicit duration rejections. Supply the intended
+duration in the strategy. A resting stop's trigger and fill still need
+separate confirmation in an eligible session.
+
+GTC buy-to-open limits for a listed call, a put and a native call vertical
+were accepted, repriced and canceled during that Saturday session. Webull
+assigns an ID to each option leg. LumiBot reads those IDs when amending
+the original order. Core-session option fills and opening/closing position
+effects still require execution evidence.
+
+Futures executions and linked exits,
 event fills, market-data tick delivery and production
 access need additional qualification before use in trading. Use
 :doc:`backtesting.webull` for the scope of historical replay.

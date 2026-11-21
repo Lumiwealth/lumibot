@@ -982,6 +982,11 @@ class StrategyExecutor(Thread):
         return replacement
 
     def _advance_smart_limit_replacement(self, intent, now):
+        """Cancel a SMART_LIMIT order that cannot be repriced in place, then submit its replacement.
+
+        The replacement goes out only after the cancel is confirmed, so the
+        remainder is never working twice.
+        """
         order, state = intent["order"], intent["order"]._smart_limit_state
         # A submission with an uncertain outcome consumes this attempt. Never
         # create fresh identities until the broker resolves that attempt.
@@ -1024,14 +1029,25 @@ class StrategyExecutor(Thread):
                 children = []
                 for child in order.child_orders:
                     expected = Decimal(str(child.quantity)) * remaining / Decimal(str(order.quantity))
-                    if self._smart_limit_remaining(child) != expected:
+                    # Schwab records package fills on the parent only; its legs hold
+                    # none, so the parent's remainder above is the one to trust.
+                    if not self._broker_is_schwab() and self._smart_limit_remaining(child) != expected:
                         # Do not duplicate an asymmetrically executed leg while
                         # the package/leg observations are still inconsistent.
                         return
                     children.append(self._smart_limit_replacement_order(child, expected))
                 intent["submission_attempted"] = True
+                submit_kwargs = {}
+                if self._broker_is_schwab():
+                    # Schwab sends the package with the duration it is given, so a
+                    # GTC package's replacement must not fall back to DAY.
+                    submit_kwargs["duration"] = getattr(order, "time_in_force", None) or "day"
                 submitted = self.broker.submit_orders(
-                    children, is_multileg=True, order_type=intent["order_type"], price=intent["price"],
+                    children,
+                    is_multileg=True,
+                    order_type=intent["order_type"],
+                    price=intent["price"],
+                    **submit_kwargs,
                 )
                 replacement = submitted[0] if isinstance(submitted, list) and submitted else submitted
             else:
@@ -1059,7 +1075,12 @@ class StrategyExecutor(Thread):
         with self._smart_limit_lock:
             self._process_smart_limit_orders_locked()
 
+    def _broker_is_schwab(self) -> bool:
+        """True for Schwab, whose package reprices and package fills are handled here."""
+        return str(getattr(self.broker, "name", "")).lower() == "schwab"
+
     def _process_smart_limit_orders_locked(self):
+        """Reprice active SMART_LIMIT orders while the executor lock is held."""
 
         # SMART_LIMIT should only operate on active orders. Scanning the full tracked-order
         # history (which can include large closed/filled histories) in a tight background loop
@@ -1149,18 +1170,10 @@ class StrategyExecutor(Thread):
             state["step_index"] = step_index
 
             if order.order_class == Order.OrderClass.MULTILEG and order.child_orders:
-                quote_data: list[tuple[Order, float | None, float | None]] = []
-                for leg in order.child_orders:
-                    try:
-                        quote = self.strategy.get_quote(leg.asset, quote=leg.quote, exchange=leg.exchange)
-                        leg_bid = getattr(quote, "bid", None)
-                        leg_ask = getattr(quote, "ask", None)
-                    except Exception:
-                        leg_bid = None
-                        leg_ask = None
-                    quote_data.append((leg, leg_bid, leg_ask))
-
-                if any(b is None or a is None or b < 0 or a <= 0 for _, b, a in quote_data):
+                # Schwab weights each leg by its ratio; other brokers get the plain
+                # per-leg sum this loop used before.
+                computed = self.strategy._compute_multileg_net_best_fastest(order.child_orders)
+                if computed is None:
                     if not getattr(order, "_smart_limit_missing_quote_logged", False):
                         self.strategy.log_message(
                             f"[SMART_LIMIT] Missing bid/ask for {order.asset}; keeping last limit.",
@@ -1169,18 +1182,7 @@ class StrategyExecutor(Thread):
                         order._smart_limit_missing_quote_logged = True
                     continue
 
-                net_best = 0.0
-                net_fastest = 0.0
-                from lumibot.tools.helpers import get_multileg_quantity_units
-
-                _, ratios = get_multileg_quantity_units(leg.quantity for leg in order.child_orders)
-                for (leg, leg_bid, leg_ask), ratio in zip(quote_data, ratios):
-                    if leg.is_buy_order():
-                        net_best += ratio * float(leg_bid)
-                        net_fastest += ratio * float(leg_ask)
-                    else:
-                        net_best -= ratio * float(leg_ask)
-                        net_fastest -= ratio * float(leg_bid)
+                net_best, net_fastest = computed
 
                 tick = infer_tick_size(net_best, net_fastest)
                 mid = compute_mid(net_best, net_fastest)
@@ -1210,7 +1212,12 @@ class StrategyExecutor(Thread):
                         if target_price is None:
                             should_replace = True
                         else:
-                            self.broker.modify_order(order, limit_price=float(target_price))
+                            modified = self.broker.modify_order(order, limit_price=float(target_price))
+                            # Schwab returns False when it sent no replace or could not
+                            # confirm it. The live package keeps its price, so the local
+                            # limit does too; the next step prices it again.
+                            if modified is False and self._broker_is_schwab():
+                                continue
                             order.limit_price = float(target_price)
                             continue
                     except Exception:
@@ -1765,6 +1772,7 @@ class StrategyExecutor(Thread):
 
     @event_method
     def _on_filled_order(self, position, order, price, quantity, multiplier):
+        """Run the strategy's fill callback for its own orders, then send the fill notification."""
         # Shared-account safety: never invoke strategy fill/hedge handlers for
         # orders owned by a different strategy (tag/strategy mismatch).
         local_name = getattr(self.strategy, "name", None) or getattr(self.strategy, "_name", None)
@@ -1807,6 +1815,11 @@ class StrategyExecutor(Thread):
         # If option, multiply % of portfolio by multiplier
         if order.asset.asset_type == Asset.AssetType.OPTION:
             order_value = order_value * multiplier
+        elif position is None and self._broker_is_schwab() and getattr(order, "child_orders", None):
+            # A Schwab package's net price is per share of its option legs; the
+            # parent asset has no contract multiplier, so use the legs'.
+            leg_asset = getattr(order.child_orders[0], "asset", None)
+            order_value = order_value * float(getattr(leg_asset, "multiplier", 1) or 1)
 
         # Calculate the percent of the portfolio that this position represents
         percent_of_portfolio = (order_value / portfolio_value) if portfolio_value else 0.0
@@ -1820,9 +1833,16 @@ class StrategyExecutor(Thread):
         else:
             emoji = "🔴📉 "
 
+        # A Schwab package fill has no single position; label it by the order.
+        # Other brokers keep their existing behavior.
+        if position is None and self._broker_is_schwab():
+            traded_asset = order.asset
+        else:
+            traded_asset = position.asset
+
         # Create a message to send to Discord
         message = f"""
-                {emoji} {side} {quantity:,.2f} {position.asset} @ ${price:,.2f} ({percent_of_portfolio:,.0%} of the account)
+                {emoji} {side} {quantity:,.2f} {traded_asset} @ ${price:,.2f} ({percent_of_portfolio:,.0%} of the account)
                 Trade Total = ${order_value:,.2f}
                 Account Value = ${portfolio_value:,.0f}
                 """

@@ -22,6 +22,7 @@ _NAME_TO_MODULE = {
     "ThetaDataBacktesting": "thetadata_backtesting",
     "ThetaDataBacktestingPandas": "thetadata_backtesting_pandas",
     "TradierHistoryBacktesting": "broker_history_backtesting",
+    "WebullHistoryBacktesting": "broker_history_backtesting",
     "YahooDataBacktesting": "yahoo_backtesting",
 }
 

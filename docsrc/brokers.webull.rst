@@ -1,0 +1,83 @@
+Webull OpenAPI and LumiBot
+==========================
+
+This page describes the development candidate for Webull's individual US
+OpenAPI. The qualification environment is Webull PaperTrade. Market access
+and available product accounts depend on the individual application.
+See the `Webull PaperTrade application guide <https://developer.webull.com/apis/docs/authentication/IndividualApplicationAPI/>`_.
+
+Connect an account
+------------------
+
+1. In Webull's Developer Console, choose **PaperTrade**, then **API Keys**.
+   Apply for PaperTrade and create a dedicated application.
+2. Enable the API scopes used by your strategy. Store the generated App Key
+   and App Secret in your local secret store. Webull shows the secret once.
+3. Discover your account IDs through the signed account-list endpoint. Choose
+   the ID of the product account you intend to trade.
+4. Install the optional integration with ``pip install "lumibot[webull]"`` when
+   it is included in a published release.
+
+For environment-based initialization supply ``TRADING_BROKER=webull``,
+``WEBULL_APP_KEY``, ``WEBULL_APP_SECRET``, ``WEBULL_ACCOUNT_ID`` and
+``WEBULL_PAPER=true``. Set ``DATA_SOURCE=webull`` for Webull quotes or specify
+your independent data source. The data-source path can use the API key pair
+without a trade account ID.
+
+Example configuration
+---------------------
+
+.. code-block:: python
+
+   from os import environ
+
+   from lumibot.brokers import Webull
+   from lumibot.entities import Asset
+
+   broker = Webull(
+       {
+           "APP_KEY": environ["WEBULL_APP_KEY"],
+           "APP_SECRET": environ["WEBULL_APP_SECRET"],
+           "ACCOUNT_ID": environ["WEBULL_ACCOUNT_ID"],
+           "PAPER": True,
+           "TOKEN_DIR": environ.get("WEBULL_TOKEN_DIR"),
+       },
+       connect_stream=False,
+   )
+
+   try:
+       print(broker.data_source.get_quote(Asset("AAPL")).price)
+   finally:
+       broker.cleanup_streams()
+
+Use the ordinary ``Strategy.create_order``, ``submit_order``, ``modify_order``,
+and ``cancel_order`` methods for orders. The adapter tracks the client order ID
+through placement and recovery. A placement or cancellation acknowledgment
+needs a separate order-detail observation before you rely on the result.
+
+Choose the equity session and order duration explicitly when your strategy
+depends on them. The candidate defaults to ``CORE`` when there is no session
+choice. To request extended hours, pass
+``custom_params={"support_trading_session": "ALL"}`` and verify current
+instrument eligibility. For a regular-hours DAY order, pass
+``time_in_force="day"`` explicitly.
+
+Qualification status
+--------------------
+
+Locally observed Webull simulator paths include a passive equity limit
+through placement, amendment and cancellation, a spot crypto market round
+trip, a passive event-contract limit/cancel, and a matching private
+cancellation event. Full options, futures, equity stops and linked exits,
+event fills, public market-data delivery, reconnect recovery and production
+access need additional qualification before use in trading. Use
+:doc:`backtesting.webull` for the scope of historical replay.
+
+Webull accounts report cash, exposure and buying power separately. Their
+historical security price endpoints do not provide historical account equity.
+Read currency-specific buying power with ``broker.get_buying_power("USD")``.
+PaperTrade crypto can report zero aggregate cash and equity even when its
+simulator reports buying power. Event accounts can omit aggregate cash and
+equity.
+Webull's app market-data purchases and its OpenAPI non-display entitlements
+are separate. Read the `Webull market-data guide <https://developer.webull.com/apis/docs/market-data-api/overview/>`_.

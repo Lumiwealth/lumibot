@@ -1408,3 +1408,24 @@ See :doc:`brokers.metamask` for native setup and qualification limits.
 agent-scoped service token is not a provider access token. Constructor settings
 ``CHAIN_RPC_URLS``, ``GAS_LIMITS`` and explicit legacy-session migration are
 covered in the broker guide. Keep credentials in your own secret manager.
+
+
+Webull OpenAPI
+--------------
+
+``WEBULL_APP_KEY`` and ``WEBULL_APP_SECRET``
+   Individual OpenAPI credentials supplied by the account operator.
+
+``WEBULL_ACCOUNT_ID``
+   Explicit product account ID for trading. Reads through the independent
+   Webull data source do not require this setting.
+
+``WEBULL_PAPER``
+   Select PaperTrade with ``true`` (the default) or the production service
+   with ``false``.
+
+``WEBULL_TOKEN_DIR``
+   Optional SDK token directory if your application requires Webull's
+   additional verification flow. Use an operator-owned private directory.
+
+See :doc:`brokers.webull` for the setup steps and qualification limits.

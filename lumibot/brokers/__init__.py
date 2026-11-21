@@ -6,6 +6,7 @@ _NAME_TO_MODULE = {
     "MetaMask": "metamask",
     "Kalshi": "kalshi",
     "Alpaca": "alpaca",
+    "Webull": "webull",
     "Bitunix": "bitunix",
     "Broker": "broker",
     "LumibotBrokerAPIError": "broker",

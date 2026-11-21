@@ -427,6 +427,7 @@ def pytest_runtest_setup(item: pytest.Item):
     requires_polygon = item.get_closest_marker("polygon") is not None
     requires_theta = item.get_closest_marker("thetadata") is not None
     requires_ibkr = item.get_closest_marker("ibkr") is not None
+    requires_webull = item.get_closest_marker("webull") is not None
     requires_kalshi = item.get_closest_marker("kalshi") is not None
     requires_metamask = item.get_closest_marker("metamask") is not None
     requires_polymarket = item.get_closest_marker("polymarket") is not None
@@ -439,6 +440,7 @@ def pytest_runtest_setup(item: pytest.Item):
         requires_public_http
         or requires_ibkr
         or requires_polymarket
+        or requires_webull
         or requires_kalshi
         or requires_metamask
         or requires_alpaca

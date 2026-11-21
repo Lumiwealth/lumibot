@@ -222,6 +222,7 @@ _BACKTESTING_CLASS_MODULES = {
     "YahooDataBacktesting": "lumibot.backtesting.yahoo_backtesting",
     "SchwabHistoryBacktesting": "lumibot.backtesting.broker_history_backtesting",
     "TradierHistoryBacktesting": "lumibot.backtesting.broker_history_backtesting",
+    "WebullHistoryBacktesting": "lumibot.backtesting.broker_history_backtesting",
 }
 
 AlpacaBacktesting = lazy_class("lumibot.backtesting.alpaca_backtesting", "AlpacaBacktesting")
@@ -3564,6 +3565,7 @@ class _Strategy:
                 # Your own broker connection's daily history (stocks and ETFs).
                 "schwab": "SchwabHistoryBacktesting",
                 "tradier": "TradierHistoryBacktesting",
+                "webull": "WebullHistoryBacktesting",
                 "ccxt": "CcxtBacktesting",
                 "databento": "DataBentoDataBacktesting",
                 "ibkr": "InteractiveBrokersRESTBacktesting",

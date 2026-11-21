@@ -134,6 +134,7 @@ setuptools.setup(
         ] + (["resources/ThetaTerminal.jar"] if theta_jar_path.exists() else []),
     },
     extras_require={
+        "webull": ["webull-openapi-python-sdk==3.1.0"],
         "metamask": [
             "hyperliquid-python-sdk==0.24.0",
             "PyYAML>=6.0.2,<7",

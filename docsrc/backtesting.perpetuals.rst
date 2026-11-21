@@ -141,6 +141,13 @@ against its published SHA-256 checksum before it is used.
   listing on Binance (BTCUSDT 1-minute bars from September 2019): 1-minute, hourly
   and daily candles, hourly mark prices and every funding settlement. The same route
   also serves spot crypto when ``crypto`` is routed to ``binance``.
+- **Coin-margined (inverse) perpetuals:** ``BTCUSD``, ``BTCUSD_PERP`` or
+  ``BTC/USD:BTC`` read Binance COIN-M files (``BTCUSD_PERP``): candles, hourly mark
+  prices and funding where Binance has published it. Each contract is worth a fixed
+  USD amount (100 USD for BTC, 10 USD for every other coin) and settles in the coin,
+  so fund the coin wallet: ``quote_asset=Asset("BTC", "crypto")`` with the budget in
+  BTC. Quantities are numbers of contracts. Months Binance has not published funding
+  for are recorded as ``funding_not_published``, never invented.
 - **One-day lag:** Binance publishes each day's file the next day. A backtest stops
   before trading when its requested end is more than one bar beyond the end of
   the last returned candle; nothing is filled in.
@@ -162,7 +169,7 @@ against its published SHA-256 checksum before it is used.
 - **Contract names:** some low-priced coins trade per 1000 units (``1000PEPEUSDT``);
   use that name, and quantities are in those units. Delisted or renamed contracts
   have no newer files and stop with ``contract_not_listed``.
-- **Not covered:** coin-margined (inverse) contracts and dated futures.
+- **Not covered:** dated futures.
 - The live Binance API is not used, so this works where that API is blocked.
 
 When an unpublished tail stops a perpetual backtest, catch
@@ -203,6 +210,7 @@ perpetuals that serves what the strategy asked for:
 - USD (and EUR, GBP) pairs such as ``BTC/USD``: Coinbase public candles.
 - USDT, USDC and FDUSD pairs such as ``BTC/USDT``: Binance bulk spot files.
 - USDT- and USDC-margined perpetuals such as ``BTCUSDT``: Binance USD-M bulk files.
+- Coin-margined perpetuals such as ``BTCUSD``: Binance COIN-M bulk files.
 
 Every source on this route is public: no API key, no broker account and no
 Data Downloader. The data provenance names the exchange and the symbol served

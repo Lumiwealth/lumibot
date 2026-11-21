@@ -182,7 +182,10 @@ re-adds its tag while signing each request, so LumiBot cannot remove it yet. See
 
 Exchanges that publish no historical candles (no ``fetchOHLCV`` in CCXT) still
 trade and quote live prices; price-history requests raise a clear
-``NotImplementedError``. ``python -m lumibot.tools.ccxt_exchange_catalog`` prints
+``NotImplementedError``. A ``get_historical_prices`` bar size the exchange lists
+in CCXT's ``timeframes`` (for example ``"hour"``, ``"4 hours"`` or ``"15 minutes"``)
+is read as the exchange's own candles; other sizes are built from one-minute
+candles. ``python -m lumibot.tools.ccxt_exchange_catalog`` prints
 every installed exchange with its credential variables and capabilities as JSON.
 
 Spot order quantities are base-coin units. LumiBot uses CCXT's own amount and

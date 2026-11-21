@@ -296,3 +296,41 @@ def test_builtin_supertrend_shades_green_and_red_like_tradingview():
     assert specs["up_fill"].kind == "fill" and specs["up_fill"].between == ("mid", "uptrend")
     assert specs["down_fill"].kind == "fill" and specs["down_fill"].between == ("mid", "downtrend")
     SupertrendIndicator.check_outputs()
+
+
+class TestArrowOutput:
+    """Pine ``plotarrow``: up arrow below the bar for a positive value, down arrow above for a
+    negative one, length scaled by the size of the value between min_height and max_height pixels."""
+
+    def test_arrow_is_an_output_kind_with_pine_default_heights(self):
+        assert "arrow" in OUTPUT_KINDS
+        described = OutputSpec("a", "A", "arrow").describe()
+        assert described["kind"] == "arrow"
+        assert described["min_height"] == 5 and described["max_height"] == 100
+        assert described["palette"] == []
+
+    def test_every_output_describes_heights(self):
+        described = OutputSpec("x", "X").describe()
+        assert described["min_height"] == 5 and described["max_height"] == 100
+
+    def test_up_and_down_colors_are_a_two_color_palette(self):
+        described = OutputSpec("a", "A", "arrow", palette=("#00AA00", "#AA0000"), min_height=8,
+                               max_height=60).describe()
+        assert described["palette"] == ["#00AA00", "#AA0000"]
+        assert described["min_height"] == 8 and described["max_height"] == 60
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            {"palette": ("#00AA00",)},
+            {"palette": ("#00AA00", "#AA0000", "#0000AA")},
+            {"min_height": 0},
+            {"max_height": 1001},
+            {"min_height": 50, "max_height": 10},
+            {"min_height": 5.5},
+            {"max_height": True},
+        ],
+    )
+    def test_bad_arrow_options_are_rejected(self, bad):
+        with pytest.raises(ValueError):
+            OutputSpec("a", "A", "arrow", **bad)

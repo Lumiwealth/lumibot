@@ -2,6 +2,9 @@
 
 ## 4.6.95 - Unreleased
 
+### Added
+- **Indicator text options and arrows match Pine.** Boxes take `text_valign` (`top`, `center`, `bottom`), `text_wrap` (`none`, `auto`) and `text_formatting` (`none`, `bold`, `italic`, `bold_italic`); labels take `text_formatting`; table cells take `text_valign`, `tooltip`, `text_formatting`, `width` and `height` (percent of the chart, 0 fits the text); `self.draw.merge_cells(table, start_column, start_row, end_column, end_row)` joins cells like Pine's `table.merge_cells`. A new `arrow` output kind works like Pine's `plotarrow` (up arrow below the bar for a positive value, down arrow above for a negative one, length scaled between `min_height` and `max_height` pixels, defaults 5 and 100; up and down colors are a two-color `palette`). Every `describe()` output now lists `min_height` and `max_height`, and tables list their `merges`. Existing indicators draw the same. Docs: `docsrc/indicators_drawings.rst`, `docsrc/indicators_styles.rst`. Tests: `tests/test_indicator_drawings.py`, `tests/test_indicator_styles.py::TestArrowOutput`.
+
 ## 4.6.94 - 2026-11-20
 
 ### Fixed

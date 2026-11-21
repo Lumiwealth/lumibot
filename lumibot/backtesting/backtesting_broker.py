@@ -3115,8 +3115,7 @@ class BacktestingBroker(Broker):
                         )
                         continue
 
-                    # Quote was available but did not satisfy fill conditions; keep the order open
-                    # and retry on the next bar without forcing an OHLC download.
+                    # Quote was available but did not satisfy fill conditions.
                     if bid is not None and ask is not None:
                         if self._cancel_unfilled_immediate_time_in_force(
                             order,
@@ -3124,7 +3123,12 @@ class BacktestingBroker(Broker):
                             strategy=strategy,
                         ):
                             continue
-                        continue
+                        # A resting LIMIT rests through the whole execution bar, not only at the
+                        # quote snapshot. Check the bar's traded range below (the same rule the
+                        # between-run checker uses), so a limit the price trades through during
+                        # the bar fills even if the strategy cancels it at its next run.
+                        if order.order_type != Order.OrderType.LIMIT:
+                            continue
 
             #############################
             # Get OHLCV data for the asset
@@ -6271,8 +6275,12 @@ class BacktestingBroker(Broker):
                 arrays = None if daily else self._valuation_arrays(asset, quote, 3, bucket)
                 if arrays is not None:
                     stamps, closes = arrays
-                    last_ts = pd.Timestamp(int(stamps[-1]), tz="UTC").tz_convert(now.tz)
+                    last_ts = None
+                    # Same rule as _bar_matches_now (minute of the last bar == current minute);
+                    # US exchange offsets are whole minutes, so UTC minutes compare the same.
+                    last_bar_now = int(stamps[-1]) // 60_000_000_000 == now.value // 60_000_000_000
                 else:
+                    last_bar_now = None
                     frame = self._valuation_bars(asset, quote, 3, bucket)
                     if frame is None:
                         frame = self._valuation_bars(asset, quote, lookback, bucket)
@@ -6283,7 +6291,7 @@ class BacktestingBroker(Broker):
                     if last_ts.date() == today and phase == "closed":
                         self._count_option_valuation_mark("real")
                         continue
-                elif self._bar_matches_now(last_ts):
+                elif last_bar_now if last_bar_now is not None else self._bar_matches_now(last_ts):
                     self._count_option_valuation_mark("real")
                     continue
                 # A source whose quotes never carry a bid or ask (trade-bar sources) cannot

@@ -364,3 +364,89 @@ class TestTables:
         other.restore(snapshot)
         assert other.drawings() == indicator.drawings()
         assert indicator.drawings()[0]["cells"][0]["text"] == "101.0"
+
+
+# ---- Pine / TradingView drawing vocabulary (Nov 20) ---------------------------------------------
+
+from lumibot.indicators.drawings import LABEL_STYLES, MAX_POLYLINE_POINTS  # noqa: E402
+
+T1 = T0 + pd.Timedelta(minutes=5)
+
+
+def test_label_takes_every_pine_label_style_tooltip_and_text_align():
+    board = Drawings()
+    for style in (
+        "circle", "square", "diamond", "triangle_up", "triangle_down", "arrow_up", "arrow_down",
+        "cross", "xcross", "flag", "label_upper_left", "label_upper_right", "label_lower_left",
+        "label_lower_right", "text_outline",
+    ):
+        assert style in LABEL_STYLES
+        board.label(T0, 10.0, "x", style=style)
+    pin = board.label(T0, 10.0, "", style="circle", tooltip="Entry: 101.25", text_align="left")
+    item = board.get(pin)
+    assert item["tooltip"] == "Entry: 101.25" and item["text_align"] == "left"
+    with pytest.raises(ValueError):
+        board.label(T0, 10.0, "x", tooltip="bad\x01")
+    with pytest.raises(ValueError):
+        board.label(T0, 10.0, "x", style="balloon")
+
+
+def test_polyline_points_curved_closed_fill():
+    board = Drawings()
+    pid = board.polyline([(T0, 1.0), (T1, 2.0), (T1 + pd.Timedelta(minutes=1), 1.5)], curved=True, closed=True,
+                         color="#FF0000", width=2, style="dashed", fill_color="#FF000033")
+    item = board.get(pid)
+    assert item["kind"] == "polyline" and pid.startswith("p")
+    assert item["points"][0] == {"x": int(T0.value // 1_000_000), "y": 1.0}
+    assert item["curved"] is True and item["closed"] is True and item["fill_color"] == "#FF000033"
+    json.dumps(board.to_list())
+    with pytest.raises(ValueError):
+        board.polyline([(T0, 1.0)])
+    with pytest.raises(ValueError):
+        board.polyline([(T0, float(i)) for i in range(MAX_POLYLINE_POINTS + 1)])
+    with pytest.raises(ValueError):
+        board.polyline([(T0, 1.0), (T1, float("nan"))])
+    assert board.update(pid, color="#00FF00")
+    restored = Drawings.from_snapshot(json.loads(json.dumps(board.snapshot())))
+    assert restored.get(pid) == board.get(pid)
+
+
+def test_linefill_between_two_lines_and_dropped_with_them():
+    board = Drawings()
+    a = board.line(T0, 1.0, T1, 2.0)
+    b = board.line(T0, 0.0, T1, 1.0)
+    fid = board.linefill(a, b, color="#2962FF33")
+    assert board.get(fid) == {"id": fid, "kind": "linefill", "line1": a, "line2": b, "color": "#2962FF33"}
+    with pytest.raises(ValueError):
+        board.linefill(a, "l999")
+    board.delete(a)
+    assert board.get(fid) is None  # Pine: a linefill goes with its lines
+
+
+def test_line_family_helpers_compile_to_lines_and_labels():
+    board = Drawings()
+    assert board.get(board.ray(T0, 1.0, T1, 2.0))["extend"] == "right"
+    assert board.get(board.extended_line(T0, 1.0, T1, 2.0))["extend"] == "both"
+    h = board.get(board.horizontal_line(5.0, T0))
+    assert h["y1"] == h["y2"] == 5.0 and h["extend"] == "both"
+    hr = board.get(board.horizontal_ray(T0, 5.0))
+    assert hr["y1"] == hr["y2"] == 5.0 and hr["extend"] == "right"
+    v = board.get(board.vertical_line(T1))
+    assert v["x1"] == v["x2"] and v["extend"] == "both"
+    vid, hid = board.crossline(T1, 7.0)
+    assert board.get(vid)["x1"] == board.get(vid)["x2"] and board.get(hid)["y1"] == 7.0
+    line_id, label_id = board.trend_angle(T0, 100.0, T1, 110.0)
+    assert board.get(line_id)["kind"] == "line" and "°" in board.get(label_id)["text"]
+    line_id, label_id = board.info_line(T0, 100.0, T1, 110.0)
+    assert "+10" in board.get(label_id)["text"] and "+10.00%" in board.get(label_id)["text"]
+    assert board.get(board.text(T0, 1.0, "hi"))["style"] == "none"
+    assert board.get(board.callout(T0, 1.0, "hi"))["style"] == "label_down"
+    assert board.get(board.note(T0, 1.0, "hi", tooltip="more"))["tooltip"] == "more"
+    pin = board.get(board.pin(T0, 1.0, "why"))
+    assert pin["style"] == "circle" and pin["tooltip"] == "why"
+    assert board.get(board.price_label(T0, 1234.5))["text"] == "1,234.50"
+    note_line, note_label = board.price_note(T0, 100.0, T1)
+    assert board.get(note_line)["kind"] == "line" and board.get(note_label)["text"] == "100.00"
+    assert board.get(board.flag_mark(T0, 1.0))["style"] == "flag"
+    post, sign = board.signpost(T0, 1.0, "Earnings")
+    assert board.get(post)["x1"] == board.get(post)["x2"] and board.get(sign)["text"] == "Earnings"

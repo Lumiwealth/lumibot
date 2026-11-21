@@ -73,3 +73,23 @@ def test_collect_custom_tearsheet_metrics_rejects_non_dict_return():
     result = harness._collect_custom_tearsheet_metrics()
 
     assert result == {}
+
+
+def test_base_hook_is_not_given_inputs_it_would_ignore(monkeypatch):
+    """The base Strategy hook returns {}: its inputs (stats copy, returns, drawdown table) are not built."""
+    from lumibot.strategies.strategy import Strategy
+
+    class Plain(_HookHarness):
+        tearsheet_custom_metrics = Strategy.tearsheet_custom_metrics
+
+    built = {"n": 0}
+
+    def counting(*args, **kwargs):
+        built["n"] += 1
+        return _Strategy._build_drawdown_inputs(*args, **kwargs)
+
+    plain = Plain()
+    plain._build_drawdown_inputs = counting
+    plain._stats = pd.DataFrame({"portfolio_value": [1.0, 2.0]})
+    assert plain._collect_custom_tearsheet_metrics() == {}
+    assert built["n"] == 0

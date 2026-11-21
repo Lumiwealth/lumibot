@@ -12,6 +12,16 @@ futures wallet for it: margin is reserved (not spent), profit and loss settles
 in the contract's settlement coin, funding is charged or paid at each real
 settlement, and a position that runs out of collateral is liquidated.
 
+A liquidated position is closed at its **liquidation price**: the price where the
+position's collateral plus its profit and loss meets its maintenance margin
+(isolated margin: the margin set aside for that position; cross margin: the whole
+futures wallet). Liquidation is checked on closed candles, so the candle that shows
+the breach may already be far past that price; the fill still uses the liquidation
+price, so a backtest never loses more than the collateral at risk, as on an
+exchange. The fill row in the trade log has ``price_source`` set to ``liquidation``,
+and the ``liquidation`` event in ``perpetual_events`` records both ``price`` (the
+liquidation price) and ``trigger_mark`` (the mark that showed the breach).
+
 Ways to get perpetual data
 --------------------------
 

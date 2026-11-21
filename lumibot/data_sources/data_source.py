@@ -355,8 +355,20 @@ class DataSource(ABC):
     def localize_datetime(self, dt):
         if dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is not None:
             return self.to_default_timezone(dt)
-        else:
-            return self.tzinfo.localize(dt, is_dst=None)
+        tz = self.tzinfo
+        if not hasattr(tz, "localize"):
+            return dt.replace(tzinfo=tz)
+        import pytz
+
+        try:
+            return tz.localize(dt, is_dst=None)
+        except pytz.AmbiguousTimeError:
+            # The repeated hour when daylight time ends: take the earlier instant, so a
+            # backtest never reads an hour of data from after the wall-clock time.
+            return tz.localize(dt, is_dst=True)
+        except pytz.NonExistentTimeError:
+            # The skipped hour when daylight time starts: move forward to the real time.
+            return tz.normalize(tz.localize(dt, is_dst=False))
 
     def to_default_timezone(self, dt):
         return dt.astimezone(self.tzinfo)

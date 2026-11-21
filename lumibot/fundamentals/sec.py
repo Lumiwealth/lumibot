@@ -513,6 +513,23 @@ class _CompanyTimeline:
                 yield series_unit, rows[index], series.ts[index]
 
 
+_BARE_TICKER = re.compile(r"[A-Za-z]{1,6}([.\-/ ][A-Za-z]{1,2})?")  # no digits: "SP500" is an index name, not a ticker
+
+
+def _as_symbol_list(symbols: Any) -> list:
+    """The universe as a list. A bare string is one ticker ("AAPL", "BRK.B"); any other string
+    (an index name such as "S&P 500") is an error, because LumiBot has no index membership lists
+    and walking the string letter by letter returned a table of empty rows without a word."""
+    if isinstance(symbols, str):
+        if _BARE_TICKER.fullmatch(symbols.strip()):
+            return [symbols.strip()]
+        raise ValueError(
+            f"A universe must be a list of tickers, for example ['AAPL', 'MSFT']; got the string {symbols!r}. "
+            "LumiBot has no index membership lists: pass the tickers you want to screen."
+        )
+    return list(symbols)
+
+
 class SECFundamentals:
     """Direct SEC EDGAR client with mandatory local caching and point-in-time helpers."""
 
@@ -1242,7 +1259,7 @@ class SECFundamentals:
         """
         started = time.perf_counter()
         requests_before = self.request_count
-        unique = list(dict.fromkeys(str(symbol).upper().strip() for symbol in symbols if str(symbol or "").strip()))
+        unique = list(dict.fromkeys(str(symbol).upper().strip() for symbol in _as_symbol_list(symbols) if str(symbol or "").strip()))
         self._ticker_map()
 
         def load(symbol: str) -> tuple[str, str, str | None]:
@@ -1836,6 +1853,10 @@ class SECFundamentals:
         import pandas as pd
 
         requested = list(FUNDAMENTAL_METRICS) if metrics is None else [str(name) for name in metrics]
+        symbols = _as_symbol_list(symbols)
+        unknown = [name for name in requested if name not in FUNDAMENTAL_METRICS]
+        if unknown:  # a misspelt name blanked every value with the reason buried in a dict column
+            raise ValueError(f"Unknown fundamental metric(s) {unknown}. Choose from: {', '.join(FUNDAMENTAL_METRICS)}.")
         symbol_list = list(dict.fromkeys(str(symbol).upper().strip() for symbol in symbols if str(symbol or "").strip()))
         given_prices = {str(key).upper() for key, value in (prices or {}).items() if value is not None}
         stored = self._stored_metric_rows([s for s in symbol_list if s not in given_prices], requested, as_of)

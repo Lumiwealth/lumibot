@@ -182,6 +182,7 @@ All indicator pages
 - :doc:`indicators_styles`: line styles, colors, widths, fills, markers and bar colors.
 - :doc:`indicators_drawings`: draw boxes, lines, labels and tables on the chart.
 - :doc:`indicators_chart_placement`: on the price chart or its own pane.
+- :doc:`indicators_supertrend`: the built-in Supertrend with Buy and Sell markers.
 - :doc:`indicators_backtesting`: use an indicator in a backtest.
 - :doc:`indicators_live_strategies`: use it in a live strategy on your broker.
 - :doc:`indicators_live_crypto_stream`: live values from an exchange in plain Python.

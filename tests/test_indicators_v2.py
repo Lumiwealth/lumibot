@@ -484,7 +484,8 @@ def test_float_input_accepts_int_and_enforces_range():
 
 def test_describe_schema_for_every_builtin():
     allowed_types = {"int", "float", "bool", "color", "source", "string", "enum"}
-    allowed_kinds = {"line", "area", "histogram", "scatter", "markers", "shape"}
+    # "fill" since 4.6.93: the built-in supertrend shades between price and its line like TradingView.
+    allowed_kinds = {"line", "area", "histogram", "scatter", "markers", "shape", "fill"}
     described = {d["key"]: d for d in registry.list()}
     for key in BUILTIN_KEYS:
         d = described[key]

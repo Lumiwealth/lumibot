@@ -15,9 +15,10 @@ def day_deduplicate(df_):
     if "return" in df_copy:
         # A fill and its preceding valuation can share a timestamp. Their
         # returns are consecutive periods, not interchangeable observations.
-        latest["return"] = grouped["return"].agg(
-            lambda values: (1.0 + values).prod(min_count=1) - 1.0
-        )
+        # Same compounding as ``(1.0 + values).prod(min_count=1) - 1.0`` per instant, computed by
+        # pandas' grouped product in one pass instead of a Python call per timestamp (a minute
+        # backtest has tens of thousands of instants; the per-group call dominated report time).
+        latest["return"] = (1.0 + df_copy["return"]).groupby(level=0, sort=False).prod(min_count=1) - 1.0
     for column in df_copy:
         if isinstance(column, str) and column.startswith("cash_") and column.endswith("_period"):
             latest[column] = grouped[column].sum(min_count=1)

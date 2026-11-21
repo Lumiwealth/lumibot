@@ -3109,6 +3109,15 @@ class _Strategy:
         hook = getattr(self, "tearsheet_custom_metrics", None)
         if not callable(hook):
             return base_metrics
+        # The base Strategy hook returns {}. Building its inputs (a deep stats copy, return series
+        # and a drawdown-period table) costs seconds on long minute backtests, so skip it unless a
+        # strategy overrides the hook. Same result: base_metrics merged with {}.
+        hook_function = getattr(type(self), "tearsheet_custom_metrics", None)
+        if (
+            getattr(hook_function, "__module__", None) == "lumibot.strategies.strategy"
+            and getattr(hook_function, "__qualname__", None) == "Strategy.tearsheet_custom_metrics"
+        ):
+            return base_metrics
 
         stats_df = self._stats.copy(deep=True) if isinstance(self._stats, pd.DataFrame) else None
         strategy_returns = self._extract_returns_series(

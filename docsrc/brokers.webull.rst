@@ -93,8 +93,13 @@ assigns an ID to each option leg. LumiBot reads those IDs when amending
 the original order. Core-session option fills and opening/closing position
 effects still require execution evidence.
 
-Futures executions and linked exits,
-event fills, market-data tick delivery and production
+A one-contract YES round trip and a separate NO round trip both filled in
+the event account. Independent filled-order details reconciled with the
+account's buying power after exchange fees. Other attempts with a displayed
+two-sided quote remained open during the observation window. The test
+canceled those orders and confirmed zero fills. Contract settlement still needs separate evidence.
+
+Futures executions, linked exits, market-data tick delivery and production
 access need additional qualification before use in trading. Use
 :doc:`backtesting.webull` for the scope of historical replay.
 

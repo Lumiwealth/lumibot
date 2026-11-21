@@ -573,10 +573,18 @@ def test_paper_dated_futures_limit_lifecycle(paper):
 @pytest.mark.parametrize("paper", ["EVENTS_CASH"], indirect=True)
 @pytest.mark.parametrize("outcome", ["yes", "no"])
 def test_paper_event_contract_limit_lifecycle(paper, outcome):
+    broker, observer, account = paper
+    asset, _ = _quoted_event_contract(broker.data_source.client, outcome)
+    strategy = Strategy(broker=broker, name="webull_event_qualification", risk_free_rate=0,
+                        synchronize_broker_on_start=False, should_backup_variables_to_database=False,
+                        should_send_summary_to_discord=False)
+    order = strategy.create_order(asset, 1, "buy", limit_price=Decimal("0.01"), time_in_force="gtc")
+    _qualify_passive_limit(strategy, observer, account, order, "EVENT")
+
+
+def _quoted_event_contract(client, outcome, *, require_two_sided=False):
     from datetime import date
 
-    broker, observer, account = paper
-    client = broker.data_source.client
     series = request_json("economic event series", client.instrument.list_event_series,
                           category="ECONOMICS", symbols="KXFEDDECISION")["data"]
     assert len(series) == 1
@@ -584,21 +592,71 @@ def test_paper_event_contract_limit_lifecycle(paper, outcome):
                            series_symbol=series[0]["symbol"])["data"]
     candidates = [r for r in markets if r.get("tradable_status") == "OC" and
                   r.get("last_trading_date", "") >= date.today().isoformat()]
+    executable = []
     for row in candidates[:5]:
-        snapshots = request_json("event snapshot", client.event_market_data.get_event_snapshot, row["symbol"])
-        if not snapshots:
+        quotes = request_json("event snapshot", client.event_market_data.get_event_snapshot, row["symbol"])
+        if not quotes:
             continue
-        snapshot = snapshots[0]
-        if Decimal(snapshot.get(f"{outcome}_bid") or 0) < Decimal("0.05"):
+        quote = quotes[0]
+        if Decimal(quote.get(f"{outcome}_bid") or 0) < Decimal("0.05"):
             continue
+        if require_two_sided:
+            if Decimal(quote.get(f"{outcome}_bid_size") or 0) < 1 or Decimal(quote.get(f"{outcome}_ask_size") or 0) < 1:
+                continue
+            if not 0 < Decimal(quote.get(f"{outcome}_ask") or 0) < 1:
+                continue
         asset = Asset(row["symbol"], asset_type="prediction_contract", outcome=outcome)
-        strategy = Strategy(broker=broker, name="webull_event_qualification", risk_free_rate=0,
-                            synchronize_broker_on_start=False, should_backup_variables_to_database=False,
-                            should_send_summary_to_discord=False)
-        order = strategy.create_order(asset, 1, "buy", limit_price=Decimal("0.01"), time_in_force="gtc")
-        _qualify_passive_limit(strategy, observer, account, order, "EVENT")
-        return
-    pytest.fail("No listed economic contract with an independently verified passive price")
+        if not require_two_sided:
+            return asset, quote
+        # Prefer a deep, tight two-sided book for an actual matching attempt.
+        width = Decimal(quote[f"{outcome}_ask"]) - Decimal(quote[f"{outcome}_bid"])
+        depth = min(Decimal(quote[f"{outcome}_ask_size"]), Decimal(quote[f"{outcome}_bid_size"]))
+        if width >= 0:
+            executable.append((width, -depth, asset, quote))
+    if executable:
+        _, _, asset, quote = min(executable, key=lambda item: item[:2])
+        return asset, quote
+    pytest.fail("No eligible listed economic contract with the required quote for this outcome")
+
+
+@pytest.mark.parametrize("paper", ["EVENTS_CASH"], indirect=True)
+@pytest.mark.parametrize("outcome", ["yes", "no"])
+def test_paper_event_marketable_limit_round_trip(paper, outcome):
+    broker, observer, account = paper
+    asset, _ = _quoted_event_contract(broker.data_source.client, outcome, require_two_sided=True)
+    strategy = Strategy(broker=broker, name="webull_event_execution", risk_free_rate=0,
+                        synchronize_broker_on_start=False, should_backup_variables_to_database=False,
+                        should_send_summary_to_discord=False)
+    def holdings():
+        positions = request_json("independent positions", observer.account_v2.get_account_position, account)
+        return {(r["symbol"], r.get("event_outcome")): Decimal(r["quantity"]) for r in positions}
+    def buying_power():
+        balance = request_json("event balance", observer.account_v2.get_account_balance, account)
+        usd = next(row for row in balance["account_currency_assets"] if row["currency"] == "USD")
+        return Decimal(usd["buying_power"])
+
+    baseline = holdings()
+    initial_power = buying_power()
+    cap = Decimal("0.99")  # Maximum test outlay is 99 cents of simulated cash.
+    buy = strategy.create_order(asset, 1, "buy", limit_price=cap, time_in_force="gtc")
+    filled = _submit_and_observe_terminal(strategy, observer, account, buy)
+    quantity = Decimal(filled.get("filled_quantity") or 0)
+    try:
+        assert quantity == 1 and filled["status"] == "FILLED", "Event order did not match before cancellation"
+        assert filled["symbol"] == asset.symbol and filled["event_outcome"].lower() == outcome
+        assert 0 < Decimal(filled["filled_price"]) <= cap
+    finally:
+        if quantity:
+            floor = Decimal("0.01")
+            sell = strategy.create_order(asset, quantity, "sell", limit_price=floor, time_in_force="gtc")
+            closed = _submit_and_observe_terminal(strategy, observer, account, sell)
+            assert closed["symbol"] == asset.symbol and closed["event_outcome"].lower() == outcome
+            assert closed["status"] == "FILLED" and Decimal(closed["filled_quantity"]) == quantity
+            assert floor <= Decimal(closed["filled_price"]) <= 1
+    assert holdings() == baseline
+    fees = sum(Decimal(fee["actual_value"]) for row in (filled, closed) for fee in row["fees"])
+    net = quantity * (Decimal(closed["filled_price"]) - Decimal(filled["filled_price"])) - fees
+    assert abs(buying_power() - initial_power - net) <= Decimal("0.01")
 
 
 def _qualify_passive_limit(strategy, observer, account, order, product):

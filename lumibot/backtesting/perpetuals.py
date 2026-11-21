@@ -342,6 +342,47 @@ class PerpetualAccount:
                 f"PERPETUAL_FUNDING_UNAVAILABLE {json.dumps(notice, sort_keys=True)}"
             )
 
+    def _equity_terms(self, key, price, risk, at):
+        """Unrealized PnL minus maintenance margin of one position at `price`, in settle currency."""
+        asset = key[1]
+        spec = self.broker.get_contract_spec(asset)
+        price = dec(price)
+        lots = self.lots[key]
+        quantity = sum((lot["quantity"] for lot in lots), Decimal(0))
+        pnl = sum((self.convert(spec.pnl(lot["quantity"], lot["price"], price), spec.pnl_currency,
+                                spec.settle, asset, price, at=at) for lot in lots), Decimal(0))
+        maintenance = self.convert(abs(spec.exposure(quantity, price)["quote"])
+                                   * dec(risk.get("maintenance_margin_rate", 0)),
+                                   spec.quote, spec.settle, asset, price, at=at)
+        return pnl - maintenance
+
+    def liquidation_price(self, key, mark, risk, at, collateral):
+        """Price where `collateral` plus this position's PnL meets its maintenance margin.
+
+        Searched between the average entry (where the position still has its collateral)
+        and the mark that showed the breach. Falls back to the mark when no price between
+        them leaves equity above maintenance.
+        """
+        lots = self.lots[key]
+        quantity = sum((lot["quantity"] for lot in lots), Decimal(0))
+        breach = dec(mark)
+        if not quantity:
+            return breach
+        safe = sum((lot["price"] * lot["quantity"] for lot in lots), Decimal(0)) / quantity
+
+        def gap(price):
+            return collateral + self._equity_terms(key, price, risk, at)
+
+        if gap(safe) <= 0 or gap(breach) > 0:
+            return breach
+        for _ in range(80):
+            middle = (safe + breach) / 2
+            if gap(middle) > 0:
+                safe = middle
+            else:
+                breach = middle
+        return breach
+
     def liquidate(self, strategy, at):
         source = self.broker.data_source
         groups, close = {}, []
@@ -375,11 +416,17 @@ class PerpetualAccount:
                 group["pnl"] += pnl
                 group["maintenance"] += maintenance
                 group["items"].append(item)
+        prices = {}
         for currency, group in groups.items():
             isolated = sum((lot["margin"] for key, lots in self.lots.items() if key[0] == strategy.name
                             for lot in lots if lot["settle"] == currency and lot["mode"] == "isolated"), Decimal(0))
             if self.wallet(strategy, currency) - isolated + group["pnl"] <= group["maintenance"]:
                 close.extend(group["items"])
+                for item in group["items"]:
+                    others = [other for other in group["items"] if other is not item]
+                    base = self.wallet(strategy, currency) - isolated + sum(
+                        (self._equity_terms(other[0], other[1], other[3], at) for other in others), Decimal(0))
+                    prices[item[0]] = self.liquidation_price(item[0], item[1], item[3], at, base)
         for key, mark, quantity, risk in close:
             if key not in self.lots:
                 continue
@@ -387,13 +434,19 @@ class PerpetualAccount:
             spec = self.broker.get_contract_spec(asset)
             isolated = all(lot["mode"] == "isolated" for lot in self.lots[key])
             allocation = sum((lot["margin"] for lot in self.lots[key]), Decimal(0))
+            if key not in prices:
+                prices[key] = self.liquidation_price(key, mark, risk, at, allocation)
+            # The exchange closes at the liquidation price. A later candle mark past it is
+            # only when this backtest noticed the breach, not the price the position closed at.
+            price = prices[key]
             wallet_before = self.wallet(strategy, spec.settle)
             order = strategy.create_order(asset, abs(quantity), "sell" if quantity > 0 else "buy",
                 position_side=key[2], position_id=key[3], reduce_only=True, custom_params={"liquidation": True})
+            order._price_source = "liquidation"
             self.broker._process_new_order(order)
-            self.broker._execute_filled_order(order, float(mark), abs(quantity), strategy)
-            fee = self.convert(abs(spec.exposure(quantity, mark)["quote"]) * dec(risk.get("liquidation_fee_rate", 0)),
-                               spec.quote, spec.settle, asset, mark)
+            self.broker._execute_filled_order(order, float(price), abs(quantity), strategy)
+            fee = self.convert(abs(spec.exposure(quantity, price)["quote"]) * dec(risk.get("liquidation_fee_rate", 0)),
+                               spec.quote, spec.settle, asset, price)
             insurance_credit = Decimal(0)
             if isolated:
                 insurance_credit = max(Decimal(0), wallet_before - allocation - (self.wallet(strategy, spec.settle) - fee))
@@ -401,6 +454,7 @@ class PerpetualAccount:
                     self.assumption(f"{asset}: isolated gap loss beyond allocated collateral uses modeled insurance credit")
             self.credit(strategy, spec.settle, insurance_credit - fee)
             self.broker.perpetual_events.append({"type": "liquidation", "strategy": strategy.name,
-                "symbol": asset.symbol, "timestamp": at.isoformat(), "price": str(mark),
+                "symbol": asset.symbol, "timestamp": at.isoformat(), "price": str(price),
+                "trigger_mark": str(mark),
                 "quantity": str(quantity), "fee": str(fee), "currency": spec.settle,
                 "position_side": key[2], "position_id": key[3], "insurance_credit": str(insurance_credit)})

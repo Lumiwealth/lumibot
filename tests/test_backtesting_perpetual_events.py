@@ -65,7 +65,9 @@ def test_isolated_liquidation_preserves_other_hedge_leg_and_wallet_cash(account)
     advance(strategy, 1)
     assert broker.get_tracked_position(strategy.name, asset, position_side="long") is None
     assert broker.get_tracked_position(strategy.name, asset, position_side="short").quantity == -20
-    assert strategy.cash == pytest.approx(902.192)  # 96 loss + 904*.002 fee
+    # Closed at the liquidation price 900 / .0199 (margin 100 + PnL meets maintenance),
+    # not at the later mark 45,200: loss 95.48 + fee .02 * 45,226.13 * .002.
+    assert strategy.cash == pytest.approx(1000 - .02 * (50000 - 900 / .0199) - .02 * 900 / .0199 * .002)
     assert any(row["type"] == "liquidation" for row in broker.perpetual_events)
 
 
@@ -109,8 +111,11 @@ def test_isolated_gap_loss_cannot_spend_unallocated_wallet_collateral(account):
     fill(strategy, broker, asset, 20, "buy", custom_params={"marginMode": "isolated"})
     advance(strategy, 1)
     assert broker.get_tracked_position(strategy.name, asset) is None
-    assert strategy.cash == 900
-    assert float(broker.perpetual_events[-1]["insurance_credit"]) > 0
+    # The gap to 40,000 does not reach the account: the position closes at its liquidation
+    # price, so the loss stays inside the allocated 100 and no insurance credit is needed.
+    assert 900 < strategy.cash < 1000
+    assert float(broker.perpetual_events[-1]["price"]) == pytest.approx(900 / .0199)
+    assert float(broker.perpetual_events[-1]["insurance_credit"]) == 0
 
 
 def test_funding_and_assumptions_are_in_normal_analyzed_results(disable_datasource_override):
@@ -136,3 +141,43 @@ def test_funding_and_assumptions_are_in_normal_analyzed_results(disable_datasour
     assert strategy.cash == 1990
     assert float(result["perpetual_events"][0]["amount"]) == -10
     assert result["backtest_assumptions"]
+
+
+def test_cross_liquidation_closes_at_the_liquidation_price_not_the_gapped_mark(account):
+    # A 10x cross-margined long checked only at candle marks: the mark next seen is far
+    # past the liquidation price. An exchange closes the position at its liquidation price
+    # (the price where equity meets maintenance margin); the account never goes negative.
+    strategy, broker, asset = account()
+    source = broker.data_source
+    source.funding_rates = {asset: []}
+    source.perpetual_risk = {asset: {"maintenance_margin_rate": .005, "liquidation_fee_rate": .002}}
+    source.mark_prices = {asset: [{"timestamp": event(strategy, 1, 0)["timestamp"], "markPrice": 40000}]}
+    fill(strategy, broker, asset, 200, "buy")  # 0.2 BTC, $10,000 notional on $1,000
+    advance(strategy, 1)
+    assert broker.get_tracked_position(strategy.name, asset) is None
+    # Equity 1000 + 0.2 * (p - 50000) meets maintenance 0.2 * p * 0.005 at p = 9000 / 0.199.
+    liquidation_price = 9000 / .199
+    row = [r for r in broker.perpetual_events if r["type"] == "liquidation"][-1]
+    assert float(row["price"]) == pytest.approx(liquidation_price, rel=1e-6)
+    assert float(row["trigger_mark"]) == 40000
+    fee = .2 * liquidation_price * .002
+    assert strategy.cash == pytest.approx(1000 - .2 * (50000 - liquidation_price) - fee, rel=1e-6)
+    assert strategy.cash > 0
+    trades = broker._trade_event_log_df
+    fills = trades[trades["status"] == "fill"]
+    assert fills.iloc[-1]["price"] == pytest.approx(liquidation_price, rel=1e-6)
+    assert fills.iloc[-1]["price_source"] == "liquidation"
+
+
+def test_short_cross_liquidation_price_is_above_entry(account):
+    strategy, broker, asset = account()
+    source = broker.data_source
+    source.funding_rates = {asset: []}
+    source.perpetual_risk = {asset: {"maintenance_margin_rate": .005, "liquidation_fee_rate": 0}}
+    source.mark_prices = {asset: [{"timestamp": event(strategy, 1, 0)["timestamp"], "markPrice": 60000}]}
+    fill(strategy, broker, asset, 200, "sell")
+    advance(strategy, 1)
+    # Equity 1000 - 0.2 * (p - 50000) meets 0.001 * p at p = 11000 / 0.201.
+    row = [r for r in broker.perpetual_events if r["type"] == "liquidation"][-1]
+    assert float(row["price"]) == pytest.approx(11000 / .201, rel=1e-6)
+    assert strategy.cash == pytest.approx(1000 - .2 * (11000 / .201 - 50000), rel=1e-6)

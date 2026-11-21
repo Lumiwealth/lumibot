@@ -180,6 +180,8 @@ Can I backtest crypto?
 
 Yes. Set ``BACKTESTING_DATA_SOURCE=ccxt`` to use the CCXT crypto backtester, or use Polygon.io, ThetaData or Interactive Brokers when they carry the coins you need. You can also load your own crypto bars with the Pandas backtester.
 
+A backtest window may start before the coin was listed on the exchange. Before the listing there are no prices, so ``get_last_price()`` returns ``None`` and the strategy should skip that day. With the shared bar cache enabled, LumiBot asks the exchange about those pre-listing days once and remembers that it had no candles there, so later days and later runs do not ask again. Candles are never invented for that range.
+
 Can an AI agent run inside a backtest?
 --------------------------------------
 

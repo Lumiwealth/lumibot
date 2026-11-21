@@ -438,6 +438,12 @@ Agents can use DuckDB for structured analysis instead of asking the model to
 reason over raw tables inside the prompt. Documentation search tools let the
 agent inspect LumiBot usage patterns when it needs framework guidance.
 
+History tables that ``market_load_history_table`` names automatically (for example
+``spy_stock_hour_3``) hold the bars visible at one simulated time, so they last for
+that iteration only: the next iteration's first load releases them. Pass
+``table_name`` to keep a table by name across iterations (a later load with the same
+name replaces it). Long backtests therefore keep a flat memory footprint.
+
 Memory
 ------
 

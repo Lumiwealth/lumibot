@@ -1800,6 +1800,15 @@ class Broker(ABC):
 
     # =========Market functions=======================
 
+    def get_order_size_rules(self, asset, quote=None):
+        """Smallest valid order and quantity step for an instrument, or None when unknown.
+
+        Returns ``{"min_quantity", "quantity_step", "contract_size", "quantity_unit"}``
+        (Decimals, ``quantity_unit`` is ``"contracts"`` or ``"base"``). Brokers that know
+        their instruments' sizing override this; the base broker does not know it.
+        """
+        return None
+
     def get_contract_spec(self, asset, quote=None):
         """Return explicit instrument terms from the asset or selected data source."""
         spec = getattr(asset, "contract_spec", None)

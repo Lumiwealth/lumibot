@@ -733,7 +733,9 @@ def test_schwab_stock_market_replacement_spec_uses_normal_session():
     assert order_spec["orderType"] == "MARKET"
 
 
-@pytest.mark.parametrize("duration, expected", [(None, "GOOD_TILL_CANCEL"), ("day", "DAY"), ("gtc", "GOOD_TILL_CANCEL")])
+# A short sale that never chose a duration now goes out DAY (approved default change,
+# Nov 2026): Schwab rejects GTC short sales on hard-to-borrow stocks. Explicit GTC stays GTC.
+@pytest.mark.parametrize("duration, expected", [(None, "DAY"), ("day", "DAY"), ("gtc", "GOOD_TILL_CANCEL")])
 def test_schwab_stock_short_duration_through_public_strategy_api(duration, expected):
     strategy = SimpleNamespace(
         name="unit-test", quote_asset=Asset("USD", asset_type="forex"),

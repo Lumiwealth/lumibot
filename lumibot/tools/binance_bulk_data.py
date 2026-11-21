@@ -1,10 +1,12 @@
-"""Binance public bulk market-data files for crypto backtests (spot and USD-M perpetuals).
+"""Binance public bulk market-data files for crypto backtests (spot, USD-M and COIN-M perpetuals).
 
 Reads only the public, keyless file archive at ``https://data.binance.vision``:
 
 * ``spot`` klines (``data/spot/{monthly,daily}/klines/<SYMBOL>/<interval>/...``),
 * USD-M futures klines, mark-price klines and funding rates
-  (``data/futures/um/{monthly,daily}/{klines,markPriceKlines,fundingRate}/...``).
+  (``data/futures/um/{monthly,daily}/{klines,markPriceKlines,fundingRate}/...``),
+* COIN-M (coin-margined, inverse) perpetual klines, mark-price klines and funding rates
+  (``data/futures/cm/...``, symbols such as ``BTCUSD_PERP``).
 
 Every zip is checked against its published ``.CHECKSUM`` (SHA-256) before it is read.
 Complete months come from monthly files; days not yet covered by a monthly file come
@@ -29,7 +31,10 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://data.binance.vision/data"
-MARKETS = {"spot": "spot", "um": "futures/um"}
+MARKETS = {"spot": "spot", "um": "futures/um", "cm": "futures/cm"}
+# COIN-M contract value in USD: 100 for BTC, 10 for every other coin (Binance contract terms).
+COIN_M_CONTRACT_USD = {"BTC": 100}
+COIN_M_DEFAULT_CONTRACT_USD = 10
 _INTERVALS = {"minute": ("1m", pd.Timedelta(minutes=1)), "hour": ("1h", pd.Timedelta(hours=1)),
               "day": ("1d", pd.Timedelta(days=1))}
 LINEAR_QUOTES = ("USDT", "USDC", "FDUSD")
@@ -88,6 +93,30 @@ def perpetual_symbol(asset, quote=None) -> str:
 
 
 FIAT_QUOTES = ("USD", "EUR", "GBP")
+
+
+def coin_margined_symbol(asset, quote=None) -> str:
+    """Binance COIN-M perpetual symbol, e.g. ``BTCUSD_PERP`` for ``BTCUSD``, ``BTCUSD_PERP`` or ``BTC/USD:BTC``."""
+    raw = str(getattr(asset, "symbol", asset) or "").strip().upper()
+    symbol = raw.split(":")[0].replace("/", "").replace("-", "")
+    if symbol.endswith("_PERP"):
+        symbol = symbol[: -len("_PERP")]
+    if "_" in symbol:
+        raise BinanceBulkDataError(f"{raw} is a dated futures contract, not a perpetual.",
+                                   reason="contract_not_listed")
+    if not symbol.endswith("USD") or symbol.endswith(LINEAR_QUOTES) or len(symbol) <= 3:
+        raise BinanceBulkDataError(f"{raw} is not a coin-margined (USD-quoted inverse) perpetual.",
+                                   reason="ambiguous_symbol")
+    return symbol + "_PERP"
+
+
+def is_coin_margined(asset) -> bool:
+    """True when the asset names a coin-margined (inverse) perpetual such as BTCUSD or BTC/USD:BTC."""
+    try:
+        perpetual_symbol(asset)
+    except BinanceBulkDataError as exc:
+        return exc.reason == "coin_margined_unsupported"
+    return False
 
 
 def spot_symbol(asset, quote=None) -> str:
@@ -235,13 +264,13 @@ class BinanceBulkData:
         return self._memo[key].copy()
 
     # -- funding ----------------------------------------------------------------------------
-    def funding_history(self, symbol: str, start, end) -> tuple[list[dict], pd.Timestamp | None]:
+    def funding_history(self, symbol: str, start, end, market: str = "um") -> tuple[list[dict], pd.Timestamp | None]:
         """Settled funding in ``[start, end]`` with Binance's mark price at each settlement,
         plus the last time Binance's published funding files cover (None if none)."""
         start_ts, end_ts = _utc(start), _utc(end)
         rows: dict[pd.Timestamp, Decimal] = {}
         covered = None
-        for raw in self._load("um", "fundingRate", symbol, None, start_ts, end_ts + pd.Timedelta(seconds=1)):
+        for raw in self._load(market, "fundingRate", symbol, None, start_ts, end_ts + pd.Timedelta(seconds=1)):
             times = _epoch_to_utc(raw.iloc[:, 0]).floor("min")
             rates = raw.iloc[:, -1]
             for stamp, rate in zip(times, rates):
@@ -253,7 +282,7 @@ class BinanceBulkData:
             covered = max(covered, month_end - pd.Timedelta(seconds=1))
         if not rows:
             return [], covered
-        marks = self.candles("um", symbol, "hour", min(rows).floor("h"), max(rows).floor("h") + pd.Timedelta(hours=1),
+        marks = self.candles(market, symbol, "hour", min(rows).floor("h"), max(rows).floor("h") + pd.Timedelta(hours=1),
                              kind="markPriceKlines")
         events = []
         for stamp in sorted(rows):
@@ -267,11 +296,11 @@ def shared_series(market: str, symbol: str, timestep: str, kind: str = "klines")
     """Shared bar cache identity: provider, market, symbol, bar size and price kind only."""
     from lumibot.tools import shared_bar_cache
 
-    provider = "binance_um" if market == "um" else "binance_spot"
+    provider = {"um": "binance_um", "cm": "binance_cm"}.get(market, "binance_spot")
     return shared_bar_cache.BarSeries.make(
         provider, symbol, shared_bar_cache.normalize_timestep(1, timestep),
         scope=shared_bar_cache.shared_scope(provider), adjusted=False,
-        instrument="perpetual" if market == "um" else "spot", price_type=kind, market_data="public_bulk",
+        instrument="perpetual" if market in ("um", "cm") else "spot", price_type=kind, market_data="public_bulk",
     )
 
 

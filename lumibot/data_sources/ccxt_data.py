@@ -140,11 +140,36 @@ class CcxtData(DataSource):
         response = self._pull_source_bars([asset], length, timestep=timestep, timeshift=timeshift, quote=quote)
         return response[asset]
 
+    def _native_ccxt_timeframe(self, timestep):
+        """The exchange's own candle interval for ``timestep`` ("1h" for "hour"), or None.
+
+        Only intervals the exchange lists in ``api.timeframes`` count. Reading them
+        directly avoids paging 60 one-minute candles for every hourly bar.
+        """
+        from lumibot.tools.helpers import parse_canonical_timestep
+
+        parsed = parse_canonical_timestep(timestep) if timestep else None
+        if parsed is None:
+            return None
+        multiplier, unit = parsed
+        suffix = {"minute": "m", "hour": "h", "day": "d", "week": "w"}.get(unit)
+        if suffix is None:
+            return None
+        frame = f"{int(multiplier)}{suffix}"
+        timeframes = getattr(getattr(self, "api", None), "timeframes", None) or {}
+        return frame if frame in timeframes else None
+
+    def supports_native_timestep(self, timestep) -> bool:
+        """Whether the exchange serves ``timestep`` candles directly (see _native_ccxt_timeframe)."""
+        return self._native_ccxt_timeframe(timestep) is not None
+
     def _pull_source_bars(
         self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, include_after_hours=True
     ):
         """pull broker bars for a list assets"""
-        parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
+        parsed_timestep = self._native_ccxt_timeframe(timestep) or self._parse_source_timestep(
+            timestep, reverse=True
+        )
         kwargs = dict(limit=length)
         if timeshift:
             kwargs["end"] = datetime.datetime.now(datetime.timezone.utc) - timeshift

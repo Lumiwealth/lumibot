@@ -182,7 +182,10 @@ re-adds its tag while signing each request, so LumiBot cannot remove it yet. See
 
 Exchanges that publish no historical candles (no ``fetchOHLCV`` in CCXT) still
 trade and quote live prices; price-history requests raise a clear
-``NotImplementedError``. ``python -m lumibot.tools.ccxt_exchange_catalog`` prints
+``NotImplementedError``. A ``get_historical_prices`` bar size the exchange lists
+in CCXT's ``timeframes`` (for example ``"hour"``, ``"4 hours"`` or ``"15 minutes"``)
+is read as the exchange's own candles; other sizes are built from one-minute
+candles. ``python -m lumibot.tools.ccxt_exchange_catalog`` prints
 every installed exchange with its credential variables and capabilities as JSON.
 
 Spot order quantities are base-coin units. LumiBot uses CCXT's own amount and
@@ -317,7 +320,33 @@ closes the managed client. ``connect_stream=False`` retains REST operation
 and initializes ``broker.stream`` to ``None``; REST order reads do not require
 a WebSocket connection.
 Phemex requires a symbol for REST open-order discovery, so a stream-disabled
-account-wide refresh scans metadata-discovered active markets.
+account-wide refresh scans metadata-discovered active markets (322 markets on
+Nov 20, 2026, about 39 seconds of rate limiting per read). A reader that only
+needs some markets names them first:
+
+.. code-block:: python
+
+    broker = Ccxt(config, connect_stream=False)
+    broker.set_order_read_markets(["BTC/USDT:USDT"])  # asks Phemex about this market only
+    orders = broker._pull_all_orders("reader", strategy)
+    broker.set_order_read_markets(None)               # back to the whole account
+
+An unknown market raises ``ValueError`` rather than reading as "no orders".
+
+Smallest order and quantity step
+--------------------------------
+
+``broker.get_order_size_rules(asset, quote=None)`` reads the exchange's market info and
+returns ``min_quantity``, ``quantity_step``, ``contract_size`` and ``quantity_unit``
+(``"contracts"`` for perpetuals and futures, ``"base"`` for spot). The published amount
+minimum wins; when the exchange publishes only a step (Phemex ``BTC/USDT:USDT``: 0.001
+contracts of 1 BTC each), the step is the smallest order. Other brokers return ``None``.
+
+.. code-block:: python
+
+    rules = broker.get_order_size_rules(Asset("BTC/USDT:USDT", asset_type="crypto_future"))
+    # {"min_quantity": Decimal("0.001"), "quantity_step": Decimal("0.001"),
+    #  "contract_size": Decimal("1.0"), "quantity_unit": "contracts"}
 
 Phemex qualification and remaining work
 ---------------------------------------

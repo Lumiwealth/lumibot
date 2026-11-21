@@ -1568,6 +1568,77 @@ class Data:
             df.index = df.index.rename("datetime")
         return df
 
+    # Bar sizes whose bins line up with every local midnight (time-zone offsets are whole
+    # half hours), so a bin's position does not depend on where a request window starts.
+    _WINDOW_RESAMPLE_MINUTES = frozenset({2, 3, 5, 6, 10, 15, 30})
+
+    def _resample_minute_window(self, df, start_row, end_row, quantity, aggregation):
+        """``resample_ohlcv(df, f"{quantity}min", aggregation, dropna="any", sort=False)`` for a window
+        of this Data's minute rows, reading full bins from one resample of the whole series.
+
+        Why: a strategy asking for N-minute bars every N minutes moves its window every call, so
+        the window was resampled from scratch each time (a 1-month BTC 5-minute run spent most of
+        its loop there). Bins wholly inside the window are identical to the same bins of the whole
+        series; only a first bin that starts before the window is rebuilt from the window's rows.
+        The newest bin may hold rows after the window in the whole series; callers drop every bin
+        that is not complete at the window's last row, so those rows never reach a result.
+
+        Returns None (caller uses the per-window resample) when the answer could differ: bar
+        sizes that do not divide 30 minutes, an unsorted or non-datetime index, or a column that
+        is not floating point (an empty bin would change its dtype differently per window).
+        """
+        if quantity not in self._WINDOW_RESAMPLE_MINUTES or df is None or df.empty:
+            return None
+        source = self._get_bars_source_frame()
+        index = source.index
+        if not isinstance(index, pd.DatetimeIndex) or not self._index_is_unique:
+            return None
+        if end_row > len(index) or start_row < 0 or start_row >= end_row:
+            return None
+        if any(column not in source.columns or source[column].dtype.kind != "f" for column in aggregation):
+            return None
+
+        key = (quantity, tuple(aggregation.items()), id(source), len(index))
+        cached = getattr(self, "_window_resample_cache", None)
+        if cached is None or cached[0] != key:
+            if not index.is_monotonic_increasing:
+                self._window_resample_cache = (key, None, None, None)
+                return None
+            freq_ns = quantity * 60 * 1_000_000_000
+            stamps = index.asi8
+            labels = stamps - (stamps % freq_ns)
+            whole = source[list(aggregation)].resample(f"{quantity}min", label="left", closed="left").agg(aggregation)
+            cached = (key, labels, whole, whole.index.asi8)
+            self._window_resample_cache = cached
+        _, labels, whole, whole_stamps = cached
+        if labels is None:
+            return None
+
+        first_label = labels[start_row]
+        last_label = labels[end_row - 1]
+        first_pos = int(np.searchsorted(whole_stamps, first_label))
+        last_pos = int(np.searchsorted(whole_stamps, last_label))
+        if (
+            first_pos >= len(whole_stamps)
+            or whole_stamps[first_pos] != first_label
+            or last_pos >= len(whole_stamps)
+            or whole_stamps[last_pos] != last_label
+        ):
+            return None
+
+        starts_inside_bin = start_row > 0 and labels[start_row - 1] == first_label
+        if starts_inside_bin:
+            in_first = int(np.searchsorted(labels[start_row:end_row], first_label, side="right"))
+            head = df.iloc[:in_first][list(aggregation)].resample(
+                f"{quantity}min", label="left", closed="left"
+            ).agg(aggregation)
+            body = whole.iloc[first_pos + 1:last_pos + 1]
+            out = pd.concat([head, body]) if len(body) else head
+        else:
+            out = whole.iloc[first_pos:last_pos + 1]
+        out = out[list(aggregation)]
+        return out.dropna()
+
     def get_bars(self, dt, length=1, timestep=MIN_TIMESTEP, timeshift=0):
         """Returns a dataframe of the data.
 
@@ -1815,7 +1886,7 @@ class Data:
             timeshift=timeshift,
             _strict_request_timestep=strict_request_timestep,
         )
-        df, _, _, _ = self._get_bars_frame_window(dt, length=length, timeshift=timeshift)
+        df, start_row, end_row, _ = self._get_bars_frame_window(dt, length=length, timeshift=timeshift)
         if df is None:
             return None
 
@@ -1823,9 +1894,13 @@ class Data:
             agg_column_map["dividend"] = "sum"
         if "stock_splits" in df.columns:
             agg_column_map["stock_splits"] = "max"
-        # Shared candle builder, same pandas call as before. Drop any rows that have NaN values
-        # (this can happen if the data is not complete, eg. weekends).
-        df_result = resample_ohlcv(df, f"{quantity}{unit}", aggregation=agg_column_map, dropna="any", sort=False)
+        df_result = None
+        if unit == "min" and self.timestep == "minute":
+            df_result = self._resample_minute_window(df, start_row, end_row, int(quantity), agg_column_map)
+        if df_result is None:
+            # Shared candle builder, same pandas call as before. Drop any rows that have NaN values
+            # (this can happen if the data is not complete, eg. weekends).
+            df_result = resample_ohlcv(df, f"{quantity}{unit}", aggregation=agg_column_map, dropna="any", sort=False)
 
         if timestep in {"minute", "hour"} and self.timestep in {"minute", "hour"}:
             base_delta = datetime.timedelta(minutes=1) if self.timestep == "minute" else datetime.timedelta(hours=1)

@@ -30,6 +30,13 @@ already-canceled order produces cancellation evidence. Other cancellation
 errors remain visible. Partial fills reported with a cancellation are processed
 before the cancellation callback.
 
+Short sales and time in force: Schwab refuses GTC short sales on
+hard-to-borrow stocks. A stock short sale created without ``time_in_force`` is
+therefore sent as DAY, the same default as Schwab's own trading screens. Pass
+``time_in_force="gtc"`` when a short should rest overnight; an explicit choice
+is always kept. ``order.time_in_force_defaulted`` tells whether the strategy
+chose. See :doc:`common_mistakes`.
+
 Open orders after a restart
 ---------------------------
 

@@ -204,6 +204,35 @@ def _start_schwab_proactive_token_refresh(
     return stop_event
 
 
+def _schwab_error_reason(error_data, limit: int = 500) -> str:
+    """Join the human-readable reasons in a Schwab error body.
+
+    Schwab order errors arrive as ``{"message": ..., "errors": [...]}`` or as
+    ``{"errors": [{"title": ..., "detail": ...}]}``. The specific reason (for
+    example a short-sale borrow rejection) is often only in ``errors``, so a
+    caller that reads ``message`` alone hides why the order failed.
+    """
+    if not isinstance(error_data, dict):
+        return ""
+    parts = []
+
+    def _add(value):
+        text = str(value).strip() if value is not None else ""
+        if text and text not in parts:
+            parts.append(text)
+
+    _add(error_data.get("message"))
+    errors = error_data.get("errors")
+    if isinstance(errors, (list, tuple)):
+        for item in errors:
+            if isinstance(item, dict):
+                _add(item.get("detail") or item.get("message") or item.get("title"))
+            else:
+                _add(item)
+    reason = "; ".join(parts)
+    return reason[:limit]
+
+
 def _is_external_schwab_token_file_valid(token_path: Path) -> bool:
     if not token_path.exists():
         return False
@@ -2754,7 +2783,7 @@ class Schwab(Broker):
 
             order_spec = self._build_order_spec_from_builder(
                 order_builder,
-                order.time_in_force,
+                self._schwab_time_in_force_for_order(order),
                 apply_defaults=order.order_class is not Order.OrderClass.OCO,
                 session=self._schwab_session_for_order(order),
             )
@@ -2776,8 +2805,9 @@ class Schwab(Broker):
                 if hasattr(response, 'text') and response.text:
                     try:
                         error_data = _json_module().loads(response.text)
-                        if 'message' in error_data:
-                            error_msg += f" - {error_data['message']}"
+                        reason = _schwab_error_reason(error_data)
+                        if reason:
+                            error_msg += f" - {reason}"
                     except:
                         error_msg += f" - {response.text}"
 
@@ -3271,6 +3301,26 @@ class Schwab(Broker):
 
         return Session.NORMAL
 
+    @staticmethod
+    def _schwab_time_in_force_for_order(order):
+        """Time in force to send to Schwab for this order.
+
+        Schwab refuses good-till-canceled short sales on hard-to-borrow stocks
+        ("Good until canceled short sale orders are not accepted for hard to
+        borrow securities"), while its own trading screens default to DAY. A
+        stock short sale whose strategy never chose a time in force therefore
+        goes out as DAY. An explicit choice, including 'gtc', is always kept.
+        """
+        tif = getattr(order, "time_in_force", None)
+        if not getattr(order, "time_in_force_defaulted", False):
+            return tif
+        asset = getattr(order, "asset", None)
+        if getattr(asset, "asset_type", None) != Asset.AssetType.STOCK:
+            return tif
+        if getattr(order, "side", None) in (Order.OrderSide.SELL_SHORT, Order.OrderSide.SELL_TO_OPEN):
+            return "day"
+        return tif
+
     def _build_order_spec_from_builder(self, order_builder, time_in_force=None, apply_defaults=True, session=None):
         """Apply Schwab defaults and return the final API order spec."""
         if not order_builder:
@@ -3354,7 +3404,7 @@ class Schwab(Broker):
             )
             return self._build_order_spec_from_builder(
                 order_builder,
-                order.time_in_force,
+                self._schwab_time_in_force_for_order(order),
                 session=self._schwab_session_for_order(order),
             )
         finally:

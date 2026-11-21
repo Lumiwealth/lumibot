@@ -2937,10 +2937,30 @@ class _Strategy:
                 market = "24/7" if asset_type == "crypto" else self.broker.data_source.market
                 if asset_type != "crypto" and market in ("24/7", "24/5"):
                     market = "NYSE"
-                df = self.broker.data_source.get_historical_prices_between_dates(
-                    base_asset=benchmark_asset,
-                    **({"market": market} if source_timestep == "day" else {}),
-                )
+                try:
+                    df = self.broker.data_source.get_historical_prices_between_dates(
+                        base_asset=benchmark_asset,
+                        **({"market": market} if source_timestep == "day" else {}),
+                    )
+                except Exception as exc:  # noqa: BLE001 - a comparison line never fails a backtest
+                    # Alpaca has no history for some benchmarks (indexes such as SPX or VIX). The
+                    # simulation is already finished: read the public daily series or leave the
+                    # benchmark empty, never crash the run over its comparison line.
+                    self.logger.warning(
+                        "Alpaca has no bars for benchmark %s (%s); reading the public daily series.",
+                        getattr(benchmark_asset, "symbol", benchmark_asset), exc,
+                    )
+                    try:
+                        public = get_symbol_returns(
+                            getattr(benchmark_asset, "symbol", str(benchmark_asset)),
+                            self._backtesting_start, self._backtesting_end,
+                        )
+                    except Exception:  # noqa: BLE001
+                        public = None
+                    self._benchmark_returns_df = (
+                        None if public is None or getattr(public, "empty", True) else public
+                    )
+                    return
 
                 if df is None or df.empty:
                     self.logger.error(f"Couldn't get_historical_prices_between_dates: {benchmark_asset}")

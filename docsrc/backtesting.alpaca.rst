@@ -79,6 +79,9 @@ from another provider. Give ``BACKTESTING_DATA_SOURCE`` a JSON map whose ``defau
 - Only the asset types the map gives to another provider (``index`` above) are read from that
   provider, at the same simulated time and bar size.
 - A map without another provider behaves like plain ``alpaca``.
+- An index benchmark (``benchmark_asset=Asset("SPX", asset_type="index")``) that Alpaca cannot
+  serve is read from the public daily series; if that is unavailable too, the benchmark line is
+  left empty with a warning. The backtest itself still finishes and keeps its results.
 
 .. code-block:: python
 

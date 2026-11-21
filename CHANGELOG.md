@@ -3,6 +3,7 @@
 ## 4.6.94 - Unreleased
 
 ### Fixed
+- **Alpaca backtests no longer crash over a benchmark Alpaca cannot serve.** Alpaca has no index bars, so a finished backtest with an index benchmark (an SPX option strategy on the customer's Alpaca data) raised `RuntimeError: No data fetched for SPX-INDEX...` while writing its comparison line and was reported as failed. The benchmark is now read from the public daily series, or left empty with a warning; the strategy's own results are unchanged. Tests: `tests/test_alpaca_benchmark_window_returns.py::test_index_benchmark_alpaca_cannot_serve_never_crashes_the_finished_backtest` (red on 4.6.93), `::test_index_benchmark_with_no_public_series_is_left_empty`.
 - **Long AI-agent backtests no longer run out of memory from history tables.** Every `market_load_history_table` call whose bars were not already in the data store registered a new auto-named table (`spy_stock_hour_1`, `_2`, ...) and kept every one, with a cache entry per simulated time, for the whole run; two hourly AI-agent backtests were killed (exit code -9) after 3.4 and 4 hours. Auto-named tables from earlier iterations are now released at the next iteration's first load; tables the agent names itself are kept. Results are unchanged. Docs: `docsrc/agents_builtin_tools.rst`. Test: `tests/test_agent_duckdb_lifecycle.py::test_auto_named_history_slices_from_earlier_iterations_are_released` (400 frames after 200 iterations before, 2 after).
 
 ### Added

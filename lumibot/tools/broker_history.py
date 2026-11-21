@@ -329,8 +329,8 @@ class WebullHistory(BrokerHistoryAdapter):
         self.data_source = data_source
 
     def check_asset(self, asset):
-        if asset_type_name(asset) not in {*SUPPORTED_ASSET_TYPES, "crypto"}:
-            raise BrokerHistoryUnavailable("Webull daily replay supports stocks, ETFs and spot crypto.")
+        if asset_type_name(asset) not in {*SUPPORTED_ASSET_TYPES, "crypto", "option"}:
+            raise BrokerHistoryUnavailable("Webull daily replay supports stocks, ETFs, spot crypto and exact option contracts.")
 
     def _daily(self, symbol, start, end):
         return self.data_source.get_equity_daily_range(symbol, start, end)
@@ -338,6 +338,8 @@ class WebullHistory(BrokerHistoryAdapter):
     def _daily_for_kind(self, kind, symbol, start, end):
         if kind == "crypto":
             return self.data_source.get_crypto_daily_range(symbol, start, end)
+        if kind == "option":
+            return self.data_source.get_option_daily_range(symbol, start, end)
         return super()._daily_for_kind(kind, symbol, start, end)
 
     def is_rate_limited(self, exc):

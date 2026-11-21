@@ -216,9 +216,9 @@ def test_paper_stock_bracket_is_resting_at_the_venue(paper, duration):
                        for r in ended["orders"])
 
 
-@pytest.mark.parametrize("product", ["stock", "crypto"])
+@pytest.mark.parametrize("product", ["stock", "crypto", "option"])
 def test_webull_daily_strategy_replays_actual_papertrade_bars(paper, monkeypatch, product):
-    from datetime import datetime
+    from datetime import date, datetime
     from zoneinfo import ZoneInfo
 
     from lumibot.backtesting import WebullHistoryBacktesting
@@ -226,8 +226,15 @@ def test_webull_daily_strategy_replays_actual_papertrade_bars(paper, monkeypatch
     broker, observer, account = paper
     monkeypatch.delenv("BACKTESTING_DATA_SOURCE", raising=False)
 
-    asset = Asset("AAPL") if product == "stock" else Asset("BTC", asset_type="crypto")
-    quantity = 1 if product == "stock" else Decimal("0.0001")
+    asset = Asset("AAPL")
+    quantity = 1
+    if product == "crypto":
+        asset = Asset("BTC", asset_type="crypto")
+        quantity = Decimal("0.0001")
+    elif product == "option":
+        asset = Asset("AAPL", asset_type="option", expiration=date(2026, 11, 27), strike=340, right="CALL")
+        option_quote = broker.data_source.get_quote(asset)
+        assert 0 < option_quote.bid <= option_quote.ask
     quote = Asset("USD", "forex")
 
     class DailyReplay(Strategy):
@@ -239,12 +246,19 @@ def test_webull_daily_strategy_replays_actual_papertrade_bars(paper, monkeypatch
 
         def on_trading_iteration(self):
             if self.trade_count < 2:
-                self.submit_order(self.create_order(asset, quantity, "buy" if self.trade_count == 0 else "sell", quote=quote))
+                if product == "option":
+                    side = "buy_to_open" if self.trade_count == 0 else "sell_to_close"
+                else:
+                    side = "buy" if self.trade_count == 0 else "sell"
+                self.submit_order(self.create_order(asset, quantity, side, quote=quote))
                 self.trade_count += 1
 
     ny = ZoneInfo("America/New_York")
     start = datetime(2026, 11, 9, tzinfo=ny)
     end = datetime(2026, 11, 13, tzinfo=ny)
+    if product == "option":
+        start = datetime(2026, 11, 16, tzinfo=ny)
+        end = datetime(2026, 11, 20, tzinfo=ny)
     baseline = request_json("orders before replay", observer.order_v3.list_order_open, account)
     _, strategy = DailyReplay.run_backtest(
         WebullHistoryBacktesting, start, end, config={"data_source": broker.data_source},
@@ -476,3 +490,101 @@ def test_paper_mqtt_stream_produces_crypto_trade_bars(paper):
         pytest.fail(f"PaperTrade MQTT produced no trade bars (state {broker.data_source._market_stream.state})")
     finally:
         strategy.cancel_realtime_bars(pair)
+
+
+@pytest.mark.parametrize("symbol", ["AAPL", "SPY"])
+def test_paper_equity_intraday_market_data_includes_extended_hours(paper, symbol):
+    broker, _, _ = paper
+    asset = Asset(symbol)
+    assert broker.data_source.get_quote(asset).price > 0
+    result = broker.data_source.get_historical_prices(asset, 3, timestep="minute", include_after_hours=True)
+    assert len(result.df) == 3 and result.df.index.is_monotonic_increasing
+    assert result.df.index.tz is not None
+
+
+def _require_equity_core_session():
+    import pandas as pd
+
+    from lumibot.tools.helpers import get_trading_days
+
+    now = pd.Timestamp.now(tz="America/New_York")
+    today = now.date().isoformat()
+    schedule = get_trading_days("NYSE", today, today)
+    if schedule.empty or not schedule.iloc[0]["market_open"] <= now < schedule.iloc[0]["market_close"]:
+        pytest.skip("This positive fill and stop-order check needs an eligible US equity core session")
+
+
+@pytest.mark.parametrize("symbol", ["AAPL", "SPY"])
+def test_paper_equity_core_market_round_trip(paper, symbol):
+    _require_equity_core_session()
+    broker, observer, account = paper
+    strategy = Strategy(broker=broker, name="webull_core_market_qualification", risk_free_rate=0,
+                        synchronize_broker_on_start=False, should_backup_variables_to_database=False,
+                        should_send_summary_to_discord=False)
+    asset = Asset(symbol)
+
+    def holdings():
+        rows = request_json("independent share positions", observer.account_v2.get_account_position, account)
+        return sum((Decimal(row["quantity"]) for row in rows if row["symbol"] == symbol), Decimal(0))
+
+    baseline = holdings()
+    opened = strategy.create_order(asset, 1, "buy", order_type="market", time_in_force="day")
+    result = _submit_and_observe_terminal(strategy, observer, account, opened)
+    bought = Decimal(result.get("filled_quantity") or 0)
+    try:
+        assert result["status"] == "FILLED" and bought == 1
+        assert Decimal(result["filled_price"]) > 0
+        assert holdings() - baseline == bought
+    finally:
+        if bought:
+            closed = strategy.create_order(asset, bought, "sell", order_type="market", time_in_force="day")
+            final = _submit_and_observe_terminal(strategy, observer, account, closed)
+            assert final["status"] == "FILLED" and Decimal(final["filled_quantity"]) == bought
+            assert Decimal(final["filled_price"]) > 0
+    assert holdings() == baseline
+
+
+def _submit_and_observe_terminal(strategy, observer, account, order):
+    strategy.submit_order(order)
+    assert order.status != order.OrderStatus.ERROR, order.error_message
+    terminal = {"FILLED", "CANCELED", "CANCELLED", "EXPIRED", "REJECTED", "FAILED"}
+    try:
+        return _detail(observer, account, order.identifier, lambda row: row.get("status") in terminal)
+    except pytest.fail.Exception:
+        strategy.cancel_order(order)
+        return _detail(observer, account, order.identifier, lambda row: row.get("status") in terminal)
+
+
+@pytest.mark.parametrize("type_name,wire_type", [("stop", "STOP_LOSS"), ("stop_limit", "STOP_LOSS_LIMIT")])
+def test_paper_equity_core_buy_stop_place_and_cancel(paper, type_name, wire_type):
+    _require_equity_core_session()
+    broker, observer, account = paper
+    strategy = Strategy(broker=broker, name="webull_core_stop_qualification", risk_free_rate=0,
+                        synchronize_broker_on_start=False, should_backup_variables_to_database=False,
+                        should_send_summary_to_discord=False)
+    asset = Asset("AAPL")
+    quote = broker.data_source.get_quote(asset)
+    stop = (Decimal(str(quote.price)) * Decimal("1.07")).quantize(Decimal("0.01"))
+    prices = {"stop_price": stop}
+    if type_name == "stop_limit":
+        prices["stop_limit_price"] = stop + Decimal("0.01")
+    order = strategy.create_order(asset, 1, "buy", order_type=type_name, time_in_force="day", **prices)
+    try:
+        strategy.submit_order(order)
+        assert order.status != order.OrderStatus.ERROR, order.error_message
+        placed = _detail(observer, account, order.identifier, lambda row: bool(row.get("order_id")))
+        assert placed["order_type"] == wire_type and Decimal(placed["stop_price"]) == stop
+        if "stop_limit_price" in prices:
+            assert Decimal(placed["limit_price"]) == prices["stop_limit_price"]
+    finally:
+        if order.was_transmitted():
+            strategy.cancel_order(order)
+            accepted_terminal = {"FILLED", "CANCELED", "CANCELLED", "EXPIRED"}
+            final = _detail(observer, account, order.identifier, lambda row: row.get("status") in accepted_terminal)
+            bought = Decimal(final.get("filled_quantity") or 0)
+            if bought:
+                closed = strategy.create_order(asset, bought, "sell", order_type="market", time_in_force="day")
+                close_status = _submit_and_observe_terminal(strategy, observer, account, closed)
+                assert close_status["status"] == "FILLED" and Decimal(close_status["filled_quantity"]) == bought
+                pytest.fail("Stop triggered and filled during the passive case. Test exposure closed.")
+            assert final["status"] in {"CANCELED", "CANCELLED"}

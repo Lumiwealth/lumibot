@@ -22,6 +22,7 @@ class WebullData(DataSource):
         self.name = "webull"
         self._market_stream = None
         self._futures_terms = {}
+        self._option_symbols = {}
 
     @property
     def client(self):
@@ -90,6 +91,23 @@ class WebullData(DataSource):
                 raise WebullAPIError("option contracts returned a repeated cursor")
             seen.add(cursor)
 
+    def option_symbol(self, asset):
+        if asset.expiration is None or not asset.right:
+            raise ValueError("Webull option data requires expiry, strike and right")
+        expiry, right = asset.expiration.isoformat(), str(asset.right).upper()
+        strike = require_number(asset.strike, "option strike")
+        terms = asset.symbol, expiry, right, strike
+        if terms not in self._option_symbols:
+            contracts = self.option_contracts(asset, start_date=expiry, root_symbol=asset.symbol,
+                                             option_type=right, strike_price_gte=str(strike), strike_price_lte=str(strike))
+            matches = [row for row in contracts if row.get("expiration_date") == expiry
+                       and row.get("option_type") == right
+                       and require_number(row.get("strike_price"), "option strike") == strike]
+            if len(matches) != 1:
+                raise ValueError("Webull option data requires exactly one matching listed contract")
+            self._option_symbols[terms] = matches[0]["symbol"]
+        return self._option_symbols[terms]
+
     def get_chains(self, asset, quote=None):
         chains = {"CALL": {}, "PUT": {}}
         multipliers = set()
@@ -150,16 +168,7 @@ class WebullData(DataSource):
         elif asset.asset_type in {Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE}:
             return self._quote_from_snapshot(asset, self._futures_snapshot(wire_symbol))
         elif asset.asset_type == Asset.AssetType.OPTION:
-            terms = self.option_contracts(
-                asset, start_date=asset.expiration.isoformat(), root_symbol=asset.symbol,
-                option_type=str(asset.right).upper(), strike_price_gte=asset.strike, strike_price_lte=asset.strike,
-            )
-            terms = [item for item in terms if item.get("expiration_date") == asset.expiration.isoformat()
-                     and item.get("option_type") == str(asset.right).upper()
-                     and require_number(item.get("strike_price"), "option strike") == require_number(asset.strike, "asset strike")]
-            if len(terms) != 1:
-                raise ValueError("Webull option snapshot requires exactly one matching contract")
-            wire_symbol = terms[0]["symbol"]
+            wire_symbol = self.option_symbol(asset)
             operation, category = self.client.option_market_data.get_option_snapshot, "US_OPTION"
         else:
             raise ValueError("Webull snapshot is unavailable for the requested asset type")
@@ -184,98 +193,94 @@ class WebullData(DataSource):
         return self.get_quote(asset, quote, exchange).price
 
     def get_equity_daily_range(self, symbol, start, end):
+        return self._daily_range(symbol, start, end, self.client.market_data.get_batch_history_bar,
+                                 "US_STOCK", symbol_arg=[symbol])
+
+    def get_option_daily_range(self, symbol, start, end):
+        return self._daily_range(symbol, start, end, self.client.option_market_data.get_option_history_bars,
+                                 "US_OPTION", symbol_arg=symbol)
+
+    def get_crypto_daily_range(self, symbol, start, end):
+        return self._daily_range(symbol, start, end, self.client.crypto_market_data.get_crypto_history_bar,
+                                 "US_CRYPTO", symbol_arg=symbol, continuous=True)
+
+    @staticmethod
+    def _daily_range(symbol, start, end, endpoint, category, *, symbol_arg, continuous=False):
         from lumibot.tools.helpers import get_trading_days
 
         ny = "America/New_York"
         start, end = (pd.Timestamp(value) for value in (start, end))
         start = start.tz_localize(ny) if start.tzinfo is None else start.tz_convert(ny)
         end = end.tz_localize(ny) if end.tzinfo is None else end.tz_convert(ny)
-        # History clients pass inclusive trade dates. Request the full last
-        # exchange day even when end was supplied as local midnight.
-        until = end.normalize() + pd.DateOffset(days=1)
+        first, last = start.normalize(), end.normalize()
+        until = last + pd.DateOffset(days=1)
         cursor = until
         rows = []
-        while cursor > start:
-            window_start = max(start.normalize(), cursor - pd.DateOffset(years=4))
+        count = 200 if continuous else 1_200
+        window = pd.DateOffset(days=count - 1) if continuous else pd.DateOffset(years=4)
+        while cursor > first:
+            window_start = max(first, cursor - window)
             response = request_json(
-                "US equity daily history", self.client.market_data.get_batch_history_bar,
-                [symbol], "US_STOCK", "D", count=1_200, start_time=int(window_start.timestamp() * 1_000),
-                end_time=int(cursor.timestamp() * 1_000),
+                "daily history", endpoint, symbol_arg, category, "D", count=count,
+                start_time=int(window_start.timestamp() * 1_000), end_time=int(cursor.timestamp() * 1_000),
             )
-            page = next((row["result"] for row in response["result"] if row.get("symbol") == symbol), [])
-            rows.extend(page)
-            if len(page) >= 1_200:
-                oldest = min(_timestamp(row["time"]) for row in page)
-                if oldest >= cursor:
-                    raise WebullAPIError("stock daily history cursor did not advance")
-                cursor = oldest - timedelta(milliseconds=1)
-            else:
-                cursor = window_start
-        if not rows:
-            return None
-        frame = pd.DataFrame(rows)
-        frame.index = pd.DatetimeIndex([_timestamp(value) for value in frame.pop("time")]).tz_convert(ny).date
-        schedule = get_trading_days("NYSE", start.date().isoformat(), until.date().isoformat())
-        closes = dict(zip(schedule.index.date, schedule["market_close"]))
-        frame = frame.loc[frame.index.isin(closes)]
-        frame.index = pd.DatetimeIndex([closes[day] for day in frame.index], name="datetime")
-        frame = frame.loc[~frame.index.duplicated(keep="last")].sort_index()
-        return frame[["open", "high", "low", "close", "volume"]].astype(float)
-
-    def get_crypto_daily_range(self, symbol, start, end):
-        ny = "America/New_York"
-        start, end = (pd.Timestamp(value) for value in (start, end))
-        start = start.tz_localize(ny) if start.tzinfo is None else start.tz_convert(ny)
-        end = end.tz_localize(ny) if end.tzinfo is None else end.tz_convert(ny)
-        cursor = end.normalize() + pd.DateOffset(days=1)
-        rows = []
-        count = 200
-        while cursor > start:
-            window_start = max(start.normalize(), cursor - pd.DateOffset(days=count - 1))
-            response = request_json(
-                "crypto daily history", self.client.crypto_market_data.get_crypto_history_bar,
-                symbol, "US_CRYPTO", "D", count=count, start_time=int(window_start.timestamp() * 1_000),
-                end_time=int(cursor.timestamp() * 1_000),
-            )
-            page = next((row["result"] for row in response if row.get("symbol") == symbol), [])
+            series = response["result"] if isinstance(response, dict) else response
+            page = next((row["result"] for row in series if row.get("symbol") == symbol), [])
             rows.extend(page)
             if len(page) >= count:
                 oldest = min(_timestamp(row["time"]) for row in page)
                 if oldest >= cursor:
-                    raise WebullAPIError("crypto daily history cursor did not advance")
+                    raise WebullAPIError("daily history cursor did not advance")
                 cursor = oldest - timedelta(milliseconds=1)
             else:
                 cursor = window_start
         if not rows:
             return None
         frame = pd.DataFrame(rows)
-        opens = pd.DatetimeIndex([_timestamp(value) for value in frame.pop("time")]).tz_convert(ny)
-        opens = opens.normalize()
-        first = start.normalize()
-        last = end.normalize()
-        frame.index = pd.DatetimeIndex(opens + pd.DateOffset(days=1), name="datetime")
-        frame = frame.loc[(opens >= first) & (opens <= last)]
+        opens = pd.DatetimeIndex([_timestamp(value) for value in frame.pop("time")]).tz_convert(ny).normalize()
+        frame.index = opens
+        frame = frame.loc[(first <= frame.index) & (frame.index <= last)]
+        if continuous:
+            frame.index = frame.index + pd.DateOffset(days=1)
+        else:
+            schedule = get_trading_days("NYSE", first.date().isoformat(), until.date().isoformat())
+            closes = dict(zip(schedule.index.date, schedule["market_close"]))
+            frame = frame.loc[pd.Index(frame.index.date).isin(closes)]
+            frame.index = pd.DatetimeIndex([closes[day] for day in frame.index.date])
+        frame.index.name = "datetime"
         frame = frame[~frame.index.duplicated(keep="last")].sort_index()
-        # The sandbox occasionally omits volume. Preserve it as missing.
+        # When Webull omits volume, preserve it as missing.
         return frame.reindex(columns=["open", "high", "low", "close", "volume"]).astype(float)
 
     def get_historical_prices(self, asset, length, timestep="", timeshift=None, quote=None,
                               exchange=None, include_after_hours=True, **kwargs):
-        asset = self._stock_symbol(asset)
+        if isinstance(asset, str):
+            asset = Asset(asset)
         if timestep not in ("", "minute", "day"):
-            raise ValueError("Webull equity history supports minute and daily bars")
+            raise ValueError("Webull history supports minute and daily bars for eligible products")
         if not isinstance(length, int) or length <= 0:
             raise ValueError("Webull history requires a positive bar count")
         end = pd.Timestamp(self.get_datetime()) - (timeshift or timedelta())
         if timestep == "day":
-            frame = self.get_equity_daily_range(asset.symbol, end - timedelta(days=length * 2 + 7), end)
+            start = end - timedelta(days=length * 2 + 7)
+            if asset.asset_type == Asset.AssetType.CRYPTO:
+                if quote is None:
+                    raise ValueError("Webull crypto history requires an explicit quote currency")
+                frame = self.get_crypto_daily_range(asset.symbol + quote.symbol, start, end)
+            elif asset.asset_type == Asset.AssetType.OPTION:
+                expiry = pd.Timestamp(asset.expiration, tz="America/New_York")
+                frame = self.get_option_daily_range(self.option_symbol(asset), start, min(end, expiry))
+            else:
+                self._stock_symbol(asset)
+                frame = self.get_equity_daily_range(asset.symbol, start, end)
             if frame is None:
                 return None
             frame = frame[frame.index <= end].tail(length)
             return Bars(frame, self.SOURCE, asset, quote=quote) if not frame.empty else None
+        self._stock_symbol(asset)
         cursor = end
         frames = []
-        sessions = "PRE,RTH,POST" if include_after_hours else None
+        sessions = "PRE,RTH,ATH" if include_after_hours else None
         remaining = length
         while remaining:
             response = request_json("US equity bars", self.client.market_data.get_batch_history_bar,

@@ -67,3 +67,38 @@ def test_live_equity_daily_history_includes_just_closed_short_session(monkeypatc
     history = source.get_historical_prices(Asset("SAMPLE"), 1, timestep="day")
     assert history.df["close"].tolist() == [34]
     assert history.df.index[-1] == pd.Timestamp("2024-11-29 13:00", tz=ny)
+
+
+def test_option_daily_replay_resolves_exact_series_and_never_reads_a_later_expiry():
+    from datetime import date
+
+    early, target = "2026-11-24", "2026-11-27"
+    wrong_symbol, right_symbol = "SAMPLE261124C00050000", "SAMPLE261127C00050000"
+    contracts = [{"expiration_date": early, "symbol": wrong_symbol},
+                 {"expiration_date": target, "symbol": right_symbol}]
+    for terms in contracts:
+        terms.update(option_type="CALL", strike_price="50")
+    client = Mock()
+    client.instrument.list_option_contracts.return_value = SimpleNamespace(
+        json=lambda: {"data": contracts}, raise_for_status=lambda: None,
+    )
+    bar = dict(open="32", high="34", low="31", close="33", volume="100")
+    client.option_market_data.get_option_history_bars.return_value = SimpleNamespace(
+        json=lambda: {"result": [{"symbol": right_symbol, "result": [
+            {**bar, "time": "2026-11-17T05:00:00.000+0000"},
+            {**bar, "time": "2026-11-18T05:00:00.000+0000", "close": "37"},
+        ]}]}, raise_for_status=lambda: None,
+    )
+    ny = "America/New_York"
+    adapter = WebullHistory(WebullData({}, data_client=client))
+    source = WebullHistoryBacktesting(pd.Timestamp("2026-11-17", tz=ny), pd.Timestamp("2026-11-20", tz=ny),
+                                      adapter=adapter)
+    asset = Asset("SAMPLE", "option", expiration=date.fromisoformat(target), strike=50, right="call")
+    source._datetime = pd.Timestamp("2026-11-18 15:59", tz=ny)
+    assert source.get_historical_prices(asset, 1, "day").df["close"].tolist() == [33]
+    source._datetime = pd.Timestamp("2026-11-18 16:00", tz=ny)
+    assert source.get_historical_prices(asset, 1, "day").df["close"].tolist() == [37]
+    query = client.option_market_data.get_option_history_bars.call_args
+    assert query.args[:3] == (right_symbol, "US_OPTION", "D")
+    client.option_market_data.get_option_history_bars.assert_called_once()
+    client.market_data.get_batch_history_bar.assert_not_called()

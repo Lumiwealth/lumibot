@@ -159,7 +159,7 @@ class TradierHistoryBacktesting(BrokerHistoryBacktesting):
 
 
 class WebullHistoryBacktesting(BrokerHistoryBacktesting):
-    """Replay daily Webull equity and spot crypto bars through the shared LumiBot backtesting broker."""
+    """Replay daily Webull equity, option and spot crypto bars through the shared LumiBot backtesting broker."""
 
     BROKER = "webull"
 
@@ -168,11 +168,20 @@ class WebullHistoryBacktesting(BrokerHistoryBacktesting):
         # persistent retention rights. The parent retains loaded frames in memory.
         if asset.asset_type == Asset.AssetType.CRYPTO:
             frame = self.adapter.daily_bars(asset.symbol + quote.symbol, start, end, kind="crypto")
+        elif asset.asset_type == Asset.AssetType.OPTION:
+            symbol = self.adapter.data_source.option_symbol(asset)
+            expiry = pd.Timestamp(asset.expiration, tz="America/New_York")
+            frame = self.adapter.daily_bars(symbol, start, min(expiry, end), kind="option")
         else:
             frame = self.adapter.daily_bars(asset.symbol, start, end)
         if frame is None or frame.empty:
             return None
         return frame.loc[frame.index <= pd.Timestamp.now(tz="America/New_York")]
+
+    def get_chains(self, asset, quote=None, exchange=None):
+        raise BrokerHistoryUnavailable(
+            "Webull daily replay loads explicitly selected option contracts. Historical chain snapshots are unavailable."
+        )
 
 
 __all__ = ["BrokerHistoryBacktesting", "SchwabHistoryBacktesting", "TradierHistoryBacktesting", "WebullHistoryBacktesting"]

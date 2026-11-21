@@ -68,7 +68,7 @@ Qualification status
 Locally observed Webull simulator paths include a passive equity limit
 through placement, amendment and cancellation, a spot crypto market round
 trip, a passive event-contract limit/cancel, and a matching private
-cancellation event. Full options, futures, equity stops and linked exits,
+cancellation event. Full option trading, futures, equity stops and linked exits,
 event fills, public market-data delivery, reconnect recovery and production
 access need additional qualification before use in trading. Use
 :doc:`backtesting.webull` for the scope of historical replay.

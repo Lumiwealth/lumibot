@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.94 - Unreleased
+## 4.6.94 - 2026-11-20
 
 ### Fixed
 - **Live CCXT reads ask for the exchange's own bar size.** An hourly read of 1,220 bars through a CCXT connection fetched 73,200 one-minute candles instead (about 244 requests, 164 seconds on a Phemex perpetual chart), because `CcxtData` did not say it serves hourly candles. `CcxtData.supports_native_timestep` now reports every interval the exchange lists in `api.timeframes` (1h, 4h, 15m and so on), and those reads page the exchange's own candles (6 requests, about 6 seconds for the same read). Intervals the exchange lacks still read minutes and aggregate. Bars are the same exchange candles. Tests: `tests/test_ccxt_native_timeframes.py` (2 red before).

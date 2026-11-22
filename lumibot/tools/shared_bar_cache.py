@@ -681,6 +681,13 @@ def _merge_markers(first: list, second: list, coverage) -> list:
 UPLOAD_FAILURES_BEFORE_GIVING_UP = 10
 
 
+# How long an idle upload worker stays for more work while the process is running.
+UPLOAD_WORKER_IDLE_SECONDS = 5.0
+# How often an idle worker checks whether the process is finishing. A worker is not a daemon, so
+# the interpreter waits for it at exit: a short check keeps one-read processes from idling.
+UPLOAD_WORKER_POLL_SECONDS = 0.05
+
+
 class _Uploader:
     """Background workers that write partition files locally and send them to S3.
 
@@ -731,14 +738,18 @@ class _Uploader:
 
     def _run(self, slot: int):
         jobs = self._queues[slot]
+        idle_since = time.monotonic()
         while True:
             try:
-                key, job = jobs.get(timeout=5)
+                key, job = jobs.get(timeout=UPLOAD_WORKER_POLL_SECONDS)
             except queue.Empty:
-                with self._lock:
-                    if jobs.empty():
-                        self._threads[slot] = None
-                        return
+                finishing = not threading.main_thread().is_alive()
+                waited_long_enough = time.monotonic() - idle_since >= UPLOAD_WORKER_IDLE_SECONDS
+                if finishing or waited_long_enough:
+                    with self._lock:
+                        if jobs.empty():
+                            self._threads[slot] = None
+                            return
                 continue
             try:
                 job(not self._remote_given_up)
@@ -772,6 +783,7 @@ class _Uploader:
                     if self._pending[key] <= 0:
                         del self._pending[key]
                     self._idle.notify_all()
+                idle_since = time.monotonic()
 
     def pending(self) -> int:
         with self._lock:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, LazyPytzTimezoneRef, lazy_class
 from lumibot.data_sources import DataSource
@@ -769,6 +770,30 @@ class SchwabData(DataSource):
             raw_data=asset_quote, symbol_used=symbol,
         )
 
+    # Bounds for a Schwab Retry-After on quotes: never wait less than this, and
+    # never trust a header asking for more than a minute.
+    _QUOTE_RETRY_AFTER_MIN_SECONDS = 0.25
+    _QUOTE_RETRY_AFTER_MAX_SECONDS = 60.0
+
+    def _quote_clock(self) -> float:
+        clock = getattr(self, "_schwab_now", None)
+        return float(clock()) if callable(clock) else time.monotonic()
+
+    def _quote_rate_limit_remaining(self) -> float:
+        return max(0.0, float(getattr(self, "_quote_not_before", 0.0)) - self._quote_clock())
+
+    def _record_quote_rate_limit(self, response) -> None:
+        from lumibot.tools.http_retry_after import retry_after_seconds
+
+        attempts = int(getattr(self, "_quote_rate_limit_attempts", 0)) + 1
+        self._quote_rate_limit_attempts = attempts
+        wait = retry_after_seconds(getattr(response, "headers", None) or {})
+        if wait is None:
+            wait = float(min(2 ** min(attempts, 5), 30))
+        wait = max(self._QUOTE_RETRY_AFTER_MIN_SECONDS, min(float(wait), self._QUOTE_RETRY_AFTER_MAX_SECONDS))
+        self._quote_not_before = self._quote_clock() + wait
+        logger.warning(f"[Schwab] Quote requests rate limited by Schwab; waiting {wait:.1f} seconds before the next one.")
+
     def get_quotes(self, assets, quote=None, exchange=None):
         """Fetch exact stock/option/future contracts in batches of at most 50.
 
@@ -791,9 +816,26 @@ class SchwabData(DataSource):
         result = {}
         for offset in range(0, len(assets), 50):
             batch = assets[offset:offset + 50]
+            remaining = self._quote_rate_limit_remaining()
+            if remaining > 0:
+                # Schwab asked us to wait (HTTP 429 + Retry-After). Fail visibly
+                # without another request; never invent or reuse a quote.
+                raise ConnectionError(
+                    "Schwab quote rate limit (HTTP 429) still in effect; "
+                    f"retry after {remaining:.1f} seconds"
+                )
             response = self.client.get_quotes([symbols[asset] for asset in batch])
-            if getattr(response, "status_code", None) != 200:
-                raise ConnectionError(f"Schwab quote request failed (status {getattr(response, 'status_code', None)})")
+            status = getattr(response, "status_code", None)
+            if status == 429:
+                self._record_quote_rate_limit(response)
+                raise ConnectionError(
+                    "Schwab quote request failed (status 429, rate limited; "
+                    f"retry after {self._quote_rate_limit_remaining():.1f} seconds)"
+                )
+            if status != 200:
+                raise ConnectionError(f"Schwab quote request failed (status {status})")
+            self._quote_rate_limit_attempts = 0
+            self._quote_not_before = 0.0
             payload = response.json()
             if not isinstance(payload, dict):
                 raise ValueError("Invalid Schwab quotes response")

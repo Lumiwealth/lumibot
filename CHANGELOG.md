@@ -2,6 +2,10 @@
 
 ## 4.6.95 - Unreleased
 
+### Fixed
+- **Schwab quotes and order submits honor `Retry-After`.** After an HTTP 429, quote requests and order submits used to call Schwab again on every loop, so a strategy running every second kept hitting the limit. They now wait for the time Schwab asks (seconds or an HTTP date, bounded to 0.25 to 60 seconds). Inside the wait, quotes fail visibly without a request (no invented quotes) and a submitted order errors with "nothing was sent. Retry after N seconds" instead of being sent or dropped. Docs: `docsrc/brokers.schwab.rst`. Tests: `tests/test_schwab_retry_after_and_reauth.py` (red before).
+- **Schwab retries once after a mid-run 401.** A rejected access token used to fail every request until restart unless the token file changed. With LumiBot-managed refresh, a 401 now triggers one token refresh and one repeat of the request; a failed refresh or second 401 is returned as before, with no loop. With external refresh mode, the saved token is re-applied once and the request repeated once. Tests: `tests/test_schwab_retry_after_and_reauth.py` (red before).
+
 ## 4.6.94 - 2026-11-20
 
 ### Fixed

@@ -171,6 +171,13 @@ Token life-cycle
 * Lumibot automatically refreshes the token every ~25 min and rewrites ``token.json``.
 * Refresh tokens expire seven days after creation, or earlier if authorization is
   revoked. Access-token refresh does not guarantee an indefinitely renewable login.
+* If Schwab rejects the access token mid-run (HTTP 401) while LumiBot manages
+  the refresh itself, LumiBot refreshes the token once and repeats that request
+  once. If the refresh fails, or the repeated request is rejected again, the 401
+  is returned to the caller as before and an error is logged. There is no loop.
+  When refresh is managed outside LumiBot (``LUMIBOT_OAUTH_REFRESH_MODE=external``),
+  a 401 re-applies the saved token file once and repeats the request once;
+  LumiBot never calls the Schwab refresh endpoint in that mode.
 * On expiry or revocation, complete the normal browser authorization again.
 * Login and refresh save the token with mode ``600`` through an atomic file
   replacement. Failed input, metadata preparation or persistence preserves the
@@ -358,6 +365,20 @@ When Schwab returns HTTP 429, LumiBot honors ``Retry-After`` when present and
 otherwise applies bounded exponential backoff with jitter for that endpoint
 family. A throttled read returns no new observation and never converts the
 tracked order to a terminal status.
+
+The same wait applies to quotes and order submits. ``Retry-After`` may be a
+number of seconds or an HTTP date; LumiBot waits at least 0.25 seconds and at
+most 60 seconds. Until the wait ends:
+
+* ``get_quote`` returns ``None`` and ``get_quotes`` raises ``ConnectionError``
+  saying how many seconds remain. No request is sent and no quote is invented.
+* A submitted order is not sent. It goes to the error state with the message
+  "Schwab rate limit (HTTP 429) still in effect; nothing was sent. Retry after
+  N seconds." It is never dropped silently, so the strategy can decide when to
+  submit again.
+
+A strategy that loops every second therefore sends at most one request per
+wait window instead of one per loop.
 
 An authorized local sample of 16 successful cancel HTTP responses ranged from
 228 ms to 444 ms, with a 302.5 ms median and 444 ms 95th percentile. This small

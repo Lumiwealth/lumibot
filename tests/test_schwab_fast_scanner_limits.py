@@ -112,8 +112,11 @@ def test_quote_rate_limit_is_visible_and_not_retried_per_symbol():
     with pytest.raises(ConnectionError, match="429"):
         data.get_quotes([Asset("LW01"), Asset("LW02"), _call()])
     assert len(calls) == 1
+    # Inside the Retry-After window the single-quote path also fails visibly
+    # (None) without sending another request (changed 2026-11-22: quotes now
+    # honor Retry-After; see test_schwab_retry_after_and_reauth.py).
     assert data.get_quote(Asset("LW01")) is None
-    assert len(calls) == 2
+    assert len(calls) == 1
 
 
 # Item 6: a short-sale rejection reason must reach the strategy, including

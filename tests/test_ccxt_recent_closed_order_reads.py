@@ -13,6 +13,7 @@ from unittest.mock import Mock
 import pytest
 
 from lumibot.brokers.ccxt import Ccxt
+from lumibot.entities import Asset, Order
 
 FILL_MS = 1795370000000
 
@@ -143,3 +144,33 @@ def test_closed_with_unknown_executed_amount_is_neither_a_fill_nor_a_cancel():
 
     assert order.status == "closed"
     assert not order.is_filled()
+
+
+def test_filled_order_with_zero_cost_uses_the_reported_average_price():
+    # CCXT reads Phemex spot cost from fields the documented order reply can leave at zero,
+    # while avgPriceEp still carries the price. A real fill must not become an error.
+    broker = _reader()
+    row = _row("spot-fill", "closed", 0.002)
+    row.update(cost=0.0, average=60000.0)
+    broker.api.create_order = Mock(return_value=row)
+    asset = broker.get_asset("BTC/USDT:USDT")
+    order = Order("s", asset, 0.002, "buy", order_type="market", quote=Asset("USDT", asset_type="crypto"))
+
+    result = broker._submit_order(order)
+
+    assert result.error_message is None
+    assert result.is_filled()
+    assert float(result.transactions[0].price) == 60000.0
+
+
+def test_filled_order_with_no_price_at_all_is_still_reported():
+    broker = _reader()
+    row = _row("no-price", "closed", 0.002)
+    row.update(cost=0.0, average=0.0)
+    broker.api.create_order = Mock(return_value=row)
+    asset = broker.get_asset("BTC/USDT:USDT")
+    order = Order("s", asset, 0.002, "buy", order_type="market", quote=Asset("USDT", asset_type="crypto"))
+
+    result = broker._submit_order(order)
+
+    assert "could not be applied" in (result.error_message or "")

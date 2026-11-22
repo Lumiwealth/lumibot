@@ -2581,6 +2581,11 @@ class Strategy(_Strategy):
     def wait_for_order_execution(self, order: Order):
         """Wait for one specific order to be executed or canceled by the broker
 
+        In a backtest this returns at once: simulated time cannot move while the
+        iteration waits, so the order fills when the backtest processes orders
+        after the iteration. Read its status on the next iteration or in
+        ``on_filled_order``. A cancel is confirmed immediately in a backtest.
+
         Parameters
         ----------
         order : Order object

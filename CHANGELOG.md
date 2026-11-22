@@ -2,6 +2,9 @@
 
 ## 4.6.96 - Unreleased
 
+### Fixed
+- **Waiting for a fill inside a backtest iteration no longer hangs the run.** In a backtest an order fills when pending orders are processed after the iteration, so `wait_for_order_execution` / `wait_for_orders_execution` called in the same iteration waited forever (a hosted run sat 39 minutes). In backtests they now return the order as it is and log one warning; the order fills on the usual next step, so results are unchanged. Live brokers still wait. Tests: `tests/backtest/test_wait_for_fill_in_backtest.py` (red before: the run never finished).
+
 ### Changed
 - **N-minute bars read kept bins without a per-call clean-up, with identical frames.** After 4.6.94's one resample per series, every 5-minute read still dropped empty bins from its window on each call (about half of 75 profiled seconds on a three-month BTC 5-minute run). The bins with every price are kept once; a window that starts on a bin boundary is a copied slice of them, so a caller changing its frame cannot change a later answer. Tests: `tests/test_data_window_resample_identical.py` (new count test red on 4.6.95; identity tests unchanged and green).
 - **Perpetual backtests look up funding and mark prices by bisection, with identical answers.** The perpetual account asks for funding events and the hourly mark on every simulated bar; each funding call normalized every funding row of the window and each mark call masked every hourly mark (about 80 of 454 profiled seconds on a three-month BTC 5-minute run). Funding rows are normalized once per loaded list and sliced by bisection (callers still get fresh dicts in the same order); the mark row is found with a sorted-index search. Tests: `tests/test_perpetual_funding_mark_lookup.py` (red on 4.6.95).

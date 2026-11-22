@@ -1370,13 +1370,13 @@ def _patch_drex(monkeypatch, *, error=None, answers=DREX_ANSWERS):
     monkeypatch.setenv("LUMIBOT_AGENT_MODEL_REQUEST_TIMEOUT_SECONDS", "600")
     monkeypatch.setenv("LUMIBOT_AGENT_RUN_TIMEOUT_SECONDS", "1800")
 
-    def post(url, **kwargs):
+    async def post(self, url, **kwargs):
         calls.append({"url": url, **kwargs})
         if error is not None:
             raise error
         return _DrexResponse(answers)
 
-    monkeypatch.setattr("lumibot.components.agents.drex.httpx.post", post)
+    monkeypatch.setattr("lumibot.components.agents.drex.httpx.AsyncClient.post", post)
     return calls
 
 
@@ -1528,6 +1528,71 @@ def test_drex_replay_invalidates_when_decision_instructions_change(monkeypatch, 
     _, revised = _run_stub_backtest(GateStrategy)
     assert calls
     assert revised.vars.last_parsed["verdict"] == "PASS"
+
+
+def test_drex_run_deadline_cancels_a_response_that_keeps_sending_data(monkeypatch, tmp_path):
+    """Use HTTPX's real body reader with an in-process drip stream, never a network."""
+    import asyncio
+    import time
+    from types import SimpleNamespace
+
+    import httpx
+
+    from lumibot.components.agents import drex
+
+    class DripStream(httpx.SyncByteStream, httpx.AsyncByteStream):
+        chunks = 0
+        closed = False
+
+        def __iter__(self):
+            for _ in range(40):
+                self.chunks += 1
+                yield b" "
+                time.sleep(0.005)
+            yield json.dumps({"answers": DREX_ANSWERS}).encode()
+
+        async def __aiter__(self):
+            for _ in range(40):
+                self.chunks += 1
+                yield b" "
+                await asyncio.sleep(0.005)
+            yield json.dumps({"answers": DREX_ANSWERS}).encode()
+
+        def close(self):
+            self.closed = True
+
+        async def aclose(self):
+            self.closed = True
+
+    stream = DripStream()
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, stream=stream, request=request))
+    async_client = httpx.AsyncClient
+
+    def sync_post(url, **kwargs):
+        with httpx.Client(transport=transport) as client:
+            return client.post(url, **kwargs)
+
+    # The sync shim also makes this a safe red regression on the old transport.
+    monkeypatch.setattr(drex, "httpx", SimpleNamespace(post=sync_post, AsyncClient=lambda: async_client(transport=transport)))
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    monkeypatch.setenv("NACE_API_KEY", "nace_sk_test")
+    monkeypatch.setattr(FencedVerdictRuntime, "reply", '{"verdict": "PASS"}')
+    monkeypatch.setattr(FencedVerdictRuntime, "call_count", 0)
+
+    class DeadlineGate(GateStrategy):
+        create_kwargs = {
+            **GateStrategy.create_kwargs,
+            "model_request_timeout_seconds": 0.02,
+            "run_timeout_seconds": 0.05,
+        }
+
+    _, strategy = _run_stub_backtest(DeadlineGate)
+
+    assert stream.closed
+    assert 0 < stream.chunks < 40  # Active reads were interrupted, not waited out.
+    assert strategy.vars.last_parsed == {"verdict": "PASS"}
+    assert strategy.vars.last_model == "stub-verdict"
+    assert FencedVerdictRuntime.call_count == 1
 
 
 @pytest.mark.parametrize(

@@ -9,6 +9,7 @@ the agent's model stays the fallback for any Drex error.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from typing import Any
@@ -80,21 +81,27 @@ def run_drex_decision(request: Any, questions: dict[str, Any]) -> AgentRunResult
     base_url = os.environ.get("NACE_BASE_URL") or "https://console.nace.ai"
     client = f"lumibot/{__version__}"
     headers = {"Authorization": f"Bearer {os.environ['NACE_API_KEY']}", "X-Nace-Client": client, "User-Agent": client}
-    # This one request is the whole run, so both of the agent's timeouts bound it.
+    request_timeout = GoogleADKRuntime._model_request_timeout_seconds_for_request(request)
+    run_timeout = GoogleADKRuntime._run_timeout_seconds_for_request(request)
+    # HTTPX timeouts bound inactivity; the outer deadline also stops a body
+    # that keeps sending data. Cancellation exits and closes the async client.
     timeouts = [
         timeout
-        for timeout in (
-            GoogleADKRuntime._model_request_timeout_seconds_for_request(request),
-            GoogleADKRuntime._run_timeout_seconds_for_request(request),
-        )
+        for timeout in (request_timeout, run_timeout)
         if timeout is not None
     ]
-    response = httpx.post(
-        f"{base_url.rstrip('/')}/v1/systemone",
-        headers=headers,
-        json={"model": drex_model(), "state": state, "questions": questions},
-        timeout=min(timeouts) if timeouts else None,
-    )
+
+    async def post():
+        async with httpx.AsyncClient() as client:
+            return await client.post(
+                f"{base_url.rstrip('/')}/v1/systemone",
+                headers=headers,
+                json={"model": drex_model(), "state": state, "questions": questions},
+                timeout=min(timeouts) if timeouts else None,
+            )
+
+    # Match the synchronous GoogleADKRuntime.run -> asyncio.run contract.
+    response = asyncio.run(asyncio.wait_for(post(), timeout=run_timeout))
     response.raise_for_status()
     body = response.json()
     answers = body["answers"]

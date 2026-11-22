@@ -342,6 +342,8 @@ For a gate whose whole answer is a label, set ``NACE_API_KEY`` to have `Drex <ht
 
 Every required field must be listed in ``properties``; schemas requiring extra fields use the agent's model. In backtests, Drex receives the simulated cutoff and an instruction to ignore later information even for explicit tasks. This instruction does not prove that a model obeys the cutoff; use dated inputs and validate the strategy. The decision questions are part of the Drex replay key, so a changed decision policy does not reuse an older verdict.
 
+The agent's run timeout is a total deadline for the Drex request, including a response that keeps sending data. Expiry cancels and closes the request before the normal fallback. The model-request timeout also bounds network inactivity; a timeout of zero retains the runtime's disabled-timeout meaning.
+
 Running a Backtest
 ------------------
 

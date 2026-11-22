@@ -1602,15 +1602,20 @@ class Data:
         cached = getattr(self, "_window_resample_cache", None)
         if cached is None or cached[0] != key:
             if not index.is_monotonic_increasing:
-                self._window_resample_cache = (key, None, None, None)
+                self._window_resample_cache = (key, None, None, None, None, None)
                 return None
             freq_ns = quantity * 60 * 1_000_000_000
             stamps = index.asi8
             labels = stamps - (stamps % freq_ns)
             whole = source[list(aggregation)].resample(f"{quantity}min", label="left", closed="left").agg(aggregation)
-            cached = (key, labels, whole, whole.index.asi8)
+            # PERF: the window's dropna ran on every call (about half of this method's time).
+            # Keep the bins without a missing value once, with their positions in ``whole``; a
+            # window that starts on a bin boundary is then a copied slice of them (same rows).
+            valid = whole[list(aggregation)].notna().all(axis=1).to_numpy()
+            clean = whole[list(aggregation)][valid]
+            cached = (key, labels, whole, whole.index.asi8, clean, np.flatnonzero(valid))
             self._window_resample_cache = cached
-        _, labels, whole, whole_stamps = cached
+        _, labels, whole, whole_stamps, clean, clean_positions = cached
         if labels is None:
             return None
 
@@ -1635,7 +1640,12 @@ class Data:
             body = whole.iloc[first_pos + 1:last_pos + 1]
             out = pd.concat([head, body]) if len(body) else head
         else:
-            out = whole.iloc[first_pos:last_pos + 1]
+            lo = int(np.searchsorted(clean_positions, first_pos, side="left"))
+            hi = int(np.searchsorted(clean_positions, last_pos, side="right"))
+            if hi - lo == last_pos - first_pos + 1:
+                # Nothing to drop: dropna returned a copy of the slice, index frequency kept.
+                return whole.iloc[first_pos:last_pos + 1][list(aggregation)].copy()
+            return clean.iloc[lo:hi].copy()
         out = out[list(aggregation)]
         return out.dropna()
 

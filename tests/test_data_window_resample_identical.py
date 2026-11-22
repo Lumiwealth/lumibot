@@ -108,3 +108,47 @@ def test_naive_series():
         slow_index = data.df.index
         assert fast is not None and len(fast) > 0
         assert fast.index.max() < slow_index[offset] + datetime.timedelta(minutes=1)
+
+
+def test_aligned_windows_read_the_kept_bins_without_a_dropna_per_call(monkeypatch):
+    # Why: on a three-month BTC 5-minute run the per-call dropna was about half of this
+    # method's 75 profiled seconds. Bins without a missing value are kept once; a window that
+    # starts on a bin boundary is a copied slice of them. Counts, never seconds.
+    # A 24/7 minute series with no gaps (crypto-like) and a few missing prices: every window
+    # that ends on a bin boundary also starts on one, as in a crypto 5-minute strategy.
+    rng = np.random.default_rng(11)
+    full = pd.date_range("2026-01-05 00:00", periods=6000, freq="min")
+    close = 50 + rng.normal(0, 0.1, len(full)).cumsum()
+    frame = pd.DataFrame({"open": close, "high": close + 1, "low": close - 1, "close": close,
+                          "volume": rng.random(len(full))}, index=full)
+    frame.loc[rng.random(len(full)) < 0.01, "close"] = np.nan
+    data = Data(asset=Asset("ABC"), df=frame, quote=QUOTE, timestep="minute", timezone="America/New_York")
+    index = data.df.index
+    data.get_bars(index[3004].to_pydatetime(), length=55, timestep="5 minutes")  # builds the kept bins
+    drops = {"n": 0}
+    original_dropna = pd.DataFrame.dropna
+
+    def counting(self, *args, **kwargs):
+        drops["n"] += 1
+        return original_dropna(self, *args, **kwargs)
+
+    real = Data._resample_minute_window
+    inside = {"drops": 0, "fast": 0}
+
+    def spy(self, *args, **kwargs):
+        before = drops["n"]
+        result = real(self, *args, **kwargs)
+        inside["drops"] += drops["n"] - before
+        inside["fast"] += result is not None
+        return result
+
+    monkeypatch.setattr(pd.DataFrame, "dropna", counting)
+    monkeypatch.setattr(Data, "_resample_minute_window", spy)
+    aligned = [t for t in index[2000:2600] if t.minute % 5 == 0][:40]
+    for when in aligned:
+        bars = data.get_bars(when.to_pydatetime(), length=30, timestep="5 minutes")
+        bars.iloc[0, 0] = -1.0  # a caller changing its frame cannot change a later answer
+    assert inside["fast"] > 0
+    assert inside["drops"] == 0
+    again = data.get_bars(aligned[0].to_pydatetime(), length=30, timestep="5 minutes")
+    assert (again["open"] != -1.0).all()

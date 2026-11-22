@@ -496,6 +496,19 @@ class Schwab(Broker):
         deadlines = getattr(self, "_schwab_rate_limit_deadlines", {})
         return max(0.0, float(deadlines.get(endpoint_family, 0.0)) - self._schwab_now_value())
 
+    def _schwab_pace(self, kind: str) -> None:
+        """Spend one request from the client's shared per-minute budget.
+
+        Orders (sends, replaces, cancels, order reads) keep reserved headroom
+        and never fail here; account reads wait for budget like market data.
+        """
+        client = getattr(self, "client", None)
+        if client is None:
+            return
+        from lumibot.brokers.schwab_request_pacer import pacer_for_client
+
+        pacer_for_client(client, getattr(self, "_schwab_pacing_config", None)).acquire(kind)
+
     def _clear_schwab_rate_limit(self, endpoint_family: str) -> None:
         getattr(self, "_schwab_rate_limit_attempts", {}).pop(endpoint_family, None)
         getattr(self, "_schwab_rate_limit_deadlines", {}).pop(endpoint_family, None)
@@ -527,6 +540,8 @@ class Schwab(Broker):
         self.schwab_authorization_error = False
         self._broker_fully_ready = False # Initialize new flag
         self._connect_stream = connect_stream
+        # Per-minute Schwab request budget settings (SCHWAB_REQUESTS_PER_MINUTE etc.).
+        self._schwab_pacing_config = config
         # === End Initialize error flag ===
 
         # === Prepare Data Source ===
@@ -1275,6 +1290,7 @@ class Schwab(Broker):
                 raise ValueError("Schwab cash-event response could not be completely drained")
             requests_remaining -= 1
             try:
+                self._schwab_pace("account")
                 response = self.client.get_transactions(
                     self.hash_value, start_date=window_start - dt.timedelta(seconds=1) if audit else window_start,
                     end_date=window_end,
@@ -1367,6 +1383,7 @@ class Schwab(Broker):
 
         try:
             # Get account information using the hash_value stored during initialization
+            self._schwab_pace("account")
             response = self.client.get_account(self.hash_value, fields=[self.client.Account.Fields.POSITIONS])
 
             if response.status_code != 200:
@@ -1546,6 +1563,7 @@ class Schwab(Broker):
                 return [] # Return empty list
 
             # Get account details with positions
+            self._schwab_pace("account")
             response = self.client.get_account(self.hash_value, fields=[self.client.Account.Fields.POSITIONS])
 
             if response.status_code != 200:
@@ -1738,6 +1756,7 @@ class Schwab(Broker):
 
             seek_start = datetime.now(timezone('UTC')) - timedelta(days=7)
 
+            self._schwab_pace("order")
             response = self.client.get_orders_for_account(
                 self.hash_value,
                 from_entered_datetime=seek_start
@@ -1788,6 +1807,7 @@ class Schwab(Broker):
             return None
 
         try:
+            self._schwab_pace("order")
             response = self.client.get_order(
                 identifier,
                 self.hash_value,
@@ -2885,6 +2905,7 @@ class Schwab(Broker):
                 return None
 
             # Submit the order to Schwab
+            self._schwab_pace("order")
             response = self.client.place_order(self.hash_value, order_spec)
 
             # Log the response - reduce verbosity
@@ -3699,6 +3720,7 @@ class Schwab(Broker):
                 return
 
             # Replace the order
+            self._schwab_pace("order")
             response = self.client.replace_order(self.hash_value, order.identifier, new_order_spec)
 
             # Extract new order ID from response (the replaced order will have a new ID)
@@ -3846,6 +3868,7 @@ class Schwab(Broker):
         try:
             # schwab-py expects (order_id, account_hash) and issues
             # DELETE /trader/v1/accounts/{account_hash}/orders/{order_id}.
+            self._schwab_pace("order")
             response = self.client.cancel_order(order.identifier, self.hash_value)
         except Exception as exc:
             error_msg = f"Error canceling Schwab order {order.identifier}: {exc}"
@@ -3926,6 +3949,7 @@ class Schwab(Broker):
             return
 
         try:
+            self._schwab_pace("order")
             response = self.client.get_order(order_id, self.hash_value)
         except Exception as exc:
             logger.warning(

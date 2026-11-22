@@ -50,3 +50,17 @@ def retry_after_seconds(headers, *, wall_now: Optional[float] = None) -> Optiona
         return None
     now = time.time() if wall_now is None else float(wall_now)
     return max(0.0, when.timestamp() - now)
+
+
+class RateLimitedError(ConnectionError):
+    """A provider request was refused or skipped because of a rate limit.
+
+    Raised for an HTTP 429 and for requests skipped while a ``Retry-After`` wait
+    or a local request budget is still in effect. ``retry_after_seconds`` is the
+    remaining wait when known. Callers must not split the request and retry it
+    piece by piece: that multiplies the requests the limit is counting.
+    """
+
+    def __init__(self, message: str, *, retry_after_seconds: Optional[float] = None):
+        super().__init__(message)
+        self.retry_after_seconds = retry_after_seconds

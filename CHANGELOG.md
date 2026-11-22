@@ -9,6 +9,9 @@
 - **Schwab quotes and order submits honor `Retry-After`.** After an HTTP 429, quote requests and order submits used to call Schwab again on every loop, so a strategy running every second kept hitting the limit. They now wait for the time Schwab asks (seconds or an HTTP date, bounded to 0.25 to 60 seconds). Inside the wait, quotes fail visibly without a request (no invented quotes) and a submitted order errors with "nothing was sent. Retry after N seconds" instead of being sent or dropped. Docs: `docsrc/brokers.schwab.rst`. Tests: `tests/test_schwab_retry_after_and_reauth.py` (red before).
 - **Schwab retries once after a mid-run 401.** A rejected access token used to fail every request until restart unless the token file changed. With LumiBot-managed refresh, a 401 now triggers one token refresh and one repeat of the request; a failed refresh or second 401 is returned as before, with no loop. With external refresh mode, the saved token is re-applied once and the request repeated once. Tests: `tests/test_schwab_retry_after_and_reauth.py` (red before).
 
+### Changed
+- **One-contract option pricing is about 10 times faster in backtests, with identical results.** Valuing a held option leg that has no real print on the current minute backs out an implied volatility (50 Black-Scholes evaluations) and prices the leg; each evaluation ran the vectorized formula on a one-element array (about 80 microseconds of numpy broadcasting overhead). `black_scholes_forward_price` and `implied_volatility_forward` now take a scalar path for plain positive finite numbers, with the same ufuncs and operation order, so every answer is bit-for-bit the same. Synthetic minute option backtest (profiled): implied volatility 7.7 s to 0.7 s; trade log and every per-iteration value identical to 4.6.94. Tests: `tests/test_option_price_estimate_scalar_path.py` (red on 4.6.94).
+
 ## 4.6.94 - 2026-11-20
 
 ### Fixed

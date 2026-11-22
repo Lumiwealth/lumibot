@@ -29,6 +29,7 @@ trade -> no estimate (NaN).
 All inputs are arrays over the contracts of ONE expiration. Times are in years (ACT/365).
 """
 
+import math
 from dataclasses import dataclass
 from typing import Optional
 
@@ -55,8 +56,51 @@ class OptionPriceEstimates:
     support: np.ndarray  # effective number of nodes behind a smile value (kernel weight sum)
 
 
+def _plain_scalars(*values):
+    """Python floats for ``values`` when every one is a finite, positive plain number, else None.
+
+    The scalar fast paths below only take these "clean" inputs; anything else (arrays, NaN,
+    infinities, zero or negative prices, strikes, years or volatility) goes through the
+    vectorized code, which defines every edge case.
+    """
+    out = []
+    for value in values:
+        if isinstance(value, (bool, np.bool_)) or np.ndim(value) != 0:
+            return None
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return None
+        if not (math.isfinite(number) and number > 0.0):
+            return None
+        out.append(number)
+    return out
+
+
+def _black_scholes_scalar(forward, strike, years, volatility, sign, discount):
+    """One clean contract. Same operations in the same order as the vectorized formula.
+
+    PERF: the vectorized formula on one contract pays numpy broadcasting and errstate overhead
+    (about 80 microseconds per call); implied volatility calls it 50 times per contract and the
+    backtest broker prices every held option leg every minute. ``np.log`` and ``ndtr`` are the
+    same ufunc loops the vectorized formula runs on one element, and +, -, *, / and sqrt are
+    correctly rounded, so the result is bit-identical (tests/test_option_price_estimate_scalar_path.py).
+    """
+    total = volatility * math.sqrt(years)
+    d1 = float(np.log(forward / strike)) / total + 0.5 * total
+    d2 = d1 - total
+    price = discount * sign * (forward * float(ndtr(sign * d1)) - strike * float(ndtr(sign * d2)))
+    if total > 0 and math.isfinite(price):
+        return price
+    return discount * float(np.maximum(sign * (forward - strike), 0.0))
+
+
 def black_scholes_forward_price(forward, strike, years, volatility, is_call, discount=1.0):
     """Black (1976) price on a forward. Vectorized. Discounted intrinsic when vol*sqrt(T) is 0."""
+    clean = _plain_scalars(forward, strike, years, volatility, discount)
+    if clean is not None and np.ndim(is_call) == 0:
+        f, k, t, v, d = clean
+        return np.float64(_black_scholes_scalar(f, k, t, v, 1.0 if bool(is_call) else -1.0, d))
     forward, strike, years, volatility, is_call, discount = np.broadcast_arrays(
         np.asarray(forward, dtype=float),
         np.asarray(strike, dtype=float),
@@ -79,6 +123,23 @@ def black_scholes_forward_price(forward, strike, years, volatility, is_call, dis
 
 def implied_volatility_forward(price, forward, strike, years, is_call, discount=1.0, low=1e-4, high=8.0, steps=48):
     """Implied volatility by vectorized bisection. NaN where the price has no solution in [low, high]."""
+    clean = _plain_scalars(price, forward, strike, years, discount, low, high)
+    if clean is not None and np.ndim(is_call) == 0:
+        # One clean contract: the same bisection on Python floats (bit-identical, see
+        # _black_scholes_scalar), about 15 times faster than one-element arrays.
+        p, f, k, t, d, lo, hi = clean
+        sign = 1.0 if bool(is_call) else -1.0
+        at_low = _black_scholes_scalar(f, k, t, lo, sign, d)
+        at_high = _black_scholes_scalar(f, k, t, hi, sign, d)
+        if not (p > at_low + 1e-9 and p < at_high):
+            return np.float64(np.nan)
+        for _ in range(int(steps)):
+            mid = 0.5 * (lo + hi)
+            if _black_scholes_scalar(f, k, t, mid, sign, d) < p:
+                lo = mid
+            else:
+                hi = mid
+        return np.float64(0.5 * (lo + hi))
     price, forward, strike, years, is_call, discount = [
         np.array(a)
         for a in np.broadcast_arrays(

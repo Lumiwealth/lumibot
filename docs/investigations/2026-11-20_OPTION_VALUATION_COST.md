@@ -2,8 +2,8 @@
 
 Where a one-year minute iron condor backtest spends its time after the same-moment option valuation fix.
 
-Last Updated: 2026-11-20
-Status: Open (measured; partial fix in 4.6.93)
+Last Updated: 2026-11-22
+Status: Open (measured; partial fixes in 4.6.93 and 4.6.95)
 Audience: LumiBot contributors working on backtest speed
 
 ## Overview
@@ -41,6 +41,15 @@ current underlying price). That fix made account values correct; this note is ab
 
 - The "newest trade is in the current minute" check on the array path compares integer
   minutes instead of building a timestamp per leg per bar (about 15 of the 18 profiled seconds).
+
+## What changed in 4.6.95
+
+- `implied_volatility_forward` and `black_scholes_forward_price` take a scalar path for one
+  clean contract (positive finite numbers): same `np.log` and `ndtr` ufunc loops, the same
+  operation order, so results are bit-identical (`tests/test_option_price_estimate_scalar_path.py`
+  compares 3,000 prices and 4,000+ implied volatilities against the one-element-array path).
+  Synthetic minute option backtest under yappi: implied volatility 7.7 s to 0.7 s, valuation
+  15.7 s to 8.2 s. End-to-end trade log and per-iteration value hashes match 4.6.94.
 
 ## Next candidates
 

@@ -128,3 +128,18 @@ def test_a_failed_history_read_keeps_the_open_orders():
     broker.set_closed_order_read_window(7)
 
     assert [order.identifier for order in _read(broker)] == ["open-1"]
+
+
+def test_closed_with_unknown_executed_amount_is_neither_a_fill_nor_a_cancel():
+    # Some exchanges leave ``filled`` empty on a finished order. Unknown is not "nothing
+    # executed": claiming a cancel could make a reader think a real fill never happened.
+    row = _row("unknown-1", "closed", 0.0)
+    row["filled"] = None
+    broker = _reader(closed_rows=[row])
+    broker.set_order_read_markets(["BTC/USDT:USDT"])
+    broker.set_closed_order_read_window(7)
+
+    [order] = _read(broker)
+
+    assert order.status == "closed"
+    assert not order.is_filled()

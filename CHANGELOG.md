@@ -2393,13 +2393,13 @@ Deploy marker: `deploy 4.5.61`
 
 ### Fixed
 - **Long Coinbase/CCXT minute backtests now split provider downloads under the
-  cache limit.** BTC/USDT runs such as Greg's March 8 through May 1 replay
+  cache limit.** BTC/USDT runs such as the perp scalper customer's March 8 through May 1 replay
   request 79,200 one-minute bars, which is larger than LumiBot's 50,000-bar
   per-download guard. The CCXT cache now splits those windows into safe chunks
   instead of failing before Coinbase can page through the historical data.
 
 ### Tests
-- **CCXT cache regression coverage now pins the Greg long-window failure
+- **CCXT cache regression coverage now pins the perp-scalper long-window failure
   shape.** Tests assert a March 8 through May 1 BTC/USDT one-minute request is
   downloaded as a 50,000-minute chunk plus a 29,200-minute chunk and merged into
   one cache coverage range.
@@ -2416,7 +2416,7 @@ Deploy marker: `deploy 4.5.60`
   buckets are still excluded and larger stale gaps still fail.
 
 ### Tests
-- **Greg BTC/USDT regression coverage now pins the 15-minute aggregate edge.**
+- **Perp-scalper BTC/USDT regression coverage now pins the 15-minute aggregate edge.**
   Data entity tests assert crypto `5m` history accepts a 15-minute provider-edge
   gap but still rejects gaps beyond that threshold.
 
@@ -2434,7 +2434,7 @@ Deploy marker: `deploy 4.5.60`
   current data.
 
 ### Tests
-- **Data entity regressions cover the Greg BTC/USDT production edge case.**
+- **Data entity regressions cover the perp-scalper BTC/USDT production edge case.**
   Tests assert sparse Coinbase-style minute data can satisfy `5m` history at the
   current edge, excludes incomplete 5-minute bars, allows short BTC/USDT snapshot
   gaps, and still rejects multi-minute requests past the tolerance.
@@ -2477,7 +2477,7 @@ Deploy marker: `4ca4a2d8`
   BTC/USDT, BTC/USD, and other exact crypto quote pairs are loaded once for the
   requested minute, hour, or day backtest window instead of refetching a moving
   slice at each simulated timestamp. This avoids the repeated current-edge
-  `data unavailable` loop seen in production Greg BTC/USDT validation while
+  `data unavailable` loop seen in production perp-scalper BTC/USDT validation while
   keeping strategy access time-bounded through `Data.get_bars(dt)`.
 - **Full-window routed data loads now stop redundant retries.** Shared routed
   dataframe adapters honor full-window and empty-window markers before fetching
@@ -2506,7 +2506,7 @@ Deploy marker: `deploy 4.5.56`
   incomplete OHLC values.
 
 ### Tests
-- **Data entity regressions cover the Greg BTC/USDT 5-minute boundary.** Tests
+- **Data entity regressions cover the perp-scalper BTC/USDT 5-minute boundary.** Tests
   assert strict Coinbase-style minute data can satisfy a `5m` history request at
   the bucket boundary, does not include the partial current 5-minute candle, and
   still rejects requests beyond the allowed bucket tolerance.
@@ -2544,7 +2544,7 @@ Deploy marker: `deploy 4.5.54`
 ### Docs
 - **Crypto validation docs now record the post-deploy partial-coverage failure.**
   The runbook explains why cache metadata must be derived from real candles and
-  cites the Greg production validation backtest that exposed the issue.
+  cites the perp-scalper production validation backtest that exposed the issue.
 
 ### Tests
 - **CCXT cache regressions now cover partial underfills.** Tests assert a
@@ -2599,7 +2599,7 @@ Deploy marker: `deploy 4.5.52`
   validation note lists BTC/USDT minute/hour/day, ETH/USDT, SOL/USDT, and older
   BTC/USD artifact roots with fill-price, fill-time, cache-coverage, and warm
   cache results.
-- **Greg BTC investigation now records the local execution-path guard.** The note separates the Crypto Plus data-availability issue from the LumiBot no-stale-fill invariant and lists local targeted test evidence.
+- **Perp-scalper BTC investigation now records the local execution-path guard.** The note separates the Crypto Plus data-availability issue from the LumiBot no-stale-fill invariant and lists local targeted test evidence.
 - **Tradier docs now describe OAuth token-file durability.** The broker docs and environment-variable reference explain `TRADIER_TOKEN_PATH` separately from manual `TRADIER_ACCESS_TOKEN` usage.
 - **TQQQ provider-diff investigations now document execution sensitivity.** The
   notes record the IBKR-first strategy direction, v22/v23 experiments, and
@@ -2625,7 +2625,7 @@ Deploy marker: `deploy 4.5.52`
 - **Malformed rebuilt IBKR history windows are terminal no-data windows.** If the Data Downloader exhausts the rebuild path and still returns a malformed IBKR history payload, LumiBot records the requested range as missing instead of repeatedly refetching the same invalid minute window.
 
 ### Docs
-- **Greg BTC stale-fill investigation now documents the S3 cache and Data Downloader root cause.** The note records the bad production BTC cache object, the queued downloader proof that stale crypto tails were marked complete/cacheable, and the required cache quarantine path.
+- **Perp-scalper BTC stale-fill investigation now documents the S3 cache and Data Downloader root cause.** The note records the bad production BTC cache object, the queued downloader proof that stale crypto tails were marked complete/cacheable, and the required cache quarantine path.
 
 ### Tests
 - **Data entity tests now reproduce stale BTC bars inside sparse intraday frames.** Regression coverage asserts strict minute reads reject March BTC data when an April simulation timestamp is requested, while allowing recent bars inside the configured tolerance.
@@ -2640,7 +2640,7 @@ Deploy marker: `pending`
 - **Routed IBKR crypto prices and quotes now reject stale or future intraday frames.** BotSpot Auto crypto routing marks intraday IBKR data as strict, validates full-window coverage before marking crypto/futures series loaded, and prevents `get_last_price()` or `get_quote()` from treating out-of-window cached BTC rows as the current simulation price.
 
 ### Docs
-- **Titus Schwab cancel evidence now records deployment and market-hours retest findings.** The investigation note separates the fixed broker cancel path from the remaining strategy-level Titus risks around fills before cancel, rejected stock hedges, retry behavior, and Schwab option smart-limit support.
+- **Fast-scanner Schwab cancel evidence now records deployment and market-hours retest findings.** The investigation note separates the fixed broker cancel path from the remaining strategy-level customer risks around fills before cancel, rejected stock hedges, retry behavior, and Schwab option smart-limit support.
 
 ### Tests
 - **Tradier OAuth refresh coverage now asserts rotated tokens are reused.** The regression tests verify refresh state is persisted after retry-layer 401 responses.
@@ -2664,7 +2664,7 @@ Deploy marker: `e51a0478`
 - **Schwab cancels now emit order-level diagnostic telemetry.** `Schwab.cancel_order()` logs request metadata, Schwab response status and elapsed time, and a best-effort direct order read after cancel acceptance so support can distinguish missing cancel requests, broker rejection, delayed broker state, and strategy-loop lockups.
 
 ### Tests
-- **Rob-owned Schwab live cancel diagnostics now cover Titus-style fast option cancels.** Local smoke helpers can load the existing gitignored Schwab token and app metadata, submit a nonmarketable option order, cancel by exact order id, confirm broker state, and optionally compare broad order-list timing outside the hot path.
+- **Rob-owned Schwab live cancel diagnostics now cover fast-scanner-style fast option cancels.** Local smoke helpers can load the existing gitignored Schwab token and app metadata, submit a nonmarketable option order, cancel by exact order id, confirm broker state, and optionally compare broad order-list timing outside the hot path.
 
 ## 4.5.45 - Unreleased
 
@@ -2685,7 +2685,7 @@ Deploy marker: `e51a0478`
 - **Scheduled timing setup now works with lightweight strategy stubs.** `StrategyExecutor` falls back to the module logger when a minimal strategy object has no `logger`, restoring existing unit/backtest test compatibility.
 
 ### Tests
-- **Rob-owned Schwab live smoke now mirrors Titus-style option cancel and broker-native hedge structures.** The smoke submits a TSLL option limit order, waits four seconds, cancels and verifies the canceled broker state, then submits/read/cancels OTO and bracket option structures against Schwab.
+- **Rob-owned Schwab live smoke now mirrors fast-scanner-style option cancel and broker-native hedge structures.** The smoke submits a TSLL option limit order, waits four seconds, cancels and verifies the canceled broker state, then submits/read/cancels OTO and bracket option structures against Schwab.
 
 ## 4.5.43 - 2026-06-01
 
@@ -2727,7 +2727,7 @@ Deploy marker: `deploy 4.5.40`
 - **Known Schwab account-history rows are quieter.** Schwab `MUTUAL_FUND` position rows and `EXERCISE` order-history rows are preserved without noisy unknown-warning spam, while truly new/unknown asset and order types still warn and preserve raw broker data.
 
 ### Tests
-- **Schwab live option replace smoke coverage now exercises the Titus failure path.** The live API test submits a TSLL option limit order, reads it directly and from the active order list, replaces it through Schwab's order-replace endpoint, reads the replacement, cancels it, and confirms the canceled state.
+- **Schwab live option replace smoke coverage now exercises the fast-scanner failure path.** The live API test submits a TSLL option limit order, reads it directly and from the active order list, replaces it through Schwab's order-replace endpoint, reads the replacement, cancels it, and confirms the canceled state.
 - **Market-order broad-list miss regression coverage was added.** Unit tests cover active market orders missing from non-empty and empty broker order lists, including direct filled reconciliation and unresolved missing-order terminalization to non-active `UNKNOWN`.
 
 ## 4.5.39 - 2026-05-29

@@ -160,7 +160,7 @@ be run.
 Broker adapters must never treat local `CANCELLING` as terminal before sending
 the broker cancel request. A broker preflight that skips cancel when local status
 is `CANCELLING` can prevent the broker from ever receiving the cancel call. See
-`docs/investigations/2026-06-05_TITUS_SCHWAB_CANCEL_EXACT_PATH.md` for the
+`docs/investigations/2026-06-05_FAST_SCANNER_SCHWAB_CANCEL_EXACT_PATH.md` for the
 incident that established this rule.
 
 Broker adapter methods that are supposed to contact the broker, especially

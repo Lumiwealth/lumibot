@@ -16,7 +16,7 @@ refresh with the required auth headers.
 - `schwab_token.json` is saved with file mode `600`.
 - A forced-expired temp token copy successfully refreshed when the Schwab app
   secret was loaded from the local BotSpot Node env file.
-- The Rob-owned Titus live-smoke helper now loads the existing local Schwab app
+- The Rob-owned fast-scanner live-smoke helper now loads the existing local Schwab app
   values from `../botspot_node/.env-local` when they are not already exported,
   so future local live Schwab smokes should not require a new OAuth payload every
   30 minutes.

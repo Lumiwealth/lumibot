@@ -301,7 +301,7 @@ def test_schwab_live_option_modify_read_cancel(monkeypatch):
 def test_schwab_live_option_limit_wait_then_cancel_refresh(monkeypatch):
     """Places a safe option limit order, waits, cancels, and confirms Schwab state.
 
-    This covers the Titus-style path where strategy code submits an option limit
+    This covers the fast-scanner-style path where strategy code submits an option limit
     order, gives Schwab a short window to fill it, then cancels if it is still
     open. The low limit is intended to rest instead of filling.
     """

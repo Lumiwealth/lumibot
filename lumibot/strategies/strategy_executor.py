@@ -2110,6 +2110,22 @@ class StrategyExecutor(Thread):
         if not is_continuous_market:
             # If strategy sleep time is greater than the time to close, process expired option contracts.
             if strategy_sleeptime > time_to_close:
+                is_pure_pandas_data = (hasattr(self.broker, 'data_source') and
+                                      type(self.broker.data_source).__name__ in ('PandasData', 'PandasDataBacktesting'))
+                if (
+                    self.strategy.is_backtesting
+                    and (not is_pure_pandas_data or strategy_sleeptime < 86400)
+                    and 0 < time_to_before_closing < time_to_close
+                ):
+                    # Stop at the before-close window, not at the close. The session then ends
+                    # with the market still open, so the post-loop close hook runs
+                    # before_market_closes. Sleeping to the close skipped it on every day for
+                    # any strategy whose sleeptime was longer than the time left (an hourly bot
+                    # never flattened before the close). Expired contracts still settle after
+                    # the close, in _run_trading_session.
+                    self.safe_sleep(time_to_before_closing)
+                    return False
+
                 # Sleep until the market closes.
                 self.safe_sleep(time_to_close)
 

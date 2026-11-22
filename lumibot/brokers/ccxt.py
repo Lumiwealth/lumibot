@@ -563,7 +563,10 @@ class Ccxt(Broker):
         status = response.get("status") or "new"
         if status != "closed":
             return status
-        return "fill" if response.get("filled") else "canceled"
+        filled = response.get("filled")
+        if filled is None:
+            return status  # executed amount unknown: neither a fill nor a cancel can be claimed
+        return "fill" if filled else "canceled"
 
     def _pull_broker_order(self, identifier):
         order = self.get_tracked_order(identifier) or self._submitted_orders.get(str(identifier))

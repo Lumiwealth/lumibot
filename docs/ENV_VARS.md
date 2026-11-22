@@ -476,6 +476,7 @@ bound to one deployment or backtest.
 - Values: Key from https://console.nace.ai.
 - Default: unset (every agent uses its own model).
 - Notes: The agent's own model keeps its usual credentials. That model answers every other agent, and it is the fallback when a Drex call fails. `NACE_DEFAULT_DECISION_MODEL` selects the Drex model (default `drex-max-finance`). `NACE_BASE_URL` sets the API host (default `https://console.nace.ai`).
+- Required output fields must appear in `properties`. Backtest questions include a simulated-time cutoff even for explicit tasks, and Drex replay keys include the actual questions so instruction changes invalidate earlier verdicts. This is an instruction contract, not a guarantee of model adherence.
 
 ### `LUMIBOT_SEC_USER_AGENT`
 - Purpose: Contact-style SEC EDGAR user agent header.

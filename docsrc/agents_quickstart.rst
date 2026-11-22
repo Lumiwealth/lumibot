@@ -340,6 +340,8 @@ For a gate whose whole answer is a label, set ``NACE_API_KEY`` to have `Drex <ht
 
 ``result.parsed`` has the same shape and ``result.model`` reads ``nace/drex-max-finance``. The trace event keeps the label probabilities. If a Drex call fails, LumiBot logs a warning and the agent's own model answers. Other agents are unaffected.
 
+Every required field must be listed in ``properties``; schemas requiring extra fields use the agent's model. In backtests, Drex receives the simulated cutoff and an instruction to ignore later information even for explicit tasks. This instruction does not prove that a model obeys the cutoff; use dated inputs and validate the strategy. The decision questions are part of the Drex replay key, so a changed decision policy does not reuse an older verdict.
+
 Running a Backtest
 ------------------
 

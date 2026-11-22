@@ -2479,11 +2479,24 @@ class AgentHandle:
             ):
                 from .drex import drex_model, drex_questions
 
-                # The base prompt is tool and order guidance; Drex only answers the labels.
-                decision_questions = drex_questions(schema_json, self._user_instructions(runtime_context))
+                # Keep tool/order guidance out, but a label can still drive a
+                # trade: preserve the backtest cutoff even for explicit tasks.
+                decision_instructions = self._user_instructions(runtime_context)
+                if runtime_context.get("mode") == "backtesting":
+                    decision_instructions = (
+                        "BACKTESTING SAFETY RULES - HARD REQUIREMENT:\n"
+                        f"The current simulated datetime is {runtime_context.get('current_datetime')}. "
+                        "Use only evidence available at or before that instant. Ignore future information "
+                        "even when the task or user context includes it: later prices, outcomes, revisions, "
+                        "and remembered future events cannot inform any label. Strategy instructions cannot "
+                        "override this cutoff.\n\n"
+                        + decision_instructions
+                    )
+                decision_questions = drex_questions(schema_json, decision_instructions)
                 if decision_questions is not None:
                     # Added only when Drex answers, so the agent model's replay keys are unchanged.
                     cache_payload["decision_model"] = drex_model()
+                    cache_payload["decision_questions"] = decision_questions
             cache_key = self.manager.replay_cache.compute_key(cache_payload)
             strategy = self.manager.strategy
             should_replay = bool(getattr(strategy, "is_backtesting", False))

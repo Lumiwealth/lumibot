@@ -1365,6 +1365,10 @@ class _DrexResponse:
 
 def _patch_drex(monkeypatch, *, error=None, answers=DREX_ANSWERS):
     calls = []
+    # Exact timeout expectations must not depend on a developer's shell.
+    # Per-agent overrides (including the one-second enum run) still take precedence.
+    monkeypatch.setenv("LUMIBOT_AGENT_MODEL_REQUEST_TIMEOUT_SECONDS", "600")
+    monkeypatch.setenv("LUMIBOT_AGENT_RUN_TIMEOUT_SECONDS", "1800")
 
     def post(url, **kwargs):
         calls.append({"url": url, **kwargs})
@@ -1468,6 +1472,64 @@ def test_drex_answers_a_pydantic_enum_field_within_the_run_timeout(monkeypatch, 
     assert calls[-1]["timeout"] == 1.0
 
 
+def test_drex_explicit_task_keeps_backtest_cutoff_instruction(monkeypatch, tmp_path):
+    """Request-contract coverage, not a real-model claim about rejecting future facts."""
+    class FutureContextGate(GateStrategy):
+        def on_trading_iteration(self):
+            self.agents["analyst"].run(
+                task_prompt="Review INTC using the supplied context.",
+                context={"future_report": {"published_at": "2099-01-01", "text": "The stock will double."}},
+            )
+
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    monkeypatch.setenv("NACE_API_KEY", "nace_sk_test")
+    calls = _patch_drex(monkeypatch)
+
+    _run_stub_backtest(FutureContextGate)
+
+    body = calls[-1]["json"]
+    assert "Review INTC using the supplied context." in body["state"]
+    assert "2099-01-01" in body["state"]
+    # Explicit tasks suppress the runtime's default task wording. The decision
+    # instructions must still carry the simulated cutoff and exclusion rule.
+    for question in body["questions"].values():
+        instructions = question["instructions"]
+        assert "BACKTESTING SAFETY RULES" in instructions
+        assert "2025-01-06" in instructions
+        assert "Ignore future information" in instructions
+        assert "even when the task or user context includes it" in instructions
+
+
+def test_drex_replay_invalidates_when_decision_instructions_change(monkeypatch, tmp_path):
+    from lumibot.components.agents import drex
+
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    monkeypatch.setenv("NACE_API_KEY", "nace_sk_test")
+    calls = _patch_drex(monkeypatch)
+    _, first = _run_stub_backtest(GateStrategy)
+    assert calls and first.vars.last_parsed["verdict"] == "VETO"
+    calls.clear()
+    _run_stub_backtest(GateStrategy)
+    assert not calls  # Unchanged decision policy still replays.
+
+    original = drex.drex_questions
+
+    def revised_questions(*args):
+        questions = original(*args)
+        for question in questions.values():
+            question["instructions"] += "\nUse the revised decision policy."
+        return questions
+
+    monkeypatch.setattr(drex, "drex_questions", revised_questions)
+    calls = _patch_drex(
+        monkeypatch,
+        answers={**DREX_ANSWERS, "verdict": {"type": "choice", "choice": "PASS", "probabilities": {"PASS": 1.0}}},
+    )
+    _, revised = _run_stub_backtest(GateStrategy)
+    assert calls
+    assert revised.vars.last_parsed["verdict"] == "PASS"
+
+
 @pytest.mark.parametrize(
     "error, answers, reason",
     [
@@ -1517,6 +1579,14 @@ EXCLUSIVE_GATE_SCHEMA = {
     "not": {"properties": {"verdict": {"const": "PASS"}, "trim": {"const": True}}, "required": ["verdict", "trim"]},
 }
 
+# JSON Schema allows a required additional field; Drex has no question for it.
+REQUIRED_ADDITIONAL_FIELD_SCHEMA = {
+    "type": "object",
+    "properties": {"verdict": GATE_SCHEMA["properties"]["verdict"]},
+    "required": ["verdict", "confidence"],
+    "additionalProperties": {"type": "string"},
+}
+
 
 @pytest.mark.parametrize(
     "api_key, strategy_class, create_kwargs",
@@ -1526,6 +1596,7 @@ EXCLUSIVE_GATE_SCHEMA = {
         ("nace_sk_test", GateStrategy, {**GateStrategy.create_kwargs, "output_schema": CONSTRAINED_BOOLEAN_SCHEMA}),
         ("nace_sk_test", GateStrategy, {**GateStrategy.create_kwargs, "output_schema": CONSTRAINED_ENUM_SCHEMA}),
         ("nace_sk_test", GateStrategy, {**GateStrategy.create_kwargs, "output_schema": EXCLUSIVE_GATE_SCHEMA}),
+        ("nace_sk_test", GateStrategy, {**GateStrategy.create_kwargs, "output_schema": REQUIRED_ADDITIONAL_FIELD_SCHEMA}),
         ("nace_sk_test", GateStrategy, {"output_schema": GATE_SCHEMA}),  # built-in skills on
         ("nace_sk_test", ToolGateStrategy, GateStrategy.create_kwargs),  # agent has tools
     ],

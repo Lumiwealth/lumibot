@@ -39,6 +39,9 @@ def drex_questions(schema_json: dict[str, Any], system_prompt: str) -> dict[str,
         return None
     if not set(schema_json) <= _OBJECT_KEYWORDS:
         return None
+    required = schema_json.get("required", [])
+    if not isinstance(required, list) or any(not isinstance(name, str) or name not in properties for name in required):
+        return None
     defs = schema_json.get("$defs") or {}
     questions: dict[str, Any] = {}
     for name, prop in properties.items():

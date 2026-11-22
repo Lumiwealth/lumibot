@@ -863,3 +863,27 @@ def test_renewal_updates_connected_hub_and_reconnect_headers(mock_projectx_confi
         client._refresh_auth_token()
         assert hub.headers['Authorization'] == 'Bearer new-token'
         assert hub.transport.headers['Authorization'] == 'Bearer new-token'
+
+
+def test_history_bars_accept_timestamps_with_and_without_fractional_seconds(mock_projectx_config):
+    """ProjectX returns bar times both with and without fractional seconds in one
+    response. pandas infers one format from the first value and raised
+    'time data ... doesn't match format' for the rest, so live charts and bots
+    could not load 1h or 1d futures history (seen Nov 21 2026)."""
+    api = ProjectX(mock_projectx_config, token="t")
+    bars = [
+        {"t": "2026-09-10T20:00:00.123+00:00", "o": 1, "h": 2, "l": 0.5, "c": 1.5, "v": 10},
+        {"t": "2026-09-11T20:00:00+00:00", "o": 1, "h": 2, "l": 0.5, "c": 1.5, "v": 10},
+        {"t": "2026-09-13T20:00:00-04:00", "o": 1, "h": 2, "l": 0.5, "c": 1.5, "v": 10},
+    ]
+    response = Mock()
+    response.json.return_value = {"success": True, "bars": bars}
+    with patch.object(ProjectX, "_post", return_value=response):
+        frame = api.history_retrieve_bars(
+            contract_id="CON.F.US.MNQ.Z26",
+            start_datetime="2026-09-01T00:00:00Z",
+            end_datetime="2026-09-30T00:00:00Z",
+            unit=4,
+            unit_number=1,
+        )
+    assert len(frame) == 3

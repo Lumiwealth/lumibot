@@ -731,7 +731,9 @@ class ProjectX:
                 return df
             
             # Convert timestamps
-            df["t"] = pd.to_datetime(df["t"], utc=True).dt.tz_convert("America/New_York")
+            # ProjectX mixes times with and without fractional seconds in one
+            # response; ISO8601 parses each value instead of inferring one format.
+            df["t"] = pd.to_datetime(df["t"], utc=True, format="ISO8601").dt.tz_convert("America/New_York")
             
             # Filter by date range
             df = df[

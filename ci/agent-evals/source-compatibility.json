@@ -3,7 +3,7 @@
   "source_commit": "68ff48915f68d83a36885767c98567d8e35156ac",
   "receipt_sha256": "0c79138a02f2f68eefe3b1d97b0e60d2e6fae095674f9d85ab35c08bfacd4075",
   "author_review": {
-    "candidate_runtime_fingerprint": "dcfc90c03aa5eada06c258d51ba9a742953177c714efde182104bcc55c6513b7",
+    "candidate_runtime_fingerprint": "3f32d449e8d284df40072a73b6a464910742c243836c68aff34f6e088f2116ec",
     "case_ids": [
       "attention_overnight_management_preserves_entry_opportunity",
       "options_unequal_call_ratio_atomic_open"

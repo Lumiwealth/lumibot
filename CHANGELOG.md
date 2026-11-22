@@ -2,7 +2,11 @@
 
 ## 4.6.96 - Unreleased
 
-## 4.6.95 - Unreleased
+### Changed
+- **Perpetual backtests look up funding and mark prices by bisection, with identical answers.** The perpetual account asks for funding events and the hourly mark on every simulated bar; each funding call normalized every funding row of the window and each mark call masked every hourly mark (about 80 of 454 profiled seconds on a three-month BTC 5-minute run). Funding rows are normalized once per loaded list and sliced by bisection (callers still get fresh dicts in the same order); the mark row is found with a sorted-index search. Tests: `tests/test_perpetual_funding_mark_lookup.py` (red on 4.6.95).
+- **Recording the history a decision consumed is cheaper when nothing can be missing.** Every indicator call records the history it read; when its series has no known hole and the frame holds every requested priced row, the record is now made without copying the frame (local: about 2.0 ms to 0.3 ms per call; about 36 of 373 profiled seconds on a three-month MNQ 1-minute run). Every other case keeps the full path, and the recorded evidence is the same. Tests: `tests/test_required_history_fast_path.py` (red on 4.6.95).
+
+## 4.6.95 - 2026-11-22
 
 ### Added
 - **Indicator text options and arrows match Pine.** Boxes take `text_valign` (`top`, `center`, `bottom`), `text_wrap` (`none`, `auto`) and `text_formatting` (`none`, `bold`, `italic`, `bold_italic`); labels take `text_formatting`; table cells take `text_valign`, `tooltip`, `text_formatting`, `width` and `height` (percent of the chart, 0 fits the text); `self.draw.merge_cells(table, start_column, start_row, end_column, end_row)` joins cells like Pine's `table.merge_cells`. A new `arrow` output kind works like Pine's `plotarrow` (up arrow below the bar for a positive value, down arrow above for a negative one, length scaled between `min_height` and `max_height` pixels, defaults 5 and 100; up and down colors are a two-color `palette`). Every `describe()` output now lists `min_height` and `max_height`, and tables list their `merges`. Existing indicators draw the same. Docs: `docsrc/indicators_drawings.rst`, `docsrc/indicators_styles.rst`. Tests: `tests/test_indicator_drawings.py`, `tests/test_indicator_styles.py::TestArrowOutput`.

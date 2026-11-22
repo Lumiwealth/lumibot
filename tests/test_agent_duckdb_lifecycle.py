@@ -161,3 +161,48 @@ def test_auto_named_history_slices_from_earlier_iterations_are_released():
         assert "spy_named" in layer._frames
     finally:
         layer.close()
+
+
+def test_history_loads_from_the_data_store_across_iterations_leave_no_open_result():
+    # DuckDB 2.0 refuses new work on a connection that still has an unread result
+    # ("connection has an unfinished result from execute()"). The data-store fast path
+    # created a view, read one row of COUNT(*) and dropped earlier views without reading
+    # their results, so the next history load raised. A hosted hourly backtest crashed
+    # this way on its second history load.
+    index = pd.date_range("2025-01-01", periods=2000, freq="h", tz="America/New_York")
+    frames = {
+        symbol: pd.DataFrame(
+            {"open": 1.0, "high": 1.0, "low": 1.0, "close": [float(i) for i in range(2000)], "volume": 1},
+            index=index,
+        )
+        for symbol in ("TQQQ", "SQQQ", "QQQ")
+    }
+    clock = {"now": index[600]}
+
+    class Store:
+        def __init__(self):
+            self._data_store = {
+                (symbol, "hour"): SimpleNamespace(df=frame, timestep="hour") for symbol, frame in frames.items()
+            }
+
+        def find_asset_in_data_store(self, asset, quote, timestep):
+            return (asset.symbol, "hour")
+
+    strategy = SimpleNamespace(
+        get_datetime=lambda: clock["now"],
+        get_historical_prices=lambda *a, **k: None,
+        broker=SimpleNamespace(data_source=Store()),
+    )
+    layer = DuckDBQueryLayer(strategy)
+    try:
+        for step in range(4):
+            clock["now"] = index[600 + step]
+            tables = [layer.load_history_table(symbol=s, length=500, timestep="hour") for s in ("TQQQ", "SQQQ", "QQQ")]
+            assert all(t["kind"] == "visible_view" and t["row_count"] == 500 for t in tables)
+            rows = layer.query(sql=f'SELECT MAX(close) AS c FROM "{tables[-1]["table_name"]}"')["rows"]
+            assert rows[0]["c"] == 599 + step
+            # Every statement's result was read, so the connection accepts new work.
+            layer.connection.register("probe", pd.DataFrame({"x": [1]}))
+            layer.connection.unregister("probe")
+    finally:
+        layer.close()

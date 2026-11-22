@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import os
+import queue
+import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -756,3 +760,60 @@ def test_memory_layer_is_bounded_by_bytes_not_a_count_of_64(monkeypatch, isolate
         sbc.read_bars(item, "2026-03-02", "2026-03-02 01:00", fetch, now=NOW)
     assert 0 < len(sbc._Store._memory) < 100
     assert sbc._Store._memory_bytes <= 0.05 * 1024 * 1024
+
+
+class _EmptyQueue(queue.Queue):
+    """A queue with no jobs that records how long each worker wait asked for."""
+
+    def __init__(self):
+        super().__init__()
+        self.waits = []
+
+    def get(self, block=True, timeout=None):
+        self.waits.append(timeout)
+        raise queue.Empty
+
+
+def test_idle_upload_worker_does_not_hold_a_finished_process_open(monkeypatch):
+    # Production chart reads, 2026-11-21: the result was ready at 2.1 s and the process exited at
+    # 7.7 s, because this non-daemon worker sat in a 5-second queue wait after the last upload.
+    class FinishedMainThread:
+        @staticmethod
+        def is_alive():
+            return False
+
+    monkeypatch.setattr(sbc.threading, "main_thread", lambda: FinishedMainThread())
+    uploader = sbc._Uploader()
+    jobs = _EmptyQueue()
+    uploader._queues[0] = jobs
+
+    uploader._run(0)
+
+    assert jobs.waits and max(jobs.waits) < 1
+
+
+def test_idle_upload_worker_stays_available_while_the_process_runs(monkeypatch):
+    monkeypatch.setattr(sbc, "UPLOAD_WORKER_IDLE_SECONDS", 0.05)
+    uploader = sbc._Uploader()
+    jobs = _EmptyQueue()
+    uploader._queues[0] = jobs
+
+    uploader._run(0)
+
+    assert len(jobs.waits) > 1
+
+
+def test_upload_queued_just_before_exit_still_finishes(tmp_path):
+    marker = tmp_path / "uploaded"
+    program = (
+        "import pathlib, time\n"
+        "from lumibot.tools import shared_bar_cache as sbc\n"
+        f"marker = pathlib.Path({str(marker)!r})\n"
+        "def job(remote_allowed):\n"
+        "    time.sleep(0.3)\n"
+        "    marker.write_text('done')\n"
+        "sbc._UPLOADER.submit('one-path', job)\n"
+    )
+    env = {**os.environ, "PYTHONPATH": str(Path(sbc.__file__).parents[2]), "LUMIBOT_DISABLE_DOTENV": "true"}
+    subprocess.run([sys.executable, "-c", program], check=True, env=env, cwd=tmp_path)
+    assert marker.read_text() == "done"

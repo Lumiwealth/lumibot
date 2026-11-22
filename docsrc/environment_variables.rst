@@ -901,6 +901,27 @@ SCHWAB_CANCEL_DIAGNOSTICS
 - Values: ``true``/``false`` (or ``1``/``0``).
 - Default: disabled. The diagnostic read doubles the round trips on every cancel; enable it only while investigating a cancel issue.
 
+SCHWAB_REQUESTS_PER_MINUTE
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Per-minute request budget this process may spend on the Schwab API (broker and data source together).
+- Values: number; ``0`` disables pacing.
+- Default: ``100``. When several bots share one Schwab developer app, give each a share of the app's limit.
+
+SCHWAB_ORDER_RESERVED_REQUESTS_PER_MINUTE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Part of the Schwab budget only order traffic (sends, replaces, cancels, order reads) may use, so market-data polling cannot starve orders.
+- Values: number, at most ``SCHWAB_REQUESTS_PER_MINUTE``.
+- Default: ``20``.
+
+SCHWAB_MARKET_DATA_MAX_WAIT_SECONDS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: How long a Schwab market-data request waits for budget before failing with ``RateLimitedError``.
+- Values: seconds.
+- Default: ``2``.
+
 Tradovate broker
 ----------------
 

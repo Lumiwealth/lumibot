@@ -519,3 +519,9 @@ bound to one deployment or backtest.
 ### `TELEGRAM_CHAT_ID`
 - Purpose: Telegram chat/channel/user id for strategy notifications.
 - Values: Telegram chat id.
+
+## Schwab request pacing
+
+- `SCHWAB_REQUESTS_PER_MINUTE` (default 100, `0` disables): per-process Schwab request budget, shared by the broker and data source through `lumibot/brokers/schwab_request_pacer.py`.
+- `SCHWAB_ORDER_RESERVED_REQUESTS_PER_MINUTE` (default 20): headroom only order traffic may use.
+- `SCHWAB_MARKET_DATA_MAX_WAIT_SECONDS` (default 2): market-data wait for budget before `RateLimitedError`.

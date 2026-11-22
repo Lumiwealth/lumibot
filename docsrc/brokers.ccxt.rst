@@ -331,6 +331,16 @@ needs some markets names them first:
     orders = broker._pull_all_orders("reader", strategy)
     broker.set_order_read_markets(None)               # back to the whole account
 
+To also read recent finished orders for the named markets (for example to draw fills on a chart):
+
+.. code-block:: python
+
+    broker.set_order_read_markets(["BTC/USDT:USDT"])
+    broker.set_closed_order_read_window(7)            # finished orders from the last 7 days
+    broker.set_closed_order_read_window(None)         # back to open orders only
+
+A finished order counts as filled only when the exchange reports an executed quantity. If the history request fails, the open orders are still returned.
+
 An unknown market raises ``ValueError`` rather than reading as "no orders".
 
 Smallest order and quantity step

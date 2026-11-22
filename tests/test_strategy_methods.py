@@ -69,6 +69,7 @@ class TestStrategyMethods:
             "timeshift": None,
             "chunk_size": 25,
             "max_workers": 8,
+            "quote": None,
             "exchange": "SMART",
             "include_after_hours": False,
             "sleep_time": 0,

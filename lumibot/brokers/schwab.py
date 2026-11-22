@@ -204,6 +204,65 @@ def _start_schwab_proactive_token_refresh(
     return stop_event
 
 
+def _install_schwab_unauthorized_refresh(
+    oauth_session,
+    token_dict_for_session: dict,
+    refresh_kwargs: dict,
+    update_token_callback,
+) -> None:
+    """Refresh once and retry once when Schwab rejects the access token (401).
+
+    oauthlib refreshes only when its own clock says the token expired. Schwab
+    can still answer 401 earlier (clock drift, a token rotated elsewhere, a
+    revoked access token). Without this the request fails until restart. The
+    wrapper exchanges the refresh token one time and repeats the request one
+    time. A failed refresh, or a second 401, is returned to the caller as is:
+    no loop and no hidden success.
+    """
+    original_request = getattr(oauth_session, "request", None)
+    if not callable(original_request):
+        return
+    refresh_lock = threading.Lock()
+
+    def _refresh_after_unauthorized(rejected_access_token):
+        with refresh_lock:
+            # Another thread (or the proactive refresher) may already have
+            # rotated the token while this request was in flight.
+            if token_dict_for_session.get("access_token") != rejected_access_token:
+                return True
+            refresh_token_value = token_dict_for_session.get("refresh_token")
+            if not refresh_token_value:
+                return False
+            try:
+                refreshed = oauth_session.refresh_token(
+                    oauth_session.auto_refresh_url,
+                    refresh_token=refresh_token_value,
+                    **refresh_kwargs,
+                )
+                if not isinstance(refreshed, dict) or not refreshed.get("access_token"):
+                    raise RuntimeError("refresh response did not include access_token")
+                update_token_callback(refreshed)
+            except Exception as exc:
+                logger.error(
+                    f"[Schwab] Access token was rejected (HTTP 401) and the token refresh failed "
+                    f"({exc.__class__.__name__}); complete normal Schwab reauthorization if this continues."
+                )
+                return False
+            logger.info("[Schwab] Access token was rejected (HTTP 401); refreshed it and retrying the request once.")
+            return True
+
+    def _request_with_unauthorized_refresh(*args, **kwargs):
+        sent_access_token = token_dict_for_session.get("access_token")
+        response = original_request(*args, **kwargs)
+        if getattr(response, "status_code", None) != 401:
+            return response
+        if not _refresh_after_unauthorized(sent_access_token):
+            return response
+        return original_request(*args, **kwargs)
+
+    oauth_session.request = _request_with_unauthorized_refresh
+
+
 def _schwab_error_reason(error_data, limit: int = 500) -> str:
     """Join the human-readable reasons in a Schwab error body.
 
@@ -418,12 +477,10 @@ class Schwab(Broker):
         if not hasattr(self, "_schwab_rate_limit_attempts"):
             self._schwab_rate_limit_attempts = {}
 
-        retry_after = None
+        from lumibot.tools.http_retry_after import retry_after_seconds
+
         headers = getattr(response, "headers", {}) or {}
-        try:
-            retry_after = float(headers.get("Retry-After"))
-        except (TypeError, ValueError):
-            retry_after = None
+        retry_after = retry_after_seconds(headers)
         attempts = int(self._schwab_rate_limit_attempts.get(endpoint_family, 0)) + 1
         self._schwab_rate_limit_attempts[endpoint_family] = attempts
         if retry_after is None:
@@ -434,6 +491,23 @@ class Schwab(Broker):
             f"[SchwabLifecycle] event=broker.rate_limited endpoint_family={endpoint_family} "
             f"retry_after_seconds={retry_after:.3f}"
         )
+
+    def _schwab_rate_limit_remaining(self, endpoint_family: str) -> float:
+        deadlines = getattr(self, "_schwab_rate_limit_deadlines", {})
+        return max(0.0, float(deadlines.get(endpoint_family, 0.0)) - self._schwab_now_value())
+
+    def _schwab_pace(self, kind: str) -> None:
+        """Spend one request from the client's shared per-minute budget.
+
+        Orders (sends, replaces, cancels, order reads) keep reserved headroom
+        and never fail here; account reads wait for budget like market data.
+        """
+        client = getattr(self, "client", None)
+        if client is None:
+            return
+        from lumibot.brokers.schwab_request_pacer import pacer_for_client
+
+        pacer_for_client(client, getattr(self, "_schwab_pacing_config", None)).acquire(kind)
 
     def _clear_schwab_rate_limit(self, endpoint_family: str) -> None:
         getattr(self, "_schwab_rate_limit_attempts", {}).pop(endpoint_family, None)
@@ -466,6 +540,8 @@ class Schwab(Broker):
         self.schwab_authorization_error = False
         self._broker_fully_ready = False # Initialize new flag
         self._connect_stream = connect_stream
+        # Per-minute Schwab request budget settings (SCHWAB_REQUESTS_PER_MINUTE etc.).
+        self._schwab_pacing_config = config
         # === End Initialize error flag ===
 
         # === Prepare Data Source ===
@@ -767,6 +843,18 @@ class Schwab(Broker):
                 #create refresh hook. This is beacuse oa2session does not perform refreshes with auth headers, only with json bodies. 
                 oauth_session.register_compliance_hook("refresh_token_request", _refresh_token_hook)
 
+            if (
+                not external_token_refresh
+                and client_secret_env
+                and token_dict_for_session.get("refresh_token")
+            ):
+                _install_schwab_unauthorized_refresh(
+                    oauth_session,
+                    token_dict_for_session,
+                    refresh_kwargs,
+                    _update_token,
+                )
+
             # Rotate the access token before expiry so the OAuth handshake never
             # lands inside a latency-sensitive broker call. Without SCHWAB_APP_SECRET
             # Schwab rejects refresh exchanges, so the thread would only spin and warn.
@@ -828,6 +916,11 @@ class Schwab(Broker):
                         raise
                     status_code = getattr(response, "status_code", None)
                     if status_code in {401, 403} and _reload_if_token_file_changed():
+                        return original_request(*args, **kwargs)
+                    # The file did not change, but the session may hold stale
+                    # token state. Re-apply the saved token once and retry once;
+                    # the external owner remains responsible for refreshing it.
+                    if status_code == 401 and _reload_external_token_file(force=True):
                         return original_request(*args, **kwargs)
                     return response
 
@@ -1197,6 +1290,7 @@ class Schwab(Broker):
                 raise ValueError("Schwab cash-event response could not be completely drained")
             requests_remaining -= 1
             try:
+                self._schwab_pace("account")
                 response = self.client.get_transactions(
                     self.hash_value, start_date=window_start - dt.timedelta(seconds=1) if audit else window_start,
                     end_date=window_end,
@@ -1289,6 +1383,7 @@ class Schwab(Broker):
 
         try:
             # Get account information using the hash_value stored during initialization
+            self._schwab_pace("account")
             response = self.client.get_account(self.hash_value, fields=[self.client.Account.Fields.POSITIONS])
 
             if response.status_code != 200:
@@ -1468,6 +1563,7 @@ class Schwab(Broker):
                 return [] # Return empty list
 
             # Get account details with positions
+            self._schwab_pace("account")
             response = self.client.get_account(self.hash_value, fields=[self.client.Account.Fields.POSITIONS])
 
             if response.status_code != 200:
@@ -1660,6 +1756,7 @@ class Schwab(Broker):
 
             seek_start = datetime.now(timezone('UTC')) - timedelta(days=7)
 
+            self._schwab_pace("order")
             response = self.client.get_orders_for_account(
                 self.hash_value,
                 from_entered_datetime=seek_start
@@ -1710,6 +1807,7 @@ class Schwab(Broker):
             return None
 
         try:
+            self._schwab_pace("order")
             response = self.client.get_order(
                 identifier,
                 self.hash_value,
@@ -2793,11 +2891,30 @@ class Schwab(Broker):
             # Log the final order request - reduce verbosity
             logger.info(colored(f"Sending order to Schwab: {order.asset.symbol, order.quantity} @ {order.limit_price or 'market'}", "cyan"))
 
+            # Honor a Schwab Retry-After from an earlier 429. The order is not
+            # sent, and it is not dropped: it errors visibly with the reason so
+            # the strategy can decide when to try again.
+            if not self._schwab_request_allowed("order_submit"):
+                remaining = self._schwab_rate_limit_remaining("order_submit")
+                error_msg = (
+                    "Error submitting order: Schwab rate limit (HTTP 429) still in effect; "
+                    f"nothing was sent. Retry after {remaining:.1f} seconds."
+                )
+                logger.error(colored(error_msg, "red"))
+                self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
+                return None
+
             # Submit the order to Schwab
+            self._schwab_pace("order")
             response = self.client.place_order(self.hash_value, order_spec)
 
             # Log the response - reduce verbosity
             logger.info(colored(f"Schwab order response status: {response.status_code}", "cyan"))
+
+            if response.status_code == 429:
+                self._record_schwab_rate_limit(response, "order_submit")
+            elif response.status_code < 400:
+                self._clear_schwab_rate_limit("order_submit")
 
             # If we get an error response, extract details and return
             if response.status_code >= 400:
@@ -3603,6 +3720,7 @@ class Schwab(Broker):
                 return
 
             # Replace the order
+            self._schwab_pace("order")
             response = self.client.replace_order(self.hash_value, order.identifier, new_order_spec)
 
             # Extract new order ID from response (the replaced order will have a new ID)
@@ -3750,6 +3868,7 @@ class Schwab(Broker):
         try:
             # schwab-py expects (order_id, account_hash) and issues
             # DELETE /trader/v1/accounts/{account_hash}/orders/{order_id}.
+            self._schwab_pace("order")
             response = self.client.cancel_order(order.identifier, self.hash_value)
         except Exception as exc:
             error_msg = f"Error canceling Schwab order {order.identifier}: {exc}"
@@ -3830,6 +3949,7 @@ class Schwab(Broker):
             return
 
         try:
+            self._schwab_pace("order")
             response = self.client.get_order(order_id, self.hash_value)
         except Exception as exc:
             logger.warning(

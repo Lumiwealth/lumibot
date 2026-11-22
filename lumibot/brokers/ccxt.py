@@ -75,6 +75,7 @@ class Ccxt(Broker):
         self._order_bootstrap_lock = Lock()
         self._rest_order_buffer = None
         self._order_read_markets = None
+        self._closed_order_read_days = None
         super().__init__(name="ccxt", config=config, data_source=data_source, max_workers=max_workers, **kwargs)
 
         # Override default market setting for crypto to be 24/7, but still respect config/env if set
@@ -542,9 +543,29 @@ class Ccxt(Broker):
         )
         order.reduce_only = response.get("reduceOnly") or (response.get("info") or {}).get("reduceOnly", False)
         order.set_identifier(response["id"])
-        order.status = response.get("status") or "new"
+        order.status = self._unified_order_status(response)
+        filled = response.get("filled")
+        if filled:
+            order.filled_quantity = filled
+        for field, timestamp in (
+            ("broker_create_date", response.get("timestamp")),
+            ("broker_update_date", response.get("lastTradeTimestamp") or response.get("lastUpdateTimestamp")),
+        ):
+            if timestamp:
+                setattr(order, field, datetime.datetime.fromtimestamp(timestamp / 1000, tz=datetime.timezone.utc))
         order.update_raw(response)
         return order
+
+    @staticmethod
+    def _unified_order_status(response):
+        """CCXT ``closed`` means finished, not filled: Phemex also maps Deactivated to it."""
+        status = response.get("status") or "new"
+        if status != "closed":
+            return status
+        filled = response.get("filled")
+        if filled is None:
+            return status  # executed amount unknown: neither a fill nor a cancel can be claimed
+        return "fill" if filled else "canceled"
 
     def _pull_broker_order(self, identifier):
         order = self.get_tracked_order(identifier) or self._submitted_orders.get(str(identifier))
@@ -586,6 +607,35 @@ class Ccxt(Broker):
                 raise ValueError(f"{self.api.id} has no market {symbol!r} to read orders from")
             resolved.append(market["symbol"])
         self._order_read_markets = resolved
+
+    def set_closed_order_read_window(self, days):
+        """Also return finished orders from the last ``days`` for the named markets.
+
+        Applies only with ``set_order_read_markets``, because many exchanges answer
+        order history one market at a time. ``None`` returns to open orders only.
+        """
+        self._closed_order_read_days = days
+
+    def _recent_closed_order_rows(self):
+        if not self._closed_order_read_days or self._order_read_markets is None:
+            return []
+        if not self.api.has.get("fetchClosedOrders"):
+            return []
+        now = datetime.datetime.now(datetime.timezone.utc)
+        since = int((now - datetime.timedelta(days=self._closed_order_read_days)).timestamp() * 1000)
+        rows = []
+        for symbol in self._order_read_markets:
+            try:
+                rows.extend(self.api.fetch_closed_orders(symbol, since=since, limit=100))
+            except Exception as exc:  # History is an extra: open orders must still load.
+                logger.warning(f"{self.api.id} closed-order read failed for {symbol}: {exc}")
+        return rows
+
+    def _pull_all_orders(self, strategy_name, strategy_object):
+        rows = list(self._pull_broker_all_orders())
+        seen = {str(row.get("id")) for row in rows}
+        rows.extend(row for row in self._recent_closed_order_rows() if str(row.get("id")) not in seen)
+        return self._parse_broker_orders(rows, strategy_name, strategy_object=strategy_object)
 
     def _order_scan_markets(self):
         if self._order_read_markets is not None:
@@ -1021,7 +1071,8 @@ class Ccxt(Broker):
                                  for tx in order.transactions), Decimal("0"))
             cost = response.get("cost")
             average = response.get("average")
-            if cost is None and average is not None:
+            # Some exchange replies leave cost at zero on a real fill but report the average.
+            if (cost is None or Decimal(str(cost)) == 0) and average:
                 average = Decimal(str(average))
                 cost = filled * size / average if inverse else filled * size * average
             if cost is None:

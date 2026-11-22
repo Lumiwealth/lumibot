@@ -204,3 +204,64 @@ def test_disabled_shared_cache_keeps_the_local_cache(shared, monkeypatch):
     cache = _cache(api)
     _download(cache, datetime(2026, 3, 2), datetime(2026, 3, 2, 23, 59))
     assert (ccxt_data_store.os.path.exists(cache.get_cache_file_name("BTC/USD", "1m")))
+
+
+def _live_source(api, sandbox=False):
+    from lumibot.data_sources.ccxt_data import CcxtData
+
+    source = CcxtData.__new__(CcxtData)
+    source.api = api
+    source.config = {"exchange_id": api.id, "sandbox": sandbox}
+    source._ensure_markets_loaded = lambda: None
+    return source
+
+
+def test_a_backtest_reads_the_bars_a_live_chart_already_fetched(shared):
+    # Real Phemex and Coinbase candles were identical through both paths on 2026-11-22
+    # (720 of 720 rows), but each path kept its own files and paid for its own download.
+    chart_api = FakeExchange()
+    # A backtest reads whole UTC days, so the chart holds two full days.
+    end = pd.Timestamp("2026-03-11 12:00", tz="UTC")
+    chart = _live_source(chart_api)
+    live = chart.get_barset_from_api(chart_api, "BTC/USD", "1m", limit=3_000, end=end)
+    assert chart_api.calls
+
+    shared("backtest-task")
+    backtest_api = FakeExchange()
+    bars = _cache(backtest_api).download_ohlcv(
+        "BTC/USD", "1m", datetime(2026, 3, 10, 1), datetime(2026, 3, 10, 6)
+    )
+
+    assert backtest_api.calls == []
+    expected = live.loc[bars.index[0].tz_localize("UTC") : bars.index[-1].tz_localize("UTC")]
+    assert bars["close"].tolist() == expected["close"].astype(float).tolist()
+
+
+def test_a_live_chart_reads_the_bars_a_backtest_already_fetched(shared):
+    backtest_api = FakeExchange()
+    _download(_cache(backtest_api), datetime(2026, 3, 10, 1), datetime(2026, 3, 10, 6))
+
+    shared("chart-task")
+    chart_api = FakeExchange()
+    chart = _live_source(chart_api)
+    live = chart.get_barset_from_api(
+        chart_api, "BTC/USD", "1m", limit=60, end=pd.Timestamp("2026-03-10 05:00", tz="UTC")
+    )
+
+    assert len(live) == 60
+    assert chart_api.calls == []
+
+
+def test_a_sandbox_chart_never_shares_bars_with_the_live_exchange(shared):
+    backtest_api = FakeExchange()
+    _download(_cache(backtest_api), datetime(2026, 3, 10, 1), datetime(2026, 3, 10, 6))
+
+    shared("sandbox-task")
+    sandbox_api = FakeExchange(price_offset=500.0)
+    sandbox = _live_source(sandbox_api, sandbox=True)
+    live = sandbox.get_barset_from_api(
+        sandbox_api, "BTC/USD", "1m", limit=60, end=pd.Timestamp("2026-03-10 05:00", tz="UTC")
+    )
+
+    assert sandbox_api.calls
+    assert float(live["open"].iloc[0]) > 40_400

@@ -66,6 +66,12 @@ DRAWING_EXTENDS = ("none", "left", "right", "both")
 DRAWING_ARROWS = ("none", "left", "right", "both")
 DRAWING_TEXT_SIZES = ("tiny", "small", "normal", "large", "huge")
 DRAWING_TEXT_ALIGNS = ("left", "center", "right")
+#: Pine's ``text.align_top`` / ``align_center`` / ``align_bottom`` for text inside a box or table cell.
+DRAWING_TEXT_VALIGNS = ("top", "center", "bottom")
+#: Pine's ``text.wrap_none`` / ``text.wrap_auto``: ``auto`` wraps box text to the box width.
+DRAWING_TEXT_WRAPS = ("none", "auto")
+#: Pine's ``text.format_none`` / ``format_bold`` / ``format_italic`` (bold and italic combined).
+DRAWING_TEXT_FORMATS = ("none", "bold", "italic", "bold_italic")
 #: Pine's ``label.style_*``. ``none`` draws the text alone, without a bubble; ``text_outline``
 #: draws the text with an outline in ``color``; the shape styles (``circle`` to ``flag``) draw a
 #: small mark at the point with the text beside it (a TradingView pin or flag mark).
@@ -123,6 +129,9 @@ _FIELDS: dict[str, dict[str, tuple]] = {
         "text_color": ("color_or_none", None),
         "text_size": ("choice", DRAWING_TEXT_SIZES),
         "text_align": ("choice", DRAWING_TEXT_ALIGNS),
+        "text_valign": ("choice", DRAWING_TEXT_VALIGNS),
+        "text_wrap": ("choice", DRAWING_TEXT_WRAPS),
+        "text_formatting": ("choice", DRAWING_TEXT_FORMATS),
         "extend": ("choice", DRAWING_EXTENDS),
     },
     "line": {
@@ -156,6 +165,7 @@ _FIELDS: dict[str, dict[str, tuple]] = {
         "size": ("choice", DRAWING_TEXT_SIZES),
         "text_align": ("choice", DRAWING_TEXT_ALIGNS),
         "tooltip": ("text", None),
+        "text_formatting": ("choice", DRAWING_TEXT_FORMATS),
     },
     "polyline": {
         "points": ("points", None),
@@ -182,6 +192,9 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
         "text_color": None,
         "text_size": "small",
         "text_align": "center",
+        "text_valign": "center",
+        "text_wrap": "none",
+        "text_formatting": "none",
         "extend": "none",
     },
     "line": {"color": "#2962FF", "width": 1, "style": "solid", "arrow": "none", "extend": "none"},
@@ -201,6 +214,7 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
         "size": "small",
         "text_align": "center",
         "tooltip": "",
+        "text_formatting": "none",
     },
     "polyline": {"curved": False, "closed": False, "color": "#2962FF", "width": 1, "style": "solid", "fill_color": None},
     "linefill": {"color": "#2962FF33"},
@@ -277,6 +291,10 @@ def _check(kind: str, name: str, value, how: str, choices):
         if any(ord(ch) < 32 and ch != "\n" for ch in value) or "\x7f" in value:
             raise ValueError(f"{what} must be plain text without control characters")
         return value
+    if how == "percent":
+        if isinstance(value, bool) or not isinstance(value, numbers.Real) or not 0 <= float(value) <= 100:
+            raise ValueError(f"{what} must be a percent of the chart from 0 (fit the text) to 100, got {value!r}")
+        return float(value) if float(value) != int(value) else int(value)
     if how == "bool":
         if not isinstance(value, bool):
             raise ValueError(f"{what} must be True or False, got {value!r}")
@@ -308,8 +326,24 @@ _CELL_FIELDS = {
     "bg_color": ("color_or_none", None),
     "text_size": ("choice", DRAWING_TEXT_SIZES),
     "text_align": ("choice", DRAWING_TEXT_ALIGNS),
+    "text_valign": ("choice", DRAWING_TEXT_VALIGNS),
+    "tooltip": ("text", None),
+    "text_formatting": ("choice", DRAWING_TEXT_FORMATS),
+    "width": ("percent", None),
+    "height": ("percent", None),
 }
-_CELL_DEFAULTS = {"text_color": None, "bg_color": None, "text_size": "small", "text_align": "center"}
+#: ``width`` and ``height`` are a percent of the chart (Pine's ``table.cell(width=, height=)``); 0 fits the text.
+_CELL_DEFAULTS = {
+    "text_color": None,
+    "bg_color": None,
+    "text_size": "small",
+    "text_align": "center",
+    "text_valign": "center",
+    "tooltip": "",
+    "text_formatting": "none",
+    "width": 0,
+    "height": 0,
+}
 
 
 def _cell_order(key: str) -> tuple:
@@ -344,8 +378,11 @@ class Drawings:
 
         Style: ``border_color``, ``border_width``, ``border_style``, ``bg_color``
         (fill, use ``#RRGGBBAA`` for transparency), ``text``, ``text_color``,
-        ``text_size``, ``text_align`` and ``extend`` (``none``, ``left``,
-        ``right``, ``both``). Returns the object's id."""
+        ``text_size``, ``text_align``, ``text_valign`` (``top``, ``center``,
+        ``bottom``), ``text_wrap`` (``none``, or ``auto`` to wrap to the box
+        width), ``text_formatting`` (``none``, ``bold``, ``italic``,
+        ``bold_italic``) and ``extend`` (``none``, ``left``, ``right``,
+        ``both``). Returns the object's id."""
         return self._add("box", {"x1": x1, "y1": y1, "x2": x2, "y2": y2, **self._style("box", style)})
 
     def line(self, x1, y1, x2, y2, **style) -> str:
@@ -362,7 +399,9 @@ class Drawings:
         Style: ``style`` (any of :data:`LABEL_STYLES`: Pine's bubble
         directions, ``none``, ``text_outline`` or a shape mark such as
         ``circle`` or ``flag``), ``color`` (bubble or mark), ``text_color``,
-        ``size``, ``text_align`` and ``tooltip`` (hover text). Returns the id."""
+        ``size``, ``text_align``, ``tooltip`` (hover text) and
+        ``text_formatting`` (``none``, ``bold``, ``italic``, ``bold_italic``).
+        Returns the id."""
         return self._add("label", {**self._style("label", style), "x": x, "y": y, "text": text})
 
     def polyline(self, points, **style) -> str:
@@ -483,11 +522,14 @@ class Drawings:
             "table", {**self._style("table", style), "position": position, "columns": columns, "rows": rows}
         )
         self._kinds["table"][drawing_id]["cells"] = {}
+        self._kinds["table"][drawing_id]["merges"] = []
         return drawing_id
 
     def cell(self, table_id, column, row, text="", **style) -> bool:
         """Set one cell of a table (Pine's ``table.cell``), counted from 0.
-        Style: ``text_color``, ``bg_color``, ``text_size``, ``text_align``.
+        Style: ``text_color``, ``bg_color``, ``text_size``, ``text_align``,
+        ``text_valign``, ``tooltip`` (hover text), ``text_formatting`` and
+        ``width`` / ``height`` (percent of the chart, 0 fits the text).
         Returns ``False`` when the table no longer exists."""
         items = self._kinds["table"]
         item = items.get(table_id)
@@ -505,6 +547,44 @@ class Drawings:
         cells = dict(item["cells"])
         cells[f"{column},{row}"] = cell
         items[table_id] = {**item, "cells": cells}
+        return True
+
+    def merge_cells(self, table_id, start_column, start_row, end_column, end_row) -> bool:
+        """Join a rectangle of cells into one (Pine's ``table.merge_cells``), counted from 0.
+
+        The merged cell shows the text and style of its top-left cell. A merge
+        may not overlap another one. Returns ``False`` when the table no longer
+        exists."""
+        items = self._kinds["table"]
+        item = items.get(table_id)
+        if item is None:
+            return False
+        corners = {
+            "start_column": (start_column, item["columns"]),
+            "start_row": (start_row, item["rows"]),
+            "end_column": (end_column, item["columns"]),
+            "end_row": (end_row, item["rows"]),
+        }
+        for name, (value, limit) in corners.items():
+            if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < limit:
+                raise ValueError(f"table merge {name} must be a whole number from 0 to {limit - 1}, got {value!r}")
+        if end_column < start_column or end_row < start_row:
+            raise ValueError("table merge end must be at or after its start")
+        if (start_column, start_row) == (end_column, end_row):
+            raise ValueError("table merge must cover at least two cells")
+        merges = list(item.get("merges", []))
+        for other in merges:
+            if not (
+                end_column < other["start_column"]
+                or start_column > other["end_column"]
+                or end_row < other["start_row"]
+                or start_row > other["end_row"]
+            ):
+                raise ValueError(f"table merge overlaps an earlier merge {other}")
+        merges.append(
+            {"start_column": start_column, "start_row": start_row, "end_column": end_column, "end_row": end_row}
+        )
+        items[table_id] = {**item, "merges": merges}
         return True
 
     @staticmethod
@@ -557,6 +637,8 @@ class Drawings:
         out = dict(item)
         if "cells" in out:
             out["cells"] = [out["cells"][key] for key in sorted(out["cells"], key=_cell_order)]
+        if "merges" in out:
+            out["merges"] = [dict(merge) for merge in out["merges"]]
         return out
 
     def get(self, drawing_id) -> dict | None:
@@ -594,6 +676,7 @@ class Drawings:
             restored = dict(item)
             if restored["kind"] == "table":
                 restored["cells"] = {f"{c['column']},{c['row']}": dict(c) for c in restored.get("cells", [])}
+                restored["merges"] = [dict(merge) for merge in restored.get("merges", [])]
             board._kinds[restored["kind"]][restored["id"]] = restored
         return board
 
@@ -604,7 +687,10 @@ __all__ = [
     "DRAWING_KINDS",
     "DRAWING_LINE_STYLES",
     "DRAWING_TEXT_ALIGNS",
+    "DRAWING_TEXT_FORMATS",
     "DRAWING_TEXT_SIZES",
+    "DRAWING_TEXT_VALIGNS",
+    "DRAWING_TEXT_WRAPS",
     "Drawings",
     "LABEL_STYLES",
     "MAX_DRAWINGS_PER_KIND",

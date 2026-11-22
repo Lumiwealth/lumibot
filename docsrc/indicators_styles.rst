@@ -29,7 +29,8 @@ Quick reference
    * - ``kind``
      - How the values draw: ``line``, ``step``, ``area``, ``histogram``,
        ``columns``, ``circles``, ``cross``, ``scatter``, ``markers``,
-       ``shape``, ``fill``, ``background``, ``bar_color``, ``candle``.
+       ``shape``, ``fill``, ``background``, ``bar_color``, ``candle``,
+       ``arrow``.
    * - ``color``
      - ``#RRGGBB``, ``#RRGGBBAA`` (opacity in the last two digits) or a theme
        color, ``chart.fg`` or ``chart.bg``.
@@ -57,6 +58,9 @@ Quick reference
      - The two outputs or levels a ``fill`` shades between.
    * - ``candle``
      - The open, high, low and close outputs a ``candle`` output draws.
+   * - ``min_height``, ``max_height``
+     - Shortest and longest arrow in pixels for ``arrow`` outputs, 1 to 1,000.
+       Defaults 5 and 100.
 
 Every option is checked when the class is defined (for a single output) or
 when the indicator is created (for references between outputs). A typo raises
@@ -95,6 +99,8 @@ Kinds
     Recolors the price candles. See `Candle colors`_.
 ``candle``
     Draws candles from four other outputs. See `Candles of your own`_.
+``arrow``
+    An up or down arrow sized by the value. See `Arrows`_.
 
 Width and line style
 --------------------
@@ -238,6 +244,25 @@ A ``candle`` output draws candles from four other outputs (usually hidden with
         OutputSpec("candles", "Candles", "candle", candle=("o", "h", "l", "c"),
                    palette=("#26A69A", "#EF5350"), color_by="dir", pane="own"),
     ]
+
+Arrows
+------
+
+An ``arrow`` output works like Pine's ``plotarrow``. On each bar:
+
+* a positive value draws an up arrow below the bar,
+* a negative value draws a down arrow above the bar,
+* 0 or ``None`` draws nothing.
+
+The arrow's length grows with the size of the value, from ``min_height`` to
+``max_height`` pixels (defaults 5 and 100, Pine's own). The up and down colors
+(Pine's ``colorup`` and ``colordown``) are a two-color ``palette``, up first;
+without a palette both arrows use ``color``::
+
+    OutputSpec("momentum_arrow", "Momentum", "arrow", palette=("#26A69A", "#EF5350"),
+               min_height=10, max_height=60, pane="price")
+
+    # step(): return {"momentum_arrow": close - previous_close}
 
 Panes
 -----

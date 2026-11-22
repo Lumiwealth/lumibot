@@ -450,3 +450,120 @@ def test_line_family_helpers_compile_to_lines_and_labels():
     assert board.get(board.flag_mark(T0, 1.0))["style"] == "flag"
     post, sign = board.signpost(T0, 1.0, "Earnings")
     assert board.get(post)["x1"] == board.get(post)["x2"] and board.get(sign)["text"] == "Earnings"
+
+
+# ---- Text formatting, vertical alignment, wrapping and table merges (Nov 20) --------------------
+
+from lumibot.indicators.drawings import DRAWING_TEXT_FORMATS, DRAWING_TEXT_VALIGNS, DRAWING_TEXT_WRAPS  # noqa: E402
+
+
+def test_box_text_valign_wrap_and_formatting():
+    board = Drawings()
+    plain = board.get(board.box(T0, 2.0, T1, 1.0, text="Zone"))
+    assert plain["text_valign"] == "center" and plain["text_wrap"] == "none" and plain["text_formatting"] == "none"
+    assert DRAWING_TEXT_VALIGNS == ("top", "center", "bottom")
+    assert DRAWING_TEXT_WRAPS == ("none", "auto")
+    assert DRAWING_TEXT_FORMATS == ("none", "bold", "italic", "bold_italic")
+    box_id = board.box(T0, 2.0, T1, 1.0, text="Zone", text_valign="top", text_wrap="auto", text_formatting="bold")
+    item = board.get(box_id)
+    assert (item["text_valign"], item["text_wrap"], item["text_formatting"]) == ("top", "auto", "bold")
+    assert board.update(box_id, text_valign="bottom", text_wrap="none", text_formatting="bold_italic")
+    item = board.get(box_id)
+    assert (item["text_valign"], item["text_wrap"], item["text_formatting"]) == ("bottom", "none", "bold_italic")
+    for bad in ({"text_valign": "middle"}, {"text_wrap": "yes"}, {"text_formatting": "underline"}):
+        with pytest.raises(ValueError):
+            board.box(T0, 2.0, T1, 1.0, **bad)
+        with pytest.raises(ValueError):
+            board.update(box_id, **bad)
+    restored = Drawings.from_snapshot(json.loads(json.dumps(board.snapshot())))
+    assert restored.to_list() == board.to_list()
+
+
+def test_label_text_formatting():
+    board = Drawings()
+    assert board.get(board.label(T0, 1.0, "a"))["text_formatting"] == "none"
+    label_id = board.label(T0, 1.0, "B", text_formatting="italic")
+    assert board.get(label_id)["text_formatting"] == "italic"
+    assert board.update(label_id, text_formatting="bold")
+    assert board.get(label_id)["text_formatting"] == "bold"
+    with pytest.raises(ValueError):
+        board.label(T0, 1.0, "a", text_formatting="heavy")
+    with pytest.raises(ValueError):
+        board.update(label_id, text_formatting="heavy")
+    restored = Drawings.from_snapshot(json.loads(json.dumps(board.snapshot())))
+    assert restored.get(label_id) == board.get(label_id)
+
+
+def test_table_cell_valign_tooltip_formatting_and_size():
+    board = Drawings()
+    table = board.table("bottom_right", 2, 2)
+    board.cell(table, 0, 0, "plain")
+    board.cell(table, 1, 1, "Trend", text_valign="top", tooltip="Above the 50-bar average",
+               text_formatting="bold", width=12.5, height=4)
+    cells = board.get(table)["cells"]
+    assert cells[0]["text_valign"] == "center" and cells[0]["tooltip"] == ""
+    assert cells[0]["text_formatting"] == "none" and cells[0]["width"] == 0 and cells[0]["height"] == 0
+    styled = cells[1]
+    assert styled["text_valign"] == "top" and styled["tooltip"] == "Above the 50-bar average"
+    assert styled["text_formatting"] == "bold" and styled["width"] == 12.5 and styled["height"] == 4
+    for bad in ({"width": -1}, {"height": 101}, {"width": True}, {"text_valign": "mid"},
+                {"tooltip": "x\x02"}, {"text_formatting": "caps"}):
+        with pytest.raises(ValueError):
+            board.cell(table, 0, 1, "x", **bad)
+    restored = Drawings.from_snapshot(json.loads(json.dumps(board.snapshot())))
+    assert restored.get(table) == board.get(table)
+
+
+def test_table_merge_cells():
+    board = Drawings()
+    table = board.table("top_right", 3, 3)
+    assert board.get(table)["merges"] == []
+    assert board.merge_cells(table, 0, 0, 2, 0) is True
+    assert board.merge_cells(table, 0, 1, 0, 2) is True
+    merges = board.get(table)["merges"]
+    assert merges == [
+        {"start_column": 0, "start_row": 0, "end_column": 2, "end_row": 0},
+        {"start_column": 0, "start_row": 1, "end_column": 0, "end_row": 2},
+    ]
+    with pytest.raises(ValueError):
+        board.merge_cells(table, 1, 0, 1, 1)  # overlaps the first merge
+    with pytest.raises(ValueError):
+        board.merge_cells(table, 2, 2, 1, 1)  # end before start
+    with pytest.raises(ValueError):
+        board.merge_cells(table, 1, 1, 3, 1)  # outside the grid
+    with pytest.raises(ValueError):
+        board.merge_cells(table, 1, 1, 1, 1)  # one cell is not a merge
+    assert board.merge_cells("g99", 0, 0, 1, 0) is False
+    json.dumps(board.to_list())
+    restored = Drawings.from_snapshot(json.loads(json.dumps(board.snapshot())))
+    assert restored.get(table) == board.get(table)
+    # A restored table keeps its merges and can take more.
+    assert restored.merge_cells(table, 1, 2, 2, 2) is True
+    # A snapshot from before merges existed still loads.
+    old = board.snapshot()
+    for item in old["items"]:
+        item.pop("merges", None)
+    assert Drawings.from_snapshot(old).merge_cells(table, 1, 1, 2, 1) is True
+
+
+def test_merges_follow_forming_bar_rollback():
+    class Merged(Indicator):
+        key = "test_merged_table"
+        outputs = [OutputSpec("v", "V")]
+
+        def init_state(self):
+            return {"table": None}
+
+        def step(self, state, bar):
+            if state["table"] is None:
+                state["table"] = self.draw.table("top_right", 2, 2)
+            if bar.close > 104:
+                self.draw.merge_cells(state["table"], 0, 0, 1, 0)
+            return {"v": bar.close}
+
+    indicator = Merged()
+    indicator.update(_bar(0, 100), closed=True)
+    indicator.update(_bar(1, 105), closed=False)
+    assert indicator.drawings()[0]["merges"] != []
+    indicator.update(_bar(1, 101), closed=True)
+    assert indicator.drawings()[0]["merges"] == []

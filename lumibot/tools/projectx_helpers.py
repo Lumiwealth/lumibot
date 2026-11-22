@@ -5,6 +5,8 @@ This module provides the core ProjectX API client and streaming functionality
 integrated into Lumibot's architecture based on the actual working Project X library.
 """
 
+import math
+import os
 import time
 import logging
 import threading
@@ -26,6 +28,20 @@ warnings.filterwarnings("ignore", category=DeprecationWarning, message="websocke
 warnings.filterwarnings("ignore", category=DeprecationWarning, message="websockets.client.WebSocketClientProtocol is deprecated")
 
 logger = get_logger(__name__)
+
+def _configured_quote_wait() -> float | None:
+    """Seconds a short-lived read process waits for a live quote, or None for the normal wait.
+
+    A closed market sends one old snapshot and no update, so a quote read waits out its whole
+    budget and then returns that snapshot with its original time. Trading processes do not set
+    LUMIBOT_PROJECTX_QUOTE_WAIT_SECONDS and keep the normal wait.
+    """
+    try:
+        seconds = float(os.environ.get("LUMIBOT_PROJECTX_QUOTE_WAIT_SECONDS", ""))
+    except ValueError:
+        return None
+    return seconds if math.isfinite(seconds) and seconds > 0 else None
+
 
 # SignalR imports - will be imported when needed
 try:
@@ -1245,7 +1261,11 @@ class ProjectXClient:
 
     def get_market_quote(self, contract_id: str):
         self._ensure_auth_token()
-        return self.get_streaming_client().get_market_quote(contract_id)
+        stream = self.get_streaming_client()
+        wait = _configured_quote_wait()
+        if wait is None:
+            return stream.get_market_quote(contract_id)
+        return stream.get_market_quote(contract_id, timeout=wait)
 
     def close(self):
         if self.streaming is not None:

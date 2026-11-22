@@ -795,6 +795,33 @@ def test_quiet_market_keeps_original_snapshot_time_after_quote_wait(mock_project
     event.wait.assert_called_once()
 
 
+def _client_quote_call():
+    client = ProjectXClient.__new__(ProjectXClient)
+    client._ensure_auth_token = Mock()
+    stream = Mock()
+    stream.get_market_quote.return_value = {'lastPrice': 2100.25}
+    client.get_streaming_client = Mock(return_value=stream)
+    assert client.get_market_quote('CON.F.US.EP.U25') == {'lastPrice': 2100.25}
+    return stream.get_market_quote.call_args
+
+
+def test_short_lived_reader_can_shorten_the_quiet_market_quote_wait(monkeypatch):
+    # Dev, Sunday 2026-11-22: every Topstep chart poll took 10.2 s because the closed market
+    # sends one old snapshot and no live update, and the read waited out the whole 10 seconds.
+    monkeypatch.setenv('LUMIBOT_PROJECTX_QUOTE_WAIT_SECONDS', '1.5')
+    assert _client_quote_call().kwargs == {'timeout': 1.5}
+
+
+@pytest.mark.parametrize('configured', [None, '', 'bad', '0', '-1', 'nan', 'inf'])
+def test_trading_processes_keep_the_normal_quote_wait(monkeypatch, configured):
+    if configured is None:
+        monkeypatch.delenv('LUMIBOT_PROJECTX_QUOTE_WAIT_SECONDS', raising=False)
+    else:
+        monkeypatch.setenv('LUMIBOT_PROJECTX_QUOTE_WAIT_SECONDS', configured)
+    call = _client_quote_call()
+    assert call.args == ('CON.F.US.EP.U25',) and call.kwargs == {}
+
+
 @pytest.mark.parametrize('timestamp', [None, 'unavailable', 'current'])
 def test_available_initial_quote_keeps_optional_time_metadata_compatible(mock_projectx_config, timestamp):
     from lumibot.tools.projectx_helpers import ProjectXStreaming

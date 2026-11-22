@@ -1072,7 +1072,8 @@ class Ccxt(Broker):
                                  for tx in order.transactions), Decimal("0"))
             cost = response.get("cost")
             average = response.get("average")
-            if cost is None and average is not None:
+            # Some exchange replies leave cost at zero on a real fill but report the average.
+            if (cost is None or Decimal(str(cost)) == 0) and average:
                 average = Decimal(str(average))
                 cost = filled * size / average if inverse else filled * size * average
             if cost is None:

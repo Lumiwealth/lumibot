@@ -256,12 +256,8 @@ class DuckDBQueryLayer:
             f") "
             f"SELECT * FROM visible ORDER BY {self._quote_identifier(datetime_column)} ASC"
         )
-        self.connection.execute(sql)
-        row_count = int(
-            self.connection.execute(
-                f"SELECT COUNT(*) FROM {self._quote_identifier(table_name)}"
-            ).fetchone()[0]
-        )
+        self._run(sql)
+        row_count = int(self._run(f"SELECT COUNT(*) FROM {self._quote_identifier(table_name)}")[0][0])
         info = {
             "table_name": table_name,
             "row_count": row_count,
@@ -278,6 +274,15 @@ class DuckDBQueryLayer:
         self.metrics["history_visible_refresh_calls"] += 1.0
         return info
 
+    def _run(self, sql: str) -> list[tuple[Any, ...]]:
+        """Execute one statement and read its whole result.
+
+        DuckDB 2.0 refuses any later work on a connection whose last result was not read
+        to the end ("connection has an unfinished result from execute()"), including
+        register(). Reading every statement fully keeps the connection usable.
+        """
+        return self.connection.execute(sql).fetchall()
+
     def _release_earlier_iterations(self) -> None:
         """Drop auto-named history tables and cached loads from earlier simulated times.
 
@@ -293,7 +298,7 @@ class DuckDBQueryLayer:
         for name in sorted(self._auto_tables):
             info = self._table_meta.pop(name, None) or {}
             if info.get("kind") == "visible_view":
-                self.connection.execute(f"DROP VIEW IF EXISTS {self._quote_identifier(name)}")
+                self._run(f"DROP VIEW IF EXISTS {self._quote_identifier(name)}")
             elif self._frames.pop(name, None) is not None:
                 self.connection.unregister(name)
         self._auto_tables.clear()

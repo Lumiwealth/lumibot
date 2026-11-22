@@ -5368,6 +5368,7 @@ class Strategy(_Strategy):
         exchange: str = None,
         include_after_hours: bool = True,
         sleep_time: float | None = None,
+        quote: Asset = None,
     ):
         """Get historical pricing data for the list of assets.
 
@@ -5404,6 +5405,10 @@ class Strategy(_Strategy):
             When omitted (``None``), LumiBot defaults to:
             - ``0`` for backtesting data sources
             - ``0.1`` seconds for live data sources
+        quote : Asset, optional
+            Quote asset for every asset in the list (for example USD for forex or
+            crypto), the same as ``get_historical_prices(quote=...)``. ``None`` uses
+            the data source default.
 
         Returns
         -------
@@ -5451,6 +5456,7 @@ class Strategy(_Strategy):
             timeshift=timeshift,
             chunk_size=chunk_size,
             max_workers=max_workers,
+            quote=quote,
             exchange=exchange,
             include_after_hours=include_after_hours,
             sleep_time=effective_sleep_time
@@ -5463,7 +5469,7 @@ class Strategy(_Strategy):
                 for asset in assets:
                     bars = results.get(asset) if isinstance(results, dict) else None
                     record_market_input(source=self.broker.data_source, asset=asset,
-                        quote=self.quote_asset, timestep=timestep, when=self.get_datetime(),
+                        quote=quote or self.quote_asset, timestep=timestep, when=self.get_datetime(),
                         frame=bars.pandas_df if bars is not None else None, purpose="history-batch")
         return results
 

@@ -556,15 +556,11 @@ class CcxtCacheDB:
         from lumibot.tools import shared_bar_cache
 
         unit = {"m": "minute", "h": "hour", "d": "day"}[timeframe[-1]]
-        return shared_bar_cache.BarSeries.make(
-            "ccxt",
+        return shared_bar_cache.public_exchange_series(
+            self.exchange_id,
             symbol,
             shared_bar_cache.normalize_timestep(int(timeframe[:-1] or 1), unit),
-            scope=shared_bar_cache.credential_scope("ccxt", "public", self.exchange_id),
-            # Crypto candles are traded prices; exchanges do not re-adjust them.
-            adjusted=False,
-            exchange=self.exchange_id,
-            market_data="mark" if price == "mark" else "public",
+            price=price,
         )
 
     def _download_ohlcv_shared(

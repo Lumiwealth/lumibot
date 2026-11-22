@@ -229,6 +229,20 @@ class BarSeries:
         return hashlib.sha256(json.dumps(self.identity(), sort_keys=True).encode()).hexdigest()
 
 
+def public_exchange_series(exchange_id, symbol, timestep, *, price: str | None = None) -> BarSeries:
+    """The one series of an exchange's public candles, read by charts, bots and backtests alike."""
+    return BarSeries.make(
+        "ccxt",
+        symbol,
+        timestep,
+        scope=credential_scope("ccxt", "public", exchange_id),
+        # Crypto candles are traded prices; exchanges do not re-adjust them.
+        adjusted=False,
+        exchange=exchange_id,
+        market_data="mark" if price == "mark" else "public",
+    )
+
+
 def _utc(value) -> pd.Timestamp:
     stamp = pd.Timestamp(value)
     return stamp.tz_localize("UTC") if stamp.tzinfo is None else stamp.tz_convert("UTC")

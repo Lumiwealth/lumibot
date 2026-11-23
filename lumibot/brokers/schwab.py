@@ -534,6 +534,11 @@ class Schwab(Broker):
         self._drop_account_snapshot()
         super()._invalidate_order_caches()
 
+    def _process_trade_event(self, stored_order, type_event, *args, **kwargs):
+        # A fill or order status change moves cash and positions.
+        self._drop_account_snapshot()
+        return super()._process_trade_event(stored_order, type_event, *args, **kwargs)
+
     def _schwab_pace(self, kind: str) -> None:
         """Spend one request from the client's shared per-minute budget.
 

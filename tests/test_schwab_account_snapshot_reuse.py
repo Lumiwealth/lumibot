@@ -105,3 +105,19 @@ def test_zero_turns_reuse_off(monkeypatch, seconds):
     broker._get_balances_at_broker(Asset("USD", asset_type="forex"), _strategy())
     broker._pull_positions(_strategy())
     assert broker.client.calls == 2
+
+
+def test_a_fill_or_order_event_drops_the_snapshot(monkeypatch):
+    # The executor re-reads cash after processing held trades; that read must see the fill.
+    from lumibot.brokers.broker import Broker
+
+    broker = _broker(monkeypatch)
+    monkeypatch.setattr(Broker, "_process_trade_event", lambda self, *a, **k: None)
+    broker._get_balances_at_broker(Asset("USD", asset_type="forex"), _strategy())
+    broker.client.cash = 3000.0
+    broker._process_trade_event(None, "fill", price=1.0, filled_quantity=1)
+    assert broker._get_balances_at_broker(Asset("USD", asset_type="forex"), _strategy())[0] == 3000.0
+
+
+# Order lists are NOT reused: an explicit order refresh must always read Schwab, or a
+# fill that lands while a cancel is pending is missed (lifecycle transport test).

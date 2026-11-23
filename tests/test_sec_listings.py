@@ -89,6 +89,13 @@ def test_moving_to_another_exchange_is_not_a_delisting():
 def test_blank_check_by_name_and_funds_without_industry_code():
     by_name = _submissions([("424B4", "2021-02-01")], sic="4899", name="Example Merger Corp")
     assert classify_listing({"cik": 7, "form": "424B4", "filed": "2021-02-01", "path": "p"}, by_name)["kind"] == "blank_check"
+    renamed = _submissions([("424B4", "2019-03-01")], sic="3711", name="Example Electric Trucks Inc")
+    renamed["formerNames"] = [{"name": "Example Acquisition Corp", "from": "2019-01-01", "to": "2020-10-01"}]
+    assert classify_listing({"cik": 6, "form": "424B4", "filed": "2019-03-01", "path": "p", "company": "Example Acquisition Corp"}, renamed)["kind"] == "blank_check"
+    renamed = _submissions([("424B4", "2019-03-01")], sic="3711", name="Example Electric Trucks Inc")
+    renamed["formerNames"] = [{"name": "Example Acquisition Corp", "from": "2019-01-01", "to": "2020-10-01"}]
+    offering = {"cik": 6, "form": "424B4", "filed": "2019-03-01", "path": "p", "company": "Example Acquisition Corp"}
+    assert classify_listing(offering, renamed)["kind"] == "blank_check"
     fund = _submissions([("424B4", "2021-02-01")], sic="", name="Example Income Fund")
     assert classify_listing({"cik": 8, "form": "424B4", "filed": "2021-02-01", "path": "p"}, fund)["kind"] == "other"
 
@@ -172,15 +179,19 @@ def test_build_keeps_first_listings_labels_shells_and_reads_tickers():
         1598674: _submissions([("S-1", "2020-01-10"), ("424B4", "2020-02-07"), ("25-NSE", "2022-01-25")]),
         1000001: _submissions([("10-K", "2018-03-01"), ("424B4", "2020-03-02")], name="Old Company Inc"),
         1800002: _submissions([("S-1", "2019-12-01"), ("424B1", "2020-01-15")], sic="6770", name="Blank Check Acquisition Corp"),
+        1000003: _submissions([("424B4", "2020-02-20")], sic="7372", name="Plain Name Holdings Corp"),
     }
     covers = {
         "https://www.sec.gov/Archives/edgar/data/1598674/0001047469-20-000749.txt": "under the symbol &#8220;CSPR&#8221;",
         "https://www.sec.gov/Archives/edgar/data/1800002/0002-20-1.txt": "units under the symbol “BCACU”",
+        # A blank check whose name and SIC code do not say so: the cover does.
+        "https://www.sec.gov/Archives/edgar/data/1000003/0005-20-1.txt": "We are a newly incorporated blank check company. Units under the symbol “XYZU”",
     }
+    extra = "424B4            Plain Name Holdings Corp                                      1000003     2020-02-20  edgar/data/1000003/0005-20-1.txt\n"
 
     def fetch_text(url):
         if "2020/QTR1" in url:
-            return FORM_INDEX
+            return FORM_INDEX + extra
         raise RuntimeError("no index")
 
     table = build_listings(
@@ -194,4 +205,5 @@ def test_build_keeps_first_listings_labels_shells_and_reads_tickers():
     assert [(r["ticker"], r["kind"], r["delisting_filed"]) for r in table.rows] == [
         ("BCACU", "blank_check", None),
         ("CSPR", "operating_company", "2022-01-25"),
+        ("XYZU", "blank_check", None),
     ]

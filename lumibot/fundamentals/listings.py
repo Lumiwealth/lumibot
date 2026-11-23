@@ -82,6 +82,15 @@ def ticker_from_prospectus(text: str) -> str | None:
     return min(found[:6], key=lambda symbol: (len(symbol), found.index(symbol)))
 
 
+_BLANK_CHECK_COVER = re.compile(r"\bblank[\s-]+check\s+compan(?:y|ies)\b", re.I)
+
+
+def prospectus_is_blank_check(text: str) -> bool:
+    """True when a prospectus describes the issuer as a blank check company (a SPAC)."""
+    plain = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", text or "")))
+    return bool(_BLANK_CHECK_COVER.search(plain))
+
+
 def _filings(submissions: dict[str, Any]) -> list[tuple[str, str]]:
     recent = (submissions.get("filings") or {}).get("recent") or {}
     return list(zip(recent.get("form") or [], recent.get("filingDate") or []))
@@ -99,7 +108,12 @@ def classify_listing(offering: dict[str, Any], submissions: dict[str, Any]) -> d
         return None
     sic = str(submissions.get("sic") or "")
     name = submissions.get("name") or offering.get("company") or ""
-    if sic == BLANK_CHECK_SIC or _BLANK_CHECK_NAME.search(name):
+    # A blank check renames itself after its merger, so check the name it filed the prospectus
+    # under and its former names too, not only today's name.
+    names = [name, offering.get("company") or ""] + [
+        str(former.get("name") or "") for former in submissions.get("formerNames") or [] if isinstance(former, dict)
+    ]
+    if sic == BLANK_CHECK_SIC or any(_BLANK_CHECK_NAME.search(n) for n in names):
         kind = "blank_check"
     elif not sic:
         kind = "other"  # funds, trusts and finance subsidiaries file without an industry code
@@ -226,9 +240,12 @@ def build_listings(
         if row is None:
             return None
         try:
-            row["ticker"] = ticker_from_prospectus(fetch_head(row["prospectus_url"]))
+            head = fetch_head(row["prospectus_url"])
         except Exception:
-            row["ticker"] = None
+            return row
+        row["ticker"] = ticker_from_prospectus(head)
+        if row["kind"] == "operating_company" and prospectus_is_blank_check(head):
+            row["kind"] = "blank_check"
         return row
 
     from concurrent.futures import ThreadPoolExecutor

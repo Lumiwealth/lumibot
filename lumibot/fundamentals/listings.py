@@ -31,6 +31,10 @@ LISTING_FORMS = ("424B4", "424B1")
 DELISTING_FORMS = ("25", "25-NSE", "15-12B", "15-12G", "15-15D")
 PERIODIC_FORMS = ("10-K", "10-Q", "20-F", "40-F", "10-K405", "10-KSB")
 BLANK_CHECK_SIC = "6770"
+# Blank-check companies sometimes file under another SIC code; their names give them away.
+_BLANK_CHECK_NAME = re.compile(r"\b(acquisition|merger)\s+(corp|corporation|co|company|inc|ltd|limited|holdings)\b", re.I)
+DEFAULT_KINDS = ("operating_company",)
+_ALL_KINDS = ("operating_company", "blank_check", "other")
 TABLE_VERSION = 1
 TABLE_RELATIVE_PATH = ("listings", "v1", "listings.json.gz")
 TABLE_REMOTE_RELATIVE = "sec/listings/v1/listings.json.gz"
@@ -95,8 +99,19 @@ def classify_listing(offering: dict[str, Any], submissions: dict[str, Any]) -> d
         return None
     sic = str(submissions.get("sic") or "")
     name = submissions.get("name") or offering.get("company") or ""
-    kind = "blank_check" if sic == BLANK_CHECK_SIC else "operating_company"
-    delisting = sorted(when for form, when in filings if form in DELISTING_FORMS and when >= filed)
+    if sic == BLANK_CHECK_SIC or _BLANK_CHECK_NAME.search(name):
+        kind = "blank_check"
+    elif not sic:
+        kind = "other"  # funds, trusts and finance subsidiaries file without an industry code
+    else:
+        kind = "operating_company"
+    # A delisting form followed by more periodic reports was a move to another exchange, or
+    # units or warrants leaving it: the company stayed public. Only a delisting filed on or
+    # after the last periodic report counts.
+    last_report = max((when for form, when in filings if form in PERIODIC_FORMS), default="")
+    delisting = sorted(
+        when for form, when in filings if form in DELISTING_FORMS and when >= filed and when >= last_report
+    )
     return {
         "cik": int(offering["cik"]),
         "name": name,
@@ -131,19 +146,20 @@ class ListingsTable:
         end: Any,
         *,
         as_of: Any,
-        include_blank_checks: bool = False,
+        kinds: Iterable[str] = DEFAULT_KINDS,
     ) -> list[dict[str, Any]]:
         """Listings with a prospectus date in [start, end] and on or before ``as_of``.
 
         A delisting filed after ``as_of`` is not known yet and reads as None.
         """
         lo, hi, cut = _as_date(start), _as_date(end), _as_date(as_of)
+        wanted = {kinds} if isinstance(kinds, str) else set(kinds)
         out = []
         for row in self.rows:
             when = _as_date(row["prospectus_date"])
             if when < lo or when > hi or when > cut:
                 continue
-            if row.get("kind") == "blank_check" and not include_blank_checks:
+            if row.get("kind") not in wanted:
                 continue
             visible = dict(row)
             if visible.get("delisting_filed") and _as_date(visible["delisting_filed"]) > cut:
@@ -154,7 +170,7 @@ class ListingsTable:
     def for_symbol(self, symbol: str, *, as_of: Any) -> dict[str, Any] | None:
         """The latest listing printed under ``symbol`` that is public at ``as_of``."""
         wanted = str(symbol).strip().upper()
-        matches = [r for r in self.between(date(1900, 1, 1), as_of, as_of=as_of, include_blank_checks=True)
+        matches = [r for r in self.between(date(1900, 1, 1), as_of, as_of=as_of, kinds=_ALL_KINDS)
                    if (r.get("ticker") or "").upper() == wanted]
         return matches[-1] if matches else None
 

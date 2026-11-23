@@ -949,14 +949,16 @@ class SECFundamentals:
         end: Any | None = None,
         *,
         as_of: Any | None = None,
-        include_blank_checks: bool = False,
+        kinds: Any = ("operating_company",),
     ):
         """Companies whose first final prospectus (SEC form 424B4 or 424B1) is dated in [start, end].
 
         One row per company, including companies later delisted, acquired or bankrupt:
         ``cik``, ``name``, ``ticker`` (as printed on the prospectus), ``prospectus_date``,
-        ``form``, ``kind`` (``operating_company`` or ``blank_check``), ``sic``,
-        ``delisting_filed`` (first SEC delisting form, None until it is public) and
+        ``form``, ``kind`` (``operating_company``, ``blank_check`` or ``other`` for funds and
+        finance subsidiaries; ``kinds`` picks which, operating companies by default), ``sic``,
+        ``delisting_filed`` (the delisting or deregistration form filed on or after the company's
+        last periodic report, None until it is public; moves between exchanges do not count) and
         ``prospectus_url``. Point in time: in a backtest nothing after the strategy clock is
         returned. The first trade is normally 0 to 2 business days before ``prospectus_date``;
         read it from the stock's first daily bar.
@@ -966,7 +968,7 @@ class SECFundamentals:
         as_of_dt = self._resolve_as_of(as_of)
         lo = start if start is not None else date(1900, 1, 1)
         hi = end if end is not None else as_of_dt
-        rows = self._listings_table().between(lo, hi, as_of=as_of_dt, include_blank_checks=include_blank_checks)
+        rows = self._listings_table().between(lo, hi, as_of=as_of_dt, kinds=kinds)
         columns = ["cik", "name", "ticker", "prospectus_date", "form", "kind", "sic", "delisting_filed", "prospectus_url"]
         return pd.DataFrame(rows, columns=columns)
 

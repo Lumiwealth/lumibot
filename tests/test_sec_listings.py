@@ -80,6 +80,19 @@ def test_offering_after_periodic_reports_is_not_a_listing():
     assert classify_listing({"cik": 1000001, "form": "424B4", "filed": "2020-03-02", "path": "p"}, sub) is None
 
 
+def test_moving_to_another_exchange_is_not_a_delisting():
+    sub = _submissions([("424B4", "2020-09-30"), ("10-Q", "2020-11-12"), ("25-NSE", "2024-11-25"), ("10-Q", "2025-05-06")])
+    row = classify_listing({"cik": 9, "form": "424B4", "filed": "2020-09-30", "path": "p"}, sub)
+    assert row["delisting_filed"] is None
+
+
+def test_blank_check_by_name_and_funds_without_industry_code():
+    by_name = _submissions([("424B4", "2021-02-01")], sic="4899", name="Example Merger Corp")
+    assert classify_listing({"cik": 7, "form": "424B4", "filed": "2021-02-01", "path": "p"}, by_name)["kind"] == "blank_check"
+    fund = _submissions([("424B4", "2021-02-01")], sic="", name="Example Income Fund")
+    assert classify_listing({"cik": 8, "form": "424B4", "filed": "2021-02-01", "path": "p"}, fund)["kind"] == "other"
+
+
 def test_blank_check_companies_are_labeled_not_dropped():
     sub = _submissions([("S-1", "2019-12-01"), ("424B1", "2020-01-15")], sic="6770", name="Blank Check Acquisition Corp")
     row = classify_listing({"cik": 1800002, "form": "424B1", "filed": "2020-01-15", "path": "p"}, sub)
@@ -110,7 +123,7 @@ def test_table_never_shows_a_listing_or_a_delisting_before_it_happened():
 
 def test_blank_checks_only_when_asked():
     table = ListingsTable(ROWS, built_at="x")
-    rows = table.between(date(2019, 1, 1), date(2026, 12, 31), as_of=date(2026, 1, 1), include_blank_checks=True)
+    rows = table.between(date(2019, 1, 1), date(2026, 12, 31), as_of=date(2026, 1, 1), kinds=("operating_company", "blank_check"))
     assert "SHEL" in [r["ticker"] for r in rows]
 
 

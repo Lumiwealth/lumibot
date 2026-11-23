@@ -258,9 +258,12 @@ list only holds survivors, so an IPO study built on it leaves out the losers;
 this list keeps them, with the ticker printed on their own prospectus.
 
 Columns: ``cik``, ``name``, ``ticker``, ``prospectus_date``, ``form``, ``kind``
-(``operating_company`` or ``blank_check`` for SPACs, which are left out unless
-you pass ``include_blank_checks=True``), ``sic``, ``delisting_filed`` (the first
-SEC delisting form, empty until it is public) and ``prospectus_url``.
+(``operating_company``, ``blank_check`` for SPACs, or ``other`` for funds and
+finance subsidiaries; only operating companies unless you pass for example
+``kinds=("operating_company", "blank_check")``), ``sic``, ``delisting_filed``
+(the delisting or deregistration filed after the company's last report, empty
+until it is public; a move to another exchange does not count) and
+``prospectus_url``.
 
 .. code-block:: python
 

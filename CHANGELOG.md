@@ -3,6 +3,7 @@
 ## 4.6.96 - Unreleased
 
 ### Fixed
+- **A bar number passed as a drawing time is an error, and epoch seconds draw at the right date.** `self.draw` read every plain number as epoch milliseconds, so a bar number (for example 677, a Pine `bar_index` copied as written) drew the object at 1970-01-01, off the chart, with no error, and epoch seconds landed in January 1970 too. A number below 1e8 now raises a `ValueError` that names the argument and says to pass `bar.time`, another datetime, or epoch seconds or milliseconds; numbers from 1e8 up to 1e11 are epoch seconds; larger numbers are epoch milliseconds as before. Datetimes and ISO strings are unchanged. Docs: `docsrc/indicators_drawings.rst`. Tests: `tests/test_indicator_drawing_times.py` (red before).
 - **Waiting for a fill inside a backtest iteration no longer hangs the run.** In a backtest an order fills when pending orders are processed after the iteration, so `wait_for_order_execution` / `wait_for_orders_execution` called in the same iteration waited forever (a hosted run sat 39 minutes). In backtests they now return the order as it is and log one warning; the order fills on the usual next step, so results are unchanged. Live brokers still wait. Tests: `tests/backtest/test_wait_for_fill_in_backtest.py` (red before: the run never finished).
 
 ### Changed

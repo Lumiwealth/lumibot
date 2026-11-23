@@ -922,6 +922,13 @@ SCHWAB_MARKET_DATA_MAX_WAIT_SECONDS
 - Values: seconds.
 - Default: ``2``.
 
+SCHWAB_ACCOUNT_SNAPSHOT_SECONDS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: How long one Schwab account answer (cash, portfolio value and positions) is reused within a trading iteration, so balances and positions cost one request instead of two or three. Any order or fill event, submit or cancel drops it at once.
+- Values: seconds; ``0`` turns reuse off.
+- Default: ``1.0``.
+
 Tradovate broker
 ----------------
 

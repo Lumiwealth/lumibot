@@ -3885,8 +3885,8 @@ class _Strategy:
                 write_backtest_data_provenance(
                     data_source,
                     logdir,
-                    fill_price_counts=getattr(self.broker, "_option_fill_price_counts", None),
-                    valuation_mark_counts=getattr(self.broker, "_option_valuation_mark_counts", None),
+                    fill_price_counts=getattr(strategy.broker, "_option_fill_price_counts", None),
+                    valuation_mark_counts=getattr(strategy.broker, "_option_valuation_mark_counts", None),
                 )
             except Exception as exc:
                 # Diagnostics must not make an otherwise valid simulation fail.

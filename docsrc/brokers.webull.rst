@@ -54,6 +54,13 @@ Use the ordinary ``Strategy.create_order``, ``submit_order``, ``modify_order``,
 and ``cancel_order`` methods for orders. The adapter tracks the client order ID
 through placement and recovery. A placement or cancellation acknowledgment
 needs a separate order-detail observation before you rely on the result.
+A caller that must recover an order across process restarts can supply
+``custom_params={"client_order_id": your_id}``. Keep this ID unique per
+intended order. IDs longer than 32 UTF-8 bytes map deterministically to a
+Webull ID. A native package uses one client ID, and linked exits get
+distinct member IDs. Reconcile the original ID after an uncertain write.
+The adapter retries rate-limited reads with bounded backoff. A failed
+write requires reconciliation before another placement.
 An order preview can return a cost estimate while placement returns a
 closed-session error. Webull documents preview for simple orders and
 excludes crypto. Check the native order ID and order detail to establish
@@ -174,7 +181,9 @@ two-sided quote remained open during the observation window. The test
 canceled those orders and confirmed zero fills. Contract settlement still needs separate evidence.
 
 An extended-session equity limit bought and sold one share before the regular
-open. In regular hours a stock and an ETF filled both long round trips and
+open. Separate AAPL DAY and SPY GTC limits bought and sold after the regular
+close. The independent order details placed all four executions within the
+postmarket session. Overnight-only executions and expiry need separate tests. In regular hours a stock and an ETF filled both long round trips and
 short sales with buybacks. Native equity DAY and GTC brackets were read back
 and canceled. In two separate transactions the placing process exited after acknowledgment.
 An independent reader then confirmed the entry fill, the winning target or
@@ -193,7 +202,8 @@ closed a long dated contract. The stop-limit execution respected the
 original sell limit. A separate contract-switch test closed December MES,
 opened March MES, then closed March. Each dated symbol and tick price was
 read independently. A fresh strategy process also recovered the exact open contract for
-Micro E-mini S&P 500 and Micro Gold, both with and without an explicit
+Micro E-mini S&P 500, Micro Gold, Micro WTI crude oil, Micro EUR/USD
+and Micro Bitcoin futures, both with and without an explicit
 expiry on the dated symbol. The adapter resolves the last trading date
 and contract multiplier from Webull contract metadata.
 
@@ -210,8 +220,9 @@ Removing the last consumer closes the connection.
 
 For a standalone DAY stock or ETF order, pass Webull algorithm parameters
 in the ordinary order's ``custom_params``. The simulator independently
-reported TWAP, VWAP and POV on working equity orders. A TWAP buy also
-filled. Pass ``algo_start_time`` and ``algo_end_time`` in the venue's
+reported TWAP, VWAP and POV on working equity orders. Separate eligible
+1,000-share buys filled for each algorithm and their positions were closed.
+These immediate simulator fills do not measure scheduling or execution quality. Pass ``algo_start_time`` and ``algo_end_time`` in the venue's
 Eastern time format. Webull requires at least 1,000 shares and $5,000
 in notional for these algorithms. The algorithm, trading session and time
 in force are independent order fields.
@@ -234,6 +245,13 @@ access still need their own evidence. Use
 Webull accounts report cash, exposure and buying power separately. Their
 historical security price endpoints do not provide historical account equity.
 Read currency-specific buying power with ``broker.get_buying_power("USD")``.
+Working orders are the default account order list. For an explicit history
+read, ``set_order_read_markets(["SPY"])`` and
+``set_closed_order_read_window(7)`` include recent orders in that market.
+Reset both to ``None`` after reading. History preserves native group membership
+and the venue's placement and execution timestamps where present. Webull
+documents a processing delay for history. Check a just-submitted order by
+its original ID.
 PaperTrade crypto can report zero aggregate cash and equity even when its
 simulator reports buying power. Event accounts can omit aggregate cash and
 equity.

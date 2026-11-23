@@ -1,7 +1,7 @@
 """Webull's Individual OpenAPI trading adapter."""
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from threading import Lock, Thread
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from lumibot.brokers.broker import Broker
 from lumibot.entities import Asset, Order, Position
@@ -11,6 +11,7 @@ from lumibot.tools.webull_helpers import (
     make_client,
     paper_mode,
     positive_value,
+    read_json,
     request_json,
     require_number,
 )
@@ -45,6 +46,13 @@ _STATUS = {
 }
 
 
+def _client_identifier(value):
+    value = str(value)
+    if len(value.encode("utf-8")) <= 32:
+        return value
+    return uuid5(NAMESPACE_URL, f"webull:order:{value}").hex
+
+
 class Webull(Broker):
     """Connect one explicitly selected Webull account to a LumiBot strategy."""
 
@@ -63,6 +71,8 @@ class Webull(Broker):
         self._events_thread = None
         self.order_event_state = "disabled"
         self._poll_offset = 0
+        self._order_read_markets = None
+        self._closed_order_read_days = None
         from lumibot.data_sources import WebullData
 
         self._external_data_source = data_source
@@ -84,7 +94,7 @@ class Webull(Broker):
         client = self.trading_client
         with self._client_lock:
             if not self._account_verified:
-                accounts = request_json("account discovery", client.account_v2.get_account_list)
+                accounts = read_json("account discovery", client.account_v2.get_account_list)
                 matches = [row for row in accounts if row.get("account_id") == self.account_id]
                 if len(matches) != 1:
                     raise ValueError("The selected Webull account was not found in this environment")
@@ -93,7 +103,7 @@ class Webull(Broker):
         return self.account_id
 
     def _get_balances_at_broker(self, quote_asset, strategy):
-        balance = request_json("balance read", self.trading_client.account_v2.get_account_balance,
+        balance = read_json("balance read", self.trading_client.account_v2.get_account_balance,
                                self._selected_account())
         if quote_asset is not None and balance.get("total_asset_currency") != quote_asset.symbol:
             raise ValueError("Webull balance currency does not match the requested quote asset")
@@ -110,7 +120,7 @@ class Webull(Broker):
 
     def get_buying_power(self, currency="USD"):
         """Read Webull buying power separately from the actual cash and equity fields."""
-        balance = request_json("balance read", self.trading_client.account_v2.get_account_balance,
+        balance = read_json("balance read", self.trading_client.account_v2.get_account_balance,
                                self._selected_account())
         row = next((row for row in balance["account_currency_assets"] if row["currency"] == currency), None)
         if row is None:
@@ -121,7 +131,7 @@ class Webull(Broker):
         raise NotImplementedError("Webull Individual OpenAPI has no verified historical account value endpoint")
 
     def _pull_positions(self, strategy):
-        rows = request_json("position read", self.trading_client.account_v2.get_account_position,
+        rows = read_json("position read", self.trading_client.account_v2.get_account_position,
                             self._selected_account())
         name = self._strategy_name_from_input(strategy)
         holdings = {}
@@ -258,7 +268,7 @@ class Webull(Broker):
         if instrument == "FUTURES":
             return self._dated_future(Asset(row["symbol"], asset_type="future"))
         if instrument == "CRYPTO":
-            currency = row.get("currency", "USD")
+            currency = row.get("currency") or "USD"
             symbol = row["symbol"]
             return Asset(symbol.removesuffix(currency), asset_type="crypto")
         if instrument == "EVENT":
@@ -382,6 +392,9 @@ class Webull(Broker):
         return row
 
     def _submit_order(self, order):
+        key = (order.custom_params or {}).get("client_order_id")
+        if key:
+            order.identifier = _client_identifier(key)
         if not order.child_orders:
             if order.asset.asset_type == Asset.AssetType.FUTURE:
                 order.asset = self._dated_future(order.asset)
@@ -394,7 +407,9 @@ class Webull(Broker):
         if order.asset.asset_type not in {Asset.AssetType.STOCK, Asset.AssetType.OPTION}:
             raise ValueError("Webull has no documented native linked order for this asset")
         rows = [] if group == Order.OrderClass.OCO else [self._order_row(order, combo_type="MASTER")]
-        for child in order.child_orders:
+        for index, child in enumerate(order.child_orders):
+            if key:
+                child.identifier = uuid5(NAMESPACE_URL, f"webull:leg:{order.identifier}:{index}").hex
             if order.asset.asset_type == Asset.AssetType.OPTION:
                 child_type = "STOP_PROFIT" if child.order_type == Order.OrderType.LIMIT else "STOP_LOSS"
             else:
@@ -402,8 +417,13 @@ class Webull(Broker):
                               Order.OrderClass.OCO: "OCO"}[group]
             session = (order.custom_params or {}).get("support_trading_session")
             rows.append(self._order_row(child, combo_type=child_type, equity_session=session))
-        return self._submit_rows(order, rows, client_combo_id=str(order.identifier)
-                                 if group == Order.OrderClass.OCO else uuid4().hex)
+        if group == Order.OrderClass.OCO:
+            combo_id = str(order.identifier)
+        elif key:
+            combo_id = uuid5(NAMESPACE_URL, f"webull:combo:{order.identifier}").hex
+        else:
+            combo_id = uuid4().hex
+        return self._submit_rows(order, rows, client_combo_id=combo_id)
 
     def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None, **kwargs):
         if not is_multileg:
@@ -437,6 +457,10 @@ class Webull(Broker):
         parent = Order(orders[0].strategy, Asset(orders[0].asset.symbol, asset_type="multileg"),
                        package_quantity, side, order_type="limit", order_class="multileg",
                        child_orders=orders, limit_price=limit, time_in_force=duration, tag=orders[0].tag)
+        keys = {(leg.custom_params or {}).get("client_order_id") for leg in orders}
+        package_key = kwargs.get("client_order_id") or (keys.pop() if len(keys) == 1 else None)
+        if package_key:
+            parent.identifier = _client_identifier(package_key)
         row = dict(client_order_id=parent.identifier, combo_type="NORMAL", instrument_type="OPTION",
                    market="US", symbol=parent.asset.symbol, side=side.upper(), order_type="LIMIT",
                    time_in_force=str(duration).upper(), entrust_type="QTY", option_strategy=shape,
@@ -559,8 +583,9 @@ class Webull(Broker):
         return modify
 
     def _pull_broker_order(self, identifier):
-        result = request_json("order detail", self.trading_client.order_v3.get_order_detail,
-                              self._selected_account(), str(identifier))
+        identifier = _client_identifier(identifier)
+        result = read_json("order detail", self.trading_client.order_v3.get_order_detail,
+                           self._selected_account(), identifier)
         if not isinstance(result, dict):
             return None
         rows = result.get("orders") or []
@@ -571,22 +596,64 @@ class Webull(Broker):
                 return {**result, "orders": [row]}
         return None
 
-    def _pull_broker_all_orders(self):
-        account = self._selected_account()
-        open_orders = self.trading_client.order_v3.list_order_open
+    def set_order_read_markets(self, symbols):
+        """Limit an explicit order-list read to instruments or their underlying symbols."""
+        self._order_read_markets = None if symbols is None else {str(s).upper() for s in symbols}
+
+    def set_closed_order_read_window(self, days):
+        """Include historical orders from the preceding days in an explicit list read."""
+        self._closed_order_read_days = days
+
+    def _order_pages(self, operation, method, account, **params):
         seen_cursors = set()
-        cursor = None
-        orders = []
         while True:
-            kwargs = {} if cursor is None else {"pagination_key": cursor}
-            page = request_json("open orders", open_orders, account, **kwargs)
-            orders.extend(page["data"])
+            page = read_json(operation, method, account, **params)
+            yield from page["data"]
             cursor = page.get("pagination_key")
             if not cursor:
-                return orders
+                return
             if cursor in seen_cursors:
-                raise WebullAPIError("open orders returned a repeated cursor")
+                raise WebullAPIError(f"{operation} returned a repeated cursor")
             seen_cursors.add(cursor)
+            params["pagination_key"] = cursor
+
+    def _matches_order_read_market(self, row):
+        markets = self._order_read_markets
+        if row.get("instrument_type") == "CRYPTO":
+            base = self._read_asset(row).symbol
+            if base in markets or f"{base}/{row.get('currency') or 'USD'}" in markets:
+                return True
+        return any(item.get("symbol") in markets or item.get("underlying_symbol") in markets
+                   for item in (row, *(row.get("legs") or [])))
+
+    def _pull_broker_all_orders(self):
+        account = self._selected_account()
+        api = self.trading_client.order_v3
+        groups = list(self._order_pages("open orders", api.list_order_open, account))
+        if self._closed_order_read_days:
+            now = datetime.now(timezone.utc)
+            start = now - timedelta(days=self._closed_order_read_days)
+            # Supply both UTC boundaries. An isolated start is rejected by the venue.
+            groups.extend(self._order_pages(
+                "order history", api.list_order_history, account,
+                start_time=start.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+                end_time=now.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+            ))
+        selected = {}
+        for group in groups:
+            members = group.get("orders") or []
+            if self._order_read_markets is not None and not any(
+                self._matches_order_read_market(row) for row in members
+            ):
+                continue
+            # Open-list observations are fresher than historical snapshots of the same group.
+            group_id = group.get("client_order_id") or group.get("combo_order_id")
+            if not group_id and members:
+                group_id = members[0]["client_order_id"]
+            if not group_id:
+                raise WebullAPIError("Webull order list returned a group without an identity")
+            selected.setdefault(group_id, group)
+        return list(selected.values())
 
     def _parse_broker_order(self, response, strategy_name, strategy_object=None):
         if not response:
@@ -649,13 +716,15 @@ class Webull(Broker):
                       time_in_force=row["time_in_force"].lower(),
                       avg_fill_price=float(require_number(avg_fill, "fill price")) if avg_fill not in (None, "") else None,
                       custom_params=params or None, **prices)
+        return self._read_order_execution(order, row)
+
+    @staticmethod
+    def _read_order_execution(order, row):
         if row.get("filled_quantity") not in ("", None):
             order.filled_quantity = require_number(row["filled_quantity"], "filled quantity")
         order.broker_status = row.get("status")
-        if row.get("filled_time_at"):
-            order.broker_update_date = row["filled_time_at"]
-        elif row.get("place_time_at"):
-            order.broker_update_date = row["place_time_at"]
+        order.broker_create_date = row.get("place_time_at")
+        order.broker_update_date = row.get("filled_time_at") or order.broker_create_date
         order.update_raw({key: row[key] for key in ("client_order_id", "order_id") if key in row})
         return order
 
@@ -664,8 +733,15 @@ class Webull(Broker):
         for item in row["legs"]:
             # The native package is the only executable order. These are
             # contract terms for accounting, without fabricated execution IDs.
+            instrument = item.get("instrument_type")
+            if not instrument:
+                # Historical mixed packages can omit instrument_type on all legs.
+                # Their sole equity leg carries no option contract terms.
+                mixed = row["option_strategy"] in {"COVERED_STOCK", "COLLAR_WITH_STOCK"}
+                has_terms = any(item.get(key) for key in ("option_type", "strike_price", "option_expire_date"))
+                instrument = "EQUITY" if mixed and not has_terms else "OPTION"
             leg_asset = self._read_asset({
-                "symbol": row["symbol"], "instrument_type": item.get("instrument_type", "OPTION"),
+                "symbol": item.get("symbol") or row["symbol"], "instrument_type": instrument,
                 "legs": [item],
             })
             children.append(Order(
@@ -680,11 +756,7 @@ class Webull(Broker):
             status=_STATUS.get(row.get("status"), "unknown"), child_orders=children,
             identifier=row["client_order_id"], avg_fill_price=row.get("filled_price") or None,
         )
-        order.broker_status = row.get("status")
-        if row.get("filled_quantity") not in ("", None):
-            order.filled_quantity = require_number(row["filled_quantity"], "package filled quantity")
-        order.update_raw({key: row[key] for key in ("client_order_id", "order_id") if key in row})
-        return order
+        return self._read_order_execution(order, row)
 
     def _get_stream_object(self):
         return PollingStream(polling_interval=5)

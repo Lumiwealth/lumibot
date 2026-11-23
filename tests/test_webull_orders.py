@@ -765,3 +765,123 @@ def test_event_fill_can_report_amount_mode_without_original_cash_target(broker):
     assert order.filled_quantity == Decimal("1.01")
     assert order.custom_params == {"entrust_type": "AMOUNT", "event_trade_mode": "TRADE_IN_AMOUNT"}
     assert order.asset.outcome == "no" and order.avg_fill_price == .97
+
+
+@pytest.mark.parametrize("status,recover,expected_calls", [(429, True, 2), (429, False, 4), (403, False, 1)])
+def test_position_read_handles_provider_rate_limit(broker, venue, monkeypatch, status, recover, expected_calls):
+    import time
+    from lumibot.tools.webull_helpers import WebullAPIError
+
+    class ResponseError(Exception):
+        def get_http_status(self):
+            return status
+
+    monkeypatch.setattr(time, "sleep", lambda _: None)
+    endpoint = venue.account_v2.get_account_position
+    endpoint.side_effect = [ResponseError(), reply([])] if recover else ResponseError()
+    if recover:
+        assert broker._pull_positions("qualification") == []
+    else:
+        with pytest.raises(WebullAPIError) as error:
+            broker._pull_positions("qualification")
+        assert error.value.status == status
+    assert endpoint.call_count == expected_calls
+
+
+def test_rate_limited_cancel_is_never_automatically_dispatched_again(broker, venue):
+    from lumibot.tools.webull_helpers import WebullAPIError
+
+    class RateLimited(Exception):
+        def get_http_status(self):
+            return 429
+    order = Order("qualification", Asset("XYZ"), 1, "buy", limit_price=1)
+    venue.order_v3.cancel_order.side_effect = RateLimited()
+    with pytest.raises(WebullAPIError) as error:
+        broker.cancel_order(order)
+    assert error.value.status == 429
+    venue.order_v3.cancel_order.assert_called_once()
+
+
+@pytest.mark.parametrize("group", ["simple", "bracket", "multileg"])
+@pytest.mark.parametrize("client_key", ["trade-123", "long-client-key-" * 5])
+def test_client_order_id_survives_new_broker_instance(broker, venue, group, client_key):
+    from datetime import date
+
+    def submit(instance):
+        params = {"client_order_id": client_key}
+        if group == "multileg":
+            legs = [Order("qualification", Asset("XYZ", "option", right="CALL", strike=strike, expiration=date(2030, 1, 18)),
+                          1, side, time_in_force="day", custom_params=params.copy())
+                    for strike, side in [(20, "buy_to_open"), (25, "sell_to_open")]]
+            order, = instance._submit_orders(legs, is_multileg=True, order_type="debit", price=1)
+        else:
+            terms = {"order_class": "bracket", "secondary_limit_price": 24, "secondary_stop_price": 18} if group == "bracket" else {}
+            order = Order("qualification", Asset("XYZ"), 1, "buy", limit_price=20, time_in_force="day",
+                          custom_params=params.copy(), **terms)
+            instance.submit_order(order)
+        sent = venue.order_v3.place_order.call_args
+        identifiers = [r["client_order_id"] for r in sent.args[1]]
+        assert order.identifier == identifiers[0]
+        if len(client_key) <= 32:
+            assert order.identifier == client_key
+        assert len(set(identifiers)) == len(identifiers) and all(len(i) <= 32 for i in identifiers)
+        return identifiers, sent.kwargs.get("client_combo_order_id")
+
+    original = submit(broker)
+    fresh = Webull(broker._webull_config, trading_client=venue, start_orders_thread=False, connect_stream=False)
+    try:
+        assert submit(fresh) == original
+        venue.order_v3.get_order_detail.return_value = reply(detail(original[0][0]))
+        assert fresh._pull_broker_order(client_key)["client_order_id"] == original[0][0]
+    finally:
+        fresh.cleanup_streams()
+
+
+def test_scoped_finished_order_read_paginates_without_changing_regular_sync(broker, venue):
+    orders = venue.order_v3
+    active = detail("active")
+    closed = detail("old", status="FILLED")
+    unrelated = detail("other", symbol="OTHER", status="FILLED")
+    orders.list_order_open.return_value = reply({"data": [active]})
+    orders.list_order_history.side_effect = [
+        reply({"data": [active, unrelated], "pagination_key": "history-page"}),
+        reply({"data": [closed]}),
+    ]
+    broker.set_order_read_markets(["sample"])
+    broker.set_closed_order_read_window(2)
+    assert broker._pull_broker_all_orders() == [active, closed]
+    first, second = orders.list_order_history.call_args_list
+    assert first.kwargs["start_time"] < first.kwargs["end_time"]
+    assert second.kwargs == {**first.kwargs, "pagination_key": "history-page"}
+    broker.set_closed_order_read_window(None)
+    broker.set_order_read_markets(None)
+    assert broker._pull_broker_all_orders() == [active]
+    assert orders.list_order_history.call_count == 2
+
+
+@pytest.mark.parametrize("shape", ["COVERED_STOCK", "COLLAR_WITH_STOCK"])
+def test_mixed_order_history_decodes_untyped_stock_leg(broker, shape):
+    stock = dict(symbol="SAMPLE", side="BUY", quantity="100", id="stock-leg")
+    call = dict(symbol="SAMPLE", side="SELL", quantity="1", id="call-leg", option_type="CALL",
+                option_expire_date="2030-10-18", strike_price="35", option_contract_multiplier="100")
+    legs = [call, stock]
+    if shape == "COLLAR_WITH_STOCK":
+        legs.append({**call, "id": "put-leg", "side": "BUY", "option_type": "PUT", "strike_price": "30"})
+    group = detail("package", instrument_type="OPTION", option_strategy=shape, legs=legs,
+                   place_time_at="2030-10-10T17:20:00.000Z", filled_time_at="2030-10-10T17:22:11.500Z")
+    order = broker._parse_broker_order(group, "history")
+    assert order.broker_create_date == "2030-10-10T17:20:00.000Z"
+    assert order.broker_update_date == "2030-10-10T17:22:11.500Z"
+    shares, = [leg for leg in order.child_orders if leg.asset.asset_type == Asset.AssetType.STOCK]
+    assert shares.asset.symbol == "SAMPLE" and shares.quantity == 100 and shares.side == "buy"
+    assert {leg.asset.right for leg in order.child_orders if leg is not shares} == (
+        {"CALL", "PUT"} if shape == "COLLAR_WITH_STOCK" else {"CALL"}
+    )
+
+
+@pytest.mark.parametrize("market", ["BTC", "BTC/USD", "BTCUSD", "ETH/USD"])
+def test_scoped_crypto_orders_accept_base_pair_and_wire_symbol(broker, venue, market):
+    row = detail("coin", symbol="BTCUSD", instrument_type="CRYPTO")
+    venue.order_v3.list_order_open.return_value = reply({"data": [row]})
+    broker.set_order_read_markets([market])
+    assert broker._pull_broker_all_orders() == ([] if market == "ETH/USD" else [row])

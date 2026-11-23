@@ -11,7 +11,7 @@ import pytest
 from lumibot.brokers import Webull
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
-from lumibot.tools.webull_helpers import WebullAPIError, make_client, request_json
+from lumibot.tools.webull_helpers import WebullAPIError, make_client, read_json as request_json
 
 pytestmark = [pytest.mark.apitest, pytest.mark.webull]
 
@@ -309,7 +309,10 @@ def _native_group(observer, account, identifiers):
 
 @pytest.mark.parametrize("duration", ["day", "gtc"])
 def test_paper_stock_bracket_is_resting_at_the_venue(paper, duration):
+    from uuid import uuid4
+
     broker, observer, account = paper
+    client_id = uuid4().hex
     strategy = Strategy(broker=broker, name="webull_bracket_qualification", risk_free_rate=0,
                         synchronize_broker_on_start=False, should_backup_variables_to_database=False,
                         should_send_summary_to_discord=False)
@@ -321,8 +324,9 @@ def test_paper_stock_bracket_is_resting_at_the_venue(paper, duration):
     order = strategy.create_order(asset, 1, "buy", limit_price=entry_limit, time_in_force=duration,
                                   order_class="bracket", secondary_limit_price=target_limit,
                                   secondary_stop_price=stop_price,
-                                  custom_params={"support_trading_session": "CORE"})
+                                  custom_params={"support_trading_session": "CORE", "client_order_id": client_id})
     _verify_passive_bracket(strategy, observer, account, order)
+    assert order.identifier == client_id
 
 
 @pytest.mark.parametrize("child_type", ["stop", "target"])
@@ -511,9 +515,9 @@ def test_paper_option_stop_on_existing_contract(paper, kind):
 def _verify_passive_bracket(strategy, observer, account, order):
     for child in order.child_orders:
         child.time_in_force = order.time_in_force
-    identifiers = [member.identifier for member in [order, *order.child_orders]]
     try:
         strategy.submit_order(order)
+        identifiers = [member.identifier for member in [order, *order.child_orders]]
         assert order.status != order.OrderStatus.ERROR, order.error_message
         venue_orders = _native_group(observer, account, identifiers)
         assert len(venue_orders) == 3
@@ -2026,7 +2030,7 @@ def _read_dated_future_in_new_process():
 
 
 @pytest.mark.parametrize("paper", ["FUTURES"], indirect=True)
-@pytest.mark.parametrize("product", ["MES", "MGC"])
+@pytest.mark.parametrize("product", ["MES", "MGC", "MCL", "M6E", "MBT"])
 def test_paper_dated_future_lookup_after_restart(paper, product):
     import subprocess
     import sys
@@ -2125,8 +2129,16 @@ def test_paper_event_fill_or_kill(paper, mode):
             assert quantity == 0
     finally:
         if quantity:
-            close = strategy.create_order(asset, quantity, "sell", limit_price=Decimal("0.01"), time_in_force="gtc")
-            closed = _submit_and_observe_terminal(strategy, observer, account, close)
+            close = strategy.create_order(asset, quantity, "sell", order_type="limit", time_in_force="day",
+                                          custom_params={"event_trade_mode": "TRADE_IN_CONTRACT"})
+            strategy.submit_order(close)
+            assert close.status != close.OrderStatus.ERROR, close.error_message
+            try:
+                closed = _detail(observer, account, close.identifier,
+                                 lambda row: row["status"] in {"FILLED", "CANCELED", "CANCELLED", "EXPIRED"},
+                                 pauses=(0, 2, 5, 10, 20, 30, 45, 60))
+            except pytest.fail.Exception:
+                closed = _cancel_then_read(strategy, observer, account, close)
             assert closed["status"] == "FILLED" and Decimal(closed["filled_quantity"]) == quantity
         assert not request_json("independent event final positions", positions, account)
         assert not request_json("independent event working orders", observer.order_v3.list_order_open, account)["data"]
@@ -2229,7 +2241,8 @@ def test_paper_equity_algorithm_retains_venue_terms(paper, algorithm):
         assert not request_json("final algorithm working", observer.order_v3.list_order_open, account)["data"]
 
 
-def test_paper_twap_fills_and_cancel_reconciles_executed_shares(paper):
+@pytest.mark.parametrize("algorithm", ["TWAP", "VWAP", "POV"])
+def test_paper_equity_algorithm_fill_and_cancel_reconcile_executed_shares(paper, algorithm):
     from datetime import datetime, timedelta
     from zoneinfo import ZoneInfo
 
@@ -2251,8 +2264,9 @@ def test_paper_twap_fills_and_cancel_reconciles_executed_shares(paper):
     limit = (Decimal(str(ask)) * Decimal("1.02")).quantize(Decimal("0.01"))
     if not Decimal("5") <= limit <= Decimal("30"):
         pytest.skip("The symbol is outside this test's PaperTrade notional range")
-    params = {"algo_type": "TWAP", "algo_start_time": start.strftime("%H:%M:%S"),
-              "algo_end_time": end.strftime("%H:%M:%S"), "max_target_percent": "10"}
+    rate_field = "target_vol_percent" if algorithm == "POV" else "max_target_percent"
+    params = {"algo_type": algorithm, "algo_start_time": start.strftime("%H:%M:%S"),
+              "algo_end_time": end.strftime("%H:%M:%S"), rate_field: "10"}
     test_order = strategy.create_order(asset, 1000, "buy", limit_price=limit, time_in_force="day", custom_params=params)
     strategy.submit_order(test_order)
     assert test_order.status != test_order.OrderStatus.ERROR, test_order.error_message
@@ -2260,7 +2274,7 @@ def test_paper_twap_fills_and_cancel_reconciles_executed_shares(paper):
         observed = _detail(observer, account, test_order.identifier,
                            lambda row: Decimal(row.get("filled_quantity") or 0) > 0,
                            pauses=(0, 8, 12, 16, 20, 24, 30, 30))
-        assert observed["algo_type"] == "TWAP" and Decimal(observed["filled_price"]) <= limit
+        assert observed["algo_type"] == algorithm and Decimal(observed["filled_price"]) <= limit
     finally:
         terminal = _cancel_then_read(strategy, observer, account, test_order)
         executed = Decimal(terminal.get("filled_quantity") or 0)
@@ -2352,8 +2366,32 @@ def test_paper_stock_option_package_while_held_and_after_close(paper, shape):
     finally:
         if Decimal(opened.get("filled_quantity") or 0):
             closed = submit(True)
-            assert closed["status"] == "FILLED" and Decimal(closed["filled_quantity"]) == 1, (
-                "Native close did not fill. Reconcile this test's grouped position before any further order.")
+            if closed["status"] in {"CANCELLED", "CANCELED", "EXPIRED"} and not Decimal(closed.get("filled_quantity") or 0):
+                # Buy back the short call first. Removing a leg can turn a
+                # grouped holding into independent shares or option positions.
+                for asset, qty, _, exit_side in sorted(legs, key=lambda item: item[1]):
+                    rows = request_json("remaining mixed holdings", positions, account)
+                    terms = {}
+                    matches = []
+                    for row in rows:
+                        if row.get("symbol") != asset.symbol:
+                            continue
+                        if asset.asset_type == "stock" and row["instrument_type"] == "EQUITY":
+                            matches.append(row)
+                        for leg in row.get("legs", []):
+                            if asset.asset_type == "stock" and leg["instrument_type"] == "EQUITY":
+                                matches.append(row)
+                            elif (asset.asset_type == "option" and leg.get("option_type") == asset.right
+                                  and leg["option_expire_date"] == asset.expiration.isoformat()
+                                  and Decimal(leg["option_exercise_price"]) == asset.strike):
+                                matches.append(row)
+                    owned, = matches
+                    if owned.get("option_strategy") not in (None, "SINGLE"):
+                        terms = {"position_id": owned["position_id"], "custom_params": {"leg_in_or_out": "LEG_OUT"}}
+                    target = strategy.create_order(asset, abs(qty), exit_side, time_in_force="day", **terms)
+                    sold = _submit_and_observe_terminal(strategy, observer, account, target)
+                    assert sold["status"] == "FILLED" and Decimal(sold["filled_quantity"]) == abs(qty)
+            assert closed["status"] == "FILLED" and Decimal(closed["filled_quantity"]) == 1
         assert not request_json("final mixed positions", positions, account)
         assert not request_json("final mixed orders", observer.order_v3.list_order_open, account)["data"]
 
@@ -2383,3 +2421,191 @@ def test_paper_event_good_till_date_terms(paper):
             assert Decimal(closed["filled_quantity"]) == quantity
         assert not request_json("final GTD holdings", observer.account_v2.get_account_position, account)
         assert not request_json("final GTD working orders", observer.order_v3.list_order_open, account)["data"]
+
+
+@pytest.mark.parametrize("paper,product", [("FUTURES", "future"), ("EVENTS_CASH", "event")],
+                         indirect=["paper"], ids=["future", "event"])
+def test_paper_unsupported_bracket_leaves_account_unchanged(paper, product):
+    broker, observer, account = paper
+    positions = observer.account_v2.get_account_position
+    working = observer.order_v3.list_order_open
+    assert not request_json("starting bracket positions", positions, account)
+    assert not request_json("starting bracket orders", working, account)["data"]
+    strategy = Strategy(broker=broker, name="webull_unsupported_protection", risk_free_rate=0,
+                        synchronize_broker_on_start=False, should_backup_variables_to_database=False,
+                        should_send_summary_to_discord=False)
+    if product == "future":
+        contract = _listed_micro_future(broker.data_source)
+        asset = Asset(contract["symbol"], "future", expiration=contract["last_trading_date"], multiplier=contract["size"])
+        tick = Decimal(contract["min_tick"])
+        bid = Decimal(str(broker.data_source.get_quote(asset).bid))
+        limit = (bid * Decimal(".97") // tick) * tick
+    else:
+        asset, _ = _quoted_event_contract(broker.data_source.client, "no")
+        tick, limit = Decimal(".01"), Decimal(".02")
+    order = strategy.create_order(asset, 1, "buy", limit_price=limit, order_class="bracket",
+                                  secondary_limit_price=limit + tick, secondary_stop_price=limit - tick,
+                                  time_in_force="day")
+    try:
+        with pytest.raises(ValueError, match="no documented native linked order"):
+            strategy.submit_order(order)
+    finally:
+        if order.was_transmitted():
+            _cancel_then_read(strategy, observer, account, order)
+        assert not request_json("final bracket positions", positions, account)
+        assert not request_json("final bracket orders", working, account)["data"]
+
+
+@pytest.mark.parametrize("paper,kind,symbol,package", [
+    ("INDIVIDUAL_CASH", "EQUITY", "AAPL", False),
+    ("INDIVIDUAL_MARGIN", "EQUITY", "SPY", False),
+    ("INDIVIDUAL_MARGIN", "OPTION", None, False),
+    ("INDIVIDUAL_MARGIN", "OPTION", None, True),
+    ("FUTURES", "FUTURES", None, False),
+    ("CRYPTO", "CRYPTO", None, False),
+    ("EVENTS_CASH", "EVENT", None, False),
+], indirect=["paper"], ids=["stock", "etf", "single-option", "option-package", "future", "spot", "event"])
+def test_paper_scoped_history_matches_independent_execution(paper, kind, symbol, package):
+    from datetime import datetime, timedelta, timezone
+
+    broker, observer, account = paper
+    # Select an actual filled order from the independent SDK. A new account
+    # first needs a qualifying execution before it can prove historical reads.
+    now = datetime.now(timezone.utc)
+    params = dict(start_time=(now - timedelta(days=6)).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                  end_time=now.strftime("%Y-%m-%dT%H:%M:%S.000Z"))
+    seen = set()
+    while True:
+        page = request_json("independent order history", observer.order_v3.list_order_history, account, **params)
+        target = next((row for group in page["data"] for row in group["orders"]
+                       if row.get("status") == "FILLED" and row.get("instrument_type") == kind
+                       and (not symbol or row["symbol"] == symbol)
+                       and (len(row.get("legs") or []) > 1) == package), None)
+        if target:
+            break
+        cursor = page.get("pagination_key")
+        if not cursor:
+            pytest.skip("Requires a recent filled order in this product account")
+        assert cursor not in seen, "Independent history returned a repeated cursor"
+        seen.add(cursor)
+        params["pagination_key"] = cursor
+
+    market = target["symbol"]
+    if kind == "CRYPTO":
+        quote = target.get("currency") or "USD"
+        market = f"{market.removesuffix(quote)}/{quote}"
+    broker.set_order_read_markets([market])
+    broker.set_closed_order_read_window(7)
+    try:
+        orders = broker._pull_all_orders("readback", None)
+    finally:
+        broker.set_closed_order_read_window(None)
+        broker.set_order_read_markets(None)
+    matches = [o for o in orders if o.identifier == target["client_order_id"]]
+    assert len(matches) == 1
+    order, = matches
+    assert order.is_filled() and Decimal(str(order.filled_quantity)) == Decimal(target["filled_quantity"])
+    assert Decimal(str(order.avg_fill_price)) == Decimal(target["filled_price"])
+    assert order.broker_create_date == target["place_time_at"]
+    assert order.broker_update_date == target["filled_time_at"]
+
+
+@pytest.mark.parametrize("paper,product", [("FUTURES", "MES"), ("CRYPTO", "ETH")], indirect=["paper"])
+def test_paper_marketable_limits_execute_inside_both_price_bounds(paper, product):
+    from decimal import ROUND_CEILING, ROUND_FLOOR
+
+    broker, observer, account = paper
+    strategy = Strategy(broker=broker, name="webull_limit_bounds", risk_free_rate=0,
+                        synchronize_broker_on_start=False, should_backup_variables_to_database=False,
+                        should_send_summary_to_discord=False)
+    positions = observer.account_v2.get_account_position
+    assert not request_json("starting limit positions", positions, account)
+    if product == "ETH":
+        asset, quote, tick, quantity = Asset(product, "crypto"), Asset("USD", "forex"), Decimal(".01"), Decimal(".01")
+    else:
+        terms = _listed_micro_future(broker.data_source, product)
+        asset = Asset(terms["symbol"], "future", expiration=terms["last_trading_date"], multiplier=terms["size"])
+        quote, tick, quantity = None, Decimal(terms["min_tick"]), Decimal(1)
+
+    def bounded_order(side, qty):
+        book = broker.data_source.get_quote(asset, quote=quote)
+        ref = (book.ask if side == "buy" else book.bid) or book.price
+        assert ref and ref > 0 and tick > 0
+        factor, rounding = (Decimal("1.004"), ROUND_CEILING) if side == "buy" else (Decimal(".996"), ROUND_FLOOR)
+        bound = (Decimal(str(ref)) * factor / tick).to_integral_value(rounding) * tick
+        order = strategy.create_order(asset, qty, side, quote=quote, limit_price=bound, time_in_force="gtc")
+        return _submit_and_observe_terminal(strategy, observer, account, order), bound
+
+    entry, maximum = bounded_order("buy", quantity)
+    filled = Decimal(entry.get("filled_quantity") or 0)
+    exited = Decimal(0)
+    try:
+        assert entry["status"] == "FILLED" and filled == quantity and Decimal(entry["filled_price"]) <= maximum
+        assert entry["order_type"] == "LIMIT" and Decimal(entry["limit_price"]) == maximum
+        holding, = request_json("independent limit entry holding", positions, account)
+        assert Decimal(holding["quantity"]) == filled
+        assert Decimal(str(strategy.get_position(asset).quantity)) == filled
+        close, minimum = bounded_order("sell", filled)
+        exited = Decimal(close.get("filled_quantity") or 0)
+        assert close["status"] == "FILLED" and exited == filled and Decimal(close["filled_price"]) >= minimum
+        assert close["order_type"] == "LIMIT" and Decimal(close["limit_price"]) == minimum
+    finally:
+        if filled > exited:
+            # If a close outcome is ambiguous, reconcile the venue before another write.
+            assert not request_json("working limit orders", observer.order_v3.list_order_open, account)["data"]
+            remaining = request_json("remaining limit positions", positions, account)
+            if remaining:
+                owned, = remaining
+                assert owned["symbol"] in {asset.symbol, asset.symbol + "USD"}
+                qty = Decimal(owned["quantity"])
+                assert 0 < qty <= filled - exited
+                cleanup = strategy.create_order(asset, qty, "sell", quote=quote,
+                                                time_in_force="ioc" if product == "ETH" else "day")
+                flattened = _submit_and_observe_terminal(strategy, observer, account, cleanup)
+                assert Decimal(flattened["filled_quantity"]) == qty
+        assert not request_json("ending limit positions", positions, account)
+        assert not request_json("ending limit orders", observer.order_v3.list_order_open, account)["data"]
+
+
+@pytest.mark.parametrize("paper", ["CRYPTO"], indirect=True)
+def test_paper_spot_stop_limit_trigger_respects_price_cap(paper):
+    broker, observer, account = paper
+    asset, usd = Asset("ETH", "crypto"), Asset("USD", "forex")
+    strategy = Strategy(broker=broker, name="webull_crypto_trigger", risk_free_rate=0,
+                        synchronize_broker_on_start=False, should_backup_variables_to_database=False,
+                        should_send_summary_to_discord=False)
+    positions = observer.account_v2.get_account_position
+    assert not request_json("initial crypto trigger positions", positions, account)
+    quote = broker.data_source.get_quote(asset, quote=usd)
+    ref = max(Decimal(str(p)) for p in (quote.price, quote.ask) if p and p > 0)
+    cent = Decimal(".01")
+    # Snapshot ask and the venue trigger reference can differ on delayed feeds.
+    stop = (ref * Decimal("1.06")).quantize(cent) + cent
+    cap = (stop * Decimal("1.003")).quantize(cent)
+    entry = strategy.create_order(asset, Decimal("0.01"), "buy", quote=usd, order_type="stop_limit",
+                                  stop_price=stop, stop_limit_price=cap, time_in_force="gtc")
+    strategy.submit_order(entry)
+    assert entry.status != entry.OrderStatus.ERROR, entry.error_message
+    try:
+        seen = _detail(observer, account, entry.identifier,
+                       lambda row: row["status"] in {"FILLED", "CANCELED", "CANCELLED", "REJECTED", "EXPIRED"},
+                       pauses=(0, 2, 5, 10, 20, 30, 45))
+    except pytest.fail.Exception:
+        seen = _cancel_then_read(strategy, observer, account, entry)
+    amount = Decimal(seen.get("filled_quantity") or 0)
+    try:
+        assert seen["order_type"] == "STOP_LOSS_LIMIT"
+        assert Decimal(seen["limit_price"]) == cap and Decimal(seen["stop_price"]) == stop
+        if seen["status"] in {"CANCELLED", "CANCELED", "EXPIRED"} and amount == 0:
+            pytest.skip("The native crypto stop-limit remained unfilled during observation")
+        assert seen["status"] == "FILLED" and amount == entry.quantity
+        assert Decimal(seen["filled_price"]) <= cap
+        holding, = request_json("independent crypto trigger holding", positions, account)
+        assert holding["symbol"] in {asset.symbol, asset.symbol + "USD"} and Decimal(holding["quantity"]) == amount
+    finally:
+        if amount:
+            close = strategy.create_order(asset, amount, "sell", quote=usd, time_in_force="ioc")
+            closed = _submit_and_observe_terminal(strategy, observer, account, close)
+            assert Decimal(closed["filled_quantity"]) == amount
+        assert not request_json("final crypto trigger position", positions, account)
+        assert not request_json("final crypto trigger orders", observer.order_v3.list_order_open, account)["data"]

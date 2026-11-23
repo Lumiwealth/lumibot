@@ -1,5 +1,6 @@
 """Webull OpenAPI transport and wire conventions."""
 import logging
+import time
 from decimal import Decimal, InvalidOperation
 from threading import Lock
 
@@ -82,6 +83,18 @@ def request_json(operation, request, *args, **kwargs):
         code = payload.get("error_code")
         raise WebullAPIError(operation, status=400, code=code if isinstance(code, str) else None)
     return payload
+
+
+def read_json(operation, request, *args, **kwargs):
+    """Retry an idempotent read when Webull throttles the application's shared quota."""
+    for delay in (2, 6, 30):
+        try:
+            return request_json(operation, request, *args, **kwargs)
+        except WebullAPIError as error:
+            if error.status != 429:
+                raise
+            time.sleep(delay)
+    return request_json(operation, request, *args, **kwargs)
 
 
 def require_number(value, field):

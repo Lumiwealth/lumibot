@@ -42,9 +42,11 @@ Provide ``WEBULL_APP_KEY`` and ``WEBULL_APP_SECRET`` through your configured
 secret store. The historical source makes only market-data requests.
 Option replay requires an explicit contract. Historical point-in-time option
 chains and bid/ask series are unavailable on this path. The daily option
-check uses OHLCV and the shared simulator. A two-leg call vertical opened
-and closed on actual daily contract history. Both legs filled on the same bar
-at entry and again at exit. Expiry, assignment and event settlement need
+check uses OHLCV and the shared simulator. A call vertical, a long straddle and a long strangle each opened and closed
+on actual daily contract history. Both legs filled on the same bar at entry
+and again at exit. Repeating the straddle and strangle from the loaded frames
+reproduced the trades, times and cash. Each ending balance also agreed with
+the independently summed leg premiums and contract multipliers. Expiry, assignment and event settlement need
 separate qualification.
 
 Minute replay from actual Webull bars

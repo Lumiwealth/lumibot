@@ -8,8 +8,8 @@
   qualification by product. Option replacements use Webull-assigned leg IDs
   and preserve the original spread ratios. Live trade bars use the dated UTC
   timestamp supplied by the Webull SDK. The adapter tracks native bracket children,
-  reconciles repeated option-package observations, reads signed vertical and butterfly
-  holdings, and submits leg-out closes using the Webull position ID.
+  reconciles repeated option-package observations, reads signed vertical, butterfly,
+  straddle and strangle holdings, and submits leg-out closes using the Webull position ID.
   An unavailable exchange trade feed reports its entitlement error while other
   subscriptions continue. The connection closes on the last unsubscribe.
   Minute OHLCV windows can be loaded once for ordinary pandas-backed replay. See `docsrc/brokers.webull.rst`.

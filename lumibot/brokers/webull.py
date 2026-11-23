@@ -137,12 +137,21 @@ class Webull(Broker):
         # The US endpoint supplies a signed package quantity. Its per-leg
         # "proportion" is the portfolio weight, not the number of contracts.
         shape = row.get("option_strategy")
-        count = {"VERTICAL": 2, "BUTTERFLY": 3}.get(shape)
+        count = {"VERTICAL": 2, "BUTTERFLY": 3, "STRADDLE": 2, "STRANGLE": 2}.get(shape)
         if count is None or len(row["legs"]) != count:
             raise ValueError(f"Unrecognized Webull grouped option holding: {shape}")
         if any(leg.get("symbol", row["symbol"]) != row["symbol"] for leg in row["legs"]):
             raise ValueError("Unexpected underlying in a grouped Webull holding")
         assets = sorted((self._read_asset({**row, "legs": [leg]}) for leg in row["legs"]), key=lambda a: a.strike)
+        if shape in {"STRADDLE", "STRANGLE"}:
+            first, second = assets
+            same_series = (first.expiration, first.multiplier) == (second.expiration, second.multiplier)
+            same_strike = first.strike == second.strike
+            if (not same_series or {first.right, second.right} != {"CALL", "PUT"}
+                    or same_strike != (shape == "STRADDLE")):
+                raise ValueError("Inconsistent contract terms in a grouped Webull holding")
+            return [(asset, quantity) for asset in assets]
+
         series = {(asset.right, asset.expiration, asset.multiplier) for asset in assets}
         if len(series) != 1 or len({asset.strike for asset in assets}) != count:
             raise ValueError("Inconsistent contract terms in a grouped Webull holding")

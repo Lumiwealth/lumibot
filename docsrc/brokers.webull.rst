@@ -86,7 +86,19 @@ was rejected because that session requires DAY. GTC trailing and market
 orders also received explicit duration rejections. Supply the intended
 duration in the strategy. During a regular session both an equity buy stop
 and a buy stop-limit triggered, filled and were closed. The stop-limit
-execution stayed within its original limit.
+execution stayed within its original limit. Market buys and sells of a quarter
+share filled for both a stock and an ETF in the cash account. Those orders used
+share quantities. Buying a specified cash amount is a separate workflow.
+A DAY sell trailing stop with a five-cent amount filled against an owned
+share. A one-percent trail reached the broker with step 0.01 and canceled
+unfilled. Webull rejected a 0.001 percentage step in that case. The
+intermediate ratchet prices were not independently observed.
+
+For a one-triggers-other order, the stock entry filled and its single profit
+or stop exit became a working broker order. Both exits were verified in
+separate runs and then canceled. For a one-cancels-other pair protecting
+an existing ETF holding, each exit filled in a separate run. The venue
+canceled the sibling and the holding returned to its initial quantity.
 
 GTC buy-to-open limits for a listed call, a put and a native call vertical
 were accepted, repriced and canceled during that Saturday session. Webull
@@ -94,9 +106,15 @@ assigns an ID to each option leg. LumiBot reads those IDs when amending
 the original order. Regular-session DAY limits opened and closed a call, a
 put, and both debit and credit call and put verticals. The position endpoint
 returned the vertical as one signed package. LumiBot recovered the two signed
-contract holdings on a fresh position read. A single call DAY market buy and
-market sell also filled in the tested margin account. Session, account and
+contract holdings on a fresh position read. Single call and put DAY market buys and
+sell-to-close orders also filled in the tested margin account. Session, account and
 series eligibility still apply.
+
+Long straddles and strangles also opened and closed through native package
+orders. Webull reported each held pair as one position. LumiBot expanded
+the signed package quantity into a call and a put with their actual strikes
+and expiry. Short-entry executions and partial package fills require separate
+qualification.
 
 A native long call butterfly filled with one contract at each outer strike
 and two short contracts at the middle strike. A fresh account read recovered
@@ -112,7 +130,11 @@ A separate call entry with attached profit and stop exits reached the venue.
 All three members had native IDs and were canceled. Sell-to-close stop and
 stop-limit orders against an existing call also reached the venue and were
 canceled before the holding was closed. These cases establish placement and
-cancellation. Option exit triggers remain unverified.
+cancellation. In another run Webull rejected a sell stop set too close
+to the market following a market buy. When the stop was based on the lower
+of the observed market reference and the entry fill, the broker accepted it.
+Neither that stop nor a separate sell stop-limit triggered in the observation
+window. Both were canceled and the position closed.
 
 A one-contract YES round trip and a separate NO round trip both filled in
 the event account. Independent filled-order details reconciled with the
@@ -134,7 +156,10 @@ Dated micro-index futures filled in both directions, including a short
 sale and buyback. The observed futures cash changes matched the contract
 multiplier and the fees on the two executions. A passive futures limit was
 repriced and canceled. Separate futures stop, stop-limit and amount-trailing
-orders rested at the broker and were canceled without fills.
+orders rested at the broker and were canceled without fills. In independent
+regular-session runs, a sell stop and a sell stop-limit each triggered and
+closed a long dated contract. The stop-limit execution respected the
+original sell limit. A futures trailing-stop trigger remains unverified.
 
 A US equity trade subscription delivered five-second bars through
 ``Strategy.get_realtime_bars``. LumiBot timestamps each bar from the full

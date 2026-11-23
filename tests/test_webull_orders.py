@@ -380,6 +380,34 @@ def test_signed_vertical_holdings_net_with_single_contract_across_rows(broker, v
     assert all(p.asset.right == right and p.asset.multiplier == 100 for p in positions)
 
 
+@pytest.mark.parametrize("shape,call_strike,quantity", [
+    ("STRADDLE", 100, 1), ("STRADDLE", 100, -2), ("STRANGLE", 105, 3), ("STRANGLE", 105, -1),
+])
+def test_call_put_package_holds_both_contracts_with_the_package_sign(broker, venue, shape, call_strike, quantity):
+    legs = [dict(symbol="SAMPLE", option_type=right, option_exercise_price=str(strike),
+                 option_expire_date="2027-01-15", option_contract_multiplier="100")
+            for right, strike in (("PUT", 100), ("CALL", call_strike))]
+    venue.account_v2.get_account_position.return_value = reply([dict(
+        symbol="SAMPLE", instrument_type="OPTION", option_strategy=shape, quantity=str(quantity), legs=legs)])
+    positions = broker._pull_positions("holdings")
+    assert {(p.asset.right, p.asset.strike): p.quantity for p in positions} == {
+        ("PUT", 100): quantity, ("CALL", call_strike): quantity}
+
+
+@pytest.mark.parametrize("shape,right,strike,expiry", [
+    ("STRADDLE", "CALL", 105, "2027-01-15"), ("STRANGLE", "CALL", 100, "2027-01-15"),
+    ("STRADDLE", "PUT", 100, "2027-01-15"), ("STRANGLE", "CALL", 105, "2027-02-19"),
+])
+def test_call_put_package_rejects_inconsistent_contract_terms(broker, venue, shape, right, strike, expiry):
+    put = dict(symbol="SAMPLE", option_type="PUT", option_exercise_price="100",
+               option_expire_date="2027-01-15", option_contract_multiplier="100")
+    other = dict(put, option_type=right, option_exercise_price=str(strike), option_expire_date=expiry)
+    venue.account_v2.get_account_position.return_value = reply([dict(
+        symbol="SAMPLE", instrument_type="OPTION", option_strategy=shape, quantity="1", legs=[put, other])])
+    with pytest.raises(ValueError, match="Inconsistent contract terms"):
+        broker._pull_positions("holdings")
+
+
 def test_grouped_butterfly_positions_preserve_the_two_short_middle_contracts(broker, venue):
     legs = [
         dict(symbol="SAMPLE", instrument_type="OPTION", option_expire_date="2027-01-15",

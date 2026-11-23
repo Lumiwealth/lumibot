@@ -89,3 +89,60 @@ def test_daily_benchmark_calendar_belongs_to_the_asset(monkeypatch, asset_type, 
     assert len(result.close.dropna()) == expected_rows
     assert result.symbol_cumprod.iloc[-1] == pytest.approx(1.10)
     assert requests[0]["market"] == expected_calendar
+
+
+def _index_benchmark_strategy(source):
+    return SimpleNamespace(
+        is_backtesting=True,
+        _benchmark_asset=Asset("SPX", asset_type="index"),
+        _backtesting_start=pd.Timestamp("2025-01-06", tz="America/New_York"),
+        _backtesting_end=pd.Timestamp("2025-01-08", tz="America/New_York"),
+        _benchmark_returns_df=None,
+        broker=SimpleNamespace(data_source=source, market="NYSE"),
+        logger=Mock(),
+    )
+
+
+def _source_without_index_bars(monkeypatch, timestep="day"):
+    source = object.__new__(AlpacaBacktesting)
+    source._timestep = timestep
+    source.market = "NYSE"
+
+    def no_index_bars(**kwargs):
+        raise RuntimeError("No data fetched for SPX-INDEX_USD-FOREX_NASDAQ_DAY")
+
+    monkeypatch.setattr(source, "get_historical_prices_between_dates", no_index_bars)
+    return source
+
+
+def test_index_benchmark_alpaca_cannot_serve_never_crashes_the_finished_backtest(monkeypatch):
+    # Nov 20 2026: an SPX index option backtest on the customer's Alpaca data finished its
+    # simulation, then crashed while writing the benchmark line: Alpaca has no index bars
+    # ("No data fetched for SPX-INDEX..."). A comparison line must never fail the backtest;
+    # it is read from the public daily series instead.
+    source = _source_without_index_bars(monkeypatch)
+    public = pd.DataFrame({"return": [0.0, 0.01], "symbol_cumprod": [1.0, 1.01]},
+                          index=pd.date_range("2025-01-06", periods=2, tz="America/New_York"))
+    asked = []
+
+    def public_series(symbol, *args, **kwargs):
+        asked.append(symbol)
+        return public
+
+    monkeypatch.setattr("lumibot.strategies._strategy.get_symbol_returns", public_series)
+    strategy = _index_benchmark_strategy(source)
+    _Strategy._dump_benchmark_stats(strategy)  # must not raise
+    assert asked == ["SPX"]
+    assert strategy._benchmark_returns_df is public
+
+
+def test_index_benchmark_with_no_public_series_is_left_empty(monkeypatch):
+    source = _source_without_index_bars(monkeypatch, timestep="minute")
+
+    def offline(*args, **kwargs):
+        raise ValueError("offline")
+
+    monkeypatch.setattr("lumibot.strategies._strategy.get_symbol_returns", offline)
+    strategy = _index_benchmark_strategy(source)
+    _Strategy._dump_benchmark_stats(strategy)
+    assert strategy._benchmark_returns_df is None

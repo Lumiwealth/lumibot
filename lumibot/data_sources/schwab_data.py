@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, LazyPytzTimezoneRef, lazy_class
 from lumibot.data_sources import DataSource
@@ -280,7 +281,9 @@ class SchwabData(DataSource):
                 params["strike_range"] = strike_range
 
             def fetch_chain_data():
+                self._before_market_data_request("option chain")
                 response = self.client.get_option_chain(**params)
+                self._after_market_data_response(response, "option chain")
                 if not response:
                     logger.error(colored(f"No response from API for {asset.symbol}", "red"))
                     return None
@@ -397,6 +400,7 @@ class SchwabData(DataSource):
         if strike_min is not None and strike_max is not None and strike_min > strike_max:
             raise ValueError("strike_min must not exceed strike_max")
 
+        self._before_market_data_request("option chain")
         response = self.client.get_option_chain(
             symbol=asset.symbol,
             contract_type=self.client.Options.ContractType.ALL,
@@ -405,6 +409,7 @@ class SchwabData(DataSource):
             to_date=expiry,
             include_underlying_quote=False,
         )
+        self._after_market_data_response(response, "option chain")
         status = getattr(response, "status_code", None)
         if status != 200:
             # Do not include provider bodies: they may contain account details.
@@ -632,6 +637,7 @@ class SchwabData(DataSource):
 
             def fetch(range_start, range_end):
                 """One Schwab candle read for [range_start, range_end]. Errors raise; nothing is cached."""
+                self._before_market_data_request("price history")
                 if timestep_unit == "day":
                     response = self.client.get_price_history_every_day(
                         symbol,
@@ -648,6 +654,7 @@ class SchwabData(DataSource):
                         end_datetime=range_end.to_pydatetime(),
                         need_extended_hours_data=include_after_hours,
                     )
+                self._after_market_data_response(response, "price history")
                 if hasattr(response, 'status_code'):
                     if response.status_code != 200:
                         raise RuntimeError(f"Schwab price history returned {response.status_code}: {response.text}")
@@ -769,6 +776,40 @@ class SchwabData(DataSource):
             raw_data=asset_quote, symbol_used=symbol,
         )
 
+    def _quote_clock(self) -> float:
+        clock = getattr(self, "_schwab_now", None)
+        return float(clock()) if callable(clock) else time.monotonic()
+
+    def _request_pacer(self):
+        from lumibot.brokers.schwab_request_pacer import pacer_for_client
+
+        return pacer_for_client(self.client)
+
+    def _before_market_data_request(self, label: str) -> None:
+        """Honor a Schwab Retry-After and the local request budget before calling Schwab.
+
+        Every market-data endpoint (quotes, option chains, price history) shares
+        one cooldown: a 429 on any of them pauses all of them. Raises
+        RateLimitedError without sending anything.
+        """
+        pacer = self._request_pacer()
+        pacer.check_cooldown("market_data", now=self._quote_clock(), label=label)
+        pacer.acquire("data")
+
+    def _after_market_data_response(self, response, label: str) -> None:
+        from lumibot.tools.http_retry_after import RateLimitedError
+
+        status = getattr(response, "status_code", None)
+        pacer = self._request_pacer()
+        if status == 429:
+            wait = pacer.record_429("market_data", response, now=self._quote_clock())
+            raise RateLimitedError(
+                f"Schwab {label} request failed (status 429, rate limited; retry after {wait:.1f} seconds)",
+                retry_after_seconds=wait,
+            )
+        if status == 200:
+            pacer.clear_cooldown("market_data")
+
     def get_quotes(self, assets, quote=None, exchange=None):
         """Fetch exact stock/option/future contracts in batches of at most 50.
 
@@ -791,9 +832,14 @@ class SchwabData(DataSource):
         result = {}
         for offset in range(0, len(assets), 50):
             batch = assets[offset:offset + 50]
+            # Schwab may have asked us to wait (HTTP 429 + Retry-After). Fail
+            # visibly without another request; never invent or reuse a quote.
+            self._before_market_data_request("quote")
             response = self.client.get_quotes([symbols[asset] for asset in batch])
-            if getattr(response, "status_code", None) != 200:
-                raise ConnectionError(f"Schwab quote request failed (status {getattr(response, 'status_code', None)})")
+            self._after_market_data_response(response, "quote")
+            status = getattr(response, "status_code", None)
+            if status != 200:
+                raise ConnectionError(f"Schwab quote request failed (status {status})")
             payload = response.json()
             if not isinstance(payload, dict):
                 raise ValueError("Invalid Schwab quotes response")
@@ -816,6 +862,33 @@ class SchwabData(DataSource):
                     raise ValueError("Schwab quote contract does not match the requested asset")
                 result[asset] = self._quote_from_response(asset, matches[0], data)
         return result
+
+    def get_last_prices(self, assets, quote=None, exchange=None):
+        """Last prices for many assets with one quote request per 50 symbols.
+
+        The generic implementation asks for one quote per asset. If the batch
+        fails (for example HTTP 429), every price is None and the failure is
+        logged; the batch is never split into per-symbol retries.
+        """
+        from lumibot.entities import AssetsMapping
+
+        assets = list(dict.fromkeys(assets))
+        result = {asset: None for asset in assets}
+        if not assets:
+            return AssetsMapping(result)
+        supported = [asset for asset in assets if _schwab_market_symbol(asset)]
+        if not supported:
+            return AssetsMapping(result)
+        try:
+            quotes = self.get_quotes(supported, quote=quote, exchange=exchange)
+        except Exception as exc:
+            logger.error(colored(f"Error in get_last_prices for {len(supported)} assets: {exc}", "red"))
+            return AssetsMapping(result)
+        for asset in supported:
+            asset_quote = quotes.get(asset)
+            if asset_quote is not None and asset_quote.price is not None:
+                result[asset] = float(asset_quote.price)
+        return AssetsMapping(result)
 
     def get_quote(self, asset, quote=None, exchange=None) -> Quote:
         """Get one quote, preserving the existing None-on-error contract."""

@@ -795,6 +795,33 @@ def test_quiet_market_keeps_original_snapshot_time_after_quote_wait(mock_project
     event.wait.assert_called_once()
 
 
+def _client_quote_call():
+    client = ProjectXClient.__new__(ProjectXClient)
+    client._ensure_auth_token = Mock()
+    stream = Mock()
+    stream.get_market_quote.return_value = {'lastPrice': 2100.25}
+    client.get_streaming_client = Mock(return_value=stream)
+    assert client.get_market_quote('CON.F.US.EP.U25') == {'lastPrice': 2100.25}
+    return stream.get_market_quote.call_args
+
+
+def test_short_lived_reader_can_shorten_the_quiet_market_quote_wait(monkeypatch):
+    # Dev, Sunday 2026-11-22: every Topstep chart poll took 10.2 s because the closed market
+    # sends one old snapshot and no live update, and the read waited out the whole 10 seconds.
+    monkeypatch.setenv('LUMIBOT_PROJECTX_QUOTE_WAIT_SECONDS', '1.5')
+    assert _client_quote_call().kwargs == {'timeout': 1.5}
+
+
+@pytest.mark.parametrize('configured', [None, '', 'bad', '0', '-1', 'nan', 'inf'])
+def test_trading_processes_keep_the_normal_quote_wait(monkeypatch, configured):
+    if configured is None:
+        monkeypatch.delenv('LUMIBOT_PROJECTX_QUOTE_WAIT_SECONDS', raising=False)
+    else:
+        monkeypatch.setenv('LUMIBOT_PROJECTX_QUOTE_WAIT_SECONDS', configured)
+    call = _client_quote_call()
+    assert call.args == ('CON.F.US.EP.U25',) and call.kwargs == {}
+
+
 @pytest.mark.parametrize('timestamp', [None, 'unavailable', 'current'])
 def test_available_initial_quote_keeps_optional_time_metadata_compatible(mock_projectx_config, timestamp):
     from lumibot.tools.projectx_helpers import ProjectXStreaming
@@ -863,3 +890,27 @@ def test_renewal_updates_connected_hub_and_reconnect_headers(mock_projectx_confi
         client._refresh_auth_token()
         assert hub.headers['Authorization'] == 'Bearer new-token'
         assert hub.transport.headers['Authorization'] == 'Bearer new-token'
+
+
+def test_history_bars_accept_timestamps_with_and_without_fractional_seconds(mock_projectx_config):
+    """ProjectX returns bar times both with and without fractional seconds in one
+    response. pandas infers one format from the first value and raised
+    'time data ... doesn't match format' for the rest, so live charts and bots
+    could not load 1h or 1d futures history (seen Nov 21 2026)."""
+    api = ProjectX(mock_projectx_config, token="t")
+    bars = [
+        {"t": "2026-09-10T20:00:00.123+00:00", "o": 1, "h": 2, "l": 0.5, "c": 1.5, "v": 10},
+        {"t": "2026-09-11T20:00:00+00:00", "o": 1, "h": 2, "l": 0.5, "c": 1.5, "v": 10},
+        {"t": "2026-09-13T20:00:00-04:00", "o": 1, "h": 2, "l": 0.5, "c": 1.5, "v": 10},
+    ]
+    response = Mock()
+    response.json.return_value = {"success": True, "bars": bars}
+    with patch.object(ProjectX, "_post", return_value=response):
+        frame = api.history_retrieve_bars(
+            contract_id="CON.F.US.MNQ.Z26",
+            start_datetime="2026-09-01T00:00:00Z",
+            end_datetime="2026-09-30T00:00:00Z",
+            unit=4,
+            unit_number=1,
+        )
+    assert len(frame) == 3

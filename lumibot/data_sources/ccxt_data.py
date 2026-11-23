@@ -140,11 +140,36 @@ class CcxtData(DataSource):
         response = self._pull_source_bars([asset], length, timestep=timestep, timeshift=timeshift, quote=quote)
         return response[asset]
 
+    def _native_ccxt_timeframe(self, timestep):
+        """The exchange's own candle interval for ``timestep`` ("1h" for "hour"), or None.
+
+        Only intervals the exchange lists in ``api.timeframes`` count. Reading them
+        directly avoids paging 60 one-minute candles for every hourly bar.
+        """
+        from lumibot.tools.helpers import parse_canonical_timestep
+
+        parsed = parse_canonical_timestep(timestep) if timestep else None
+        if parsed is None:
+            return None
+        multiplier, unit = parsed
+        suffix = {"minute": "m", "hour": "h", "day": "d", "week": "w"}.get(unit)
+        if suffix is None:
+            return None
+        frame = f"{int(multiplier)}{suffix}"
+        timeframes = getattr(getattr(self, "api", None), "timeframes", None) or {}
+        return frame if frame in timeframes else None
+
+    def supports_native_timestep(self, timestep) -> bool:
+        """Whether the exchange serves ``timestep`` candles directly (see _native_ccxt_timeframe)."""
+        return self._native_ccxt_timeframe(timestep) is not None
+
     def _pull_source_bars(
         self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, include_after_hours=True
     ):
         """pull broker bars for a list assets"""
-        parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
+        parsed_timestep = self._native_ccxt_timeframe(timestep) or self._parse_source_timestep(
+            timestep, reverse=True
+        )
         kwargs = dict(limit=length)
         if timeshift:
             kwargs["end"] = datetime.datetime.now(datetime.timezone.utc) - timeshift
@@ -293,36 +318,49 @@ class CcxtData(DataSource):
             if not frames:
                 return None
             out = pd.concat(frames).sort_index()
-            return out[~out.index.duplicated(keep="first")]
+            out = out[~out.index.duplicated(keep="first")].copy()
+            # Same rows a backtest keeps: a candle without a real price is not a bar.
+            prices = ["open", "high", "low", "close"]
+            out[prices] = out[prices].apply(pd.to_numeric, errors="coerce")
+            out["volume"] = pd.to_numeric(out["volume"], errors="coerce").fillna(0)
+            return out.dropna(subset=prices)
 
         exchange_id = (getattr(self, "config", None) or {}).get("exchange_id")
         sandbox = (getattr(self, "config", None) or {}).get("sandbox", True)
         unit = {"m": "minute", "h": "hour", "d": "day", "w": "week", "M": "month"}.get(str(freq)[-1:], "minute")
-        series = shared_bar_cache.BarSeries.make(
-            "ccxt",
-            symbol,
-            shared_bar_cache.normalize_timestep(int(str(freq)[:-1] or 1), unit),
-            # Candles are the exchange's public market data: one cache per exchange and
-            # endpoint, shared by every connection (the API key is never part of the key).
-            scope=self.shared_bars_scope
-            or shared_bar_cache.shared_scope("ccxt", exchange_id, "sandbox" if sandbox else "live"),
-            legacy_scopes=(
-                self.shared_bars_legacy_scope,
-                shared_bar_cache.credential_scope(
-                    "ccxt", exchange_id, "sandbox" if sandbox else "live",
-                    (getattr(self, "config", None) or {}).get("apiKey"),
+        timestep = shared_bar_cache.normalize_timestep(int(str(freq)[:-1] or 1), unit)
+        # The live exchange's candles are public: charts, bots and backtests share one series.
+        # A sandbox endpoint has its own prices, and a custom scope keeps its own series.
+        public = bool(exchange_id) and not sandbox and not self.shared_bars_scope
+        if public:
+            series = shared_bar_cache.public_exchange_series(exchange_id, symbol, timestep)
+        else:
+            series = shared_bar_cache.BarSeries.make(
+                "ccxt",
+                symbol,
+                timestep,
+                # Candles are the exchange's public market data: one cache per exchange and
+                # endpoint, shared by every connection (the API key is never part of the key).
+                scope=self.shared_bars_scope
+                or shared_bar_cache.shared_scope("ccxt", exchange_id, "sandbox" if sandbox else "live"),
+                legacy_scopes=(
+                    self.shared_bars_legacy_scope,
+                    shared_bar_cache.credential_scope(
+                        "ccxt", exchange_id, "sandbox" if sandbox else "live",
+                        (getattr(self, "config", None) or {}).get("apiKey"),
+                    ),
                 ),
-            ),
-            # Crypto candles are traded prices; exchanges do not re-adjust them.
-            adjusted=False,
-            exchange=exchange_id,
-            sandbox=bool(sandbox),
-        )
+                # Crypto candles are traded prices; exchanges do not re-adjust them.
+                adjusted=False,
+                exchange=exchange_id,
+                sandbox=bool(sandbox),
+            )
 
         df_ret = None
         for lookback_multiplier in (1, 4, 16, 64):
             start = end - timeframe_delta * (limit + buffer) * lookback_multiplier
-            df_ret = shared_bar_cache.read_bars(series, start, end, fetch)
+            # In the shared series an answer that starts late must not mark older bars as absent.
+            df_ret = shared_bar_cache.read_bars(series, start, end, fetch, coverage_from_rows=public)
             if len(df_ret) >= limit:
                 break
 

@@ -74,6 +74,8 @@ class Ccxt(Broker):
         self._order_stream_generation = 0
         self._order_bootstrap_lock = Lock()
         self._rest_order_buffer = None
+        self._order_read_markets = None
+        self._closed_order_read_days = None
         super().__init__(name="ccxt", config=config, data_source=data_source, max_workers=max_workers, **kwargs)
 
         # Override default market setting for crypto to be 24/7, but still respect config/env if set
@@ -106,6 +108,34 @@ class Ccxt(Broker):
             return Asset(market["symbol"], asset_type="crypto_future", multiplier=market["contractSize"],
                          contract_spec=self.get_contract_spec(market["symbol"]))
         return Asset(market["base"], asset_type="crypto")
+
+    def get_order_size_rules(self, asset, quote=None):
+        """Smallest order and quantity step from the exchange's market info.
+
+        The published amount minimum when there is one, else the amount step (Phemex
+        BTC/USDT:USDT publishes only a 0.001 step). Contract markets size in contracts.
+        """
+        import ccxt
+        from decimal import Decimal
+
+        market = self.get_market(asset, quote)
+        precision = (market.get("precision") or {}).get("amount")
+        step = None
+        if precision is not None:
+            mode = getattr(self.api, "precisionMode", ccxt.DECIMAL_PLACES)
+            if mode == ccxt.TICK_SIZE:
+                step = Decimal(str(precision))
+            elif mode == ccxt.DECIMAL_PLACES:
+                step = Decimal(1).scaleb(-int(precision))
+        minimum = ((market.get("limits") or {}).get("amount") or {}).get("min")
+        contract = bool(market.get("contract"))
+        size = market.get("contractSize")
+        return {
+            "min_quantity": Decimal(str(minimum)) if minimum is not None else step,
+            "quantity_step": step,
+            "contract_size": Decimal(str(size)) if contract and size is not None else None,
+            "quantity_unit": "contracts" if contract else "base",
+        }
 
     def get_contract_spec(self, asset, quote=None):
         from lumibot.entities import ContractSpec
@@ -513,9 +543,29 @@ class Ccxt(Broker):
         )
         order.reduce_only = response.get("reduceOnly") or (response.get("info") or {}).get("reduceOnly", False)
         order.set_identifier(response["id"])
-        order.status = response.get("status") or "new"
+        order.status = self._unified_order_status(response)
+        filled = response.get("filled")
+        if filled:
+            order.filled_quantity = filled
+        for field, timestamp in (
+            ("broker_create_date", response.get("timestamp")),
+            ("broker_update_date", response.get("lastTradeTimestamp") or response.get("lastUpdateTimestamp")),
+        ):
+            if timestamp:
+                setattr(order, field, datetime.datetime.fromtimestamp(timestamp / 1000, tz=datetime.timezone.utc))
         order.update_raw(response)
         return order
+
+    @staticmethod
+    def _unified_order_status(response):
+        """CCXT ``closed`` means finished, not filled: Phemex also maps Deactivated to it."""
+        status = response.get("status") or "new"
+        if status != "closed":
+            return status
+        filled = response.get("filled")
+        if filled is None:
+            return status  # executed amount unknown: neither a fill nor a cancel can be claimed
+        return "fill" if filled else "canceled"
 
     def _pull_broker_order(self, identifier):
         order = self.get_tracked_order(identifier) or self._submitted_orders.get(str(identifier))
@@ -535,6 +585,62 @@ class Ccxt(Broker):
         if self.is_margin_enabled() and self.api.id == "kucoin":
             params["tradeType"] = "MARGIN_TRADE"
         return self.api.fetch_closed_orders(params=params)
+
+    def set_order_read_markets(self, symbols):
+        """Limit open-order reads to these markets, or ``None`` for the whole account.
+
+        Some exchanges answer open orders one market at a time (Phemex). A broker
+        built without a stream then scans every active market: 322 requests on
+        Phemex, about 39 seconds of rate limiting per read. A reader that shows
+        one market (a chart, a single-order check) names it here and the read asks
+        about that market only. Unknown markets are refused so a wrong name never
+        reads as "no orders".
+        """
+        if symbols is None:
+            self._order_read_markets = None
+            return
+        self._ensure_markets_loaded()
+        resolved = []
+        for symbol in symbols:
+            market = self.api.markets.get(symbol)
+            if market is None:
+                raise ValueError(f"{self.api.id} has no market {symbol!r} to read orders from")
+            resolved.append(market["symbol"])
+        self._order_read_markets = resolved
+
+    def set_closed_order_read_window(self, days):
+        """Also return finished orders from the last ``days`` for the named markets.
+
+        Applies only with ``set_order_read_markets``, because many exchanges answer
+        order history one market at a time. ``None`` returns to open orders only.
+        """
+        self._closed_order_read_days = days
+
+    def _recent_closed_order_rows(self):
+        if not self._closed_order_read_days or self._order_read_markets is None:
+            return []
+        if not self.api.has.get("fetchClosedOrders"):
+            return []
+        now = datetime.datetime.now(datetime.timezone.utc)
+        since = int((now - datetime.timedelta(days=self._closed_order_read_days)).timestamp() * 1000)
+        rows = []
+        for symbol in self._order_read_markets:
+            try:
+                rows.extend(self.api.fetch_closed_orders(symbol, since=since, limit=100))
+            except Exception as exc:  # History is an extra: open orders must still load.
+                logger.warning(f"{self.api.id} closed-order read failed for {symbol}: {exc}")
+        return rows
+
+    def _pull_all_orders(self, strategy_name, strategy_object):
+        rows = list(self._pull_broker_all_orders())
+        seen = {str(row.get("id")) for row in rows}
+        rows.extend(row for row in self._recent_closed_order_rows() if str(row.get("id")) not in seen)
+        return self._parse_broker_orders(rows, strategy_name, strategy_object=strategy_object)
+
+    def _order_scan_markets(self):
+        if self._order_read_markets is not None:
+            return list(self._order_read_markets)
+        return [market["symbol"] for market in self.api.markets.values() if market.get("active") is not False]
 
     def _pull_broker_all_orders(self):
         """Get the broker open orders"""
@@ -559,11 +665,11 @@ class Ccxt(Broker):
                     return [dict(order) for order in self._stream_orders.values()
                             if order.get("status") in ("open", "new", "pending")]
             # Phemex REST requires a market symbol. A stream-disabled account
-            # needs the full discovery scan to avoid losing external orders.
+            # needs the full discovery scan to avoid losing external orders,
+            # unless the reader named the markets it shows.
             orders = []
-            for market in self.api.markets.values():
-                if market.get("active") is not False:
-                    orders.extend(self.api.fetch_open_orders(market["symbol"]))
+            for symbol in self._order_scan_markets():
+                orders.extend(self.api.fetch_open_orders(symbol))
             return orders
 
         if self.stream is not None and self.api.apiKey:
@@ -965,7 +1071,8 @@ class Ccxt(Broker):
                                  for tx in order.transactions), Decimal("0"))
             cost = response.get("cost")
             average = response.get("average")
-            if cost is None and average is not None:
+            # Some exchange replies leave cost at zero on a real fill but report the average.
+            if (cost is None or Decimal(str(cost)) == 0) and average:
                 average = Decimal(str(average))
                 cost = filled * size / average if inverse else filled * size * average
             if cost is None:

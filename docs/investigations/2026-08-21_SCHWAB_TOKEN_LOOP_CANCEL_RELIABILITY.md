@@ -1,4 +1,4 @@
-# Titus Schwab Reliability: Token Expiry, Loop Blocking, Cancel Latency
+# Fast-scanner Schwab Reliability: Token Expiry, Loop Blocking, Cancel Latency
 
 Investigation and fixes for the 2026-08-20 support thread: repeated Schwab
 token loss, a 584-second blocking iteration that delayed an order cancel by
@@ -71,7 +71,7 @@ Fixes:
 - Fills are already detected independently of the loop (Schwab uses a 5 s
   `PollingStream`; fill events are dispatched to the strategy queue), so the
   correct pattern for the hedge leg is documented in
-  `docs/investigations/2026-06-01_titus-schwab-strategy-validation.md`
+  `docs/investigations/2026-06-01_fast_scanner-schwab-strategy-validation.md`
   (exact-id polling window or native OTO/bracket). Strategy-code follow-up
   required - see Follow-ups.
 
@@ -106,8 +106,8 @@ Fix: `cloneRevisionMetadata()` now carries `scheduleMetadata`,
 ## Before / After Metrics
 
 Baseline evidence: customer thread (2026-08-17..20), prior telemetry docs
-(`2026-06-04_schwab_cancel_telemetry.md`, `2026-06-05_TITUS_SCHWAB_CANCEL_EXACT_PATH.md`,
-`2026-06-01_titus-schwab-strategy-validation.md`).
+(`2026-06-04_schwab_cancel_telemetry.md`, `2026-06-05_FAST_SCANNER_SCHWAB_CANCEL_EXACT_PATH.md`,
+`2026-06-01_fast_scanner-schwab-strategy-validation.md`).
 
 | Metric | Before | After (expected / measured) |
 |---|---|---|
@@ -140,7 +140,7 @@ Baseline evidence: customer thread (2026-08-17..20), prior telemetry docs
 1. **Strategy-code hedge pattern**: move hedge submission into
    `on_filled_order` / bounded exact-id polling, or use native OTO/bracket so
    the hedge does not depend on the loop (see
-   `2026-06-01_titus-schwab-strategy-validation.md` lines 146–157; proven
+   `2026-06-01_fast_scanner-schwab-strategy-validation.md` lines 146–157; proven
    0.661 s submit-after-fill).
 2. Bound the cancel-deadline check independently of the loop (e.g., cooperative
    cancellation checked by data/broker helpers, hosted on the existing

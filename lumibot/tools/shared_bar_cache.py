@@ -31,6 +31,11 @@ uncovered pieces are fetched from the provider.
   they never become bars. A marker for a range that closed less than
   ``EMPTY_RECENT`` before it was recorded is re-checked once after
   ``EMPTY_RECHECK_AFTER`` (providers backfill recent data); older ones are permanent.
+  A caller may also vouch for exact sub-ranges of one answer: ``fetch`` returns a
+  frame whose ``attrs["confirmedEmpty"]`` lists ``(start, end_exclusive)`` ranges
+  it asked for on their own and got zero rows back for. Those ranges become
+  markers even with ``coverage_from_rows`` (for example the range before a coin
+  was listed, which every request starting earlier would otherwise ask again).
 * Local files are written before the result is returned (milliseconds).
   Remote (S3) uploads run on a background thread. ``flush_shared_bar_writes``
   waits for them; it also runs at interpreter exit.
@@ -222,6 +227,20 @@ class BarSeries:
     @property
     def digest(self) -> str:
         return hashlib.sha256(json.dumps(self.identity(), sort_keys=True).encode()).hexdigest()
+
+
+def public_exchange_series(exchange_id, symbol, timestep, *, price: str | None = None) -> BarSeries:
+    """The one series of an exchange's public candles, read by charts, bots and backtests alike."""
+    return BarSeries.make(
+        "ccxt",
+        symbol,
+        timestep,
+        scope=credential_scope("ccxt", "public", exchange_id),
+        # Crypto candles are traded prices; exchanges do not re-adjust them.
+        adjusted=False,
+        exchange=exchange_id,
+        market_data="mark" if price == "mark" else "public",
+    )
 
 
 def _utc(value) -> pd.Timestamp:
@@ -676,6 +695,13 @@ def _merge_markers(first: list, second: list, coverage) -> list:
 UPLOAD_FAILURES_BEFORE_GIVING_UP = 10
 
 
+# How long an idle upload worker stays for more work while the process is running.
+UPLOAD_WORKER_IDLE_SECONDS = 5.0
+# How often an idle worker checks whether the process is finishing. A worker is not a daemon, so
+# the interpreter waits for it at exit: a short check keeps one-read processes from idling.
+UPLOAD_WORKER_POLL_SECONDS = 0.05
+
+
 class _Uploader:
     """Background workers that write partition files locally and send them to S3.
 
@@ -726,14 +752,18 @@ class _Uploader:
 
     def _run(self, slot: int):
         jobs = self._queues[slot]
+        idle_since = time.monotonic()
         while True:
             try:
-                key, job = jobs.get(timeout=5)
+                key, job = jobs.get(timeout=UPLOAD_WORKER_POLL_SECONDS)
             except queue.Empty:
-                with self._lock:
-                    if jobs.empty():
-                        self._threads[slot] = None
-                        return
+                finishing = not threading.main_thread().is_alive()
+                waited_long_enough = time.monotonic() - idle_since >= UPLOAD_WORKER_IDLE_SECONDS
+                if finishing or waited_long_enough:
+                    with self._lock:
+                        if jobs.empty():
+                            self._threads[slot] = None
+                            return
                 continue
             try:
                 job(not self._remote_given_up)
@@ -767,6 +797,7 @@ class _Uploader:
                     if self._pending[key] <= 0:
                         del self._pending[key]
                     self._idle.notify_all()
+                idle_since = time.monotonic()
 
     def pending(self) -> int:
         with self._lock:
@@ -1194,6 +1225,18 @@ def _trim_markers(markers: list, lo, hi) -> list:
     return out
 
 
+def _confirmed_ranges(frame) -> list[tuple[pd.Timestamp, pd.Timestamp]]:
+    """``(start, end_exclusive)`` ranges a fetch answer vouches had zero rows (see module docstring)."""
+    if frame is None:
+        return []
+    out = []
+    for a, b in (getattr(frame, "attrs", None) or {}).get("confirmedEmpty", ()):
+        a, b = _utc(a), _utc(b)
+        if b > a:
+            out.append((a, b))
+    return out
+
+
 def _settled_cut(series: BarSeries, now: pd.Timestamp) -> pd.Timestamp:
     """Bars starting before this instant are complete (ended a margin ago)."""
     return now - series.duration - settle_margin()
@@ -1311,6 +1354,8 @@ def read_bars_many(
         for gap in item_gaps:
             calls.setdefault(gap, []).append(item)
     fetched: dict[BarSeries, list[tuple[tuple[pd.Timestamp, pd.Timestamp], pd.DataFrame]]] = {}
+    # Ranges inside one answer that the caller asked for on their own and got zero rows for.
+    vouched_empty: dict[tuple, list[tuple[pd.Timestamp, pd.Timestamp]]] = {}
     provider_ms = 0.0
     for (gap_start, gap_stop), members in sorted(calls.items(), key=lambda kv: kv[0]):
         logger.debug(
@@ -1325,7 +1370,9 @@ def read_bars_many(
         answer = fetch(members, gap_start, gap_stop) or {}
         provider_ms += (time.perf_counter() - provider_started) * 1000
         for item in members:
-            rows = _normalize(answer.get(item))
+            raw = answer.get(item)
+            vouched_empty[(item, gap_start, gap_stop)] = _confirmed_ranges(raw)
+            rows = _normalize(raw)
             valid = validate_rows(rows) if strict_ohlcv else structurally_valid(rows)
             rows = rows[(rows.index >= gap_start) & (rows.index < gap_stop)]
             if not valid:
@@ -1355,7 +1402,9 @@ def read_bars_many(
         answer = fetch(restarted, start, end_excl) or {}
         provider_ms += (time.perf_counter() - provider_started) * 1000
         for item in restarted:
-            rows = _normalize(answer.get(item))
+            raw = answer.get(item)
+            vouched_empty[(item, start, end_excl)] = _confirmed_ranges(raw)
+            rows = _normalize(raw)
             valid = validate_rows(rows) if strict_ohlcv else structurally_valid(rows)
             rows = rows[(rows.index >= start) & (rows.index < end_excl)]
             if not valid:
@@ -1375,6 +1424,22 @@ def read_bars_many(
                    and bool(confirmed_empty(item)))
         changed = set()
         for (gap_start, gap_stop), rows in fetched.get(item, []):
+            for a, b in vouched_empty.get((item, gap_start, gap_stop), ()):
+                lo_all, hi_all = max(a, gap_start), min(b, gap_stop, empty_cut)
+                if not rows.empty:
+                    # Never let a marker hide a bar the same answer returned.
+                    inside = rows.index[(rows.index >= lo_all) & (rows.index < hi_all)]
+                    if len(inside):
+                        hi_all = min(hi_all, inside[0])
+                for part in item_parts:
+                    lo, hi = max(lo_all, part.start), min(hi_all, part.stop)
+                    if hi <= lo:
+                        continue
+                    part.empty = _trim_markers(part.empty, lo, hi) + [{
+                        "start": lo, "endExclusive": hi, "recordedAt": clock, "provider": item.provider,
+                        "symbol": item.symbol, "timestep": item.timestep, "reason": EMPTY_REASON,
+                    }]
+                    changed.add(id(part))
             if rows.empty:
                 # An empty answer is remembered only when the caller vouches for it, and only
                 # for the part of the range that closed at least EMPTY_SETTLE ago.

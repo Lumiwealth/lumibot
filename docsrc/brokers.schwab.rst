@@ -30,6 +30,13 @@ already-canceled order produces cancellation evidence. Other cancellation
 errors remain visible. Partial fills reported with a cancellation are processed
 before the cancellation callback.
 
+Short sales and time in force: Schwab refuses GTC short sales on
+hard-to-borrow stocks. A stock short sale created without ``time_in_force`` is
+therefore sent as DAY, the same default as Schwab's own trading screens. Pass
+``time_in_force="gtc"`` when a short should rest overnight; an explicit choice
+is always kept. ``order.time_in_force_defaulted`` tells whether the strategy
+chose. See :doc:`common_mistakes`.
+
 Open orders after a restart
 ---------------------------
 
@@ -164,6 +171,13 @@ Token life-cycle
 * Lumibot automatically refreshes the token every ~25 min and rewrites ``token.json``.
 * Refresh tokens expire seven days after creation, or earlier if authorization is
   revoked. Access-token refresh does not guarantee an indefinitely renewable login.
+* If Schwab rejects the access token mid-run (HTTP 401) while LumiBot manages
+  the refresh itself, LumiBot refreshes the token once and repeats that request
+  once. If the refresh fails, or the repeated request is rejected again, the 401
+  is returned to the caller as before and an error is logged. There is no loop.
+  When refresh is managed outside LumiBot (``LUMIBOT_OAUTH_REFRESH_MODE=external``),
+  a 401 re-applies the saved token file once and repeats the request once;
+  LumiBot never calls the Schwab refresh endpoint in that mode.
 * On expiry or revocation, complete the normal browser authorization again.
 * Login and refresh save the token with mode ``600`` through an atomic file
   replacement. Failed input, metadata preparation or persistence preserves the
@@ -351,6 +365,73 @@ When Schwab returns HTTP 429, LumiBot honors ``Retry-After`` when present and
 otherwise applies bounded exponential backoff with jitter for that endpoint
 family. A throttled read returns no new observation and never converts the
 tracked order to a terminal status.
+
+The same wait applies to order submits and to every market-data request.
+Quotes, option chains (``get_chains`` and ``get_chain_full_info``) and price
+history share one market-data wait: a 429 on any of them pauses all of them.
+``Retry-After`` may be a number of seconds or an HTTP date; LumiBot waits at
+least 0.25 seconds and at most 60 seconds. Until the wait ends:
+
+* ``get_quote`` returns ``None`` and ``get_quotes`` raises ``ConnectionError``
+  saying how many seconds remain. No request is sent and no quote is invented.
+* A submitted order is not sent. It goes to the error state with the message
+  "Schwab rate limit (HTTP 429) still in effect; nothing was sent. Retry after
+  N seconds." It is never dropped silently, so the strategy can decide when to
+  submit again.
+
+A strategy that loops every second therefore sends at most one request per
+wait window instead of one per loop.
+
+``get_chains`` returns ``{}``, ``get_chain_full_info`` raises
+``ConnectionError`` and ``get_historical_prices`` returns ``None`` during the
+wait, each without a request. ``get_last_prices`` asks for all assets in one
+quote request per 50 symbols (a 20-stock and 20-option scan is 1 request, not
+40). A rate-limited batch is never split into one request per symbol: every
+price in it is ``None`` and the error is logged. The options helper treats a
+rate-limited batch of strike quotes the same way.
+
+Request budget per process
+--------------------------
+
+LumiBot also paces itself so it does not reach Schwab's limit in the first
+place. Each Schwab client keeps a per-minute budget shared by the broker and
+its data source:
+
+* ``SCHWAB_REQUESTS_PER_MINUTE`` (default ``100``): total requests this process
+  may send per minute. ``0`` turns pacing off.
+* ``SCHWAB_ORDER_RESERVED_REQUESTS_PER_MINUTE`` (default ``20``): part of the
+  budget that only order traffic may use. Order sends, replaces, cancels and
+  order reads are never refused by the budget; at worst they wait for the next
+  token. Quote polling can never use the reserve, so it cannot starve orders.
+* ``SCHWAB_MARKET_DATA_MAX_WAIT_SECONDS`` (default ``2``): how long a
+  market-data request waits for budget before it fails with a
+  ``RateLimitedError`` (a ``ConnectionError``) saying when to retry. Account and
+  position reads wait up to 30 seconds.
+
+The same keys may be passed in the broker config, which wins over the
+environment. When one Schwab developer app is shared by several bots or
+accounts, give each process a share, for example 120 divided by the number of
+processes that run at once.
+
+Is the limit per app or per account?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Schwab's own Trader API pages are behind the developer-portal login and do not
+state this publicly. What public sources say (checked 2026-11-22):
+
+* schwab-py's setup guide calls the Order Limit "the number of order-related
+  requests your app will be permitted to place each minute" and recommends 120:
+  https://schwab-py.readthedocs.io/en/latest/getting-started.html#order-limit
+* Some third-party write-ups describe it as a per-account order throttle,
+  configurable from 0 to 120 per minute:
+  https://mylinedchart.com/resources/articles/schwab-api-rate-limits-and-token-expiry
+* Market data is widely reported at about 120 requests per minute, for example
+  https://wealth-lab.com/Discussion/11228
+
+The sources disagree and none is Schwab itself, so LumiBot assumes the
+stricter case: the limit belongs to the app and every bot or account using that
+app shares it. Size ``SCHWAB_REQUESTS_PER_MINUTE`` for that case unless Schwab
+confirms per-account limits for your app.
 
 An authorized local sample of 16 successful cancel HTTP responses ranged from
 228 ms to 444 ms, with a 302.5 ms median and 444 ms 95th percentile. This small

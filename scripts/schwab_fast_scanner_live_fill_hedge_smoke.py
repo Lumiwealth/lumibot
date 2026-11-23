@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Live Schwab proof for Titus-style fill-to-hedge timing.
+"""Live Schwab proof for fast-scanner-style fill-to-hedge timing.
 
 This intentionally creates and cleans up real exposure on Rob's Schwab account.
 It uses a marketable limit for one TSLL option contract, watches that exact
@@ -23,7 +23,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from schwab_titus_workflow_smoke import (  # noqa: E402
+from schwab_fast_scanner_workflow_smoke import (  # noqa: E402
     _make_broker,
     _order_snapshot,
     _poll_until,
@@ -92,7 +92,7 @@ def run_live_fill_hedge_smoke(
     max_stock_ask: float,
     fill_timeout_seconds: float,
 ) -> dict[str, Any]:
-    strategy_name = "rob-titus-live-fill-hedge-smoke"
+    strategy_name = "rob-fast_scanner-live-fill-hedge-smoke"
     stock_asset = Asset("TSLL", asset_type=Asset.AssetType.STOCK)
     option_entry = None
     hedge_order = None
@@ -232,7 +232,7 @@ def main() -> int:
         "result": result,
     }
     print(json.dumps(summary, indent=2, sort_keys=True))
-    summary_path = Path(args.summary_path or f"tmp/schwab_titus_live_fill_hedge_{int(time.time())}.json")
+    summary_path = Path(args.summary_path or f"tmp/schwab_fast_scanner_live_fill_hedge_{int(time.time())}.json")
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
     print(f"Wrote summary: {summary_path.resolve()}")

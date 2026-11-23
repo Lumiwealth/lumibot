@@ -198,7 +198,15 @@ class OptionsHelper:
         ]
         try:
             quotes = many(assets, quote=None, exchange=None) or {}
-        except Exception as exc:  # each strike still asks for its own quote
+        except Exception as exc:
+            from lumibot.tools.http_retry_after import RateLimitedError
+
+            if isinstance(exc, RateLimitedError):
+                # Splitting a rate-limited batch into one request per strike
+                # multiplies the requests the limit counts. Fail the batch.
+                logger.warning("Batched option quotes were rate limited; no quotes this pass: %s", exc)
+                self._quote_batch = {asset: None for asset in assets}
+                return
             logger.warning("Batched option quotes failed; asking one contract at a time: %s", exc)
             return
         self._quote_batch = {asset: quotes.get(asset) for asset in assets}

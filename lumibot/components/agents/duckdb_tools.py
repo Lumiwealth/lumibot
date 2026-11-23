@@ -53,6 +53,9 @@ class DuckDBQueryLayer:
         self._source_tables: dict[tuple[Any, ...], dict[str, Any]] = {}
         self._history_cache: dict[tuple[Any, ...], dict[str, Any]] = {}
         self._name_counters: defaultdict[str, int] = defaultdict(int)
+        # Auto-named history tables are point-in-time copies for one iteration.
+        self._auto_tables: set[str] = set()
+        self._iteration_key: str | None = None
         self.metrics: dict[str, float] = {
             "history_load_calls": 0.0,
             "history_cache_hits": 0.0,
@@ -74,6 +77,7 @@ class DuckDBQueryLayer:
         self._source_tables.clear()
         self._history_cache.clear()
         self._name_counters.clear()
+        self._auto_tables.clear()
 
     @staticmethod
     def _slugify(value: str) -> str:
@@ -252,12 +256,8 @@ class DuckDBQueryLayer:
             f") "
             f"SELECT * FROM visible ORDER BY {self._quote_identifier(datetime_column)} ASC"
         )
-        self.connection.execute(sql)
-        row_count = int(
-            self.connection.execute(
-                f"SELECT COUNT(*) FROM {self._quote_identifier(table_name)}"
-            ).fetchone()[0]
-        )
+        self._run(sql)
+        row_count = int(self._run(f"SELECT COUNT(*) FROM {self._quote_identifier(table_name)}")[0][0])
         info = {
             "table_name": table_name,
             "row_count": row_count,
@@ -273,6 +273,36 @@ class DuckDBQueryLayer:
         self._table_meta[table_name] = info
         self.metrics["history_visible_refresh_calls"] += 1.0
         return info
+
+    def _run(self, sql: str) -> list[tuple[Any, ...]]:
+        """Execute one statement and read its whole result.
+
+        DuckDB 2.0 refuses any later work on a connection whose last result was not read
+        to the end ("connection has an unfinished result from execute()"), including
+        register(). Reading every statement fully keeps the connection usable.
+        """
+        return self.connection.execute(sql).fetchall()
+
+    def _release_earlier_iterations(self) -> None:
+        """Drop auto-named history tables and cached loads from earlier simulated times.
+
+        Each such table is a copy of the bars visible at one moment; a later iteration loads
+        its own. Keeping every one held a new frame per load for the whole run, which grew
+        until long AI-agent backtests were killed. Tables the agent named are kept.
+        """
+        now = self._current_datetime()
+        key = now.isoformat() if hasattr(now, "isoformat") else None
+        if key is None or key == self._iteration_key:
+            return
+        self._iteration_key = key
+        for name in sorted(self._auto_tables):
+            info = self._table_meta.pop(name, None) or {}
+            if info.get("kind") == "visible_view":
+                self._run(f"DROP VIEW IF EXISTS {self._quote_identifier(name)}")
+            elif self._frames.pop(name, None) is not None:
+                self.connection.unregister(name)
+        self._auto_tables.clear()
+        self._history_cache = {k: v for k, v in self._history_cache.items() if k[-1] == key}
 
     def load_history_table(
         self,
@@ -291,6 +321,8 @@ class DuckDBQueryLayer:
     ) -> dict[str, Any]:
         started = time.perf_counter()
         self.metrics["history_load_calls"] += 1.0
+        self._release_earlier_iterations()
+        auto_named = table_name is None
         cache_key = (
             symbol,
             int(length),
@@ -372,6 +404,8 @@ class DuckDBQueryLayer:
                     "kind": "slice_frame",
                 },
             )
+        if auto_named:
+            self._auto_tables.add(str(info["table_name"]))
         elapsed_ms = (time.perf_counter() - started) * 1000.0
         self.metrics["history_load_ms"] += float(elapsed_ms)
         info["load_ms"] = round(elapsed_ms, 3)

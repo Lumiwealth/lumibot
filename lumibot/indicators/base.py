@@ -75,7 +75,12 @@ OUTPUT_KINDS = (
     "background",
     "bar_color",
     "candle",
+    "arrow",
 )
+#: Pine ``plotarrow`` defaults for the shortest and longest arrow, in pixels.
+ARROW_MIN_HEIGHT = 5
+ARROW_MAX_HEIGHT = 100
+ARROW_HEIGHT_LIMIT = 1000
 LINE_STYLES = ("solid", "dashed", "dotted")
 DISPLAY_MODES = ("all", "pane", "status_line", "data_window", "none")
 PANES = ("price", "own")
@@ -209,8 +214,10 @@ class OutputSpec:
         ``markers``, ``shape`` (a mark on bars whose value is set and not 0),
         ``fill`` (shades between two outputs or levels, see ``between``),
         ``background`` (colors the bar's whole column), ``bar_color``
-        (recolors the price candles) or ``candle`` (draws candles from four
-        outputs, see ``candle``).
+        (recolors the price candles), ``candle`` (draws candles from four
+        outputs, see ``candle``) or ``arrow`` (Pine's ``plotarrow``: an up
+        arrow below the bar for a positive value, a down arrow above it for a
+        negative one, nothing for 0 or ``None``; see ``min_height``).
     ``color``
         ``#RRGGBB``, ``#RRGGBBAA`` (the last two hex digits are opacity: ``80``
         is half) or ``chart.fg`` / ``chart.bg`` to follow the chart's theme.
@@ -248,6 +255,12 @@ class OutputSpec:
         price itself, as Supertrend does.
     ``candle``
         For ``candle`` outputs: the ids of the open, high, low and close outputs.
+    ``min_height``, ``max_height``
+        For ``arrow`` outputs: the shortest and longest arrow in pixels (Pine's
+        defaults, 5 and 100). Arrow length grows with the size of the value
+        between them. The up and down colors (Pine's ``colorup`` and
+        ``colordown``) are ``palette=(up color, down color)``; without a
+        palette both use ``color``.
     """
 
     id: str
@@ -271,6 +284,8 @@ class OutputSpec:
     text_color: str | None = None
     between: tuple | None = None
     candle: tuple | None = None
+    min_height: int = ARROW_MIN_HEIGHT
+    max_height: int = ARROW_MAX_HEIGHT
 
     def __post_init__(self):
         name = f"output {self.id!r}"
@@ -318,6 +333,16 @@ class OutputSpec:
             object.__setattr__(self, "candle", tuple(self.candle))
         elif self.candle is not None:
             raise ValueError(f"{name}: candle is only for candle outputs")
+        for field_name in ("min_height", "max_height"):
+            value = getattr(self, field_name)
+            if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= ARROW_HEIGHT_LIMIT:
+                raise ValueError(
+                    f"{name} {field_name} must be a whole number of pixels from 1 to {ARROW_HEIGHT_LIMIT}, got {value!r}"
+                )
+        if self.min_height > self.max_height:
+            raise ValueError(f"{name} min_height must not be above max_height")
+        if self.kind == "arrow" and self.palette and len(self.palette) != 2:
+            raise ValueError(f"arrow {name} palette must be (up color, down color), got {len(self.palette)} colors")
 
     def references(self) -> list:
         """Ids of other outputs this one reads (``color_by``, ``between``, ``candle``)."""
@@ -349,6 +374,8 @@ class OutputSpec:
             "text_color": self.text_color,
             "between": list(self.between) if self.between is not None else None,
             "candle": list(self.candle) if self.candle is not None else None,
+            "min_height": self.min_height,
+            "max_height": self.max_height,
         }
 
 

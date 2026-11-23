@@ -611,7 +611,7 @@ class Strategy(_Strategy):
         secondary_stop_limit_price: float = None,
         secondary_trail_price: float = None,
         secondary_trail_percent: float = None,
-        time_in_force: str = "gtc",
+        time_in_force: str = None,
         good_till_date: datetime.datetime = None,
         take_profit_price: float = None,  # Deprecated, use 'secondary_limit_price' instead
         stop_loss_price: float = None,  # Deprecated, use 'secondary_stop_price' instead
@@ -712,7 +712,11 @@ class Strategy(_Strategy):
                 - ``'gtd'`` Good until date.
             (Default: 'gtc'). Pass ``time_in_force='day'`` explicitly for an
             intraday order. Constructing ``Order`` directly defaults to 'day';
-            this Strategy API defaults to 'gtc'.
+            this Strategy API defaults to 'gtc'. Exception: on Schwab, a stock
+            short sale that does not pass ``time_in_force`` is sent as 'day',
+            because Schwab refuses good-till-canceled short sales on
+            hard-to-borrow stocks. Pass ``time_in_force='gtc'`` to keep a
+            short sale resting overnight.
         good_till_date : datetime.datetime
             This is the time order is valid for Good Though Date orders.
         take_profit_price : float
@@ -947,6 +951,12 @@ class Strategy(_Strategy):
             setattr(self.broker, "_backtest_order_seq", seq)
             identifier = f"bt_{seq}"
 
+        # Remember whether the caller chose a time in force, so a broker can apply
+        # its own safer default (for example Schwab short sales) only when none was asked for.
+        time_in_force_defaulted = time_in_force is None
+        if time_in_force_defaulted:
+            time_in_force = "gtc"
+
         order = Order(
             self.name,
             asset,
@@ -982,6 +992,8 @@ class Strategy(_Strategy):
             reduce_only=reduce_only,
             identifier=identifier,
         )
+
+        order.time_in_force_defaulted = time_in_force_defaulted
 
         # Add debug logging for custom_params
         if custom_params:
@@ -2568,6 +2580,11 @@ class Strategy(_Strategy):
 
     def wait_for_order_execution(self, order: Order):
         """Wait for one specific order to be executed or canceled by the broker
+
+        In a backtest this returns at once: simulated time cannot move while the
+        iteration waits, so the order fills when the backtest processes orders
+        after the iteration. Read its status on the next iteration or in
+        ``on_filled_order``. A cancel is confirmed immediately in a backtest.
 
         Parameters
         ----------
@@ -5356,6 +5373,7 @@ class Strategy(_Strategy):
         exchange: str = None,
         include_after_hours: bool = True,
         sleep_time: float | None = None,
+        quote: Asset = None,
     ):
         """Get historical pricing data for the list of assets.
 
@@ -5392,6 +5410,10 @@ class Strategy(_Strategy):
             When omitted (``None``), LumiBot defaults to:
             - ``0`` for backtesting data sources
             - ``0.1`` seconds for live data sources
+        quote : Asset, optional
+            Quote asset for every asset in the list (for example USD for forex or
+            crypto), the same as ``get_historical_prices(quote=...)``. ``None`` uses
+            the data source default.
 
         Returns
         -------
@@ -5439,6 +5461,7 @@ class Strategy(_Strategy):
             timeshift=timeshift,
             chunk_size=chunk_size,
             max_workers=max_workers,
+            quote=quote,
             exchange=exchange,
             include_after_hours=include_after_hours,
             sleep_time=effective_sleep_time
@@ -5451,7 +5474,7 @@ class Strategy(_Strategy):
                 for asset in assets:
                     bars = results.get(asset) if isinstance(results, dict) else None
                     record_market_input(source=self.broker.data_source, asset=asset,
-                        quote=self.quote_asset, timestep=timestep, when=self.get_datetime(),
+                        quote=quote or self.quote_asset, timestep=timestep, when=self.get_datetime(),
                         frame=bars.pandas_df if bars is not None else None, purpose="history-batch")
         return results
 

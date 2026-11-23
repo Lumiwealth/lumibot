@@ -44,6 +44,20 @@ Times are bar times (``bar.time``), prices are numbers, colors are
 ``#RRGGBB``, ``#RRGGBBAA`` (the last two digits are transparency) or the theme
 colors ``chart.fg`` and ``chart.bg``.
 
+A time can be ``bar.time``, any other datetime, an ISO date string, or a real
+date as epoch seconds or epoch milliseconds. A bar number is not a time: a
+small number such as ``677`` (for example a Pine ``bar_index`` copied as
+written) raises a ``ValueError`` that names the argument, instead of drawing
+the object in 1970, off the chart. To place an object N bars back, keep that
+bar's ``bar.time`` in ``state`` when you see the bar and pass it later:
+
+.. code-block:: python
+
+    state.setdefault("times", []).append(bar.time)
+    if len(state["times"]) > 5:
+        five_bars_ago = state["times"][-6]
+        self.draw.line(five_bars_ago, bar.low, bar.time, bar.low)
+
 What you can draw
 -----------------
 
@@ -55,13 +69,13 @@ What you can draw
      - Main options
    * - ``self.draw.box(x1, y1, x2, y2, ...)``
      - ``box.new``
-     - ``bg_color``, ``border_color``, ``border_width``, ``border_style``, ``text``, ``extend``
+     - ``bg_color``, ``border_color``, ``border_width``, ``border_style``, ``text``, ``text_align``, ``text_valign``, ``text_wrap``, ``text_formatting``, ``extend``
    * - ``self.draw.line(x1, y1, x2, y2, ...)``
      - ``line.new``
      - ``color``, ``width``, ``style`` (solid, dashed, dotted), ``arrow``, ``extend``
    * - ``self.draw.label(x, y, text, ...)``
      - ``label.new``
-     - ``style`` (every Pine label style, see below), ``color``, ``text_color``, ``size``, ``text_align``, ``tooltip`` (hover text)
+     - ``style`` (every Pine label style, see below), ``color``, ``text_color``, ``size``, ``text_align``, ``tooltip`` (hover text), ``text_formatting``
    * - ``self.draw.polyline(points, ...)``
      - ``polyline.new``
      - ``points`` (2 to 500 ``(time, price)`` pairs), ``curved``, ``closed``, ``color``, ``width``, ``style``, ``fill_color``
@@ -70,7 +84,10 @@ What you can draw
      - shades between two lines from ``self.draw.line``; removed with either line
    * - ``self.draw.table(position, columns, rows, ...)`` then ``self.draw.cell(table, column, row, text, ...)``
      - ``table.new``, ``table.cell``
-     - ``position`` (nine screen positions), ``bg_color``, ``frame_color``, per-cell ``text_color`` and ``bg_color``
+     - ``position`` (nine screen positions), ``bg_color``, ``frame_color``, per-cell ``text_color``, ``bg_color``, ``text_size``, ``text_align``, ``text_valign``, ``tooltip``, ``text_formatting``, ``width``, ``height``
+   * - ``self.draw.merge_cells(table, start_column, start_row, end_column, end_row)``
+     - ``table.merge_cells``
+     - joins a rectangle of cells into one; it shows the top-left cell's text and style
 
 Label styles: ``label_up``, ``label_down``, ``label_left``, ``label_right``,
 ``label_center``, ``label_upper_left``, ``label_upper_right``,
@@ -79,6 +96,44 @@ Label styles: ``label_up``, ``label_down``, ``label_left``, ``label_right``,
 and the marks ``circle``, ``square``, ``diamond``, ``triangle_up``,
 ``triangle_down``, ``arrow_up``, ``arrow_down``, ``cross``, ``xcross`` and
 ``flag`` (a small mark at the point, with the text beside it).
+
+Text options
+------------
+
+These match Pine's text options on ``box.new``, ``label.new`` and
+``table.cell``:
+
+- ``text_valign`` (boxes and table cells): ``top``, ``center`` (default) or
+  ``bottom``, like Pine's ``text.align_top`` / ``align_center`` /
+  ``align_bottom``.
+- ``text_wrap`` (boxes): ``none`` (default) or ``auto``, which wraps the text
+  to the box width (Pine's ``text.wrap_auto``).
+- ``text_formatting`` (boxes, labels, table cells): ``none`` (default),
+  ``bold``, ``italic`` or ``bold_italic`` (Pine's ``text.format_bold`` and
+  ``text.format_italic``, combined for ``bold_italic``).
+- Table cells also take ``tooltip`` (hover text) and ``width`` / ``height``
+  as a percent of the chart, from 0 to 100. ``0`` (the default) fits the cell
+  to its text, like Pine.
+
+A box with its label in the top-left corner, wrapped and bold, and a table
+whose title row spans both columns::
+
+    def step(self, state, bar):
+        if state["zone"] is None:
+            state["zone"] = self.draw.box(
+                bar.time, bar.high, bar.time, bar.low,
+                bg_color="#26A69A33", text="Demand zone from the last swing low",
+                text_align="left", text_valign="top", text_wrap="auto", text_formatting="bold",
+            )
+            state["table"] = self.draw.table("top_right", 2, 2, bg_color="#00000080")
+            self.draw.merge_cells(state["table"], 0, 0, 1, 0)
+            self.draw.cell(state["table"], 0, 0, "Trend", text_formatting="bold")
+        self.draw.cell(state["table"], 0, 1, "Close", text_valign="bottom")
+        self.draw.cell(state["table"], 1, 1, f"{bar.close:,.2f}", tooltip="Last close", width=10)
+        return {}
+
+A merge may not overlap another merge in the same table, and must cover at
+least two cells.
 
 TradingView drawing tools
 -------------------------

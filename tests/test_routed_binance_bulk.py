@@ -408,22 +408,95 @@ def test_unpublished_symbol_is_unavailable_with_a_hint(monkeypatch):
     assert "observed_request_tail" not in payload
 
 
-def test_coin_margined_contract_fails_before_any_order(monkeypatch):
-    archive = _perp_archive()
+def _coinm_archive(symbol="BTCUSD_PERP"):
+    archive = _Archive()
+    hour = pd.Timedelta(hours=1)
+    archive.add(f"futures/cm/monthly/klines/{symbol}/1h/{symbol}-1h-2026-07.zip",
+                [KLINE_HEADER] + _kline_rows("2026-07-31 20:00", 4, hour, 60000))
+    archive.add(f"futures/cm/monthly/markPriceKlines/{symbol}/1h/{symbol}-1h-2026-07.zip",
+                [KLINE_HEADER] + _kline_rows("2026-07-31 20:00", 4, hour, 60010))
+    archive.add(f"futures/cm/monthly/fundingRate/{symbol}/{symbol}-fundingRate-2026-07.zip",
+                ["calc_time,funding_interval_hours,last_funding_rate",
+                 f"{int(pd.Timestamp('2026-07-31 16:00', tz='UTC').timestamp() * 1000)},8,0.0001"])
+    for day in ("2026-08-01", "2026-08-02", "2026-08-03"):
+        archive.add(f"futures/cm/daily/klines/{symbol}/1h/{symbol}-1h-{day}.zip",
+                    _kline_rows(f"{day} 00:00", 24, hour, 62000))
+    return archive
+
+
+@pytest.mark.parametrize("raw,expected", [("BTCUSD", "BTCUSD_PERP"), ("BTCUSD_PERP", "BTCUSD_PERP"),
+                                          ("BTC/USD:BTC", "BTCUSD_PERP"), ("ETHUSD", "ETHUSD_PERP")])
+def test_coin_margined_symbol(raw, expected):
+    from lumibot.tools.binance_bulk_data import coin_margined_symbol
+
+    assert coin_margined_symbol(Asset(raw, "crypto_future")) == expected
+
+
+def test_coin_margined_perpetual_reads_coin_m_files_with_inverse_terms(monkeypatch):
+    # A customer's coin-margined BTCUSD backtests failed on every route (Nov 2026).
+    # Binance publishes COIN-M candles and mark prices in the same public archive.
+    archive = _coinm_archive()
+    router = _router({"crypto_future": "binance", "default": "ibkr"}, monkeypatch, archive)
+    router._datetime = pd.Timestamp("2026-08-03 08:00", tz="UTC").to_pydatetime()
+    asset = Asset("BTCUSD", "crypto_future")
+    bars = router.get_historical_prices(asset, 2, timestep="hour")
+    assert bars is not None and not bars.df.empty
+    assert all("futures/cm/" in url for url in archive.calls)
+    spec = router.get_contract_spec(asset)
+    assert spec.inverse is True and spec.settle == "BTC" and spec.contract_size == Decimal("100")
+    eth = router._registry._adapters["binance"].contract_spec(Asset("ETHUSD", "crypto_future"))
+    assert eth.contract_size == Decimal("10") and eth.settle == "ETH"
+    route = next(r for r in router.get_data_provenance()["observedRoutes"] if r["assetClass"] == "crypto_future")
+    assert route["priceSource"] == "binance_coinm_bulk" and route["servedSymbol"] == "BTCUSD_PERP"
+    july = _router({"crypto_future": "binance", "default": "ibkr"}, monkeypatch, _coinm_archive(),
+                   start="2026-07-31 20:00", end="2026-08-01 02:00")
+    mark, exact = july._registry._adapters["binance"].mark_at(asset, pd.Timestamp("2026-07-31 21:00", tz="UTC"))
+    assert mark == Decimal("60011") and exact is True
+
+
+def test_coin_margined_order_fills_in_a_coin_wallet(monkeypatch):
+    archive = _coinm_archive()
+    archive.add("futures/cm/monthly/klines/BTCUSD_PERP/1m/BTCUSD_PERP-1m-2026-07.zip",
+                [KLINE_HEADER] + _kline_rows("2026-07-31 20:00", 240, pd.Timedelta(minutes=1), 60000))
+    router = _router({"crypto_future": "binance", "default": "ibkr"}, monkeypatch, archive,
+                     start="2026-07-31 20:00", end="2026-08-01 00:00")
+    router._datetime = pd.Timestamp("2026-07-31 20:30", tz="UTC").to_pydatetime()
+    broker = BacktestingBroker(router)
+    try:
+        strategy = _StubStrategy(broker=broker, quote_asset=Asset("BTC", "crypto"), budget=0.1,
+                                 analyze_backtest=False)
+        asset = Asset("BTCUSD", "crypto_future", leverage=5)
+        order = strategy.create_order(asset, Decimal("10"), "buy")  # 10 contracts of $100
+        broker._process_new_order(order)
+        broker._execute_filled_order(order, 60000.0, Decimal("10"), strategy)
+        assert order.status == "fill", order
+        assert broker.get_tracked_position(strategy.name, asset).quantity == 10
+    finally:
+        broker.cleanup_streams()
+
+
+def test_coin_margined_funding_comes_from_coin_m_files(monkeypatch):
+    router = _router({"crypto_future": "binance", "default": "ibkr"}, monkeypatch, _coinm_archive(),
+                     start="2026-07-31 12:00")
+    events = router.get_funding_events(Asset("BTCUSD", "crypto_future"), pd.Timestamp("2026-07-31", tz="UTC"),
+                                       pd.Timestamp("2026-08-03 09:00", tz="UTC"))
+    assert [e["timestamp"] for e in events] == [pd.Timestamp("2026-07-31 16:00", tz="UTC")]
+
+
+def test_coin_margined_contract_not_published_is_unavailable(monkeypatch):
+    archive = _perp_archive()  # USD-M files only
     router = _router({"crypto_future": "binance", "default": "ibkr"}, monkeypatch, archive)
     with pytest.raises(PerpetualDataUnavailable) as caught:
         router._update_pandas_data(Asset("BTCUSD", "crypto_future"), None, 2, "hour")
-    assert caught.value.reason == "coin_margined_unsupported"
-    assert caught.value.source == "binance" and caught.value.symbol == "BTCUSD"
-    assert "selected Binance USD-M bulk route" in str(caught.value)
-    assert "exchange_id selects the venue" in str(caught.value)
-    assert archive.calls == []  # A clearer diagnostic must not fetch or substitute another contract.
+    assert caught.value.reason == "contract_not_listed" and caught.value.symbol == "BTCUSD_PERP"
+    assert "COIN-M" in str(caught.value)
+    assert all("futures/um/" not in url for url in archive.calls)  # never substitutes BTCUSDT
 
 
 def test_binance_is_listed_as_a_perpetual_alternative(monkeypatch):
     router = _router({"crypto_future": "binance", "default": "ibkr"}, monkeypatch, _perp_archive())
     with pytest.raises(PerpetualDataUnavailable) as caught:
-        router._update_pandas_data(Asset("BTCUSD", "crypto_future"), None, 2, "hour")
+        router._update_pandas_data(Asset("BTCUSDT_260925", "crypto_future"), None, 2, "hour")
     assert "bitunix" in {item["routing"] for item in caught.value.alternatives}
 
 

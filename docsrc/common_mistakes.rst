@@ -21,10 +21,13 @@ For example, an intraday market short can use:
    )
    self.submit_order(hedge)
 
-Schwab may reject GTC short-sale orders for hard-to-borrow securities. DAY does
-not guarantee acceptance or a fill; other borrowing, account and market constraints
-still apply. Inspect the broker's rejection reason before retrying. Preserve
-intentional GTC orders instead of changing every order's duration globally.
+Schwab rejects GTC short-sale orders for hard-to-borrow securities. On Schwab, a
+stock short sale created with ``create_order()`` that does not pass
+``time_in_force`` is therefore sent as DAY (Schwab's own trading screens do the
+same). Pass ``time_in_force="gtc"`` when a short sale should rest overnight; an
+explicit choice is always kept. DAY does not guarantee acceptance or a fill; other
+borrowing, account and market constraints still apply. Inspect the broker's
+rejection reason before retrying.
 
 Restoring Asset Variables After a Restart
 --------------------------------------------------------------------------------

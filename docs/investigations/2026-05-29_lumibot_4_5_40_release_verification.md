@@ -35,4 +35,4 @@ Required post-deploy smoke was run through BotSpot MCP.
 ## Notes
 
 - A GitHub Actions Node.js 20 deprecation warning appeared on both BotManager workflows. It is not release-blocking, but the workflow actions should be updated before GitHub forces Node 24 defaults.
-- Agent 1 live Schwab testing before release verified account ending 4364 against read-only Schwab smoke, Titus-style 4-second option cancel, stale market-order reconciliation, and manual cancel reconciliation. The option replace/cancel smoke filled immediately, so Schwab correctly refused cancellation because the order was already filled.
+- Agent 1 live Schwab testing before release verified account ending 4364 against read-only Schwab smoke, fast-scanner-style 4-second option cancel, stale market-order reconciliation, and manual cancel reconciliation. The option replace/cancel smoke filled immediately, so Schwab correctly refused cancellation because the order was already filled.

@@ -104,7 +104,7 @@ treating the tear sheet as data-provider proof.
 
 ### 2026-06-24 Same-Day Coinbase Future-Tail Fix
 
-Greg's production backtest `c6438f71-06a4-473f-871a-1a28f81ceae7`
+The perp scalper customer's production backtest `c6438f71-06a4-473f-871a-1a28f81ceae7`
 failed on `2026-06-24` with:
 
 ```text
@@ -169,7 +169,7 @@ pass.
 
 ### 2026-06-25 Long Coinbase Minute Window Chunking
 
-After LumiBot `4.5.60` was deployed to Bot Manager dev and production, Greg's
+After LumiBot `4.5.60` was deployed to Bot Manager dev and production, the perp scalper customer's
 unchanged May 15 BTC/USDT strategy revision
 `c376cdbf-1d59-480f-ba34-513b7b46f1f7` was replayed in production for
 `2026-03-08` through `2026-05-01`.
@@ -219,7 +219,7 @@ Expected regression shape:
 ### 2026-06-24 Partial Provider Coverage Must Not Certify The Requested Window
 
 The first production validation after the same-day Coinbase fix no longer hit
-Coinbase's future-window `BadRequest`, but Greg's unchanged BTC/USDT strategy
+Coinbase's future-window `BadRequest`, but the perp scalper customer's unchanged BTC/USDT strategy
 still could not load `5m` bars. The production log for backtest
 `2eef9de5-6e6b-411c-85de-a1139b7efbfe` repeatedly reported that the strategy
 requested `2026-06-17 00:00:00-04:00`, while available data ended at
@@ -261,7 +261,7 @@ Result: `45 passed, 2 skipped`.
 ### 2026-06-25 Routed CCXT Warmup And Legacy Metadata Repair
 
 The first production run on LumiBot `4.5.57` fixed Coinbase's same-day
-`INVALID_ARGUMENT` failure, but Greg's unchanged BTC/USDT strategy still failed
+`INVALID_ARGUMENT` failure, but the perp scalper customer's unchanged BTC/USDT strategy still failed
 after loading real rows and writing artifacts. The routed data source showed two
 remaining problems:
 
@@ -453,11 +453,11 @@ silently using the strategy-class default `USDT` quote. LumiBot stores
 strategies must read from `self.parameters`, not only from `initialize()`
 default arguments.
 
-## Greg Replay
+## Perp-scalper Replay
 
-Greg's strategy must be replayed unchanged. Do not edit customer code to make the replay pass.
+The perp scalper customer's strategy must be replayed unchanged. Do not edit customer code to make the replay pass.
 
-Use the controlled matrix first. Then run Greg's exact saved artifact and compare:
+Use the controlled matrix first. Then run the perp scalper customer's exact saved artifact and compare:
 
 - old production fill count versus new fill count.
 - old production fill timestamps versus new fill timestamps.
@@ -469,25 +469,25 @@ Use the controlled matrix first. Then run Greg's exact saved artifact and compar
 
 The old IBKR artifact had suspicious fill behavior: many fills were outside the same-hour BTC candle and repeated stale-looking prices. A new flatter Coinbase chart is not automatically wrong; it must be judged against the controlled matrix and fill-vs-cache checks.
 
-### 2026-06-20 Greg Coinbase Replay Check
+### 2026-06-20 perp-scalper Coinbase Replay Check
 
 The unchanged executed production code zip was replayed locally for the
 `2026-03-15` to `2026-04-20` window with crypto routed to Coinbase:
 
-- Replay artifact root: `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_coinbase_mar15_apr20_20260620_utcfix2`
+- Replay artifact root: `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2`
 - Executed code SHA-256:
   `91473f8fa813cd5fa818bdad6201053b936c999f3a2f725586c25d9e567e8b40`
 - LumiBot version: `4.5.52`
 - Strategy parameters still contain `symbol=BTC/USDT`, but the captured
-  production entrypoint passes `quote_asset=USD`. Do not rewrite Greg's code for
+  production entrypoint passes `quote_asset=USD`. Do not rewrite the perp scalper customer's code for
   replay; validate the artifact exactly as executed.
 
 Additional analysis artifacts were written under:
 
-- `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_coinbase_mar15_apr20_20260620_utcfix2/analysis/fill_cache_summary.json`
-- `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_coinbase_mar15_apr20_20260620_utcfix2/analysis/fill_cache_checks.csv`
-- `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_coinbase_mar15_apr20_20260620_utcfix2/analysis/portfolio_shape_summary.json`
-- `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_coinbase_mar15_apr20_20260620_utcfix2/analysis/old_vs_new_trade_count_summary.json`
+- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/analysis/fill_cache_summary.json`
+- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/analysis/fill_cache_checks.csv`
+- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/analysis/portfolio_shape_summary.json`
+- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/analysis/old_vs_new_trade_count_summary.json`
 
 Replay result:
 

@@ -1,13 +1,13 @@
-# Greg BTC Routed Quote Fill Investigation
+# Perp-scalper BTC Routed Quote Fill Investigation
 
-One-line description: Production artifact diagnosis and LumiBot fix for Greg's BTC backtest drop caused by out-of-window IBKR crypto prices.
+One-line description: Production artifact diagnosis and LumiBot fix for the perp scalper customer's BTC backtest drop caused by out-of-window IBKR crypto prices.
 Last Updated: 2026-06-18
 Status: Production stale-fill fix released in `v4.5.49` plus Data Downloader commit `0fb287a`; local `version/4.5.52` is adding broker-like pending-order/TIF semantics before any new release
 Audience: LumiBot, BotSpot Node, and BotSpot support engineers
 
 ## Overview
 
-Greg reported a large backtest result drop in a BotSpot email thread with subject `april 17`. The production backtest was:
+Perp-scalper reported a large backtest result drop in a BotSpot email thread with subject `april 17`. The production backtest was:
 
 - Backtest: `64d6495f-bfaf-46e8-b150-0110ed773b4a`
 - Strategy: `72953aee-a7d0-45f3-b65c-877f1c3694ad`
@@ -19,9 +19,9 @@ Greg reported a large backtest result drop in a BotSpot email thread with subjec
 An initial support copy of the saved revision files was exported from the
 production database through the read-only support path into:
 
-- `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260611/revision-9c8e12ce/main.py`
-- `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260611/revision-9c8e12ce/requirements.txt`
-- `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260611/revision-9c8e12ce/manifest.json`
+- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260611/revision-9c8e12ce/main.py`
+- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260611/revision-9c8e12ce/requirements.txt`
+- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260611/revision-9c8e12ce/manifest.json`
 
 No broker deployment secrets or account credentials were copied.
 
@@ -30,8 +30,8 @@ Important correction from the 2026-06-12 audit: the executed production
 to the older database-exported `main.py` in the 2026-06-11 support folder.
 All future reproduction for this incident must use the executed code zip:
 
-- `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/prod-artifacts/code.zip`
-- `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/prod-artifacts/executed-code/main.py`
+- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/code.zip`
+- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/executed-code/main.py`
 
 The executed `main.py` SHA-256 is
 `91473f8fa813cd5fa818bdad6201053b936c999f3a2f725586c25d9e567e8b40`.
@@ -39,9 +39,9 @@ The executed `main.py` SHA-256 is
 Production result artifacts were exported through the supported Bot Manager API
 and CloudWatch, then parsed into:
 
-- `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/analysis/production_artifact_summary.md`
-- `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/prod-artifacts/api-artifacts/trades.csv`
-- `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/prod-artifacts/api-artifacts/indicators.csv`
+- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/analysis/production_artifact_summary.md`
+- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/api-artifacts/trades.csv`
+- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/api-artifacts/indicators.csv`
 
 The production artifacts prove the April drop was not just a visual/chart issue:
 
@@ -65,14 +65,14 @@ The copied strategy is `MultiMineralBot`, trading spot `BTC/USDT` in BotSpot whi
 
 The local production-like replay used the copied revision and the same 2026-03-09 to 2026-06-05 window. Logs are under:
 
-- `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260611/local-run-v100-prodlike-remote-dd/subprocess_greg-v100-prodlike-remote-dd.log`
+- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260611/local-run-v100-prodlike-remote-dd/subprocess_perp_scalper-v100-prodlike-remote-dd.log`
 
 The run was intentionally stopped after it had already reproduced the incorrect early fill path. It did not need to finish the full multi-month backtest to prove the failing invariant.
 
 ## 2026-06-12 Audit Result
 
 Rob correctly challenged the first pass as too narrow. The first draft only
-guarded the direct IBKR REST quote-fill speed path. Greg's production backtest
+guarded the direct IBKR REST quote-fill speed path. The perp scalper customer's production backtest
 used the BotSpot Auto JSON router:
 
 ```json
@@ -124,7 +124,7 @@ Additional verified facts from the 2026-06-12 audit:
   Direct S3 reads for some result objects failed KMS decrypt from the local CLI,
   so CloudWatch plus API artifacts were used for evidence.
 - The owner-scoped production MCP artifact tools correctly rejected cross-user
-  access to Greg's result artifacts from this session. That means exact
+  access to the perp scalper customer's result artifacts from this session. That means exact
   production fill proof must come from a support/admin artifact export path, not
   from bypassing ownership checks.
 - A fresh local replay from the executed code zip with production Data
@@ -133,7 +133,7 @@ Additional verified facts from the 2026-06-12 audit:
   finish in-turn because a fresh local task had to hydrate many IBKR `1min`
   `Trades`, `Bid_Ask`, and `Midpoint` chunks through the downloader. Partial
   replay logs are preserved under
-  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/`.
+  `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/`.
 
 ## Finding From First Pass
 
@@ -154,7 +154,7 @@ The clearest first-pass local evidence was around simulated
 - the same heartbeat region reported strategy price values around `$70,445.50`.
 
 That was enough to justify the deeper fill-provenance audit. Later production
-artifacts above confirmed the same class of problem in Greg's actual completed
+artifacts above confirmed the same class of problem in the perp scalper customer's actual completed
 backtest, especially the repeated `70511.75` fills around April 15-17.
 
 The direct code path reproduced in the first pass was
@@ -163,14 +163,14 @@ The direct code path reproduced in the first pass was
 
 That helper is an IBKR REST backtesting speed path. It reads bid/ask directly from the cached `Data` object's datalines and bypasses the normal guarded `Data.get_quote()` wrapper. Before the fix, it called `data_obj.get_iter_count(now)` directly. For timestamps before the first cached row, that can produce an invalid positional lookup instead of surfacing missing data.
 
-This is a backtest engine bug, not a Greg strategy logic bug. The strategy submitted an order during a period where the data source did not cover the simulated timestamp; the engine should not fill that order from an out-of-window bid/ask row.
+This is a backtest engine bug, not a perp-scalper strategy logic bug. The strategy submitted an order during a period where the data source did not cover the simulated timestamp; the engine should not fill that order from an out-of-window bid/ask row.
 
 The reopened audit also found a separate routed-path hazard to verify. In
 `lumibot/backtesting/routed_backtesting.py`, `_IbkrRoutingAdapter._fetch_df()`
 can mark crypto/futures series as fully loaded after any non-empty prefetch in
 some paths. Other routed prefetch paths already call
 `ibkr_helper.frame_covers_requested_window()` before marking the series loaded.
-If Greg's backtest received a partial non-empty routed IBKR frame, that
+If the perp scalper customer's backtest received a partial non-empty routed IBKR frame, that
 fully-loaded marker could prevent a later repair fetch. The fix now applies the
 same `frame_covers_requested_window()` gate to those paths.
 
@@ -221,7 +221,7 @@ The Data Downloader was also fixed and deployed at commit
   Sunday 03:00 ET, a Friday tail is still stale and must rebuild or return a
   partial/no-cache response.
 
-`v4.5.51` fixes a separate backtest progress stall found while rerunning Greg's
+`v4.5.51` fixes a separate backtest progress stall found while rerunning the perp scalper customer's
 full window after the data-integrity fixes:
 
 - Production full-window rerun
@@ -234,7 +234,7 @@ full window after the data-integrity fixes:
 - Targeted rerun `bench-default-f297a164-f219-40d6-8562-6df9e9877653` covered
   the old `70511.75` Mar 25/Mar 26 fill window. It advanced to
   `2026-03-26 01:35:00`, `76.66%`, still with no positions/orders and no
-  `70511.75` or order/fill logs, then pinned on Greg strategy's intrabar
+  `70511.75` or order/fill logs, then pinned on the perp scalper customer strategy's intrabar
   cooldown path.
 - Root cause found in the framework path: `StrategyExecutor.safe_sleep()` builds
   the progress payload before advancing simulated time, and the payload called
@@ -275,7 +275,7 @@ Production release and runtime validation:
   development image builds. Production GitHub Actions run `27403208749` and
   development run `27403207949` both logged `LUMIBOT_VERSION=4.5.48` and
   `lumibot==4.5.48` in the dependency/backtest image builds.
-- A production BotSpot/Bot Manager rerun used Greg's same revision
+- A production BotSpot/Bot Manager rerun used the perp scalper customer's same revision
   `9c8e12ce-7ffd-438e-907d-57a13660a1f8` for `2026-04-15` through
   `2026-04-18 23:59` with budget `1300`. New manager bot/backtest id:
   `4aca383a-3688-4ca7-a058-cfd98586c7e7`.
@@ -312,7 +312,7 @@ Final `v4.5.49` production validation:
   no longer allowed to warm cache.
 - Final production Bot Manager rerun:
   `bench-default-44b87f29-04b9-4570-a61a-95760d4c89a8`, window
-  `2026-04-15` through `2026-04-19 23:59`, executed Greg's production
+  `2026-04-15` through `2026-04-19 23:59`, executed the perp scalper customer's production
   `main.py` with the original routed data-source JSON and prod cache
   `lumibot-cache-prod/prod/cache/v1`.
 - The rerun settings reported `lumibot_version: 4.5.49`, the original
@@ -406,7 +406,7 @@ The likely downloader bug is in
 sense for US stock/index history after market close, but it lets BTC/crypto
 weekend or overnight tail gaps bypass stale-tail detection.
 
-The Greg rerun task definition also did not include `LUMIBOT_CACHE_BACKEND`,
+The perp-scalper rerun task definition also did not include `LUMIBOT_CACHE_BACKEND`,
 `LUMIBOT_CACHE_S3_BUCKET`, `LUMIBOT_CACHE_S3_PREFIX`,
 `LUMIBOT_CACHE_S3_REGION`, or `LUMIBOT_CACHE_S3_VERSION` as task-definition
 environment variables. Those values may have been passed as ECS run-task
@@ -422,7 +422,7 @@ Next fix should be root-cause oriented:
    sparse in-window object cannot walk back days or weeks to the previous real
    bar.
 3. Trace the BotSpot Node -> Bot Manager -> ECS run-task environment to explain
-   why the Greg production backtest used cache `v1` despite Node source
+   why the perp-scalper production backtest used cache `v1` despite Node source
    defaulting BotSpot Auto cache version to `v44`.
 4. After code fixes, surgically invalidate only the affected production BTC
    cache objects proven bad. Do not bump the global production cache version.
@@ -466,14 +466,14 @@ One existing IBKR crypto OCO/OTO smoke fixture had only bars through `00:01`
 while the test clock advanced to `00:02`; it was updated to include the real
 `00:02` bar. The old fixture was implicitly depending on stale `00:01` data.
 
-## 2026-06-13 Full Greg Window Replay And Market-Order Lifecycle Fix
+## 2026-06-13 Full perp-scalper Window Replay And Market-Order Lifecycle Fix
 
-Rob asked for a local rerun of the original Greg window to prove the current
+Rob asked for a local rerun of the original perp-scalper window to prove the current
 v4.5.52 execution guard does not grab wrong-date BTC bars. Two local full-window
-replays were run against Greg's executed production code:
+replays were run against the perp scalper customer's executed production code:
 
 - strategy code:
-  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/prod-artifacts/executed-code/main.py`
+  `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/executed-code/main.py`
 - original window: `2026-03-09` through `2026-06-05`
 - data source: router
 - cache mode: read-only
@@ -484,7 +484,7 @@ replays were run against Greg's executed production code:
 First v4.5.52 replay after the current-bar guard:
 
 - artifact root:
-  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260613/local-v4552-full-mar09-jun05`
+  `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260613/local-v4552-full-mar09-jun05`
 - result: exit code `0`, elapsed `972.2s`
 - proof the wrong-date fill path was blocked:
   - `strict start check rejected future frame`: `4,058`
@@ -511,7 +511,7 @@ trigger conditions.
 Second v4.5.52 replay after the market-order lifecycle fix:
 
 - artifact root:
-  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260613/local-v4552-full-mar09-jun05-market-cancel`
+  `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260613/local-v4552-full-mar09-jun05-market-cancel`
 - result: exit code `0`, elapsed `617.7s`
 - trade events: `176` rows total
   - `new`: `88`
@@ -574,7 +574,7 @@ to call release-ready:
 Live production Data Downloader probe on 2026-06-14 used the queued `/ibkr/*`
 path, not a local IBKR login. Evidence artifact:
 
-- `/Users/robertgrzesik/Development/support-artifacts/greg-btc-data-check-20260614/downloader_btc_probe_summary.json`
+- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-btc-data-check-20260614/downloader_btc_probe_summary.json`
 
 Results:
 
@@ -944,13 +944,13 @@ Important scope note: this is still local proof only. No LumiBot release or
 BotManager/BotSpot deployment was performed from this work. The purpose of this
 change is to prove the behavior locally before any release decision.
 
-## 2026-06-18 Greg Full-Window Replay, Production Cache Read-Only
+## 2026-06-18 perp-scalper Full-Window Replay, Production Cache Read-Only
 
-A full original-window replay was run locally against Greg's executed
+A full original-window replay was run locally against the perp scalper customer's executed
 production `main.py` using production-like settings:
 
 - strategy code:
-  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/prod-artifacts/executed-code/main.py`
+  `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/executed-code/main.py`
 - original window: `2026-03-09` through `2026-06-05`
 - data source router:
   `{"default":"ibkr","stock":"ibkr","index":"ibkr","option":"thetadata","crypto":"ibkr","crypto_future":"ibkr","future":"ibkr","cont_future":"ibkr"}`
@@ -959,7 +959,7 @@ production `main.py` using production-like settings:
 - production S3 cache target: `lumibot-cache-prod/prod/cache/v1`
 - cache mode: `readonly`
 - local artifact root:
-  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_full_prodcache_readonly_20260618`
+  `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_full_prodcache_readonly_20260618`
 
 Terminal result:
 
@@ -977,7 +977,7 @@ Terminal result:
   cacheable in this path.
 - The last logged data-hydration request before timeout was still only around
   `startTime=20260501-11:20:00` for
-  `BTC` / `ZEROHASH` / `Trades` / `1min`, short of the June 5 end of Greg's
+  `BTC` / `ZEROHASH` / `Trades` / `1min`, short of the June 5 end of the perp scalper customer's
   original window.
 - Search of the timed-out replay log found no `70511`, `70510`, or `70512`
   fills, but this is not end-to-end proof because the replay never reached
@@ -985,23 +985,23 @@ Terminal result:
 
 Evidence:
 
-- `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_full_prodcache_readonly_20260618/subprocess.log`
-- `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_full_prodcache_readonly_20260618/logs/progress.csv`
-- `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/cache/greg_full_prodcache_readonly_20260618`
+- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_full_prodcache_readonly_20260618/subprocess.log`
+- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_full_prodcache_readonly_20260618/logs/progress.csv`
+- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/cache/perp_scalper_full_prodcache_readonly_20260618`
 
 Conclusion: the local `v4.5.52` order-lifecycle tests prove the stale/future
-fill behavior in isolation, but the full original Greg replay with production
+fill behavior in isolation, but the full original perp-scalper replay with production
 cache read-only is currently blocked by BTC data hydration/cache coverage before
 it can prove the final customer backtest result end-to-end. The next production-
 like proof should either use a verified complete BTC cache prefix for the full
-window or run a narrower Greg window that reaches the previously bad April 15-17
+window or run a narrower the perp scalper customer window that reaches the previously bad April 15-17
 fill region without spending the entire timeout on cold BTC hydration.
 
 ## 2026-06-25 Production Coinbase Follow-Up
 
 Production validation after the Coinbase switch showed two separate outcomes:
 
-- LumiBot `4.5.56` completed Greg's copied BTC/USDT strategy revision in
+- LumiBot `4.5.56` completed the perp scalper customer's copied BTC/USDT strategy revision in
   production BotSpot with `settings.json.lumibot_version == "4.5.56"`.
 - The original hard failure (`ccxt.base.errors.BadRequest`, Coinbase
   `INVALID_ARGUMENT`, and `start must not be in the future`) did not appear in

@@ -54,13 +54,17 @@ class WebullData(DataSource):
             self._market_stream.start(symbol, category, keep_bars)
 
     def get_realtime_bars(self, asset):
-        if self._market_stream is None:
+        stream = self._market_stream
+        if stream is None:
             return None
-        return self._market_stream.bars(*self._realtime_instrument(asset))
+        return stream.bars(*self._realtime_instrument(asset))
 
     def cancel_realtime_bars(self, asset):
-        if self._market_stream is not None:
-            self._market_stream.cancel(*self._realtime_instrument(asset))
+        with self._client_lock:
+            stream = self._market_stream
+            if stream is not None and stream.cancel(*self._realtime_instrument(asset)):
+                self._market_stream = None
+                stream.close()
 
     def shutdown(self):
         if self._market_stream is not None:
@@ -277,38 +281,78 @@ class WebullData(DataSource):
                 return None
             frame = frame[frame.index <= end].tail(length)
             return Bars(frame, self.SOURCE, asset, quote=quote) if not frame.empty else None
-        self._stock_symbol(asset)
-        cursor = end
-        frames = []
-        sessions = "PRE,RTH,ATH" if include_after_hours else None
-        remaining = length
-        while remaining:
-            response = request_json("US equity bars", self.client.market_data.get_batch_history_bar,
-                                    [asset.symbol], "US_STOCK", "M1", count=min(remaining + 1, 1_650),
-                                    trading_sessions=sessions, end_time=int(cursor.timestamp() * 1_000))
-            series = next((row["result"] for row in response["result"] if row.get("symbol") == asset.symbol), [])
-            if not series:
-                break
-            frame = pd.DataFrame(series)
-            frame.index = pd.DatetimeIndex([_timestamp(value) for value in frame.pop("time")], name="datetime")
+        frame = self._minute_bars(asset, end, quote, include_after_hours, length=length)
+        return Bars(frame, self.SOURCE, asset, quote=quote) if frame is not None else None
+
+    def get_minute_range(self, asset, start, end, *, quote=None, include_after_hours=True):
+        """Load completed minute bars in [start, end) for a pandas-backed replay."""
+        start, end = pd.Timestamp(start), pd.Timestamp(end)
+        if start.tz is None or end.tz is None or end <= start:
+            raise ValueError("Webull minute ranges need ordered, timezone-aware start and end times")
+        asset = Asset(asset) if isinstance(asset, str) else asset
+        return self._minute_bars(asset, end, quote, include_after_hours, start=start)
+
+    def _minute_bars(self, asset, end, quote, include_after_hours, *, start=None, length=None):
+        extra = {}
+        symbol = asset.symbol
+        if asset.asset_type == Asset.AssetType.STOCK:
+            endpoint, category, argument = self.client.market_data.get_batch_history_bar, "US_STOCK", [symbol]
+            extra["trading_sessions"] = "PRE,RTH,ATH" if include_after_hours else None
+            page_size = 1_650
+        elif asset.asset_type == Asset.AssetType.FUTURE:
+            endpoint, category, argument = self.client.futures_market_data.get_futures_history_bars, "US_FUTURES", symbol
+            page_size = 1_200
+        elif asset.asset_type == Asset.AssetType.OPTION:
+            symbol = self.option_symbol(asset)
+            endpoint, category, argument = self.client.option_market_data.get_option_history_bars, "US_OPTION", symbol
+            page_size = 1_200
+        elif asset.asset_type == Asset.AssetType.CRYPTO:
+            if quote is None:
+                raise ValueError("Webull crypto history requires an explicit quote currency")
+            symbol += quote.symbol
+            endpoint, category, argument = self.client.crypto_market_data.get_crypto_history_bar, "US_CRYPTO", symbol
+            page_size = 200
+        else:
+            raise ValueError("Webull minute history requires an equity, listed option, future or spot crypto pair")
+        cursor, remaining, frames = end, length, []
+        while (start is None or cursor >= start) and (remaining is None or remaining > 0):
+            if start is not None:
+                window_start = max(start, cursor.floor("min") - pd.Timedelta(minutes=page_size - 1))
+                extra["start_time"] = int(window_start.timestamp() * 1_000)
+            count = page_size if remaining is None else min(remaining + 1, page_size)
+            response = request_json("minute history", endpoint, argument, category, "M1",
+                                    count=count, end_time=int(cursor.timestamp() * 1_000), **extra)
+            groups = response["result"] if isinstance(response, dict) else response
+            rows = next((row["result"] for row in groups if row.get("symbol") == symbol), [])
+            if not rows:
+                if start is None:
+                    break
+                cursor = window_start - pd.Timedelta(milliseconds=1)
+                continue
+            frame = pd.DataFrame(rows)
+            frame.index = pd.DatetimeIndex([_timestamp(t) for t in frame.pop("time")], name="datetime")
             if frame.index.hasnans:
                 raise ValueError("Webull returned a bar without a timestamp")
             oldest = frame.index.min()
             if oldest > cursor:
+                # PaperTrade crypto can ignore both time arguments and return
+                # its latest N bars. Never shift that data into a prior date.
+                if category == "US_CRYPTO":
+                    break
                 raise ValueError("Webull bars did not advance the historical cursor")
-            frame = frame.loc[(frame.index <= cursor) & (frame.index + timedelta(minutes=1) <= end)]
+            frame = frame.loc[(frame.index <= cursor) & (frame.index + pd.Timedelta(minutes=1) <= end)]
+            if start is not None:
+                frame = frame.loc[frame.index >= start]
             frame = frame[~frame.index.duplicated(keep="last")]
             frames.append(frame)
-            remaining -= len(frame)
-            if remaining <= 0:
-                break
-            cursor = oldest - timedelta(milliseconds=1)
+            if remaining is not None:
+                remaining -= len(frame)
+            cursor = oldest - pd.Timedelta(milliseconds=1)
         if not frames or not any(len(frame) for frame in frames):
             return None
-        prices = pd.concat(frames).sort_index().tail(length)
-        for field in ("open", "high", "low", "close", "volume"):
-            prices[field] = pd.to_numeric(prices[field])
-        return Bars(prices, self.SOURCE, asset, quote=quote)
+        prices = pd.concat(frames).sort_index()
+        prices = prices.reindex(columns=["open", "high", "low", "close", "volume"]).astype(float)
+        return prices.tail(length) if length is not None else prices
 
 
 def _timestamp(value):

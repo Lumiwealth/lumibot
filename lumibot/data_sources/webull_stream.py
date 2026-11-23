@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pandas as pd
 
-from lumibot.tools.webull_helpers import LIVE_HOST, PAPER_HOST
+from lumibot.tools.webull_helpers import LIVE_HOST, PAPER_HOST, WebullAPIError
 
 
 class WebullMarketStream:
@@ -36,7 +36,7 @@ class WebullMarketStream:
                 self._thread.start()
             elif self.state in {"connected", "subscribed", "receiving"}:
                 try:
-                    self._client.subscribe([symbol], category, ["TICK"])
+                    self._subscribe(self._client, category, [symbol])
                 except Exception:
                     del self._subscriptions[key]
                     raise RuntimeError("Webull rejected the market trade subscription") from None
@@ -44,6 +44,8 @@ class WebullMarketStream:
     def bars(self, symbol, category):
         with self._lock:
             entry = self._subscriptions.get((category, symbol))
+            if entry is not None and entry.get("denied"):
+                raise WebullAPIError("market trade subscription", code="MARKET_DATA_NOT_SUBSCRIBED")
             if entry is None or not entry["bars"]:
                 return None
             return [{**bar, "vwap": bar["vwap"] / bar["volume"]} for bar in entry["bars"].values()]
@@ -53,27 +55,50 @@ class WebullMarketStream:
             key = (category, symbol)
             entry = self._subscriptions.get(key)
             if entry is None:
-                return
-            entry["consumers"] -= 1
-            if not entry["consumers"]:
-                del self._subscriptions[key]
-                if self._client is not None and self.state in {"connected", "subscribed", "receiving"}:
-                    try:
-                        self._client.unsubscribe([symbol], category, ["TICK"])
-                    except Exception:
+                return not self._subscriptions
+            if entry["consumers"] > 1:
+                entry["consumers"] -= 1
+                return False
+            connected = self._client is not None and self.state in {"connected", "subscribed", "receiving"}
+            if connected and not entry.get("denied"):
+                try:
+                    self._client.unsubscribe([symbol], category, ["TICK"])
+                except Exception:
+                    # The last consumer closes the entire connection, even if
+                    # the transport was already lost during unsubscribe.
+                    if len(self._subscriptions) > 1:
                         raise RuntimeError("Webull trade unsubscribe failed") from None
+            del self._subscriptions[key]
+            return not self._subscriptions
+
+    def _subscribe(self, client, category, symbols):
+        try:
+            client.subscribe(symbols, category, ["TICK"])
+        except Exception as exc:
+            if getattr(exc, "get_error_code", lambda: None)() != "MARKET_DATA_NOT_SUBSCRIBED":
+                raise
+            if len(symbols) == 1:
+                self._subscriptions[(category, symbols[0])]["denied"] = True
+            else:
+                # Contracts in the same category can require different exchange feeds.
+                for symbol in symbols:
+                    self._subscribe(client, category, [symbol])
 
     def _on_connect(self, client, api, session_id):
         with self._lock:
+            if self._stop.is_set():
+                client.disconnect()
+                return
             self.state = "connected"
             grouped = {}
             for (category, symbol), entry in self._subscriptions.items():
                 # An interrupted candle is incomplete.
                 entry["bars"].clear()
-                grouped.setdefault(category, []).append(symbol)
+                if not entry.get("denied"):
+                    grouped.setdefault(category, []).append(symbol)
             for category, symbols in grouped.items():
                 for offset in range(0, len(symbols), 20):
-                    client.subscribe(symbols[offset:offset + 20], category, ["TICK"])
+                    self._subscribe(client, category, symbols[offset:offset + 20])
 
     def _on_subscribe(self, client, api, session_id):
         with self._lock:
@@ -81,20 +106,21 @@ class WebullMarketStream:
                 self.state = "subscribed"
 
     def _on_message(self, client, topic, tick):
-        if not callable(getattr(tick, "get_volume", None)) or not hasattr(tick, "get_time"):
+        if not callable(getattr(tick, "get_volume", None)):
             return
-        symbol = tick.get_basic().get_symbol()
+        basic = tick.get_basic()
         price, volume = tick.get_price(), tick.get_volume()
-        when = tick.get_time()
-        if price is None or volume is None or not when or float(price) <= 0 or float(volume) <= 0:
+        if price is None or volume is None or float(price) <= 0 or float(volume) <= 0:
             return
-        stamp = pd.to_datetime(int(when), unit="ms", utc=True).floor("5s")
-        self._record_tick(symbol, stamp, float(price), float(volume))
+        # TickResult.get_time() contains only the display clock. The SDK's
+        # common message header carries the full exchange timestamp in UTC.
+        stamp = pd.to_datetime(basic.get_timestamp_as_utc(), utc=True).floor("5s")
+        self._record_tick(basic.get_symbol(), stamp, float(price), float(volume))
 
     def _record_tick(self, symbol, stamp, price, size):
         with self._lock:
             for (_, subscribed), entry in self._subscriptions.items():
-                if subscribed != symbol:
+                if subscribed != symbol or entry.get("denied"):
                     continue
                 bars = entry["bars"]
                 if bars and stamp < next(reversed(bars)):
@@ -120,6 +146,8 @@ class WebullMarketStream:
         delay = 1
         while not self._stop.is_set():
             with self._lock:
+                if self._stop.is_set():
+                    break
                 self.state = "connecting"
                 client = DataStreamingClient(
                     self._config["APP_KEY"], self._config["APP_SECRET"], "us", uuid4().hex,

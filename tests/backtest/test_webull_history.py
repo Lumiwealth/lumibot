@@ -102,3 +102,33 @@ def test_option_daily_replay_resolves_exact_series_and_never_reads_a_later_expir
     assert query.args[:3] == (right_symbol, "US_OPTION", "D")
     client.option_market_data.get_option_history_bars.assert_called_once()
     client.market_data.get_batch_history_bar.assert_not_called()
+
+
+def test_minute_data_paginates_exact_future_honors_range_and_drops_incomplete_bar():
+    def reply(timestamps):
+        rows = [dict(open="30", high="32", low="29", close="31", time=t) for t in timestamps]
+        return SimpleNamespace(json=lambda: [{"symbol": "MESZ6", "result": rows}], raise_for_status=lambda: None)
+    client = Mock()
+    get_bars = client.futures_market_data.get_futures_history_bars
+    get_bars.side_effect = [reply(["2026-11-20T15:02:00Z", "2026-11-20T15:03:00Z"]),
+                            reply(["2026-11-20T15:00:00Z", "2026-11-20T15:01:00Z"])]
+    source = WebullData({}, data_client=client)
+    start, end = pd.Timestamp("2026-11-20T15:00Z"), pd.Timestamp("2026-11-20T15:03:30Z")
+    frame = source.get_minute_range(Asset("MESZ6", "future"), start, end)
+    assert list(frame.index) == list(pd.date_range(start, periods=3, freq="min"))
+    assert frame.volume.isna().all()
+    assert get_bars.call_count == 2
+    assert get_bars.call_args.args == ("MESZ6", "US_FUTURES", "M1")
+    assert get_bars.call_args.kwargs["end_time"] < int((start + pd.Timedelta(minutes=2)).timestamp() * 1_000)
+
+
+def test_minute_replay_discards_newer_crypto_page_when_provider_ignores_end_time():
+    client = Mock()
+    client.crypto_market_data.get_crypto_history_bar.return_value = SimpleNamespace(
+        json=lambda: [{"symbol": "BTCUSD", "result": [{"time": "2026-11-23T14:00:00Z", "close": "100"}]}],
+        raise_for_status=lambda: None,
+    )
+    source = WebullData({}, data_client=client)
+    assert source.get_minute_range(Asset("BTC", "crypto"), pd.Timestamp("2026-11-20T14:00Z"),
+                                   pd.Timestamp("2026-11-20T15:00Z"), quote=Asset("USD", "forex")) is None
+    client.crypto_market_data.get_crypto_history_bar.assert_called_once()

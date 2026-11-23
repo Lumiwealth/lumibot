@@ -306,3 +306,103 @@ def test_option_replace_needs_a_unique_provider_id_for_each_leg(broker, venue):
     with pytest.raises(ValueError, match="leg ID"):
         broker._modify_order(o, limit_price=1.15)
     venue.order_v3.replace_order.assert_not_called()
+
+
+def test_native_vertical_reconciles_terminal_detail_on_repeated_poll(broker, venue):
+    from datetime import date
+
+    strikes = (100, 105)
+    legs = [Order("qualification", Asset("SAMPLE", asset_type="option", right="CALL",
+                                         expiration=date(2027, 1, 15), strike=k),
+                  1, side, order_type="market")
+            for k, side in zip(strikes, ("buy_to_open", "sell_to_open"))]
+    [parent] = broker.submit_orders(legs, is_multileg=True, order_type="debit", price="1.25")
+    response_legs = [{"id": str(index), "quantity": "1", "strike_price": str(strike), "side": side,
+                      "option_contract_multiplier": "100", "option_type": "CALL", "option_expire_date": "2027-01-15"}
+                     for index, (strike, side) in enumerate(zip(strikes, ("BUY", "SELL")))]
+    venue.order_v3.get_order_detail.return_value = reply(detail(
+        parent.identifier, status="FILLED", total_quantity="1", filled_quantity="1", filled_price="1.20",
+        option_strategy="VERTICAL", instrument_type="OPTION", legs=response_legs))
+    broker._refresh_tracked_order(parent)
+    broker._refresh_tracked_order(parent)
+    assert parent.is_filled()
+    assert [(float(fill.quantity), float(fill.price)) for fill in parent.transactions] == [(1.0, 1.2)]
+
+
+def test_positive_execution_cases_use_the_whole_exchange_session():
+    import pandas as pd
+    from tests.test_webull_paper_apitest import _require_equity_core_session
+
+    local = "America/New_York"
+    _require_equity_core_session(pd.Timestamp("2026-11-23 09:30", tz=local))
+    for when in ("2026-11-21 10:00", "2026-11-23 09:29", "2026-11-23 16:00", "2026-11-27 13:01"):
+        with pytest.raises(pytest.skip.Exception):
+            _require_equity_core_session(pd.Timestamp(when, tz=local))
+
+
+def test_bracket_child_signals_and_polling_use_independent_venue_order_ids(broker, venue):
+    parent = Order("qualification", Asset("SAMPLE"), 1, "buy", limit_price=20,
+                   order_type="limit", order_class="bracket", secondary_limit_price=22, secondary_stop_price=18)
+    broker.submit_order(parent)
+    target, stop = parent.child_orders
+    assert broker.get_tracked_order(target.identifier) is target
+    assert broker.get_tracked_order(stop.identifier) is stop
+    venue.order_v3.get_order_detail.return_value = reply(detail(
+        target.identifier, instrument_type="EQUITY", status="FILLED", side="SELL",
+        total_quantity="1", limit_price="22", filled_quantity="1", filled_price="22.05"))
+    broker._poll_signaled_order(target.identifier)
+    broker._poll_signaled_order(target.identifier)
+    assert target.is_filled() and len(target.transactions) == 1
+    venue.order_v3.get_order_detail.return_value = reply(detail(
+        stop.identifier, instrument_type="EQUITY", order_type="STOP_LOSS", status="CANCELLED",
+        side="SELL", total_quantity="1", stop_price="18", limit_price=None, filled_quantity="0"))
+    broker._poll_signaled_order(stop.identifier)
+    assert stop.is_canceled() and not stop.transactions
+    assert target.parent_identifier == stop.parent_identifier == parent.identifier
+
+
+@pytest.mark.parametrize("right,group_qty,expected", [
+    ("CALL", "2", {90: 2, 95: -2}), ("CALL", "-2", {90: -2, 95: 2}),
+    ("PUT", "2", {90: -2, 95: 2}), ("PUT", "-2", {90: 2, 95: -2}),
+])
+def test_signed_vertical_holdings_net_with_single_contract_across_rows(broker, venue, right, group_qty, expected):
+    def leg(strike):
+        return dict(symbol="SAMPLE", option_expire_date="2027-01-15", option_type=right,
+                    option_exercise_price=str(strike), option_contract_multiplier="100",
+                    option_contract_deliverable="100", instrument_type="OPTION")
+    spread = dict(symbol="SAMPLE", instrument_type="OPTION", option_strategy="VERTICAL",
+                  quantity=group_qty, legs=[leg(95), leg(90)])
+    single = dict(spread, option_strategy="SINGLE", quantity="1", legs=[leg(95)])
+    venue.account_v2.get_account_position.return_value = reply([spread, single])
+    positions = broker._pull_positions("holdings")
+    assert {p.asset.strike: p.quantity for p in positions} == {90: expected[90], 95: expected[95] + 1}
+    assert len(positions) == 2
+    assert all(p.asset.right == right and p.asset.multiplier == 100 for p in positions)
+
+
+def test_grouped_butterfly_positions_preserve_the_two_short_middle_contracts(broker, venue):
+    legs = [
+        dict(symbol="SAMPLE", instrument_type="OPTION", option_expire_date="2027-01-15",
+             option_type="CALL", option_exercise_price=str(k), option_contract_multiplier="100")
+        for k in (110, 100, 105)
+    ]
+    venue.account_v2.get_account_position.return_value = reply([dict(
+        symbol="SAMPLE", option_strategy="BUTTERFLY", instrument_type="OPTION", quantity="2", legs=legs)])
+    assert {p.asset.strike: p.quantity for p in broker._pull_positions("holdings")} == {100: 2, 105: -4, 110: 2}
+
+
+@pytest.mark.parametrize("direction,side", [("LEG_OUT", "buy_to_close"), ("LEG_IN", "sell_to_open")])
+def test_option_position_legging_uses_target_without_general_position_intent(broker, direction, side):
+    from datetime import date
+
+    asset = Asset("SAMPLE", "option", right="CALL", strike=45, expiration=date(2027, 1, 15))
+    params = {"leg_in_or_out": direction}
+    if direction == "LEG_IN":
+        params["leg_in_strategy"] = "VERTICAL"
+    order = Order("qualification", asset, 1, side, order_type="market", time_in_force="day",
+                  custom_params=params, position_id="synthetic-position")
+    row = broker._order_row(order)
+    assert "position_intent" not in row
+    assert row["position_id"] == "synthetic-position" and row["leg_in_or_out"] == direction
+    assert row["side"] == ("BUY" if direction == "LEG_OUT" else "SELL")
+    assert row.get("leg_in_strategy") == params.get("leg_in_strategy")

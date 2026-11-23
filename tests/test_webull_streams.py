@@ -39,14 +39,14 @@ def test_realtime_crypto_keeps_quote_currency_in_subscription_key():
     from lumibot.entities import Asset
 
     source = WebullData({})
-    source._market_stream = Mock()
+    transport = source._market_stream = Mock()
     pair = (Asset("BTC", "crypto"), Asset("USD", "forex"))
     source.start_realtime_bars(pair, 5)
     source._market_stream.start.assert_called_once_with("BTCUSD", "US_CRYPTO", 5)
     source.get_realtime_bars(pair)
     source._market_stream.bars.assert_called_once_with("BTCUSD", "US_CRYPTO")
     source.cancel_realtime_bars(pair)
-    source._market_stream.cancel.assert_called_once_with("BTCUSD", "US_CRYPTO")
+    transport.cancel.assert_called_once_with("BTCUSD", "US_CRYPTO")
 
 
 def test_market_subscribe_acknowledgement_does_not_prove_ticks():
@@ -55,3 +55,78 @@ def test_market_subscribe_acknowledgement_does_not_prove_ticks():
     stream._on_subscribe(None, None, "offline")
     assert stream.state == "subscribed"
     assert stream.bars("SAMPLE", "US_STOCK") is None
+
+
+def test_trade_callback_uses_dated_sdk_timestamp_when_tick_time_is_display_clock():
+    from datetime import datetime
+
+    stream = WebullMarketStream({}, paper=True)
+    stream._thread = Mock()
+    stream.start("SAMPLE", "US_STOCK", 2)
+    tick = Mock()
+    tick.get_basic.return_value.get_symbol.return_value = "SAMPLE"
+    tick.get_basic.return_value.get_timestamp_as_utc.return_value = datetime(2026, 11, 23, 14, 28, 59, 400000)
+    tick.get_time.return_value = "09:28:59"
+    tick.get_price.return_value = "42.10"
+    tick.get_volume.return_value = "7"
+    stream._on_message(None, "tick", tick)
+    [bar] = stream.bars("SAMPLE", "US_STOCK")
+    assert bar["datetime"] == pd.Timestamp("2026-11-23T14:28:55Z")
+    assert (bar["close"], bar["volume"], bar["count"]) == (42.10, 7, 1)
+
+
+def test_refused_market_feed_is_reported_once_and_other_symbols_stay_connected():
+    import pytest
+    from lumibot.tools.webull_helpers import WebullAPIError
+
+    class MissingFeed(Exception):
+        def get_error_code(self):
+            return "MARKET_DATA_NOT_SUBSCRIBED"
+
+    stream = WebullMarketStream({}, paper=True)
+    stream._thread = Mock()
+    stream.start("SAMPLE", "US_FUTURES", 1)
+    stream.start("TEST", "US_STOCK", 1)
+    client = Mock()
+    def subscribe(symbols, category, topics):
+        if category == "US_FUTURES":
+            raise MissingFeed("signed metadata must remain private")
+    client.subscribe.side_effect = subscribe
+    stream._on_connect(client, None, "first")
+    with pytest.raises(WebullAPIError, match="MARKET_DATA_NOT_SUBSCRIBED") as refused:
+        stream.bars("SAMPLE", "US_FUTURES")
+    assert "signed metadata" not in str(refused.value)
+    stream._on_connect(client, None, "reconnected")
+    assert [call.args[1] for call in client.subscribe.call_args_list] == ["US_FUTURES", "US_STOCK", "US_STOCK"]
+    stream._record_tick("TEST", pd.Timestamp("2026-11-23T15:00Z"), 5, 1)
+    assert stream.bars("TEST", "US_STOCK")[0]["close"] == 5
+
+
+def test_last_market_data_consumer_closes_the_connection():
+    from lumibot.data_sources import WebullData
+    from lumibot.entities import Asset
+
+    source = WebullData({})
+    stream = Mock()
+    stream.cancel.side_effect = [False, True]
+    source._market_stream = stream
+    source.cancel_realtime_bars(Asset("SAMPLE"))
+    stream.close.assert_not_called()
+    source.cancel_realtime_bars(Asset("SAMPLE"))
+    stream.close.assert_called_once_with()
+    assert source._market_stream is None
+
+
+def test_last_consumer_disconnects_even_if_native_unsubscribe_fails():
+    from lumibot.data_sources import WebullData
+    from lumibot.entities import Asset
+
+    source = WebullData({})
+    stream = source._market_stream = WebullMarketStream({}, paper=True)
+    stream._thread, stream._client = Mock(), Mock()
+    stream.state = "connected"
+    stream._client.unsubscribe.side_effect = RuntimeError("connection already gone")
+    stream.start("SAMPLE", "US_STOCK", 2)
+    source.cancel_realtime_bars(Asset("SAMPLE"))
+    stream._client.disconnect.assert_called_once_with()
+    assert source._market_stream is None

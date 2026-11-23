@@ -84,14 +84,35 @@ instruments were accepted and canceled before a fill. DAY equity market
 orders received a closed-session response. A GTC overnight-only equity limit
 was rejected because that session requires DAY. GTC trailing and market
 orders also received explicit duration rejections. Supply the intended
-duration in the strategy. A resting stop's trigger and fill still need
-separate confirmation in an eligible session.
+duration in the strategy. During a regular session both an equity buy stop
+and a buy stop-limit triggered, filled and were closed. The stop-limit
+execution stayed within its original limit.
 
 GTC buy-to-open limits for a listed call, a put and a native call vertical
 were accepted, repriced and canceled during that Saturday session. Webull
 assigns an ID to each option leg. LumiBot reads those IDs when amending
-the original order. Core-session option fills and opening/closing position
-effects still require execution evidence.
+the original order. Regular-session DAY limits opened and closed a call, a
+put, and both debit and credit call and put verticals. The position endpoint
+returned the vertical as one signed package. LumiBot recovered the two signed
+contract holdings on a fresh position read. A single call DAY market buy and
+market sell also filled in the tested margin account. Session, account and
+series eligibility still apply.
+
+A native long call butterfly filled with one contract at each outer strike
+and two short contracts at the middle strike. A fresh account read recovered
+all three signed holdings. To remove a leg from a grouped holding, pass the
+broker position ID and ``custom_params={"leg_in_or_out": "LEG_OUT"}`` on
+the closing order. In the simulator the buyback of both middle contracts
+left two individual long contracts. Each then sold to close. A native closing
+credit limit can rest even after the opening package filled. The tested
+native closing credits remained unfilled and were canceled by their original
+IDs. Whole-package closing execution still requires qualification.
+
+A separate call entry with attached profit and stop exits reached the venue.
+All three members had native IDs and were canceled. Sell-to-close stop and
+stop-limit orders against an existing call also reached the venue and were
+canceled before the holding was closed. These cases establish placement and
+cancellation. Option exit triggers remain unverified.
 
 A one-contract YES round trip and a separate NO round trip both filled in
 the event account. Independent filled-order details reconciled with the
@@ -99,8 +120,37 @@ account's buying power after exchange fees. Other attempts with a displayed
 two-sided quote remained open during the observation window. The test
 canceled those orders and confirmed zero fills. Contract settlement still needs separate evidence.
 
-Futures executions, linked exits, market-data tick delivery and production
-access need additional qualification before use in trading. Use
+An extended-session equity limit bought and sold one share before the regular
+open. In regular hours a stock and an ETF filled both long round trips and
+short sales with buybacks. Native equity DAY and GTC brackets were read back
+and canceled. In two separate transactions the placing process exited after acknowledgment.
+An independent reader then confirmed the entry fill, the winning target or
+stop fill, and cancellation of the other exit. A third test kept the entry
+position open after the placing process had ended. Two independent reads
+five seconds apart found the same two working exits. The observer then
+canceled the exits and closed only the test share.
+
+Dated micro-index futures filled in both directions, including a short
+sale and buyback. The observed futures cash changes matched the contract
+multiplier and the fees on the two executions. A passive futures limit was
+repriced and canceled. Separate futures stop, stop-limit and amount-trailing
+orders rested at the broker and were canceled without fills.
+
+A US equity trade subscription delivered five-second bars through
+``Strategy.get_realtime_bars``. LumiBot timestamps each bar from the full
+UTC timestamp in the Webull message header. Snapshot last-trade time and
+quote time can differ by an entire weekend. Check the appropriate timestamp
+when pricing an extended-hours order. Feed delays vary by instrument.
+The tested futures account returned ``MARKET_DATA_NOT_SUBSCRIBED`` for its
+dated futures trade stream. A futures REST quote was available. Reading a
+denied symbol surfaces the provider code. Other entitled symbols on the
+connection can continue to deliver bars. Cancel the subscription when finished.
+Removing the last consumer closes the connection.
+
+An equity order can remain pending after a cancel request is rejected. Read
+the original client ID again before creating any replacement or close order.
+Partial fills, assignment, expiry, crypto trade-tick delivery and production
+access still need their own evidence. Use
 :doc:`backtesting.webull` for the scope of historical replay.
 
 Webull accounts report cash, exposure and buying power separately. Their

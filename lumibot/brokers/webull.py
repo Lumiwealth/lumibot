@@ -122,8 +122,37 @@ class Webull(Broker):
         rows = request_json("position read", self.trading_client.account_v2.get_account_position,
                             self._selected_account())
         name = self._strategy_name_from_input(strategy)
-        return [Position(name, self._read_asset(row), require_number(row["quantity"], "position quantity"))
-                for row in rows]
+        holdings = {}
+        for row in rows:
+            quantity = require_number(row["quantity"], "position quantity")
+            if row.get("instrument_type") == "OPTION" and len(row.get("legs", ())) > 1:
+                parts = self._option_position_legs(row, quantity)
+            else:
+                parts = ((self._read_asset(row), quantity),)
+            for asset, amount in parts:
+                holdings[asset] = holdings.get(asset, 0) + amount
+        return [Position(name, asset, quantity) for asset, quantity in holdings.items() if quantity]
+
+    def _option_position_legs(self, row, quantity):
+        # The US endpoint supplies a signed package quantity. Its per-leg
+        # "proportion" is the portfolio weight, not the number of contracts.
+        shape = row.get("option_strategy")
+        count = {"VERTICAL": 2, "BUTTERFLY": 3}.get(shape)
+        if count is None or len(row["legs"]) != count:
+            raise ValueError(f"Unrecognized Webull grouped option holding: {shape}")
+        if any(leg.get("symbol", row["symbol"]) != row["symbol"] for leg in row["legs"]):
+            raise ValueError("Unexpected underlying in a grouped Webull holding")
+        assets = sorted((self._read_asset({**row, "legs": [leg]}) for leg in row["legs"]), key=lambda a: a.strike)
+        series = {(asset.right, asset.expiration, asset.multiplier) for asset in assets}
+        if len(series) != 1 or len({asset.strike for asset in assets}) != count:
+            raise ValueError("Inconsistent contract terms in a grouped Webull holding")
+        if shape == "BUTTERFLY":
+            ratios = (1, -2, 1)
+        else:
+            # A long call vertical buys the low strike. A long put vertical
+            # buys the high strike. A negative package quantity inverts both.
+            ratios = (1, -1) if assets[0].right == "CALL" else (-1, 1)
+        return [(asset, quantity * ratio) for asset, ratio in zip(assets, ratios)]
 
     def _pull_position(self, strategy, asset):
         return next((position for position in self._pull_positions(strategy) if position.asset == asset), None)
@@ -203,7 +232,7 @@ class Webull(Broker):
             row["support_trading_session"] = session
         if asset_type == "option":
             row.update(option_strategy="SINGLE", legs=[self._option_leg(order)])
-            if combo_type in {"NORMAL", "MASTER"}:
+            if combo_type in {"NORMAL", "MASTER"} and not params.get("leg_in_or_out"):
                 row["position_intent"] = str(order.side).upper()
             for key in ("leg_in_or_out", "leg_in_strategy"):
                 if key in params:
@@ -316,13 +345,27 @@ class Webull(Broker):
             if observed is None:
                 order.status = Order.OrderStatus.SUBMITTED
                 raise WebullAPIError("placement outcome is unknown; look up the original client order ID") from None
-            self._process_new_order(order)
+            self._track_submitted_rows(order, rows)
             self._apply_direct_order_observation(order, observed)
             return order
 
         order.update_raw({key: receipt[key] for key in ("client_order_id", "order_id", "combo_order_id") if key in receipt})
-        self._process_new_order(order)
+        self._track_submitted_rows(order, rows)
         return order
+
+    def _track_submitted_rows(self, order, rows):
+        # Webull sends private events and order detail for each executable
+        # bracket member. Option package legs are terms of one executable row.
+        sent = {row["client_order_id"] for row in rows}
+        with self._lock:
+            if order.order_class == Order.OrderClass.OCO:
+                self._process_placeholder_order(order)
+            else:
+                self._process_new_order(order)
+            for child in order.child_orders:
+                if str(child.identifier) in sent:
+                    child.parent_identifier = order.identifier
+                    self._process_new_order(child)
 
     def cancel_order(self, order):
         return request_json("cancellation", self.trading_client.order_v3.cancel_order,
@@ -496,6 +539,7 @@ class Webull(Broker):
             status=_STATUS.get(row.get("status"), "unknown"), child_orders=children,
             identifier=row["client_order_id"], avg_fill_price=row.get("filled_price") or None,
         )
+        order.broker_status = row.get("status")
         if row.get("filled_quantity") not in ("", None):
             order.filled_quantity = require_number(row["filled_quantity"], "package filled quantity")
         order.update_raw({key: row[key] for key in ("client_order_id", "order_id") if key in row})
@@ -514,7 +558,9 @@ class Webull(Broker):
             self._refresh_tracked_order(order)
 
     def _poll_tracked_orders(self):
-        orders = [order for order in self.get_all_orders() if order.is_active()]
+        orders = [order for order in self.get_all_orders() if order.is_active()
+                  and not order.is_filled() and not order.is_canceled()
+                  and order.order_class != Order.OrderClass.OCO]
         if not orders:
             return
         # Rotate bounded targeted requests so one busy account cannot starve an

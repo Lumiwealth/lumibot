@@ -62,6 +62,28 @@ def test_paper_equity_account_quote_and_daily_history(paper):
     assert bars.pandas_df.index.is_monotonic_increasing
 
 
+def test_paper_account_binding_rejects_unlisted_account_and_invalid_key(paper):
+    from uuid import uuid4
+
+    broker, observer, account = paper
+    accounts = request_json("independent account discovery", observer.account_v2.get_account_list)
+    assert any(row["account_id"] == account for row in accounts)
+    assert broker._selected_account() == account
+
+    for override, error, reason in (
+        ({"ACCOUNT_ID": "unlisted-" + uuid4().hex}, ValueError, "not found in this environment"),
+        ({"APP_KEY": uuid4().hex}, WebullAPIError, "client initialization|account discovery"),
+    ):
+        invalid = Webull({**broker._webull_config, **override}, connect_stream=False, start_orders_thread=False)
+        try:
+            with pytest.raises(error, match=reason) as result:
+                invalid._selected_account()
+            if isinstance(result.value, WebullAPIError):
+                assert result.value.status in {400, 401, 403}
+        finally:
+            invalid.cleanup_streams()
+
+
 def _detail(observer, account, identifier, predicate, *, pauses=(0, 1, 2, 3, 4)):
     for pause in pauses:
         time.sleep(pause)
@@ -86,6 +108,88 @@ def test_paper_stock_limit_submit_replace_cancel(paper):
 @pytest.mark.parametrize("symbol", ["AAPL", "SPY"])
 def test_paper_gtc_equity_limit_submit_replace_cancel(paper, symbol):
     _qualify_equity_limit_amend(paper, symbol, "gtc")
+
+
+@pytest.mark.parametrize("paper", ["INDIVIDUAL_MARGIN"], indirect=True)
+@pytest.mark.parametrize("symbol", ["AAPL", "SPY"])
+def test_paper_night_day_equity_order_acceptance_and_cancel(paper, symbol):
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    from lumibot.tools.helpers import get_trading_days
+
+    now = datetime.now(ZoneInfo("America/New_York"))
+    if 4 <= now.hour < 20:
+        pytest.skip("Run within an eligible Webull overnight window for a working NIGHT order")
+    trading_date = now.date() + timedelta(days=now.hour >= 20)
+    trading_days = get_trading_days("NYSE", trading_date.isoformat(), trading_date.isoformat())
+    if trading_days.empty:
+        pytest.skip("Run within an eligible Webull overnight window for a working NIGHT order")
+
+    broker, observer, account = paper
+    strategy, order = _night_equity_order(broker, symbol)
+    before = request_json("positions before overnight order", observer.account_v2.get_account_position, account)
+    try:
+        strategy.submit_order(order)
+        assert order.status != order.OrderStatus.ERROR, order.error_message
+        placed = _detail(observer, account, order.identifier, lambda row: bool(row.get("order_id")))
+        assert placed["symbol"] == symbol and placed["support_trading_session"] == "NIGHT"
+        assert placed["order_type"] == "LIMIT" and placed["time_in_force"] == "DAY"
+        assert Decimal(placed["limit_price"]) == order.limit_price
+        assert placed["status"] not in {"FAILED", "REJECTED", "CANCELLED", "CANCELED", "EXPIRED"}
+    finally:
+        if order.was_transmitted():
+            terminal = _cancel_then_read(strategy, observer, account, order)
+            filled = Decimal(terminal.get("filled_quantity") or 0)
+            if filled:
+                # A fast move can reach even a passive test order. Close only its actual fill.
+                latest = broker.data_source.get_quote(order.asset)
+                assert latest.bid and latest.bid > 0
+                exit_price = (Decimal(str(latest.bid)) * Decimal("0.98")).quantize(Decimal("0.01"))
+                close = strategy.create_order(order.asset, filled, "sell", limit_price=exit_price,
+                                              time_in_force="day",
+                                              custom_params={"support_trading_session": "NIGHT"})
+                assert _submit_and_observe_terminal(strategy, observer, account, close)["status"] == "FILLED"
+            assert terminal["status"] in {"CANCELED", "CANCELLED"} and not filled
+    after = request_json("positions after overnight order", observer.account_v2.get_account_position, account)
+    assert {(row["symbol"], row["quantity"]) for row in after} == {
+        (row["symbol"], row["quantity"]) for row in before
+    }
+
+
+@pytest.mark.parametrize("paper", ["INDIVIDUAL_MARGIN"], indirect=True)
+@pytest.mark.parametrize("symbol", ["AAPL", "SPY"])
+def test_paper_night_only_orders_rejected_outside_overnight(paper, symbol):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    if not 4 <= datetime.now(ZoneInfo("America/New_York")).hour < 20:
+        pytest.skip("Run outside the eligible overnight trading window")
+
+    broker, observer, account = paper
+    strategy, order = _night_equity_order(broker, symbol)
+    try:
+        strategy.submit_order(order)
+        assert order.status == order.OrderStatus.ERROR
+        assert "OPENAPI_OVERNIGHT_CAN_NOT_TRADING_FOR_NON_TRADING_HOURS" in order.error_message
+    finally:
+        if order.was_transmitted():
+            _cancel_then_read(strategy, observer, account, order)
+    working = request_json("working after closed NIGHT refusal", observer.order_v3.list_order_open, account)
+    assert all(row["client_order_id"] != order.identifier for row in working["data"])
+
+
+def _night_equity_order(broker, symbol):
+    strategy = Strategy(broker=broker, name="webull_night_order", risk_free_rate=0,
+                        synchronize_broker_on_start=False, should_backup_variables_to_database=False,
+                        should_send_summary_to_discord=False)
+    asset = Asset(symbol)
+    quote = broker.data_source.get_quote(asset)
+    assert quote.price and quote.price > 0
+    limit = (Decimal(str(quote.price)) * Decimal("0.97")).quantize(Decimal("0.01"))
+    order = strategy.create_order(asset, 1, "buy", limit_price=limit, time_in_force="day",
+                                  custom_params={"support_trading_session": "NIGHT"})
+    return strategy, order
 
 
 def _qualify_equity_limit_amend(paper, symbol, duration):

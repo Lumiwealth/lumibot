@@ -73,6 +73,19 @@ choice. To request extended hours, pass
 instrument eligibility. For a regular-hours DAY order, pass
 ``time_in_force="day"`` explicitly.
 
+``NIGHT`` selects the separate overnight session. Webull PaperTrade rejected
+DAY limits for both a stock and an ETF when sent outside that session,
+including during postmarket while ``ALL`` limits could trade. The provider
+did not create working orders in either case. Overnight fills and expiry
+across midnight still need direct qualification.
+
+Market-data subscriptions and private order events use separate feeds. In
+PaperTrade, the official SDK acknowledged crypto trade-tick subscriptions and
+delivered BTC and ETH snapshots and quotes. No crypto trade ticks arrived in
+that observation, so the adapter did not produce five-second trade bars for
+those pairs. Crypto REST quotes and minute bars remain available. The private
+crypto order stream delivered fills on the same account.
+
 Qualification status
 --------------------
 

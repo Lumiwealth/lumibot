@@ -22,6 +22,8 @@
   market-scoped history includes completed orders and mixed option/equity legs.
   An unavailable exchange trade feed reports its entitlement error while other
   subscriptions continue. The connection closes on the last unsubscribe.
+  PaperTrade checks cover incorrect account selection, invalid application keys,
+  and broker rejection of overnight-only equity limits outside their session.
   Minute OHLCV windows can be loaded once for ordinary pandas-backed replay. See `docsrc/brokers.webull.rst`.
 
 ## 4.6.96 - Unreleased

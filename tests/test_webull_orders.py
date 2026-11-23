@@ -95,6 +95,25 @@ def test_account_values_distinguish_zero_and_missing(broker, venue):
         broker._get_balances_at_broker(None, None)
 
 
+@pytest.mark.parametrize("duration", ["day", "gtc"])
+def test_night_order_preserves_requested_duration_and_does_not_retry_in_core(broker, venue, duration):
+    code = "OPENAPI_OVERNIGHT_CAN_NOT_TRADING_FOR_NON_TRADING_HOURS"
+    venue.order_v3.place_order.side_effect = None
+    venue.order_v3.place_order.return_value = reply({"error_code": code})
+    submitted = Order("qualification", Asset("SAMPLE"), 1, "buy", limit_price=20.50,
+                      time_in_force=duration, custom_params={"support_trading_session": "NIGHT"})
+
+    assert broker.submit_order(submitted).status == Order.OrderStatus.ERROR
+    assert code in submitted.error_message
+    venue.order_v3.place_order.assert_called_once()
+    account, rows = venue.order_v3.place_order.call_args.args
+    assert account == "sandbox-test"
+    row, = rows
+    assert row["support_trading_session"] == "NIGHT"
+    assert row["time_in_force"] == duration.upper()
+    venue.order_v3.get_order_detail.assert_not_called()
+
+
 def test_wrong_account_cannot_send_an_order(venue):
     other = Webull({"ACCOUNT_ID": "unlisted"}, trading_client=venue,
                    connect_stream=False, start_orders_thread=False)

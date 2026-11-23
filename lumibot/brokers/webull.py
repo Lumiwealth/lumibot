@@ -1,5 +1,5 @@
 """Webull's Individual OpenAPI trading adapter."""
-from datetime import date
+from datetime import date, datetime, timezone
 from threading import Lock, Thread
 from uuid import uuid4
 
@@ -15,6 +15,8 @@ from lumibot.tools.webull_helpers import (
     require_number,
 )
 from lumibot.trading_builtins import PollingStream
+
+_ALGO_FIELDS = ("algo_type", "algo_start_time", "algo_end_time", "max_target_percent", "target_vol_percent")
 
 _TYPES = {
     Order.OrderType.MARKET: "MARKET",
@@ -138,11 +140,27 @@ class Webull(Broker):
         # "proportion" is the portfolio weight, not the number of contracts.
         shape = row.get("option_strategy")
         count = {"VERTICAL": 2, "BUTTERFLY": 3, "STRADDLE": 2, "STRANGLE": 2,
+                 "COVERED_STOCK": 2, "COLLAR_WITH_STOCK": 3,
                  "CALENDAR": 2, "DIAGONAL": 2, "CONDOR": 4, "IRON_CONDOR": 4, "IRON_BUTTERFLY": 4}.get(shape)
         if count is None or len(row["legs"]) != count:
             raise ValueError(f"Unrecognized Webull grouped option holding: {shape}")
         if any(leg.get("symbol", row["symbol"]) != row["symbol"] for leg in row["legs"]):
             raise ValueError("Unexpected underlying in a grouped Webull holding")
+        if shape in {"COVERED_STOCK", "COLLAR_WITH_STOCK"}:
+            shares = [leg for leg in row["legs"] if leg.get("instrument_type") == "EQUITY"]
+            options = [leg for leg in row["legs"] if leg.get("instrument_type") == "OPTION"]
+            rights = {"CALL", "PUT"} if shape == "COLLAR_WITH_STOCK" else {"CALL"}
+            if len(shares) != 1 or {leg.get("option_type") for leg in options} != rights:
+                raise ValueError("Inconsistent equity and option legs in a grouped Webull holding")
+            deliverables = {require_number(leg.get("option_contract_deliverable"), "share deliverable")
+                            for leg in options}
+            if len(deliverables) != 1 or min(deliverables) <= 0:
+                raise ValueError("Inconsistent share deliverables in a grouped Webull holding")
+            holdings = [(Asset(row["symbol"]), quantity * deliverables.pop())]
+            for leg in options:
+                asset = self._read_asset({**row, "legs": [leg]})
+                holdings.append((asset, -quantity if asset.right == "CALL" else quantity))
+            return holdings
         assets = sorted((self._read_asset({**row, "legs": [leg]}) for leg in row["legs"]), key=lambda a: a.strike)
         if shape in {"CALENDAR", "DIAGONAL"}:
             near, far = sorted(assets, key=lambda asset: asset.expiration)
@@ -188,8 +206,40 @@ class Webull(Broker):
             ratios = (1, -1) if assets[0].right == "CALL" else (-1, 1)
         return [(asset, quantity * ratio) for asset, ratio in zip(assets, ratios)]
 
+    @staticmethod
+    def _matches_position_asset(requested, held):
+        if requested == held:
+            return True
+        if requested.asset_type != Asset.AssetType.FUTURE or held.asset_type != Asset.AssetType.FUTURE:
+            return False
+        symbol = getattr(requested.contract_spec, "symbol", None) or requested.symbol
+        return symbol == held.symbol and requested.expiration in (None, held.expiration)
+
+    def get_tracked_position(self, strategy, asset, position_side=None, position_id=None):
+        if getattr(asset, "asset_type", None) == Asset.AssetType.FUTURE:
+            # Webull identifies each delivery month by its own symbol. A strategy
+            # may omit the date when looking up the same fully qualified contract.
+            for position in self.get_tracked_positions(strategy):
+                if self._matches_position_asset(asset, position.asset):
+                    asset = position.asset
+                    break
+        return super().get_tracked_position(strategy, asset, position_side, position_id)
+
     def _pull_position(self, strategy, asset):
-        return next((position for position in self._pull_positions(strategy) if position.asset == asset), None)
+        return next((position for position in self._pull_positions(strategy)
+                     if self._matches_position_asset(asset, position.asset)), None)
+
+    def _dated_future(self, asset):
+        symbol = getattr(asset.contract_spec, "symbol", None) or asset.symbol
+        if not any(character.isdigit() for character in symbol):
+            raise ValueError("Resolve the actual dated Webull futures symbol before trading")
+        terms = self._webull_data.futures_contract(symbol)
+        expiry = date.fromisoformat(terms["last_trading_date"])
+        if asset.expiration is not None and asset.expiration != expiry:
+            raise ValueError("Webull contract last trading date differs from the requested expiration")
+        # Rebuild rather than mutate the asset: its identity and hash are cached.
+        return Asset.from_dict({**asset.to_dict(), "symbol": symbol, "expiration": expiry,
+                                "multiplier": float(require_number(terms["size"], "contract multiplier"))})
 
     def _read_asset(self, row):
         instrument = row.get("instrument_type")
@@ -206,8 +256,7 @@ class Webull(Broker):
                          strike=float(require_number(strike, "option strike")), right=item["option_type"],
                          multiplier=float(require_number(item["option_contract_multiplier"], "option multiplier")))
         if instrument == "FUTURES":
-            terms = self._webull_data.futures_contract(row["symbol"])
-            return Asset(row["symbol"], asset_type="future", multiplier=terms["size"])
+            return self._dated_future(Asset(row["symbol"], asset_type="future"))
         if instrument == "CRYPTO":
             currency = row.get("currency", "USD")
             symbol = row["symbol"]
@@ -231,12 +280,15 @@ class Webull(Broker):
         return leg
 
     def accepts_cash_amount_order(self, order):
-        return (
-            "total_cash_amount" in (order.custom_params or {})
-            and getattr(order.asset, "asset_type", None) == Asset.AssetType.STOCK
-            and order.order_type == Order.OrderType.MARKET and order.side == Order.OrderSide.BUY
-            and str(order.time_in_force).upper() == "DAY" and not order.child_orders
-        )
+        params = order.custom_params or {}
+        if "total_cash_amount" not in params or order.side != Order.OrderSide.BUY or order.child_orders:
+            return False
+        duration = str(order.time_in_force).upper()
+        if order.asset.asset_type == Asset.AssetType.STOCK:
+            return order.order_type == Order.OrderType.MARKET and duration == "DAY"
+        return (order.asset.asset_type == Asset.AssetType.PREDICTION_CONTRACT
+                and order.order_type == Order.OrderType.LIMIT and duration == "FOK"
+                and params.get("event_trade_mode") in (None, "TRADE_IN_AMOUNT"))
 
     def _order_row(self, order, *, combo_type="NORMAL", equity_session=None):
         asset_type = order.asset.asset_type
@@ -250,6 +302,8 @@ class Webull(Broker):
         if session not in {"CORE", "ALL", "NIGHT"}:
             raise ValueError("Webull equity session must be CORE, ALL or NIGHT")
         allowed = {"IOC"} if asset_type == "crypto" and order.order_type == Order.OrderType.MARKET else {"DAY", "GTC"}
+        if asset_type == "prediction_contract":
+            allowed = {"DAY", "GTC", "IOC", "FOK", "GTD"}
         if duration not in allowed:
             raise ValueError("Webull order duration is not supported for this order type")
         order_type = _TYPES.get(order.order_type)
@@ -268,9 +322,16 @@ class Webull(Broker):
             raise ValueError("Webull does not recognize this equity order type or side")
         row = dict(client_order_id=str(order.identifier), combo_type=combo_type, instrument_type=wire_type,
                    symbol=symbol, market="US", side=side, order_type=order_type, time_in_force=duration)
+        algorithm = {key: params[key] for key in _ALGO_FIELDS if key in params}
+        if algorithm:
+            if (algorithm.get("algo_type") not in {"TWAP", "VWAP", "POV"} or asset_type != "stock"
+                    or order_type not in {"MARKET", "LIMIT"} or duration != "DAY"
+                    or combo_type != "NORMAL" or order.child_orders):
+                raise ValueError("Webull equity algorithms require a standalone DAY market or limit order")
+            row.update(algorithm)
         if "total_cash_amount" in params:
             if not self.accepts_cash_amount_order(order) or combo_type != "NORMAL" or order.quantity != 0:
-                raise ValueError("Webull stock cash-amount orders require a standalone DAY market buy with zero share quantity")
+                raise ValueError("Webull cash-amount orders require a standalone DAY stock market buy or FOK event limit buy with zero quantity")
             row.update(entrust_type="AMOUNT", total_cash_amount=positive_value(params["total_cash_amount"], "cash amount"))
         else:
             row.update(entrust_type="QTY", quantity=positive_value(order.quantity, "quantity"))
@@ -288,10 +349,25 @@ class Webull(Broker):
         if asset_type == "prediction_contract":
             if order.order_type != Order.OrderType.LIMIT:
                 raise ValueError("Webull event contracts use the LIMIT order endpoint")
+            if order.asset.outcome not in {"yes", "no"}:
+                raise ValueError("Webull event orders require a yes or no outcome")
             row["event_outcome"] = order.asset.outcome
-            if params.get("event_trade_mode"):
-                row["event_trade_mode"] = params["event_trade_mode"]
-        if order.order_type == Order.OrderType.LIMIT:
+            mode = params.get("event_trade_mode")
+            if mode is not None:
+                expected = "TRADE_IN_AMOUNT" if row["entrust_type"] == "AMOUNT" else "TRADE_IN_CONTRACT"
+                if mode != expected:
+                    raise ValueError("Webull event trade mode must match the requested amount or contract quantity")
+                if order.limit_price is not None:
+                    raise ValueError("A Webull best-price event order cannot enforce a limit price")
+                row["event_trade_mode"] = mode
+            if duration == "GTD":
+                expiry = order.good_till_date
+                if not isinstance(expiry, date):
+                    raise ValueError("Webull GTD event orders require good_till_date")
+                if isinstance(expiry, datetime):
+                    expiry = (expiry.astimezone(timezone.utc) if expiry.tzinfo else expiry).date()
+                row["expire_date"] = expiry.isoformat()
+        if order.order_type == Order.OrderType.LIMIT and not row.get("event_trade_mode"):
             row["limit_price"] = positive_value(order.limit_price, "limit price")
         elif order.order_type in (Order.OrderType.STOP, Order.OrderType.STOP_LIMIT):
             row["stop_price"] = positive_value(order.stop_price, "stop price")
@@ -307,6 +383,9 @@ class Webull(Broker):
 
     def _submit_order(self, order):
         if not order.child_orders:
+            if order.asset.asset_type == Asset.AssetType.FUTURE:
+                order.asset = self._dated_future(order.asset)
+                order.symbol = order.asset.symbol
             return self._submit_rows(order, [self._order_row(order)])
 
         group = order.order_class
@@ -551,8 +630,11 @@ class Webull(Broker):
         avg_fill = row.get("filled_price")
         quantity = row.get("total_quantity")
         params = {}
-        if row.get("support_trading_session"):
-            params["support_trading_session"] = row["support_trading_session"]
+        for key in ("support_trading_session", "event_trade_mode", *_ALGO_FIELDS):
+            if row.get(key):
+                params[key] = row[key]
+        if row.get("expire_date") and row["time_in_force"] == "GTD":
+            prices["good_till_date"] = datetime.fromisoformat(row["expire_date"]).replace(tzinfo=timezone.utc)
         if row.get("entrust_type") == "AMOUNT":
             params["entrust_type"] = "AMOUNT"
             if row.get("total_cash_amount") not in ("", None):

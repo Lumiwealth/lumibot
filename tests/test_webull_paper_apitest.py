@@ -130,16 +130,17 @@ def _qualify_equity_limit_amend(paper, symbol, duration):
 
 
 @pytest.mark.parametrize("paper", ["CRYPTO"], indirect=True)
-def test_paper_crypto_market_round_trip(paper):
-    _qualify_crypto_round_trip(paper)
+@pytest.mark.parametrize("symbol,quantity", [("BTC", "0.0001"), ("ETH", "0.01")])
+def test_paper_crypto_market_round_trip(paper, symbol, quantity):
+    _qualify_crypto_round_trip(paper, symbol=symbol, quantity=Decimal(quantity))
 
 
-def _qualify_crypto_round_trip(paper, after_buy=None):
+def _qualify_crypto_round_trip(paper, after_buy=None, *, symbol="BTC", quantity=Decimal("0.0001")):
     broker, observer, account = paper
     strategy = Strategy(broker=broker, name="webull_crypto_qualification", risk_free_rate=0,
                         synchronize_broker_on_start=False, should_backup_variables_to_database=False,
                         should_send_summary_to_discord=False)
-    asset = Asset("BTC", asset_type="crypto")
+    asset = Asset(symbol, asset_type="crypto")
     usd = Asset("USD", asset_type="forex")
 
     def balance():
@@ -147,7 +148,7 @@ def _qualify_crypto_round_trip(paper, after_buy=None):
 
     def position():
         rows = request_json("independent crypto position", observer.account_v2.get_account_position, account)
-        return sum((Decimal(r["quantity"]) for r in rows if r["symbol"] in {"BTC", "BTCUSD"}), Decimal(0))
+        return sum((Decimal(r["quantity"]) for r in rows if r["symbol"] in {symbol, symbol + "USD"}), Decimal(0))
 
     def buying_power():
         return next(Decimal(r["buying_power"]) for r in balance()["account_currency_assets"]
@@ -155,7 +156,7 @@ def _qualify_crypto_round_trip(paper, after_buy=None):
 
     before_quantity = position()
     before_power = buying_power()
-    opening = strategy.create_order(asset, Decimal("0.0001"), "buy", quote=usd,
+    opening = strategy.create_order(asset, quantity, "buy", quote=usd,
                                     time_in_force="ioc", order_type="market")
     strategy.submit_order(opening)
     assert opening.status != opening.OrderStatus.ERROR, opening.error_message
@@ -165,7 +166,7 @@ def _qualify_crypto_round_trip(paper, after_buy=None):
     try:
         assert bout["status"] == "FILLED"
         assert bought == opening.quantity
-        assert bout["symbol"] == "BTCUSD" and bout["side"] == "BUY" and bout["time_in_force"] == "IOC"
+        assert bout["symbol"] == symbol + "USD" and bout["side"] == "BUY" and bout["time_in_force"] == "IOC"
         assert Decimal(bout["filled_price"]) > 0
         for pause in (0, 1, 2, 3):
             time.sleep(pause)
@@ -184,14 +185,14 @@ def _qualify_crypto_round_trip(paper, after_buy=None):
             assert closing.status != closing.OrderStatus.ERROR, closing.error_message
             done = _detail(observer, account, closing.identifier, lambda row: row.get("status") == "FILLED")
             assert Decimal(done["filled_quantity"]) == bought
-            assert done["symbol"] == "BTCUSD" and done["side"] == "SELL"
+            assert done["symbol"] == symbol + "USD" and done["side"] == "SELL"
     expected_change = bought * (Decimal(done["filled_price"]) - Decimal(bout["filled_price"]))
     for pause in (0, 1, 2, 3):
         time.sleep(pause)
         if position() == before_quantity and abs(buying_power() - before_power - expected_change) <= Decimal("0.02"):
             break
     else:
-        pytest.fail("Confirmed close did not reconcile the initial BTC position and USD buying power")
+        pytest.fail("Confirmed close did not reconcile the initial crypto position and USD buying power")
     return closing
 
 
@@ -742,11 +743,11 @@ def test_paper_private_trade_stream_observes_real_crypto_order(paper):
             assert not thread.is_alive()
 
 
-def _listed_micro_future(data):
+def _listed_micro_future(data, product="MES"):
     from datetime import date
 
     contracts = request_json("dated futures contracts", data.client.instrument.get_futures_instrument_by_code,
-                             "MES", "US_FUTURES")
+                             product, "US_FUTURES")
     today = date.today().isoformat()
     return sorted((r for r in contracts if r.get("first_trading_date", "~") <= today <
                     r.get("last_trading_date", "") and not r["symbol"].endswith("main")),
@@ -1460,9 +1461,13 @@ def test_paper_dated_future_conditional_orders(paper, kind, wire_type):
                 assert Decimal(sold["filled_quantity"]) == quantity
 
 
-@pytest.mark.parametrize("paper,futures", [("FUTURES", True), ("INDIVIDUAL_MARGIN", False)],
-                         indirect=["paper"], ids=["future", "call"])
-@pytest.mark.parametrize("kind", ["stop", "stop_limit"])
+@pytest.mark.parametrize("paper,futures,kind", [
+    pytest.param("FUTURES", True, "stop", id="stop-future"),
+    pytest.param("FUTURES", True, "stop_limit", id="stop_limit-future"),
+    pytest.param("FUTURES", True, "trailing_stop", id="trailing_stop-future"),
+    pytest.param("INDIVIDUAL_MARGIN", False, "stop", id="stop-call"),
+    pytest.param("INDIVIDUAL_MARGIN", False, "stop_limit", id="stop_limit-call"),
+], indirect=["paper"])
 def test_paper_protective_exit_triggers_on_held_contract(paper, futures, kind):
     """Read the triggered sell against a real one-contract position and reconcile any remainder."""
     broker, observer, account = paper
@@ -1473,7 +1478,9 @@ def test_paper_protective_exit_triggers_on_held_contract(paper, futures, kind):
     assert not request_json("independent initial positions", positions, account)
     if futures:
         dated = _listed_micro_future(broker.data_source)
-        asset = Asset(dated["symbol"], asset_type="future", multiplier=dated["size"])
+        from datetime import date
+        asset = Asset(dated["symbol"], "future", expiration=date.fromisoformat(dated["last_trading_date"]),
+                      multiplier=dated["size"])
         tick = Decimal(str(dated["min_tick"]))
     else:
         _require_equity_core_session()
@@ -1496,7 +1503,7 @@ def test_paper_protective_exit_triggers_on_held_contract(paper, futures, kind):
             reference = min([reference, *observed])
         stop = (reference // tick - 2) * tick
         assert stop > tick
-        terms = {"stop_price": stop}
+        terms = {"trail_price": 40 * tick} if kind == "trailing_stop" else {"stop_price": stop}
         if kind == "stop_limit":
             terms["stop_limit_price"] = max(tick, stop - 8 * tick)
         exit_order = strategy.create_order(asset, 1, exit_side, order_type=kind, time_in_force="day", **terms)
@@ -1505,8 +1512,12 @@ def test_paper_protective_exit_triggers_on_held_contract(paper, futures, kind):
         final = _detail(observer, account, exit_order.identifier, lambda row: row["status"] == "FILLED",
                         pauses=(0, 3, 5, 10, 15, 30, 30))
         assert final["side"] == "SELL" and Decimal(final["filled_quantity"]) == 1
-        assert final["order_type"] == ("STOP_LOSS" if kind == "stop" else "STOP_LOSS_LIMIT")
-        assert Decimal(final["stop_price"]) == stop
+        assert final["order_type"] == {"stop": "STOP_LOSS", "stop_limit": "STOP_LOSS_LIMIT",
+                                       "trailing_stop": "TRAILING_STOP_LOSS"}[kind]
+        if kind == "trailing_stop":
+            assert final["trailing_type"] == "AMOUNT" and Decimal(final["trailing_stop_step"]) == terms["trail_price"]
+        else:
+            assert Decimal(final["stop_price"]) == stop
         if kind == "stop_limit":
             assert Decimal(final["limit_price"]) == terms["stop_limit_price"]
             assert Decimal(final["filled_price"]) >= terms["stop_limit_price"]
@@ -1567,9 +1578,22 @@ def test_paper_equity_stop_triggers_and_closes(paper, kind):
             assert Decimal(closed["filled_quantity"]) == qty
 
 
-def test_paper_extended_equity_marketable_limit_round_trip(paper):
+@pytest.mark.parametrize("symbol,duration", [("AAPL", "day"), ("SPY", "gtc")])
+def test_paper_extended_equity_marketable_limit_round_trip(paper, symbol, duration):
+    import pandas as pd
+    from lumibot.tools.helpers import get_trading_days
+
+    now = pd.Timestamp.now(tz="America/New_York")
+    sessions = get_trading_days("NYSE", now.date().isoformat(), (now + pd.Timedelta(days=1)).date().isoformat())
+    if sessions.empty or sessions.iloc[0]["market_open"].date() != now.date():
+        pytest.skip("An eligible extended US equity session is required")
+    core = sessions.iloc[0]
+    start, end = ((now.normalize() + pd.Timedelta(hours=4), core.market_open)
+                  if now < core.market_open else (core.market_close, now.normalize() + pd.Timedelta(hours=20)))
+    if not start <= now < end:
+        pytest.skip("Run during the premarket or postmarket to qualify an extended-session execution")
     broker, observer, account = paper
-    asset = Asset("AAPL")
+    asset = Asset(symbol)
     strategy = Strategy(broker=broker, name="webull_extended_limit", risk_free_rate=0,
                         synchronize_broker_on_start=False, should_backup_variables_to_database=False,
                         should_send_summary_to_discord=False)
@@ -1580,27 +1604,32 @@ def test_paper_extended_equity_marketable_limit_round_trip(paper):
         assert price and price > 0
         allowance = Decimal("1.005") if side == "buy" else Decimal("0.995")
         limit = (Decimal(str(price)) * allowance).quantize(Decimal("0.01"))
-        order = strategy.create_order(asset, quantity, side, limit_price=limit, time_in_force="day",
+        order = strategy.create_order(asset, quantity, side, limit_price=limit, time_in_force=duration,
                                       custom_params={"support_trading_session": "ALL"})
-        result = _submit_and_observe_terminal(strategy, observer, account, order)
-        assert result["support_trading_session"] == "ALL"
-        return result
+        return _submit_and_observe_terminal(strategy, observer, account, order)
+
+    def verify_session(result):
+        assert result["support_trading_session"] == "ALL" and result["time_in_force"] == duration.upper()
+        stamp = pd.Timestamp(result["filled_time_at"])
+        assert stamp.tzinfo is not None and start <= stamp < end
 
     initial = broker._pull_position(strategy, asset)
     result = submit("buy", 1)
     quantity = Decimal(result.get("filled_quantity") or 0)
     try:
         assert result["status"] == "FILLED" and quantity == 1
+        verify_session(result)
         current = broker._pull_position(strategy, asset)
         assert current.quantity == (initial.quantity if initial else 0) + quantity
     finally:
         if quantity:
             final = submit("sell", quantity)
             assert final["status"] == "FILLED" and Decimal(final["filled_quantity"]) == quantity
+            verify_session(final)
     assert (broker._pull_position(strategy, asset) or initial) == initial
 
 
-@pytest.mark.parametrize("product", ["stock", "etf", "future", "option", "crypto"])
+@pytest.mark.parametrize("product", ["stock", "etf", "future", "gold", "option", "crypto", "ether"])
 def test_webull_minute_history_replays_twice_without_network(paper, monkeypatch, product):
     """Select actual vendor bars, preload once and compare two ordinary strategy runs."""
     from datetime import date
@@ -1617,14 +1646,14 @@ def test_webull_minute_history_replays_twice_without_network(paper, monkeypatch,
     start = sessions.loc[sessions.market_close < now, "market_open"].iloc[-1] + pd.Timedelta(minutes=30)
     end = start + pd.Timedelta(hours=1)
     quote = Asset("USD", "forex")
-    if product == "future":
-        terms = _listed_micro_future(source)
+    if product in {"future", "gold"}:
+        terms = _listed_micro_future(source, "MGC" if product == "gold" else "MES")
         asset = Asset(terms["symbol"], "future", expiration=date.fromisoformat(terms["last_trading_date"]),
                       multiplier=terms["size"])
     elif product == "option":
         asset = _listed_test_calls(broker, underlying_symbol="SPY", minimum_days=1)[0]
-    elif product == "crypto":
-        asset = Asset("BTC", "crypto")
+    elif product in {"crypto", "ether"}:
+        asset = Asset("ETH" if product == "ether" else "BTC", "crypto")
         # The PaperTrade crypto endpoint returns the latest N minutes. Select
         # a recently completed interval inside that retention window.
         end = now.floor("min") - pd.Timedelta(minutes=5)
@@ -1639,7 +1668,7 @@ def test_webull_minute_history_replays_twice_without_network(paper, monkeypatch,
     class MinuteReplay(Strategy):
         def initialize(self):
             self.sleeptime = "1M"
-            if product == "crypto":
+            if product in {"crypto", "ether"}:
                 self.set_market("24/7")
             self.steps = 0
 
@@ -1652,8 +1681,6 @@ def test_webull_minute_history_replays_twice_without_network(paper, monkeypatch,
     def reject_network(*args, **kwargs):
         pytest.fail("Unexpected network request during minute replay")
 
-    monkeypatch.setattr(requests.Session, "send", reject_network)
-
     def replay():
         _, strategy = MinuteReplay.run_backtest(
             PandasDataBacktesting, (bars.index[1]).to_pydatetime(), bars.index[-1].to_pydatetime(),
@@ -1665,7 +1692,9 @@ def test_webull_minute_history_replays_twice_without_network(paper, monkeypatch,
         assert len(orders) == 2 and all(o.is_filled() and o.avg_fill_price > 0 for o in orders)
         return [(o.side, o.quantity, o.avg_fill_price) for o in orders], strategy.get_cash()
 
-    assert replay() == replay()
+    with monkeypatch.context() as offline:
+        offline.setattr(requests.Session, "send", reject_network)
+        assert replay() == replay()
 
 
 
@@ -1974,3 +2003,383 @@ def test_paper_stock_market_buy_by_cash_amount(paper):
         assert not request_json("independent final positions", positions, account)
         working = request_json("independent final working orders", observer.order_v3.list_order_open, account)
         assert not working["data"] and not working.get("pagination_key")
+
+
+def _read_dated_future_in_new_process():
+    import sys
+
+    config, serialized = json.load(sys.stdin)
+    assert config["PAPER"] is True
+    fresh = Webull(config, connect_stream=False, start_orders_thread=False)
+    try:
+        strategy = Strategy(broker=fresh, name="webull_future_identity", risk_free_rate=0,
+                            synchronize_broker_on_start=False, should_backup_variables_to_database=False,
+                            should_send_summary_to_discord=False)
+        asset = Asset.from_dict(serialized)
+        position = strategy.get_position(asset)
+        assert position is not None and position.asset == asset and position.quantity == 1
+        assert position.asset.multiplier == asset.multiplier
+        symbol_only = Asset(asset.symbol, "future")
+        assert strategy.get_position(symbol_only, broker_refresh=False) is position
+    finally:
+        fresh.cleanup_streams()
+
+
+@pytest.mark.parametrize("paper", ["FUTURES"], indirect=True)
+@pytest.mark.parametrize("product", ["MES", "MGC"])
+def test_paper_dated_future_lookup_after_restart(paper, product):
+    import subprocess
+    import sys
+
+    broker, observer, account = paper
+    terms = _listed_micro_future(broker.data_source, product)
+    asset = Asset(terms["symbol"], "future", expiration=terms["last_trading_date"], multiplier=terms["size"])
+    positions = observer.account_v2.get_account_position
+    assert not request_json("initial futures positions", positions, account)
+    strategy = Strategy(broker=broker, name="webull_future_identity", risk_free_rate=0,
+                        synchronize_broker_on_start=False, should_backup_variables_to_database=False,
+                        should_send_summary_to_discord=False)
+    entry = strategy.create_order(asset, 1, "buy", time_in_force="day")
+    placed = _submit_and_observe_terminal(strategy, observer, account, entry)
+    quantity = Decimal(placed.get("filled_quantity") or 0)
+    try:
+        assert placed["status"] == "FILLED" and quantity == 1
+        held, = request_json("independent futures position", positions, account)
+        assert held["symbol"] == asset.symbol and Decimal(held["quantity"]) == quantity
+        child = subprocess.run([
+            sys.executable, "-P", "-c",
+            'import runpy,sys; runpy.run_path(sys.argv[1])["_read_dated_future_in_new_process"]()',
+            str(Path(__file__).resolve()),
+        ], input=json.dumps((broker._webull_config, asset.to_dict()), default=str),
+            text=True, capture_output=True, timeout=45)
+        assert child.returncode == 0, "Restarted strategy did not recover the exact dated contract"
+    finally:
+        if quantity:
+            close = strategy.create_order(asset, quantity, "sell", time_in_force="day")
+            closed = _submit_and_observe_terminal(strategy, observer, account, close)
+            assert closed["status"] == "FILLED" and Decimal(closed["filled_quantity"]) == quantity
+        assert not request_json("final futures positions", positions, account)
+
+
+@pytest.mark.parametrize("paper", ["EVENTS_CASH"], indirect=True)
+@pytest.mark.parametrize("mode", ["limit_amount", "best_amount", "limit_contract"])
+def test_paper_event_fill_or_kill(paper, mode):
+    broker, observer, account = paper
+    asset, _ = _quoted_event_contract(broker.data_source.client, "no", require_two_sided=True)
+    positions = observer.account_v2.get_account_position
+    assert not request_json("event starting positions", positions, account)
+    strategy = Strategy(broker=broker, name="webull_event_fill_or_kill", risk_free_rate=0,
+                        synchronize_broker_on_start=False, should_backup_variables_to_database=False,
+                        should_send_summary_to_discord=False)
+    def buying_power():
+        balance = request_json("independent event buying power", observer.account_v2.get_account_balance, account)
+        return next(Decimal(r["buying_power"]) for r in balance["account_currency_assets"] if r["currency"] == "USD")
+
+    def fees(row):
+        items = (row.get("fees") or []) + [row.get("commission") or {}]
+        return sum(Decimal(i.get("actual_value") or 0) for i in items)
+
+    before_cash = buying_power()
+    by_amount = mode != "limit_contract"
+    params = {"total_cash_amount": "1.00"} if by_amount else {}
+    limit = Decimal("0.90") if by_amount else Decimal("0.01")
+    if mode == "best_amount":
+        params["event_trade_mode"] = "TRADE_IN_AMOUNT"
+        limit = None
+    order = strategy.create_order(asset, 0 if by_amount else 1, "buy", order_type="limit",
+                                  limit_price=limit, time_in_force="fok", custom_params=params)
+    strategy.submit_order(order)
+    assert order.status != order.OrderStatus.ERROR, order.error_message
+    # No client cancellation can be used as evidence of venue FOK behavior.
+    venue_finished = True
+    try:
+        terminal = _detail(observer, account, order.identifier, lambda row: row["status"] in
+                           {"FILLED", "CANCELLED", "CANCELED", "EXPIRED", "FAILED", "REJECTED"})
+    except pytest.fail.Exception:
+        venue_finished = False
+        terminal = _cancel_then_read(strategy, observer, account, order)
+    quantity = Decimal(terminal.get("filled_quantity") or 0)
+    try:
+        assert venue_finished, "Venue FOK did not reach a terminal state before cleanup"
+        assert terminal["symbol"] == asset.symbol and terminal["event_outcome"].lower() == asset.outcome
+        assert terminal["time_in_force"] == "FOK" and terminal["order_type"] == "LIMIT"
+        assert terminal["entrust_type"] == ("AMOUNT" if by_amount else "QTY")
+        assert terminal["status"] in {"FILLED", "CANCELLED", "CANCELED", "EXPIRED"}
+        if by_amount and terminal.get("total_cash_amount"):
+            assert Decimal(terminal["total_cash_amount"]) == 1
+        if mode == "best_amount":
+            assert terminal["event_trade_mode"] == "TRADE_IN_AMOUNT"
+        if terminal["status"] == "FILLED":
+            assert quantity > 0
+            if by_amount:
+                assert quantity * Decimal(terminal["filled_price"]) + fees(terminal) <= Decimal("1.00")
+            if not by_amount:
+                assert quantity == 1
+            if limit is not None:
+                assert Decimal(terminal["filled_price"]) <= limit
+            holding, = request_json("signed event position", positions, account)
+            assert holding["symbol"] == asset.symbol and Decimal(holding["quantity"]) == quantity
+            recovered = strategy.get_position(asset)
+            assert recovered is not None and Decimal(str(recovered.quantity)) == quantity
+        else:
+            assert quantity == 0
+    finally:
+        if quantity:
+            close = strategy.create_order(asset, quantity, "sell", limit_price=Decimal("0.01"), time_in_force="gtc")
+            closed = _submit_and_observe_terminal(strategy, observer, account, close)
+            assert closed["status"] == "FILLED" and Decimal(closed["filled_quantity"]) == quantity
+        assert not request_json("independent event final positions", positions, account)
+        assert not request_json("independent event working orders", observer.order_v3.list_order_open, account)["data"]
+    expected_change = Decimal(0)
+    if quantity:
+        expected_change = quantity * (Decimal(closed["filled_price"]) - Decimal(terminal["filled_price"]))
+        expected_change -= fees(terminal) + fees(closed)
+    assert abs(buying_power() - before_cash - expected_change) <= Decimal("0.01")
+
+
+@pytest.mark.parametrize("paper,product", [("INDIVIDUAL_CASH", "stock"), ("INDIVIDUAL_MARGIN", "option")],
+                         indirect=["paper"], ids=["stock", "option"])
+def test_paper_smart_limit_with_two_sided_quote(paper, product):
+    from lumibot.entities import SmartLimitConfig, SmartLimitPreset
+
+    _require_equity_core_session()
+    broker, observer, account = paper
+    asset = Asset("AAPL") if product == "stock" else _listed_test_calls(broker)[0]
+    positions = observer.account_v2.get_account_position
+    assert not request_json("initial smart-limit positions", positions, account)
+    strategy = Strategy(broker=broker, name="webull_smart_limit", risk_free_rate=0,
+                        synchronize_broker_on_start=False, should_backup_variables_to_database=False,
+                        should_send_summary_to_discord=False)
+    quoted = strategy.get_quote(asset)
+    assert quoted.ask >= quoted.bid > 0
+    side = "buy" if product == "stock" else "buy_to_open"
+    cfg = SmartLimitConfig(preset=SmartLimitPreset.FAST, final_price_pct=1.0, final_hold_seconds=30)
+    target = strategy.create_order(asset, 1, side, order_type="smart_limit", smart_limit=cfg, time_in_force="day")
+    sent = strategy.submit_order(target)
+    assert sent is not None and sent.status != sent.OrderStatus.ERROR, target.error_message
+    observed_prices = []
+    try:
+        for _ in range(12):
+            row = _detail(observer, account, sent.identifier, lambda item: bool(item["order_id"]))
+            if row.get("limit_price"):
+                observed_prices.append(Decimal(row["limit_price"]))
+            if row["status"] in {"FILLED", "CANCELLED", "CANCELED", "EXPIRED", "REJECTED", "FAILED"}:
+                break
+            strategy.get_order(sent.identifier, broker_refresh=True)
+            strategy._executor._process_smart_limit_orders()
+            time.sleep(1)
+    finally:
+        terminal = _cancel_then_read(strategy, observer, account, sent)
+        quantity = Decimal(terminal.get("filled_quantity") or 0)
+        if quantity:
+            close_side = "sell" if product == "stock" else "sell_to_close"
+            close = strategy.create_order(asset, quantity, close_side, order_type="market", time_in_force="day")
+            closed = _submit_and_observe_terminal(strategy, observer, account, close)
+            assert closed["status"] == "FILLED" and Decimal(closed["filled_quantity"]) == quantity
+        assert not request_json("final smart-limit positions", positions, account)
+        assert not request_json("final smart-limit open orders", observer.order_v3.list_order_open, account)["data"]
+    assert terminal["order_type"] == "LIMIT" and observed_prices
+    assert terminal["status"] == "FILLED" and quantity == 1
+    assert Decimal(terminal["filled_price"]) <= Decimal(terminal["limit_price"])
+
+
+@pytest.mark.parametrize("algorithm", ["TWAP", "VWAP", "POV"])
+def test_paper_equity_algorithm_retains_venue_terms(paper, algorithm):
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    _require_equity_core_session()
+    broker, observer, account = paper
+    asset = Asset("F")
+    positions = observer.account_v2.get_account_position
+    assert not request_json("initial equity algorithm positions", positions, account)
+    strategy = Strategy(broker=broker, name="webull_equity_algorithm", risk_free_rate=0,
+                        synchronize_broker_on_start=False, should_backup_variables_to_database=False,
+                        should_send_summary_to_discord=False)
+    now = datetime.now(ZoneInfo("America/New_York"))
+    close = now.replace(hour=16, minute=0, second=0, microsecond=0)
+    if now + timedelta(minutes=4) >= close:
+        pytest.skip("The intraday execution window needs four minutes before the core close")
+    rate_field = "target_vol_percent" if algorithm == "POV" else "max_target_percent"
+    params = {"algo_type": algorithm, rate_field: "10",
+              "algo_start_time": (now + timedelta(minutes=1)).strftime("%H:%M:%S"),
+              "algo_end_time": min(now + timedelta(minutes=10), close).strftime("%H:%M:%S")}
+    quote = strategy.get_quote(asset)
+    assert quote.bid and quote.bid > 0
+    limit = (Decimal(str(quote.bid)) * Decimal("0.97")).quantize(Decimal("0.01"))
+    # Webull publishes a 1,000-share and $5,000 minimum for equity algorithms.
+    # Use a passive, future-starting order in PaperTrade and bound its test size.
+    if not Decimal("5") <= limit <= Decimal("30"):
+        pytest.skip("The qualification symbol is outside this test's paper notional range")
+    target = strategy.create_order(asset, 1000, "buy", limit_price=limit, time_in_force="day", custom_params=params)
+    strategy.submit_order(target)
+    assert target.status != target.OrderStatus.ERROR, target.error_message
+    try:
+        placed = _detail(observer, account, target.identifier, lambda row: bool(row.get("order_id")))
+        assert placed.get("algo_type") == algorithm, "Venue detail did not confirm the requested algorithm"
+        assert placed["symbol"] == asset.symbol and Decimal(placed["limit_price"]) == limit
+    finally:
+        terminal = _cancel_then_read(strategy, observer, account, target)
+        quantity = Decimal(terminal.get("filled_quantity") or 0)
+        if quantity:
+            close_order = strategy.create_order(asset, quantity, "sell", order_type="market", time_in_force="day")
+            closed = _submit_and_observe_terminal(strategy, observer, account, close_order)
+            assert closed["status"] == "FILLED" and Decimal(closed["filled_quantity"]) == quantity
+        assert not request_json("final algorithm positions", positions, account)
+        assert not request_json("final algorithm working", observer.order_v3.list_order_open, account)["data"]
+
+
+def test_paper_twap_fills_and_cancel_reconciles_executed_shares(paper):
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    _require_equity_core_session()
+    broker, observer, account = paper
+    positions = observer.account_v2.get_account_position
+    assert not request_json("initial algorithm positions", positions, account)
+    asset = Asset("F")
+    strategy = Strategy(broker=broker, name="webull_algo_execution", risk_free_rate=0,
+                        synchronize_broker_on_start=False, should_backup_variables_to_database=False,
+                        should_send_summary_to_discord=False)
+    now = datetime.now(ZoneInfo("America/New_York"))
+    start = now + timedelta(seconds=20)
+    end = start + timedelta(minutes=5)
+    if end >= now.replace(hour=16, minute=0, second=0, microsecond=0):
+        pytest.skip("Need the algorithm and cleanup window inside the core session")
+    ask = strategy.get_quote(asset).ask
+    assert ask and ask > 0
+    limit = (Decimal(str(ask)) * Decimal("1.02")).quantize(Decimal("0.01"))
+    if not Decimal("5") <= limit <= Decimal("30"):
+        pytest.skip("The symbol is outside this test's PaperTrade notional range")
+    params = {"algo_type": "TWAP", "algo_start_time": start.strftime("%H:%M:%S"),
+              "algo_end_time": end.strftime("%H:%M:%S"), "max_target_percent": "10"}
+    test_order = strategy.create_order(asset, 1000, "buy", limit_price=limit, time_in_force="day", custom_params=params)
+    strategy.submit_order(test_order)
+    assert test_order.status != test_order.OrderStatus.ERROR, test_order.error_message
+    try:
+        observed = _detail(observer, account, test_order.identifier,
+                           lambda row: Decimal(row.get("filled_quantity") or 0) > 0,
+                           pauses=(0, 8, 12, 16, 20, 24, 30, 30))
+        assert observed["algo_type"] == "TWAP" and Decimal(observed["filled_price"]) <= limit
+    finally:
+        terminal = _cancel_then_read(strategy, observer, account, test_order)
+        executed = Decimal(terminal.get("filled_quantity") or 0)
+        try:
+            if executed:
+                row, = request_json("holding after algorithm stopped", positions, account)
+                assert row["symbol"] == asset.symbol and Decimal(row["quantity"]) == executed
+                for _ in range(2):
+                    tracked = strategy.get_order(test_order.identifier, broker_refresh=True, broker_refresh_ttl_seconds=0)
+                assert tracked.filled_quantity == executed
+                assert sum(Decimal(str(t.quantity)) for t in tracked.transactions) == executed
+        finally:
+            if executed:
+                close = strategy.create_order(asset, executed, "sell", order_type="market", time_in_force="day")
+                closed = _submit_and_observe_terminal(strategy, observer, account, close)
+                assert closed["status"] == "FILLED" and Decimal(closed["filled_quantity"]) == executed
+            assert not request_json("final algorithm positions", positions, account)
+            assert not request_json("final working algorithms", observer.order_v3.list_order_open, account)["data"]
+    assert executed > 0
+
+
+@pytest.mark.parametrize("paper", ["INDIVIDUAL_MARGIN"], indirect=True)
+@pytest.mark.parametrize("shape", ["COVERED_STOCK", "COLLAR_WITH_STOCK"])
+def test_paper_stock_option_package_while_held_and_after_close(paper, shape):
+    from datetime import date, timedelta
+
+    _require_equity_core_session()
+    broker, observer, account = paper
+    strategy = Strategy(broker=broker, name="webull_stock_option_package", risk_free_rate=0,
+                        synchronize_broker_on_start=False, should_backup_variables_to_database=False,
+                        should_send_summary_to_discord=False)
+    positions = observer.account_v2.get_account_position
+    assert not request_json("initial mixed positions", positions, account)
+    assert not request_json("initial mixed orders", observer.order_v3.list_order_open, account)["data"]
+    root = Asset("AAPL")
+    spot = Decimal(str(strategy.get_quote(root).price))
+    today = date.today()
+    def contract(right, target, expiry=None):
+        rows = broker.data_source.option_contracts(
+            root, root_symbol=root.symbol, option_type=right, strike_price_gte=str(spot - 18),
+            strike_price_lte=str(spot + 18), start_date=(expiry or today + timedelta(days=2)).isoformat(),
+            end_date=(expiry or today + timedelta(days=12)).isoformat())
+        assert rows, "No eligible listed contracts in the requested window"
+        nearest = min(row["expiration_date"] for row in rows)
+        row = min((row for row in rows if row["expiration_date"] == nearest),
+                  key=lambda row: abs(Decimal(row["strike_price"]) - target))
+        return Asset(root.symbol, "option", right=right, strike=float(row["strike_price"]),
+                     expiration=date.fromisoformat(nearest), multiplier=float(row["multiplier"]))
+
+    call = contract("CALL", spot + 3)
+    assert call.multiplier == 100
+    legs = [(root, 100, "buy", "sell"), (call, -1, "sell_to_open", "buy_to_close")]
+    if shape == "COLLAR_WITH_STOCK":
+        put = contract("PUT", spot - 3, call.expiration)
+        assert put.multiplier == call.multiplier and put.strike < call.strike
+        legs.append((put, 1, "buy_to_open", "sell_to_close"))
+
+    def submit(closing):
+        orders, net = [], Decimal(0)
+        for asset, qty, entry_side, exit_side in legs:
+            side = exit_side if closing else entry_side
+            quote = strategy.get_quote(asset)
+            assert quote.ask >= quote.bid > 0
+            value = quote.ask if side.startswith("buy") else quote.bid
+            net += Decimal(str(value)) * (1 if qty > 0 else -1)
+            orders.append(strategy.create_order(asset, abs(qty), side, time_in_force="day",
+                                                custom_params={"option_strategy": shape}))
+        allowance = spot * Decimal("0.015")
+        price = (net - allowance if closing else net + allowance).quantize(Decimal("0.01"))
+        assert price > 0
+        group, = strategy.submit_orders(orders, is_multileg=True, order_type="credit" if closing else "debit",
+                                        price=price, duration="day")
+        assert group.status != group.OrderStatus.ERROR, group.error_message
+        return _observe_terminal_or_cancel(strategy, observer, account, group)
+
+    opened = submit(False)
+    try:
+        assert opened["status"] == "FILLED" and opened["option_strategy"] == shape
+        assert Decimal(opened["filled_quantity"]) == 1
+        row, = request_json("independent mixed holding", positions, account)
+        assert row["option_strategy"] == shape and Decimal(row["quantity"]) == 1
+        expected = {asset: qty for asset, qty, _, _ in legs}
+        fresh = Webull(broker._webull_config, connect_stream=False, start_orders_thread=False)
+        try:
+            assert {p.asset: p.quantity for p in fresh._pull_positions(strategy)} == expected
+        finally:
+            fresh.cleanup_streams()
+        assert sorted(Decimal(leg["quantity"]) for leg in opened["legs"]) == sorted(abs(q) for q in expected.values())
+    finally:
+        if Decimal(opened.get("filled_quantity") or 0):
+            closed = submit(True)
+            assert closed["status"] == "FILLED" and Decimal(closed["filled_quantity"]) == 1, (
+                "Native close did not fill. Reconcile this test's grouped position before any further order.")
+        assert not request_json("final mixed positions", positions, account)
+        assert not request_json("final mixed orders", observer.order_v3.list_order_open, account)["data"]
+
+
+@pytest.mark.parametrize("paper", ["EVENTS_CASH"], indirect=True)
+def test_paper_event_good_till_date_terms(paper):
+    from datetime import datetime, timedelta, timezone
+
+    broker, observer, account = paper
+    asset, _ = _quoted_event_contract(broker.data_source.client, "no")
+    strategy = Strategy(broker=broker, name="webull_event_gtd", risk_free_rate=0, synchronize_broker_on_start=False,
+                        should_backup_variables_to_database=False, should_send_summary_to_discord=False)
+    assert not request_json("starting GTD holdings", observer.account_v2.get_account_position, account)
+    expiry = (datetime.now(timezone.utc) + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    order = strategy.create_order(asset, 1, "buy", limit_price=Decimal("0.01"), time_in_force="gtd", good_till_date=expiry)
+    strategy.submit_order(order)
+    assert order.status != order.OrderStatus.ERROR, order.error_message
+    try:
+        row = _detail(observer, account, order.identifier, lambda item: bool(item.get("order_id")))
+        assert row["time_in_force"] == "GTD" and row["expire_date"] == expiry.date().isoformat()
+    finally:
+        final = _cancel_then_read(strategy, observer, account, order)
+        quantity = Decimal(final.get("filled_quantity") or 0)
+        if quantity:
+            close = strategy.create_order(asset, quantity, "sell", limit_price=Decimal("0.01"), time_in_force="gtc")
+            closed = _submit_and_observe_terminal(strategy, observer, account, close)
+            assert Decimal(closed["filled_quantity"]) == quantity
+        assert not request_json("final GTD holdings", observer.account_v2.get_account_position, account)
+        assert not request_json("final GTD working orders", observer.order_v3.list_order_open, account)["data"]

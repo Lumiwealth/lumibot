@@ -92,7 +92,8 @@ return recent bars. A request outside its returned window can have no data.
    # MyStrategy.run_backtest(PandasDataBacktesting, start, end, pandas_data=data,
    #                         benchmark_asset=None, risk_free_rate=0)
 
-Stock, ETF, listed call, dated micro future and recent BTC/USD minute windows
+Stock, ETF, listed call, dated micro-index and micro-gold futures, and recent
+BTC/USD and ETH/USD minute windows
 each produced two simulated fills and an identical repeated journal and cash
 balance with HTTP disabled after loading. OPRA historical bid/ask and
 point-in-time chain membership are separate from traded minute OHLCV.

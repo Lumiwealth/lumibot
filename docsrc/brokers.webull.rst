@@ -139,8 +139,12 @@ packages opened and closed in the simulator. A signed position read while
 each was open agreed with the reconstructed contracts, dates and quantities.
 These checks cover the tested debit calendars, diagonals and call condors
 and credit iron structures. Webull rejected a different diagonal structure
-submitted as a credit. Covered stock and stock collar orders were accepted,
-remained unfilled and were canceled.
+submitted as a credit. A covered call and a stock collar on AAPL both filled on entry and on
+native package close. While held, each appeared as one provider position.
+LumiBot uses the share deliverable reported on the option leg and the signed
+package quantity to recover the equity shares, short call and any protective
+put. The per-leg portfolio weights are unsuitable for calculating quantities.
+Earlier passive mixed orders were canceled before they filled.
 
 A native long call butterfly filled with one contract at each outer strike
 and two short contracts at the middle strike. A fresh account read recovered
@@ -188,7 +192,10 @@ regular-session runs, a sell stop and a sell stop-limit each triggered and
 closed a long dated contract. The stop-limit execution respected the
 original sell limit. A separate contract-switch test closed December MES,
 opened March MES, then closed March. Each dated symbol and tick price was
-read independently. A futures trailing-stop trigger remains unverified.
+read independently. A fresh strategy process also recovered the exact open contract for
+Micro E-mini S&P 500 and Micro Gold, both with and without an explicit
+expiry on the dated symbol. The adapter resolves the last trading date
+and contract multiplier from Webull contract metadata.
 
 A US equity trade subscription delivered five-second bars through
 ``Strategy.get_realtime_bars``. LumiBot timestamps each bar from the full
@@ -200,6 +207,23 @@ dated futures trade stream. A futures REST quote was available. Reading a
 denied symbol surfaces the provider code. Other entitled symbols on the
 connection can continue to deliver bars. Cancel the subscription when finished.
 Removing the last consumer closes the connection.
+
+For a standalone DAY stock or ETF order, pass Webull algorithm parameters
+in the ordinary order's ``custom_params``. The simulator independently
+reported TWAP, VWAP and POV on working equity orders. A TWAP buy also
+filled. Pass ``algo_start_time`` and ``algo_end_time`` in the venue's
+Eastern time format. Webull requires at least 1,000 shares and $5,000
+in notional for these algorithms. The algorithm, trading session and time
+in force are independent order fields.
+
+A Webull event order uses ``order_type="limit"``. For best-price buying by
+amount, pass zero quantity, ``time_in_force="fok"`` and
+``custom_params={"total_cash_amount": "1.00", "event_trade_mode": "TRADE_IN_AMOUNT"}``.
+Omit the limit price for this mode. The simulator assigned a fractional contract
+quantity and reported its execution price and fees. It rejected a separately
+tested price-limited cash amount. A receipt can omit the original cash
+target, so retain the submitted terms. For a price-limited quantity order,
+supply the contract quantity and price and omit ``event_trade_mode``.
 
 An equity order can remain pending after a cancel request is rejected. Read
 the original client ID again before creating any replacement or close order.

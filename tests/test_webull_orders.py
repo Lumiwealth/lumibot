@@ -529,3 +529,239 @@ def test_public_strategy_submits_native_amount_but_refuses_accidental_zero_quant
     assert strategy.submit_order(placed) is placed
     venue.order_v3.place_order.assert_called_once()
     assert venue.order_v3.place_order.call_args.args[1][0]["entrust_type"] == "AMOUNT"
+
+
+def test_dated_future_identity_survives_position_refresh_and_symbol_only_lookup(broker, venue):
+    from datetime import date
+
+    terms = {"symbol": "MESZ7", "size": "5", "last_trading_date": "2027-12-17"}
+    broker._webull_data.futures_contract = Mock(return_value=terms)
+    venue.account_v2.get_account_position.return_value = reply([
+        {"symbol": "MESZ7", "quantity": "-2", "instrument_type": "FUTURES"}
+    ])
+    broker.sync_positions("qualification")
+    exact = Asset("MESZ7", "future", expiration=date(2027, 12, 17))
+    symbol_only = Asset("MESZ7", "future")
+    holding = broker.get_tracked_position("qualification", exact)
+    assert holding is not None and holding.quantity == -2
+    assert holding.asset == exact and holding.asset.multiplier == 5
+    assert broker.get_tracked_position("qualification", symbol_only) is holding
+    assert broker._pull_position("qualification", symbol_only).asset == exact
+    assert broker.get_tracked_position("another-strategy", symbol_only) is None
+    assert broker.get_tracked_position("qualification", symbol_only, position_id="another-id") is None
+    for different in (Asset("MESH8", "future"), Asset("MESZ7", "future", expiration=date(2027, 12, 16)),
+                      Asset("MESZ7", "stock"), Asset("MES", "cont_future")):
+        assert broker.get_tracked_position("qualification", different) is None
+    broker.sync_positions("qualification")
+    assert broker.get_tracked_positions("qualification") == [holding]
+
+
+def test_dated_future_order_uses_contract_terms_and_rejects_conflicting_expiry(broker, venue):
+    from datetime import date
+
+    broker._webull_data.futures_contract = Mock(return_value={
+        "symbol": "MESZ7", "size": "5", "last_trading_date": "2027-12-17",
+    })
+    symbol_only = Asset("MESZ7", "future", leverage=2)
+    order = Order("qualification", symbol_only, 1, "buy", time_in_force="day")
+    broker.submit_order(order)
+    assert order.asset.expiration == date(2027, 12, 17) and order.asset.multiplier == 5
+    assert order.asset.leverage == 2 and symbol_only.expiration is None
+    venue.order_v3.place_order.reset_mock()
+    wrong = Asset("MESZ7", "future", expiration=date(2027, 12, 16))
+    with pytest.raises(ValueError, match="last trading date"):
+        broker.submit_order(Order("qualification", wrong, 1, "buy", time_in_force="day"))
+    venue.order_v3.place_order.assert_not_called()
+
+
+@pytest.mark.parametrize("mode,amount,duration,price", [
+    (None, None, "ioc", "0.20"), (None, None, "fok", "0.20"),
+    (None, "2.00", "fok", "0.20"), ("TRADE_IN_AMOUNT", "2.00", "fok", None),
+    ("TRADE_IN_CONTRACT", None, "day", None),
+])
+def test_event_order_keeps_outcome_duration_and_execution_mode(broker, venue, mode, amount, duration, price):
+    from decimal import Decimal
+
+    asset = Asset("ECON-SAMPLE", "prediction_contract", outcome="no")
+    params = {}
+    if mode:
+        params["event_trade_mode"] = mode
+    if amount:
+        params["total_cash_amount"] = amount
+    target = Order("qualification", asset, 0 if amount else 1, "buy", order_type="limit", time_in_force=duration,
+                   limit_price=Decimal(price) if price else None, custom_params=params)
+    assert broker.accepts_cash_amount_order(target) is bool(amount)
+    broker.submit_order(target)
+    row, = venue.order_v3.place_order.call_args.args[1]
+    assert row["event_outcome"] == "no" and row["time_in_force"] == duration.upper()
+    assert row["order_type"] == "LIMIT" and row.get("event_trade_mode") == mode
+    assert row["entrust_type"] == ("AMOUNT" if amount else "QTY")
+    assert row.get("quantity") == (None if amount else "1")
+    assert row.get("total_cash_amount") == ("2" if amount else None)
+    assert row.get("limit_price") == (None if mode else "0.2")
+
+
+@pytest.mark.parametrize("side,duration,mode,amount", [
+    ("sell", "fok", "TRADE_IN_AMOUNT", "2"), ("buy", "gtc", "TRADE_IN_AMOUNT", "2"),
+    ("buy", "fok", "TRADE_IN_AMOUNT", None), ("buy", "fok", "TRADE_IN_CONTRACT", "2"),
+    ("buy", "fok", "UNKNOWN", None),
+])
+def test_event_order_refuses_mixed_units_and_invalid_cash_terms(broker, venue, side, duration, mode, amount):
+    asset = Asset("ECON-SAMPLE", "prediction_contract", outcome="yes")
+    params = {"event_trade_mode": mode}
+    if amount:
+        params["total_cash_amount"] = amount
+    with pytest.raises(ValueError):
+        broker.submit_order(Order("qualification", asset, 0 if amount else 2, side, order_type="limit",
+                                  limit_price=0.4, time_in_force=duration, custom_params=params))
+    venue.order_v3.place_order.assert_not_called()
+
+
+def test_event_gtd_converts_to_utc_date_and_recovers_terms(broker, venue):
+    from datetime import datetime, timedelta, timezone
+
+    good_till = datetime(2027, 6, 1, 22, tzinfo=timezone(timedelta(hours=-4)))
+    asset = Asset("ECON-SAMPLE", "prediction_contract", outcome="yes")
+    placed = Order("qualification", asset, 2, "buy", order_type="limit",
+                   limit_price=0.4, time_in_force="gtd", good_till_date=good_till)
+    broker.submit_order(placed)
+    row, = venue.order_v3.place_order.call_args.args[1]
+    assert row["expire_date"] == "2027-06-02"
+    observed = broker._parse_order_row({**row, "total_quantity": "2", "status": "SUBMITTED"}, "qualification")
+    assert observed.good_till_date.date().isoformat() == row["expire_date"]
+    assert observed.time_in_force == "gtd" and observed.asset.outcome == "yes"
+
+
+@pytest.mark.parametrize("kind,field", [
+    ("TWAP", "max_target_percent"), ("VWAP", "max_target_percent"), ("POV", "target_vol_percent"),
+])
+def test_equity_algorithm_terms_are_sent_and_read_back(broker, venue, kind, field):
+    terms = {"algo_type": kind, field: "10", "algo_start_time": "10:05:00", "algo_end_time": "10:15:00"}
+    placed = Order("qualification", Asset("SAMPLE"), 1, "buy", limit_price=12, time_in_force="day",
+                   custom_params=terms)
+    broker.submit_order(placed)
+    row, = venue.order_v3.place_order.call_args.args[1]
+    assert {k: row.get(k) for k in terms} == terms
+    restored = broker._parse_order_row({**row, "total_quantity": "1", "status": "SUBMITTED"}, "qualification")
+    assert {k: restored.custom_params.get(k) for k in terms} == terms
+    assert restored.asset == placed.asset and restored.limit_price == 12
+
+
+@pytest.mark.parametrize("asset,kind,duration", [
+    (Asset("SAMPLE"), "UNKNOWN", "day"), (Asset("SAMPLE"), "TWAP", "gtc"),
+    (Asset("SAMPLE", "crypto"), "VWAP", "day"),
+])
+def test_algorithm_cannot_become_an_ordinary_limit(broker, venue, asset, kind, duration):
+    target = Order("qualification", asset, 1, "buy", limit_price=12, time_in_force=duration,
+                   quote=Asset("USD", "forex"), custom_params={"algo_type": kind})
+    with pytest.raises(ValueError, match="algorithm"):
+        broker.submit_order(target)
+    venue.order_v3.place_order.assert_not_called()
+
+
+@pytest.mark.parametrize("asset,kind,params", [
+    (Asset("MESZ7", "future"), "bracket", {}),
+    (Asset("ECON-SAMPLE", "prediction_contract", outcome="no"), "bracket", {}),
+    (Asset("ECON-SAMPLE", "prediction_contract", outcome="yes"), "stop", {"stop_price": 0.40}),
+])
+def test_unsupported_native_protection_never_places_a_naked_parent(broker, venue, asset, kind, params):
+    if kind == "bracket":
+        params = {"order_class": "bracket", "secondary_limit_price": 0.60, "secondary_stop_price": 0.40}
+    order = Order("qualification", asset, 1, "buy", time_in_force="day", **params)
+    with pytest.raises(ValueError, match="linked order|event contracts use"):
+        broker.submit_order(order)
+    venue.order_v3.place_order.assert_not_called()
+
+
+@pytest.mark.parametrize("product", ["stock", "etf", "option", "future", "crypto", "event"])
+def test_duplicate_partial_and_cancel_reconcile_once_per_instrument(broker, venue, product):
+    """A late partial can arrive in the same response that closes the order."""
+    from datetime import date
+    from decimal import Decimal
+
+    expiry = date(2027, 12, 17)
+    assets = {
+        "stock": Asset("AAPL"), "etf": Asset("SPY"),
+        "option": Asset("SPY", "option", strike=500, right="PUT", expiration=expiry),
+        "future": Asset("MESZ7", "future", expiration=expiry, multiplier=5),
+        "crypto": Asset("ETH", "crypto"),
+        "event": Asset("ECON-SAMPLE", "prediction_contract", outcome="no"),
+    }
+    broker._webull_data.futures_contract = Mock(return_value={
+        "symbol": "MESZ7", "size": "5", "last_trading_date": expiry.isoformat(),
+    })
+    quote = Asset("USD", "forex") if product == "crypto" else None
+    asset = assets[product]
+    order = Order("qualification", asset, 3, "buy_to_open" if product == "option" else "buy",
+                  order_type="limit", limit_price=0.75, time_in_force="gtc", quote=quote)
+    broker.submit_order(order)
+    sent, = venue.order_v3.place_order.call_args.args[1]
+    row = {**sent, "total_quantity": "3", "currency": "USD"}
+    if product == "option":
+        row["legs"] = [{**row["legs"][0], "option_contract_multiplier": "100"}]
+
+    def refresh(status, total, average):
+        payload = {**row, "status": status, "filled_quantity": total, "filled_price": average}
+        venue.order_v3.get_order_detail.return_value = reply({"orders": [payload]})
+        broker._refresh_tracked_order(order)
+
+    refresh("PARTIALLY_FILLED", "1", "0.60")
+    refresh("PARTIALLY_FILLED", "1", "0.60")
+    refresh("CANCELLED", "2", "0.65")
+    refresh("CANCELLED", "2", "0.65")
+    assert order.is_canceled() and order.filled_quantity == 2
+    assert [(Decimal(str(t.quantity)), round(Decimal(str(t.price)), 2)) for t in order.transactions] == [
+        (1, Decimal("0.60")), (1, Decimal("0.70")),
+    ]
+    pulled = broker._pull_order(order.identifier, "qualification")
+    assert pulled.asset == asset and pulled.asset.multiplier == asset.multiplier
+    assert pulled.quote == order.quote
+    assert pulled.filled_quantity == 2 and pulled.is_canceled()
+    assert pulled.asset.outcome == asset.outcome
+
+
+@pytest.mark.parametrize("shape", ["COVERED_STOCK", "COLLAR_WITH_STOCK"])
+@pytest.mark.parametrize("quantity,deliverable", [(2, 100), (-1, 50)])
+def test_mixed_holding_uses_deliverable_and_option_right(broker, venue, shape, quantity, deliverable):
+    call = {"symbol": "XYZ", "instrument_type": "OPTION", "option_type": "CALL",
+            "option_expire_date": "2030-12-20", "option_contract_multiplier": "100",
+            "option_exercise_price": "35", "option_contract_deliverable": str(deliverable), "proportion": ".002"}
+    stock = {"symbol": "XYZ", "instrument_type": "EQUITY", "proportion": ".996"}
+    legs = [call, stock]
+    expected = {("stock", None): quantity * deliverable, ("option", "CALL"): -quantity}
+    if shape == "COLLAR_WITH_STOCK":
+        legs.insert(0, {**call, "option_type": "PUT", "option_exercise_price": "30"})
+        expected["option", "PUT"] = quantity
+    row = {"symbol": "XYZ", "instrument_type": "OPTION", "option_strategy": shape,
+           "quantity": str(quantity), "legs": legs}
+    venue.account_v2.get_account_position.return_value = reply([row])
+    assert {(p.asset.asset_type, p.asset.right): p.quantity for p in broker._pull_positions("test")} == expected
+    with pytest.raises(ValueError):
+        broker._option_position_legs({**row, "legs": [call] * len(legs)}, quantity)
+    with pytest.raises(ValueError):
+        broker._option_position_legs({**row, "legs": [{**call, "symbol": "OTHER"}, *legs[1:]]}, quantity)
+    with pytest.raises(ValueError):
+        broker._option_position_legs({**row, "legs": [{**leg, "option_contract_deliverable": "cash and shares"}
+                                                       for leg in legs]}, quantity)
+
+
+def test_best_price_event_cannot_discard_explicit_limit(broker, venue):
+    order = Order("qualification", Asset("SAMPLE", "prediction_contract", outcome="yes"), 1, "buy",
+                  order_type="limit", limit_price=.30, time_in_force="day",
+                  custom_params={"event_trade_mode": "TRADE_IN_CONTRACT"})
+    with pytest.raises(ValueError, match="limit price"):
+        broker.submit_order(order)
+    venue.order_v3.place_order.assert_not_called()
+
+
+def test_event_fill_can_report_amount_mode_without_original_cash_target(broker):
+    from decimal import Decimal
+
+    row = dict(symbol="SAMPLE", instrument_type="EVENT", event_outcome="no", order_type="LIMIT",
+               side="BUY", client_order_id="synthetic-event", status="FILLED", time_in_force="FOK",
+               event_trade_mode="TRADE_IN_AMOUNT", entrust_type="AMOUNT", total_quantity="1.01",
+               filled_quantity="1.01", filled_price=".97")
+    order = broker._parse_order_row(row, "qualification")
+    assert order.filled_quantity == Decimal("1.01")
+    assert order.custom_params == {"entrust_type": "AMOUNT", "event_trade_mode": "TRADE_IN_AMOUNT"}
+    assert order.asset.outcome == "no" and order.avg_fill_price == .97

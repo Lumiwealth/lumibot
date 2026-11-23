@@ -13,6 +13,11 @@
   holdings for the verified package shapes. Standalone DAY fractional-stock
   buys can submit a cash amount and reconcile broker-assigned shares. The
   adapter submits leg-out closes using the Webull position ID.
+  Covered stock and collars recover their equity shares and signed option legs.
+  Dated futures positions retain the contract month across process restarts.
+  Individual equity orders can carry native algorithm parameters, and event
+  orders preserve their execution mode and duration. Regression tests cover
+  duplicate partial executions in each instrument family.
   An unavailable exchange trade feed reports its entitlement error while other
   subscriptions continue. The connection closes on the last unsubscribe.
   Minute OHLCV windows can be loaded once for ordinary pandas-backed replay. See `docsrc/brokers.webull.rst`.

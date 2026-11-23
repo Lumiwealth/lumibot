@@ -214,6 +214,12 @@ class MetaMaskClient:
     def price(self, symbol):
         return self.venue.price(symbol)
 
+    def prices(self, symbols):
+        return self.venue.prices(symbols)
+
+    def quote(self, symbol):
+        return self.venue.l2_book(symbol)
+
     def token_price(self, asset, quote=None):
         return self.evm.price(TokenAsset.parse(asset), TokenAsset.parse(quote) if quote is not None else None)
 

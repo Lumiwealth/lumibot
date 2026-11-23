@@ -156,6 +156,7 @@ def _doc_brokers():
     from lumibot.brokers.alpaca import Alpaca
     from lumibot.brokers.bitunix import Bitunix
     from lumibot.brokers.interactive_brokers_rest import InteractiveBrokersREST
+    from lumibot.brokers.metamask import MetaMask
     from lumibot.brokers.projectx import ProjectX
     from lumibot.brokers.schwab import Schwab
     from lumibot.brokers.tradier import Tradier
@@ -163,7 +164,22 @@ def _doc_brokers():
     return {
         "Alpaca": Alpaca, "Tradier": Tradier, "Schwab": Schwab, "Tradovate": Tradovate,
         "Bitunix": Bitunix, "ProjectX": ProjectX, "Interactive Brokers (Client Portal)": InteractiveBrokersREST,
+        "MetaMask": MetaMask,
     }
+
+
+def test_metamask_order_support_mode_and_smart_limit():
+    from lumibot.brokers.metamask import MetaMask
+
+    perp = _bare(MetaMask)
+    perp.mode = "perp"
+    assert perp.supports_order(order_type="smart_limit").mode == "simulated"
+    assert perp.supports_order(order_type="stop", asset_type="crypto_future").mode == "native"
+    assert perp.supports_order(order_type="market", asset_type="crypto").mode == "unsupported"
+    spot = _bare(MetaMask)
+    spot.mode = "spot"
+    support = spot.supports_order(order_type="market", asset_type="crypto_future")
+    assert support.mode == "unsupported" and "swap" in support.reason.lower()
 
 
 def test_docs_table_matches_every_declaration():

@@ -107,18 +107,29 @@ capacity must cover entry and closing legs. ``get_cash()`` is broker-reported US
 not remaining policy budget. Startup never renews authority. Stop and join
 Trader before calling ``broker.close()`` to release workers and the native client.
 
-The native candidate supports Hyperliquid's default USDC perpetual DEX with
-market and limit buy/sell orders. ``reduce_only=True`` survives shared closing
-methods and restored snapshots. Legacy ``custom_params={"reduce_only": True}``
-cannot turn off canonical reduce-only intent. Limit orders require ``gtc``,
-``ioc`` or ``alo``. Market orders become frozen slippage-bounded IOC limits.
-Conditional, bracket, OCO and automatic cancel/replace orders are unsupported.
+The native adapter supports Hyperliquid's default USDC perpetual DEX with
+market, limit, stop, stop-limit, bracket, OTO, and OCO orders (mapped to
+Hyperliquid trigger and grouped ``normalTpsl``/``positionTpsl`` actions), plus
+LumiBot-simulated ``SMART_LIMIT`` orders backed by L2 book quotes. Standard
+LumiBot order sides (``buy``, ``buy_to_open``, ``sell``, ``sell_to_open``,
+``sell_short``, ``buy_to_close``, ``buy_to_cover``, ``sell_to_close``) are
+normalized, and closing sides as well as ``reduce_only=True`` enforce canonical
+reduce-only intent across closing methods and restored snapshots. Legacy
+``custom_params={"reduce_only": True}`` cannot turn off canonical reduce-only
+intent. ``custom_params`` also supports ``leverage`` and ``tpsl`` (``"tp"`` or
+``"sl"`` on standalone triggers). Limit orders require ``gtc``, ``ioc`` or
+``alo``. Market orders become frozen slippage-bounded IOC limits. Trailing
+stops, trailing legs, and automatic in-place cancel/replace (``_modify_order``)
+are unsupported; check ``broker.supports_order(...)`` before submission.
+``Strategy(broker=MetaMask(...))`` defaults ``quote_asset`` to USDC.
 
 Duplicate IDs reuse the same journaled operation. A different request under an
 existing ID is rejected. Uncertain mutations keep their original request IDs
 and block new execution until reconciliation. Pending signatures are never
 replayed after restart. Cancellation has a separate lifecycle and cannot erase
 fills or reject the original live order merely because cancellation failed.
+Parent and child IDs of bracket, OTO, and OCO orders can be queried and
+canceled individually.
 
 Perpetual receipt fees populate cumulative ``Order.trade_cost`` in USDC,
 including maker rebates. Partial-fill trade-log rows contain the cumulative cost
@@ -132,8 +143,11 @@ accounts use pooled HyperCore spot USDC once, without adding perpetual PnL
 again. Portfolio margin is unsupported. HIP3 writes are held until native
 collateral-aware valuation and effective DEX fee inputs are qualified.
 
-``MetaMaskData`` provides actual perpetual marks and closed minute/hour/day
-candles from the selected network. Public perpetual data needs only an explicit
+``MetaMaskData`` provides actual perpetual marks, batched ``get_last_prices()``,
+L2 top-of-book ``get_quote()``, and closed candles across all 14 Hyperliquid
+intervals (``1m``, ``3m``, ``5m``, ``15m``, ``30m``, ``1h``, ``2h``, ``4h``,
+``8h``, ``12h``, ``1d``, ``3d``, ``1w``, ``1M``, plus standard LumiBot aliases)
+from the selected network. Public perpetual data needs only an explicit
 ``NETWORK``. The venue retains at most 5,000 bars per interval. Spot candles
 and historical account equity are not provided.
 

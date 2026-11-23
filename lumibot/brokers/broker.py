@@ -3716,7 +3716,10 @@ class Broker(ABC):
                 )
                 return None
             if fraction != 1.00:
-                order.quantity = order.quantity * fraction_value
+                if isinstance(order.quantity, Decimal):
+                    order.quantity = order.quantity * Decimal(str(fraction_value))
+                else:
+                    order.quantity = order.quantity * fraction_value
             order_id = getattr(order, "identifier", None) or getattr(order, "id", None) or getattr(order, "order_id", None)
             self.logger.info(
                 "close_position(strategy=%s) submitting order %s qty=%s side=%s type=%s",

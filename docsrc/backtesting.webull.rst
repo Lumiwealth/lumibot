@@ -49,6 +49,16 @@ reproduced the trades, times and cash. Each ending balance also agreed with
 the independently summed leg premiums and contract multipliers. Expiry, assignment and event settlement need
 separate qualification.
 
+Matching a venue fill to a historical bar
+------------------------------------------
+
+A documented AAPL buy stop from the Webull simulator was replayed over the
+same instrument, trigger and minute window. Its trigger minute and entry
+price matched the signed venue fill. The modeled market exit price was
+different. Minute bars establish price bounds and the first eligible bar
+under the model. They do not reproduce the sequence of quotes or executions
+within that minute.
+
 Minute replay from actual Webull bars
 -------------------------------------
 

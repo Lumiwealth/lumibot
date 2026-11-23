@@ -137,12 +137,20 @@ class Webull(Broker):
         # The US endpoint supplies a signed package quantity. Its per-leg
         # "proportion" is the portfolio weight, not the number of contracts.
         shape = row.get("option_strategy")
-        count = {"VERTICAL": 2, "BUTTERFLY": 3, "STRADDLE": 2, "STRANGLE": 2}.get(shape)
+        count = {"VERTICAL": 2, "BUTTERFLY": 3, "STRADDLE": 2, "STRANGLE": 2,
+                 "CALENDAR": 2, "DIAGONAL": 2, "CONDOR": 4, "IRON_CONDOR": 4, "IRON_BUTTERFLY": 4}.get(shape)
         if count is None or len(row["legs"]) != count:
             raise ValueError(f"Unrecognized Webull grouped option holding: {shape}")
         if any(leg.get("symbol", row["symbol"]) != row["symbol"] for leg in row["legs"]):
             raise ValueError("Unexpected underlying in a grouped Webull holding")
         assets = sorted((self._read_asset({**row, "legs": [leg]}) for leg in row["legs"]), key=lambda a: a.strike)
+        if shape in {"CALENDAR", "DIAGONAL"}:
+            near, far = sorted(assets, key=lambda asset: asset.expiration)
+            if (near.expiration == far.expiration or near.right != far.right or near.multiplier != far.multiplier
+                    or (near.strike == far.strike) != (shape == "CALENDAR")):
+                raise ValueError("Inconsistent contract terms in a grouped Webull holding")
+            return [(near, -quantity), (far, quantity)]
+
         if shape in {"STRADDLE", "STRANGLE"}:
             first, second = assets
             same_series = (first.expiration, first.multiplier) == (second.expiration, second.multiplier)
@@ -152,11 +160,28 @@ class Webull(Broker):
                 raise ValueError("Inconsistent contract terms in a grouped Webull holding")
             return [(asset, quantity) for asset in assets]
 
+        if shape in {"IRON_CONDOR", "IRON_BUTTERFLY"}:
+            puts = [asset for asset in assets if asset.right == "PUT"]
+            calls = [asset for asset in assets if asset.right == "CALL"]
+            series = {(asset.expiration, asset.multiplier) for asset in assets}
+            if len(puts) != 2 or len(calls) != 2 or len(series) != 1:
+                raise ValueError("Inconsistent contract terms in a grouped Webull holding")
+            low, short_put, short_call, high = (*puts, *calls)
+            center_matches = (short_put.strike == short_call.strike if shape == "IRON_BUTTERFLY"
+                              else short_put.strike < short_call.strike)
+            if not center_matches or not (low.strike < short_put.strike and short_call.strike < high.strike):
+                raise ValueError("Inconsistent contract terms in a grouped Webull holding")
+            # The provider reported credit openings with a negative package
+            # quantity. Use put/call identity to disambiguate the same strike.
+            return [(low, -quantity), (short_put, quantity), (short_call, quantity), (high, -quantity)]
+
         series = {(asset.right, asset.expiration, asset.multiplier) for asset in assets}
         if len(series) != 1 or len({asset.strike for asset in assets}) != count:
             raise ValueError("Inconsistent contract terms in a grouped Webull holding")
         if shape == "BUTTERFLY":
             ratios = (1, -2, 1)
+        elif shape == "CONDOR":
+            ratios = (1, -1, -1, 1)
         else:
             # A long call vertical buys the low strike. A long put vertical
             # buys the high strike. A negative package quantity inverts both.
@@ -205,6 +230,14 @@ class Webull(Broker):
                        strike_price=positive_value(asset.strike, "option strike"))
         return leg
 
+    def accepts_cash_amount_order(self, order):
+        return (
+            "total_cash_amount" in (order.custom_params or {})
+            and getattr(order.asset, "asset_type", None) == Asset.AssetType.STOCK
+            and order.order_type == Order.OrderType.MARKET and order.side == Order.OrderSide.BUY
+            and str(order.time_in_force).upper() == "DAY" and not order.child_orders
+        )
+
     def _order_row(self, order, *, combo_type="NORMAL", equity_session=None):
         asset_type = order.asset.asset_type
         wire_type = {"stock": "EQUITY", "option": "OPTION", "future": "FUTURES", "crypto": "CRYPTO",
@@ -233,10 +266,14 @@ class Webull(Broker):
             symbol += order.quote.symbol
         if order_type is None or side is None:
             raise ValueError("Webull does not recognize this equity order type or side")
-        quantity = positive_value(order.quantity, "quantity")
         row = dict(client_order_id=str(order.identifier), combo_type=combo_type, instrument_type=wire_type,
-                   symbol=symbol, market="US", side=side, entrust_type="QTY",
-                   quantity=quantity, order_type=order_type, time_in_force=duration)
+                   symbol=symbol, market="US", side=side, order_type=order_type, time_in_force=duration)
+        if "total_cash_amount" in params:
+            if not self.accepts_cash_amount_order(order) or combo_type != "NORMAL" or order.quantity != 0:
+                raise ValueError("Webull stock cash-amount orders require a standalone DAY market buy with zero share quantity")
+            row.update(entrust_type="AMOUNT", total_cash_amount=positive_value(params["total_cash_amount"], "cash amount"))
+        else:
+            row.update(entrust_type="QTY", quantity=positive_value(order.quantity, "quantity"))
         if asset_type == "stock" or "support_trading_session" in params:
             row["support_trading_session"] = session
         if asset_type == "option":
@@ -381,6 +418,9 @@ class Webull(Broker):
                             self._selected_account(), str(order.identifier))
 
     def _modify_order(self, order, limit_price=None, stop_price=None, *, quantity=None):
+        params = order.custom_params or {}
+        if "total_cash_amount" in params or params.get("entrust_type") == "AMOUNT":
+            raise ValueError("Webull share-quantity replacement cannot amend a cash-amount market order")
         if order.asset.asset_type == Asset.AssetType.CRYPTO:
             raise ValueError("Webull does not offer native crypto replacement")
         if order.asset.asset_type in (Asset.AssetType.OPTION, Asset.AssetType.MULTILEG):
@@ -509,14 +549,24 @@ class Webull(Broker):
                 raise ValueError("Webull returned an unrecognized trailing stop unit")
             prices[field] = float(require_number(row["trailing_stop_step"], "trailing stop step"))
         avg_fill = row.get("filled_price")
-        order = Order(strategy_name, asset, require_number(row.get("total_quantity"), "order quantity"),
+        quantity = row.get("total_quantity")
+        params = {}
+        if row.get("support_trading_session"):
+            params["support_trading_session"] = row["support_trading_session"]
+        if row.get("entrust_type") == "AMOUNT":
+            params["entrust_type"] = "AMOUNT"
+            if row.get("total_cash_amount") not in ("", None):
+                params["total_cash_amount"] = row["total_cash_amount"]
+            # A cash-amount order has no assigned share quantity before execution.
+            if quantity in (None, ""):
+                quantity = 0
+        order = Order(strategy_name, asset, require_number(quantity, "order quantity"),
                       side, order_type=order_type, status=status, identifier=row["client_order_id"],
                       order_class=order_class, child_orders=child_orders,
                       quote=Asset(row.get("currency") or "USD", "forex") if row["instrument_type"] == "CRYPTO" else None,
                       time_in_force=row["time_in_force"].lower(),
                       avg_fill_price=float(require_number(avg_fill, "fill price")) if avg_fill not in (None, "") else None,
-                      custom_params={"support_trading_session": row["support_trading_session"]}
-                      if row.get("support_trading_session") else None, **prices)
+                      custom_params=params or None, **prices)
         if row.get("filled_quantity") not in ("", None):
             order.filled_quantity = require_number(row["filled_quantity"], "filled quantity")
         order.broker_status = row.get("status")

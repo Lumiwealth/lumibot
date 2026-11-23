@@ -1180,8 +1180,8 @@ class _Strategy:
             )
             return False
 
-        # Check if the order does not have a quantity of zero
-        if order.quantity == 0:
+        # Currency-sized orders get their asset quantity from the broker.
+        if order.quantity == 0 and self.broker.accepts_cash_amount_order(order) is not True:
             self.logger.error(
                 f"Order quantity cannot be zero. You entered {order.quantity}."
             )

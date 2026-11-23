@@ -88,7 +88,25 @@ duration in the strategy. During a regular session both an equity buy stop
 and a buy stop-limit triggered, filled and were closed. The stop-limit
 execution stayed within its original limit. Market buys and sells of a quarter
 share filled for both a stock and an ETF in the cash account. Those orders used
-share quantities. Buying a specified cash amount is a separate workflow.
+share quantities. A standalone DAY fractional-stock market buy can instead
+ask Webull to size the order in dollars. For example, inside a strategy
+using the Webull broker:
+
+.. code-block:: python
+
+   from decimal import Decimal
+
+   order = self.create_order(
+       "AAPL", 0, "buy", order_type="market", time_in_force="day",
+       custom_params={"total_cash_amount": Decimal("25")},
+   )
+   self.submit_order(order)
+
+The zero quantity means Webull determines the share size. Use the reported
+filled share quantity to close. Share rounding can put the execution value
+slightly above or below the requested amount before fees. Webull's fractional
+eligibility and minimums apply. This parameter is for Webull order execution.
+For historical replay, size purchases explicitly in shares.
 A DAY sell trailing stop with a five-cent amount filled against an owned
 share. A one-percent trail reached the broker with step 0.01 and canceled
 unfilled. Webull rejected a 0.001 percentage step in that case. The
@@ -116,15 +134,24 @@ the signed package quantity into a call and a put with their actual strikes
 and expiry. Short-entry executions and partial package fills require separate
 qualification.
 
+Native calendar, diagonal, call condor, iron condor and iron butterfly
+packages opened and closed in the simulator. A signed position read while
+each was open agreed with the reconstructed contracts, dates and quantities.
+These checks cover the tested debit calendars, diagonals and call condors
+and credit iron structures. Webull rejected a different diagonal structure
+submitted as a credit. Covered stock and stock collar orders were accepted,
+remained unfilled and were canceled.
+
 A native long call butterfly filled with one contract at each outer strike
 and two short contracts at the middle strike. A fresh account read recovered
 all three signed holdings. To remove a leg from a grouped holding, pass the
 broker position ID and ``custom_params={"leg_in_or_out": "LEG_OUT"}`` on
 the closing order. In the simulator the buyback of both middle contracts
 left two individual long contracts. Each then sold to close. A native closing
-credit limit can rest even after the opening package filled. The tested
-native closing credits remained unfilled and were canceled by their original
-IDs. Whole-package closing execution still requires qualification.
+credit limit can rest even after the opening package filled. Two earlier
+AAPL closing credits remained unfilled and were canceled by their original
+IDs. A subsequent SPY butterfly filled both its opening debit and native
+closing credit.
 
 A separate call entry with attached profit and stop exits reached the venue.
 All three members had native IDs and were canceled. Sell-to-close stop and
@@ -159,7 +186,9 @@ repriced and canceled. Separate futures stop, stop-limit and amount-trailing
 orders rested at the broker and were canceled without fills. In independent
 regular-session runs, a sell stop and a sell stop-limit each triggered and
 closed a long dated contract. The stop-limit execution respected the
-original sell limit. A futures trailing-stop trigger remains unverified.
+original sell limit. A separate contract-switch test closed December MES,
+opened March MES, then closed March. Each dated symbol and tick price was
+read independently. A futures trailing-stop trigger remains unverified.
 
 A US equity trade subscription delivered five-second bars through
 ``Strategy.get_realtime_bars``. LumiBot timestamps each bar from the full

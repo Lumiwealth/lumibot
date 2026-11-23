@@ -1934,3 +1934,43 @@ def test_paper_equity_day_trailing_terms_and_terminal_state(paper, unit, step):
                 asset, 1, "sell", order_type="market", time_in_force="day"))
             assert closed["status"] == "FILLED" and Decimal(closed["filled_quantity"]) == 1
         assert not request_json("final positions after trailing test", positions, account)
+
+
+def test_paper_stock_market_buy_by_cash_amount(paper):
+    """The venue derives shares from dollars, and the strategy closes those actual shares."""
+    _require_equity_core_session()
+    broker, observer, account = paper
+    strategy = Strategy(broker=broker, name="webull_stock_amount", risk_free_rate=0,
+                        synchronize_broker_on_start=False, should_backup_variables_to_database=False,
+                        should_send_summary_to_discord=False)
+    asset = Asset("AAPL")
+    amount = Decimal("25")
+    positions = observer.account_v2.get_account_position
+    assert not request_json("independent initial positions", positions, account)
+
+    entry = strategy.create_order(asset, 0, "buy", order_type="market", time_in_force="day",
+                                  custom_params={"total_cash_amount": amount})
+    result = _submit_and_observe_terminal(strategy, observer, account, entry)
+    shares = Decimal(result.get("filled_quantity") or 0)
+    try:
+        assert result["status"] == "FILLED" and result["entrust_type"] == "AMOUNT"
+        assert 0 < shares < 1 and Decimal(result["total_quantity"]) == shares
+        price = Decimal(result["filled_price"])
+        cost = shares * price
+        # The simulator allocates fractional shares in four-decimal units.
+        # Allocation rounding is measured in shares, then converted to cash.
+        assert price > 0 and abs(cost - amount) <= price * Decimal("0.0001")
+        holding, = request_json("independent fractional holding", positions, account)
+        assert holding["symbol"] == asset.symbol and Decimal(holding["quantity"]) == shares
+        broker._refresh_tracked_order(entry)
+        broker._refresh_tracked_order(entry)
+        assert entry.is_filled() and entry.quantity == entry.filled_quantity == shares
+        assert sum(Decimal(str(t.quantity)) for t in entry.transactions) == shares
+    finally:
+        if shares:
+            exit_order = strategy.create_order(asset, shares, "sell", order_type="market", time_in_force="day")
+            cleared = _submit_and_observe_terminal(strategy, observer, account, exit_order)
+            assert cleared["status"] == "FILLED" and Decimal(cleared["filled_quantity"]) == shares
+        assert not request_json("independent final positions", positions, account)
+        working = request_json("independent final working orders", observer.order_v3.list_order_open, account)
+        assert not working["data"] and not working.get("pagination_key")

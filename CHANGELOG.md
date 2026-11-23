@@ -9,7 +9,10 @@
   and preserve the original spread ratios. Live trade bars use the dated UTC
   timestamp supplied by the Webull SDK. The adapter tracks native bracket children,
   reconciles repeated option-package observations, reads signed vertical, butterfly,
-  straddle and strangle holdings, and submits leg-out closes using the Webull position ID.
+  straddle, strangle, calendar, diagonal, condor, iron condor and iron butterfly
+  holdings for the verified package shapes. Standalone DAY fractional-stock
+  buys can submit a cash amount and reconcile broker-assigned shares. The
+  adapter submits leg-out closes using the Webull position ID.
   An unavailable exchange trade feed reports its entitlement error while other
   subscriptions continue. The connection closes on the last unsubscribe.
   Minute OHLCV windows can be loaded once for ordinary pandas-backed replay. See `docsrc/brokers.webull.rst`.

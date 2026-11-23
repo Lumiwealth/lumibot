@@ -3367,6 +3367,10 @@ class Broker(ABC):
             pass
         return True
 
+    def accepts_cash_amount_order(self, order: Order) -> bool:
+        """Whether the venue can size this order in currency instead of asset units."""
+        return False
+
     def submit_order(self, order) -> Order:
         """Conform an order for an asset to broker constraints and submit it.
 

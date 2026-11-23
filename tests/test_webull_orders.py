@@ -434,3 +434,98 @@ def test_option_position_legging_uses_target_without_general_position_intent(bro
     assert row["position_id"] == "synthetic-position" and row["leg_in_or_out"] == direction
     assert row["side"] == ("BUY" if direction == "LEG_OUT" else "SELL")
     assert row.get("leg_in_strategy") == params.get("leg_in_strategy")
+
+
+def test_amount_order_keeps_cash_out_of_share_quantity_and_reconciles_fill(broker, venue):
+    from decimal import Decimal
+
+    placed = Order("qualification", Asset("SAMPLE"), 0, "buy", order_type="market",
+                   time_in_force="day", custom_params={"total_cash_amount": Decimal("25")})
+    broker.submit_order(placed)
+    row, = venue.order_v3.place_order.call_args.args[1]
+    assert row["entrust_type"] == "AMOUNT" and row["total_cash_amount"] == "25"
+    assert "quantity" not in row and placed.quantity == 0
+
+    prefill = broker._parse_broker_order(detail(
+        placed.identifier, entrust_type="AMOUNT", order_type="MARKET", limit_price=None, total_quantity="",
+    ), placed.strategy)
+    assert prefill.quantity == 0 and prefill.custom_params["entrust_type"] == "AMOUNT"
+
+    venue.order_v3.get_order_detail.return_value = reply(detail(
+        placed.identifier, entrust_type="AMOUNT", order_type="MARKET", limit_price=None, status="FILLED",
+        total_quantity="0.0713", filled_quantity="0.0713", filled_price="350.49",
+    ))
+    broker._refresh_tracked_order(placed)
+    broker._refresh_tracked_order(placed)
+    assert placed.is_filled() and placed.quantity == placed.filled_quantity == Decimal("0.0713")
+    assert len(placed.transactions) == 1
+
+
+@pytest.mark.parametrize("quantity,side,kind,duration,amount", [
+    (2, "buy", "market", "day", "25"), (0, "sell", "market", "day", "25"),
+    (0, "buy", "limit", "day", "25"), (0, "buy", "market", "gtc", "25"),
+    (0, "buy", "market", "day", "-25"),
+])
+def test_amount_order_rejects_ambiguous_or_invalid_terms_before_dispatch(broker, venue, quantity, side, kind, duration, amount):
+    order = Order("qualification", Asset("SAMPLE"), quantity, side, order_type=kind,
+                  time_in_force=duration, limit_price=20 if kind == "limit" else None,
+                  custom_params={"total_cash_amount": amount})
+    with pytest.raises(ValueError, match="cash amount|cash-amount"):
+        broker.submit_order(order)
+    venue.order_v3.place_order.assert_not_called()
+
+
+@pytest.mark.parametrize("quantity", [2, -2])
+def test_calendar_position_preserves_near_and_far_expiry(broker, quantity):
+    from datetime import date
+
+    near, far = date(2027, 1, 15), date(2027, 2, 19)
+    row = {"option_strategy": "CALENDAR", "instrument_type": "OPTION", "symbol": "SAMPLE", "legs": [
+        {"symbol": "SAMPLE", "option_type": "CALL", "option_exercise_price": "25",
+         "option_expire_date": far.isoformat(), "option_contract_multiplier": "100"},
+        {"symbol": "SAMPLE", "option_type": "CALL", "option_exercise_price": "25",
+         "option_expire_date": near.isoformat(), "option_contract_multiplier": "100"},
+    ]}
+    assert [(leg.expiration, amount) for leg, amount in broker._option_position_legs(row, quantity)] == [
+        (near, -quantity), (far, quantity),
+    ]
+    row["legs"][0]["option_exercise_price"] = "30"
+    with pytest.raises(ValueError, match="Inconsistent contract"):
+        broker._option_position_legs(row, quantity)
+
+
+@pytest.mark.parametrize("shape,strikes,rights,ratios", [
+    ("CONDOR", (20, 25, 30, 35), ("CALL", "CALL", "CALL", "CALL"), (1, -1, -1, 1)),
+    ("DIAGONAL", (25, 30), ("CALL", "CALL"), (-1, 1)),
+    ("IRON_CONDOR", (20, 25, 30, 35), ("PUT", "PUT", "CALL", "CALL"), (-1, 1, 1, -1)),
+    ("IRON_BUTTERFLY", (20, 25, 25, 30), ("PUT", "PUT", "CALL", "CALL"), (-1, 1, 1, -1)),
+])
+@pytest.mark.parametrize("quantity", [2, -2])
+def test_additional_grouped_holdings_preserve_legs(broker, shape, strikes, rights, ratios, quantity):
+    near, far = "2027-01-15", "2027-02-19"
+    expiries = (near, far) if shape == "DIAGONAL" else (near,) * len(strikes)
+    row = {"option_strategy": shape, "instrument_type": "OPTION", "symbol": "SAMPLE", "legs": [
+        {"symbol": "SAMPLE", "option_type": right, "option_exercise_price": str(strike),
+         "option_expire_date": expiry, "option_contract_multiplier": "100"}
+        for strike, right, expiry in zip(strikes, rights, expiries)
+    ][::-1]}
+    observed = {(float(asset.strike), asset.right, asset.expiration.isoformat()): amount
+                for asset, amount in broker._option_position_legs(row, quantity)}
+    assert observed == {(strike, right, expiry): ratio * quantity
+                        for strike, right, expiry, ratio in zip(strikes, rights, expiries, ratios)}
+
+
+def test_public_strategy_submits_native_amount_but_refuses_accidental_zero_quantity(broker, venue):
+    from lumibot.strategies import Strategy
+
+    strategy = Strategy(broker=broker, name="amount_qualification", risk_free_rate=0,
+                        synchronize_broker_on_start=False, should_backup_variables_to_database=False,
+                        should_send_summary_to_discord=False)
+    accidental = strategy.create_order(Asset("SAMPLE"), 0, "buy", order_type="market", time_in_force="day")
+    assert strategy.submit_order(accidental) is None
+    venue.order_v3.place_order.assert_not_called()
+    placed = strategy.create_order(Asset("SAMPLE"), 0, "buy", order_type="market", time_in_force="day",
+                                   custom_params={"total_cash_amount": "25"})
+    assert strategy.submit_order(placed) is placed
+    venue.order_v3.place_order.assert_called_once()
+    assert venue.order_v3.place_order.call_args.args[1][0]["entrust_type"] == "AMOUNT"

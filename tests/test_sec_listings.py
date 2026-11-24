@@ -216,3 +216,46 @@ def test_listings_rebuild_reports_missing_required_sec_input(failed_source):
     expected = "2020 Q2" if failed_source == "quarter" else "submissions"
     with pytest.raises(RuntimeError, match=expected):
         build_listings(None, [2020], fetch_text=index, fetch_head=lambda _: "", fetch_submissions=submissions)
+
+
+def test_listings_use_exact_acceptance_times_when_sec_supplies_them():
+    submissions = _submissions([("424B4", "2020-02-07"), ("25-NSE", "2022-01-25")])
+    submissions["filings"]["recent"]["acceptanceDateTime"] = [
+        "2020-02-07T22:00:00.000Z", "2022-01-25T22:00:00.000Z",
+    ]
+    row = classify_listing({"cik": 9, "form": "424B4", "filed": "2020-02-07", "path": "p"}, submissions)
+    row["ticker"] = "SAMPLE"
+    table = ListingsTable([row])
+    assert table.for_symbol("SAMPLE", as_of="2020-02-07T14:30:00+00:00") is None
+    assert table.for_symbol("SAMPLE", as_of="2020-02-07T22:00:00+00:00")["ticker"] == "SAMPLE"
+    assert table.for_symbol("SAMPLE", as_of="2022-01-25T14:30:00+00:00")["delisting_filed"] is None
+    assert table.for_symbol("SAMPLE", as_of="2022-01-25T22:00:00+00:00")["delisting_filed"] == "2022-01-25"
+
+
+def test_listings_rebuild_checks_archived_issuer_reports(monkeypatch, tmp_path):
+    from unittest.mock import Mock
+
+    sec = _sec_with_table(tmp_path, datetime(2026, 1, 1, tzinfo=timezone.utc))
+    first_offering = next(line for line in FORM_INDEX.splitlines() if "1598674" in line)
+    archived = "CIK0001598674-submissions-001.json"
+
+    def fetch(url, **kwargs):
+        response = Mock()
+        data = first_offering.encode() if "QTR1" in url else b""
+        response.content = gzip.compress(data)
+        response.iter_content.return_value = iter([b'under the symbol "CSPR"'])
+        response.__enter__ = lambda _: response
+        response.__exit__ = lambda *_: None
+        return response
+
+    submissions = _submissions([("424B4", "2020-02-07")])
+    submissions["filings"]["files"] = [{"name": archived, "filingFrom": "2018-01-01", "filingTo": "2018-12-31"}]
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fetch)
+    monkeypatch.setattr(sec, "_get_submissions_payload", lambda *args, **kwargs: submissions)
+    monkeypatch.setattr(sec, "_rate_limit", lambda: None)
+    archive_fetch = Mock(return_value={"form": ["10-K"], "filingDate": ["2018-01-01"]})
+    monkeypatch.setattr(sec, "_get_json", archive_fetch)
+
+    assert sec.build_listings_table([2020]).rows == []
+    archive_fetch.assert_called_once()
+    assert archive_fetch.call_args.args[0].endswith("/submissions/" + archived)

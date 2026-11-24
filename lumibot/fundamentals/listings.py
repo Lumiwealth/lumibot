@@ -28,6 +28,8 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 from zoneinfo import ZoneInfo
 
+from .sec import _parse_dt, _same_tz
+
 LISTING_FORMS = ("424B4", "424B1")
 DELISTING_FORMS = ("25", "25-NSE", "15-12B", "15-12G", "15-15D")
 PERIODIC_FORMS = ("10-K", "10-Q", "20-F", "40-F", "10-K405", "10-KSB")
@@ -83,9 +85,22 @@ def ticker_from_prospectus(text: str) -> str | None:
     return min(found[:6], key=lambda symbol: (len(symbol), found.index(symbol)))
 
 
-def _filings(submissions: dict[str, Any]) -> list[tuple[str, str]]:
+def _filings(submissions: dict[str, Any]) -> list[tuple[str, str, str | None]]:
     recent = (submissions.get("filings") or {}).get("recent") or {}
-    return list(zip(recent.get("form") or [], recent.get("filingDate") or []))
+    rows = []
+    for file in (recent, *submissions.get("historical_filings", ())):
+        acceptance = file.get("acceptanceDateTime") or []
+        for index, (form, day) in enumerate(zip(file.get("form") or [], file.get("filingDate") or [])):
+            rows.append((form, day, acceptance[index] if index < len(acceptance) else None))
+    return rows
+
+
+def _public_by(filing_date: date, acceptance: str | None, date_cutoff: date, instant_cutoff: datetime | None):
+    if instant_cutoff is not None and acceptance:
+        published = _parse_dt(acceptance)
+        if published is not None:
+            return _same_tz(published, instant_cutoff) <= instant_cutoff
+    return filing_date <= date_cutoff
 
 
 def classify_listing(offering: dict[str, Any], submissions: dict[str, Any]) -> dict[str, Any] | None:
@@ -96,7 +111,7 @@ def classify_listing(offering: dict[str, Any], submissions: dict[str, Any]) -> d
     """
     filed = offering["filed"]
     filings = _filings(submissions)
-    if any(form in PERIODIC_FORMS and when < filed for form, when in filings):
+    if any(form in PERIODIC_FORMS and when < filed for form, when, _ in filings):
         return None
     sic = str(submissions.get("sic") or "")
     name = submissions.get("name") or offering.get("company") or ""
@@ -109,19 +124,26 @@ def classify_listing(offering: dict[str, Any], submissions: dict[str, Any]) -> d
     # A delisting form followed by more periodic reports was a move to another exchange, or
     # units or warrants leaving it: the company stayed public. Only a delisting filed on or
     # after the last periodic report counts.
-    last_report = max((when for form, when in filings if form in PERIODIC_FORMS), default="")
-    delisting = sorted(
-        when for form, when in filings if form in DELISTING_FORMS and when >= filed and when >= last_report
+    last_report = max((when for form, when, _ in filings if form in PERIODIC_FORMS), default="")
+    delisting = min(
+        ((when, accepted) for form, when, accepted in filings
+         if form in DELISTING_FORMS and when >= filed and when >= last_report),
+        key=lambda notice: (notice[0], notice[1] or ""), default=(None, None),
     )
+    prospectus_acceptances = {accepted for form, when, accepted in filings
+                              if (form, when) == (offering["form"], filed) and accepted}
+
     return {
         "cik": int(offering["cik"]),
         "name": name,
         "ticker": None,
         "prospectus_date": filed,
+        "prospectus_accepted_at": next(iter(prospectus_acceptances)) if len(prospectus_acceptances) == 1 else None,
         "form": offering["form"],
         "kind": kind,
         "sic": sic or None,
-        "delisting_filed": delisting[0] if delisting else None,
+        "delisting_filed": delisting[0],
+        "delisting_accepted_at": delisting[1],
         "prospectus_url": f"https://www.sec.gov/Archives/{offering['path']}",
     }
 
@@ -154,16 +176,21 @@ class ListingsTable:
         A delisting filed after ``as_of`` is not known yet and reads as None.
         """
         lo, hi, cut = _as_date(start), _as_date(end), _as_date(as_of)
+        instant = _parse_dt(as_of) if isinstance(as_of, datetime) or len(str(as_of)) > 10 else None
         wanted = {kinds} if isinstance(kinds, str) else set(kinds)
         out = []
         for row in self.rows:
             when = _as_date(row["prospectus_date"])
-            if when < lo or when > hi or when > cut:
+            if when < lo or when > hi or not _public_by(when, row.get("prospectus_accepted_at"), cut, instant):
                 continue
             if row.get("kind") not in wanted:
                 continue
             visible = dict(row)
-            if visible.get("delisting_filed") and _as_date(visible["delisting_filed"]) > cut:
+            visible.pop("prospectus_accepted_at", None)
+            delisting_accepted = visible.pop("delisting_accepted_at", None)
+            if visible.get("delisting_filed") and not _public_by(
+                _as_date(visible["delisting_filed"]), delisting_accepted, cut, instant,
+            ):
                 visible["delisting_filed"] = None
             out.append(visible)
         return out

@@ -1006,7 +1006,20 @@ class SECFundamentals:
             return b"".join(chunks).decode("utf-8", errors="replace")
 
         def fetch_submissions(cik: int) -> dict[str, Any]:
-            return self._get_submissions_payload("", cik=f"{int(cik):010d}")
+            identifier = f"{int(cik):010d}"
+            payload = self._get_submissions_payload("", cik=identifier)
+            historical = []
+            for file in payload.get("filings", {}).get("files", ()):
+                name = file["name"]
+                if not re.fullmatch(rf"CIK{identifier}-submissions-\d+\.json", name):
+                    raise ValueError("Unexpected SEC submissions archive name")
+                historical.append(self._get_json(
+                    f"{SEC_DATA_BASE_URL}/submissions/{name}",
+                    self._cache_path("submissions", name),
+                    mutable=True,
+                    remote_relative=f"sec/submissions/{name}",
+                ))
+            return {**payload, "historical_filings": historical}
 
         table = build_listings(
             self,

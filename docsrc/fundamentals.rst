@@ -284,8 +284,11 @@ until it is public; a move to another exchange does not count) and
 
 Good to know:
 
-- In a backtest a company appears only on or after its prospectus date, and a
-  delisting only once it was filed: nothing from the future.
+- Intraday backtests use the SEC acceptance time when available. Rows with an
+  older date-only record have day-level accuracy. The requested date range
+  still filters the original filing dates.
+- A rebuild checks the issuer’s archived submissions for prior periodic reports.
+  If a required index or issuer request fails, the previous table stays in use.
 - The prospectus is filed 0 to 2 business days after the first trade. The first
   trade date is the stock's first daily bar from your price source.
 - Companies already public before 2019 have no row unless the table was built

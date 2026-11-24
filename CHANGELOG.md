@@ -14,6 +14,9 @@
   while the strategy has no open order of its own. A canceled or rejected order
   keeps reads on for `ended_order_watch_seconds` (120) so late fills are still
   seen. `broker.skip_order_list_when_idle = False` restores the old behavior.
+- Live: `get_chains` reuses an option chain (expirations and strikes) for
+  `chain_cache_seconds` (900; `LUMIBOT_CHAIN_CACHE_SECONDS`, `0` off) instead of
+  one broker request per call. Prices are not cached.
 - Live: after a fill, the next trading iteration runs at once instead of waiting out
   `sleeptime` (never interrupts a running iteration; `wake_iteration_on_fill = False`
   keeps the fixed schedule).

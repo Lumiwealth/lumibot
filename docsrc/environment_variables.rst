@@ -216,6 +216,11 @@ Live speed summary
 
 - ``LUMIBOT_SPEED_SUMMARY_SECONDS``: how often a live strategy logs one ``[SpeedSummary]`` line (default ``60``; ``0`` turns it off). The line is JSON with iterations (count and seconds per iteration: median, 95th percentile, max), broker requests per minute by kind with seconds spent waiting for the request budget (Schwab), and order timings in milliseconds: submit to broker answer, submit to fill seen, fill seen to the fill callback, callback running time, and fill seen to the next order submitted. Backtests never log it. See :doc:`brokers.schwab`.
 
+Live option chain cache
+-----------------------
+
+- ``LUMIBOT_CHAIN_CACHE_SECONDS``: seconds a live ``get_chains`` result (expirations and strikes, not prices) is reused (default ``900``; ``0`` fetches every call). Overrides the strategy class attribute ``chain_cache_seconds``. Backtests are not affected.
+
 Live quote basket
 -----------------
 

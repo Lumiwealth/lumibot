@@ -3635,9 +3635,42 @@ class Strategy(_Strategy):
         >>> # Will return the option chains for SPY
         >>> asset = "SPY"
         >>> chains = self.get_chains(asset)
+
+        In live trading a chain (the list of expirations and strikes) is kept for
+        ``chain_cache_seconds`` (default 900, 15 minutes) and reused instead of being
+        fetched again; ``0`` fetches it every call. Prices are never cached here: read
+        them with ``get_quote``/``get_quotes``. A strike listed during the day can appear
+        up to that many seconds late.
         """
         asset = self._sanitize_user_asset(asset)
-        return self.broker.get_chains(asset)
+        ttl = self._chain_cache_seconds()
+        if ttl <= 0:
+            return self.broker.get_chains(asset)
+        key = (getattr(asset, "symbol", str(asset)), str(getattr(asset, "asset_type", "")))
+        cache = self.__dict__.setdefault("_live_chain_cache", {})
+        now = time.monotonic()
+        hit = cache.get(key)
+        if hit is not None and 0 <= now - hit[1] < ttl:
+            return hit[0]
+        chains = self.broker.get_chains(asset)
+        if chains:
+            cache[key] = (chains, now)
+        return chains
+
+    # Live: seconds an option chain (expirations and strikes) is reused; 0 fetches every call.
+    chain_cache_seconds = 900.0
+
+    def _chain_cache_seconds(self) -> float:
+        if getattr(self, "is_backtesting", True) or getattr(self.broker, "IS_BACKTESTING_BROKER", True):
+            return 0.0
+        raw = os.environ.get("LUMIBOT_CHAIN_CACHE_SECONDS")
+        if raw is None or not str(raw).strip():
+            raw = getattr(self, "chain_cache_seconds", 900.0)
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            return 0.0
+        return value if value > 0 and math.isfinite(value) else 0.0
 
     def get_next_trading_day(self, date: str, exchange="NYSE"):
         """

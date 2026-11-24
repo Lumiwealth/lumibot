@@ -240,3 +240,38 @@ def test_no_wake_during_a_running_iteration_or_when_turned_off(in_iteration, wak
         assert not _wait_for(lambda: ran, seconds=0.5)
     finally:
         scheduler.shutdown(wait=False)
+
+
+# ---------------------------------------------------------------- option chain cache
+
+def _chain_strategy(backtesting=False, ttl=900.0):
+    calls = []
+
+    def get_chains(asset):
+        calls.append(asset.symbol)
+        return {"Chains": {"CALL": {"2026-11-27": [10.0]}}} if asset.symbol != "EMPTY" else {}
+
+    strategy = SimpleNamespace(
+        _sanitize_user_asset=lambda asset: Asset(asset) if isinstance(asset, str) else asset,
+        broker=SimpleNamespace(get_chains=get_chains, IS_BACKTESTING_BROKER=backtesting),
+        is_backtesting=backtesting, chain_cache_seconds=ttl,
+    )
+    strategy._chain_cache_seconds = Strategy._chain_cache_seconds.__get__(strategy)
+    return strategy, calls
+
+
+def test_live_option_chain_is_fetched_once_and_reused_by_every_pass():
+    """Replay of a 17-stock scanner Nov 24: after quote batching, option chain reads were 207 of
+    337 Schwab requests in one run (the chain list changes rarely; prices come from quotes)."""
+    strategy, calls = _chain_strategy()
+    for _ in range(5):
+        Strategy.get_chains(strategy, "ABC")
+    assert calls == ["ABC"]
+
+
+@pytest.mark.parametrize("backtesting,ttl,symbol", [(True, 900.0, "ABC"), (False, 0, "ABC"), (False, 900.0, "EMPTY")])
+def test_chain_cache_is_off_in_backtests_when_zero_and_for_empty_answers(backtesting, ttl, symbol):
+    strategy, calls = _chain_strategy(backtesting=backtesting, ttl=ttl)
+    Strategy.get_chains(strategy, symbol)
+    Strategy.get_chains(strategy, symbol)
+    assert len(calls) == 2

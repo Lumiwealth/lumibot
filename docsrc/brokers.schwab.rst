@@ -404,6 +404,11 @@ one Schwab request per symbol:
   second. Set ``quote_basket_max_age_seconds = 0`` on your strategy class, or
   ``LUMIBOT_QUOTE_BASKET_MAX_AGE_SECONDS=0``, to ask for every quote separately.
   Backtests are not affected.
+* **Option chains kept for 15 minutes.** In live trading ``get_chains`` reuses a
+  chain (expirations and strikes) for ``chain_cache_seconds`` (default 900) instead
+  of asking Schwab on every pass. Prices still come fresh from quotes. Set
+  ``chain_cache_seconds = 0`` on the strategy class, or
+  ``LUMIBOT_CHAIN_CACHE_SECONDS=0``, to fetch every time.
 * **No order list while idle.** When the strategy has no open order of its own,
   LumiBot does not read the account's order list before each iteration or on
   ``get_orders()``. The first read after start still runs, and a canceled or

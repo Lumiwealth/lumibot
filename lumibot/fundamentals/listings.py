@@ -26,6 +26,7 @@ import re
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Callable, Iterable
+from zoneinfo import ZoneInfo
 
 LISTING_FORMS = ("424B4", "424B1")
 DELISTING_FORMS = ("25", "25-NSE", "15-12B", "15-12G", "15-15D")
@@ -204,14 +205,16 @@ def build_listings(
     """Build the table from SEC files. The fetchers are injected so a warmer can rate-limit,
     cache and resume them; ``sec`` is only used for its clock in the ``built_at`` stamp."""
     first: dict[int, dict[str, Any]] = {}
+    today = datetime.now(ZoneInfo("America/New_York")).date()
     for year in years:
         for quarter in (1, 2, 3, 4):
+            # The running index contains filings through the previous business day.
+            if date(year, 3 * quarter - 2, 1) >= today:
+                continue
             try:
                 text = fetch_text(FORM_INDEX_URL.format(year=year, quarter=quarter))
-            except Exception as exc:  # a future quarter has no index yet
-                if progress:
-                    progress(f"form index {year} Q{quarter} unavailable: {exc}")
-                continue
+            except Exception as exc:
+                raise RuntimeError(f"Cannot rebuild SEC listings: form index {year} Q{quarter} unavailable") from exc
             for row in parse_form_index(text):
                 known = first.get(row["cik"])
                 if known is None or row["filed"] < known["filed"]:
@@ -220,9 +223,7 @@ def build_listings(
         try:
             row = classify_listing(offering, fetch_submissions(offering["cik"]))
         except Exception as exc:
-            if progress:
-                progress(f"submissions for CIK {offering['cik']} unavailable: {exc}")
-            return None
+            raise RuntimeError(f"Cannot rebuild SEC listings: submissions for CIK {offering['cik']} unavailable") from exc
         if row is None:
             return None
         try:

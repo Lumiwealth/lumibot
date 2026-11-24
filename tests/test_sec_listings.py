@@ -181,7 +181,7 @@ def test_build_keeps_first_listings_labels_shells_and_reads_tickers():
     def fetch_text(url):
         if "2020/QTR1" in url:
             return FORM_INDEX
-        raise RuntimeError("no index")
+        return "No offerings in this fixture"
 
     table = build_listings(
         None,
@@ -195,3 +195,24 @@ def test_build_keeps_first_listings_labels_shells_and_reads_tickers():
         ("BCACU", "blank_check", None),
         ("CSPR", "operating_company", "2022-01-25"),
     ]
+
+
+@pytest.mark.parametrize("failed_source", ["quarter", "issuer"])
+def test_listings_rebuild_reports_missing_required_sec_input(failed_source):
+    from lumibot.fundamentals.listings import build_listings
+
+    def index(url):
+        if "2020/QTR1" in url:
+            return FORM_INDEX
+        if "2020/QTR2" in url and failed_source == "quarter":
+            raise OSError("synthetic archived index outage")
+        return "No offerings in this fixture"
+
+    def submissions(cik):
+        if failed_source == "issuer":
+            raise OSError("synthetic submissions outage")
+        return _submissions([("424B4", "2020-02-07")])
+
+    expected = "2020 Q2" if failed_source == "quarter" else "submissions"
+    with pytest.raises(RuntimeError, match=expected):
+        build_listings(None, [2020], fetch_text=index, fetch_head=lambda _: "", fetch_submissions=submissions)

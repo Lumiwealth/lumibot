@@ -15,7 +15,11 @@ Two pieces of work used to sit on the critical path after every backtest:
    values, dtype, name/columns) for the duration of one report and hands every caller its
    own copy, so callers cannot affect each other.
 
-Switches (both on by default):
+3. Downloading the risk-free rate (^IRX) after the simulation. ``prefetch_risk_free_rate()``
+   starts it when the backtest starts (see the section below).
+
+Switches (all on by default):
+- ``LUMIBOT_PREFETCH_RISK_FREE_RATE=0`` turns the risk-free rate prefetch off.
 - ``LUMIBOT_PREWARM_REPORT_IMPORTS=0`` turns the background import off.
 - ``LUMIBOT_REPORT_DRAWDOWN_CACHE=0`` turns the table cache (drawdowns and period aggregations) off.
 """

@@ -410,18 +410,30 @@ request and 0.3 seconds after; 20 symbols: 3 requests and 2.2 seconds per pass.
   (default ``900``; ``0`` fetches every call). Every call gets its own copy, and
   after 4:00 PM New York time today's expiration is removed from a kept chain.
 * **No order list or account read while nothing can change.** LumiBot skips the
-  order-list and account reads before an iteration (and on ``get_orders()`` and
-  position reads) only when all of these hold: no order is unknown or still
+  order-list and account reads before an iteration (and the order list on
+  ``get_orders()``) only when all of these hold: no order is unknown or still
   working; nothing was submitted, changed, canceled or filled and the account
   stream reported nothing since the last good reads; no order was canceled,
   rejected or expired in the last 2 minutes (a late fill can still come); no
   submit in the last 5 minutes ended without a Schwab order id (a timeout can mean
   the order is live); and the last good read is under
   ``LUMIBOT_IDLE_SYNC_MAX_AGE`` seconds old (default ``30``; ``0`` always reads).
-  Before any order action that follows a skipped read, the order list is read
-  first. ``get_orders(max_age=0)`` and ``get_order(id, max_age=0)`` always read.
-  An order placed by hand on another screen is seen at the latest after that
-  maximum age (sooner when the account stream reports it).
+  Before any submit or modify that follows a skipped read, the order list,
+  positions and cash are read first. Your own ``get_position``,
+  ``get_positions`` and ``get_cash`` calls always read Schwab (only the sync
+  before each iteration is skipped), so a sale by hand, an assignment or a
+  dividend is seen even while the account stream is down. ``max_age=0`` on
+  ``get_order``, ``get_orders``, ``get_position`` and ``get_positions`` always
+  reads. An order placed by hand on another screen is seen at the latest after
+  that maximum age (sooner when the account stream reports it).
+* **A submit that timed out is found again.** If Schwab took an order but its
+  answer never arrived (timeout, server error, missing order id), LumiBot keeps
+  reading the order list for 5 minutes and re-attaches the Schwab order with the
+  same asset, side and quantity entered at or after the submit. From then on it
+  has its Schwab id: fills, cancels and callbacks work. If two Schwab orders
+  match, LumiBot does not guess: it logs an error naming both, keeps reading and
+  sends nothing. LumiBot never resends a submit by itself; a strategy that
+  retries after an error should first check ``get_orders(max_age=0)``.
 
 .. code-block:: python
 

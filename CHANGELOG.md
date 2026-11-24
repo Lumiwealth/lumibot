@@ -4,14 +4,25 @@
 
 ### Changed
 
-- Schwab live: no order-list or account read before an iteration, on broad
-  `get_orders()` or on position reads while nothing can change at the broker. A
+- Schwab live: no order-list or account read before an iteration or on broad
+  `get_orders()` while nothing can change at the broker. A
   read always happens while any order is UNKNOWN or still working, after any
   submit, modify, cancel, fill or account-stream event, for 120 s after an order
   is canceled, rejected or expired (late fills), for 300 s after a submit that
   ended without a Schwab order id (timeout, 5xx, missing id), before any order
   action that follows a skipped read, and at least every
   `LUMIBOT_IDLE_SYNC_MAX_AGE` seconds (default 30; `0` turns the skip off).
+- Live reads asked for by the strategy stay fresh: `get_position`, `get_positions`
+  and `get_cash` always read the broker (only the per-iteration sync may be
+  skipped), and before a submit or modify that follows a skipped account read,
+  positions and cash are read again. `get_position`/`get_positions` take
+  `max_age` (`0` always reads, even inside a ttl).
+- Schwab: a submit that got no order id but reached Schwab (timeout, 5xx,
+  missing id) is re-attached within 5 minutes by asset, side, quantity and entry
+  time, so fills, cancels and callbacks work. Two matching Schwab orders are
+  never guessed: an error names both, reads continue, nothing is resent. Only
+  brokers that stamp their reads watch unresolved submits.
+- Backtests no longer call the wall clock for order status times.
 - Schwab live quotes: assets asked for in the last two iterations are fetched
   together in one request (up to 250 symbols) at the start of each iteration, and
   a quote younger than `LUMIBOT_QUOTE_MAX_AGE` (default 1 s; `0` off) is served

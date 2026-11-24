@@ -2321,20 +2321,111 @@ class Schwab(Broker):
         # Both ordinary account-number and hash-only configurations are supported.
         return getattr(self, "account_number", None) or getattr(self, "hash_value", None)
 
+    # Schwab stamps good order-list and account reads (see Broker.idle_read_skip_age).
+    STAMPS_GOOD_READS = True
+    # A broker entry time may differ a little from this machine's clock.
+    reattach_clock_skew_seconds = 5.0
+
     def _orders_for_strategy_sync(self, orders, strategy):
         # The Schwab endpoint returns the whole account and parsing assigns the
         # requested display name to each row. Only known native identities (or
         # their nested broker-created children) belong in local execution state.
-        owned, unmanaged = [], []
+        owned, unmanaged, untracked = [], [], []
         for parent in orders:
             tracked_parent = self.get_tracked_order(parent.identifier, use_placeholders=True)
             if tracked_parent is None:
-                if parent.is_active():
-                    unmanaged.append(str(parent.identifier))
+                untracked.append(parent)
                 continue
             owned.append(parent)
+        for parent in self._reattach_unresolved_submits(untracked):
+            owned.append(parent)
+        unmanaged = [str(parent.identifier) for parent in untracked
+                     if parent.is_active() and not getattr(parent, "_reattached", False)]
         self._warn_unmanaged_open_orders(unmanaged)
         return owned
+
+    def _reattach_unresolved_submits(self, untracked):
+        """Re-attach a submit that got no Schwab order id but reached Schwab.
+
+        A timeout, server error or missing id leaves the local order without its
+        Schwab id while the order may be live: no cancel, no callbacks, and a retry
+        could double the position. Inside the watch window an untracked Schwab
+        order of the same asset, side and quantity, entered at or after the submit,
+        is re-attached to the local order, which then follows Schwab as usual.
+        Two or more candidates are never guessed: LumiBot warns loudly once, keeps
+        reading every pass and sends nothing.
+        """
+        pending = self.__dict__.get("_unresolved_submits") or []
+        if not pending:
+            return []
+        now = time.monotonic()
+        pending[:] = [item for item in pending if item["until"] > now]
+        attached = []
+        taken = set()
+        for item in list(pending):
+            local = item["order"]
+            # Wait until the submit error has been processed, so it cannot undo this.
+            if local.is_active() or getattr(local, "status", None) != Order.OrderStatus.ERROR:
+                continue
+            candidates = [
+                parent for parent in untracked
+                if str(parent.identifier) not in taken and self._is_reattach_candidate(local, parent, item)
+            ]
+            if not candidates:
+                continue
+            if len(candidates) > 1:
+                if not item["warned"]:
+                    item["warned"] = True
+                    logger.error(colored(
+                        f"A {local.side} {local.quantity} {local.asset.symbol} order whose submit got no Schwab "
+                        f"order id could not be matched to one Schwab order: {len(candidates)} Schwab orders "
+                        f"match ({', '.join(str(c.identifier) for c in candidates)}). LumiBot will not guess and "
+                        "will not resend it; it keeps reading the order list. Check the account and cancel any "
+                        "order that should not be there.", "red"))
+                continue
+            broker_order = candidates[0]
+            taken.add(str(broker_order.identifier))
+            with self._lock:
+                self._error_orders.remove(local.identifier, key="identifier")
+                previous_identifier = local.identifier
+                local.identifier = broker_order.identifier
+                local._local_order_ownership = True
+                local.status = Order.OrderStatus.SUBMITTED
+                self._unprocessed_orders.append(local)
+            broker_order._reattached = True
+            pending.remove(item)
+            logger.warning(colored(
+                f"Re-attached Schwab order {broker_order.identifier} ({local.side} {local.quantity} "
+                f"{local.asset.symbol}) to the local order {previous_identifier} whose submit got no order "
+                "id. It is tracked again: fills, cancels and callbacks work.", "yellow"))
+            self._safe_stream_dispatch(self.NEW_ORDER, order=local)
+            attached.append(broker_order)
+        if not pending:
+            self._unresolved_submit_until = 0.0
+        return attached
+
+    def _is_reattach_candidate(self, local, broker_order, item) -> bool:
+        from decimal import Decimal
+
+        try:
+            if getattr(broker_order, "child_orders", None) or getattr(local, "child_orders", None):
+                return False
+            if broker_order.asset != local.asset:
+                return False
+            if str(broker_order.side).lower() != str(local.side).lower():
+                return False
+            if Decimal(str(broker_order.quantity)) != Decimal(str(local.quantity)):
+                return False
+            submitted_at = item.get("submitted_at")
+            entered = getattr(broker_order, "broker_create_date", None) or getattr(broker_order, "created_at", None)
+            if submitted_at is not None and entered is not None:
+                if entered.tzinfo is None:
+                    entered = entered.replace(tzinfo=submitted_at.tzinfo)
+                if (entered - submitted_at).total_seconds() < -float(self.reattach_clock_skew_seconds):
+                    return False
+            return True
+        except Exception:
+            return False
 
     def _warn_unmanaged_open_orders(self, identifiers):
         """Name, once, open account orders this strategy will not manage."""

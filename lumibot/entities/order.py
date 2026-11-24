@@ -183,6 +183,9 @@ class Order:
     status_updated_at = None
     status_source = None
     status_checked_at = None
+    # Turned on by live brokers (Broker._enable_order_status_times); backtests create
+    # many orders and never pay for the wall-clock call.
+    _record_status_times = False
 
     class OrderClass(StrEnum):
         SIMPLE = "simple"
@@ -1170,6 +1173,9 @@ class Order:
     def status(self, value):
         # Remember when the status really changed (UTC). Compare after alias mapping so
         # "filled" -> "fill" or "Filled" -> "fill" is not counted as a change.
+        if not Order._record_status_times:
+            self._set_status_value(value)
+            return
         previous = getattr(self, "_status", None)
         self._set_status_value(value)
         if value is not None and getattr(self, "_status", None) != previous:

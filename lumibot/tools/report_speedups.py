@@ -17,7 +17,7 @@ Two pieces of work used to sit on the critical path after every backtest:
 
 Switches (both on by default):
 - ``LUMIBOT_PREWARM_REPORT_IMPORTS=0`` turns the background import off.
-- ``LUMIBOT_REPORT_DRAWDOWN_CACHE=0`` turns the drawdown-table cache off.
+- ``LUMIBOT_REPORT_DRAWDOWN_CACHE=0`` turns the table cache (drawdowns and period aggregations) off.
 """
 
 from __future__ import annotations
@@ -116,34 +116,72 @@ def _fingerprint(obj) -> str | None:
     return digest.hexdigest()
 
 
+def _drawdown_details_key(args, kwargs):
+    if kwargs or len(args) != 1:
+        return None
+    return _fingerprint(args[0])
+
+
+def _aggregate_returns_key(args, kwargs):
+    # aggregate_returns(returns, period=None, compounded=True). With no period (or a daily
+    # one) it hands back the caller's own object; that identity is kept by not caching.
+    params = dict(zip(("returns", "period", "compounded"), args))
+    if len(args) > 3:
+        return None
+    params.update(kwargs)
+    if set(params) - {"returns", "period", "compounded"}:
+        return None
+    period = params.get("period")
+    if not isinstance(period, str) or "day" in period:
+        return None
+    compounded = params.get("compounded", True)
+    if not isinstance(compounded, bool):
+        return None
+    returns_key = _fingerprint(params.get("returns"))
+    if returns_key is None:
+        return None
+    return f"{returns_key}|{period}|{compounded}"
+
+
+# (module, function, key builder). Each function is pure: the same input gives the same
+# table. Callers receive a deep copy, so nothing one caller does reaches another.
+_CACHED_FUNCTIONS = (
+    ("quantstats_lumi.stats", "drawdown_details", _drawdown_details_key),
+    ("quantstats_lumi.utils", "aggregate_returns", _aggregate_returns_key),
+)
+
+
 @contextlib.contextmanager
 def report_computation_cache():
-    """Cache QuantStats drawdown tables per exact input for the duration of one report."""
+    """Cache pure QuantStats tables per exact input for the duration of one report."""
     if not drawdown_cache_enabled():
         yield
         return
 
-    import quantstats_lumi.stats as qs_stats
+    installed = []
+    for module_name, function_name, key_builder in _CACHED_FUNCTIONS:
+        module = importlib.import_module(module_name)
+        original = getattr(module, function_name)
+        cache: dict[str, object] = {}
 
-    original = qs_stats.drawdown_details
-    cache: dict[str, object] = {}
+        def cached(*args, _original=original, _cache=cache, _key_builder=key_builder, **kwargs):
+            try:
+                key = _key_builder(args, kwargs)
+            except Exception:
+                key = None
+            if key is None:
+                return _original(*args, **kwargs)
+            if key not in _cache:
+                _cache[key] = _original(*args, **kwargs)
+            result = _cache[key]
+            return result.copy(deep=True) if hasattr(result, "copy") else result
 
-    def cached_drawdown_details(drawdown):
-        try:
-            key = _fingerprint(drawdown)
-        except Exception:
-            key = None
-        if key is None:
-            return original(drawdown)
-        if key not in cache:
-            cache[key] = original(drawdown)
-        result = cache[key]
-        return result.copy(deep=True) if hasattr(result, "copy") else result
-
-    qs_stats.drawdown_details = cached_drawdown_details
+        setattr(module, function_name, cached)
+        installed.append((module, function_name, original, cached))
     try:
         yield
     finally:
-        # Restore only our own wrapper; never clobber a replacement made by someone else.
-        if qs_stats.drawdown_details is cached_drawdown_details:
-            qs_stats.drawdown_details = original
+        # Restore only our own wrappers; never clobber a replacement made by someone else.
+        for module, function_name, original, cached in reversed(installed):
+            if getattr(module, function_name) is cached:
+                setattr(module, function_name, original)

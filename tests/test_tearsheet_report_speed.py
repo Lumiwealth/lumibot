@@ -85,6 +85,35 @@ def test_drawdown_table_is_computed_once_per_distinct_series(tmp_path, monkeypat
     assert qs_stats.drawdown_details is counting
 
 
+def test_period_aggregation_is_computed_once_per_distinct_input(tmp_path, monkeypatch):
+    import quantstats_lumi.utils as qs_utils
+
+    calls = {"n": 0}
+    original = qs_utils.aggregate_returns
+
+    def counting(*args, **kwargs):
+        calls["n"] += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(qs_utils, "aggregate_returns", counting)
+    _run(tmp_path, "aggregate")
+    # 30 monthly/quarterly/yearly aggregations per report before, 11 distinct inputs.
+    assert calls["n"] <= 11, calls["n"]
+    assert qs_utils.aggregate_returns is counting
+
+
+def test_aggregate_without_period_still_returns_the_callers_object():
+    import quantstats_lumi.utils as qs_utils
+
+    returns = pd.Series([0.01, -0.02, 0.03], index=pd.date_range(datetime(2021, 1, 1), periods=3, freq="1D"))
+    with report_speedups.report_computation_cache():
+        assert qs_utils.aggregate_returns(returns) is returns
+        monthly_a = qs_utils.aggregate_returns(returns, "month", True)
+        monthly_a.iloc[0] = 99.0
+        monthly_b = qs_utils.aggregate_returns(returns, "month", True)
+    assert monthly_b.iloc[0] != 99.0
+
+
 def test_report_cache_keeps_every_report_number_identical(tmp_path, monkeypatch):
     cached = _run(tmp_path, "cached")
 

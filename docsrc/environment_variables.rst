@@ -53,7 +53,7 @@ LUMIBOT_PREWARM_REPORT_IMPORTS
 LUMIBOT_REPORT_DRAWDOWN_CACHE
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Purpose: While one tearsheet is built, compute each QuantStats drawdown table once per distinct drawdown series instead of once per request (13 requests per report before).
+- Purpose: While one tearsheet is built, compute each QuantStats drawdown table and period aggregation once per distinct input instead of once per request (13 and 30 requests per report before).
 - Values: ``0``, ``false``, ``no`` or ``off`` turn it off; anything else (or unset) keeps it on.
 - Default: on.
 - Notes: The cache key is the exact series (dates, values, type, name) and every caller gets its own copy, so report numbers are unchanged. The cache lives only for one report.

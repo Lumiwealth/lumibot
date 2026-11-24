@@ -80,9 +80,9 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 - Where: `lumibot/credentials.py`
 
 ### `LUMIBOT_PREWARM_REPORT_IMPORTS` / `LUMIBOT_REPORT_DRAWDOWN_CACHE`
-- Purpose: end-of-backtest report speed with identical numbers. Prewarm imports the report stack (QuantStats, scipy.stats, matplotlib) in a daemon thread at `run_backtest` start; the drawdown cache memoizes `quantstats_lumi.stats.drawdown_details` per exact input for one `create_tearsheet` call and returns copies.
+- Purpose: end-of-backtest report speed with identical numbers. Prewarm imports the report stack (QuantStats, scipy.stats, matplotlib) in a daemon thread at `run_backtest` start; the cache memoizes `quantstats_lumi.stats.drawdown_details` and `quantstats_lumi.utils.aggregate_returns` (when a period is given) per exact input for one `create_tearsheet` call and returns copies.
 - Values: `0`/`false`/`no`/`off` disable; default on.
-- Measured (Mac, 10-year daily backtest, load about 18): report phase 3.4 to 4.0 s before, 1.9 to 2.0 s after; tearsheet HTML (minus SVG timestamps/ids), tearsheet CSV, metrics JSON and stats.csv byte-identical.
+- Measured (Mac, 10-year daily backtest, load about 18): report phase 3.6 to 3.9 s before, 1.8 to 2.3 s after (load 30 to 40); tearsheet HTML (minus SVG timestamps/ids), tearsheet CSV, metrics JSON and stats.csv byte-identical.
 - Where: `lumibot/tools/report_speedups.py`, `lumibot/tools/indicators.py::create_tearsheet`, `lumibot/strategies/_strategy.py::run_backtest`. Tests: `tests/test_tearsheet_report_speed.py`.
 
 ### `LUMIBOT_DISABLE_DOTENV_LOCAL`

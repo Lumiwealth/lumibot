@@ -199,3 +199,28 @@ def test_tearsheet_end_to_end_backtest_short_window_writes_placeholder_metrics_j
     assert payload["metadata"]["summary_only"] is True
     assert payload["metadata"]["status"] == "unavailable"
     assert payload["metadata"]["reason"] in {"insufficient_data", "degenerate_returns"}
+
+
+def test_backtest_starts_report_import_prewarm_once(pandas_data_fixture, tmp_path, monkeypatch):
+    # The report stack import overlaps the run instead of following it; see
+    # lumibot/tools/report_speedups.py. A backtest that writes a tearsheet starts it.
+    from lumibot.tools import report_speedups
+
+    calls = {"n": 0}
+    real = report_speedups.prewarm_report_imports
+
+    def counting():
+        calls["n"] += 1
+        return real()
+
+    monkeypatch.setattr(report_speedups, "prewarm_report_imports", counting)
+    _, _, tearsheet_file, metrics_file, _ = _run_backtest_case(
+        _PlainBacktestStrategy,
+        pandas_data_fixture,
+        tmp_path / "prewarm",
+        datetime(2019, 1, 2),
+        datetime(2019, 3, 29),
+    )
+    assert calls["n"] == 1
+    assert tearsheet_file.exists()
+    assert metrics_file.exists()

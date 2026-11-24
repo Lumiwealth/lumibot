@@ -72,6 +72,25 @@ for name in ('plotly', 'quantstats_lumi', 'lumibot.tools.yahoo_helper'):
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_routed_backtesting_import_defers_polygon_client():
+    # Every routed backtest imported the Polygon client package (about 100 ms on a laptop,
+    # several times that on a cold cloud task) before the first bar, even when no route
+    # uses Polygon. It now loads only when a Polygon route is actually read.
+    result = subprocess.run(
+        [sys.executable, "-c", """
+import sys
+from lumibot.backtesting.routed_backtesting import RoutedBacktestingPandas
+import lumibot.backtesting.routed_backtesting as routed
+for name in ('massive', 'lumibot.tools.polygon_helper'):
+    assert name not in sys.modules, name
+assert callable(routed.polygon_helper.get_price_data_from_polygon)
+assert 'lumibot.tools.polygon_helper' in sys.modules
+"""],
+        env=_clean_subprocess_env(), capture_output=True, text=True, timeout=120,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_lazy_package_all_exports_resolve():
     modules = [
         "lumibot",

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Backtest reports finish faster with identical numbers: the report libraries
+  (QuantStats, scipy, matplotlib) now load in the background while the backtest runs,
+  and each QuantStats drawdown table and monthly/quarterly/yearly aggregation is
+  computed once per report instead of repeatedly (13 and 30 times before). A 10-year
+  daily backtest's report step went from about 3.6 s to about 1.9 s on a laptop. Switches: `LUMIBOT_PREWARM_REPORT_IMPORTS`, `LUMIBOT_REPORT_DRAWDOWN_CACHE`.
+
 ## 4.6.96 - 2026-11-23
 
 ### Webull OpenAPI

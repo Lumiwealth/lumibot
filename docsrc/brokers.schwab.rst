@@ -390,6 +390,38 @@ quote request per 50 symbols (a 20-stock and 20-option scan is 1 request, not
 price in it is ``None`` and the error is logged. The options helper treats a
 rate-limited batch of strike quotes the same way.
 
+Fewer requests for scanners
+---------------------------
+
+A scanner that calls ``get_quote`` once per symbol in a loop no longer pays
+one Schwab request per symbol:
+
+* **Quote basket.** In live trading, LumiBot remembers which assets a strategy
+  quoted in the previous trading iteration. On the first quote it needs in the
+  next iteration, it asks Schwab for all of them in one request (up to 50
+  symbols) and answers the following ``get_quote`` calls from that batch. A
+  batched quote is reused only inside the same iteration and for at most one
+  second. Set ``quote_basket_max_age_seconds = 0`` on your strategy class, or
+  ``LUMIBOT_QUOTE_BASKET_MAX_AGE_SECONDS=0``, to ask for every quote separately.
+  Backtests are not affected.
+* **No order list while idle.** When the strategy has no open order of its own,
+  LumiBot does not read the account's order list before each iteration or on
+  ``get_orders()``. The first read after start still runs, and a canceled or
+  rejected order keeps the list in use for two more minutes
+  (``ended_order_watch_seconds``) so a late fill is still seen. Set
+  ``broker.skip_order_list_when_idle = False`` to read it every time.
+
+.. code-block:: python
+
+   class Scanner(Strategy):
+       quote_basket_max_age_seconds = 1.0  # default; 0 turns it off
+
+       def on_trading_iteration(self):
+           for symbol in self.parameters["symbols"]:
+               quote = self.get_quote(Asset(symbol))  # one request per pass, not per symbol
+
+For a whole list at once, ``get_quotes`` is still the most direct call.
+
 Request budget per process
 --------------------------
 

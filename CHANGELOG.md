@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased (after 4.6.96)
+
+### Changed
+
+- Live quote basket: a strategy that calls `get_quote` for several assets one at a
+  time in each iteration now costs one quote request per iteration on data
+  sources with a multi-symbol quote request (Schwab first). Batched quotes are
+  reused only inside the same iteration and for at most
+  `quote_basket_max_age_seconds` (default 1 second; `0` or
+  `LUMIBOT_QUOTE_BASKET_MAX_AGE_SECONDS=0` turns it off). Backtests are unchanged.
+- Schwab: no account order-list read before each iteration or on `get_orders()`
+  while the strategy has no open order of its own. A canceled or rejected order
+  keeps reads on for `ended_order_watch_seconds` (120) so late fills are still
+  seen. `broker.skip_order_list_when_idle = False` restores the old behavior.
+
 ## 4.6.96 - 2026-11-23
 
 ### Webull OpenAPI

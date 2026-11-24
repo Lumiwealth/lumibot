@@ -1511,6 +1511,10 @@ class StrategyExecutor(Thread):
                 # on_trading_iteration method.
                 return
 
+        # A new trading iteration: batched live quotes from the last one are
+        # never reused (see Strategy.get_quote, quote basket).
+        self.strategy._quote_basket_iteration = getattr(self.strategy, "_quote_basket_iteration", 0) + 1
+
         # Check if self.strategy.sleeptime is a number or a string.
         sleep_units = self._parse_sleeptime(self.strategy.sleeptime)[1].lower()
         start_dt = datetime.now()

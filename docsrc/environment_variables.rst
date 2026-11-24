@@ -211,6 +211,11 @@ Live scheduled execution (BotSpot/BotManager)
 - ``LUMIBOT_SCHEDULED_STATE_BACKEND``: external state backend prepared by BotManager: ``s3``, ``dynamodb``, or ``none``. ``none`` disables scheduled ``self.vars`` file load/save.
 - ``LUMIBOT_SCHEDULED_STATE_FILE``: local JSON file managed by BotManager/bootstrap code to restore and persist ``self.vars`` for one scheduled live run. State is restored before scheduled lifecycle hooks.
 
+Live quote basket
+-----------------
+
+- ``LUMIBOT_QUOTE_BASKET_MAX_AGE_SECONDS``: seconds a batched live quote may be reused inside one trading iteration (default ``1``; ``0`` turns the quote basket off). Overrides the strategy class attribute ``quote_basket_max_age_seconds``. Only data sources with a multi-symbol quote request use it (for example Schwab). Backtests never use it. See :doc:`brokers.schwab`.
+
 BotSpot managed research
 ------------------------
 

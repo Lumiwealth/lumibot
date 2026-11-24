@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import os
 import re
+import threading
 import time
 import warnings
 
@@ -199,7 +200,16 @@ def __getattr__(name):
     return value
 
 
+_QUOTE_BASKET_MISS = object()
+_QUOTE_BASKET_LIMIT = 50
+
+
 class Strategy(_Strategy):
+    # Live quote basket (see get_quote). Seconds a batched quote may be reused
+    # inside one trading iteration; 0 turns the basket off. The environment
+    # variable LUMIBOT_QUOTE_BASKET_MAX_AGE_SECONDS overrides this default.
+    quote_basket_max_age_seconds = 1.0
+
     @property
     def name(self):
         """Returns the name of the strategy.
@@ -3327,20 +3337,112 @@ class Strategy(_Strategy):
         -------
         Quote
             A Quote object with the quote information, eg. bid, ask, etc.
+
+        Notes
+        -----
+        Live quote basket: when the data source can quote many symbols in one
+        request (Schwab, Alpaca options), a live strategy that calls
+        ``get_quote`` for several assets one at a time in each iteration pays
+        one request per iteration instead of one per asset. On a cache miss
+        LumiBot also fetches the assets quoted in the previous iteration that
+        were not yet asked for in this one, and serves those from the batch
+        when they are asked for. A batched quote is reused only inside the
+        same trading iteration and for at most
+        ``quote_basket_max_age_seconds`` (default 1 second). Set the class
+        attribute ``quote_basket_max_age_seconds = 0`` (or the environment
+        variable ``LUMIBOT_QUOTE_BASKET_MAX_AGE_SECONDS=0``) to always request
+        each quote separately. Backtests never use the basket.
         """
 
         asset = self._sanitize_user_asset(asset)
 
         try:
             if self.broker.option_source and asset.asset_type == "option":
-                return self.broker.option_source.get_quote(asset, quote=quote, exchange=exchange)
+                source = self.broker.option_source
             else:
-                return self.broker.data_source.get_quote(asset, quote=quote, exchange=exchange)
+                source = self.broker.data_source
+            if quote is None and exchange is None:
+                cached = self._quote_basket_lookup(source, asset)
+                if cached is not _QUOTE_BASKET_MISS:
+                    return cached
+            return source.get_quote(asset, quote=quote, exchange=exchange)
         except UnsupportedAsset:
             raise
         except Exception as e:
             self.log_message(f"Error getting quote from data source: {e}", color="red")
             return _quote_class()(asset=asset)
+
+    def _quote_basket_max_age(self) -> float:
+        if getattr(self, "is_backtesting", True):
+            return 0.0
+        raw = os.environ.get("LUMIBOT_QUOTE_BASKET_MAX_AGE_SECONDS")
+        if raw is None or not str(raw).strip():
+            raw = getattr(self, "quote_basket_max_age_seconds", 1.0)
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            return 0.0
+        return value if value > 0 and math.isfinite(value) else 0.0
+
+    def _quote_basket_state(self, source):
+        state = self.__dict__.setdefault("_quote_basket_sources", {})
+        lock = self.__dict__.setdefault("_quote_basket_lock", threading.Lock())
+        return lock, state.setdefault(id(source), {"seen": {}, "asked": {}, "cache": {}})
+
+    def _quote_basket_store(self, source, quotes, generation, now):
+        if self._quote_basket_max_age() <= 0 or not isinstance(quotes, dict):
+            return
+        lock, entry = self._quote_basket_state(source)
+        with lock:
+            for asset, value in quotes.items():
+                entry["cache"][asset] = (value, now, generation)
+
+    def _quote_basket_lookup(self, source, asset):
+        """Serve one live quote from a per-iteration batch, or return a miss marker.
+
+        Invariants: never used in backtests; a cached quote is reused only in
+        the iteration that fetched it and within the configured max age; a
+        failed batch never invents a quote (the caller falls back to the single
+        quote path, which keeps its own error contract).
+        """
+        max_age = self._quote_basket_max_age()
+        native = getattr(source, "get_quotes", None)
+        if max_age <= 0 or not callable(native):
+            return _QUOTE_BASKET_MISS
+        clock = getattr(self, "_quote_basket_clock", None) or time.monotonic
+        generation = getattr(self, "_quote_basket_iteration", 0)
+        now = clock()
+        lock, entry = self._quote_basket_state(source)
+        with lock:
+            entry["seen"][asset] = generation
+            entry["asked"][asset] = generation
+            cached = entry["cache"].get(asset)
+            if cached is not None and cached[2] == generation and 0 <= now - cached[1] <= max_age:
+                return cached[0]
+            batch = [asset]
+            for other, seen_at in list(entry["seen"].items()):
+                if seen_at < generation - 1:
+                    entry["seen"].pop(other, None)
+                    entry["cache"].pop(other, None)
+                    continue
+                if other == asset or entry["asked"].get(other) == generation:
+                    continue
+                if len(batch) >= _QUOTE_BASKET_LIMIT:
+                    break
+                batch.append(other)
+        if len(batch) == 1:
+            return _QUOTE_BASKET_MISS
+        try:
+            quotes = native(batch)
+        except UnsupportedAsset:
+            raise
+        except Exception as exc:
+            self.log_message(f"Batched quote request failed; asking for {asset} alone: {exc}", color="yellow")
+            return _QUOTE_BASKET_MISS
+        if not isinstance(quotes, dict) or asset not in quotes:
+            return _QUOTE_BASKET_MISS
+        self._quote_basket_store(source, {key: quotes.get(key) for key in batch if key in quotes}, generation, now)
+        return quotes[asset]
 
     def get_quotes(self, assets: List[Asset], quote: Asset = None, exchange: str = None):
         """Return exact Assets mapped to Quote objects (or None when absent).
@@ -3368,6 +3470,13 @@ class Strategy(_Strategy):
                 if any(value is not None and getattr(value, "asset", None) != asset for asset, value in quotes.items() if asset in selected):
                     raise ValueError("Bulk quote adapter returned another asset's quote")
                 result.update({asset: quotes[asset] for asset in selected})
+                store = getattr(self, "_quote_basket_store", None)
+                if quote is None and exchange is None and callable(store):
+                    clock = getattr(self, "_quote_basket_clock", None) or time.monotonic
+                    store(
+                        source, {asset: quotes[asset] for asset in selected},
+                        getattr(self, "_quote_basket_iteration", 0), clock(),
+                    )
             else:
                 result.update({asset: self.get_quote(asset, quote=quote, exchange=exchange) for asset in selected})
         return {asset: result[asset] for asset in assets}

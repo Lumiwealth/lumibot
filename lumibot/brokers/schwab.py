@@ -2292,6 +2292,51 @@ class Schwab(Broker):
         # Both ordinary account-number and hash-only configurations are supported.
         return getattr(self, "account_number", None) or getattr(self, "hash_value", None)
 
+    # Skip the account-wide order-list read while this strategy has no open
+    # orders of its own (see sync_orders). Set False to read it every time.
+    skip_order_list_when_idle = True
+
+    def sync_orders(self, strategy):
+        """Reconcile owned orders; no order-list request while none are open.
+
+        Schwab's order list returns the whole account, and only orders this
+        strategy placed (or restored from saved state) are kept. With no open
+        owned order there is nothing to reconcile, so after the first full
+        read per strategy the request is skipped. The first read still runs,
+        so restored orders and the one-time warning about other open account
+        orders keep working. Order callbacks for open orders are unchanged.
+        """
+        if self.IS_BACKTESTING_BROKER or not getattr(self, "skip_order_list_when_idle", True):
+            return super().sync_orders(strategy)
+        strategy_name = self._strategy_name_from_input(strategy)
+        synced = self.__dict__.setdefault("_order_list_synced_strategies", set())
+        if strategy_name in synced:
+            if not self._has_orders_that_may_still_change(strategy_name):
+                self._idle_order_list_reads_skipped = getattr(self, "_idle_order_list_reads_skipped", 0) + 1
+                return None
+        result = super().sync_orders(strategy)
+        synced.add(strategy_name)
+        return result
+
+    # A canceled or rejected order can still report a late fill at Schwab, so
+    # it keeps the order list in use for this many seconds after LumiBot first
+    # sees it ended. Fully filled orders are final.
+    ended_order_watch_seconds = 120.0
+
+    def _has_orders_that_may_still_change(self, strategy_name) -> bool:
+        now = time.monotonic()
+        first_seen_ended = self.__dict__.setdefault("_ended_order_first_seen", {})
+        watch = float(getattr(self, "ended_order_watch_seconds", 120.0) or 0.0)
+        for order in self.get_tracked_orders(strategy=strategy_name):
+            if order.is_active():
+                return True
+            if order.is_filled():
+                continue
+            seen = first_seen_ended.setdefault(str(order.identifier), now)
+            if now - seen < watch:
+                return True
+        return False
+
     def _orders_for_strategy_sync(self, orders, strategy):
         # The Schwab endpoint returns the whole account and parsing assigns the
         # requested display name to each row. Only known native identities (or

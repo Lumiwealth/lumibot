@@ -1,6 +1,8 @@
 # Changelog
 
-## Webull integration candidate (pending release qualification)
+## 4.6.96 - Unreleased
+
+### Webull OpenAPI
 
 - Webull OpenAPI candidate for individual accounts, with optional SDK installation,
   an independently selectable data source, daily historical replay, and PaperTrade
@@ -23,10 +25,9 @@
   An unavailable exchange trade feed reports its entitlement error while other
   subscriptions continue. The connection closes on the last unsubscribe.
   PaperTrade checks cover incorrect account selection, invalid application keys,
-  and broker rejection of overnight-only equity limits outside their session.
+  overnight-only equity limit acceptance and cancellations, an SPY overnight
+  round trip, and the venue's rejection of overnight limits outside the session.
   Minute OHLCV windows can be loaded once for ordinary pandas-backed replay. See `docsrc/brokers.webull.rst`.
-
-## 4.6.96 - Unreleased
 
 ### Added
 - **New listings (IPOs) from SEC filings, including companies later delisted.** `self.fundamentals.get_listings(start, end)` returns every company whose first final prospectus (form 424B4 or 424B1) is dated in the window, with the ticker printed on the prospectus, its SIC code, its kind (operating company by default; blank-check companies and funds with `kinds=`) and the delisting filed after its last periodic report once public (moves between exchanges do not count); `self.fundamentals.get_listing(symbol)` returns one row. Point in time in backtests: a company appears on its prospectus date and a delisting only once filed. Today's ticker list holds only survivors (42% of the 3,705 companies with a final prospectus from 2019 to 2026 are no longer in it), so an IPO study built on it drops the losers. The table is built from public SEC files by `build_listings_table(years)` and shared through the backtest cache. Docs: `docsrc/fundamentals.rst` (New listings), `docs/SEC_FUNDAMENTALS.md`. Tests: `tests/test_sec_listings.py` (new module; red before: import error).
@@ -3142,7 +3143,7 @@ Deploy marker: 61b75f24 (`deploy 4.5.6`)
 ### Changed
 - README restructured for visitor conversion: Quick Start code block, competitor comparison table (LumiBot is the only open-source Python trading library with options support), supported brokers & data sources matrix, migration guide from Backtrader (merged from dev).
 - PyPI metadata overhaul: added 20 search keywords and 12 classifiers (Financial, Investment, AI, Python 3.10-3.12) after being previously empty. Updated package description for search discoverability (merged from dev).
-- Author email updated to rob@botspot.trade; added project_urls for documentation, Discord, and BotSpot platform (merged from dev).
+- Maintainer contact metadata updated and project URLs added for documentation, Discord, and BotSpot platform (merged from dev).
 
 ### Added
 - `docs/MIGRATING_FROM_BACKTRADER.md`: concept mapping and side-by-side code examples for users switching from the now-unmaintained Backtrader library (merged from dev).

@@ -113,19 +113,7 @@ def test_paper_gtc_equity_limit_submit_replace_cancel(paper, symbol):
 @pytest.mark.parametrize("paper", ["INDIVIDUAL_MARGIN"], indirect=True)
 @pytest.mark.parametrize("symbol", ["AAPL", "SPY"])
 def test_paper_night_day_equity_order_acceptance_and_cancel(paper, symbol):
-    from datetime import datetime, timedelta
-    from zoneinfo import ZoneInfo
-
-    from lumibot.tools.helpers import get_trading_days
-
-    now = datetime.now(ZoneInfo("America/New_York"))
-    if 4 <= now.hour < 20:
-        pytest.skip("Run within an eligible Webull overnight window for a working NIGHT order")
-    trading_date = now.date() + timedelta(days=now.hour >= 20)
-    trading_days = get_trading_days("NYSE", trading_date.isoformat(), trading_date.isoformat())
-    if trading_days.empty:
-        pytest.skip("Run within an eligible Webull overnight window for a working NIGHT order")
-
+    _require_overnight_equity_session()
     broker, observer, account = paper
     strategy, order = _night_equity_order(broker, symbol)
     before = request_json("positions before overnight order", observer.account_v2.get_account_position, account)
@@ -190,6 +178,26 @@ def _night_equity_order(broker, symbol):
     order = strategy.create_order(asset, 1, "buy", limit_price=limit, time_in_force="day",
                                   custom_params={"support_trading_session": "NIGHT"})
     return strategy, order
+
+
+def _require_overnight_equity_session():
+    from datetime import datetime, time as clock_time, timedelta
+    from zoneinfo import ZoneInfo
+
+    from lumibot.tools.helpers import get_trading_days
+
+    eastern = ZoneInfo("America/New_York")
+    now = datetime.now(eastern)
+    trading_date = now.date() + timedelta(days=now.hour >= 20)
+    start = datetime.combine(trading_date - timedelta(days=1), clock_time(20), eastern)
+    end = datetime.combine(trading_date, clock_time(4), eastern)
+    if not start <= now < end:
+        pytest.skip("Run within an eligible Webull overnight window for a working NIGHT order")
+    # get_trading_days takes an exclusive end date.
+    end_date = trading_date + timedelta(days=1)
+    if get_trading_days("NYSE", trading_date.isoformat(), end_date.isoformat()).empty:
+        pytest.skip("The trading date has no US equity session")
+    return start, end
 
 
 def _qualify_equity_limit_amend(paper, symbol, duration):
@@ -1700,6 +1708,19 @@ def test_paper_extended_equity_marketable_limit_round_trip(paper, symbol, durati
                   if now < core.market_open else (core.market_close, now.normalize() + pd.Timedelta(hours=20)))
     if not start <= now < end:
         pytest.skip("Run during the premarket or postmarket to qualify an extended-session execution")
+    _qualify_equity_marketable_limit_round_trip(paper, symbol, duration, "ALL", start, end)
+
+
+@pytest.mark.parametrize("paper", ["INDIVIDUAL_MARGIN"], indirect=True)
+@pytest.mark.parametrize("symbol", ["AAPL", "SPY"])
+def test_paper_overnight_equity_marketable_limit_round_trip(paper, symbol):
+    start, end = _require_overnight_equity_session()
+    _qualify_equity_marketable_limit_round_trip(paper, symbol, "day", "NIGHT", start, end)
+
+
+def _qualify_equity_marketable_limit_round_trip(paper, symbol, duration, session, start, end):
+    import pandas as pd
+
     broker, observer, account = paper
     asset = Asset(symbol)
     strategy = Strategy(broker=broker, name="webull_extended_limit", risk_free_rate=0,
@@ -1713,11 +1734,11 @@ def test_paper_extended_equity_marketable_limit_round_trip(paper, symbol, durati
         allowance = Decimal("1.005") if side == "buy" else Decimal("0.995")
         limit = (Decimal(str(price)) * allowance).quantize(Decimal("0.01"))
         order = strategy.create_order(asset, quantity, side, limit_price=limit, time_in_force=duration,
-                                      custom_params={"support_trading_session": "ALL"})
+                                      custom_params={"support_trading_session": session})
         return _submit_and_observe_terminal(strategy, observer, account, order)
 
     def verify_session(result):
-        assert result["support_trading_session"] == "ALL" and result["time_in_force"] == duration.upper()
+        assert result["support_trading_session"] == session and result["time_in_force"] == duration.upper()
         stamp = pd.Timestamp(result["filled_time_at"])
         assert stamp.tzinfo is not None and start <= stamp < end
 
@@ -1725,7 +1746,9 @@ def test_paper_extended_equity_marketable_limit_round_trip(paper, symbol, durati
     result = submit("buy", 1)
     quantity = Decimal(result.get("filled_quantity") or 0)
     try:
-        assert result["status"] == "FILLED" and quantity == 1
+        assert result["status"] == "FILLED" and quantity == 1, (
+            f"{symbol} {session} entry reached {result['status']} with {quantity} shares filled"
+        )
         verify_session(result)
         current = broker._pull_position(strategy, asset)
         assert current.quantity == (initial.quantity if initial else 0) + quantity

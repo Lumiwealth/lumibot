@@ -76,8 +76,10 @@ instrument eligibility. For a regular-hours DAY order, pass
 ``NIGHT`` selects the separate overnight session. Webull PaperTrade rejected
 DAY limits for both a stock and an ETF when sent outside that session,
 including during postmarket while ``ALL`` limits could trade. The provider
-did not create working orders in either case. Overnight fills and expiry
-across midnight still need direct qualification.
+did not create working orders in either case. During the overnight session,
+AAPL and SPY DAY limits each rested and canceled. Marketable SPY DAY limits
+filled on entry and exit. The AAPL entry was canceled after no fill in the
+observation window. Overnight expiry across midnight still needs qualification.
 
 Market-data subscriptions and private order events use separate feeds. In
 PaperTrade, the official SDK acknowledged crypto trade-tick subscriptions and
@@ -196,7 +198,7 @@ canceled those orders and confirmed zero fills. Contract settlement still needs 
 An extended-session equity limit bought and sold one share before the regular
 open. Separate AAPL DAY and SPY GTC limits bought and sold after the regular
 close. The independent order details placed all four executions within the
-postmarket session. Overnight-only executions and expiry need separate tests. In regular hours a stock and an ETF filled both long round trips and
+postmarket session. In regular hours a stock and an ETF filled both long round trips and
 short sales with buybacks. Native equity DAY and GTC brackets were read back
 and canceled. In two separate transactions the placing process exited after acknowledgment.
 An independent reader then confirmed the entry fill, the winning target or

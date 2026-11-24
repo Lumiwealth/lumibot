@@ -22,23 +22,11 @@ This was a process failure. For live broker support issues, a passing nearby
 smoke test is not enough. The exact customer strategy, same broker, same order
 state, same asset class, and same lifecycle path must be run whenever feasible.
 
-## Artifacts
+## Evidence retention
 
-Private customer artifacts are stored under `logs/fast_scanner_private/` and are
-gitignored/private. Do not expose raw account numbers, tokens, or customer
-strategy code outside approved support channels.
-
-- Exact saved revision used for the live reproduction:
-  `logs/fast_scanner_private/revision_v85_ffe083f0-13cc-42b8-b9bc-4ac451a61d41.py`
-- Pre-fix exact strategy run:
-  `logs/fast_scanner_private/run_exact_v85_imported_correct_account_20260605_151804.log`
-- Local patched method-level proof:
-  `logs/fast_scanner_private/imported_cancel_methods_local_patch_20260605_154044.log`
-  and `logs/fast_scanner_private/imported_cancel_methods_local_patch_20260605_154044.json`
-- Local patched full strategy proof with close-window override:
-  `logs/fast_scanner_private/run_v85_no_close_block_live_20260605_154748.log`
-- Run-only close-window override copy:
-  `logs/fast_scanner_private/revision_v85_live_no_close_block_20260605_154715.py`
+The private qualification record holds the saved revision and the original
+reproduction, focused method check and full strategy run. The public report
+records the generic broker behavior and observed validation results.
 
 ## What Was Proven
 

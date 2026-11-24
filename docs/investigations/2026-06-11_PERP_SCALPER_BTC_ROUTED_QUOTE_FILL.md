@@ -822,12 +822,11 @@ Findings:
 
 ## 2026-06-15 Account-Path Follow-Up
 
-Rob's later IBKR screenshots showed Crypto Plus active on live account
-`U6750594`, with paper account `DU4299039` and paper username `rgrze4067`.
-Production Data Downloader checks then showed:
+The IBKR account review showed Crypto Plus on the live account. The
+production Data Downloader's Client Portal session exposed only its linked
+paper account. The account and login identifiers are kept in the private
+qualification record.
 
-- Client Portal/IBeam is authenticated as `rgrze4067`.
-- The only Client Portal account exposed to the downloader is `DU4299039`.
 - The account is reported by CPAPI as `type=DEMO`.
 - A BTC/USD ZEROHASH Trades 1-day/1-minute request ending
   `2026-06-13 16:00:00 UTC` returned only 240 rows from

@@ -4,18 +4,12 @@
 
 Investigate whether the fast options scanner customer's current cancel and hedge issues are still a LumiBot Schwab broker bug or a generated-strategy structure problem. This note intentionally avoids customer secrets and does not include token values.
 
-## Strategy Provenance
+## Strategy provenance
 
-The proposed local copy is based on the fast options scanner customer's saved LW ITM call scanner, not a generic scratch strategy.
-
-Evidence checked:
-
-- The saved strategy export at `.codex_tmp_fast_scanner_research/lw_itm_call_v18_main.py` has the `LWITMCallScanner` class and the generated-code header for the same refinement thread.
-- The exported conversation includes repeated requests to cancel option orders after 4 seconds if they do not fill.
-- The same conversation includes Schwab cancel failures from before the option cancel fix, including `cancel_order` not being implemented for Schwab option orders.
-- Later generated versions moved toward IOC-style option handling and bounded hedge retries, which matches the workaround path the fast options scanner customer was using after the earlier cancel failures.
-
-That means the proposed copy is addressing the strategy shape the fast options scanner customer was working with: a fast option entry, a short cancel window, and a stock hedge that should fire immediately after the first leg fills.
+The private reproduction used a saved strategy with an option entry and an
+order-cancel trigger. The public investigation records the generic broker
+behavior. The strategy export and its configuration are kept in the private
+qualification record.
 
 ## Current Finding
 

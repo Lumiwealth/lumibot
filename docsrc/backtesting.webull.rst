@@ -1,6 +1,9 @@
 Backtest with Webull historical data
 ====================================
 
+.. meta::
+   :description: Backtest LumiBot strategies with Webull historical data. Load daily prices or preload minute bars and check coverage for stocks, options, futures, and crypto.
+
 The Webull development candidate provides ``WebullHistoryBacktesting`` for
 daily prices on US stocks, ETFs, exact listed option contracts and spot
 crypto. It uses the existing

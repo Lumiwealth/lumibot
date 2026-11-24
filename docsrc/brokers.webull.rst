@@ -1,10 +1,18 @@
 Webull OpenAPI and LumiBot
 ==========================
 
+.. meta::
+   :description: Connect LumiBot to Webull OpenAPI and try PaperTrade. Configure credentials, select product accounts, and use native orders, market data, and streaming.
+
 This page describes the development candidate for Webull's individual US
 OpenAPI. The qualification environment is Webull PaperTrade. Market access
 and available product accounts depend on the individual application.
 See the `Webull PaperTrade application guide <https://developer.webull.com/apis/docs/authentication/IndividualApplicationAPI/>`_.
+
+The BotSpot features below use its currently supported connections. Hosted
+Webull account linking is pending.
+
+.. include:: _snippets/botspot_mcp_callout.rst
 
 Connect an account
 ------------------
@@ -272,3 +280,38 @@ simulator reports buying power. Event accounts can omit aggregate cash and
 equity.
 Webull's app market-data purchases and its OpenAPI non-display entitlements
 are separate. Read the `Webull market-data guide <https://developer.webull.com/apis/docs/market-data-api/overview/>`_.
+
+Frequently asked questions
+--------------------------
+
+Do I need to fund an account for PaperTrade?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. Apply for OpenAPI under PaperTrade in the Webull Developer Console.
+Use the separate PaperTrade keys and select a simulated product account.
+
+Which product account should I select?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+List accounts through your signed OpenAPI client and select the account ID
+with permission for the intended product. A margin account, a futures
+account, a crypto account, and an event account may have different IDs.
+
+Can I use my Webull app subscription with OpenAPI?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Webull sells app subscriptions and OpenAPI entitlements separately. Check
+availability, delay and rights in the developer console before selecting a feed.
+
+Can I backtest with Webull data?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. See :doc:`backtesting.webull` for supported daily history, preloaded
+minute bars and the limits of reconstructing broker fills from those bars.
+
+Can I link my Webull account to hosted BotSpot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Hosted account linking requires Webull partner access and qualification.
+This guide uses individual OpenAPI credentials directly in your own LumiBot
+process. Keep those credentials in your own secret store.

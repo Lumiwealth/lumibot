@@ -1152,45 +1152,63 @@ class ExecutionEngine:
         after = dict(operation)
         if intent.order_class in ("bracket", "oto"):
             # Reconcile entry leg unless it is already cleanly terminal filled.
+            entry_failed = False
             if operation["state"] != "filled" or operation.get("reconciliationErrorCode"):
-                entry = self._reconcile_leg(
-                    binding,
-                    operation,
-                    plan,
-                    symbol=intent.symbol,
-                    side=intent.side,
-                    orig_quantity=intent.quantity,
-                    reduce_only=intent.reduce_only,
-                    leg_kind=intent.kind,
-                    leg_tif=intent.tif,
-                    cloid=cloid_by_id.get(intent.identifier, plan.get("clientOrderId")),
-                    provider_order_id=operation.get("providerOrderId"),
-                    current_state=str(operation["state"]),
-                    current_filled=decimal(operation["filledQuantity"]),
-                    fill_step="fills",
-                    wire_index=0,
-                    observation=observation,
-                )
-                after.update(
-                    state=entry["state"],
-                    venueStatus=entry["venueStatus"],
-                    providerOrderId=entry["providerOrderId"],
-                    filledQuantity=entry["filledQuantity"],
-                    fees=entry["fees"],
-                    lastErrorCode=None,
-                    reconciliationErrorCode=None,
-                    reconciliationMessage=None,
-                    message="Venue order and cumulative fills reconciled",
-                )
-                if "averagePrice" in entry:
-                    after["averagePrice"] = entry["averagePrice"]
+                try:
+                    entry = self._reconcile_leg(
+                        binding,
+                        operation,
+                        plan,
+                        symbol=intent.symbol,
+                        side=intent.side,
+                        orig_quantity=intent.quantity,
+                        reduce_only=intent.reduce_only,
+                        leg_kind=intent.kind,
+                        leg_tif=intent.tif,
+                        cloid=cloid_by_id.get(intent.identifier, plan.get("clientOrderId")),
+                        provider_order_id=operation.get("providerOrderId"),
+                        current_state=str(operation["state"]),
+                        current_filled=decimal(operation["filledQuantity"]),
+                        fill_step="fills",
+                        wire_index=0,
+                        observation=observation,
+                    )
+                    after.update(
+                        state=entry["state"],
+                        venueStatus=entry["venueStatus"],
+                        providerOrderId=entry["providerOrderId"],
+                        filledQuantity=entry["filledQuantity"],
+                        fees=entry["fees"],
+                        lastErrorCode=None,
+                        reconciliationErrorCode=None,
+                        reconciliationMessage=None,
+                        message="Venue order and cumulative fills reconciled",
+                    )
+                    if "averagePrice" in entry:
+                        after["averagePrice"] = entry["averagePrice"]
+                except MetaMaskError as error:
+                    entry_failed = True
+                    after.update(
+                        state=operation["state"] if operation["state"] in _TERMINAL else "unknown",
+                        reconciliationErrorCode=error.code,
+                        reconciliationMessage=str(error),
+                    )
             parent_state = str(after["state"])
             parent_filled = decimal(after["filledQuantity"])
-            parent_unfilled_closed = parent_state in {"canceled", "rejected"} and parent_filled == 0
-            allow_waiting = parent_state in {"submitted", "open", "partial_fill"} or parent_unfilled_closed
-            resized_child_qty = (
-                parent_filled if parent_state == "canceled" and Decimal(0) < parent_filled < intent.quantity else None
-            )
+            if entry_failed:
+                # Never infer child cancellation or resizing from a failed entry lookup; still
+                # reconcile exits whose own venue identity and size are verifiable.
+                parent_unfilled_closed = False
+                allow_waiting = False
+                resized_child_qty = None
+            else:
+                parent_unfilled_closed = parent_state in {"canceled", "rejected"} and parent_filled == 0
+                allow_waiting = parent_state in {"submitted", "open", "partial_fill"} or parent_unfilled_closed
+                resized_child_qty = (
+                    parent_filled
+                    if parent_state == "canceled" and Decimal(0) < parent_filled < intent.quantity
+                    else None
+                )
             updated_children = []
             for idx, (child_intent, child_raw) in enumerate(zip(intent.children, children_raw)):
                 child_rec = dict(json_object(child_raw, "child operation"))
@@ -1721,10 +1739,11 @@ class ExecutionEngine:
 
     @staticmethod
     def _clean_live_oids(operation: dict[str, object]) -> set[int]:
+        if operation.get("reconciliationErrorCode"):
+            return set()
         clean_live_oids: set[int] = set()
         if (
             operation.get("state") in {"open", "partial_fill"}
-            and not operation.get("reconciliationErrorCode")
             and isinstance(operation.get("providerOrderId"), str)
             and operation["providerOrderId"].isdecimal()
             and int(operation["providerOrderId"]) > 0
@@ -1928,15 +1947,17 @@ class ExecutionEngine:
         try:
             wallet = Binding.parse(self.journal.binding(self.agent_id), validate_registry=False).wallet
             live = self.venue.frontend_open_orders(wallet) if len(existing) > len(closed) else None
+            poll_end = int(time.time() * 1000)
             anchors = []
             for identifier, row in existing.items():
                 base_start = max(0, int(row["createdAt"]) - 5000)
-                if identifier in settled_closed_groups and cursor_ms is not None:
+                if identifier in settled_closed_groups and cursor_ms is not None and cursor_ms - overlap_ms <= poll_end:
                     anchors.append(max(base_start, cursor_ms - overlap_ms))
                 else:
                     anchors.append(base_start)
             start = min(anchors)
-            poll_end = int(time.time() * 1000)
+            if start > poll_end:
+                start = max(0, poll_end - overlap_ms)
             recent = self.venue.fills(wallet, start, poll_end)
         except MetaMaskError:
             # Preserve ordinary durable reconciliation errors if discovery is unavailable.

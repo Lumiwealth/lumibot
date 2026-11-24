@@ -261,8 +261,8 @@ Columns: ``cik``, ``name``, ``ticker``, ``prospectus_date``, ``form``, ``kind``
 (``operating_company``, ``blank_check`` for SPACs, or ``other`` for funds and
 finance subsidiaries; only operating companies unless you pass for example
 ``kinds=("operating_company", "blank_check")``), ``sic``, ``delisting_filed``
-(the delisting or deregistration filed after the company's last report, empty
-until it is public; a move to another exchange does not count) and
+(the first public delisting or deregistration notice after the prospectus; a
+confirmed exchange transfer for the same security class is excluded) and
 ``prospectus_url``.
 
 .. code-block:: python
@@ -289,6 +289,10 @@ Good to know:
   still filters the original filing dates.
 - A rebuild checks the issuer’s archived submissions for prior periodic reports.
   If a required index or issuer request fails, the previous table stays in use.
+- A Form 25 stays visible if the issuer continues filing reports. A nearby
+  Form 8-A can confirm an exchange transfer if it identifies the same share
+  class and the prior venue and was public when the removal notice appeared.
+  Rebuild an older listings table to apply this classification.
 - The prospectus is filed 0 to 2 business days after the first trade. The first
   trade date is the stock's first daily bar from your price source.
 - Companies already public before 2019 have no row unless the table was built

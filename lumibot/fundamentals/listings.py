@@ -25,10 +25,10 @@ import os
 import re
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, NamedTuple
 from zoneinfo import ZoneInfo
 
-from .sec import _parse_dt, _same_tz
+from .sec import _parse_dt, _same_tz, _strip_html
 
 LISTING_FORMS = ("424B4", "424B1")
 DELISTING_FORMS = ("25", "25-NSE", "15-12B", "15-12G", "15-15D")
@@ -85,14 +85,92 @@ def ticker_from_prospectus(text: str) -> str | None:
     return min(found[:6], key=lambda symbol: (len(symbol), found.index(symbol)))
 
 
-def _filings(submissions: dict[str, Any]) -> list[tuple[str, str, str | None]]:
+class _Filing(NamedTuple):
+    form: str
+    day: str
+    accepted: str | None
+    accession: str | None
+    document: str | None
+
+
+def _filings(submissions: dict[str, Any]) -> list[_Filing]:
     recent = (submissions.get("filings") or {}).get("recent") or {}
     rows = []
     for file in (recent, *submissions.get("historical_filings", ())):
-        acceptance = file.get("acceptanceDateTime") or []
+        columns = [file.get(name) or [] for name in ("acceptanceDateTime", "accessionNumber", "primaryDocument")]
         for index, (form, day) in enumerate(zip(file.get("form") or [], file.get("filingDate") or [])):
-            rows.append((form, day, acceptance[index] if index < len(acceptance) else None))
+            values = [column[index] if index < len(column) else None for column in columns]
+            rows.append(_Filing(form, day, *values))
     return rows
+
+
+_EXCHANGE = re.compile(r"\b(?:new york stock exchange|nyse(?: american| arca)?|nasdaq|cboe bzx|iex|ltse)\b")
+
+
+def _exchange(text: str) -> str | None:
+    match = _EXCHANGE.search(text)
+    if not match:
+        return None
+    return "nyse" if match[0] == "new york stock exchange" else match[0]
+
+
+def _document_url(cik: int, filing: _Filing) -> str | None:
+    accession = (filing.accession or "").replace("-", "")
+    document = (filing.document or "").rsplit("/", 1)[-1]
+    if re.fullmatch(r"[0-9]{18}", accession) and re.fullmatch(r"[a-zA-Z0-9_.-]+\.(?:htm[l]?|xml|txt)", document):
+        return f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession}/{document}"
+    return None
+
+
+def _confirmed_transfer(cik, removal, registrations, fetch_head):
+    # Form 8-A can register a different class or record a different event. Read
+    # the actual filing and require an explicit move for the same class and exchange.
+    if not fetch_head or not registrations or removal.form not in ("25", "25-NSE"):
+        return False
+    entered = date.fromisoformat(removal.day)
+    witnesses = []
+    for registration in registrations:
+        days = (entered - date.fromisoformat(registration.day)).days
+        if not 0 <= days <= 30:
+            continue
+        if days == 0:
+            left, right = _parse_dt(registration.accepted), _parse_dt(removal.accepted)
+            if left is None or right is None or _same_tz(left, right) > right:
+                continue
+        url = _document_url(cik, registration)
+        if url:
+            witnesses.append(url)
+    notice = _document_url(cik, removal)
+    if not notice or not witnesses:
+        return False
+
+    raw = fetch_head(notice)
+    xml_class = re.search(r"<descriptionClassSecurity>([^<]+)</descriptionClassSecurity>", raw, re.I)
+    if xml_class:
+        xml_exchange = re.search(r"<exchange>.*?<entityName>([^<]+)</entityName>", raw, re.I | re.S)
+        title = _strip_html(xml_class[1])
+        origin = _exchange(xml_exchange[1].lower()) if xml_exchange else None
+    else:
+        plain = _strip_html(raw)
+        description = re.search(r"([^\n]+)\s*\(description of class of securities\)", plain, re.I)
+        issuer = re.search(r"([^\n]+)\s*\(exact name of issuer\b", plain, re.I)
+        title = description[1] if description else ""
+        origin = _exchange(issuer[1].lower()) if issuer else None
+    security = re.split(r",?\s+par value\b", " ".join(title.lower().split()), maxsplit=1)[0]
+    if not security or not origin:
+        return False
+
+    for url in witnesses:
+        text = " ".join(_strip_html(fetch_head(url)).lower().split())
+        pattern = (
+            rf"\btransfer (?:of )?(?:the |its )?listing\b.{{0,180}}?\b{re.escape(security)}\b"
+            r".{0,120}?\bfrom ([^.]{1,100}?) to ([^.]{1,100})"
+        )
+        for match in re.finditer(pattern, text):
+            old, new = _exchange(match[1]), _exchange(match[2])
+            if old == origin and new and new != origin:
+                return True
+    return False
 
 
 def _public_by(filing_date: date, acceptance: str | None, date_cutoff: date, instant_cutoff: datetime | None):
@@ -103,7 +181,9 @@ def _public_by(filing_date: date, acceptance: str | None, date_cutoff: date, ins
     return filing_date <= date_cutoff
 
 
-def classify_listing(offering: dict[str, Any], submissions: dict[str, Any]) -> dict[str, Any] | None:
+def classify_listing(
+    offering: dict[str, Any], submissions: dict[str, Any], *, fetch_head: Callable[[str], str] | None = None,
+) -> dict[str, Any] | None:
     """A listing row for a company's first final prospectus, or None for a follow-on offering.
 
     A company that filed periodic reports (10-K, 10-Q, 20-F) before this prospectus was already
@@ -111,7 +191,7 @@ def classify_listing(offering: dict[str, Any], submissions: dict[str, Any]) -> d
     """
     filed = offering["filed"]
     filings = _filings(submissions)
-    if any(form in PERIODIC_FORMS and when < filed for form, when, _ in filings):
+    if any(filing.form in PERIODIC_FORMS and filing.day < filed for filing in filings):
         return None
     sic = str(submissions.get("sic") or "")
     name = submissions.get("name") or offering.get("company") or ""
@@ -121,17 +201,17 @@ def classify_listing(offering: dict[str, Any], submissions: dict[str, Any]) -> d
         kind = "other"  # funds, trusts and finance subsidiaries file without an industry code
     else:
         kind = "operating_company"
-    # A delisting form followed by more periodic reports was a move to another exchange, or
-    # units or warrants leaving it: the company stayed public. Only a delisting filed on or
-    # after the last periodic report counts.
-    last_report = max((when for form, when, _ in filings if form in PERIODIC_FORMS), default="")
-    delisting = min(
-        ((when, accepted) for form, when, accepted in filings
-         if form in DELISTING_FORMS and when >= filed and when >= last_report),
-        key=lambda notice: (notice[0], notice[1] or ""), default=(None, None),
+    registrations = [filing for filing in filings if filing.form == "8-A12B"]
+    removals = sorted(
+        (filing for filing in filings if filing.form in DELISTING_FORMS and filing.day >= filed),
+        key=lambda notice: (notice.day, notice.accepted or ""),
     )
-    prospectus_acceptances = {accepted for form, when, accepted in filings
-                              if (form, when) == (offering["form"], filed) and accepted}
+    delisting = next(
+        (notice for notice in removals if not _confirmed_transfer(offering["cik"], notice, registrations, fetch_head)),
+        None,
+    )
+    prospectus_acceptances = {filing.accepted for filing in filings
+                              if (filing.form, filing.day) == (offering["form"], filed) and filing.accepted}
 
     return {
         "cik": int(offering["cik"]),
@@ -142,8 +222,8 @@ def classify_listing(offering: dict[str, Any], submissions: dict[str, Any]) -> d
         "form": offering["form"],
         "kind": kind,
         "sic": sic or None,
-        "delisting_filed": delisting[0],
-        "delisting_accepted_at": delisting[1],
+        "delisting_filed": delisting.day if delisting else None,
+        "delisting_accepted_at": delisting.accepted if delisting else None,
         "prospectus_url": f"https://www.sec.gov/Archives/{offering['path']}",
     }
 
@@ -248,9 +328,10 @@ def build_listings(
                     first[row["cik"]] = row
     def one(offering: dict[str, Any]) -> dict[str, Any] | None:
         try:
-            row = classify_listing(offering, fetch_submissions(offering["cik"]))
+            submissions = fetch_submissions(offering["cik"])
         except Exception as exc:
             raise RuntimeError(f"Cannot rebuild SEC listings: submissions for CIK {offering['cik']} unavailable") from exc
+        row = classify_listing(offering, submissions, fetch_head=fetch_head)
         if row is None:
             return None
         try:

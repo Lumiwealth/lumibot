@@ -957,8 +957,8 @@ class SECFundamentals:
         ``cik``, ``name``, ``ticker`` (as printed on the prospectus), ``prospectus_date``,
         ``form``, ``kind`` (``operating_company``, ``blank_check`` or ``other`` for funds and
         finance subsidiaries; ``kinds`` picks which, operating companies by default), ``sic``,
-        ``delisting_filed`` (the delisting or deregistration form filed on or after the company's
-        last periodic report, None until it is public; moves between exchanges do not count) and
+        ``delisting_filed`` (the first published delisting or deregistration notice after the prospectus;
+        confirmed exchange transfers for the same security class are excluded) and
         ``prospectus_url``. Point in time: in a backtest nothing after the strategy clock is
         returned. The first trade is normally 0 to 2 business days before ``prospectus_date``;
         read it from the stock's first daily bar.

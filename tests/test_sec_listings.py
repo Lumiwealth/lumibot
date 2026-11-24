@@ -80,10 +80,39 @@ def test_offering_after_periodic_reports_is_not_a_listing():
     assert classify_listing({"cik": 1000001, "form": "424B4", "filed": "2020-03-02", "path": "p"}, sub) is None
 
 
-def test_moving_to_another_exchange_is_not_a_delisting():
-    sub = _submissions([("424B4", "2020-09-30"), ("10-Q", "2020-11-12"), ("25-NSE", "2024-11-25"), ("10-Q", "2025-05-06")])
+@pytest.mark.parametrize(("registration", "accepted", "expected"), [
+    ("transfer of the listing of its Class A Common Stock from the New York Stock Exchange to Nasdaq.",
+     "2024-11-25T21:05:47Z", None),
+    ("transfer of the listing of its Preferred Stock from the New York Stock Exchange to Nasdaq.",
+     "2024-11-25T21:05:47Z", "2024-11-25"),
+    ("registers its Class A Common Stock on Nasdaq.",
+     "2024-11-25T21:05:47Z", "2024-11-25"),
+    ("transfer of the listing of its Class A Common Stock from the New York Stock Exchange to Nasdaq.",
+     "2024-11-25T21:09:47Z", "2024-11-25"),
+])
+def test_listing_transfer_requires_public_registration_for_same_class(registration, accepted, expected):
+    sub = _submissions([("424B4", "2020-09-30"), ("8-A12B", "2024-11-25"), ("25", "2024-11-25")])
+    sub["filings"]["recent"].update({
+        "acceptanceDateTime": ["2020-09-30T19:00:00Z", accepted, "2024-11-25T21:07:47Z"],
+        "accessionNumber": ["", "0000000009-24-000001", "0000000009-24-000002"],
+        "primaryDocument": ["", "registration.htm", "notice.htm"],
+    })
+    html = {
+        "notice.htm": ("<p>Sample Corp., New York Stock Exchange</p><p>(Exact name of Issuer)</p>"
+                       "<p>(Address, including zip code)</p><p>Class A common stock, par value $0.001 per share</p>"
+                       "<p>(Description of class of securities)</p>"),
+        "registration.htm": f"<p>The registrant filed in connection with the {registration}</p>",
+    }
+    offer = {"cik": 9, "form": "424B4", "filed": "2020-09-30", "path": "p"}
+    row = classify_listing(offer, sub, fetch_head=lambda url: html[url.rsplit("/", 1)[1]])
+    assert row["delisting_filed"] == expected
+
+
+def test_periodic_reporting_after_a_removal_notice_does_not_erase_delisting():
+    sub = _submissions([("424B4", "2020-09-30"), ("10-Q", "2020-11-12"),
+                        ("25-NSE", "2024-11-25"), ("10-Q", "2025-05-06")])
     row = classify_listing({"cik": 9, "form": "424B4", "filed": "2020-09-30", "path": "p"}, sub)
-    assert row["delisting_filed"] is None
+    assert row["delisting_filed"] == "2024-11-25"
 
 
 def test_blank_check_by_name_and_funds_without_industry_code():

@@ -9,8 +9,9 @@ import threading
 
 from lumibot.tools import backtest_telemetry as bt
 
-TOP_LEVEL = ["schema", "lumibot_version", "wall_seconds", "phases", "iterations", "providers", "caches"]
-PHASES = ["data_setup_seconds", "simulation_seconds", "reports_seconds", "uploads_seconds"]
+TOP_LEVEL = ["schema", "lumibot_version", "wall_seconds", "phases", "iterations", "providers", "caches", "machine"]
+PHASES = ["data_setup_seconds", "simulation_seconds", "reports_seconds", "uploads_seconds", "simulation_cpu_seconds"]
+MACHINE = ["architecture", "cpu_count", "cpu_model"]
 ITERATIONS = ["count", "total_seconds", "slowest_seconds", "slowest_at"]
 PROVIDER = ["source", "asset_class", "requests", "provider_seconds", "rows", "retries",
             "rate_limit_waits", "rate_limit_wait_seconds", "backoff_waits", "backoff_wait_seconds"]
@@ -30,6 +31,7 @@ def test_field_names_are_a_stable_contract():
     assert list(data["iterations"]) == ITERATIONS
     assert list(data["providers"][0]) == PROVIDER
     assert list(data["caches"][0]) == CACHE
+    assert list(data["machine"]) == MACHINE
 
 
 def test_work_is_attributed_to_the_innermost_scope():
@@ -108,3 +110,31 @@ def test_recording_is_thread_safe():
     for thread in threads:
         thread.join()
     assert bt.snapshot()["providers"][0]["requests"] == 8000
+
+
+def test_simulation_cpu_seconds_separate_a_slower_machine_from_more_work():
+    """Same CPU seconds with more wall seconds means a slower or busier machine, not more work."""
+    bt.reset()
+    started = bt.iteration_started()
+    deadline = __import__("time").process_time() + 0.05
+    while __import__("time").process_time() < deadline:
+        pass  # burn CPU inside the simulation
+    __import__("time").sleep(0.05)  # wall time with no CPU
+    bt.iteration_finished(started, None)
+    bt.mark_simulation_end()
+    phases = bt.snapshot()["phases"]
+    assert 0.04 <= phases["simulation_cpu_seconds"] < phases["simulation_seconds"]
+
+
+def test_machine_names_the_cpu_without_host_details(monkeypatch, tmp_path):
+    cpuinfo = tmp_path / "cpuinfo"
+    cpuinfo.write_text("processor\t: 0\nCPU implementer\t: 0x41\nCPU part\t: 0xd40\n\n"
+                       "processor\t: 1\nCPU implementer\t: 0x41\nCPU part\t: 0xd40\n")
+    monkeypatch.setattr(bt, "_CPUINFO_PATH", str(cpuinfo))
+    bt._machine_cache.clear()
+    machine = bt.machine()
+    assert machine["cpu_model"] == "Arm Neoverse-V1"
+    assert isinstance(machine["cpu_count"], int) and machine["cpu_count"] >= 1
+    cpuinfo.write_text("processor\t: 0\nmodel name\t: Intel(R) Xeon(R) Platinum 8375C CPU @ 2.90GHz\n")
+    bt._machine_cache.clear()
+    assert bt.machine()["cpu_model"] == "Intel(R) Xeon(R) Platinum 8375C CPU @ 2.90GHz"

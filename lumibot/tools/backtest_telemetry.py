@@ -8,7 +8,10 @@ Every backtest writes ``<run>_telemetry.json`` beside its other output files. It
 * trading iterations: count, total seconds, the slowest one and its simulated time;
 * per data source and asset class: provider requests, seconds waiting on the provider, rows
   fetched, retries, and rate-limit or backoff waits (count and seconds);
-* per cache layer, source and asset class: reads, hits, misses, bytes, uploads.
+* per cache layer, source and asset class: reads, hits, misses, bytes, uploads;
+* process CPU seconds during the simulation and the machine's CPU model and count, so a run
+  that took longer on a slower or busier machine (same CPU seconds, more wall seconds) is told
+  apart from a run that did more work (more CPU seconds).
 
 The file is public-safe: it holds counts, seconds, byte totals, source names (``alpaca``,
 ``ibkr``, ``thetadata``...) and asset classes. It never holds hostnames, bucket names, keys,
@@ -25,6 +28,7 @@ from __future__ import annotations
 import contextvars
 import json
 import os
+import platform
 import threading
 import time
 from contextlib import contextmanager
@@ -52,6 +56,8 @@ class _State:
         self.started = time.perf_counter()
         self.first_iteration_started: float | None = None
         self.simulation_ended: float | None = None
+        self.first_iteration_cpu: float | None = None
+        self.simulation_ended_cpu: float | None = None
         self.phases: dict[str, float] = {}
         self.iterations = 0
         self.iteration_seconds = 0.0
@@ -173,6 +179,7 @@ def iteration_started() -> float:
     now = time.perf_counter()
     if _STATE.first_iteration_started is None:
         _STATE.first_iteration_started = now
+        _STATE.first_iteration_cpu = time.process_time()
     return now
 
 
@@ -190,6 +197,7 @@ def iteration_finished(started: float, simulated_at: Any = None) -> None:
 def mark_simulation_end() -> None:
     if _STATE.simulation_ended is None:
         _STATE.simulation_ended = time.perf_counter()
+        _STATE.simulation_ended_cpu = time.process_time()
 
 
 def add_phase(name: str, seconds: float) -> None:
@@ -204,6 +212,51 @@ def phase(name: str) -> Iterator[None]:
         yield
     finally:
         add_phase(name, time.perf_counter() - started)
+
+
+# --------------------------------------------------------------------------- machine
+
+_CPUINFO_PATH = "/proc/cpuinfo"
+# Arm "CPU part" numbers (implementer 0x41) for common server cores; others print the raw part.
+_ARM_PARTS = {
+    "0xd0c": "Arm Neoverse-N1", "0xd40": "Arm Neoverse-V1", "0xd49": "Arm Neoverse-N2",
+    "0xd4f": "Arm Neoverse-V2", "0xd8e": "Arm Neoverse-N3", "0xd84": "Arm Neoverse-V3",
+    "0xd08": "Arm Cortex-A72", "0xd0b": "Arm Cortex-A76",
+}
+_machine_cache: dict[str, Any] = {}
+
+
+def _cpu_model() -> str | None:
+    try:
+        with open(_CPUINFO_PATH, encoding="utf-8", errors="replace") as handle:
+            text = handle.read(65536)
+    except OSError:
+        return platform.processor() or None
+    fields: dict[str, str] = {}
+    for line in text.splitlines():
+        name, sep, value = line.partition(":")
+        name = name.strip().lower()
+        if sep and name not in fields:
+            fields[name] = value.strip()
+    if fields.get("model name"):
+        return fields["model name"]
+    part = fields.get("cpu part", "").lower()
+    if part:
+        return _ARM_PARTS.get(part, f"Arm CPU part {part}") if fields.get("cpu implementer", "").lower() in ("", "0x41") \
+            else f"CPU implementer {fields.get('cpu implementer')} part {part}"
+    return platform.processor() or None
+
+
+def machine() -> dict:
+    """CPU architecture, usable CPU count and CPU model (no hostname, no instance or account ids)."""
+    if not _machine_cache:
+        try:
+            count = len(os.sched_getaffinity(0))
+        except (AttributeError, OSError):
+            count = os.cpu_count() or 1
+        _machine_cache.update({"architecture": platform.machine() or None, "cpu_count": int(count),
+                               "cpu_model": _cpu_model()})
+    return dict(_machine_cache)
 
 
 # --------------------------------------------------------------------------- output
@@ -224,6 +277,9 @@ def snapshot() -> dict:
             "simulation_seconds": round(((end or now) - first), 3) if first is not None else 0.0,
             "reports_seconds": round(state.phases.get("reports", 0.0), 3),
             "uploads_seconds": round(state.phases.get("uploads", 0.0), 3),
+            "simulation_cpu_seconds": round(
+                ((state.simulation_ended_cpu if state.simulation_ended_cpu is not None else time.process_time())
+                 - state.first_iteration_cpu), 3) if state.first_iteration_cpu is not None else 0.0,
         }
         providers = [
             {"source": source, "asset_class": asset_class, **{f: _round(v, f) for f, v in row.items()}}
@@ -251,6 +307,7 @@ def snapshot() -> dict:
         "iterations": iterations,
         "providers": providers,
         "caches": caches,
+        "machine": machine(),
     }
 
 

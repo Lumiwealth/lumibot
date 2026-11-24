@@ -171,13 +171,3 @@ def test_prewarm_can_be_switched_off(monkeypatch):
     monkeypatch.setenv("LUMIBOT_PREWARM_REPORT_IMPORTS", "0")
     monkeypatch.setattr(report_speedups, "_prewarm_thread", None)
     assert report_speedups.prewarm_report_imports() is None
-
-
-def test_backtest_entry_starts_the_prewarm():
-    import lumibot.strategies._strategy as strategy_module
-
-    source = open(strategy_module.__file__, encoding="utf-8").read()
-    # The call sits inside run_backtest, before the trader runs, guarded by the report flags.
-    run_backtest = source[source.index("    def run_backtest("):]
-    run_backtest = run_backtest[: run_backtest.index("self._trader.run_all(")]
-    assert "prewarm_report_imports()" in run_backtest

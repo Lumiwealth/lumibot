@@ -269,3 +269,23 @@ def test_a_timed_out_submit_that_already_filled_is_re_attached_with_its_fill():
     broker.sync_orders("fixture")
     drain_stream_events(broker)
     assert lost.identifier == live_id and lost.is_filled()
+
+
+def test_status_times_switch_reaches_an_order_module_loaded_later():
+    """A live broker built before Order is imported still turns status times on."""
+    import subprocess
+    import sys
+    import textwrap
+
+    code = textwrap.dedent(
+        """
+        import sys
+        from lumibot.brokers.broker import Broker
+        Broker._enable_order_status_times()
+        assert "lumibot.entities.order" not in sys.modules
+        from lumibot.entities.order import Order
+        print(Order._record_status_times)
+        """
+    )
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert out.stdout.strip().splitlines()[-1] == "True"

@@ -676,9 +676,15 @@ class Broker(ABC):
     @staticmethod
     def _enable_order_status_times():
         """Live processes record when an order status changed; backtests skip the clock call."""
-        from lumibot.entities import Order as _Order
+        # Do not import Order here: scheduled runs keep it unloaded until an order exists.
+        import sys
 
-        _Order._record_status_times = True
+        from lumibot.entities import _status_clock
+
+        _status_clock.ENABLED = True
+        order_module = sys.modules.get("lumibot.entities.order")
+        if order_module is not None:
+            order_module.Order._record_status_times = True
 
     def _speed_summary(self):
         """The live speed recorder for this broker (see lumibot.tools.speed_summary)."""

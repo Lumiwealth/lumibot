@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from lumibot.entities.smart_limit import SmartLimitConfig
 
 import lumibot.entities as entities
+from lumibot.entities import _status_clock
 
 from lumibot._lazy_imports import LazyLogger, lazy_class
 from lumibot.tools.types import check_positive, check_price
@@ -185,7 +186,7 @@ class Order:
     status_checked_at = None
     # Turned on by live brokers (Broker._enable_order_status_times); backtests create
     # many orders and never pay for the wall-clock call.
-    _record_status_times = False
+    _record_status_times = _status_clock.ENABLED
 
     class OrderClass(StrEnum):
         SIMPLE = "simple"

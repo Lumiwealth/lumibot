@@ -116,7 +116,12 @@ class MetaMask(Broker):
         return spec
 
     def get_order_size_rules(self, asset, quote=None):
-        """Return Hyperliquid lot step and minimum order size derived from szDecimals."""
+        """Return Hyperliquid lot step derived from szDecimals.
+
+        Ordinary Hyperliquid perpetual orders enforce a price-dependent $10 minimum
+        notional rather than a fixed base-unit minimum, so ``min_quantity`` is
+        reported as ``None`` while ``quantity_step`` reports the exact lot step.
+        """
         if self.mode != "perp" or getattr(asset, "asset_type", None) != "crypto_future":
             return None
         if quote is not None and getattr(quote, "symbol", quote) != "USDC":
@@ -124,7 +129,7 @@ class MetaMask(Broker):
         market = self.client.market(asset.symbol)
         step = Decimal(1).scaleb(-market.size_decimals)
         return {
-            "min_quantity": step,
+            "min_quantity": None,
             "quantity_step": step,
             "contract_size": Decimal("1"),
             "quantity_unit": "base",
@@ -635,7 +640,14 @@ class MetaMask(Broker):
             tracked = self.get_tracked_order(item.identifier) or item
             if tracked.is_canceled() or tracked.is_filled() or tracked.status == Order.OrderStatus.ERROR:
                 continue
-            self.cancel_order(tracked)
+            try:
+                self.cancel_order(tracked)
+            except Exception as error:
+                self.logger.error(
+                    "MetaMask failed to cancel order %s during bulk cancel: %s",
+                    tracked.identifier,
+                    error,
+                )
 
     def get_historical_account_value(self):
         raise NotImplementedError("MetaMask does not expose historical account equity through this adapter")
@@ -718,23 +730,23 @@ class MetaMask(Broker):
             return
         try:
             orders = self._pull_broker_all_orders()
+            for response in orders:
+                if response["request"]["kind"] != "perp":
+                    continue
+                order = self.get_tracked_order(response["id"])
+                if order is not None:
+                    self._observe(order, response)
+                elif isinstance(response.get("childOperations"), list):
+                    for child_resp in response["childOperations"]:
+                        if not isinstance(child_resp, dict) or not child_resp.get("id"):
+                            continue
+                        child_order = self.get_tracked_order(child_resp["id"])
+                        if child_order is not None:
+                            self._observe(child_order, self._child_observation(response, child_resp))
         except Exception:
             self._record_order_feed(False)
             raise
         self._record_order_feed(True)
-        for response in orders:
-            if response["request"]["kind"] != "perp":
-                continue
-            order = self.get_tracked_order(response["id"])
-            if order is not None:
-                self._observe(order, response)
-            elif isinstance(response.get("childOperations"), list):
-                for child_resp in response["childOperations"]:
-                    if not isinstance(child_resp, dict) or not child_resp.get("id"):
-                        continue
-                    child_order = self.get_tracked_order(child_resp["id"])
-                    if child_order is not None:
-                        self._observe(child_order, self._child_observation(response, child_resp))
 
     def _process_partially_filled_order(self, order, price, quantity):
         with self._lock:

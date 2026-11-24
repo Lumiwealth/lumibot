@@ -1,6 +1,7 @@
 """Comprehensive tests for full LumiBot feature completeness on MetaMask."""
 
 import time
+from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
@@ -1422,14 +1423,15 @@ def test_broker_sell_all_closes_long_and_short_and_polling_updates_feed_health()
 # ---------------------------------------------------------------------------
 
 
-def test_trigger_tif_rejects_alo_and_ioc_before_signing():
+@pytest.mark.parametrize("bad_tif", ["alo", "ioc"])
+def test_trigger_tif_rejects_alo_and_ioc_before_signing(bad_tif):
     venue = _make_venue()
     venue.session.request.return_value = _reply(META_BTC_ETH)
     with pytest.raises(MetaMaskError) as exc:
         PerpIntent.parse(
             {
                 "kind": "perp",
-                "id": "trig-alo-1",
+                "id": f"trig-{bad_tif}-1",
                 "symbol": "BTC",
                 "side": "sell",
                 "quantity": "0.01",
@@ -1439,7 +1441,7 @@ def test_trigger_tif_rejects_alo_and_ioc_before_signing():
                 "tpsl": "sl",
                 "leverage": 1,
                 "reduceOnly": True,
-                "tif": "alo",
+                "tif": bad_tif,
             }
         )
     assert exc.value.code == "INVALID_INTENT"
@@ -1451,7 +1453,7 @@ def test_trigger_tif_rejects_alo_and_ioc_before_signing():
             Decimal("0.01"),
             "stop_limit",
             Decimal("47900"),
-            "alo",
+            bad_tif,
             True,
             "0x" + "11" * 16,
             stop_price=Decimal("48000"),
@@ -1463,7 +1465,7 @@ def test_trigger_tif_rejects_alo_and_ioc_before_signing():
     lim = venue.order_action("BTC", "buy", Decimal("0.01"), "limit", Decimal("45000"), "alo", False, "0x" + "22" * 16)
     assert lim["orders"][0]["t"] == {"limit": {"tif": "Alo"}}
 
-    # Broker refuses stop_limit with alo before calling client.submit
+    # Broker refuses stop_limit with non-gtc TIF before calling client.submit
     broker, client = _make_broker()
     btc = Asset("BTC", asset_type="crypto_future")
     usdc = Asset("USDC", asset_type="crypto")
@@ -1475,7 +1477,7 @@ def test_trigger_tif_rejects_alo_and_ioc_before_signing():
         order_type="stop_limit",
         stop_price=48000,
         stop_limit_price=47900,
-        time_in_force="alo",
+        time_in_force=bad_tif,
         quote=usdc,
         reduce_only=True,
     )
@@ -1558,7 +1560,7 @@ def test_strategy_spot_mode_keeps_usd_quote_and_contract_spec_and_order_size_rul
 
     rules = perp_broker.get_order_size_rules(btc)
     assert rules == {
-        "min_quantity": Decimal("0.00001"),
+        "min_quantity": None,
         "quantity_step": Decimal("0.00001"),
         "contract_size": Decimal("1"),
         "quantity_unit": "base",
@@ -2195,3 +2197,612 @@ def test_broker_bracket_restore_dependent_order_and_sequential_cancel_orders():
     other = Order("s", btc, Decimal("0.01"), "buy", quote=usdc)
     client.cancel.side_effect = MetaMaskAPIError("VENUE_OUTCOME_UNKNOWN", "lost response")
     assert broker.cancel_order(other) is other and not other.is_canceled()
+
+
+def test_close_position_validates_decimal_fraction_without_float_rounding():
+    broker, _ = _make_broker()
+    btc = Asset("BTC", asset_type="crypto_future")
+    with pytest.raises(ValueError, match="fraction"):
+        broker.close_position("s", btc, fraction=Decimal("1.0000000000000001"))
+    with pytest.raises(ValueError, match="fraction"):
+        broker.close_position("s", btc, fraction=Decimal("NaN"))
+
+
+def test_cancel_orders_continues_after_individual_failure_and_preserves_status():
+    broker, client = _make_broker()
+    btc = Asset("BTC", asset_type="crypto_future")
+    usdc = Asset("USDC", asset_type="crypto")
+    order_a = Order("s", btc, Decimal("0.01"), "buy", quote=usdc, identifier="ord-a")
+    order_b = Order("s", btc, Decimal("0.01"), "buy", quote=usdc, identifier="ord-b")
+    broker._new_orders.append(order_a)
+    broker._new_orders.append(order_b)
+
+    def cancel_side_effect(oid):
+        if oid == "ord-a":
+            raise MetaMaskAPIError("RECONCILIATION_REQUIRED", "cannot cancel A")
+        return {
+            "id": oid,
+            "state": "canceled",
+            "filledQuantity": "0",
+            "averagePrice": None,
+            "request": {"kind": "perp", "symbol": "BTC", "side": "buy", "quantity": "0.01"},
+        }
+
+    client.cancel.side_effect = cancel_side_effect
+    broker.cancel_orders([order_a, order_b])
+    assert not order_a.is_canceled()
+    assert order_b.is_canceled()
+
+
+def test_do_polling_records_failure_if_observe_raises():
+    broker, client = _make_broker()
+    btc = Asset("BTC", asset_type="crypto_future")
+    usdc = Asset("USDC", asset_type="crypto")
+    order = Order("s", btc, Decimal("0.01"), "buy", quote=usdc, identifier="poll-reg")
+    broker._new_orders.append(order)
+    broker._observe(
+        order,
+        {
+            "id": "poll-reg",
+            "state": "partial_fill",
+            "filledQuantity": "0.005",
+            "averagePrice": "50000",
+            "request": {"kind": "perp", "symbol": "BTC", "side": "buy", "quantity": "0.01"},
+        },
+    )
+    broker._record_order_feed = Mock()
+    client.orders.return_value = [
+        {
+            "id": "poll-reg",
+            "state": "open",
+            "filledQuantity": "0.001",
+            "averagePrice": "50000",
+            "request": {"kind": "perp", "symbol": "BTC", "side": "buy", "quantity": "0.01"},
+        }
+    ]
+    with pytest.raises(MetaMaskAPIError, match="FILL_REGRESSION"):
+        broker.do_polling()
+    broker._record_order_feed.assert_called_once_with(False)
+
+
+def test_data_source_get_last_prices_supports_tuple_keys_and_monthly_calendar_timeshift(monkeypatch):
+    import lumibot.data_sources.metamask_data as mm_data_mod
+    from lumibot.entities import AssetsMapping
+
+    client = Mock()
+    client.prices.return_value = {"BTC": Decimal("50000")}
+    client.token_price.side_effect = [Decimal("3000"), Decimal("0.06")]
+    ds = MetaMaskData({"NETWORK": "testnet"}, client=client)
+
+    btc = Asset("BTC", asset_type="crypto_future")
+    eth = Asset("ETH", asset_type="crypto", chain_id=1, token_address="0x" + "1" * 40, decimals=18)
+    usdc = Asset("USDC", asset_type="crypto", chain_id=1, token_address="0x" + "2" * 40, decimals=6)
+    wbtc = Asset("WBTC", asset_type="crypto", chain_id=1, token_address="0x" + "3" * 40, decimals=8)
+
+    prices = ds.get_last_prices([(btc, usdc), (eth, usdc), (eth, wbtc)])
+    assert isinstance(prices, AssetsMapping)
+    assert prices[(btc, usdc)] == Decimal("50000")
+    assert prices["BTC"] == Decimal("50000")
+    assert prices[(eth, usdc)] == Decimal("3000")
+    assert prices[(eth, wbtc)] == Decimal("0.06")
+    # Ambiguous bare symbol for two distinct ETH pairs must not pick an arbitrary quote.
+    assert "ETH" not in prices
+
+    # Calendar-month shift: March 1, 2026 12:00 UTC shifted by 1 month lands on Feb 1, 2026 12:00 UTC.
+    class _FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 3, 1, 12, 0, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(mm_data_mod, "datetime", _FixedDatetime)
+    client.candles.return_value = [
+        [int(datetime(2026, 1, 1, tzinfo=timezone.utc).timestamp() * 1000), "1", "2", "1", "2", "10"]
+    ]
+    ds.get_historical_prices(btc, 1, timestep="1M", timeshift=1)
+    _, _, _, end_ms = client.candles.call_args.args
+    assert end_ms == int(datetime(2026, 2, 1, 12, 0, tzinfo=timezone.utc).timestamp() * 1000)
+
+
+def test_venue_prices_allow_missing_still_rejects_ambiguous_symbols():
+    venue = _make_venue()
+    ambig_meta = {
+        "universe": [
+            {"name": "BTC", "szDecimals": 5, "maxLeverage": 50},
+            {"name": "btc", "szDecimals": 5, "maxLeverage": 50},
+        ]
+    }
+    venue.session.request.return_value = _reply([ambig_meta, [{"markPx": "50000"}, {"markPx": "50001"}]])
+    with pytest.raises(MetaMaskError) as exc:
+        venue.prices(["BTC"], allow_missing=True)
+    assert exc.value.code == "AMBIGUOUS_MARKET"
+
+
+def test_engine_child_fill_step_h_prefix_disjoint_from_hashed_long_id():
+    long_id = "c" * 125
+    hashed = ExecutionEngine._child_fill_step(long_id)
+    assert hashed.startswith("fills-h-")
+    spoof_child = hashed.removeprefix("fills-")
+    assert ExecutionEngine._child_fill_step(spoof_child) != hashed
+
+
+def test_engine_pending_approval_release_uses_reservation_anchor_and_rejects_fee_increase(tmp_path):
+    engine, journal, provider, venue = _make_engine(tmp_path, max_order_usd="1000", max_daily_usd="5000")
+    real_sign = provider.submit_signature.side_effect
+    venue.submit_action.return_value = {"status": "ok", "response": {"type": "default"}}
+
+    def sign_or_pending(request_id, wallet, network, data, action):
+        if action.get("type") == "updateLeverage":
+            return real_sign(request_id, wallet, network, data, action)
+        return SignatureJob("job-anchor-1", WALLET, "PENDING", None)
+
+    provider.submit_signature.side_effect = sign_or_pending
+    venue.price.return_value = Decimal("50000")
+    venue.fee_rate.return_value = Decimal("0.00045")
+
+    submitted = engine.submit(
+        {
+            "kind": "perp",
+            "id": "stop-anchor-1",
+            "symbol": "BTC",
+            "side": "buy",
+            "quantity": "0.01",
+            "orderType": "stop_limit",
+            "stopPrice": "60000",
+            "limitPrice": "59000",
+            "tpsl": "sl",
+            "leverage": 1,
+            "reduceOnly": True,
+            "tif": "gtc",
+        }
+    )
+    assert submitted["state"] == "unknown"
+    assert submitted["signatureOnly"] is True
+    assert submitted["reservationAnchor"] == "60000"
+
+    # Fee increases from 4.5 bps to 100 bps while approval is pending.
+    # On executionLimitPrice (59000) alone it would fit inside reservedUsd (600.27),
+    # but on reservationAnchor (60000) it is 606 > 600.27 -> must raise REQUOTE_REQUIRED!
+    venue.fee_rate.return_value = Decimal("0.01")
+    provider.signature.return_value = SignatureJob("job-anchor-1", WALLET, "SIGNED", "0x" + "11" * 65)
+    after = engine.order("stop-anchor-1")
+    assert after["state"] == "rejected"
+    assert "REQUOTE_REQUIRED" in after["message"]
+    assert journal.effect("agent", "stop-anchor-1", "order")["failureCode"] == "REQUOTE_REQUIRED"
+    venue.submit_action.assert_not_called()
+
+
+def test_engine_canceled_partial_entry_keeps_waiting_child_uncertain_and_blocks_reserve(tmp_path):
+    engine, journal, _, venue = _make_engine(tmp_path)
+    op = {
+        "id": "br-part-cancel",
+        "agent": "agent",
+        "request": {
+            "kind": "perp",
+            "id": "br-part-cancel",
+            "symbol": "BTC",
+            "side": "buy",
+            "quantity": "0.005",
+            "orderType": "limit",
+            "limitPrice": "50000",
+            "tif": "gtc",
+            "leverage": 2,
+            "reduceOnly": False,
+            "orderClass": "oto",
+            "children": [
+                {
+                    "id": "br-part-tp",
+                    "side": "sell",
+                    "quantity": "0.005",
+                    "orderType": "limit",
+                    "limitPrice": "55000",
+                    "tpsl": "tp",
+                }
+            ],
+        },
+        "createdAt": 1_700_000_000_000,
+        "updatedAt": 1_700_000_000_000,
+        "state": "open",
+        "reservedUsd": "300",
+        "filledQuantity": "0",
+        "providerOrderId": "410",
+        "fees": [],
+        "hashes": [],
+        "childOperations": [
+            {
+                "id": "br-part-tp",
+                "parentId": "br-part-cancel",
+                "side": "sell",
+                "quantity": "0.005",
+                "orderType": "limit",
+                "tpsl": "tp",
+                "limitPrice": "55000",
+                "stopPrice": "55000",
+                "state": "waiting_for_fill",
+                "providerOrderId": "411",
+                "filledQuantity": "0",
+                "averagePrice": None,
+                "fees": [],
+                "reconciliationErrorCode": None,
+                "reconciliationMessage": None,
+            }
+        ],
+    }
+    journal.save(op)
+    journal.save_effect(
+        op,
+        "plan",
+        {
+            "action": {"type": "order", "orders": [{}, {}], "grouping": "normalTpsl"},
+            "clientOrderId": None,
+            "ownerEpoch": engine.epoch,
+            "binding": journal.binding("agent"),
+            "wallet": WALLET,
+            "network": "testnet",
+            "projectId": "p",
+            "marketIndex": 0,
+            "isCross": True,
+            "origin": "lumibot",
+            "feeRate": "0.0005",
+            "legs": [
+                {"role": "entry", "id": "br-part-cancel", "clientOrderId": None},
+                {"role": "child", "id": "br-part-tp", "clientOrderId": None},
+            ],
+        },
+    )
+    journal.save_effect(op, "order", {"phase": "venue", "state": "released", "ownerEpoch": engine.epoch})
+    venue.frontend_open_orders.return_value = []
+    venue.fills.return_value = [
+        {
+            "oid": 410,
+            "coin": "BTC",
+            "side": "B",
+            "sz": "0.002",
+            "px": "50000",
+            "tid": 9101,
+            "fee": "0.05",
+            "feeToken": "USDC",
+        }
+    ]
+
+    def order_status(wallet, oid):
+        if oid == 410:
+            return {
+                "status": "order",
+                "order": {
+                    "status": "canceled",
+                    "order": {
+                        "oid": 410,
+                        "coin": "BTC",
+                        "side": "B",
+                        "origSz": "0.005",
+                        "sz": "0.003",
+                        "reduceOnly": False,
+                    },
+                },
+            }
+        if oid == 411:
+            return {
+                "status": "order",
+                "order": {
+                    "status": "waitingForFill",
+                    "order": {
+                        "oid": 411,
+                        "coin": "BTC",
+                        "side": "A",
+                        "origSz": "0.005",
+                        "sz": "0.005",
+                        "reduceOnly": True,
+                    },
+                },
+            }
+        raise AssertionError(f"Unexpected oid: {oid}")
+
+    venue.order_status.side_effect = order_status
+    reconciled = engine.order("br-part-cancel")
+    assert reconciled["state"] == "canceled"
+    assert reconciled["filledQuantity"] == "0.002"
+    # Child still reporting waitingForFill after partially-filled canceled parent must remain uncertain!
+    assert reconciled["childOperations"][0]["state"] == "unknown"
+    assert reconciled["childOperations"][0]["reconciliationErrorCode"] == "ORDER_STATUS_UNSUPPORTED"
+    with pytest.raises(MetaMaskError) as exc:
+        journal.reserve(
+            "agent", {"kind": "perp", "id": "next-blocked"}, "100", expected_binding=journal.binding("agent")
+        )
+    assert exc.value.code == "RECONCILIATION_REQUIRED"
+
+
+def test_engine_order_refreshes_clean_live_oids_between_pending_cancel_effects(tmp_path):
+    engine, journal, _, venue = _make_engine(tmp_path)
+    op = {
+        "id": "oco-multi-cancel",
+        "agent": "agent",
+        "request": {
+            "kind": "perp",
+            "id": "oco-multi-cancel",
+            "symbol": "BTC",
+            "side": "sell",
+            "quantity": "0.01",
+            "orderType": "limit",
+            "tif": "gtc",
+            "leverage": 2,
+            "reduceOnly": True,
+            "orderClass": "oco",
+            "children": [
+                {
+                    "id": "oco-mc-tp",
+                    "side": "sell",
+                    "quantity": "0.01",
+                    "orderType": "limit",
+                    "limitPrice": "55000",
+                    "tpsl": "tp",
+                },
+                {
+                    "id": "oco-mc-sl",
+                    "side": "sell",
+                    "quantity": "0.01",
+                    "orderType": "stop",
+                    "stopPrice": "45000",
+                    "tpsl": "sl",
+                },
+            ],
+        },
+        "createdAt": 1_700_000_000_000,
+        "updatedAt": 1_700_000_000_000,
+        "state": "open",
+        "reservedUsd": "600",
+        "filledQuantity": "0",
+        "fees": [],
+        "hashes": [],
+        "childOperations": [
+            {
+                "id": "oco-mc-tp",
+                "parentId": "oco-multi-cancel",
+                "side": "sell",
+                "quantity": "0.01",
+                "orderType": "limit",
+                "tpsl": "tp",
+                "state": "open",
+                "providerOrderId": "501",
+                "filledQuantity": "0",
+                "averagePrice": None,
+                "fees": [],
+                "reconciliationErrorCode": None,
+                "reconciliationMessage": None,
+            },
+            {
+                "id": "oco-mc-sl",
+                "parentId": "oco-multi-cancel",
+                "side": "sell",
+                "quantity": "0.01",
+                "orderType": "stop",
+                "tpsl": "sl",
+                "state": "open",
+                "providerOrderId": "502",
+                "filledQuantity": "0",
+                "averagePrice": None,
+                "fees": [],
+                "reconciliationErrorCode": None,
+                "reconciliationMessage": None,
+            },
+        ],
+    }
+    journal.save(op)
+    journal.save_effect(
+        op,
+        "plan",
+        {
+            "action": {"type": "order", "orders": [{}, {}], "grouping": "positionTpsl"},
+            "clientOrderId": None,
+            "ownerEpoch": engine.epoch,
+            "binding": journal.binding("agent"),
+            "wallet": WALLET,
+            "network": "testnet",
+            "projectId": "p",
+            "marketIndex": 0,
+            "isCross": True,
+            "origin": "lumibot",
+            "feeRate": "0.0005",
+            "legs": [
+                {"role": "child", "id": "oco-mc-tp", "clientOrderId": None},
+                {"role": "child", "id": "oco-mc-sl", "clientOrderId": None},
+            ],
+        },
+    )
+    journal.save_effect(op, "order", {"phase": "venue", "state": "released", "ownerEpoch": engine.epoch})
+    journal.save_effect(
+        op,
+        "cancel-501-1",
+        {
+            "phase": "provider",
+            "state": "pending",
+            "ownerEpoch": engine.epoch,
+            "action": {"type": "cancel", "cancels": [{"a": 0, "o": 501}]},
+        },
+    )
+    journal.save_effect(
+        op,
+        "cancel-501-502-2",
+        {
+            "phase": "provider",
+            "state": "pending",
+            "ownerEpoch": engine.epoch,
+            "action": {"type": "cancel", "cancels": [{"a": 0, "o": 501}, {"a": 0, "o": 502}]},
+        },
+    )
+
+    canceled_501 = [False]
+
+    def open_orders(wallet):
+        rows = [{"oid": 502, "coin": "BTC", "side": "A", "origSz": "0.01", "sz": "0.01", "reduceOnly": True}]
+        if not canceled_501[0]:
+            rows.append({"oid": 501, "coin": "BTC", "side": "A", "origSz": "0.01", "sz": "0.01", "reduceOnly": True})
+        return rows
+
+    def order_status(wallet, oid):
+        if oid == 501:
+            st = "canceled" if canceled_501[0] else "open"
+            return {
+                "status": "order",
+                "order": {
+                    "status": st,
+                    "order": {
+                        "oid": 501,
+                        "coin": "BTC",
+                        "side": "A",
+                        "origSz": "0.01",
+                        "sz": "0.01",
+                        "reduceOnly": True,
+                    },
+                },
+            }
+        if oid == 502:
+            return {
+                "status": "order",
+                "order": {
+                    "status": "open",
+                    "order": {
+                        "oid": 502,
+                        "coin": "BTC",
+                        "side": "A",
+                        "origSz": "0.01",
+                        "sz": "0.01",
+                        "reduceOnly": True,
+                    },
+                },
+            }
+        raise AssertionError(f"Unexpected oid: {oid}")
+
+    venue.frontend_open_orders.side_effect = open_orders
+    venue.order_status.side_effect = order_status
+    venue.fills.return_value = []
+    ran_steps = []
+
+    def fake_cancel_step(operation, plan, step, action):
+        ran_steps.append(step)
+        canceled_501[0] = True
+        return operation
+
+    engine._cancel_step = fake_cancel_step
+    res = engine.order("oco-multi-cancel")
+    # First cancel closed 501; second cancel targeting [501, 502] must NOT run because 501 is no longer cleanly live!
+    assert ran_steps == ["cancel-501-1"]
+    assert res["cancelErrorCode"] == "RECONCILIATION_REQUIRED"
+
+
+def test_engine_orders_does_not_skip_when_ledger_is_ahead_of_snapshot(tmp_path):
+    engine, journal, _, venue = _make_engine(tmp_path)
+    op = {
+        "id": "br-ledger-ahead",
+        "agent": "agent",
+        "request": {
+            "kind": "perp",
+            "id": "br-ledger-ahead",
+            "symbol": "BTC",
+            "side": "buy",
+            "quantity": "0.01",
+            "orderType": "limit",
+            "limitPrice": "50000",
+            "tif": "gtc",
+            "leverage": 2,
+            "reduceOnly": False,
+            "orderClass": "oto",
+            "children": [
+                {
+                    "id": "br-la-sl",
+                    "side": "sell",
+                    "quantity": "0.01",
+                    "orderType": "stop",
+                    "stopPrice": "45000",
+                    "tpsl": "sl",
+                }
+            ],
+        },
+        "createdAt": 1_700_000_000_000,
+        "updatedAt": 1_700_000_000_000,
+        "state": "filled",
+        "reservedUsd": "600",
+        "filledQuantity": "0.01",
+        "averagePrice": "50000",
+        "providerOrderId": "601",
+        "fees": [{"asset": "USDC", "amount": "0.1"}],
+        "hashes": [],
+        "childOperations": [
+            {
+                "id": "br-la-sl",
+                "parentId": "br-ledger-ahead",
+                "side": "sell",
+                "quantity": "0.01",
+                "orderType": "stop",
+                "tpsl": "sl",
+                "state": "canceled",
+                "providerOrderId": "602",
+                # Stale snapshot (0 filled) while durable fill ledger already has a late 0.004 fill!
+                "filledQuantity": "0",
+                "averagePrice": None,
+                "fees": [],
+                "reconciliationErrorCode": None,
+                "reconciliationMessage": None,
+            }
+        ],
+    }
+    journal.save(op)
+    journal.save_effect(
+        op,
+        "plan",
+        {
+            "action": {"type": "order", "orders": [{}, {}], "grouping": "normalTpsl"},
+            "clientOrderId": None,
+            "ownerEpoch": engine.epoch,
+            "binding": journal.binding("agent"),
+            "wallet": WALLET,
+            "network": "testnet",
+            "projectId": "p",
+            "marketIndex": 0,
+            "isCross": True,
+            "origin": "lumibot",
+            "feeRate": "0.0005",
+            "legs": [
+                {"role": "entry", "id": "br-ledger-ahead", "clientOrderId": None},
+                {"role": "child", "id": "br-la-sl", "clientOrderId": None},
+            ],
+        },
+    )
+    journal.save_effect(op, "order", {"phase": "venue", "state": "released", "ownerEpoch": engine.epoch})
+    parent_fill = {
+        "oid": 601,
+        "coin": "BTC",
+        "side": "B",
+        "sz": "0.01",
+        "px": "50000",
+        "tid": 7101,
+        "fee": "0.1",
+        "feeToken": "USDC",
+    }
+    child_fill = {
+        "oid": 602,
+        "coin": "BTC",
+        "side": "A",
+        "sz": "0.004",
+        "px": "45000",
+        "tid": 7102,
+        "fee": "0.05",
+        "feeToken": "USDC",
+    }
+    journal.save_effect(op, "fills", {"wallet": WALLET, "network": "testnet", "items": [parent_fill]})
+    journal.save_effect(
+        op, engine._child_fill_step("br-la-sl"), {"wallet": WALLET, "network": "testnet", "items": [child_fill]}
+    )
+    venue.fills.return_value = [parent_fill, child_fill]
+    venue.order_status.return_value = {
+        "status": "order",
+        "order": {
+            "status": "canceled",
+            "order": {"oid": 602, "coin": "BTC", "side": "A", "origSz": "0.01", "sz": "0.006", "reduceOnly": True},
+        },
+    }
+
+    listed = engine.orders()
+    assert len(listed) == 1
+    assert listed[0]["childOperations"][0]["filledQuantity"] == "0.004"
+    assert listed[0]["childOperations"][0]["averagePrice"] == "45000"
+    assert listed[0]["childOperations"][0]["fees"] == [{"asset": "USDC", "amount": "0.05"}]

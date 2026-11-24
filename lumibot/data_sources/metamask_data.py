@@ -1,11 +1,42 @@
 """Native Python market data on the network configured for execution."""
 
+import calendar
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from lumibot.data_sources.data_source import DataSource
 from lumibot.entities import AssetsMapping, Quote
 from lumibot.tools.metamask_client import MetaMaskClient, token_payload
+
+
+class _PairAssetsMapping(AssetsMapping):
+    """AssetsMapping that also accepts ``(base, quote)`` tuple keys without losing pair identity."""
+
+    def __init__(self, mapping):
+        data = dict(mapping)
+        super(AssetsMapping, self).__init__(data)
+        symbols_mapping = {}
+        tuple_symbol_counts: dict[str, int] = {}
+        for key in data:
+            if isinstance(key, tuple) and key and hasattr(key[0], "symbol"):
+                tuple_symbol_counts[key[0].symbol] = tuple_symbol_counts.get(key[0].symbol, 0) + 1
+        for key, value in data.items():
+            if isinstance(key, tuple):
+                if key and hasattr(key[0], "symbol") and tuple_symbol_counts.get(key[0].symbol) == 1:
+                    symbols_mapping.setdefault(key[0].symbol, value)
+            elif hasattr(key, "symbol"):
+                symbols_mapping[key.symbol] = value
+        self._symbols_mapping = symbols_mapping
+
+
+def _shift_calendar_months(dt: datetime, months: int) -> datetime:
+    total_months = dt.year * 12 + (dt.month - 1) - months
+    year, zero_month = divmod(total_months, 12)
+    if year < 1:
+        raise ValueError("timeshift exceeds valid calendar date range")
+    month = zero_month + 1
+    day = min(dt.day, calendar.monthrange(year, month)[1])
+    return dt.replace(year=year, month=month, day=day)
 
 
 class MetaMaskData(DataSource):
@@ -110,7 +141,7 @@ class MetaMaskData(DataSource):
                 result[entry] = batched.get(asset.symbol)
         for entry, asset, item_quote in other_assets:
             result[entry] = self.get_last_price(asset, quote=item_quote, exchange=exchange)
-        return AssetsMapping(result)
+        return _PairAssetsMapping(result)
 
     def get_quote(self, asset, quote=None, exchange=None):
         if isinstance(asset, tuple):
@@ -182,18 +213,27 @@ class MetaMaskData(DataSource):
         from lumibot.entities import Bars
 
         interval, seconds = self._resolve_interval(timestep)
+        now = datetime.now(timezone.utc)
         if timeshift is None:
-            shift = timedelta()
+            end = now
         elif isinstance(timeshift, timedelta):
-            shift = timeshift
+            end = now - timeshift
         elif isinstance(timeshift, int) and not isinstance(timeshift, bool):
-            shift = timedelta(seconds=seconds * timeshift)
+            if interval == "1M":
+                end = _shift_calendar_months(now, timeshift)
+            else:
+                end = now - timedelta(seconds=seconds * timeshift)
         else:
             raise ValueError("timeshift must be None, an integer number of bars, or a timedelta")
-        end = datetime.now(timezone.utc) - shift
         lookback_bars = min(length + 1, 5000)
         end_ms = int(end.timestamp() * 1000)
-        start_ms = max(0, end_ms - seconds * 1000 * lookback_bars)
+        if interval == "1M":
+            try:
+                start_ms = max(0, int(_shift_calendar_months(end, lookback_bars).timestamp() * 1000))
+            except ValueError:
+                start_ms = 0
+        else:
+            start_ms = max(0, end_ms - seconds * 1000 * lookback_bars)
         response = self.client.candles(asset.symbol, interval, start_ms, end_ms)
         frame = pd.DataFrame(response, columns=["timestamp", "open", "high", "low", "close", "volume"])
         frame["timestamp"] = pd.to_datetime(frame["timestamp"], unit="ms", utc=True)

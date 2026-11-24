@@ -3681,9 +3681,14 @@ class Broker(ABC):
             The sell order submitted to close the position, or None if no open position exists
             or the position quantity is zero.
         """
-        fraction_value = float(fraction)
-        if not 0 < fraction_value <= 1:
-            raise ValueError("fraction must be greater than 0 and no more than 1")
+        if isinstance(fraction, Decimal):
+            if not (fraction.is_finite() and Decimal("0") < fraction <= Decimal("1")):
+                raise ValueError("fraction must be greater than 0 and no more than 1")
+            fraction_value = float(fraction)
+        else:
+            fraction_value = float(fraction)
+            if not 0 < fraction_value <= 1:
+                raise ValueError("fraction must be greater than 0 and no more than 1")
 
         selectors = {key: value for key, value in (("position_side", position_side), ("position_id", position_id))
                      if value is not None}

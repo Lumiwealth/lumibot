@@ -100,6 +100,19 @@ class ExecutionEngine:
         )
 
     @staticmethod
+    def _has_reconcilable_children(operation: dict[str, object]) -> bool:
+        children = operation.get("childOperations")
+        if not isinstance(children, list) or not children:
+            return False
+        return any(
+            not isinstance(child, dict)
+            or child.get("state") not in {"filled", "rejected"}
+            or (child.get("state") == "rejected" and child.get("providerOrderId") is not None)
+            or bool(child.get("reconciliationErrorCode"))
+            for child in children
+        )
+
+    @staticmethod
     def _mark_children(operation: dict[str, object], state: str, **extra) -> list[dict[str, object]] | None:
         children = operation.get("childOperations")
         if not isinstance(children, list) or not children:
@@ -177,7 +190,7 @@ class ExecutionEngine:
     @staticmethod
     def _child_fill_step(child_id: str) -> str:
         direct = f"fills-{child_id}"
-        if len(direct) <= 128:
+        if len(direct) <= 128 and not child_id.startswith("h-"):
             return direct
         return "fills-h-" + hashlib.sha256(child_id.encode()).hexdigest()[:40]
 
@@ -365,7 +378,10 @@ class ExecutionEngine:
             if plan_legs is not None:
                 plan_payload["legs"] = plan_legs
             self.journal.save_effect(operation, "plan", plan_payload)
-            updates: dict[str, object] = {"executionLimitPrice": format(execution_price, "f")}
+            updates: dict[str, object] = {
+                "executionLimitPrice": format(execution_price, "f"),
+                "reservationAnchor": format(reservation_anchor, "f"),
+            }
             if child_records is not None:
                 updates["childOperations"] = child_records
             operation = self._change(operation, **updates)
@@ -389,8 +405,7 @@ class ExecutionEngine:
                 reconciliationErrorCode="RECONCILIATION_REQUIRED",
                 reconciliationMessage="Recorded venue order identity is malformed",
             )
-        live_children = self._has_live_children(operation)
-        if operation["state"] == "filled" and not live_children:
+        if operation["state"] == "filled" and not self._has_reconcilable_children(operation):
             return operation
         operation_id = str(operation["id"])
         plan = self.journal.effect(self.agent_id, operation_id, "plan")
@@ -637,10 +652,26 @@ class ExecutionEngine:
                 # Account abstraction can change while managed approval is pending.
                 self.venue.account(binding.wallet)
                 intent = PerpIntent.parse(json_object(operation["request"]))
+                execution_limit = decimal(operation["executionLimitPrice"], positive=True)
+                stored_anchor = operation.get("reservationAnchor")
+                if stored_anchor is not None:
+                    reservation_anchor = decimal(stored_anchor, positive=True)
+                else:
+                    # Legacy pre-anchor operations: reconstruct the same reservation basis from
+                    # the persisted intent and executionLimitPrice (triggers/OCO include stops).
+                    stop_prices = [
+                        price
+                        for price in (
+                            intent.stop_price if intent.order_class == "simple" else None,
+                            *(c.stop_price for c in intent.children if intent.order_class == "oco"),
+                        )
+                        if price is not None
+                    ]
+                    reservation_anchor = max([execution_limit, *stop_prices])
                 with localcontext(Context(prec=160, rounding=ROUND_CEILING)):
                     fresh_usd = (
                         intent.quantity
-                        * max(self.venue.price(intent.symbol), decimal(operation["executionLimitPrice"]))
+                        * max(self.venue.price(intent.symbol), reservation_anchor)
                         * (1 + max(decimal(plan["feeRate"]), self.venue.fee_rate(binding.wallet)))
                     )
                 if fresh_usd > decimal(operation["reservedUsd"]):
@@ -912,9 +943,7 @@ class ExecutionEngine:
             state = "open"
         elif raw_state == "triggered":
             state = "triggered"
-        elif raw_state == "waitingForFill" and (
-            allow_waiting_for_fill or (not parent_canceled_unfilled and current_filled == 0)
-        ):
+        elif raw_state == "waitingForFill" and allow_waiting_for_fill:
             return {
                 "state": "canceled" if parent_canceled_unfilled else "waiting_for_fill",
                 "venueStatus": raw_state,
@@ -1690,6 +1719,69 @@ class ExecutionEngine:
                 target_still_live=operation["state"] in {"open", "partial_fill"},
             )
 
+    @staticmethod
+    def _clean_live_oids(operation: dict[str, object]) -> set[int]:
+        clean_live_oids: set[int] = set()
+        if (
+            operation.get("state") in {"open", "partial_fill"}
+            and not operation.get("reconciliationErrorCode")
+            and isinstance(operation.get("providerOrderId"), str)
+            and operation["providerOrderId"].isdecimal()
+            and int(operation["providerOrderId"]) > 0
+        ):
+            clean_live_oids.add(int(operation["providerOrderId"]))
+        for c in operation.get("childOperations") or []:
+            if (
+                isinstance(c, dict)
+                and c.get("state") in {"open", "partial_fill"}
+                and not c.get("reconciliationErrorCode")
+                and isinstance(c.get("providerOrderId"), str)
+                and c["providerOrderId"].isdecimal()
+                and int(c["providerOrderId"]) > 0
+            ):
+                clean_live_oids.add(int(c["providerOrderId"]))
+        return clean_live_oids
+
+    def _ledger_matches_snapshot(
+        self,
+        operation_id: str,
+        leg: dict[str, object],
+        fill_step: str,
+        observed_fills: list[dict[str, object]],
+    ) -> bool:
+        ledger = self.journal.effect(self.agent_id, operation_id, fill_step)
+        items = ledger.get("items", []) if ledger else []
+        if not isinstance(items, list) or not all(
+            isinstance(item, dict) and isinstance(item.get("tid"), int) for item in items
+        ):
+            return False
+        cached = {item["tid"]: item for item in items}
+        if len(cached) != len(items) or not all(cached.get(fill["tid"]) == fill for fill in observed_fills):
+            return False
+        try:
+            ledger_qty = Decimal(0)
+            ledger_fees: dict[str, Decimal] = {}
+            for item in items:
+                ledger_qty += decimal(item.get("sz"), positive=True)
+                token = item.get("feeToken")
+                if not isinstance(token, str) or not token:
+                    return False
+                ledger_fees[token] = ledger_fees.get(token, Decimal(0)) + decimal(item.get("fee"))
+            snapshot_qty = decimal(leg.get("filledQuantity", "0"))
+            if snapshot_qty != ledger_qty:
+                return False
+            if ledger_qty > 0 and leg.get("averagePrice") is None:
+                return False
+            expected_fees = [
+                {"asset": token, "amount": format(amount, "f")} for token, amount in sorted(ledger_fees.items())
+            ]
+            snapshot_fees = leg.get("fees") if isinstance(leg.get("fees"), list) else []
+            if snapshot_fees and snapshot_fees != expected_fees:
+                return False
+        except (MetaMaskError, ValueError, TypeError):
+            return False
+        return True
+
     def _cancel_step(self, operation, plan, step, action):
         try:
             operation, _ = self._step(operation, plan, step, action)
@@ -1706,25 +1798,6 @@ class ExecutionEngine:
             operation, target_child = self._find_operation(operation_id)
             parent_id = str(operation["id"])
             operation = self._advance(operation, observation=_observation)
-            clean_live_oids: set[int] = set()
-            if (
-                operation["state"] in {"open", "partial_fill"}
-                and not operation.get("reconciliationErrorCode")
-                and isinstance(operation.get("providerOrderId"), str)
-                and operation["providerOrderId"].isdecimal()
-                and int(operation["providerOrderId"]) > 0
-            ):
-                clean_live_oids.add(int(operation["providerOrderId"]))
-            for c in operation.get("childOperations") or []:
-                if (
-                    isinstance(c, dict)
-                    and c.get("state") in {"open", "partial_fill"}
-                    and not c.get("reconciliationErrorCode")
-                    and isinstance(c.get("providerOrderId"), str)
-                    and c["providerOrderId"].isdecimal()
-                    and int(c["providerOrderId"]) > 0
-                ):
-                    clean_live_oids.add(int(c["providerOrderId"]))
             for step, effect in self.journal.effects(self.agent_id, parent_id).items():
                 if (
                     step.startswith("cancel-")
@@ -1732,6 +1805,7 @@ class ExecutionEngine:
                     and effect.get("state") != "rejected"
                     and effect.get("ownerEpoch") == self.epoch
                 ):
+                    clean_live_oids = self._clean_live_oids(operation)
                     action = json_object(effect["action"])
                     cancels = action.get("cancels")
                     target_oids = (
@@ -1770,13 +1844,13 @@ class ExecutionEngine:
         existing = {}
         for row in operations:
             identifier = str(row["id"])
-            live_children = self._has_live_children(row)
+            reconcilable_children = self._has_reconcilable_children(row)
             venue_id = row.get("providerOrderId")
             has_valid_oid = isinstance(venue_id, str) and venue_id.isdecimal() and int(venue_id) > 0
             plan = self.journal.effect(self.agent_id, identifier, "plan")
             effect = self.journal.effect(self.agent_id, identifier, "order")
             released = effect is not None and effect.get("phase") == "venue"
-            if row["state"] == "filled" and not live_children:
+            if row["state"] == "filled" and not reconcilable_children:
                 continue
             if not has_valid_oid and not (released and row.get("childOperations")):
                 continue
@@ -1805,47 +1879,42 @@ class ExecutionEngine:
         for operation in operations:
             identifier = str(operation["id"])
             if identifier in closed and not operation.get("reconciliationErrorCode"):
-                children = operation.get("childOperations")
-                if not children:
-                    ledger = self.journal.effect(self.agent_id, identifier, "fills")
-                    items = ledger.get("items", []) if ledger else []
-                    if isinstance(items, list) and all(
-                        isinstance(item, dict) and isinstance(item.get("tid"), int) for item in items
-                    ):
-                        cached = {item["tid"]: item for item in items}
-                        observed = by_order.get(int(operation["providerOrderId"]), [])
-                        if len(cached) == len(items) and all(cached.get(fill["tid"]) == fill for fill in observed):
+                current = self._operation(identifier)
+                if (
+                    current["state"] in _TERMINAL
+                    and not current.get("reconciliationErrorCode")
+                    and not self._has_live_children(current)
+                ):
+                    children = current.get("childOperations")
+                    if not children:
+                        observed = by_order.get(int(current["providerOrderId"]), [])
+                        if self._ledger_matches_snapshot(identifier, current, "fills", observed):
                             # Missing old rows cannot erase the retained ledger. Only a new or
-                            # changed receipt needs an individual terminal status reconciliation.
-                            results.append(self._operation(identifier))
+                            # changed receipt (or a ledger ahead of the snapshot) needs reconciliation.
+                            results.append(current)
                             continue
-                elif isinstance(children, list) and not self._has_live_children(operation):
-                    all_clean = True
-                    legs_to_check: list[tuple[str | None, str]] = [
-                        (operation.get("providerOrderId"), "fills"),
-                        *[
-                            (c.get("providerOrderId"), self._child_fill_step(str(c["id"])))
-                            for c in children
-                            if isinstance(c, dict) and c.get("id")
-                        ],
-                    ]
-                    for leg_oid, leg_step in legs_to_check:
-                        if not isinstance(leg_oid, str) or not leg_oid.isdecimal() or int(leg_oid) <= 0:
+                    elif isinstance(children, list):
+                        legs_to_check: list[tuple[dict[str, object], str]] = [
+                            (current, "fills"),
+                            *[
+                                (c, self._child_fill_step(str(c["id"])))
+                                for c in children
+                                if isinstance(c, dict) and c.get("id")
+                            ],
+                        ]
+                        all_clean = True
+                        for leg_rec, leg_step in legs_to_check:
+                            leg_oid = leg_rec.get("providerOrderId")
+                            observed = (
+                                by_order.get(int(leg_oid), [])
+                                if isinstance(leg_oid, str) and leg_oid.isdecimal() and int(leg_oid) > 0
+                                else []
+                            )
+                            if not self._ledger_matches_snapshot(identifier, leg_rec, leg_step, observed):
+                                all_clean = False
+                                break
+                        if all_clean:
+                            results.append(current)
                             continue
-                        ledger = self.journal.effect(self.agent_id, identifier, leg_step)
-                        items = ledger.get("items", []) if ledger else []
-                        if not isinstance(items, list) or not all(
-                            isinstance(item, dict) and isinstance(item.get("tid"), int) for item in items
-                        ):
-                            all_clean = False
-                            break
-                        cached = {item["tid"]: item for item in items}
-                        observed = by_order.get(int(leg_oid), [])
-                        if len(cached) != len(items) or not all(cached.get(fill["tid"]) == fill for fill in observed):
-                            all_clean = False
-                            break
-                    if all_clean:
-                        results.append(self._operation(identifier))
-                        continue
             results.append(self.order(identifier, _observation=observation if identifier in existing else None))
         return results

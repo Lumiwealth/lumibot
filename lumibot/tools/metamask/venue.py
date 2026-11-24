@@ -72,8 +72,10 @@ def canonical_symbol(symbol, names):
     if not isinstance(symbol, str) or not 1 <= len(symbol) <= 60:
         raise ValueError("A venue market symbol is required")
     matches = [name for name in names if isinstance(name, str) and name.casefold() == symbol.casefold()]
-    if len(matches) != 1:
-        raise MetaMaskError("UNKNOWN_MARKET", "Requested market is absent or ambiguous")
+    if not matches:
+        raise MetaMaskError("UNKNOWN_MARKET", "Requested market was not found")
+    if len(matches) > 1:
+        raise MetaMaskError("AMBIGUOUS_MARKET", "Requested market is ambiguous")
     return matches[0]
 
 
@@ -191,8 +193,10 @@ class HyperliquidVenue:
                     and isinstance(item.get("name"), str)
                     and item["name"].casefold() == dex.casefold()
                 ]
-                if len(matches) != 1:
+                if not matches:
                     raise MetaMaskError("UNKNOWN_MARKET", "Requested perpetual dex was not found")
+                if len(matches) > 1:
+                    raise MetaMaskError("AMBIGUOUS_MARKET", "Requested perpetual dex is ambiguous")
                 offset = 110_000 + matches[0] * 10_000
                 dex = dexs[matches[0] + 1]["name"]
             meta = json_object(self.info({"type": "meta", **({"dex": dex} if dex else {})}), "market metadata")

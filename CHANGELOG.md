@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.6.98 - Unreleased
+
 ## 4.6.97 - 2026-11-24
 
 Ships everything in 4.6.96 (tagged, never published to PyPI: its release run stopped

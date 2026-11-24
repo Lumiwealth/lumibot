@@ -372,3 +372,53 @@ def test_rows_in_equals_the_concat_dedupe_sort_reference():
                        ("2026-08-06", "2026-08-07")):
         start, end = pd.Timestamp(start, tz="UTC"), pd.Timestamp(end, tz="UTC")
         pd.testing.assert_frame_equal(sbc._rows_in(parts, start, end), _rows_in_reference(parts, start, end))
+
+
+# --------------------------------------------------------------------------- daily bar position
+
+
+def _reference_daily_position(index, search_datetime, remove_incomplete, days=1):
+    """The original O(n) answer: convert the whole index to dates on every call."""
+    search_date = search_datetime.date()
+    if remove_incomplete:
+        search_date -= timedelta(days=days)
+    return int(index.date.searchsorted(search_date, side="right")) - 1
+
+
+@pytest.mark.parametrize("tz", ["America/New_York", "UTC", None])
+def test_daily_bar_position_equals_the_date_conversion(tz):
+    from lumibot.backtesting.alpaca_backtesting import AlpacaBacktesting
+
+    index = pd.DatetimeIndex(pd.bdate_range("1998-01-02", "2026-11-20"), tz=None)
+    index = index.tz_localize(tz) if tz else index
+    if tz == "UTC":
+        index = index + pd.Timedelta(hours=5)  # midnight New York labels stored in UTC
+    clocks = [pd.Timestamp("1997-12-31 09:30"), pd.Timestamp("1998-01-02 00:00"),
+              pd.Timestamp("2008-03-14 16:00"), pd.Timestamp("2026-11-20 23:59"), pd.Timestamp("2027-01-04")]
+    clocks += list(pd.date_range("2001-01-01 09:30", "2026-11-25", freq="37D"))
+    for clock in clocks:
+        clock = clock.tz_localize("America/New_York").to_pydatetime()
+        for remove in (False, True):
+            got = AlpacaBacktesting._newest_bar_position(index, clock, "day", remove)
+            assert got == _reference_daily_position(index, clock, remove), (clock, remove)
+
+
+def test_daily_bar_position_converts_an_index_to_dates_once(monkeypatch):
+    """A daily mark is asked for every held symbol several times a day; the index's dates
+    are computed once per index, not on every lookup (it was about 0.2 ms per call)."""
+    from lumibot.backtesting.alpaca_backtesting import AlpacaBacktesting
+
+    index = pd.DatetimeIndex(pd.bdate_range("2010-01-04", "2026-11-20"), tz="America/New_York")
+    clock = datetime(2020, 6, 3, 9, 30, tzinfo=index.tz)
+    AlpacaBacktesting._newest_bar_position(index, clock, "day", False)
+    conversions = []
+    original = pd.DatetimeIndex.date
+
+    def counting(self):
+        conversions.append(1)
+        return original.fget(self)
+
+    monkeypatch.setattr(pd.DatetimeIndex, "date", property(counting))
+    for day in range(300):
+        AlpacaBacktesting._newest_bar_position(index, clock + timedelta(days=day), "day", day % 2 == 0)
+    assert conversions == []

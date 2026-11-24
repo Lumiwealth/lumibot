@@ -2,13 +2,14 @@ import json
 import math
 import os
 import time
-from collections import deque
+from collections import OrderedDict, deque
 from datetime import date, datetime, time as dt_time, timedelta
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 import pytz
 from alpaca.data.historical import (
@@ -36,6 +37,28 @@ logger = get_logger(__name__)
 
 from lumibot.tools.alpaca_helpers import sanitize_base_and_quote_asset
 from lumibot.tools.alpaca_history import fetch_alpaca_bars
+
+# PERF: daily marks and daily history reads find their bar by the calendar date of each label.
+# ``index.date`` builds one Python date object per label on every call (about 0.2 ms for ten
+# years of bars, asked for every held symbol several times per simulated day). An index never
+# changes, so its dates are computed once per index object as numpy days: the labels'
+# wall-clock dates in their own timezone, exactly what ``index.date`` returns.
+_SESSION_DAYS_CACHE: "OrderedDict[int, tuple]" = OrderedDict()
+_SESSION_DAYS_CACHE_MAX = 512
+
+
+def _index_session_days(index: pd.DatetimeIndex) -> np.ndarray:
+    key = id(index)
+    hit = _SESSION_DAYS_CACHE.get(key)
+    if hit is not None and hit[0] is index:
+        return hit[1]
+    wall = index.tz_localize(None) if getattr(index, "tz", None) is not None else index
+    days = np.asarray(wall.values).astype("datetime64[D]")
+    # The entry holds the index, so its id cannot be reused while the entry exists.
+    _SESSION_DAYS_CACHE[key] = (index, days)
+    if len(_SESSION_DAYS_CACHE) > _SESSION_DAYS_CACHE_MAX:
+        _SESSION_DAYS_CACHE.popitem(last=False)
+    return days
 
 
 class AlpacaOptionHistoryUnavailable(RuntimeError):
@@ -877,7 +900,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
             search_date = search_datetime.date()
             if remove_incomplete_current_bar:
                 search_date -= timedelta(days=max(delta.days, 1))
-            return int(index.date.searchsorted(search_date, side="right")) - 1
+            days = _index_session_days(index)
+            return int(days.searchsorted(np.datetime64(search_date, "D"), side="right")) - 1
 
         cutoff = search_datetime
         if remove_incomplete_current_bar:

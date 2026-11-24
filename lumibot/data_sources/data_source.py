@@ -863,12 +863,96 @@ class DataSource(ABC):
         asset_splits = {}
         if frame is None or not hasattr(frame, "iterrows") or "stock_splits" not in frame.columns:
             return asset_splits
+        column = frame["stock_splits"]
+        if isinstance(column, pd.Series):
+            # PERF: one pass over the split column instead of building a row Series per bar
+            # (iterrows cost about 90 ms per 10-year daily frame, once per held symbol).
+            # Same values, same date keys, same order.
+            for idx, value in zip(frame.index, column.tolist()):
+                ratio = self._normalize_stock_split_ratio(value)
+                if ratio:
+                    asset_splits[idx.date() if hasattr(idx, 'date') else idx] = ratio
+            return asset_splits
         for idx, row in frame.iterrows():
             date_key = idx.date() if hasattr(idx, 'date') else idx
             ratio = self._normalize_stock_split_ratio(row.get('stock_splits', 0))
             if ratio:
                 asset_splits[date_key] = ratio
         return asset_splits
+
+    def _adjust_stale_daily_prices_for_stock_split(self, data, prices: dict, keys, dt):
+        """``_adjust_stale_daily_price_for_stock_split`` applied to ``prices[key]`` for each key.
+
+        PERF: a price snapshot adjusts up to six fields (open, high, low, close, bid, ask) of the
+        same row for the same moment, and the checks (frame flags, split rows for the day) do
+        not depend on the price. They run once here; each present price is then divided by the
+        same ratio the per-price call would pick. A price the per-price call could not convert
+        falls back to that call, so every answer is the one it gives.
+        """
+        present = [key for key in keys if key in prices]
+        if not present:
+            return prices
+        ratio = self._stale_daily_split_ratio(data, dt)
+        for key in present:
+            price = prices.get(key)
+            if price is None or ratio is _NO_STALE_SPLIT:
+                continue
+            try:
+                prices[key] = float(price) / ratio
+            except Exception:
+                prices[key] = self._adjust_stale_daily_price_for_stock_split(data, price, dt)
+        return prices
+
+    def _stale_daily_split_ratio(self, data, dt):
+        """The split ratio ``_adjust_stale_daily_price_for_stock_split`` divides by at ``dt``,
+        or ``_NO_STALE_SPLIT`` when it returns the price unchanged (same checks, same order)."""
+        if data is None or str(getattr(data, "timestep", "") or "").strip().lower() != "day":
+            return _NO_STALE_SPLIT
+        frame = getattr(data, "df", None)
+        if frame is None or not hasattr(frame, "columns") or "stock_splits" not in frame.columns:
+            return _NO_STALE_SPLIT
+        if self._frame_prices_are_split_adjusted(frame):
+            return _NO_STALE_SPLIT
+        if bool(getattr(self, "AUTO_ADJUST_IMPLIES_SPLIT_ADJUSTED_PRICES", False)) and (
+            bool(getattr(self, "auto_adjust", False)) or bool(getattr(self, "_auto_adjust", False))
+        ):
+            return _NO_STALE_SPLIT
+        try:
+            dt_ts = pd.Timestamp(dt)
+            current_date = dt_ts.date()
+        except Exception:
+            return _NO_STALE_SPLIT
+        facts = _split_frame_facts(frame, with_events=True)
+        if facts is not None:
+            day_events = facts[1].get(current_date, ())
+        else:
+            try:
+                matching_rows = frame.loc[[idx.date() == current_date for idx in frame.index]]
+            except Exception:
+                return _NO_STALE_SPLIT
+            day_events = [
+                (idx, self._normalize_stock_split_ratio(row.get("stock_splits", 0)))
+                for idx, row in matching_rows.iterrows()
+            ]
+        for idx, ratio in day_events:
+            if not ratio:
+                continue
+            try:
+                event_ts = pd.Timestamp(idx)
+                compare_dt = dt_ts
+                if event_ts.tzinfo is not None:
+                    if compare_dt.tzinfo is None:
+                        compare_dt = compare_dt.tz_localize(event_ts.tzinfo)
+                    else:
+                        compare_dt = compare_dt.tz_convert(event_ts.tzinfo)
+                elif compare_dt.tzinfo is not None:
+                    compare_dt = compare_dt.tz_localize(None)
+                if compare_dt >= event_ts:
+                    continue
+                return ratio
+            except Exception:
+                continue
+        return _NO_STALE_SPLIT
 
     def _adjust_stale_daily_price_for_stock_split(self, data, price, dt):
         """Adjust a previous daily price when the current date has a split before the daily row.
@@ -1428,6 +1512,8 @@ def _frame_prices_are_split_adjusted_uncached(frame):
 # cost O(rows) per read (about 35,000 reads x 2,500 rows on a 10-year daily run).
 _SPLIT_FACTS_CACHE: dict = {}
 _SPLIT_FACTS_CACHE_MAX = 512
+# Returned by DataSource._stale_daily_split_ratio when no split ratio applies.
+_NO_STALE_SPLIT = object()
 
 
 def _split_frame_facts(frame, with_events=False):

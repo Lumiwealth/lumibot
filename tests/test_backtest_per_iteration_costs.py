@@ -479,3 +479,181 @@ def test_daily_marks_build_no_bars_objects(monkeypatch, tmp_path):
     monkeypatch.setattr(alpaca_backtesting, "Bars", counting)
     _daily_marks(source, assets)
     assert built == []
+
+
+# --------------------------------------------------------------------------- daily valuation of held stocks
+# Portfolio valuation reads a price snapshot for every held asset at each lifecycle step
+# (about five per simulated day). These tests pin the per-snapshot shortcuts to the
+# original answers and fail if the per-read pandas work comes back.
+
+
+def _daily_frame(splits=None, rows=400, tz="America/New_York", extra=None):
+    index = pd.DatetimeIndex([pd.Timestamp(d.date()) + pd.Timedelta(hours=16)
+                              for d in pd.bdate_range("2020-01-02", periods=rows)]).tz_localize(tz)
+    price = np.linspace(10.0, 50.0, rows)
+    frame = pd.DataFrame({"open": price, "high": price + 1, "low": price - 1, "close": price + 0.5,
+                          "volume": 1e6, "dividend": 0.0, "stock_splits": 0.0}, index=index)
+    for stamp, ratio in (splits or {}).items():
+        frame.loc[pd.Timestamp(stamp).tz_localize(tz) + pd.Timedelta(hours=16), "stock_splits"] = ratio
+    for column, values in (extra or {}).items():
+        frame[column] = values
+    return frame
+
+
+def _backtesting_source():
+    from lumibot.backtesting import PandasDataBacktesting
+
+    return object.__new__(PandasDataBacktesting)
+
+
+def _reference_ohlc_check(frame):
+    """The original check: to_numeric on the last row, then a full column scan."""
+    if frame is None or frame.empty:
+        return False
+    required = {"open", "high", "low", "close"}
+    if not required.issubset(set(frame.columns)):
+        return False
+    for col in required:
+        if pd.to_numeric(frame[col].iloc[-1:], errors="coerce").notna().any():
+            return True
+    for col in required:
+        if pd.to_numeric(frame[col], errors="coerce").notna().any():
+            return True
+    return False
+
+
+def _ohlc_frames():
+    ohlc = ["open", "high", "low", "close"]
+    base = _daily_frame(rows=30)
+    nan_tail = base.copy()
+    nan_tail.loc[nan_tail.index[-1], ohlc] = np.nan
+    all_nan = base.copy()
+    all_nan[ohlc] = np.nan
+    text = base.copy()
+    text[ohlc] = text[ohlc].astype(object)
+    text.loc[text.index[-1], ohlc] = "n/a"
+    text_all_bad = base[ohlc].astype(object)
+    text_all_bad[:] = "n/a"
+    ints = base.copy()
+    ints[ohlc] = 7
+    flags = base.copy()
+    flags["close"] = True
+    return [base, nan_tail, all_nan, text, text_all_bad, ints, flags, base.iloc[:0], base.drop(columns=["low"])]
+
+
+def test_ohlc_column_check_equals_the_to_numeric_check():
+    from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
+
+    source = object.__new__(ThetaDataBacktestingPandas)
+    frames = _ohlc_frames()
+    answers = [source._frame_has_ohlc_columns(frame) for frame in frames]
+    assert answers == [_reference_ohlc_check(frame) for frame in frames]
+    assert True in answers and False in answers
+
+
+def test_ohlc_column_check_on_numeric_frames_calls_no_to_numeric(monkeypatch):
+    from lumibot.backtesting import thetadata_backtesting_pandas as module
+
+    source = object.__new__(module.ThetaDataBacktestingPandas)
+    frame = _daily_frame(rows=2500)
+    calls = []
+    original = module.pd.to_numeric
+
+    def counting(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(module.pd, "to_numeric", counting)
+    for _ in range(200):
+        assert source._frame_has_ohlc_columns(frame)
+    assert calls == []
+
+
+SPLIT_FRAMES = {
+    "none": {},
+    "forward": {"2020-03-02": 4.0},
+    "reverse": {"2020-03-02": 0.1},
+}
+
+
+@pytest.mark.parametrize("name", sorted(SPLIT_FRAMES))
+def test_snapshot_split_adjustment_equals_the_per_price_call(name):
+    from types import SimpleNamespace
+
+    source = _backtesting_source()
+    frame = _daily_frame(SPLIT_FRAMES[name], rows=60)
+    data = SimpleNamespace(timestep="day", df=frame)
+    keys = ("open", "high", "low", "close", "bid", "ask")
+    clocks = [pd.Timestamp("2020-03-02 00:00").tz_localize("America/New_York") + pd.Timedelta(hours=h)
+              for h in range(0, 48, 3)]
+    clocks += [pd.Timestamp("2020-03-02 09:30"), pd.Timestamp("2020-03-02 21:00").tz_localize("UTC")]
+    snapshots = [
+        {"open": 10.0, "high": 11, "low": None, "close": np.float64(10.5), "bid": "bad", "volume": 5},
+        {"open": 10.0, "close": 12.0},
+        {},
+    ]
+    changed = 0
+    for clock in clocks:
+        for snapshot in snapshots:
+            expected = dict(snapshot)
+            for key in keys:
+                if key in expected:
+                    expected[key] = source._adjust_stale_daily_price_for_stock_split(data, expected.get(key), clock)
+            got = source._adjust_stale_daily_prices_for_stock_split(data, dict(snapshot), keys, clock)
+            assert got == expected, (name, clock, snapshot)
+            changed += got != snapshot
+    assert (changed > 0) == bool(SPLIT_FRAMES[name])
+
+
+def test_snapshot_split_adjustment_checks_the_frame_once_per_snapshot(monkeypatch):
+    from types import SimpleNamespace
+
+    import lumibot.data_sources.data_source as module
+
+    source = _backtesting_source()
+    data = SimpleNamespace(timestep="day", df=_daily_frame({"2020-03-02": 4.0}, rows=60))
+    calls = []
+    original = module._split_frame_facts
+
+    def counting(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(module, "_split_frame_facts", counting)
+    snapshot = {key: 10.0 for key in ("open", "high", "low", "close", "bid", "ask")}
+    clock = pd.Timestamp("2020-03-02 09:30").tz_localize("America/New_York")
+    got = source._adjust_stale_daily_prices_for_stock_split(data, snapshot, tuple(snapshot), clock)
+    assert got["close"] == 2.5
+    assert len(calls) == 2  # split flag + the day's split rows, not two per price field
+
+
+def _reference_split_cache(source, frame):
+    out = {}
+    for idx, row in frame.iterrows():
+        ratio = source._normalize_stock_split_ratio(row.get("stock_splits", 0))
+        if ratio:
+            out[idx.date()] = ratio
+    return out
+
+
+def test_split_cache_from_frame_equals_the_row_scan_without_iterrows(monkeypatch):
+    source = _backtesting_source()
+    weird = _daily_frame(rows=12)
+    weird["stock_splits"] = weird["stock_splits"].astype(object)
+    weird.iloc[2, weird.columns.get_loc("stock_splits")] = "2"
+    weird.iloc[3, weird.columns.get_loc("stock_splits")] = None
+    weird.iloc[4, weird.columns.get_loc("stock_splits")] = float("inf")
+    frames = [
+        _daily_frame({"2020-03-02": 4.0, "2020-06-01": 0.25, "2020-07-01": 1.0}, rows=300),
+        _daily_frame({}, rows=50),
+        _daily_frame({"2020-01-03": 3.0}, rows=10, tz="UTC", extra={"note": "x"}),
+        weird,
+    ]
+    expected = [_reference_split_cache(source, frame) for frame in frames]
+
+    def no_iterrows(self):
+        raise AssertionError("iterrows")
+
+    monkeypatch.setattr(pd.DataFrame, "iterrows", no_iterrows)
+    assert [source._stock_split_cache_from_frame(frame) for frame in frames] == expected
+    assert len(expected[0]) == 2 and expected[3] == {weird.index[2].date(): 2.0}

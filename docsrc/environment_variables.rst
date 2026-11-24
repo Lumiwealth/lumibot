@@ -868,7 +868,7 @@ IBKR_HISTORY_SOURCE
 
 - Purpose: Select which IBKR Client Portal history source to use for OHLC bars in IBKR REST backtests.
 - Values: ``Trades`` / ``Midpoint`` / ``Bid_Ask`` (case-insensitive; hyphen/underscore variants accepted).
-- Default: ``Trades``.
+- Default: ``Trades`` for stocks and futures; ``Midpoint`` for indexes, listed options and forex/spot metals (for example ``XAU/USD``), because IBKR publishes no reliable trade bars for those. Setting this variable applies to options and forex too; indexes always use ``Midpoint``.
 
 IBKR_FUTURES_EXCHANGE
 ^^^^^^^^^^^^^^^^^^^^^

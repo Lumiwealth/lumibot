@@ -4,6 +4,12 @@
 
 ### Changed
 
+- IBKR backtests of forex and spot metals (for example gold as `XAU/USD`) now read
+  IBKR Midpoint bars instead of Trades bars. IBKR has no reliable trade bars for these
+  pairs: an hourly gold request returned 28 to 31 of 50 bars and the backtest stopped with
+  "Required historical data unavailable"; with Midpoint it returns all 50. A source set by
+  the caller or by `IBKR_HISTORY_SOURCE` is still respected.
+
 - Backtest reports finish faster with identical numbers: the report libraries
   (QuantStats, scipy, matplotlib) now load in the background while the backtest runs,
   and each QuantStats drawdown table and monthly/quarterly/yearly aggregation is

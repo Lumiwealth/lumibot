@@ -1229,6 +1229,12 @@ def get_price_data(
     # price a contract when the caller did not pick a source.
     if source is None and not env_source_was_explicit and asset_type == "option":
         history_source = "Midpoint"
+    # IBKR publishes no reliable TRADES bars for forex or spot metals (XAU/USD):
+    # a Trades request returns a fraction of the hours (Dev, Nov 24 2026: 28-31 of
+    # 50 hourly XAU bars vs 50 of 50 with Midpoint) and the backtest then fails as
+    # "required data unavailable". Midpoint is IBKR's history for these pairs.
+    if source is None and not env_source_was_explicit and asset_type == "forex":
+        history_source = "Midpoint"
 
     # Normalize timestep classification once so callers can pass "day", "1d", "1day", etc.
     try:

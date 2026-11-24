@@ -2,13 +2,14 @@ import json
 import math
 import os
 import time
-from collections import deque
+from collections import OrderedDict, deque
 from datetime import date, datetime, time as dt_time, timedelta
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 import pytz
 from alpaca.data.historical import (
@@ -36,6 +37,28 @@ logger = get_logger(__name__)
 
 from lumibot.tools.alpaca_helpers import sanitize_base_and_quote_asset
 from lumibot.tools.alpaca_history import fetch_alpaca_bars
+
+# PERF: daily marks and daily history reads find their bar by the calendar date of each label.
+# ``index.date`` builds one Python date object per label on every call (about 0.2 ms for ten
+# years of bars, asked for every held symbol several times per simulated day). An index never
+# changes, so its dates are computed once per index object as numpy days: the labels'
+# wall-clock dates in their own timezone, exactly what ``index.date`` returns.
+_SESSION_DAYS_CACHE: "OrderedDict[int, tuple]" = OrderedDict()
+_SESSION_DAYS_CACHE_MAX = 512
+
+
+def _index_session_days(index: pd.DatetimeIndex) -> np.ndarray:
+    key = id(index)
+    hit = _SESSION_DAYS_CACHE.get(key)
+    if hit is not None and hit[0] is index:
+        return hit[1]
+    wall = index.tz_localize(None) if getattr(index, "tz", None) is not None else index
+    days = np.asarray(wall.values).astype("datetime64[D]")
+    # The entry holds the index, so its id cannot be reused while the entry exists.
+    _SESSION_DAYS_CACHE[key] = (index, days)
+    if len(_SESSION_DAYS_CACHE) > _SESSION_DAYS_CACHE_MAX:
+        _SESSION_DAYS_CACHE.popitem(last=False)
+    return days
 
 
 class AlpacaOptionHistoryUnavailable(RuntimeError):
@@ -464,7 +487,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             if position < 0:
                 raise ValueError(f"Datetime {self._datetime} not found in the dataset.")
             if timestep == "day":
-                return self._daily_bar_mark(df.iloc[position:position + 1], asset, quote)
+                return self._daily_bar_mark_at(df, position, asset, quote)
             price = df["open"].iat[position]
             return quantize_to_num_decimals(price, get_decimals(price))
 
@@ -523,7 +546,52 @@ class AlpacaBacktesting(DataSourceBacktesting):
         the exchange opens; their close is unavailable until the actual exchange
         close, including shortened sessions. Crypto retains its full-day window.
         """
-        stamp = pd.Timestamp(frame.index[-1])
+        return self._daily_bar_mark_at(frame, len(frame) - 1, asset, quote)
+
+    def _previous_daily_bar(self, asset, quote, timeshift):
+        """``(frame, position)`` of the bar get_historical_prices(length=1, timestep="day",
+        timeshift=timeshift, remove_incomplete_current_bar=True) would return, or None to use it.
+
+        PERF: before the open every held stock is valued at the previous session's close, once
+        per position several times per simulated day. The full call wraps that one row in a new
+        Bars object (about 0.3 ms). For a native daily series stored in this source's timezone the
+        row is read in place: same series, same search time, same row. Anything else (resampled
+        steps, options, other sources, no finished bar yet, which may reach back for history)
+        returns None and the caller makes the full call as before.
+        """
+        if self._is_option(asset) or self._other_source_for(asset) is not None:
+            return None
+        source_timestep, resample_rule = self._normalize_timestep_for_source("day")
+        if resample_rule is not None:
+            return None
+        try:
+            df = self.get_historical_prices_between_dates(
+                base_asset=asset,
+                quote_asset=quote if quote is not None else self.LUMIBOT_DEFAULT_QUOTE_ASSET,
+                timestep=source_timestep,
+                data_datetime_start=self._data_datetime_start,
+                data_datetime_end=self._data_datetime_end,
+                auto_adjust=self._auto_adjust,
+            )
+        except Exception:
+            return None
+        index = getattr(df, "index", None)
+        tz = getattr(index, "tz", None)
+        target = self.tzinfo
+        same_zone = tz is not None and target is not None and (
+            (getattr(tz, "zone", None) or getattr(tz, "key", None) or str(tz))
+            == (getattr(target, "zone", None) or getattr(target, "key", None) or str(target))
+        )
+        if not same_zone or len(df) < 1:
+            return None
+        position = self._newest_bar_position(index, self._datetime - timeshift, "day", True)
+        if position < 0 or position >= len(df):
+            return None
+        return df, position
+
+    def _daily_bar_mark_at(self, frame, position, asset, quote):
+        """``_daily_bar_mark`` for row ``position`` of ``frame`` (no one-row slice per call)."""
+        stamp = pd.Timestamp(frame.index[position])
         now = pd.Timestamp(self._datetime)
         if str(getattr(asset, "asset_type", "")).lower() == "crypto":
             opened, closed = stamp, stamp + pd.Timedelta(days=1)
@@ -547,15 +615,22 @@ class AlpacaBacktesting(DataSourceBacktesting):
             opened = max(pd.Timestamp(bounds[0]), stamp)
             closed = pd.Timestamp(bounds[1])
         if now < opened:
+            timeshift = now - stamp.normalize()
+            found = self._previous_daily_bar(asset, quote, timeshift)
+            if found is not None:
+                previous_frame, previous_position = found
+                if previous_frame.index[previous_position] >= stamp.normalize():
+                    return None
+                return self._daily_bar_mark_at(previous_frame, previous_position, asset, quote)
             previous = self.get_historical_prices(
                 asset=asset, quote=quote, length=1, timestep="day",
-                timeshift=now - stamp.normalize(),
+                timeshift=timeshift,
                 remove_incomplete_current_bar=True,
             )
             if previous is None or previous.df.empty or previous.df.index[-1] >= stamp.normalize():
                 return None
             return self._daily_bar_mark(previous.df, asset, quote)
-        price = frame["close" if now >= closed else "open"].iloc[-1]
+        price = frame["close" if now >= closed else "open"].iat[position]
         if price is None or pd.isna(price):
             return None
         return quantize_to_num_decimals(price, get_decimals(price))
@@ -877,7 +952,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
             search_date = search_datetime.date()
             if remove_incomplete_current_bar:
                 search_date -= timedelta(days=max(delta.days, 1))
-            return int(index.date.searchsorted(search_date, side="right")) - 1
+            days = _index_session_days(index)
+            return int(days.searchsorted(np.datetime64(search_date, "D"), side="right")) - 1
 
         cutoff = search_datetime
         if remove_incomplete_current_bar:

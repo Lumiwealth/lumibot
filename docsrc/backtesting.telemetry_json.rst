@@ -12,10 +12,11 @@ What it shows
 -------------
 
 - ``wall_seconds``: the whole run.
-- ``phases``: ``data_setup_seconds`` (until the first trading iteration), ``simulation_seconds``, ``reports_seconds`` (tearsheet, trades and indicator files) and ``uploads_seconds`` (waiting for cache uploads at the end).
+- ``phases``: ``data_setup_seconds`` (until the first trading iteration), ``simulation_seconds``, ``reports_seconds`` (tearsheet, trades and indicator files) and ``uploads_seconds`` (waiting for cache uploads at the end), plus ``simulation_cpu_seconds`` (CPU time used during the simulation).
 - ``iterations``: how many trading iterations ran, the time spent inside ``on_trading_iteration``, and the slowest iteration with its simulated time.
 - ``providers``: one row per data source and asset class, with ``requests``, ``provider_seconds`` (time waiting for answers), ``rows``, ``retries``, and rate-limit or backoff waits (count and seconds).
 - ``caches``: one row per cache layer, data source and asset class, with ``reads``, ``hits``, ``misses``, bytes read, and uploads.
+- ``machine``: ``architecture``, ``cpu_count`` and ``cpu_model`` of the computer that ran the backtest (no hostname).
 
 Example (a 12-month options backtest on a repeat run, shortened):
 
@@ -35,6 +36,7 @@ Finding a slow backtest
 
 1. Compare the phases with ``wall_seconds`` to see which part is slow.
 2. If ``provider_seconds`` is most of ``simulation_seconds``, the backtest is waiting on market data. A second run of the same backtest should make far fewer requests, because data is cached.
-3. If the provider and cache do not explain the time, profile your strategy with ``BACKTESTING_PROFILE=yappi``. This writes a ``*_profile_yappi.csv`` file you can sort by total time.
+3. Comparing two runs? Check ``simulation_cpu_seconds`` and ``machine.cpu_model`` first. The same CPU seconds with more wall seconds, or a different CPU model, means the machine was slower, not the code.
+4. If the provider and cache do not explain the time, profile your strategy with ``BACKTESTING_PROFILE=yappi``. This writes a ``*_profile_yappi.csv`` file you can sort by total time.
 
 Field names are stable: new fields may be added, existing ones are never renamed.

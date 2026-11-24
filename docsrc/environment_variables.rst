@@ -42,6 +42,30 @@ LUMIBOT_DISABLE_DOTENV
   - LumiBot no longer recursively scans every nested directory under the start path. This reduces startup latency and lowers the chance of loading an unrelated nested repo's ``.env`` file.
   - In production/BotManager/BotSpot runs, prefer injected environment variables and set ``LUMIBOT_DISABLE_DOTENV=1`` so local files cannot override runtime secrets.
 
+LUMIBOT_PREWARM_REPORT_IMPORTS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: When a backtest that writes a tearsheet starts, import the report libraries (QuantStats, scipy, matplotlib) in a background thread so the end-of-run report does not wait for them.
+- Values: ``0``, ``false``, ``no`` or ``off`` turn it off; anything else (or unset) keeps it on.
+- Default: on.
+- Notes: The same modules are imported either way, so report numbers are unchanged.
+
+LUMIBOT_PREFETCH_RISK_FREE_RATE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: When a backtest without an explicit ``risk_free_rate`` starts, download the 13-week Treasury rate series (``^IRX``) it will need for its statistics in a background thread, instead of after the simulation ends.
+- Values: ``0``, ``false``, ``no`` or ``off`` turn it off; anything else (or unset) keeps it on.
+- Default: on.
+- Notes: The rate lookup waits for that download and then reads the cached series exactly as before, so the value is the same.
+
+LUMIBOT_REPORT_DRAWDOWN_CACHE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: While one tearsheet is built, compute each QuantStats drawdown table and period aggregation once per distinct input instead of once per request (13 and 30 requests per report before).
+- Values: ``0``, ``false``, ``no`` or ``off`` turn it off; anything else (or unset) keeps it on.
+- Default: on.
+- Notes: The cache key is the exact series (dates, values, type, name) and every caller gets its own copy, so report numbers are unchanged. The cache lives only for one report.
+
 LUMIBOT_DISABLE_DOTENV_LOCAL
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

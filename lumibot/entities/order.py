@@ -177,11 +177,12 @@ class Order:
     Transaction = namedtuple("Transaction", ["quantity", "price"])
 
     # Freshness labels (live). ``status_updated_at``: UTC time the status last changed.
-    # ``status_source``: where that status came from ("local" until a broker reports it;
-    # adapters that read the broker set "rest" or "stream").
+    # ``status_checked_at``: UTC time a broker read last confirmed it. ``status_source``:
+    # "rest" or "stream" when the adapter reports where the status came from (Schwab
+    # does); None when the adapter does not say (every other broker today).
     status_updated_at = None
-    status_source = "local"
-    status_checked_at = None  # UTC time a broker read last confirmed this status
+    status_source = None
+    status_checked_at = None
 
     class OrderClass(StrEnum):
         SIMPLE = "simple"
@@ -1167,10 +1168,14 @@ class Order:
 
     @status.setter
     def status(self, value):
-        # When the status last changed (UTC), so a caller can tell how old it is.
-        # Brokers that read the status from the broker also set ``status_source``.
-        if value is not None and value != getattr(self, "_status", None):
+        # Remember when the status really changed (UTC). Compare after alias mapping so
+        # "filled" -> "fill" or "Filled" -> "fill" is not counted as a change.
+        previous = getattr(self, "_status", None)
+        self._set_status_value(value)
+        if value is not None and getattr(self, "_status", None) != previous:
             self.status_updated_at = datetime.datetime.now(datetime.timezone.utc)
+
+    def _set_status_value(self, value):
         if value and isinstance(value, str):
             if value.lower() in STATUS_ALIAS_MAP:
                 self._status = STATUS_ALIAS_MAP[value.lower()]

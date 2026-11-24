@@ -393,39 +393,51 @@ rate-limited batch of strike quotes the same way.
 Fewer requests for scanners
 ---------------------------
 
-A scanner that calls ``get_quote`` once per symbol in a loop no longer pays
-one Schwab request per symbol:
+A scanner that reads quotes, orders and option chains on every pass no longer
+pays one Schwab request for each of them. Measured on a real Schwab account with
+an unchanged 5-symbol scanner: 18 requests and 10.5 seconds per pass before, 1
+request and 0.3 seconds after; 20 symbols: 3 requests and 2.2 seconds per pass.
 
-* **Quote basket.** In live trading, LumiBot remembers which assets a strategy
-  quoted in the previous trading iteration. On the first quote it needs in the
-  next iteration, it asks Schwab for all of them in one request (up to 50
-  symbols) and answers the following ``get_quote`` calls from that batch. A
-  batched quote is reused only inside the same iteration and for at most one
-  second. Set ``quote_basket_max_age_seconds = 0`` on your strategy class, or
-  ``LUMIBOT_QUOTE_BASKET_MAX_AGE_SECONDS=0``, to ask for every quote separately.
-  Backtests are not affected.
-* **Option chains kept for 15 minutes.** In live trading ``get_chains`` reuses a
-  chain (expirations and strikes) for ``chain_cache_seconds`` (default 900) instead
-  of asking Schwab on every pass. Prices still come fresh from quotes. Set
-  ``chain_cache_seconds = 0`` on the strategy class, or
-  ``LUMIBOT_CHAIN_CACHE_SECONDS=0``, to fetch every time.
-* **No order list while idle.** When the strategy has no open order of its own,
-  LumiBot does not read the account's order list before each iteration or on
-  ``get_orders()``. The first read after start still runs, and a canceled or
-  rejected order keeps the list in use for two more minutes
-  (``ended_order_watch_seconds``) so a late fill is still seen. Set
-  ``broker.skip_order_list_when_idle = False`` to read it every time.
+* **Quotes asked for together.** At the start of each live iteration LumiBot asks
+  Schwab in one request (up to 250 symbols) for every stock and option the
+  strategy quoted in its last two iterations. ``get_quote`` and ``get_quotes``
+  then answer from memory while the quote is younger than
+  ``LUMIBOT_QUOTE_MAX_AGE`` seconds (default ``1``) and set
+  ``quote.cache_age_seconds`` so you can see how old it is. A missing quote is
+  never remembered. ``LUMIBOT_QUOTE_MAX_AGE=0`` asks for every quote separately.
+* **Option chains kept for 15 minutes.** ``get_chains`` (expirations and strikes,
+  no prices) is fetched once per underlying per ``LUMIBOT_CHAINS_CACHE_SECONDS``
+  (default ``900``; ``0`` fetches every call). Every call gets its own copy, and
+  after 4:00 PM New York time today's expiration is removed from a kept chain.
+* **No order list or account read while nothing can change.** LumiBot skips the
+  order-list and account reads before an iteration (and on ``get_orders()`` and
+  position reads) only when all of these hold: no order is unknown or still
+  working; nothing was submitted, changed, canceled or filled and the account
+  stream reported nothing since the last good reads; no order was canceled,
+  rejected or expired in the last 2 minutes (a late fill can still come); no
+  submit in the last 5 minutes ended without a Schwab order id (a timeout can mean
+  the order is live); and the last good read is under
+  ``LUMIBOT_IDLE_SYNC_MAX_AGE`` seconds old (default ``30``; ``0`` always reads).
+  Before any order action that follows a skipped read, the order list is read
+  first. ``get_orders(max_age=0)`` and ``get_order(id, max_age=0)`` always read.
+  An order placed by hand on another screen is seen at the latest after that
+  maximum age (sooner when the account stream reports it).
 
 .. code-block:: python
 
    class Scanner(Strategy):
-       quote_basket_max_age_seconds = 1.0  # default; 0 turns it off
-
        def on_trading_iteration(self):
            for symbol in self.parameters["symbols"]:
                quote = self.get_quote(Asset(symbol))  # one request per pass, not per symbol
+               # quote.cache_age_seconds says how old it is (0 when just fetched)
 
 For a whole list at once, ``get_quotes`` is still the most direct call.
+
+Several bots on one Schwab app share Schwab's limit of about 120 requests per
+minute. A scanner with a 1-second ``sleeptime`` still asks for its quotes once per
+second (about 60 requests a minute), so more than one such bot per app needs a
+longer ``sleeptime`` or ``LUMIBOT_QUOTE_MAX_AGE``. Streaming quotes, which would
+need no quote requests once subscribed, are the next step and not built yet.
 
 Speed summary in the logs
 -------------------------
@@ -434,28 +446,29 @@ Every minute a live strategy logs one line that starts with ``[SpeedSummary]``:
 seconds per trading iteration, Schwab requests per minute (and seconds spent
 waiting for the request budget), and how many milliseconds each order step took:
 submit to Schwab's answer, submit to the fill being seen, fill to your
-``on_filled_order``, and fill to your next order. Read it to see where the time
-goes before changing a strategy. ``LUMIBOT_SPEED_SUMMARY_SECONDS`` sets the
-interval (``0`` turns it off).
+``on_filled_order``, and fill to your next order. A ``[QuoteCache]`` line says how
+many quotes were served from memory and the oldest age served. Read them to see
+where the time goes before changing a strategy. ``LUMIBOT_SPEED_SUMMARY_SECONDS``
+sets the interval (``0`` turns it off).
 
 Faster reaction to fills
 ------------------------
 
-* **Next iteration right after a fill.** When an order fills (in full or in part)
-  and no trading iteration is running, LumiBot runs the next iteration at once
-  instead of waiting out ``sleeptime``. A strategy that sends its hedge or its
-  next order in ``on_trading_iteration`` reacts in milliseconds, not up to one
-  sleeptime later. An iteration that is already running is never interrupted, so
-  a strategy that scans a long list in one iteration should send time-critical
-  orders from ``on_filled_order`` itself. Set ``wake_iteration_on_fill = False``
-  on the strategy class to keep the fixed schedule.
+* **Next iteration right after a fill (opt-in).** Set
+  ``wake_iteration_on_fill = True`` on the strategy class and, when an order fills
+  and no iteration is running, LumiBot runs the next iteration at once instead of
+  waiting out ``sleeptime``. It is off by default because a strategy that places an
+  order in every iteration (a daily or DCA strategy) would place it again. Partial
+  fills wake only with ``wake_iteration_on_partial_fill = True``. A running
+  iteration is never interrupted, so time-critical orders such as a hedge are best
+  sent from ``on_filled_order`` itself.
 * **Filled orders are final.** ``get_order(id)`` and ``get_orders(identifiers=[...])``
   return an order that is already completely filled without asking Schwab again.
   Canceled and rejected orders are still refreshed, because a late fill can arrive.
 * **How fresh is a status?** Every order has ``status_updated_at`` (UTC time its
-  status last changed), ``status_source`` (``"local"``, ``"rest"`` or ``"stream"``)
-  and ``status_checked_at`` (UTC time a Schwab read last confirmed it). Check them
-  before acting on a status that matters, for example before sizing a hedge.
+  status really changed), ``status_checked_at`` (UTC time a Schwab read last
+  confirmed it) and ``status_source`` (``"rest"`` once Schwab reported it). Check
+  them before acting on a status that matters, for example before sizing a hedge.
 
 Request budget per process
 --------------------------

@@ -521,7 +521,10 @@ class Schwab(Broker):
                 and 0 <= now - cached[0] < seconds):
             return cached[1]
         self._schwab_pace("account")
+        epoch_before = getattr(self, "_order_activity_epoch", 0)
         response = self.client.get_account(self.hash_value, fields=[self.client.Account.Fields.POSITIONS])
+        if getattr(response, "status_code", None) == 200:
+            self._note_account_read_ok(epoch_before)
         if getattr(response, "status_code", None) == 200 and seconds > 0:
             self._account_snapshot = (now, response, epoch)
         return response
@@ -539,6 +542,21 @@ class Schwab(Broker):
         self._drop_account_snapshot()
         return super()._process_trade_event(stored_order, type_event, *args, **kwargs)
 
+    def _share_request_budget_with_data_source(self) -> None:
+        """One per-minute budget for the broker and its Schwab data source.
+
+        The pacer is kept per Schwab client. A data source that brought its own client
+        would otherwise get a second full budget, and the process could send up to
+        twice its setting (live: 132.7 per minute at a setting of 100).
+        """
+        data_client = getattr(getattr(self, "data_source", None), "client", None)
+        client = getattr(self, "client", None)
+        if client is None or data_client is None or data_client is client:
+            return
+        from lumibot.brokers.schwab_request_pacer import attach_pacer, pacer_for_client
+
+        attach_pacer(data_client, pacer_for_client(client, getattr(self, "_schwab_pacing_config", None)))
+
     def _schwab_pace(self, kind: str) -> None:
         """Spend one request from the client's shared per-minute budget.
 
@@ -551,11 +569,13 @@ class Schwab(Broker):
         from lumibot.brokers.schwab_request_pacer import pacer_for_client
 
         pacer = pacer_for_client(client, getattr(self, "_schwab_pacing_config", None))
-        # Count every request on this client (broker and data source) in the speed summary.
+        # Count every request on this client (broker and data source) in the speed
+        # summary exactly once: one listener per (pacer, recorder), checked on the pacer
+        # itself, so a replaced client gets a listener and a shared one never gets two.
         listeners = getattr(pacer, "listeners", None)
-        if isinstance(listeners, list) and not self.__dict__.get("_speed_listener_attached"):
-            listeners.append(self._speed_summary().request)
-            self._speed_listener_attached = True
+        listener = self._speed_summary().request
+        if isinstance(listeners, list) and listener not in listeners:
+            listeners.append(listener)
         pacer.acquire(kind)
 
     def _clear_schwab_rate_limit(self, endpoint_family: str) -> None:
@@ -1804,6 +1824,7 @@ class Schwab(Broker):
             seek_start = datetime.now(timezone('UTC')) - timedelta(days=7)
 
             self._schwab_pace("order")
+            epoch_before = getattr(self, "_order_activity_epoch", 0)
             response = self.client.get_orders_for_account(
                 self.hash_value,
                 from_entered_datetime=seek_start
@@ -1818,6 +1839,8 @@ class Schwab(Broker):
 
             self._clear_schwab_rate_limit("order_history")
             schwab_orders = response.json()
+            if isinstance(schwab_orders, list):
+                self._note_orders_list_ok(epoch_before)
 
             return schwab_orders
 
@@ -2298,51 +2321,6 @@ class Schwab(Broker):
         # Both ordinary account-number and hash-only configurations are supported.
         return getattr(self, "account_number", None) or getattr(self, "hash_value", None)
 
-    # Skip the account-wide order-list read while this strategy has no open
-    # orders of its own (see sync_orders). Set False to read it every time.
-    skip_order_list_when_idle = True
-
-    def sync_orders(self, strategy):
-        """Reconcile owned orders; no order-list request while none are open.
-
-        Schwab's order list returns the whole account, and only orders this
-        strategy placed (or restored from saved state) are kept. With no open
-        owned order there is nothing to reconcile, so after the first full
-        read per strategy the request is skipped. The first read still runs,
-        so restored orders and the one-time warning about other open account
-        orders keep working. Order callbacks for open orders are unchanged.
-        """
-        if self.IS_BACKTESTING_BROKER or not getattr(self, "skip_order_list_when_idle", True):
-            return super().sync_orders(strategy)
-        strategy_name = self._strategy_name_from_input(strategy)
-        synced = self.__dict__.setdefault("_order_list_synced_strategies", set())
-        if strategy_name in synced:
-            if not self._has_orders_that_may_still_change(strategy_name):
-                self._idle_order_list_reads_skipped = getattr(self, "_idle_order_list_reads_skipped", 0) + 1
-                return None
-        result = super().sync_orders(strategy)
-        synced.add(strategy_name)
-        return result
-
-    # A canceled or rejected order can still report a late fill at Schwab, so
-    # it keeps the order list in use for this many seconds after LumiBot first
-    # sees it ended. Fully filled orders are final.
-    ended_order_watch_seconds = 120.0
-
-    def _has_orders_that_may_still_change(self, strategy_name) -> bool:
-        now = time.monotonic()
-        first_seen_ended = self.__dict__.setdefault("_ended_order_first_seen", {})
-        watch = float(getattr(self, "ended_order_watch_seconds", 120.0) or 0.0)
-        for order in self.get_tracked_orders(strategy=strategy_name):
-            if order.is_active():
-                return True
-            if order.is_filled():
-                continue
-            seen = first_seen_ended.setdefault(str(order.identifier), now)
-            if now - seen < watch:
-                return True
-        return False
-
     def _orders_for_strategy_sync(self, orders, strategy):
         # The Schwab endpoint returns the whole account and parsing assigns the
         # requested display name to each row. Only known native identities (or
@@ -2687,6 +2665,7 @@ class Schwab(Broker):
                 else:
                     # This case might happen if SchwabData was passed in already configured
                     logger.debug("[Schwab] Client seems already set on the SchwabData instance.")
+                self._share_request_budget_with_data_source()
             else:
                 # This case indicates a problem earlier in initialization
                 logger.error(colored("[Schwab] Cannot assign client to SchwabData source because broker client is missing.", "red"))
@@ -2730,6 +2709,8 @@ class Schwab(Broker):
             pass
         message_type = re.sub(r"[^A-Za-z0-9_.:-]", "_", str(message_type))[:64] or "unknown"
         logger.info(f"[SchwabLifecycle] account_activity_received type={message_type}")
+        # Any account activity (ours or an order placed elsewhere) ends an idle read skip.
+        self._note_order_activity()
         wakeup = getattr(self, "_schwab_activity_wakeup", None)
         if wakeup is not None:
             wakeup.set()
@@ -2940,6 +2921,10 @@ class Schwab(Broker):
         """
         # An order changes cash and positions: the next account read must be fresh.
         self._drop_account_snapshot()
+        # Until place_order is called nothing reached Schwab: a refusal here is clean.
+        # After it, only a 4xx answer proves Schwab did not take the order; a timeout,
+        # 5xx or missing order id leaves the submit unresolved (see Broker.submit_order).
+        order._submit_cleanly_refused = True
         # Add check for authorization error first
         if self.schwab_authorization_error:
             logger.error(colored(f"Schwab authorization failed previously. Cannot submit order {order}.", "red"))
@@ -3010,7 +2995,10 @@ class Schwab(Broker):
 
             # Submit the order to Schwab
             self._schwab_pace("order")
+            order._submit_cleanly_refused = False
             response = self.client.place_order(self.hash_value, order_spec)
+            if 400 <= int(getattr(response, "status_code", 0) or 0) < 500:
+                order._submit_cleanly_refused = True
 
             # Log the response - reduce verbosity
             logger.info(colored(f"Schwab order response status: {response.status_code}", "cyan"))
@@ -3929,6 +3917,8 @@ class Schwab(Broker):
         -------
         None
         """
+        self._fresh_read_before_order_action(getattr(order, "strategy", None))
+        self._note_order_activity()
         self._drop_account_snapshot()
         if not order.identifier:
             logger.error(

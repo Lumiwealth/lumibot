@@ -646,6 +646,13 @@ class StrategyExecutor(Thread):
         if self.broker.IS_BACKTESTING_BROKER:
             return
 
+        # Nothing can have changed at the broker since the last good order-list and
+        # account read (see Broker.idle_read_skip_age for the safety rules): skip both.
+        idle_age = self.broker.idle_read_skip_age(self.strategy) if hasattr(self.broker, "idle_read_skip_age") else None
+        if idle_age is not None:
+            self.strategy.logger.debug(f"[IdleRead] order list and account served from reads {idle_age:.1f} s old")
+            return
+
         # Ensure that the orders are submitted to the broker before auditing.
         # Short sleeps: a tight spin here holds the GIL and slows the order and
         # fill threads it is waiting for (seen as a ~0.7 s pause after a live fill).
@@ -1498,6 +1505,32 @@ class StrategyExecutor(Thread):
     @lifecycle_method
     @trace_stats
     def _on_trading_iteration(self):
+        # The flag says "the user's iteration is running". Ticks that only count toward
+        # a longer sleeptime, and market-closed ticks, return early and must not leave
+        # it set (it gates the wake after a fill and the queue poll interval).
+        try:
+            return self._on_trading_iteration_body()
+        finally:
+            self._in_trading_iteration = False
+
+    def _prefetch_live_quotes(self):
+        """Live: let each data source fetch the quotes asked for recently in one request."""
+        if self.broker.IS_BACKTESTING_BROKER:
+            return
+        sources = {}
+        for source in (getattr(self.broker, "data_source", None), getattr(self.broker, "option_source", None)):
+            if source is not None:
+                sources[id(source)] = source
+        for source in sources.values():
+            prefetch = getattr(source, "prefetch_quotes", None)
+            if not callable(prefetch):
+                continue
+            try:
+                prefetch()
+            except Exception as exc:
+                self.strategy.logger.warning(f"Quote prefetch failed; quotes are asked for one by one: {exc}")
+
+    def _on_trading_iteration_body(self):
         self._in_trading_iteration = True
 
         # If we are running live, we need to check if it's time to execute the trading iteration.
@@ -1513,10 +1546,6 @@ class StrategyExecutor(Thread):
                 # If the cron count is not equal to the cron count target, return and do not execute the
                 # on_trading_iteration method.
                 return
-
-        # A new trading iteration: batched live quotes from the last one are
-        # never reused (see Strategy.get_quote, quote basket).
-        self.strategy._quote_basket_iteration = getattr(self.strategy, "_quote_basket_iteration", 0) + 1
 
         # Check if self.strategy.sleeptime is a number or a string.
         sleep_units = self._parse_sleeptime(self.strategy.sleeptime)[1].lower()
@@ -1549,6 +1578,7 @@ class StrategyExecutor(Thread):
                 color="green",
             )
         on_trading_iteration = self._on_trading_iteration_callable
+        self._prefetch_live_quotes()
 
         # Time-consuming
         try:
@@ -1778,15 +1808,19 @@ class StrategyExecutor(Thread):
         except Exception:
             pass
 
-    def _wake_iteration_after_fill(self):
+    def _wake_iteration_after_fill(self, partial: bool = False):
         """Run the next live trading iteration now instead of at its next scheduled tick.
 
-        A strategy that acts on a fill in its next iteration (send the hedge, start the
-        next trade) should not wait out the rest of its sleeptime. Only when no iteration
-        is running; at most one wake per fill burst. Turn off with
-        ``wake_iteration_on_fill = False`` on the strategy class. Backtests never wake.
+        Opt-in (``wake_iteration_on_fill = True`` on the strategy class): a strategy that
+        acts on a fill in its next iteration (send the hedge, start the next trade)
+        should not wait out the rest of its sleeptime. Off by default because a strategy
+        that places its order in every iteration (daily, DCA) would place it again.
+        Partial fills wake only with ``wake_iteration_on_partial_fill = True``. Only when
+        no iteration is running; at most one wake per fill burst. Backtests never wake.
         """
-        if self.broker.IS_BACKTESTING_BROKER or not getattr(self.strategy, "wake_iteration_on_fill", True):
+        if self.broker.IS_BACKTESTING_BROKER or not getattr(self.strategy, "wake_iteration_on_fill", False):
+            return
+        if partial and not getattr(self.strategy, "wake_iteration_on_partial_fill", False):
             return
         if getattr(self, "_in_trading_iteration", False) or self._is_running_once():
             return
@@ -1820,7 +1854,7 @@ class StrategyExecutor(Thread):
         callback_started = time.monotonic()
         self.strategy.on_partially_filled_order(position, order, price, quantity, multiplier)
         self._record_fill_callback_time(callback_started)
-        self._wake_iteration_after_fill()
+        self._wake_iteration_after_fill(partial=True)
 
     @event_method
     def _on_filled_order(self, position, order, price, quantity, multiplier):

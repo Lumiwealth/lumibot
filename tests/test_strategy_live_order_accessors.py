@@ -687,6 +687,43 @@ def test_live_get_order_of_a_canceled_order_still_asks_the_broker_for_late_fills
 def test_order_status_change_records_when_it_happened():
     order = _order("s", "o-1", Order.OrderStatus.OPEN)
     first = order.status_updated_at
-    assert first is not None and order.status_source == "local"
+    # The generic broker does not say where a status came from: None, never a wrong label.
+    assert first is not None and order.status_source is None
     order.status = Order.OrderStatus.FILLED
     assert order.status_updated_at >= first
+
+
+def test_status_updated_at_moves_only_when_the_status_really_changes():
+    order = _order("s", "o-2", Order.OrderStatus.FILLED)
+    first = order.status_updated_at
+    # Spellings that map to the same status are not a change.
+    for spelling in ("filled", "Filled", "fill", Order.OrderStatus.FILLED):
+        order.status = spelling
+        assert order.status_updated_at == first
+    order.status = "canceled"
+    assert order.status_updated_at >= first and order.status == Order.OrderStatus.CANCELED
+
+
+def test_get_order_with_max_age_zero_always_reads_the_broker_even_for_a_filled_order():
+    strategy, broker = _strategy()
+    filled = _order(strategy.name, "done-2", Order.OrderStatus.FILLED)
+    broker._filled_orders.append(filled)
+    broker.order_pull_count = 0
+    assert strategy.get_order("done-2", max_age=0) is filled
+    assert strategy.get_orders(identifiers=["done-2"], max_age=0) == [filled]
+    assert broker.order_pull_count == 2
+
+
+def test_broad_get_orders_is_served_from_the_last_read_only_when_the_broker_opted_in_and_nothing_can_change():
+    strategy, broker = _strategy()
+    broker._filled_orders.append(_order(strategy.name, "done-3", Order.OrderStatus.FILLED))
+    broker.order_pull_count = 0
+    strategy.get_orders()
+    assert broker.order_pull_count == 1  # this broker never stamps good reads: no skip
+    epoch = getattr(broker, "_order_activity_epoch", 0)
+    broker._note_orders_list_ok(epoch)
+    broker._note_account_read_ok(epoch)
+    strategy.get_orders()
+    assert broker.order_pull_count == 1  # served from the last good read
+    strategy.get_orders(max_age=0)
+    assert broker.order_pull_count == 2  # max_age=0 always reads

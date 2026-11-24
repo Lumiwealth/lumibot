@@ -3,7 +3,6 @@ from __future__ import annotations
 import math
 import os
 import re
-import threading
 import time
 import warnings
 
@@ -214,18 +213,13 @@ def _order_is_final(order) -> bool:
         return False
 
 
-_QUOTE_BASKET_MISS = object()
-_QUOTE_BASKET_LIMIT = 50
-
-
 class Strategy(_Strategy):
-    # Live quote basket (see get_quote). Seconds a batched quote may be reused
-    # inside one trading iteration; 0 turns the basket off. The environment
-    # variable LUMIBOT_QUOTE_BASKET_MAX_AGE_SECONDS overrides this default.
-    quote_basket_max_age_seconds = 1.0
-    # Live: after a fill, run the next trading iteration at once instead of waiting
-    # out the sleeptime (an iteration already running is never interrupted).
-    wake_iteration_on_fill = True
+    # Live, opt-in: after a fill, run the next trading iteration at once instead of
+    # waiting out the sleeptime (a running iteration is never interrupted). Off by
+    # default: a daily or DCA strategy that places its order in on_trading_iteration
+    # would place it again. Partial fills wake only with wake_iteration_on_partial_fill.
+    wake_iteration_on_fill = False
+    wake_iteration_on_partial_fill = False
 
     @property
     def name(self):
@@ -1845,7 +1839,14 @@ class Strategy(_Strategy):
             return False
         return order_status in statuses
 
-    def get_order(self, identifier: str, broker_refresh: bool = True, broker_refresh_ttl_seconds: float = 0.0):
+    def get_order(
+        self,
+        identifier: str,
+        broker_refresh: bool = True,
+        broker_refresh_ttl_seconds: float = 0.0,
+        *,
+        max_age: float | None = None,
+    ):
         """Get a tracked order given an identifier. Check the details of the order including status, etc.
 
         In live trading this refreshes broker order state before returning by default.
@@ -1853,8 +1854,12 @@ class Strategy(_Strategy):
         that list may also receive a direct lookup. This is not an unconditional
         single-order HTTP request. Set broker_refresh=False to read only tracked state.
         An order this strategy already knows is completely filled is final, so it is
-        returned without asking the broker again. ``order.status_updated_at`` and
-        ``order.status_source`` say when the status last changed and where it came from.
+        returned without asking the broker again. ``max_age=0`` always asks the broker
+        (no shortcut); a positive ``max_age`` accepts a broker read up to that many seconds
+        old. ``order.status_updated_at``, ``order.status_checked_at`` and
+        ``order.status_source`` say when the status last changed, when a broker read last
+        confirmed it, and where it came from (Schwab sets the source; other brokers leave
+        it ``None``).
 
         Returns
         -------
@@ -1868,7 +1873,10 @@ class Strategy(_Strategy):
         >>> # Show the status of the order
         >>> self.log_message(order.status)
         """
-        if broker_refresh and not self.broker.IS_BACKTESTING_BROKER:
+        forced = max_age is not None and float(max_age) <= 0
+        if max_age is not None and not forced:
+            broker_refresh_ttl_seconds = max(float(broker_refresh_ttl_seconds or 0.0), float(max_age))
+        if broker_refresh and not forced and not self.broker.IS_BACKTESTING_BROKER:
             local = self.broker.get_tracked_order(identifier)
             if local is not None and local.strategy == self.name and _order_is_final(local):
                 return local
@@ -1890,6 +1898,8 @@ class Strategy(_Strategy):
         statuses=None,
         broker_refresh: bool = True,
         broker_refresh_ttl_seconds: float = 0.0,
+        *,
+        max_age: float | None = None,
     ):
         """Get tracked orders, optionally filtered by identifiers and OrderStatus values.
 
@@ -1912,6 +1922,13 @@ class Strategy(_Strategy):
             A list of order identifiers to filter the orders by. If None, returns all tracked orders for the strategy.
         statuses : Order.OrderStatus, str, or iterable of those
             Optional status filter. Use Order.ACTIVE_STATUSES or "open" for currently active orders.
+        max_age : float, optional
+            ``0`` always reads the broker (no shortcut). A positive value accepts a broker
+            read up to that many seconds old. With ``None`` (default) a live broker that
+            supports it (Schwab) may answer from its last good order-list read when this
+            strategy has no open, unknown or recently ended order and no order activity
+            since that read; that read is never older than ``LUMIBOT_IDLE_SYNC_MAX_AGE``
+            seconds (default 30).
 
         Returns
         -------
@@ -1933,8 +1950,16 @@ class Strategy(_Strategy):
 
         """
         normalized_statuses = self._normalize_order_statuses(statuses)
+        forced = max_age is not None and float(max_age) <= 0
+        if max_age is not None and not forced:
+            broker_refresh_ttl_seconds = max(float(broker_refresh_ttl_seconds or 0.0), float(max_age))
         skip_refresh = False
-        if broker_refresh and identifiers and not self.broker.IS_BACKTESTING_BROKER:
+        if broker_refresh and not identifiers and not forced and not self.broker.IS_BACKTESTING_BROKER:
+            # Nothing can have changed at the broker since the last good read (no open,
+            # unknown or recently ended order, no order activity, read under 30 s old).
+            idle = getattr(self.broker, "idle_read_skip_age", None)
+            skip_refresh = callable(idle) and idle(self.name) is not None
+        if broker_refresh and identifiers and not forced and not self.broker.IS_BACKTESTING_BROKER:
             # Every asked-for order is already completely filled: nothing left to refresh.
             known = [
                 order
@@ -3374,110 +3399,24 @@ class Strategy(_Strategy):
 
         Notes
         -----
-        Live quote basket: when the data source can quote many symbols in one
-        request (Schwab, Alpaca options), a live strategy that calls
-        ``get_quote`` for several assets one at a time in each iteration pays
-        one request per iteration instead of one per asset. On a cache miss
-        LumiBot also fetches the assets quoted in the previous iteration that
-        were not yet asked for in this one, and serves those from the batch
-        when they are asked for. A batched quote is reused only inside the
-        same trading iteration and for at most
-        ``quote_basket_max_age_seconds`` (default 1 second). Set the class
-        attribute ``quote_basket_max_age_seconds = 0`` (or the environment
-        variable ``LUMIBOT_QUOTE_BASKET_MAX_AGE_SECONDS=0``) to always request
-        each quote separately. Backtests never use the basket.
+        Live Schwab: quotes asked for in the last two iterations are fetched together in
+        one request at the start of each iteration, and a quote younger than
+        ``LUMIBOT_QUOTE_MAX_AGE`` seconds (default 1; 0 turns this off) is served from
+        memory with ``quote.cache_age_seconds`` set. Other brokers ask every time.
         """
 
         asset = self._sanitize_user_asset(asset)
 
         try:
             if self.broker.option_source and asset.asset_type == "option":
-                source = self.broker.option_source
+                return self.broker.option_source.get_quote(asset, quote=quote, exchange=exchange)
             else:
-                source = self.broker.data_source
-            lookup = getattr(self, "_quote_basket_lookup", None)
-            if quote is None and exchange is None and callable(lookup):
-                cached = lookup(source, asset)
-                if cached is not _QUOTE_BASKET_MISS:
-                    return cached
-            return source.get_quote(asset, quote=quote, exchange=exchange)
+                return self.broker.data_source.get_quote(asset, quote=quote, exchange=exchange)
         except UnsupportedAsset:
             raise
         except Exception as e:
             self.log_message(f"Error getting quote from data source: {e}", color="red")
             return _quote_class()(asset=asset)
-
-    def _quote_basket_max_age(self) -> float:
-        if getattr(self, "is_backtesting", True):
-            return 0.0
-        raw = os.environ.get("LUMIBOT_QUOTE_BASKET_MAX_AGE_SECONDS")
-        if raw is None or not str(raw).strip():
-            raw = getattr(self, "quote_basket_max_age_seconds", 1.0)
-        try:
-            value = float(raw)
-        except (TypeError, ValueError):
-            return 0.0
-        return value if value > 0 and math.isfinite(value) else 0.0
-
-    def _quote_basket_state(self, source):
-        state = self.__dict__.setdefault("_quote_basket_sources", {})
-        lock = self.__dict__.setdefault("_quote_basket_lock", threading.Lock())
-        return lock, state.setdefault(id(source), {"seen": {}, "asked": {}, "cache": {}})
-
-    def _quote_basket_store(self, source, quotes, generation, now):
-        if self._quote_basket_max_age() <= 0 or not isinstance(quotes, dict):
-            return
-        lock, entry = self._quote_basket_state(source)
-        with lock:
-            for asset, value in quotes.items():
-                entry["cache"][asset] = (value, now, generation)
-
-    def _quote_basket_lookup(self, source, asset):
-        """Serve one live quote from a per-iteration batch, or return a miss marker.
-
-        Invariants: never used in backtests; a cached quote is reused only in
-        the iteration that fetched it and within the configured max age; a
-        failed batch never invents a quote (the caller falls back to the single
-        quote path, which keeps its own error contract).
-        """
-        max_age = self._quote_basket_max_age()
-        native = getattr(source, "get_quotes", None)
-        if max_age <= 0 or not callable(native):
-            return _QUOTE_BASKET_MISS
-        clock = getattr(self, "_quote_basket_clock", None) or time.monotonic
-        generation = getattr(self, "_quote_basket_iteration", 0)
-        now = clock()
-        lock, entry = self._quote_basket_state(source)
-        with lock:
-            entry["seen"][asset] = generation
-            entry["asked"][asset] = generation
-            cached = entry["cache"].get(asset)
-            if cached is not None and cached[2] == generation and 0 <= now - cached[1] <= max_age:
-                return cached[0]
-            batch = [asset]
-            for other, seen_at in list(entry["seen"].items()):
-                if seen_at < generation - 1:
-                    entry["seen"].pop(other, None)
-                    entry["cache"].pop(other, None)
-                    continue
-                if other == asset or entry["asked"].get(other) == generation:
-                    continue
-                if len(batch) >= _QUOTE_BASKET_LIMIT:
-                    break
-                batch.append(other)
-        if len(batch) == 1:
-            return _QUOTE_BASKET_MISS
-        try:
-            quotes = native(batch)
-        except UnsupportedAsset:
-            raise
-        except Exception as exc:
-            self.log_message(f"Batched quote request failed; asking for {asset} alone: {exc}", color="yellow")
-            return _QUOTE_BASKET_MISS
-        if not isinstance(quotes, dict) or asset not in quotes:
-            return _QUOTE_BASKET_MISS
-        self._quote_basket_store(source, {key: quotes.get(key) for key in batch if key in quotes}, generation, now)
-        return quotes[asset]
 
     def get_quotes(self, assets: List[Asset], quote: Asset = None, exchange: str = None):
         """Return exact Assets mapped to Quote objects (or None when absent).
@@ -3505,13 +3444,6 @@ class Strategy(_Strategy):
                 if any(value is not None and getattr(value, "asset", None) != asset for asset, value in quotes.items() if asset in selected):
                     raise ValueError("Bulk quote adapter returned another asset's quote")
                 result.update({asset: quotes[asset] for asset in selected})
-                store = getattr(self, "_quote_basket_store", None)
-                if quote is None and exchange is None and callable(store):
-                    clock = getattr(self, "_quote_basket_clock", None) or time.monotonic
-                    store(
-                        source, {asset: quotes[asset] for asset in selected},
-                        getattr(self, "_quote_basket_iteration", 0), clock(),
-                    )
             else:
                 result.update({asset: self.get_quote(asset, quote=quote, exchange=exchange) for asset in selected})
         return {asset: result[asset] for asset in assets}
@@ -3636,41 +3568,13 @@ class Strategy(_Strategy):
         >>> asset = "SPY"
         >>> chains = self.get_chains(asset)
 
-        In live trading a chain (the list of expirations and strikes) is kept for
-        ``chain_cache_seconds`` (default 900, 15 minutes) and reused instead of being
-        fetched again; ``0`` fetches it every call. Prices are never cached here: read
-        them with ``get_quote``/``get_quotes``. A strike listed during the day can appear
-        up to that many seconds late.
+        Live Schwab keeps a chain (expirations and strikes, no prices) for
+        ``LUMIBOT_CHAINS_CACHE_SECONDS`` (default 900; 0 fetches every call) and hands
+        out a copy each time; after 4:00 PM New York time today's expiration is dropped
+        from a cached chain. Other brokers fetch every call.
         """
         asset = self._sanitize_user_asset(asset)
-        ttl = self._chain_cache_seconds()
-        if ttl <= 0:
-            return self.broker.get_chains(asset)
-        key = (getattr(asset, "symbol", str(asset)), str(getattr(asset, "asset_type", "")))
-        cache = self.__dict__.setdefault("_live_chain_cache", {})
-        now = time.monotonic()
-        hit = cache.get(key)
-        if hit is not None and 0 <= now - hit[1] < ttl:
-            return hit[0]
-        chains = self.broker.get_chains(asset)
-        if chains:
-            cache[key] = (chains, now)
-        return chains
-
-    # Live: seconds an option chain (expirations and strikes) is reused; 0 fetches every call.
-    chain_cache_seconds = 900.0
-
-    def _chain_cache_seconds(self) -> float:
-        if getattr(self, "is_backtesting", True) or getattr(self.broker, "IS_BACKTESTING_BROKER", True):
-            return 0.0
-        raw = os.environ.get("LUMIBOT_CHAIN_CACHE_SECONDS")
-        if raw is None or not str(raw).strip():
-            raw = getattr(self, "chain_cache_seconds", 900.0)
-        try:
-            value = float(raw)
-        except (TypeError, ValueError):
-            return 0.0
-        return value if value > 0 and math.isfinite(value) else 0.0
+        return self.broker.get_chains(asset)
 
     def get_next_trading_day(self, date: str, exchange="NYSE"):
         """

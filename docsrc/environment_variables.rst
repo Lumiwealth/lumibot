@@ -216,15 +216,16 @@ Live speed summary
 
 - ``LUMIBOT_SPEED_SUMMARY_SECONDS``: how often a live strategy logs one ``[SpeedSummary]`` line (default ``60``; ``0`` turns it off). The line is JSON with iterations (count and seconds per iteration: median, 95th percentile, max), broker requests per minute by kind with seconds spent waiting for the request budget (Schwab), and order timings in milliseconds: submit to broker answer, submit to fill seen, fill seen to the fill callback, callback running time, and fill seen to the next order submitted. Backtests never log it. See :doc:`brokers.schwab`.
 
-Live option chain cache
------------------------
+Schwab live request savings
+---------------------------
 
-- ``LUMIBOT_CHAIN_CACHE_SECONDS``: seconds a live ``get_chains`` result (expirations and strikes, not prices) is reused (default ``900``; ``0`` fetches every call). Overrides the strategy class attribute ``chain_cache_seconds``. Backtests are not affected.
-
-Live quote basket
------------------
-
-- ``LUMIBOT_QUOTE_BASKET_MAX_AGE_SECONDS``: seconds a batched live quote may be reused inside one trading iteration (default ``1``; ``0`` turns the quote basket off). Overrides the strategy class attribute ``quote_basket_max_age_seconds``. Only data sources with a multi-symbol quote request use it (for example Schwab). Backtests never use it. See :doc:`brokers.schwab`.
+- ``LUMIBOT_IDLE_SYNC_MAX_AGE``: oldest order-list and account read (seconds) that may be reused while nothing can change at the broker (default ``30``; ``0`` always reads). The safety rules are in :doc:`brokers.schwab`.
+- ``LUMIBOT_QUOTE_MAX_AGE``: seconds a live Schwab quote is served from memory (default ``1``; ``0`` turns the quote cache and prefetch off).
+- ``LUMIBOT_QUOTE_PREFETCH_ITERATIONS``: quotes asked for in this many recent iterations are fetched together at the start of each iteration (default ``2``).
+- ``LUMIBOT_QUOTE_PREFETCH_BATCH``: symbols per prefetch request (default ``250``, at most ``500``).
+- ``LUMIBOT_QUOTE_PREFETCH_WORKERS``: prefetch requests sent at the same time when there is more than one (default ``2``; all inside the request budget).
+- ``LUMIBOT_CHAINS_CACHE_SECONDS``: seconds a live Schwab option chain is kept (default ``900``; ``0`` fetches every call).
+- ``SCHWAB_REQUEST_BURST_SECONDS``: how many seconds worth of requests may go out at once (default ``6``). The per-minute setting holds over any 60 seconds.
 
 BotSpot managed research
 ------------------------

@@ -32,12 +32,10 @@ Live speed settings
 
 Set these as class attributes on your strategy.
 
-- ``quote_basket_max_age_seconds`` (default ``1.0``): in live trading, quotes for the assets a
-  strategy asked about in its previous iteration are fetched in one request and reused inside
-  the same iteration for at most this many seconds. ``0`` asks for every quote separately.
-- ``chain_cache_seconds`` (default ``900``): in live trading, how long an option chain
-  (expirations and strikes) from ``get_chains`` is reused. ``0`` fetches it every call.
-- ``wake_iteration_on_fill`` (default ``True``): in live trading, run the next trading iteration
-  at once after an order fills instead of waiting out ``sleeptime``.
+- ``wake_iteration_on_fill`` (default ``False``): in live trading, run the next trading iteration
+  at once after an order fills instead of waiting out ``sleeptime``. Leave it off if the strategy
+  places an order in every iteration.
+- ``wake_iteration_on_partial_fill`` (default ``False``): also wake on partial fills.
 
+Quote and option chain reuse is set with environment variables, see :doc:`environment_variables`.
 See :doc:`brokers.schwab` (section "Fewer requests for scanners").

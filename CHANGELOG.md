@@ -4,32 +4,43 @@
 
 ### Changed
 
-- Live quote basket: a strategy that calls `get_quote` for several assets one at a
-  time in each iteration now costs one quote request per iteration on data
-  sources with a multi-symbol quote request (Schwab first). Batched quotes are
-  reused only inside the same iteration and for at most
-  `quote_basket_max_age_seconds` (default 1 second; `0` or
-  `LUMIBOT_QUOTE_BASKET_MAX_AGE_SECONDS=0` turns it off). Backtests are unchanged.
-- Schwab: no account order-list read before each iteration or on `get_orders()`
-  while the strategy has no open order of its own. A canceled or rejected order
-  keeps reads on for `ended_order_watch_seconds` (120) so late fills are still
-  seen. `broker.skip_order_list_when_idle = False` restores the old behavior.
-- Live: `get_chains` reuses an option chain (expirations and strikes) for
-  `chain_cache_seconds` (900; `LUMIBOT_CHAIN_CACHE_SECONDS`, `0` off) instead of
-  one broker request per call. Prices are not cached.
-- Live: after a fill, the next trading iteration runs at once instead of waiting out
-  `sleeptime` (never interrupts a running iteration; `wake_iteration_on_fill = False`
-  keeps the fixed schedule).
-- Live: `get_order` / `get_orders(identifiers=...)` return a completely filled order
-  without another broker read. Canceled and rejected orders are still refreshed.
-- Orders carry `status_updated_at`, `status_source` and (Schwab) `status_checked_at`.
-- Live speed summary: one `[SpeedSummary]` JSON log line per minute with iteration
-  seconds, broker requests per minute (Schwab, with budget waits) and order step
-  timings (submit, fill seen, callback, next order). `LUMIBOT_SPEED_SUMMARY_SECONDS`
-  sets the interval; `0` turns it off.
+- Schwab live: no order-list or account read before an iteration, on broad
+  `get_orders()` or on position reads while nothing can change at the broker. A
+  read always happens while any order is UNKNOWN or still working, after any
+  submit, modify, cancel, fill or account-stream event, for 120 s after an order
+  is canceled, rejected or expired (late fills), for 300 s after a submit that
+  ended without a Schwab order id (timeout, 5xx, missing id), before any order
+  action that follows a skipped read, and at least every
+  `LUMIBOT_IDLE_SYNC_MAX_AGE` seconds (default 30; `0` turns the skip off).
+- Schwab live quotes: assets asked for in the last two iterations are fetched
+  together in one request (up to 250 symbols) at the start of each iteration, and
+  a quote younger than `LUMIBOT_QUOTE_MAX_AGE` (default 1 s; `0` off) is served
+  from memory with `quote.cache_age_seconds`. Absent quotes are never kept;
+  crypto never enters the list. Other brokers are unchanged.
+- Schwab live option chains are fetched once per underlying per
+  `LUMIBOT_CHAINS_CACHE_SECONDS` (default 900; `0` off). Each call gets its own
+  copy; after 4:00 PM New York time today's expiration is dropped from a kept
+  chain. Other brokers fetch every call.
+- `get_order` / `get_orders` take `max_age`: `0` always reads the broker. A
+  completely filled order is returned without another broker read; canceled and
+  rejected orders are still refreshed.
+- Live, opt-in: `wake_iteration_on_fill = True` on a strategy runs the next
+  iteration right after a fill (`wake_iteration_on_partial_fill` for partial
+  fills). Off by default: a strategy that orders in every iteration would order again.
+- Orders carry `status_updated_at` (moves only on a real status change),
+  `status_checked_at` and `status_source` (`"rest"` on Schwab; `None` elsewhere).
+- Live speed summary: one `[SpeedSummary]` JSON log line per minute
+  (`LUMIBOT_SPEED_SUMMARY_SECONDS`, `0` off), plus a `[QuoteCache]` line with
+  quotes served from memory and the oldest age served.
 
 ### Fixed
 
+- The Schwab request pacer now holds `SCHWAB_REQUESTS_PER_MINUTE` over any 60
+  seconds, start-up included (live: 132.7 per minute let through at a setting of
+  100). Bursts are `SCHWAB_REQUEST_BURST_SECONDS` (default 6) worth of requests.
+  A Schwab data source with its own client now shares the broker's budget.
+- Ticks that only count toward a multi-minute `sleeptime`, and market-closed
+  ticks, no longer leave the executor's "iteration running" flag set.
 - The broker sync before each live iteration no longer spins without sleeping while
   submitted orders drain, which slowed the order and fill threads.
 

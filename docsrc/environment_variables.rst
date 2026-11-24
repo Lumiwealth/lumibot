@@ -225,7 +225,6 @@ Schwab live request savings
 - ``LUMIBOT_QUOTE_PREFETCH_BATCH``: symbols per prefetch request (default ``250``, at most ``500``).
 - ``LUMIBOT_QUOTE_PREFETCH_WORKERS``: prefetch requests sent at the same time when there is more than one (default ``2``; all inside the request budget).
 - ``LUMIBOT_CHAINS_CACHE_SECONDS``: seconds a live Schwab option chain is kept (default ``900``; ``0`` fetches every call).
-- ``SCHWAB_ACCOUNT_SNAPSHOT_PASS_SECONDS``: inside one trading pass, one account read (cash and positions) is reused for up to this many seconds (default ``30``; ``0`` keeps only the 1 second reuse of ``SCHWAB_ACCOUNT_SNAPSHOT_SECONDS``). Dropped on any submit, cancel, fill or account-stream event.
 - ``SCHWAB_REQUEST_BURST_SECONDS``: how many seconds worth of requests may go out at once (default ``6``). The per-minute setting holds over any 60 seconds.
 
 BotSpot managed research

@@ -422,10 +422,8 @@ request and 0.3 seconds after; 20 symbols: 3 requests and 2.2 seconds per pass.
   positions and cash are read first. Your own ``get_position``,
   ``get_positions`` and ``get_cash`` calls read Schwab (only the sync before
   each iteration is skipped), so a sale by hand, an assignment or a dividend is
-  seen even while the account stream is down. One account read is shared by a
-  whole pass: it is reused for up to ``SCHWAB_ACCOUNT_SNAPSHOT_PASS_SECONDS``
-  (default ``30``) inside the same iteration and dropped at once on any submit,
-  cancel, fill or account-stream event. ``max_age=0`` on
+  seen even while the account stream is down. ``max_age=0`` also skips the
+  1 second account-read reuse. ``max_age=0`` on
   ``get_order``, ``get_orders``, ``get_position`` and ``get_positions`` always
   reads. An order placed by hand on another screen is seen at the latest after
   that maximum age (sooner when the account stream reports it).

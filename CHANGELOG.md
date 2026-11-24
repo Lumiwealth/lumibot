@@ -26,10 +26,8 @@
   never guessed: an error names both, reads continue, nothing is resent. Only
   brokers that stamp their reads watch unresolved submits.
 - Backtests no longer call the wall clock for order status times.
-- Schwab: one account read is reused for a whole trading pass (up to
-  `SCHWAB_ACCOUNT_SNAPSHOT_PASS_SECONDS`, default 30) and dropped on any submit,
-  cancel, fill or account-stream event, so long scans do not spend the shared
-  budget on repeated account reads.
+- Schwab: an account-stream event drops the 1 s account-read reuse;
+  `max_age=0` position reads never use it.
 - Schwab live quotes: assets asked for in the last two iterations are fetched
   together in one request (up to 250 symbols) at the start of each iteration, and
   a quote younger than `LUMIBOT_QUOTE_MAX_AGE` (default 1 s; `0` off) is served

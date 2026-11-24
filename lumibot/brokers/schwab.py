@@ -503,14 +503,6 @@ class Schwab(Broker):
         except ValueError:
             return 1.0
 
-    @staticmethod
-    def _account_snapshot_pass_seconds() -> float:
-        raw = os.environ.get("SCHWAB_ACCOUNT_SNAPSHOT_PASS_SECONDS", "30")
-        try:
-            return max(0.0, float(raw))
-        except ValueError:
-            return 30.0
-
     def _account_with_positions(self):
         """One ``get_account(POSITIONS)`` answer shared by balances and positions.
 
@@ -525,21 +517,16 @@ class Schwab(Broker):
         now = time.monotonic()
         epoch = getattr(self, "_account_snapshot_epoch", 0)
         cached = getattr(self, "_account_snapshot", None)
-        pass_id = getattr(self, "_live_pass_id", None)
-        if seconds > 0 and cached is not None and cached[2] == epoch and now >= cached[0]:
-            age = now - cached[0]
-            # Within the short window, or within the same trading pass (a long scan
-            # asks for cash and positions more than once) up to the pass limit.
-            same_pass = pass_id is not None and len(cached) > 3 and cached[3] == pass_id
-            if age < seconds or (same_pass and age < self._account_snapshot_pass_seconds()):
-                return cached[1]
+        if (seconds > 0 and cached is not None and cached[2] == epoch
+                and 0 <= now - cached[0] < seconds):
+            return cached[1]
         self._schwab_pace("account")
         epoch_before = getattr(self, "_order_activity_epoch", 0)
         response = self.client.get_account(self.hash_value, fields=[self.client.Account.Fields.POSITIONS])
         if getattr(response, "status_code", None) == 200:
             self._note_account_read_ok(epoch_before)
         if getattr(response, "status_code", None) == 200 and seconds > 0:
-            self._account_snapshot = (now, response, epoch, pass_id)
+            self._account_snapshot = (now, response, epoch)
         return response
 
     def _drop_account_snapshot(self) -> None:

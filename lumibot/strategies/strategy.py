@@ -1811,6 +1811,10 @@ class Strategy(_Strategy):
         if max_age is not None:
             # max_age=0: always read the broker; a positive value accepts a read that old.
             broker_refresh_ttl_seconds = max(0.0, float(max_age))
+            if broker_refresh_ttl_seconds <= 0:
+                drop = getattr(self.broker, "_drop_account_snapshot", None)
+                if callable(drop):
+                    drop()  # never answer max_age=0 from a reused account read
         refresh_positions = getattr(self.broker, "refresh_positions", None)
         if refresh_positions is not None:
             refresh_positions(self, ttl_seconds=broker_refresh_ttl_seconds)

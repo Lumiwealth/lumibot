@@ -74,7 +74,6 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 - `LUMIBOT_IDLE_SYNC_MAX_AGE` (30, 0 off): oldest order-list/account read that may be reused while nothing can change. Rules in `Broker.idle_read_skip_age` (broker.py).
 - `LUMIBOT_QUOTE_MAX_AGE` (1.0, 0 off), `LUMIBOT_QUOTE_PREFETCH_ITERATIONS` (2), `LUMIBOT_QUOTE_PREFETCH_BATCH` (250, max 500), `LUMIBOT_QUOTE_PREFETCH_WORKERS` (2): Schwab quote cache and per-iteration prefetch, `SchwabData.prefetch_quotes`.
 - `LUMIBOT_CHAINS_CACHE_SECONDS` (900, 0 off): Schwab option chain cache, `SchwabData.get_chains`.
-- `SCHWAB_ACCOUNT_SNAPSHOT_PASS_SECONDS` (30): one account read reused within a trading pass, `Schwab._account_with_positions`.
 - `SCHWAB_REQUEST_BURST_SECONDS` (6): pacer burst; the per-minute setting holds over any 60 s.
 
 ### `LUMIBOT_DISABLE_DOTENV`

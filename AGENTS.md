@@ -1,8 +1,8 @@
-# Generic bug fixes and release authority (2026-11-11)
+# LumiBot release authority and ownership (2026-11-23)
 
 - A generic LumiBot bug fix needs no further approval when a failing test reproduces the bug and the fix adds no new behavior. Fix it, test it, publish it, and report what broke, what changed and the test name.
 - Get the project owner's approval first, asking in five plain lines, for a new feature, changed default, new tool or any change to existing strategy behavior: the observed failure, proposed change, other beneficiaries, risk and tests.
-- The assigned release captain merges the release PR as admin through the runbook tool, publishes LumiBot, updates downstream deployments and verifies the installed version. Do not wait for another approval or a human merge when the release contains only bug fixes and previously approved changes.
+- An instruction to publish or deploy LumiBot, including an instruction to execute a plan that calls for its release, authorizes normal release actions for the approved changes. Determine the active version and release owner. When no captain owns that version, the executing agent owns [the release runbook](docs/DEPLOYMENT.md) through PR creation, checks, merge, tagging, publication, the clean-install check and downstream verification in scope. Reuse an active release with its existing captain. Resolve ordinary failures and continue without requesting a second release approval.
 - This section supersedes older core-change and per-release approval requirements below. Public-library boundaries, focused qualification, cost controls, customer safety and the fixed six-hour backtest limit remain intact.
 
 # Keep entry pages and translations synchronized
@@ -185,13 +185,10 @@ This repo is frequently edited by **multiple AI sessions**. To avoid lost work:
   LumiBot work to `dev` to satisfy that rule.
 
 - **Release workflow (STRICT):**
-  - **Implementation authority is not release authority.** Normal coding agents
-    work and commit directly on the existing active `version/X.Y.Z` branch. Do
-    not create, open, update, merge, close, or take over a pull request unless
-    the user explicitly requests that exact PR action. An existing
-    version-branch release PR may be managed by a separately authorized release
-    captain; pushing normal commits to the shared branch does not make the
-    coding agent the PR or release owner.
+  - **Use the normal PR for an authorized release.** Coding work by itself
+    does not assign ownership of a release already in progress. Follow the
+    release authority above to create or manage the normal version PR. Unrelated
+    PRs and another captain's release require separate authority.
   - **The assigned release captain ships bug fixes and already approved changes.**
     Follow `docs/DEPLOYMENT.md`, merge through its admin merge tool after the
     release checks pass, publish, update downstream deployments and verify the
@@ -201,7 +198,7 @@ This repo is frequently edited by **multiple AI sessions**. To avoid lost work:
     later moves version-branch work to `dev` through the approved release flow.
     Ordinary coding agents stop after their version-branch commits and tests.
   - **Stay on the current branch.** If you start on a `version/*` branch, keep all commits on that branch and push that branch.
-  - **Never switch branches without explicit user instruction.** If you suspect you are on the wrong branch, stop and ask.
+  - **Preserve the working branch.** For an authorized release, verify the active version and reconcile clean release state through the runbook. Preserve unrelated work and pause branch mutations if the branch or its ownership cannot be verified.
   - **Post-release branch switch is a mandatory exception for the authorized
     release captain.** After a Lumibot release is tagged/published and the
     release workflow creates `version/X.Y.(Z+1)`, immediately move the canonical
@@ -210,19 +207,17 @@ This repo is frequently edited by **multiple AI sessions**. To avoid lost work:
     reporting the release complete or triggering BotManager work. Never leave
     the canonical checkout on the just-released branch.
   - **Never update an old version branch to make a stale GitHub URL look current.** If Rob or a browser is viewing an older `version/X.Y.Z` branch, do not push current work to that old branch and do not switch to it. Give Rob the correct latest version branch URL instead. Historical version branches are release records, not redirect targets.
-  - **Always keep the canonical checkout on the latest active `version/X.Y.Z` branch.** If you discover this checkout is on an older version branch, stop and report it unless Rob explicitly tells you to move it with `git switch` after verifying the tree is clean.
-  - **Only explicitly authorized release PRs may be created or managed.** If the
-    user appoints the agent release captain and requests a PR, its head must be
-    the existing `version/X.Y.Z` branch.
+  - **Keep the canonical checkout on the latest active `version/X.Y.Z` branch.** During an authorized release, bring a clean, verified canonical checkout to the active version through the runbook. Preserve work on any dirty or diverged branch.
+  - **Use the existing `version/X.Y.Z` branch as the release PR head.**
+    Release authority covers this PR through the normal runbook and checks.
   - **An authorized release PR title must be release-scoped.** Use
     `vX.Y.Z - <summary>` and include all notable changes shipped in that version
     (not just one feature).
 
 - **Branch etiquette (STRICT):** if you are on a version branch (e.g., `version/4.4.31`), treat it as the shared collaboration branch.
   - **Do not create additional branches** (no `git switch -c`, no `git branch`, no `version/4.4.31-foo`, no `version/4.4.31/<topic>`), unless the user explicitly asks.
-  - If the user explicitly requests a release PR, **the PR head must be the
-    existing version branch** (e.g., `version/4.4.31`), not a new feature branch.
-  - Do not switch branches unless explicitly instructed; if you suspect you're on the wrong branch, stop and ask.
+  - Keep unrelated work on its current branch. For an authorized release,
+    follow the clean-checkout and active-version instructions above.
 - **No “feature branch chaining”:** if you’re already on a feature/WIP or version branch (e.g., `feature/*`, `fix/*`, `wip/*`, `version/*`, `release/*`, or a version-named branch like `X.Y.Z`), keep working there; don’t create another feature branch from it unless explicitly instructed.
 - **Branch naming (LumiBot convention):** prefer version-scoped branches so multiple agents can collaborate without “feature branch naming drift”. Use the repo’s existing convention (e.g., `4.4.25` or `version/X.Y.Z`).
   - Default for active release work: the shared version branch (e.g., `4.4.25`).

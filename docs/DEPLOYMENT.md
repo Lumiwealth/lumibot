@@ -38,6 +38,27 @@ in their verified establishment proof and must not be recreated as native
 journal entries. Duplicate calls across either proof are still rejected. A
 failed or incomplete original native attempt cannot fall back to an older pass.
 
+## Ownership of an authorized LumiBot release
+
+An instruction to publish or deploy LumiBot authorizes the normal release
+workflow for the approved changes. Check the active version and release PR
+before starting. Reuse a release already owned by another captain and respect
+its cutoff. If the release is unowned, own it through publication. A missing
+version PR is the next normal step after the version branch and local checks
+are ready. Create it from the existing version branch.
+
+For a failed check, record the reason, repair the owning code or recover
+compatible evidence, run the affected checks and resume. While a workflow is
+running, follow it to its terminal state. When an external dependency blocks a
+step, finish independent work and report the precise blocker and last verified
+stage. Branch pushes and local wheels are intermediate proof.
+
+Verify the package on the public index and install it outside the checkout.
+For a broker release, verify the installed optional extra and the affected
+broker operation with an approved test account. Verify downstream runtime
+versions in scope. Follow the normal protections and approval requirements for
+exceptions, including the exact-head code-owner bypass below.
+
 ## TL;DR (do this in order)
 
 1) **Run the release preflight first.** If branch, `setup.py`, `CHANGELOG.md`, tag, or `dev` state is inconsistent, stop. Do not tag. Do not deploy BotManager. Fix the branch first.

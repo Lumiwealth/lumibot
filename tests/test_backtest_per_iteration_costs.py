@@ -422,3 +422,60 @@ def test_daily_bar_position_converts_an_index_to_dates_once(monkeypatch):
     for day in range(300):
         AlpacaBacktesting._newest_bar_position(index, clock + timedelta(days=day), "day", day % 2 == 0)
     assert conversions == []
+
+
+# --------------------------------------------------------------------------- daily marks before the open
+
+
+def _daily_source(monkeypatch, tmp_path):
+    from tests.test_alpaca_stock_history_batch import _StockBarsClient
+
+    source = _alpaca_source(monkeypatch, tmp_path, timestep="day",
+                            start=datetime(2026, 6, 15), end=datetime(2026, 8, 14))
+    source._stock_client = _StockBarsClient()
+    return source
+
+
+# Pre-open, open, mid-session, close and after-close clocks across a holiday (July 3, 2026
+# is the Independence Day market holiday) and weekends.
+DAILY_CLOCKS = [datetime(2026, 6, 15, 0, 0) + timedelta(hours=h) for h in range(0, 24 * 40, 5)]
+
+
+def _daily_marks(source, assets):
+    out = []
+    for clock in DAILY_CLOCKS:
+        source._datetime = _NY_TZ.localize(clock)
+        out.append(tuple(source.get_last_price(asset) for asset in assets))
+    return out
+
+
+def test_daily_marks_before_the_open_equal_the_full_history_call(monkeypatch, tmp_path):
+    from lumibot.backtesting.alpaca_backtesting import AlpacaBacktesting
+
+    assets = [Asset("SYM001"), Asset("SYM007"), Asset("SYM042")]
+    fast = _daily_marks(_daily_source(monkeypatch, tmp_path / "fast"), assets)
+    monkeypatch.setattr(AlpacaBacktesting, "_previous_daily_bar", lambda self, asset, quote, timeshift: None)
+    slow = _daily_marks(_daily_source(monkeypatch, tmp_path / "slow"), assets)
+    assert fast == slow
+    assert len({m for m in fast}) > 20  # opens, closes and previous closes over many sessions
+
+
+def test_daily_marks_build_no_bars_objects(monkeypatch, tmp_path):
+    """Valuing held stocks before the open read the previous close through a full
+    get_historical_prices call that built a Bars object per position per day."""
+    import lumibot.backtesting.alpaca_backtesting as alpaca_backtesting
+
+    source = _daily_source(monkeypatch, tmp_path)
+    assets = [Asset("SYM001"), Asset("SYM007")]
+    source._datetime = _NY_TZ.localize(datetime(2026, 6, 16, 9, 30))
+    [source.get_last_price(asset) for asset in assets]  # loads the series once
+    built = []
+    original = alpaca_backtesting.Bars
+
+    def counting(*args, **kwargs):
+        built.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(alpaca_backtesting, "Bars", counting)
+    _daily_marks(source, assets)
+    assert built == []

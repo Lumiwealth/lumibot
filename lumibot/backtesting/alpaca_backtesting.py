@@ -487,7 +487,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             if position < 0:
                 raise ValueError(f"Datetime {self._datetime} not found in the dataset.")
             if timestep == "day":
-                return self._daily_bar_mark(df.iloc[position:position + 1], asset, quote)
+                return self._daily_bar_mark_at(df, position, asset, quote)
             price = df["open"].iat[position]
             return quantize_to_num_decimals(price, get_decimals(price))
 
@@ -546,7 +546,52 @@ class AlpacaBacktesting(DataSourceBacktesting):
         the exchange opens; their close is unavailable until the actual exchange
         close, including shortened sessions. Crypto retains its full-day window.
         """
-        stamp = pd.Timestamp(frame.index[-1])
+        return self._daily_bar_mark_at(frame, len(frame) - 1, asset, quote)
+
+    def _previous_daily_bar(self, asset, quote, timeshift):
+        """``(frame, position)`` of the bar get_historical_prices(length=1, timestep="day",
+        timeshift=timeshift, remove_incomplete_current_bar=True) would return, or None to use it.
+
+        PERF: before the open every held stock is valued at the previous session's close, once
+        per position several times per simulated day. The full call wraps that one row in a new
+        Bars object (about 0.3 ms). For a native daily series stored in this source's timezone the
+        row is read in place: same series, same search time, same row. Anything else (resampled
+        steps, options, other sources, no finished bar yet, which may reach back for history)
+        returns None and the caller makes the full call as before.
+        """
+        if self._is_option(asset) or self._other_source_for(asset) is not None:
+            return None
+        source_timestep, resample_rule = self._normalize_timestep_for_source("day")
+        if resample_rule is not None:
+            return None
+        try:
+            df = self.get_historical_prices_between_dates(
+                base_asset=asset,
+                quote_asset=quote if quote is not None else self.LUMIBOT_DEFAULT_QUOTE_ASSET,
+                timestep=source_timestep,
+                data_datetime_start=self._data_datetime_start,
+                data_datetime_end=self._data_datetime_end,
+                auto_adjust=self._auto_adjust,
+            )
+        except Exception:
+            return None
+        index = getattr(df, "index", None)
+        tz = getattr(index, "tz", None)
+        target = self.tzinfo
+        same_zone = tz is not None and target is not None and (
+            (getattr(tz, "zone", None) or getattr(tz, "key", None) or str(tz))
+            == (getattr(target, "zone", None) or getattr(target, "key", None) or str(target))
+        )
+        if not same_zone or len(df) < 1:
+            return None
+        position = self._newest_bar_position(index, self._datetime - timeshift, "day", True)
+        if position < 0 or position >= len(df):
+            return None
+        return df, position
+
+    def _daily_bar_mark_at(self, frame, position, asset, quote):
+        """``_daily_bar_mark`` for row ``position`` of ``frame`` (no one-row slice per call)."""
+        stamp = pd.Timestamp(frame.index[position])
         now = pd.Timestamp(self._datetime)
         if str(getattr(asset, "asset_type", "")).lower() == "crypto":
             opened, closed = stamp, stamp + pd.Timedelta(days=1)
@@ -570,15 +615,22 @@ class AlpacaBacktesting(DataSourceBacktesting):
             opened = max(pd.Timestamp(bounds[0]), stamp)
             closed = pd.Timestamp(bounds[1])
         if now < opened:
+            timeshift = now - stamp.normalize()
+            found = self._previous_daily_bar(asset, quote, timeshift)
+            if found is not None:
+                previous_frame, previous_position = found
+                if previous_frame.index[previous_position] >= stamp.normalize():
+                    return None
+                return self._daily_bar_mark_at(previous_frame, previous_position, asset, quote)
             previous = self.get_historical_prices(
                 asset=asset, quote=quote, length=1, timestep="day",
-                timeshift=now - stamp.normalize(),
+                timeshift=timeshift,
                 remove_incomplete_current_bar=True,
             )
             if previous is None or previous.df.empty or previous.df.index[-1] >= stamp.normalize():
                 return None
             return self._daily_bar_mark(previous.df, asset, quote)
-        price = frame["close" if now >= closed else "open"].iloc[-1]
+        price = frame["close" if now >= closed else "open"].iat[position]
         if price is None or pd.isna(price):
             return None
         return quantize_to_num_decimals(price, get_decimals(price))

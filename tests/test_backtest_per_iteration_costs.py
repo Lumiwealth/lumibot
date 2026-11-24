@@ -627,6 +627,37 @@ def test_snapshot_split_adjustment_checks_the_frame_once_per_snapshot(monkeypatc
     assert len(calls) == 2  # split flag + the day's split rows, not two per price field
 
 
+def test_split_facts_reread_of_the_same_frame_boxes_no_timestamps(monkeypatch):
+    import lumibot.data_sources.data_source as module
+
+    frame = _daily_frame({"2020-03-02": 4.0}, rows=300)
+    first = module._split_frame_facts(frame, with_events=True)
+    reads = []
+    original = pd.DatetimeIndex.__getitem__
+
+    def counting(self, key):
+        reads.append(key)
+        return original(self, key)
+
+    monkeypatch.setattr(pd.DatetimeIndex, "__getitem__", counting)
+    for _ in range(100):
+        assert module._split_frame_facts(frame) == first
+        assert module._split_frame_facts(frame, with_events=True) == first
+    assert reads == []
+
+
+def test_split_facts_follow_a_changed_frame():
+    import lumibot.data_sources.data_source as module
+
+    frame = _daily_frame({"2020-03-02": 4.0}, rows=60)
+    assert len(module._split_frame_facts(frame, with_events=True)[1]) == 1
+    frame.loc[frame.index[-1] + pd.Timedelta(days=1)] = frame.iloc[-1].to_numpy()  # new row, new index
+    frame.loc[frame.index[-1], "stock_splits"] = 2.0
+    assert len(module._split_frame_facts(frame, with_events=True)[1]) == 2
+    frame["_split_adjusted"] = True  # new column, new columns object
+    assert module._split_frame_facts(frame)[0] is True
+
+
 def _reference_split_cache(source, frame):
     out = {}
     for idx, row in frame.iterrows():

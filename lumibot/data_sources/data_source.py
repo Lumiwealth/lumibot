@@ -1516,6 +1516,18 @@ _SPLIT_FACTS_CACHE_MAX = 512
 _NO_STALE_SPLIT = object()
 
 
+def _dead_ref():
+    return None
+
+
+def _weak_or_none(value):
+    """A weak reference to ``value``, or one that never matches when it cannot be weakly held."""
+    try:
+        return weakref.ref(value)
+    except TypeError:
+        return _dead_ref
+
+
 def _split_frame_facts(frame, with_events=False):
     """Return ``(split_adjusted, events)`` for ``frame``, or None for the uncached path.
 
@@ -1528,12 +1540,24 @@ def _split_frame_facts(frame, with_events=False):
         return None
     try:
         index = frame.index
+        key = id(frame)
+        entry = _SPLIT_FACTS_CACHE.get(key)
+        # PERF: portfolio valuation asks this several times per held asset per simulated day.
+        # The same frame object still holding the very index and columns objects the entry was
+        # built from has the same row count, end stamps and columns, so the entry answers
+        # without boxing two timestamps and copying the column names on every read.
+        if (
+            entry is not None
+            and entry[0]() is frame
+            and entry[7]() is index
+            and entry[8]() is frame.columns
+            and not (with_events and entry[6] is None)
+        ):
+            return entry[5], entry[6]
         rows = len(index)
         first = index[0] if rows else None
         last = index[-1] if rows else None
         columns = tuple(frame.columns)
-        key = id(frame)
-        entry = _SPLIT_FACTS_CACHE.get(key)
         if not (
             entry is not None
             and entry[0]() is frame
@@ -1545,7 +1569,8 @@ def _split_frame_facts(frame, with_events=False):
             if len(_SPLIT_FACTS_CACHE) >= _SPLIT_FACTS_CACHE_MAX:
                 _SPLIT_FACTS_CACHE.clear()
             entry = [weakref.ref(frame), rows, first, last, columns,
-                     _frame_prices_are_split_adjusted_uncached(frame), None]
+                     _frame_prices_are_split_adjusted_uncached(frame), None,
+                     _weak_or_none(index), _weak_or_none(frame.columns)]
             _SPLIT_FACTS_CACHE[key] = entry
         if with_events and entry[6] is None:
             events: dict = {}

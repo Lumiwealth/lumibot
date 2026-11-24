@@ -113,12 +113,26 @@ price, quote, history, order and position methods. Public market reads need no
 trading key. ``pandas_data=`` and matching ``market_metadata=`` support offline
 replay and earlier signal warm-up.
 
+To find a series' markets inside a strategy, call
+``self.broker.data_source.search_markets(series_ticker="KXFED", status="settled",
+min_close_ts=..., max_close_ts=...)``. The same call works on the live
+``KalshiData`` source with ``status="open"``, so one strategy file runs in both.
+In a backtest the rows keep each market's ticker, timing and rules; prices and any
+result not yet settled at the simulated time are removed, so discovery cannot
+see the future.
+
 BacktestingBroker fills marketable orders against observed candle-end bid/ask,
 nets opposite outcomes with cash collateral, and uses actual settlement timing.
 Future results and unfinished bars are withheld; no end-of-test payout is
 invented. Fee rates and balance precision are configurable estimates; explicit
 normal Strategy TradingFee lists override them. Candle data cannot reconstruct
 historical depth, queue priority, all vintage fees or cross-event margin.
+For a working example, run
+``python -m lumibot.example_strategies.kalshi_favorite_backtest``. It finds
+settled markets of one series from public history (no account needed), buys
+whichever side trades between 0.80 and 0.95, holds to settlement and prints
+trades, win rate and account value.
+
 See the repository's ``docs/KALSHI_ACCOUNT_CONNECTION.md`` for configuration,
 settlement, fill assumptions, evidence and remaining qualification.
 

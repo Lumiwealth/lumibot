@@ -1,5 +1,20 @@
 # Changelog
 
+## 4.6.97 - 2026-11-24
+
+Ships everything in 4.6.96 (tagged, never published to PyPI: its release run stopped
+because the single-option author review still named the 4.6.95 candidate) plus:
+
+### Kalshi
+
+- Backtests find a series' markets through `data_source.search_markets(...)`, the
+  same public call live `KalshiData` answers. Rows hide prices and results not yet
+  settled at the simulated time. Strategies no longer need the internal
+  `kalshi_data` attribute.
+- New example `lumibot.example_strategies.kalshi_favorite_backtest`: buys the side
+  priced 0.80 to 0.95 on each settled market of a series and holds to settlement,
+  on public history with no account.
+
 ## 4.6.96 - 2026-11-23
 
 ### Webull OpenAPI

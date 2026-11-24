@@ -199,9 +199,21 @@ class KalshiBacktesting(PandasData):
             },
         )
 
+    def search_markets(self, query=None, limit=20, **kwargs):
+        """Find markets through the same public call live trading uses.
+
+        Rows keep their identity, timing and rules. Prices, and any result not yet
+        settled at the simulated time, are removed so discovery cannot see the future.
+        """
+        rows = self.kalshi_data.search_markets(query=query, limit=limit, **kwargs) or []
+        return [self._visible_market_row(row) for row in rows]
+
     def get_market_metadata(self, market=None, **kwargs):
         ticker = market.symbol if isinstance(market, Asset) else market
-        row = dict(self._market_metadata.get(ticker) or {})
+        return self._visible_market_row(self._market_metadata.get(ticker) or {})
+
+    def _visible_market_row(self, source_row):
+        row = dict(source_row or {})
         now = KalshiData._utc(self.get_datetime())
         settled = row.get("settlement_ts") and KalshiData._utc(row["settlement_ts"]) <= now
         for key in list(row):

@@ -2,7 +2,7 @@
 
 MetaMask managed-wallet execution through ordinary LumiBot strategies, without a JavaScript runtime or localhost service.
 
-Last Updated: 2026-11-10
+Last Updated: 2026-11-24
 
 Status: Native adapter available; funded qualification limits remain below
 
@@ -179,7 +179,9 @@ incomplete results with `CASH_HISTORY_INCOMPLETE`. Raw non-funding records remai
 readable through `client.cash_history(start_ms, end_ms)`; bounds there are
 inclusive. This reporting contract does not qualify funded provider execution.
 
-`MetaMaskData` reads marks, batched `get_last_prices()`, top-of-book L2 quotes (`get_quote()`), and closed candles across all 14 Hyperliquid intervals (`1m`, `3m`, `5m`, `15m`, `30m`, `1h`, `2h`, `4h`, `8h`, `12h`, `1d`, `3d`, `1w`, `1M`, plus standard LumiBot aliases such as `"5 minutes"`, `"hour"`, `"day"`) from the selected Hyperliquid network. Public perpetual data needs only `NETWORK`; it does not need a wallet credential. Candle history is limited to the venue's latest 5,000 bars. Spot candles and historical account equity are not provided.
+`MetaMaskData` reads marks, batched `get_last_prices()` (preserving per-symbol availability without failing valid symbols), top-of-book L2 quotes (`get_quote()`), `get_contract_spec()`, and closed candles across all 14 Hyperliquid intervals (`1m`, `3m`, `5m`, `15m`, `30m`, `1h`, `2h`, `4h`, `8h`, `12h`, `1d`, `3d`, `1w`, `1M`, plus standard LumiBot aliases such as `"5 minutes"`, `"hour"`, `"day"`) with `supports_native_timestep()` enabled for direct `Strategy.get_historical_prices()` dispatch from the selected Hyperliquid network. Public perpetual data needs only `NETWORK`; it does not need a wallet credential. Candle history is limited to the venue's latest 5,000 bars. Spot candles and historical account equity are not provided.
+
+`MetaMask` also exposes `get_contract_spec()` and `get_order_size_rules()` for Hyperliquid `crypto_future` sizing (`get_contract_exposure()` / `get_quantity_for_notional()`), accepts an optional `MARKET` config/environment override (default `"24/7"`), defaults `Strategy.quote_asset` to `USDC` in `MODE="perp"` (keeping `USD` in `MODE="spot"`), and requires `time_in_force="gtc"` on trigger orders (`stop`, `stop_limit`). Note that LumiBot-simulated `SMART_LIMIT` repricing still obeys Hyperliquid's 5-significant-figure price precision (`PRICE_PRECISION`).
 
 LumiBot's uppercase asset symbols resolve to the unique canonical venue name,
 including mixed-case markets such as `kPEPE`. Orders retain that native name in

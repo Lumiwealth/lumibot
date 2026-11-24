@@ -233,7 +233,7 @@ class HyperliquidVenue:
     def price(self, symbol: str) -> Decimal:
         return self.prices([symbol])[symbol]
 
-    def prices(self, symbols: list[str] | tuple[str, ...]) -> dict[str, Decimal]:
+    def prices(self, symbols: list[str] | tuple[str, ...], *, allow_missing: bool = False) -> dict[str, Decimal]:
         if not symbols:
             return {}
         by_dex: dict[str, list[tuple[str, str]]] = {}
@@ -241,7 +241,12 @@ class HyperliquidVenue:
             if not isinstance(raw, str) or not 1 <= len(raw) <= 60:
                 raise ValueError("A venue market symbol is required")
             if ":" in raw:
-                resolved_symbol = self.market(raw).symbol
+                try:
+                    resolved_symbol = self.market(raw).symbol
+                except MetaMaskError as error:
+                    if allow_missing and error.code == "UNKNOWN_MARKET":
+                        continue
+                    raise
                 dex = resolved_symbol.split(":", 1)[0]
                 by_dex.setdefault(dex, []).append((raw, resolved_symbol))
             else:
@@ -260,7 +265,12 @@ class HyperliquidVenue:
                 raise MetaMaskError("INVALID_RESPONSE", "Venue mark-price metadata is incomplete")
             names = [json_object(row).get("name") for row in universe]
             for raw, lookup in items:
-                resolved = canonical_symbol(lookup, names)
+                try:
+                    resolved = canonical_symbol(lookup, names)
+                except MetaMaskError as error:
+                    if allow_missing and error.code == "UNKNOWN_MARKET":
+                        continue
+                    raise
                 output[raw] = decimal(
                     json_object(contexts[names.index(resolved)], "asset context").get("markPx"), positive=True
                 )
@@ -363,6 +373,8 @@ class HyperliquidVenue:
             if quantity != quantity.quantize(Decimal(1).scaleb(-market.size_decimals)):
                 raise MetaMaskError("SIZE_PRECISION", "Order size exceeds this market's exact precision")
         if as_trigger or kind in {"stop", "stop_limit"}:
+            if tif != "gtc":
+                raise MetaMaskError("UNSUPPORTED_ORDER", "Trigger orders support time in force 'gtc' only")
             role = tpsl if tpsl is not None else ("tp" if kind == "limit" else "sl")
             if role not in {"tp", "sl"}:
                 raise MetaMaskError("UNSUPPORTED_ORDER", "Trigger orders require tpsl of 'tp' or 'sl'")

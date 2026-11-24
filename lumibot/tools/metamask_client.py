@@ -211,11 +211,14 @@ class MetaMaskClient:
             return self.evm.account()
         return self.venue.account(identity["wallet"])
 
+    def market(self, symbol):
+        return self.venue.market(symbol)
+
     def price(self, symbol):
         return self.venue.price(symbol)
 
-    def prices(self, symbols):
-        return self.venue.prices(symbols)
+    def prices(self, symbols, *, allow_missing=False):
+        return self.venue.prices(symbols, allow_missing=allow_missing)
 
     def quote(self, symbol):
         return self.venue.l2_book(symbol)

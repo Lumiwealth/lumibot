@@ -1,5 +1,6 @@
 """Native Python MetaMask managed-wallet broker."""
 
+import os
 from decimal import Context, Decimal
 from math import isfinite
 from threading import Event, RLock, current_thread
@@ -85,7 +86,49 @@ class MetaMask(Broker):
         super().__init__(
             name="metamask", config=config, data_source=data_source, connect_stream=connect_stream, **kwargs
         )
-        self.market = config.get("MARKET", "24/7")
+        self.market = config.get("MARKET") or os.environ.get("MARKET") or "24/7"
+
+    @property
+    def polling_interval(self) -> float:
+        return self._poll_interval
+
+    def get_contract_spec(self, asset, quote=None):
+        """Return Hyperliquid linear USDC perpetual contract terms in base units."""
+        from lumibot.entities import ContractSpec
+
+        if getattr(asset, "contract_spec", None) is not None:
+            return asset.contract_spec
+        if self.mode != "perp" or getattr(asset, "asset_type", None) != "crypto_future":
+            raise ValueError("Contract specifications are only defined for Hyperliquid crypto_future assets")
+        if quote is not None and getattr(quote, "symbol", quote) != "USDC":
+            raise ValueError("Hyperliquid perpetuals settle in USDC")
+        market = self.client.market(asset.symbol)
+        spec = ContractSpec(
+            base=market.symbol,
+            quote="USDC",
+            settle="USDC",
+            contract_size=Decimal("1"),
+            inverse=False,
+            quantity_unit="base",
+        )
+        if isinstance(asset, Asset):
+            asset._resolved_contract_spec = spec
+        return spec
+
+    def get_order_size_rules(self, asset, quote=None):
+        """Return Hyperliquid lot step and minimum order size derived from szDecimals."""
+        if self.mode != "perp" or getattr(asset, "asset_type", None) != "crypto_future":
+            return None
+        if quote is not None and getattr(quote, "symbol", quote) != "USDC":
+            raise ValueError("Hyperliquid perpetuals settle in USDC")
+        market = self.client.market(asset.symbol)
+        step = Decimal(1).scaleb(-market.size_decimals)
+        return {
+            "min_quantity": step,
+            "quantity_step": step,
+            "contract_size": Decimal("1"),
+            "quantity_unit": "base",
+        }
 
     def supports_order(
         self,
@@ -103,9 +146,7 @@ class MetaMask(Broker):
                 "Spot orders are not supported by MetaMask; use swap(input_asset, output_asset, input_amount) "
                 "for exact-input spot swaps.",
             )
-        eff_asset_type = (
-            getattr(getattr(order, "asset", None), "asset_type", None) if order is not None else asset_type
-        )
+        eff_asset_type = getattr(getattr(order, "asset", None), "asset_type", None) if order is not None else asset_type
         if eff_asset_type is not None and str(eff_asset_type).lower() != "crypto_future":
             return OrderSupport(
                 ORDER_UNSUPPORTED,
@@ -209,12 +250,16 @@ class MetaMask(Broker):
             if order_type not in ("market", "limit", "stop", "stop_limit"):
                 raise ValueError(f"Order type '{order_type}' is not supported by MetaMask")
             tif = (order.time_in_force or "gtc").lower()
-            if order_type == "market" and tif == "day":
-                tif = "ioc"
-            elif order_type in ("stop", "stop_limit") and tif == "day":
-                tif = "gtc"
-            if tif not in ("gtc", "ioc", "alo"):
-                raise ValueError("MetaMask time_in_force must be gtc, ioc, or alo")
+            if order_type in ("stop", "stop_limit"):
+                if tif == "day":
+                    tif = "gtc"
+                if tif != "gtc":
+                    raise ValueError("MetaMask trigger orders support time_in_force='gtc' only")
+            else:
+                if order_type == "market" and tif == "day":
+                    tif = "ioc"
+                if tif not in ("gtc", "ioc", "alo"):
+                    raise ValueError("MetaMask time_in_force must be gtc, ioc, or alo")
             request = {
                 "kind": "perp",
                 "id": str(order.identifier),
@@ -308,10 +353,7 @@ class MetaMask(Broker):
             if str(order.identifier) not in self._observations and self.get_tracked_order(order.identifier) is None:
                 self._unprocessed_orders.append(order)
             for child in order.child_orders or []:
-                if (
-                    str(child.identifier) not in self._observations
-                    and self.get_tracked_order(child.identifier) is None
-                ):
+                if str(child.identifier) not in self._observations and self.get_tracked_order(child.identifier) is None:
                     self._unprocessed_orders.append(child)
             self._observe(order, response)
         return self.get_tracked_order(order.identifier) or order
@@ -413,8 +455,11 @@ class MetaMask(Broker):
             "request": child_req,
             "filledQuantity": child_response.get("filledQuantity", "0"),
         }
-        if "message" not in obs and parent_response.get("message"):
-            obs["message"] = parent_response["message"]
+        if "message" not in obs:
+            if child_response.get("rejectionReason"):
+                obs["message"] = child_response["rejectionReason"]
+            elif parent_response.get("message"):
+                obs["message"] = parent_response["message"]
         if (
             "orderRelease" not in obs
             and child_response.get("state") == "canceled"
@@ -446,7 +491,11 @@ class MetaMask(Broker):
             identifier = str(order.identifier)
             if identifier not in self._observations and self.get_tracked_order(identifier) is None:
                 # Seed restored history once. Parsing a newer snapshot must not consume pending callbacks.
-                value = Context(prec=160).multiply(quantity, decimal_value(response.get("averagePrice", "0")))
+                value = (
+                    Context(prec=160).multiply(quantity, decimal_value(response.get("averagePrice")))
+                    if quantity > 0
+                    else Decimal(0)
+                )
                 self._observations[identifier] = (quantity, value, response["state"])
                 # Register cumulative snapshots before shared executor synchronization
                 # can treat them as new fills and add the full order size again.
@@ -491,7 +540,7 @@ class MetaMask(Broker):
                 child.parent_identifier = str(response["id"])
                 self._hydrate_parsed_order(child, child_obs)
                 child_orders.append(child)
-            if order_class == "oco" and len(child_orders) == 2:
+            if order_class in ("oco", "bracket") and len(child_orders) == 2:
                 child_orders[0].dependent_order = child_orders[1]
                 child_orders[1].dependent_order = child_orders[0]
 
@@ -518,7 +567,7 @@ class MetaMask(Broker):
         return self._hydrate_parsed_order(order, response)
 
     def _flatten_order(self, order):
-        return [order, *list(order.child_orders or [])]
+        return [o for o in (order, *list(order.child_orders or [])) if self.get_tracked_order(o.identifier) is None]
 
     def _apply_direct_order_observation(self, order_lumi, matched_order):
         with self._event_lock:
@@ -530,9 +579,7 @@ class MetaMask(Broker):
             self._observe(order_lumi, matched_order._raw)
             if previous != self._observations.get(str(order_lumi.identifier)):
                 return True
-            return any(
-                prev != self._observations.get(cid) for cid, prev in previous_children.items()
-            )
+            return any(prev != self._observations.get(cid) for cid, prev in previous_children.items())
 
     def _process_broker_synced_order(self, order):
         """Restore a cumulative snapshot without replaying fills into account state."""
@@ -566,8 +613,29 @@ class MetaMask(Broker):
         except (requests.Timeout, requests.ConnectionError):
             self.logger.warning("MetaMask cancel timed out for order %s; poll to confirm status", order.identifier)
             return order
+        except MetaMaskAPIError as error:
+            if error.code in {"REQUEST_OUTCOME_UNKNOWN", "VENUE_OUTCOME_UNKNOWN"}:
+                self.logger.warning(
+                    "MetaMask cancel outcome unknown for order %s (%s); poll to confirm status",
+                    order.identifier,
+                    error.code,
+                )
+                return order
+            raise
         self._observe(order, response)
         return order
+
+    def cancel_orders(self, orders):
+        """Cancel orders sequentially, parents before children, skipping legs already terminalized."""
+        ordered = sorted(
+            orders,
+            key=lambda item: 1 if getattr(item, "parent_identifier", None) is not None else 0,
+        )
+        for item in ordered:
+            tracked = self.get_tracked_order(item.identifier) or item
+            if tracked.is_canceled() or tracked.is_filled() or tracked.status == Order.OrderStatus.ERROR:
+                continue
+            self.cancel_order(tracked)
 
     def get_historical_account_value(self):
         raise NotImplementedError("MetaMask does not expose historical account equity through this adapter")
@@ -767,9 +835,7 @@ class MetaMask(Broker):
         with self._event_lock:
             order = self.get_tracked_order(order.identifier) or order
             req = response.get("request") if isinstance(response.get("request"), dict) else {}
-            is_oco_container = (
-                str(order.order_class or "").lower() == "oco" or req.get("orderClass") == "oco"
-            )
+            is_oco_container = str(order.order_class or "").lower() == "oco" or req.get("orderClass") == "oco"
             if is_oco_container:
                 self._observe_children(order, response)
                 state = response["state"]
@@ -780,11 +846,24 @@ class MetaMask(Broker):
                     order.update_raw(response)
                     self._set_submission_outcome(order, response)
                     return
-                if state == "open" and previous[2] in (None, "submitted", "awaiting_approval", "unknown", "prepared"):
+                if state in ("open", "partial_fill") and previous[2] in (
+                    None,
+                    "submitted",
+                    "awaiting_approval",
+                    "unknown",
+                    "prepared",
+                ):
                     self._process_trade_event(order, self.NEW_ORDER)
+                if state == "partial_fill" and previous[2] != "partial_fill":
+                    with self._lock:
+                        order.status = Order.OrderStatus.PARTIALLY_FILLED
+                        order.set_partially_filled()
+                        self._clean_order_trackers(order)
+                        self._invalidate_order_caches()
                 elif state == "filled" and previous[2] != "filled":
                     # Child leg already emitted the authoritative fill; retire container without double-counting.
                     with self._lock:
+                        order.status = self.FILLED_ORDER
                         order.set_filled()
                         self._clean_order_trackers(order)
                         self._invalidate_order_caches()
@@ -821,7 +900,9 @@ class MetaMask(Broker):
                     self._set_submission_outcome(order, response)
                     self._observe_children(order, response)
                     return
-            value = money.multiply(quantity, decimal_value(response.get("averagePrice", "0")))
+            value = (
+                money.multiply(quantity, decimal_value(response.get("averagePrice"))) if quantity > 0 else Decimal(0)
+            )
             if quantity > previous[0]:
                 delta = money.subtract(quantity, previous[0])
                 price = money.divide(money.subtract(value, previous[1]), delta)

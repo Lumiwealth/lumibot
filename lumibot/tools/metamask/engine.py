@@ -174,6 +174,29 @@ class ExecutionEngine:
             )
         return records
 
+    @staticmethod
+    def _child_fill_step(child_id: str) -> str:
+        direct = f"fills-{child_id}"
+        if len(direct) <= 128:
+            return direct
+        return "fills-h-" + hashlib.sha256(child_id.encode()).hexdigest()[:40]
+
+    def _check_id_collisions(self, intent: PerpIntent) -> None:
+        candidate_ids = {intent.identifier, *(child.identifier for child in intent.children)}
+        for existing_op in self.journal.operations(self.agent_id):
+            if str(existing_op["id"]) in candidate_ids:
+                raise MetaMaskError("ID_CONFLICT", "Order ID already belongs to different intent")
+            existing_children = existing_op.get("childOperations")
+            if isinstance(existing_children, list):
+                for existing_child in existing_children:
+                    if isinstance(existing_child, dict) and existing_child.get("id") in candidate_ids:
+                        raise MetaMaskError("ID_CONFLICT", "Order ID already belongs to different intent")
+            req_children = json_object(existing_op.get("request", {}), "existing request").get("children")
+            if isinstance(req_children, list):
+                for req_child in req_children:
+                    if isinstance(req_child, dict) and req_child.get("id") in candidate_ids:
+                        raise MetaMaskError("ID_CONFLICT", "Order ID already belongs to different intent")
+
     def submit(self, request: dict[str, object]) -> dict[str, object]:
         intent = PerpIntent.parse(request)
         canonical = intent.record()
@@ -185,19 +208,19 @@ class ExecutionEngine:
             if prior.get("request") != canonical:
                 raise MetaMaskError("ID_CONFLICT", "Order ID already belongs to different intent")
             return self.order(intent.identifier)
-        # Reject collisions with existing child IDs or between new child IDs and existing operations.
-        candidate_ids = {intent.identifier, *(child.identifier for child in intent.children)}
-        for existing_op in self.journal.operations(self.agent_id):
-            if str(existing_op["id"]) in candidate_ids:
-                raise MetaMaskError("ID_CONFLICT", "Order ID already belongs to different intent")
-            existing_children = existing_op.get("childOperations")
-            if isinstance(existing_children, list):
-                for existing_child in existing_children:
-                    if isinstance(existing_child, dict) and existing_child.get("id") in candidate_ids:
-                        raise MetaMaskError("ID_CONFLICT", "Order ID already belongs to different intent")
         if not self._execution.acquire(blocking=False):
             raise MetaMaskError("EXECUTION_IN_PROGRESS", "Another wallet execution is already in progress")
         try:
+            # Re-check parent idempotency and full parent/child ID uniqueness under the wallet lock.
+            prior = self.journal.get(self.agent_id, intent.identifier)
+            if prior is not None:
+                stored_symbol = json_object(prior["request"]).get("symbol")
+                if isinstance(stored_symbol, str) and stored_symbol.casefold() == intent.symbol.casefold():
+                    canonical = replace(intent, symbol=stored_symbol).record()
+                if prior.get("request") != canonical:
+                    raise MetaMaskError("ID_CONFLICT", "Order ID already belongs to different intent")
+                return self._advance(prior)
+            self._check_id_collisions(intent)
             binding, snapshot = self._authority()
             self.venue.account(binding.wallet)
             if ":" in intent.symbol:
@@ -312,7 +335,7 @@ class ExecutionEngine:
                     leg_prices = [decimal(json_object(row).get("p"), positive=True) for row in orders]
                     stop_prices = [c.stop_price for c in intent.children if c.stop_price is not None]
                     execution_price = max(leg_prices)
-                    reservation_anchor = max(execution_price, *stop_prices)
+                    reservation_anchor = max([execution_price, *stop_prices])
                 child_records = self._initial_child_records(binding, intent)
             fee_rate = self.venue.fee_rate(binding.wallet)
             with localcontext(Context(prec=160, rounding=ROUND_CEILING)):
@@ -484,13 +507,16 @@ class ExecutionEngine:
             "leverage",
             {**effect, "state": "reconciled", "observedLeverage": observed, "reconciledAt": int(time.time() * 1000)},
         )
-        return self._change(
-            operation,
-            state="rejected",
-            message="Expired leverage submission reconciled; no order sent. Submit a new intent to trade.",
-            observedLeverage=observed,
-            lastErrorCode=None,
-        )
+        updates: dict[str, object] = {
+            "state": "rejected",
+            "message": "Expired leverage submission reconciled; no order sent. Submit a new intent to trade.",
+            "observedLeverage": observed,
+            "lastErrorCode": None,
+        }
+        marked_children = self._mark_children(operation, "rejected")
+        if marked_children is not None:
+            updates["childOperations"] = marked_children
+        return self._change(operation, **updates)
 
     def _step(self, operation, plan, step, action):
         cancellation = step.startswith("cancel-")
@@ -753,7 +779,7 @@ class ExecutionEngine:
                             existing_children[leg_id]["providerOrderId"] = oid
                     else:
                         return operation, False
-                if (grouping == "normalTpsl" and entry_error is not None and not any_accepted) or (
+                if (grouping == "normalTpsl" and entry_error is not None and entry_oid is None) or (
                     not any_accepted and first_error is not None
                 ):
                     return reject(entry_error or first_error or "Venue rejected grouped order")
@@ -788,6 +814,7 @@ class ExecutionEngine:
                     isinstance(statuses, list)
                     and len(statuses) == expected_cancels
                     and any(s == "success" for s in statuses)
+                    and all(s == "success" or (isinstance(s, dict) and "error" in s) for s in statuses)
                 ):
                     return operation, False
         self.journal.save_effect(operation, step, {**effect, "state": "confirmed", "response": response})
@@ -828,24 +855,25 @@ class ExecutionEngine:
         observation: dict[str, object] | None,
         allow_waiting_for_fill: bool = False,
         parent_canceled_unfilled: bool = False,
+        resized_orig_quantity: Decimal | None = None,
     ) -> dict[str, object]:
         reference: int | str | None = (
             int(provider_order_id) if isinstance(provider_order_id, str) and provider_order_id.isdecimal() else cloid
         )
         result = self.venue.order_status(binding.wallet, reference)
         if result.get("status") != "order":
+            if parent_canceled_unfilled and current_filled == 0:
+                return {
+                    "state": "canceled",
+                    "venueStatus": "parentCanceled",
+                    "providerOrderId": provider_order_id,
+                    "filledQuantity": "0",
+                    "averagePrice": None,
+                    "fees": [],
+                    "reconciliationErrorCode": None,
+                    "reconciliationMessage": None,
+                }
             if allow_waiting_for_fill and provider_order_id is None and current_filled == 0:
-                if parent_canceled_unfilled:
-                    return {
-                        "state": "canceled",
-                        "venueStatus": "parentCanceled",
-                        "providerOrderId": None,
-                        "filledQuantity": "0",
-                        "averagePrice": None,
-                        "fees": [],
-                        "reconciliationErrorCode": None,
-                        "reconciliationMessage": None,
-                    }
                 return {
                     "state": "waiting_for_fill",
                     "venueStatus": "waitingForFill",
@@ -860,11 +888,17 @@ class ExecutionEngine:
         status = json_object(result.get("order"), "venue order status")
         order = json_object(status.get("order"), "venue order")
         venue_id = positive_integer(order.get("oid"), "venue order ID")
+        venue_orig_sz = decimal(order.get("origSz"), positive=True)
+        expected_orig_qty = (
+            resized_orig_quantity
+            if resized_orig_quantity is not None and venue_orig_sz == resized_orig_quantity
+            else orig_quantity
+        )
         if (
             (isinstance(reference, int) and venue_id != reference)
             or order.get("coin") != symbol
             or order.get("side") != ("B" if side == "buy" else "A")
-            or decimal(order.get("origSz"), positive=True) != orig_quantity
+            or venue_orig_sz != expected_orig_qty
             or (cloid is not None and order.get("cloid") != cloid)
             or order.get("reduceOnly") is not reduce_only
         ):
@@ -874,45 +908,60 @@ class ExecutionEngine:
             state = "canceled"
         elif raw_state in _REJECTED_VENUE:
             state = "rejected"
-        elif raw_state == "triggered":
+        elif raw_state == "waitingForTrigger":
             state = "open"
-        elif raw_state == "waitingForFill" and allow_waiting_for_fill:
+        elif raw_state == "triggered":
+            state = "triggered"
+        elif raw_state == "waitingForFill" and (
+            allow_waiting_for_fill or (not parent_canceled_unfilled and current_filled == 0)
+        ):
             return {
                 "state": "canceled" if parent_canceled_unfilled else "waiting_for_fill",
                 "venueStatus": raw_state,
                 "providerOrderId": str(venue_id),
                 "filledQuantity": "0",
+                "averagePrice": None,
                 "fees": [],
                 "reconciliationErrorCode": None,
                 "reconciliationMessage": None,
             }
         else:
             state = raw_state
-        if state not in {"open", "filled", "canceled", "rejected"}:
+        if state not in {"open", "triggered", "filled", "canceled", "rejected"}:
             raise MetaMaskError("ORDER_STATUS_UNSUPPORTED", "Venue terminal status requires explicit reconciliation")
-        if state == "open":
+        in_transit_trigger = False
+        if state in {"open", "triggered"}:
             # orderStatus retains the size from its last lifecycle transition. Actual
             # partial-fill remainders come from the current live order snapshot.
             live_rows = observation["openOrders"] if observation is not None else None
             if live_rows is None:
                 live_rows = self.venue.frontend_open_orders(binding.wallet)
             matches = [row for row in live_rows if row.get("oid") == venue_id]
-            if len(matches) != 1:
+            if len(matches) == 1:
+                live = matches[0]
+                live_orig_sz = decimal(live.get("origSz"), positive=True)
+                if (
+                    positive_integer(live.get("oid"), "live venue order ID") != venue_id
+                    or live.get("coin") != symbol
+                    or live.get("side") != order.get("side")
+                    or live_orig_sz != expected_orig_qty
+                    or (cloid is not None and live.get("cloid") is not None and live.get("cloid") != cloid)
+                    or live.get("reduceOnly") is not reduce_only
+                ):
+                    raise MetaMaskError(
+                        "ORDER_IDENTITY_MISMATCH", "Live order differs from the persisted wallet intent"
+                    )
+                remaining = decimal(live.get("sz"), positive=True)
+                state = "open"
+            elif state == "triggered" and not matches:
+                # A triggered market/IOC stop can leave frontendOpenOrders before orderStatus settles.
+                in_transit_trigger = True
+                remaining = Decimal(0)
+            else:
                 raise MetaMaskError("OPEN_ORDER_UNRESOLVED", "Live order snapshot is absent or ambiguous")
-            live = matches[0]
-            if (
-                positive_integer(live.get("oid"), "live venue order ID") != venue_id
-                or live.get("coin") != symbol
-                or live.get("side") != order.get("side")
-                or decimal(live.get("origSz"), positive=True) != orig_quantity
-                or (cloid is not None and live.get("cloid") is not None and live.get("cloid") != cloid)
-                or live.get("reduceOnly") is not reduce_only
-            ):
-                raise MetaMaskError("ORDER_IDENTITY_MISMATCH", "Live order differs from the persisted wallet intent")
-            remaining = decimal(live.get("sz"), positive=True)
         else:
             remaining = Decimal(0) if state == "filled" else decimal(order.get("sz"))
-        if not 0 <= remaining <= orig_quantity:
+        if not in_transit_trigger and not 0 <= remaining <= expected_orig_qty:
             raise MetaMaskError("ORDER_SIZE_MISMATCH", "Venue remaining size is outside the original order quantity")
         prior_fills = self.journal.effect(self.agent_id, str(operation["id"]), fill_step)
         cached = prior_fills.get("items", []) if prior_fills else []
@@ -944,9 +993,31 @@ class ExecutionEngine:
             if not isinstance(token, str) or not token:
                 raise MetaMaskError("INVALID_RESPONSE", "Fill fee currency is missing")
             fees[token] = fees.get(token, Decimal(0)) + decimal(item.get("fee"))
+        if in_transit_trigger:
+            if quantity > expected_orig_qty or quantity < current_filled:
+                raise MetaMaskError(
+                    "FILL_HISTORY_INCOMPLETE", "Venue order and retained fill history disagree; preserving known fills"
+                )
+            self.journal.save_effect(
+                operation,
+                fill_step,
+                {"wallet": binding.wallet, "network": binding.network, "items": list(rows.values())},
+            )
+            out: dict[str, object] = {
+                "state": "partial_fill" if quantity > 0 else "submitted",
+                "venueStatus": raw_state,
+                "providerOrderId": str(venue_id),
+                "filledQuantity": format(quantity, "f"),
+                "fees": [{"asset": token, "amount": format(amount, "f")} for token, amount in sorted(fees.items())],
+                "reconciliationErrorCode": None,
+                "reconciliationMessage": None,
+            }
+            if quantity > 0:
+                out["averagePrice"] = format(value / quantity, "f")
+            return out
         if (
             raw_state == "filled"
-            and 0 < quantity < orig_quantity
+            and 0 < quantity < expected_orig_qty
             and (leg_tif == "ioc" or leg_kind == "market")
             and order.get("tif") == "Ioc"
             and wire_index is not None
@@ -959,8 +1030,8 @@ class ExecutionEngine:
                 terminal_remaining = decimal(order.get("sz"))
                 if (
                     wire_type.get("limit") == {"tif": "Ioc"}
-                    and 0 < terminal_remaining < orig_quantity
-                    and quantity + terminal_remaining == orig_quantity
+                    and 0 < terminal_remaining < expected_orig_qty
+                    and quantity + terminal_remaining == expected_orig_qty
                 ):
                     # IOC reports terminal "filled" even when its unfilled remainder was canceled.
                     state, remaining = "canceled", terminal_remaining
@@ -969,13 +1040,13 @@ class ExecutionEngine:
         self.journal.save_effect(
             operation, fill_step, {"wallet": binding.wallet, "network": binding.network, "items": list(rows.values())}
         )
-        expected = orig_quantity - remaining
-        if quantity != expected or quantity > orig_quantity or quantity < current_filled:
+        expected = expected_orig_qty - remaining
+        if quantity != expected or quantity > expected_orig_qty or quantity < current_filled:
             raise MetaMaskError(
                 "FILL_HISTORY_INCOMPLETE", "Venue order and retained fill history disagree; preserving known fills"
             )
         next_state = "partial_fill" if state == "open" and quantity > 0 else state
-        out: dict[str, object] = {
+        out = {
             "state": next_state,
             "venueStatus": raw_state,
             "providerOrderId": str(venue_id),
@@ -1087,7 +1158,10 @@ class ExecutionEngine:
             parent_state = str(after["state"])
             parent_filled = decimal(after["filledQuantity"])
             parent_unfilled_closed = parent_state in {"canceled", "rejected"} and parent_filled == 0
-            allow_waiting = parent_state in {"submitted", "open", "canceled", "rejected"} and parent_filled == 0
+            allow_waiting = parent_state in {"submitted", "open", "partial_fill"} or parent_unfilled_closed
+            resized_child_qty = (
+                parent_filled if parent_state == "canceled" and Decimal(0) < parent_filled < intent.quantity else None
+            )
             updated_children = []
             for idx, (child_intent, child_raw) in enumerate(zip(intent.children, children_raw)):
                 child_rec = dict(json_object(child_raw, "child operation"))
@@ -1112,11 +1186,12 @@ class ExecutionEngine:
                         provider_order_id=child_rec.get("providerOrderId"),
                         current_state=str(child_rec.get("state", "prepared")),
                         current_filled=decimal(child_rec.get("filledQuantity", "0")),
-                        fill_step=f"fills-{child_intent.identifier}",
+                        fill_step=self._child_fill_step(child_intent.identifier),
                         wire_index=idx + 1,
                         observation=observation,
                         allow_waiting_for_fill=allow_waiting,
                         parent_canceled_unfilled=parent_unfilled_closed,
+                        resized_orig_quantity=resized_child_qty,
                     )
                     child_rec.update(
                         state=c_res["state"],
@@ -1164,7 +1239,7 @@ class ExecutionEngine:
                     provider_order_id=child_rec.get("providerOrderId"),
                     current_state=str(child_rec.get("state", "prepared")),
                     current_filled=decimal(child_rec.get("filledQuantity", "0")),
-                    fill_step=f"fills-{child_intent.identifier}",
+                    fill_step=self._child_fill_step(child_intent.identifier),
                     wire_index=idx,
                     observation=observation,
                 )
@@ -1362,7 +1437,7 @@ class ExecutionEngine:
                     wire_idx += 1
                     c_obj = json_object(child_rec)
                     c_fills = self.journal.effect(
-                        self.agent_id, str(operation["id"]), f"fills-{child_intent.identifier}"
+                        self.agent_id, str(operation["id"]), self._child_fill_step(child_intent.identifier)
                     )
                     if (
                         c_obj.get("id") != child_intent.identifier
@@ -1509,6 +1584,12 @@ class ExecutionEngine:
                     raise MetaMaskError(
                         "RECONCILIATION_REQUIRED", "Resolve uncertain leverage before canceling the prepared intent"
                     )
+                if target_child is not None:
+                    raise MetaMaskError(
+                        "RECONCILIATION_REQUIRED",
+                        "Cannot cancel an individual child of an unreleased grouped order; "
+                        "cancel the parent order explicitly",
+                    )
                 local_updates: dict[str, object] = {
                     "state": "canceled",
                     "message": "Unreleased intent canceled locally; no venue order sent",
@@ -1523,11 +1604,7 @@ class ExecutionEngine:
                 marked_children = self._mark_children(operation, "canceled")
                 if marked_children is not None:
                     local_updates["childOperations"] = marked_children
-                updated = self._change(operation, **local_updates)
-                if target_child is not None:
-                    refreshed = next(c for c in updated["childOperations"] if c["id"] == operation_id)
-                    return self._child_view(updated, refreshed)
-                return updated
+                return self._change(operation, **local_updates)
 
             native_plan = self.journal.effect(self.agent_id, parent_id, "plan")
             # Cancellation may observe the entry, but must never resume its signing/release.
@@ -1553,7 +1630,7 @@ class ExecutionEngine:
                         "RECONCILIATION_REQUIRED", "Verify the matching live child order before cancellation"
                     )
                 child_oid = refreshed.get("providerOrderId")
-                if not isinstance(child_oid, str) or not child_oid.isdecimal():
+                if not isinstance(child_oid, str) or not child_oid.isdecimal() or int(child_oid) <= 0:
                     raise MetaMaskError(
                         "RECONCILIATION_REQUIRED", "Resolve original child order identity before cancellation"
                     )
@@ -1588,7 +1665,7 @@ class ExecutionEngine:
                 oid_parts = []
                 for child in live_children:
                     c_oid = child.get("providerOrderId")
-                    if not isinstance(c_oid, str) or not c_oid.isdecimal():
+                    if not isinstance(c_oid, str) or not c_oid.isdecimal() or int(c_oid) <= 0:
                         raise MetaMaskError(
                             "RECONCILIATION_REQUIRED", "Resolve original child order identity before cancellation"
                         )
@@ -1603,7 +1680,7 @@ class ExecutionEngine:
             if operation["state"] not in {"open", "partial_fill"} or operation.get("reconciliationErrorCode"):
                 raise MetaMaskError("RECONCILIATION_REQUIRED", "Verify the matching live order before cancellation")
             venue_id = operation.get("providerOrderId")
-            if not isinstance(venue_id, str) or not venue_id.isdecimal():
+            if not isinstance(venue_id, str) or not venue_id.isdecimal() or int(venue_id) <= 0:
                 raise MetaMaskError("RECONCILIATION_REQUIRED", "Resolve original order identity before cancellation")
             return self._run_cancel_action(
                 operation,
@@ -1629,28 +1706,52 @@ class ExecutionEngine:
             operation, target_child = self._find_operation(operation_id)
             parent_id = str(operation["id"])
             operation = self._advance(operation, observation=_observation)
-            has_live = (
-                (operation["state"] in {"open", "partial_fill"} and not operation.get("reconciliationErrorCode"))
-                or any(
+            clean_live_oids: set[int] = set()
+            if (
+                operation["state"] in {"open", "partial_fill"}
+                and not operation.get("reconciliationErrorCode")
+                and isinstance(operation.get("providerOrderId"), str)
+                and operation["providerOrderId"].isdecimal()
+                and int(operation["providerOrderId"]) > 0
+            ):
+                clean_live_oids.add(int(operation["providerOrderId"]))
+            for c in operation.get("childOperations") or []:
+                if (
                     isinstance(c, dict)
                     and c.get("state") in {"open", "partial_fill"}
                     and not c.get("reconciliationErrorCode")
-                    for c in (operation.get("childOperations") or [])
-                )
-            )
-            if has_live:
-                for step, effect in self.journal.effects(self.agent_id, parent_id).items():
-                    if (
-                        step.startswith("cancel-")
-                        and effect.get("phase") == "provider"
-                        and effect.get("state") != "rejected"
-                        and effect.get("ownerEpoch") == self.epoch
-                    ):
-                        binding, snapshot = self._authority(cancellation=True)
-                        plan = {"binding": snapshot, "wallet": binding.wallet, "network": binding.network}
-                        operation = self._cancel_step(operation, plan, step, json_object(effect["action"]))
-                        native_plan = self.journal.effect(self.agent_id, parent_id, "plan")
-                        operation = self._reconcile_order(operation, native_plan or {"clientOrderId": None})
+                    and isinstance(c.get("providerOrderId"), str)
+                    and c["providerOrderId"].isdecimal()
+                    and int(c["providerOrderId"]) > 0
+                ):
+                    clean_live_oids.add(int(c["providerOrderId"]))
+            for step, effect in self.journal.effects(self.agent_id, parent_id).items():
+                if (
+                    step.startswith("cancel-")
+                    and effect.get("phase") == "provider"
+                    and effect.get("state") != "rejected"
+                    and effect.get("ownerEpoch") == self.epoch
+                ):
+                    action = json_object(effect["action"])
+                    cancels = action.get("cancels")
+                    target_oids = (
+                        [item.get("o") for item in cancels if isinstance(item, dict)]
+                        if isinstance(cancels, list) and cancels
+                        else []
+                    )
+                    if not target_oids or not all(type(oid) is int and oid in clean_live_oids for oid in target_oids):
+                        operation = self._change(
+                            operation,
+                            cancelState="unknown",
+                            cancelErrorCode="RECONCILIATION_REQUIRED",
+                            cancelMessage="Cancel target is no longer cleanly live; verification required",
+                        )
+                        continue
+                    binding, snapshot = self._authority(cancellation=True)
+                    plan = {"binding": snapshot, "wallet": binding.wallet, "network": binding.network}
+                    operation = self._cancel_step(operation, plan, step, action)
+                    native_plan = self.journal.effect(self.agent_id, parent_id, "plan")
+                    operation = self._reconcile_order(operation, native_plan or {"clientOrderId": None})
             if target_child is not None:
                 refreshed = next(
                     c
@@ -1703,21 +1804,47 @@ class ExecutionEngine:
         results = []
         for operation in operations:
             identifier = str(operation["id"])
-            if (
-                identifier in closed
-                and not operation.get("reconciliationErrorCode")
-                and not operation.get("childOperations")
-            ):
-                ledger = self.journal.effect(self.agent_id, identifier, "fills")
-                items = ledger.get("items", []) if ledger else []
-                if isinstance(items, list) and all(
-                    isinstance(item, dict) and isinstance(item.get("tid"), int) for item in items
-                ):
-                    cached = {item["tid"]: item for item in items}
-                    observed = by_order.get(int(operation["providerOrderId"]), [])
-                    if len(cached) == len(items) and all(cached.get(fill["tid"]) == fill for fill in observed):
-                        # Missing old rows cannot erase the retained ledger. Only a new or
-                        # changed receipt needs an individual terminal status reconciliation.
+            if identifier in closed and not operation.get("reconciliationErrorCode"):
+                children = operation.get("childOperations")
+                if not children:
+                    ledger = self.journal.effect(self.agent_id, identifier, "fills")
+                    items = ledger.get("items", []) if ledger else []
+                    if isinstance(items, list) and all(
+                        isinstance(item, dict) and isinstance(item.get("tid"), int) for item in items
+                    ):
+                        cached = {item["tid"]: item for item in items}
+                        observed = by_order.get(int(operation["providerOrderId"]), [])
+                        if len(cached) == len(items) and all(cached.get(fill["tid"]) == fill for fill in observed):
+                            # Missing old rows cannot erase the retained ledger. Only a new or
+                            # changed receipt needs an individual terminal status reconciliation.
+                            results.append(self._operation(identifier))
+                            continue
+                elif isinstance(children, list) and not self._has_live_children(operation):
+                    all_clean = True
+                    legs_to_check: list[tuple[str | None, str]] = [
+                        (operation.get("providerOrderId"), "fills"),
+                        *[
+                            (c.get("providerOrderId"), self._child_fill_step(str(c["id"])))
+                            for c in children
+                            if isinstance(c, dict) and c.get("id")
+                        ],
+                    ]
+                    for leg_oid, leg_step in legs_to_check:
+                        if not isinstance(leg_oid, str) or not leg_oid.isdecimal() or int(leg_oid) <= 0:
+                            continue
+                        ledger = self.journal.effect(self.agent_id, identifier, leg_step)
+                        items = ledger.get("items", []) if ledger else []
+                        if not isinstance(items, list) or not all(
+                            isinstance(item, dict) and isinstance(item.get("tid"), int) for item in items
+                        ):
+                            all_clean = False
+                            break
+                        cached = {item["tid"]: item for item in items}
+                        observed = by_order.get(int(leg_oid), [])
+                        if len(cached) != len(items) or not all(cached.get(fill["tid"]) == fill for fill in observed):
+                            all_clean = False
+                            break
+                    if all_clean:
                         results.append(self._operation(identifier))
                         continue
             results.append(self.order(identifier, _observation=observation if identifier in existing else None))

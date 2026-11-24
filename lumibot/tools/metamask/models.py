@@ -298,6 +298,8 @@ class PerpIntent:
             if parsed_children:
                 raise MetaMaskError("INVALID_INTENT", "Simple orders cannot include child legs")
             if kind in ("stop", "stop_limit"):
+                if tif != "gtc":
+                    raise MetaMaskError("INVALID_INTENT", "Trigger orders support time in force 'gtc' only")
                 stop_price = decimal(value.get("stopPrice"), positive=True)
                 limit = decimal(value.get("limitPrice"), positive=True) if kind == "stop_limit" else None
                 if kind == "stop" and value.get("limitPrice") is not None:

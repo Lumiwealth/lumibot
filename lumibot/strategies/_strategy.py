@@ -818,7 +818,7 @@ class _Strategy:
             raise ValueError(error_message)
 
         if quote_asset is _DEFAULT_QUOTE_ASSET:
-            if self.broker.name == "metamask":
+            if self.broker.name == "metamask" and getattr(self.broker, "mode", "perp") == "perp":
                 quote_asset = Asset("USDC", Asset.AssetType.CRYPTO)
             else:
                 quote_asset = Asset(symbol="USD", asset_type="forex")

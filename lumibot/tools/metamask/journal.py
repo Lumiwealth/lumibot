@@ -272,7 +272,14 @@ class Journal:
                         "RECONCILIATION_REQUIRED", "Resolve pending collateral movement before another trade"
                     )
                 operations = self.operations(agent)
-                if any(item.get("reconciliationErrorCode") for item in operations):
+                if any(
+                    item.get("reconciliationErrorCode")
+                    or any(
+                        isinstance(child, dict) and child.get("reconciliationErrorCode")
+                        for child in (item.get("childOperations") or [])
+                    )
+                    for item in operations
+                ):
                     raise MetaMaskError(
                         "RECONCILIATION_REQUIRED", "Resolve inconsistent execution evidence before further spending"
                     )
@@ -280,7 +287,14 @@ class Journal:
                     raise MetaMaskError(
                         "FEE_BUDGET_REVIEW_REQUIRED", "Review recorded chain fee overrun before further spending"
                     )
-                if any(item.get("state") in UNCERTAIN for item in operations):
+                if any(
+                    item.get("state") in UNCERTAIN
+                    or any(
+                        isinstance(child, dict) and child.get("state") in UNCERTAIN
+                        for child in (item.get("childOperations") or [])
+                    )
+                    for item in operations
+                ):
                     raise MetaMaskError(
                         "RECONCILIATION_REQUIRED", "Resolve pending or uncertain execution before another trade"
                     )

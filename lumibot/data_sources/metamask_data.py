@@ -1,32 +1,16 @@
 """Native Python market data on the network configured for execution."""
 
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 
 from lumibot.data_sources.data_source import DataSource
 from lumibot.entities import AssetsMapping, Quote
-from lumibot.tools.helpers import canonicalize_timestep
 from lumibot.tools.metamask_client import MetaMaskClient, token_payload
 
 
 class MetaMaskData(DataSource):
     SOURCE = "METAMASK"
     MIN_TIMESTEP = "minute"
-    TIMESTEP_MAPPING = [
-        {"timestep": "minute", "representations": ["1m", "minute"]},
-        {"timestep": "3 minutes", "representations": ["3m", "3 minutes"]},
-        {"timestep": "5 minutes", "representations": ["5m", "5 minutes"]},
-        {"timestep": "15 minutes", "representations": ["15m", "15 minutes"]},
-        {"timestep": "30 minutes", "representations": ["30m", "30 minutes"]},
-        {"timestep": "hour", "representations": ["1h", "hour"]},
-        {"timestep": "2 hours", "representations": ["2h", "2 hours"]},
-        {"timestep": "4 hours", "representations": ["4h", "4 hours"]},
-        {"timestep": "8 hours", "representations": ["8h", "8 hours"]},
-        {"timestep": "12 hours", "representations": ["12h", "12 hours"]},
-        {"timestep": "day", "representations": ["1d", "day"]},
-        {"timestep": "3 days", "representations": ["3d", "3 days"]},
-        {"timestep": "week", "representations": ["1w", "week"]},
-        {"timestep": "month", "representations": ["1M", "month"]},
-    ]
     _INTERVAL_SPECS = {
         "minute": ("1m", 60),
         "3 minutes": ("3m", 180),
@@ -43,6 +27,9 @@ class MetaMaskData(DataSource):
         "week": ("1w", 604800),
         "month": ("1M", 2678400),
     }
+    TIMESTEP_MAPPING = [
+        {"timestep": key, "representations": [interval, key]} for key, (interval, _) in _INTERVAL_SPECS.items()
+    ]
 
     def __init__(self, config=None, *, client=None, **kwargs):
         super().__init__(**kwargs)
@@ -52,13 +39,49 @@ class MetaMaskData(DataSource):
     def _resolve_interval(self, timestep):
         if isinstance(timestep, str) and timestep.strip() == "1M":
             return self._INTERVAL_SPECS["month"]
+        from lumibot.tools.helpers import canonicalize_timestep
+
         canonical = canonicalize_timestep(timestep)
         if canonical in self._INTERVAL_SPECS:
             return self._INTERVAL_SPECS[canonical]
         supported = ", ".join(self._INTERVAL_SPECS)
         raise ValueError(f"Unsupported MetaMask timestep {timestep!r}; use one of: {supported}")
 
+    def supports_native_timestep(self, timestep) -> bool:
+        """Return whether Hyperliquid serves ``timestep`` candles directly."""
+        try:
+            self._resolve_interval(timestep)
+            return True
+        except ValueError:
+            return False
+
+    def get_contract_spec(self, asset, quote=None):
+        """Return Hyperliquid linear USDC perpetual contract terms in base units."""
+        from lumibot.entities import ContractSpec
+
+        if isinstance(asset, tuple):
+            asset, tuple_quote = asset
+            if quote is None:
+                quote = tuple_quote
+        if getattr(asset, "asset_type", None) != "crypto_future":
+            raise ValueError("Contract specifications are only defined for Hyperliquid crypto_future assets")
+        if quote is not None and getattr(quote, "symbol", quote) != "USDC":
+            raise ValueError("Hyperliquid perpetuals settle in USDC")
+        market = self.client.market(asset.symbol)
+        return ContractSpec(
+            base=market.symbol,
+            quote="USDC",
+            settle="USDC",
+            contract_size=Decimal("1"),
+            inverse=False,
+            quantity_unit="base",
+        )
+
     def get_last_price(self, asset, quote=None, exchange=None):
+        if isinstance(asset, tuple):
+            asset, tuple_quote = asset
+            if quote is None:
+                quote = tuple_quote
         if asset.asset_type == "crypto_future":
             if quote is not None and quote.symbol != "USDC":
                 raise ValueError("Hyperliquid prices are denominated in USDC")
@@ -72,26 +95,28 @@ class MetaMaskData(DataSource):
         result = {}
         perp_assets = []
         other_assets = []
-        for asset in assets:
+        for entry in assets:
+            asset = entry[0] if isinstance(entry, tuple) else entry
+            item_quote = entry[1] if isinstance(entry, tuple) and quote is None else quote
             if asset.asset_type == "crypto_future":
-                if quote is not None and quote.symbol != "USDC":
+                if item_quote is not None and item_quote.symbol != "USDC":
                     raise ValueError("Hyperliquid prices are denominated in USDC")
-                perp_assets.append(asset)
+                perp_assets.append((entry, asset))
             else:
-                other_assets.append(asset)
+                other_assets.append((entry, asset, item_quote))
         if perp_assets:
-            if hasattr(self.client, "prices"):
-                batched = self.client.prices([asset.symbol for asset in perp_assets])
-                for asset in perp_assets:
-                    result[asset] = batched[asset.symbol]
-            else:
-                for asset in perp_assets:
-                    result[asset] = self.get_last_price(asset, quote=quote, exchange=exchange)
-        for asset in other_assets:
-            result[asset] = self.get_last_price(asset, quote=quote, exchange=exchange)
+            batched = self.client.prices([asset.symbol for _, asset in perp_assets], allow_missing=True)
+            for entry, asset in perp_assets:
+                result[entry] = batched.get(asset.symbol)
+        for entry, asset, item_quote in other_assets:
+            result[entry] = self.get_last_price(asset, quote=item_quote, exchange=exchange)
         return AssetsMapping(result)
 
     def get_quote(self, asset, quote=None, exchange=None):
+        if isinstance(asset, tuple):
+            asset, tuple_quote = asset
+            if quote is None:
+                quote = tuple_quote
         if asset.asset_type == "crypto_future":
             if quote is not None and quote.symbol != "USDC":
                 raise ValueError("Hyperliquid prices are denominated in USDC")
@@ -139,6 +164,10 @@ class MetaMaskData(DataSource):
         include_after_hours=True,
         **kwargs,
     ):
+        if isinstance(asset, tuple):
+            asset, tuple_quote = asset
+            if quote is None:
+                quote = tuple_quote
         if asset.asset_type != "crypto_future":
             raise NotImplementedError(
                 "MetaMask spot candles are not available; configure a separate historical data source"
@@ -153,11 +182,18 @@ class MetaMaskData(DataSource):
         from lumibot.entities import Bars
 
         interval, seconds = self._resolve_interval(timestep)
-        end = datetime.now(timezone.utc) - (timeshift or timedelta())
+        if timeshift is None:
+            shift = timedelta()
+        elif isinstance(timeshift, timedelta):
+            shift = timeshift
+        elif isinstance(timeshift, int) and not isinstance(timeshift, bool):
+            shift = timedelta(seconds=seconds * timeshift)
+        else:
+            raise ValueError("timeshift must be None, an integer number of bars, or a timedelta")
+        end = datetime.now(timezone.utc) - shift
         lookback_bars = min(length + 1, 5000)
-        start_dt = end - timedelta(seconds=seconds * lookback_bars)
-        start_ms = max(0, int(start_dt.timestamp() * 1000))
         end_ms = int(end.timestamp() * 1000)
+        start_ms = max(0, end_ms - seconds * 1000 * lookback_bars)
         response = self.client.candles(asset.symbol, interval, start_ms, end_ms)
         frame = pd.DataFrame(response, columns=["timestamp", "open", "high", "low", "close", "volume"])
         frame["timestamp"] = pd.to_datetime(frame["timestamp"], unit="ms", utc=True)

@@ -3717,7 +3717,8 @@ class Broker(ABC):
                 return None
             if fraction != 1.00:
                 if isinstance(order.quantity, Decimal):
-                    order.quantity = order.quantity * Decimal(str(fraction_value))
+                    multiplier = fraction if isinstance(fraction, Decimal) else Decimal(str(fraction_value))
+                    order.quantity = order.quantity * multiplier
                 else:
                     order.quantity = order.quantity * fraction_value
             order_id = getattr(order, "identifier", None) or getattr(order, "id", None) or getattr(order, "order_id", None)

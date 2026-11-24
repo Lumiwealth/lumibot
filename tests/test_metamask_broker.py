@@ -181,13 +181,13 @@ def test_lost_response_stays_transmitted_and_does_not_retry(broker):
 
 
 def test_unsupported_order_rejected_before_transport(broker):
+    # Native stop and stop-limit orders are now supported; trailing stops and
+    # trailing bracket legs must still be refused before touching transport.
     with pytest.raises(ValueError, match="not supported"):
         broker._submit_order(order(trail_percent=2.0))
     broker.client.submit.assert_not_called()
     with pytest.raises(ValueError, match="not supported"):
-        broker._submit_order(
-            order(order_class="bracket", secondary_limit_price=55000, secondary_trail_percent=2.0)
-        )
+        broker._submit_order(order(order_class="bracket", secondary_limit_price=55000, secondary_trail_percent=2.0))
     broker.client.submit.assert_not_called()
 
 

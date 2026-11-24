@@ -115,13 +115,18 @@ LumiBot order sides (``buy``, ``buy_to_open``, ``sell``, ``sell_to_open``,
 ``sell_short``, ``buy_to_close``, ``buy_to_cover``, ``sell_to_close``) are
 normalized, and closing sides as well as ``reduce_only=True`` enforce canonical
 reduce-only intent across closing methods and restored snapshots. Legacy
-``custom_params={"reduce_only": True}`` cannot turn off canonical reduce-only
+``custom_params={"reduce_only": False}`` cannot turn off canonical reduce-only
 intent. ``custom_params`` also supports ``leverage`` and ``tpsl`` (``"tp"`` or
 ``"sl"`` on standalone triggers). Limit orders require ``gtc``, ``ioc`` or
-``alo``. Market orders become frozen slippage-bounded IOC limits. Trailing
-stops, trailing legs, and automatic in-place cancel/replace (``_modify_order``)
-are unsupported; check ``broker.supports_order(...)`` before submission.
-``Strategy(broker=MetaMask(...))`` defaults ``quote_asset`` to USDC.
+``alo``; trigger orders (``stop``, ``stop_limit``) require ``gtc`` because
+Hyperliquid's trigger wire does not carry a time-in-force flag. Market orders
+become frozen slippage-bounded IOC limits. Trailing stops, trailing legs, and
+automatic in-place cancel/replace (``_modify_order``) are unsupported; check
+``broker.supports_order(...)`` before submission. ``MetaMask`` exposes
+``get_contract_spec()`` and ``get_order_size_rules()`` for Hyperliquid perpetual
+sizing, accepts an optional ``MARKET`` config/environment override (default
+``"24/7"``), and defaults ``Strategy(broker=MetaMask(...))`` ``quote_asset`` to
+USDC in ``MODE='perp'`` (preserving USD in ``MODE='spot'``).
 
 Duplicate IDs reuse the same journaled operation. A different request under an
 existing ID is rejected. Uncertain mutations keep their original request IDs

@@ -1558,6 +1558,8 @@ def test_strategy_spot_mode_keeps_usd_quote_and_contract_spec_and_order_size_rul
     assert exposure["base"] == Decimal("0.1") and exposure["quote"] == Decimal("5000")
     assert perp_broker.get_quantity_for_notional(btc, Decimal("1000"), Decimal("50000")) == Decimal("0.02")
 
+    # Hyperliquid enforces a price-dependent $10 min notional rather than a fixed base minimum,
+    # so min_quantity is None while quantity_step reports the exact lot increment from szDecimals.
     rules = perp_broker.get_order_size_rules(btc)
     assert rules == {
         "min_quantity": None,
@@ -2792,7 +2794,8 @@ def test_engine_orders_does_not_skip_when_ledger_is_ahead_of_snapshot(tmp_path):
     journal.save_effect(
         op, engine._child_fill_step("br-la-sl"), {"wallet": WALLET, "network": "testnet", "items": [child_fill]}
     )
-    venue.fills.return_value = [parent_fill, child_fill]
+    # Omit child_fill from venue.fills so recovery must rely on the durable journal ledger.
+    venue.fills.return_value = [parent_fill]
     venue.order_status.return_value = {
         "status": "order",
         "order": {
@@ -2806,3 +2809,238 @@ def test_engine_orders_does_not_skip_when_ledger_is_ahead_of_snapshot(tmp_path):
     assert listed[0]["childOperations"][0]["filledQuantity"] == "0.004"
     assert listed[0]["childOperations"][0]["averagePrice"] == "45000"
     assert listed[0]["childOperations"][0]["fees"] == [{"asset": "USDC", "amount": "0.05"}]
+
+
+def test_do_polling_isolates_child_regression_and_still_observes_subsequent_orders():
+    broker, client = _make_broker()
+    btc = Asset("BTC", asset_type="crypto_future")
+    eth = Asset("ETH", asset_type="crypto_future")
+    usdc = Asset("USDC", asset_type="crypto")
+
+    # Track only the child of an OTO order (parent untracked) plus a second unrelated ETH order.
+    child_order = Order("s", btc, Decimal("0.01"), "sell", quote=usdc, identifier="oto-child-reg")
+    other_order = Order("s", eth, Decimal("0.1"), "buy", quote=usdc, identifier="eth-valid-fill")
+    broker._new_orders.append(child_order)
+    broker._new_orders.append(other_order)
+    broker._observe(
+        child_order,
+        {
+            "id": "oto-child-reg",
+            "state": "partial_fill",
+            "filledQuantity": "0.005",
+            "averagePrice": "50000",
+            "request": {"kind": "perp", "symbol": "BTC", "side": "sell", "quantity": "0.01"},
+        },
+    )
+    broker._record_order_feed = Mock()
+    client.orders.return_value = [
+        {
+            "id": "oto-parent-untracked",
+            "state": "filled",
+            "filledQuantity": "0.01",
+            "averagePrice": "50000",
+            "request": {"kind": "perp", "symbol": "BTC", "side": "buy", "quantity": "0.01"},
+            "childOperations": [
+                {
+                    "id": "oto-child-reg",
+                    "parentId": "oto-parent-untracked",
+                    "side": "sell",
+                    "quantity": "0.01",
+                    "orderType": "limit",
+                    "state": "open",
+                    "filledQuantity": "0.001",  # regressed from 0.005
+                    "averagePrice": "50000",
+                }
+            ],
+        },
+        {
+            "id": "eth-valid-fill",
+            "state": "filled",
+            "filledQuantity": "0.1",
+            "averagePrice": "3000",
+            "request": {"kind": "perp", "symbol": "ETH", "side": "buy", "quantity": "0.1"},
+        },
+    ]
+    with pytest.raises(MetaMaskAPIError, match="FILL_REGRESSION"):
+        broker.do_polling()
+    # Later unrelated order MUST still have been observed, and feed marked unhealthy.
+    assert other_order.is_filled()
+    broker._record_order_feed.assert_called_once_with(False)
+
+
+def test_engine_orders_bounds_discovery_window_for_settled_closed_groups(tmp_path):
+    engine, journal, _, venue = _make_engine(tmp_path)
+    old_ts = int(time.time() * 1000) - 10 * 86_400_000  # 10 days ago
+    op = {
+        "id": "br-settled-old",
+        "agent": "agent",
+        "request": {
+            "kind": "perp",
+            "id": "br-settled-old",
+            "symbol": "BTC",
+            "side": "buy",
+            "quantity": "0.01",
+            "orderType": "limit",
+            "limitPrice": "50000",
+            "tif": "gtc",
+            "leverage": 2,
+            "reduceOnly": False,
+            "orderClass": "bracket",
+            "children": [
+                {
+                    "id": "br-so-tp",
+                    "side": "sell",
+                    "quantity": "0.01",
+                    "orderType": "limit",
+                    "limitPrice": "55000",
+                    "tpsl": "tp",
+                },
+                {
+                    "id": "br-so-sl",
+                    "side": "sell",
+                    "quantity": "0.01",
+                    "orderType": "stop",
+                    "stopPrice": "45000",
+                    "tpsl": "sl",
+                },
+            ],
+        },
+        "createdAt": old_ts,
+        "updatedAt": old_ts + 1000,
+        "state": "filled",
+        "reservedUsd": "600",
+        "filledQuantity": "0.01",
+        "averagePrice": "50000",
+        "providerOrderId": "801",
+        "fees": [{"asset": "USDC", "amount": "0.1"}],
+        "hashes": [],
+        "childOperations": [
+            {
+                "id": "br-so-tp",
+                "parentId": "br-settled-old",
+                "side": "sell",
+                "quantity": "0.01",
+                "orderType": "limit",
+                "tpsl": "tp",
+                "state": "filled",
+                "providerOrderId": "802",
+                "filledQuantity": "0.01",
+                "averagePrice": "55000",
+                "fees": [{"asset": "USDC", "amount": "0.1"}],
+                "reconciliationErrorCode": None,
+                "reconciliationMessage": None,
+            },
+            {
+                "id": "br-so-sl",
+                "parentId": "br-settled-old",
+                "side": "sell",
+                "quantity": "0.01",
+                "orderType": "stop",
+                "tpsl": "sl",
+                "state": "canceled",
+                "providerOrderId": "803",
+                "filledQuantity": "0",
+                "averagePrice": None,
+                "fees": [],
+                "reconciliationErrorCode": None,
+                "reconciliationMessage": None,
+            },
+        ],
+    }
+    journal.save(op)
+    journal.save_effect(
+        op,
+        "plan",
+        {
+            "action": {"type": "order", "orders": [{}, {}, {}], "grouping": "normalTpsl"},
+            "clientOrderId": None,
+            "ownerEpoch": engine.epoch,
+            "binding": journal.binding("agent"),
+            "wallet": WALLET,
+            "network": "testnet",
+            "projectId": "p",
+            "marketIndex": 0,
+            "isCross": True,
+            "origin": "lumibot",
+            "feeRate": "0.0005",
+            "legs": [
+                {"role": "entry", "id": "br-settled-old", "clientOrderId": None},
+                {"role": "child", "id": "br-so-tp", "clientOrderId": None},
+                {"role": "child", "id": "br-so-sl", "clientOrderId": None},
+            ],
+        },
+    )
+    journal.save_effect(op, "order", {"phase": "venue", "state": "released", "ownerEpoch": engine.epoch})
+    p_fill = {
+        "oid": 801,
+        "coin": "BTC",
+        "side": "B",
+        "sz": "0.01",
+        "px": "50000",
+        "tid": 8101,
+        "fee": "0.1",
+        "feeToken": "USDC",
+    }
+    tp_fill = {
+        "oid": 802,
+        "coin": "BTC",
+        "side": "A",
+        "sz": "0.01",
+        "px": "55000",
+        "tid": 8102,
+        "fee": "0.1",
+        "feeToken": "USDC",
+    }
+    journal.save_effect(op, "fills", {"wallet": WALLET, "network": "testnet", "items": [p_fill]})
+    journal.save_effect(
+        op, engine._child_fill_step("br-so-tp"), {"wallet": WALLET, "network": "testnet", "items": [tp_fill]}
+    )
+    journal.save_effect(op, engine._child_fill_step("br-so-sl"), {"wallet": WALLET, "network": "testnet", "items": []})
+    venue.fills.return_value = []
+
+    # First poll scans and establishes the durable discovery cursor past updatedAt + overlap.
+    first = engine.orders()
+    assert len(first) == 1
+    assert venue.fills.call_count == 1
+    venue.fills.reset_mock()
+
+    # Second poll skips the fully-exited bracket completely (zero fills() calls for settled-only wallet!).
+    second = engine.orders()
+    assert len(second) == 1
+    venue.fills.assert_not_called()
+
+    # Now add a non-exited canceled-child OTO created 10 days ago: discovery window MUST stay bounded
+    # near the durable cursor (cursor - 60s), NOT re-scanning from 10 days ago!
+    oto_op = {
+        **op,
+        "id": "oto-canceled-old",
+        "request": {
+            **op["request"],
+            "id": "oto-canceled-old",
+            "orderClass": "oto",
+            "children": [
+                {
+                    "id": "oto-co-sl",
+                    "side": "sell",
+                    "quantity": "0.01",
+                    "orderType": "stop",
+                    "stopPrice": "45000",
+                    "tpsl": "sl",
+                }
+            ],
+        },
+        "childOperations": [
+            {**op["childOperations"][1], "id": "oto-co-sl", "parentId": "oto-canceled-old", "providerOrderId": "804"}
+        ],
+    }
+    journal.save(oto_op)
+    journal.save_effect(oto_op, "plan", journal.effect("agent", "br-settled-old", "plan"))
+    journal.save_effect(oto_op, "order", {"phase": "venue", "state": "released", "ownerEpoch": engine.epoch})
+    journal.save_effect(oto_op, "fills", {"wallet": WALLET, "network": "testnet", "items": [p_fill]})
+    journal.save_effect(
+        oto_op, engine._child_fill_step("oto-co-sl"), {"wallet": WALLET, "network": "testnet", "items": []}
+    )
+    engine.orders()
+    assert venue.fills.call_count == 1
+    _, start_arg, end_arg = venue.fills.call_args.args
+    assert end_arg - start_arg <= 120_000  # bounded ~60s overlap window, NOT 10 days!

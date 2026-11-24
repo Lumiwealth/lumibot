@@ -730,22 +730,38 @@ class MetaMask(Broker):
             return
         try:
             orders = self._pull_broker_all_orders()
-            for response in orders:
-                if response["request"]["kind"] != "perp":
-                    continue
-                order = self.get_tracked_order(response["id"])
-                if order is not None:
-                    self._observe(order, response)
-                elif isinstance(response.get("childOperations"), list):
-                    for child_resp in response["childOperations"]:
-                        if not isinstance(child_resp, dict) or not child_resp.get("id"):
-                            continue
-                        child_order = self.get_tracked_order(child_resp["id"])
-                        if child_order is not None:
-                            self._observe(child_order, self._child_observation(response, child_resp))
         except Exception:
             self._record_order_feed(False)
             raise
+        first_error = None
+        for response in orders:
+            if response["request"]["kind"] != "perp":
+                continue
+            order = self.get_tracked_order(response["id"])
+            if order is not None:
+                try:
+                    self._observe(order, response)
+                except Exception as error:
+                    self.logger.error("MetaMask order observation failed for %s: %s", response["id"], error)
+                    if first_error is None:
+                        first_error = error
+            elif isinstance(response.get("childOperations"), list):
+                for child_resp in response["childOperations"]:
+                    if not isinstance(child_resp, dict) or not child_resp.get("id"):
+                        continue
+                    child_order = self.get_tracked_order(child_resp["id"])
+                    if child_order is not None:
+                        try:
+                            self._observe(child_order, self._child_observation(response, child_resp))
+                        except Exception as error:
+                            self.logger.error(
+                                "MetaMask child order observation failed for %s: %s", child_resp["id"], error
+                            )
+                            if first_error is None:
+                                first_error = error
+        if first_error is not None:
+            self._record_order_feed(False)
+            raise first_error
         self._record_order_feed(True)
 
     def _process_partially_filled_order(self, order, price, quantity):

@@ -412,6 +412,18 @@ class Journal:
             ).fetchall()
             return {step: json_object(json.loads(data), "execution effect") for step, data in rows}
 
+    def metadata(self, name: str) -> str | None:
+        with self._lock:
+            row = self.db.execute("SELECT value FROM native_metadata WHERE name=?", (name,)).fetchone()
+            return str(row[0]) if row else None
+
+    def set_metadata(self, name: str, value: str) -> None:
+        with self._lock:
+            self.db.execute(
+                "INSERT INTO native_metadata VALUES (?,?) ON CONFLICT(name) DO UPDATE SET value=excluded.value",
+                (name, value),
+            )
+
     def next_nonce(self, *, now: int | None = None) -> int:
         now = int(time.time() * 1000) if now is None else now
         with self._lock:

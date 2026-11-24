@@ -1837,11 +1837,56 @@ class ExecutionEngine:
         finally:
             self._execution.release()
 
+    def _group_ledgers_match_snapshot(self, operation: dict[str, object]) -> bool:
+        identifier = str(operation["id"])
+        children = operation.get("childOperations")
+        if not isinstance(children, list) or not children:
+            return False
+        legs_to_check: list[tuple[dict[str, object], str]] = [
+            (operation, "fills"),
+            *[(c, self._child_fill_step(str(c["id"]))) for c in children if isinstance(c, dict) and c.get("id")],
+        ]
+        return all(
+            self._ledger_matches_snapshot(identifier, leg_rec, leg_step, []) for leg_rec, leg_step in legs_to_check
+        )
+
+    @staticmethod
+    def _is_fully_exited_group(operation: dict[str, object]) -> bool:
+        children = operation.get("childOperations")
+        if not isinstance(children, list) or not children:
+            return False
+        if operation.get("state") != "filled" or operation.get("reconciliationErrorCode"):
+            return False
+        if any(
+            not isinstance(c, dict) or c.get("state") not in _TERMINAL or c.get("reconciliationErrorCode")
+            for c in children
+        ):
+            return False
+        try:
+            parent_filled = decimal(operation.get("filledQuantity", "0"))
+            exited_qty = sum(
+                (decimal(c.get("filledQuantity", "0")) for c in children if c.get("state") == "filled"),
+                Decimal(0),
+            )
+            return (
+                parent_filled > 0
+                and exited_qty >= parent_filled
+                and all(c.get("state") != "canceled" or decimal(c.get("filledQuantity", "0")) == 0 for c in children)
+            )
+        except (MetaMaskError, ValueError, TypeError):
+            return False
+
     def orders(self) -> list[dict[str, object]]:
         # Swaps share the journal but belong exclusively to EVM reconciliation.
         # Other legacy request shapes retain their existing single-order dispatch.
         operations = [row for row in self.journal.operations(self.agent_id) if row["request"].get("kind") != "swap"]
+        cursor_key = f"closed_fill_cursor:{self.agent_id}"
+        cursor_raw = self.journal.metadata(cursor_key)
+        cursor_ms = int(cursor_raw) if isinstance(cursor_raw, str) and cursor_raw.isdecimal() else None
+        overlap_ms = 60_000
         existing = {}
+        settled_closed_groups: set[str] = set()
+        skipped_settled: set[str] = set()
         for row in operations:
             identifier = str(row["id"])
             reconcilable_children = self._has_reconcilable_children(row)
@@ -1854,10 +1899,23 @@ class ExecutionEngine:
                 continue
             if not has_valid_oid and not (released and row.get("childOperations")):
                 continue
+            if (
+                row.get("childOperations")
+                and row["state"] in _TERMINAL
+                and not row.get("reconciliationErrorCode")
+                and not self._has_live_children(row)
+                and self._group_ledgers_match_snapshot(row)
+            ):
+                updated_at = int(row.get("updatedAt", row["createdAt"]))
+                if self._is_fully_exited_group(row) and cursor_ms is not None and cursor_ms >= updated_at + overlap_ms:
+                    # Parent and exit child filled the full quantity and the post-close overlap window was scanned.
+                    skipped_settled.add(identifier)
+                    continue
+                settled_closed_groups.add(identifier)
             if row["state"] in _TERMINAL or plan is None or released:
                 existing[identifier] = row
         if not existing:
-            return [self.order(str(row["id"])) for row in operations]
+            return [row if str(row["id"]) in skipped_settled else self.order(str(row["id"])) for row in operations]
         closed = {
             identifier: row
             for identifier, row in existing.items()
@@ -1866,8 +1924,16 @@ class ExecutionEngine:
         try:
             wallet = Binding.parse(self.journal.binding(self.agent_id), validate_registry=False).wallet
             live = self.venue.frontend_open_orders(wallet) if len(existing) > len(closed) else None
-            start = max(0, min(int(row["createdAt"]) for row in existing.values()) - 5000)
-            recent = self.venue.fills(wallet, start, int(time.time() * 1000))
+            anchors = []
+            for identifier, row in existing.items():
+                base_start = max(0, int(row["createdAt"]) - 5000)
+                if identifier in settled_closed_groups and cursor_ms is not None:
+                    anchors.append(max(base_start, cursor_ms - overlap_ms))
+                else:
+                    anchors.append(base_start)
+            start = min(anchors)
+            poll_end = int(time.time() * 1000)
+            recent = self.venue.fills(wallet, start, poll_end)
         except MetaMaskError:
             # Preserve ordinary durable reconciliation errors if discovery is unavailable.
             return [self.order(str(row["id"])) for row in operations]
@@ -1878,6 +1944,9 @@ class ExecutionEngine:
         results = []
         for operation in operations:
             identifier = str(operation["id"])
+            if identifier in skipped_settled:
+                results.append(operation)
+                continue
             if identifier in closed and not operation.get("reconciliationErrorCode"):
                 current = self._operation(identifier)
                 if (
@@ -1917,4 +1986,11 @@ class ExecutionEngine:
                             results.append(current)
                             continue
             results.append(self.order(identifier, _observation=observation if identifier in existing else None))
+        if not any(
+            row.get("reconciliationErrorCode")
+            or any(isinstance(c, dict) and c.get("reconciliationErrorCode") for c in (row.get("childOperations") or []))
+            for row in results
+        ):
+            if cursor_ms is None or poll_end > cursor_ms:
+                self.journal.set_metadata(cursor_key, str(poll_end))
         return results

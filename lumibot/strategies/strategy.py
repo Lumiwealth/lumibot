@@ -200,6 +200,20 @@ def __getattr__(name):
     return value
 
 
+def _order_is_final(order) -> bool:
+    """A completely filled order with no working child orders cannot change any more.
+
+    Canceled or rejected orders are not final here: some brokers report a late
+    fill on a canceled order, so those keep their normal broker refresh.
+    """
+    try:
+        if not order.is_filled():
+            return False
+        return not any(child.is_active() for child in (getattr(order, "child_orders", None) or []))
+    except Exception:
+        return False
+
+
 _QUOTE_BASKET_MISS = object()
 _QUOTE_BASKET_LIMIT = 50
 
@@ -209,6 +223,9 @@ class Strategy(_Strategy):
     # inside one trading iteration; 0 turns the basket off. The environment
     # variable LUMIBOT_QUOTE_BASKET_MAX_AGE_SECONDS overrides this default.
     quote_basket_max_age_seconds = 1.0
+    # Live: after a fill, run the next trading iteration at once instead of waiting
+    # out the sleeptime (an iteration already running is never interrupted).
+    wake_iteration_on_fill = True
 
     @property
     def name(self):
@@ -1835,6 +1852,9 @@ class Strategy(_Strategy):
         Refresh normally reads the broker order list; a tracked active order absent from
         that list may also receive a direct lookup. This is not an unconditional
         single-order HTTP request. Set broker_refresh=False to read only tracked state.
+        An order this strategy already knows is completely filled is final, so it is
+        returned without asking the broker again. ``order.status_updated_at`` and
+        ``order.status_source`` say when the status last changed and where it came from.
 
         Returns
         -------
@@ -1848,6 +1868,10 @@ class Strategy(_Strategy):
         >>> # Show the status of the order
         >>> self.log_message(order.status)
         """
+        if broker_refresh and not self.broker.IS_BACKTESTING_BROKER:
+            local = self.broker.get_tracked_order(identifier)
+            if local is not None and local.strategy == self.name and _order_is_final(local):
+                return local
         self._refresh_live_orders(broker_refresh=broker_refresh, broker_refresh_ttl_seconds=broker_refresh_ttl_seconds)
         order = self.broker.get_tracked_order(identifier)
         if order is not None and order.strategy == self.name:
@@ -1909,7 +1933,17 @@ class Strategy(_Strategy):
 
         """
         normalized_statuses = self._normalize_order_statuses(statuses)
-        self._refresh_live_orders(broker_refresh=broker_refresh, broker_refresh_ttl_seconds=broker_refresh_ttl_seconds)
+        skip_refresh = False
+        if broker_refresh and identifiers and not self.broker.IS_BACKTESTING_BROKER:
+            # Every asked-for order is already completely filled: nothing left to refresh.
+            known = [
+                order
+                for order in self.broker.get_tracked_orders(self.name)
+                if any(self.broker.identifiers_equal(order.identifier, identifier) for identifier in identifiers)
+            ]
+            skip_refresh = len(known) >= len(identifiers) and all(_order_is_final(order) for order in known)
+        if not skip_refresh:
+            self._refresh_live_orders(broker_refresh=broker_refresh, broker_refresh_ttl_seconds=broker_refresh_ttl_seconds)
         all_orders = self.broker.get_tracked_orders(self.name)
         if identifiers:
             all_orders = [

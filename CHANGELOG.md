@@ -14,6 +14,17 @@
   while the strategy has no open order of its own. A canceled or rejected order
   keeps reads on for `ended_order_watch_seconds` (120) so late fills are still
   seen. `broker.skip_order_list_when_idle = False` restores the old behavior.
+- Live: after a fill, the next trading iteration runs at once instead of waiting out
+  `sleeptime` (never interrupts a running iteration; `wake_iteration_on_fill = False`
+  keeps the fixed schedule).
+- Live: `get_order` / `get_orders(identifiers=...)` return a completely filled order
+  without another broker read. Canceled and rejected orders are still refreshed.
+- Orders carry `status_updated_at`, `status_source` and (Schwab) `status_checked_at`.
+
+### Fixed
+
+- The broker sync before each live iteration no longer spins without sleeping while
+  submitted orders drain, which slowed the order and fill threads.
 
 ## 4.6.96 - 2026-11-23
 

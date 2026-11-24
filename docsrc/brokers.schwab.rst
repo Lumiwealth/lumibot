@@ -422,6 +422,25 @@ one Schwab request per symbol:
 
 For a whole list at once, ``get_quotes`` is still the most direct call.
 
+Faster reaction to fills
+------------------------
+
+* **Next iteration right after a fill.** When an order fills (in full or in part)
+  and no trading iteration is running, LumiBot runs the next iteration at once
+  instead of waiting out ``sleeptime``. A strategy that sends its hedge or its
+  next order in ``on_trading_iteration`` reacts in milliseconds, not up to one
+  sleeptime later. An iteration that is already running is never interrupted, so
+  a strategy that scans a long list in one iteration should send time-critical
+  orders from ``on_filled_order`` itself. Set ``wake_iteration_on_fill = False``
+  on the strategy class to keep the fixed schedule.
+* **Filled orders are final.** ``get_order(id)`` and ``get_orders(identifiers=[...])``
+  return an order that is already completely filled without asking Schwab again.
+  Canceled and rejected orders are still refreshed, because a late fill can arrive.
+* **How fresh is a status?** Every order has ``status_updated_at`` (UTC time its
+  status last changed), ``status_source`` (``"local"``, ``"rest"`` or ``"stream"``)
+  and ``status_checked_at`` (UTC time a Schwab read last confirmed it). Check them
+  before acting on a status that matters, for example before sizing a hedge.
+
 Request budget per process
 --------------------------
 

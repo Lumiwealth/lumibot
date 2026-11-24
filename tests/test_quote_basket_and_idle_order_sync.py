@@ -187,3 +187,56 @@ def test_a_canceled_order_keeps_the_order_list_in_use_for_late_fills_then_stops(
     broker.ended_order_watch_seconds = 0
     broker.sync_orders("fixture")
     assert _order_list_reads(transport) == before + 1
+
+
+# ---------------------------------------------------------------- wake after a fill
+
+def _executor_with_scheduler(in_iteration=False, wake=True):
+    import logging
+    from apscheduler.jobstores.memory import MemoryJobStore
+    from apscheduler.schedulers.background import BackgroundScheduler
+    from apscheduler.triggers.cron import CronTrigger
+    from lumibot.strategies.strategy_executor import StrategyExecutor
+
+    ran = []
+    scheduler = BackgroundScheduler(jobstores={"On_Trading_Iteration": MemoryJobStore()})
+    scheduler.start()
+    # A trigger that would not fire for the next minute on its own.
+    scheduler.add_job(lambda: ran.append(1), CronTrigger(minute="*"), id="OTIM", jobstore="On_Trading_Iteration")
+    fake = SimpleNamespace(
+        broker=SimpleNamespace(IS_BACKTESTING_BROKER=False),
+        strategy=SimpleNamespace(wake_iteration_on_fill=wake, logger=logging.getLogger("t")),
+        _in_trading_iteration=in_iteration, _run_once_requested=False,
+        scheduler=scheduler, cron_count=0, cron_count_target=1,
+    )
+    fake._is_running_once = lambda: False
+    return StrategyExecutor._wake_iteration_after_fill.__get__(fake), scheduler, ran
+
+
+def _wait_for(condition, seconds=3.0):
+    import time as _time
+    end = _time.monotonic() + seconds
+    while _time.monotonic() < end and not condition():
+        _time.sleep(0.02)
+    return condition()
+
+
+def test_a_fill_runs_the_next_iteration_at_once_instead_of_after_the_sleeptime():
+    """Real Schwab run Nov 24: 905 ms of the fill-to-next-order gap was waiting for the next
+    1-second tick; a strategy that hedges in its next iteration paid it on every fill."""
+    wake, scheduler, ran = _executor_with_scheduler()
+    try:
+        wake()
+        assert _wait_for(lambda: ran)
+    finally:
+        scheduler.shutdown(wait=False)
+
+
+@pytest.mark.parametrize("in_iteration,wake_on", [(True, True), (False, False)])
+def test_no_wake_during_a_running_iteration_or_when_turned_off(in_iteration, wake_on):
+    wake, scheduler, ran = _executor_with_scheduler(in_iteration=in_iteration, wake=wake_on)
+    try:
+        wake()
+        assert not _wait_for(lambda: ran, seconds=0.5)
+    finally:
+        scheduler.shutdown(wait=False)

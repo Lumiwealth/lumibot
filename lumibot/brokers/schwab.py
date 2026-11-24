@@ -2406,6 +2406,16 @@ class Schwab(Broker):
             if parent is not None:
                 for child in self._iter_order_tree(children):
                     self._reduce_schwab_order_snapshot(child)
+            # Freshness label: this tracked order's state was just read from Schwab.
+            try:
+                tracked = self.get_tracked_order(observed_order.identifier, use_placeholders=True)
+            except Exception:
+                tracked = None
+            if tracked is not None:
+                import datetime as dt
+
+                tracked.status_source = "stream" if "stream" in str(source) else "rest"
+                tracked.status_checked_at = dt.datetime.now(dt.timezone.utc)
 
     def _apply_direct_order_observation(self, order_lumi, matched_order):
         # Setting terminal status first makes the reducer skip the callback and

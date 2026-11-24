@@ -661,3 +661,32 @@ def test_bulk_order_sync_reconciles_healthy_siblings_before_reporting_incomplete
     assert good.is_filled()
     assert sum(t.quantity for t in good.transactions) == good.quantity
     assert bad.transactions == []
+
+
+def test_live_get_order_of_a_completely_filled_order_does_not_ask_the_broker_again():
+    """Real Schwab run Nov 24: a fill handler that re-read its just-filled order paid one order
+    read (about 0.7 s) before it could send the next order. A filled order cannot change."""
+    strategy, broker = _strategy()
+    filled = _order(strategy.name, "done-1", Order.OrderStatus.FILLED)
+    broker._filled_orders.append(filled)
+    broker.order_pull_count = 0
+    assert strategy.get_order("done-1") is filled
+    assert strategy.get_orders(identifiers=["done-1"]) == [filled]
+    assert broker.order_pull_count == 0
+
+
+def test_live_get_order_of_a_canceled_order_still_asks_the_broker_for_late_fills():
+    strategy, broker = _strategy()
+    canceled = _order(strategy.name, "cx-1", Order.OrderStatus.CANCELED)
+    broker._canceled_orders.append(canceled)
+    broker.order_pull_count = 0
+    strategy.get_order("cx-1")
+    assert broker.order_pull_count == 1
+
+
+def test_order_status_change_records_when_it_happened():
+    order = _order("s", "o-1", Order.OrderStatus.OPEN)
+    first = order.status_updated_at
+    assert first is not None and order.status_source == "local"
+    order.status = Order.OrderStatus.FILLED
+    assert order.status_updated_at >= first

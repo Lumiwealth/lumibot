@@ -176,6 +176,13 @@ _SERIALIZING_ORDERS: ContextVar[frozenset] = ContextVar("lumibot_serializing_ord
 class Order:
     Transaction = namedtuple("Transaction", ["quantity", "price"])
 
+    # Freshness labels (live). ``status_updated_at``: UTC time the status last changed.
+    # ``status_source``: where that status came from ("local" until a broker reports it;
+    # adapters that read the broker set "rest" or "stream").
+    status_updated_at = None
+    status_source = "local"
+    status_checked_at = None  # UTC time a broker read last confirmed this status
+
     class OrderClass(StrEnum):
         SIMPLE = "simple"
         BRACKET = "bracket"
@@ -1160,6 +1167,10 @@ class Order:
 
     @status.setter
     def status(self, value):
+        # When the status last changed (UTC), so a caller can tell how old it is.
+        # Brokers that read the status from the broker also set ``status_source``.
+        if value is not None and value != getattr(self, "_status", None):
+            self.status_updated_at = datetime.datetime.now(datetime.timezone.utc)
         if value and isinstance(value, str):
             if value.lower() in STATUS_ALIAS_MAP:
                 self._status = STATUS_ALIAS_MAP[value.lower()]

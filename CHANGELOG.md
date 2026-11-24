@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.96 - Unreleased
+## 4.6.96 - 2026-11-23
 
 ### Webull OpenAPI
 

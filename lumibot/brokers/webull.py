@@ -1,5 +1,6 @@
 """Webull's Individual OpenAPI trading adapter."""
 from datetime import date, datetime, timedelta, timezone
+from logging import getLogger
 from threading import Lock, Thread
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
@@ -16,6 +17,8 @@ from lumibot.tools.webull_helpers import (
     require_number,
 )
 from lumibot.trading_builtins import PollingStream
+
+logger = getLogger(__name__)
 
 _ALGO_FIELDS = ("algo_type", "algo_start_time", "algo_end_time", "max_target_percent", "target_vol_percent")
 
@@ -395,8 +398,11 @@ class Webull(Broker):
 
     def _submit_order(self, order):
         key = (order.custom_params or {}).get("client_order_id")
-        if key:
-            order.identifier = _client_identifier(key)
+        with self._lock:
+            if self.get_tracked_order(order.identifier) is not None:
+                raise ValueError("This Webull order is already tracked; reconcile it before submitting")
+            if key:
+                order.identifier = _client_identifier(key)
         if not order.child_orders:
             if order.asset.asset_type == Asset.AssetType.FUTURE:
                 order.asset = self._dated_future(order.asset)
@@ -477,6 +483,7 @@ class Webull(Broker):
         with self._lock:
             if self.get_tracked_order(order.identifier):
                 raise ValueError("This Webull client order ID is already tracked; reconcile it before submitting")
+            initial_status = order.status
             self._unprocessed_orders.append(order)
         try:
             kwargs = {"client_combo_order_id": client_combo_id} if client_combo_id else {}
@@ -496,7 +503,18 @@ class Webull(Broker):
             except (WebullAPIError, ValueError):
                 observed = None
             if observed is None:
-                order.status = Order.OrderStatus.SUBMITTED
+                sent = {row["client_order_id"] for row in rows}
+                with self._lock:
+                    confirmed = order.status != initial_status
+                    if not confirmed:
+                        order.status = Order.OrderStatus.SUBMITTED
+                    for child in order.child_orders:
+                        if str(child.identifier) in sent and self.get_tracked_order(child.identifier) is None:
+                            child.parent_identifier = order.identifier
+                            child.status = Order.OrderStatus.SUBMITTED
+                            self._unprocessed_orders.append(child)
+                if confirmed:
+                    return order
                 raise WebullAPIError("placement outcome is unknown; look up the original client order ID") from None
             self._track_submitted_rows(order, rows)
             self._apply_direct_order_observation(order, observed)
@@ -574,7 +592,7 @@ class Webull(Broker):
         row = self._order_row(order)
         modify = {
             "client_order_id": row["client_order_id"], "order_type": row["order_type"],
-            "time_in_force": row["time_in_force"], "quantity": row["quantity"],
+            "time_in_force": row["time_in_force"],
         }
         for field in ("stop_price", "limit_price", "trailing_type", "trailing_stop_step"):
             if field in row:
@@ -670,6 +688,14 @@ class Webull(Broker):
                 owned.append(observed)
         return owned
 
+    def _iter_executable_order_tree(self, orders):
+        for order in orders:
+            if order.order_class == Order.OrderClass.MULTILEG:
+                # Webull assigns IDs to option terms for amendments. Only the package executes.
+                yield order
+            else:
+                yield from self._iter_order_tree([order])
+
     def _parse_broker_order(self, response, strategy_name, strategy_object=None):
         if not response:
             return None
@@ -738,8 +764,15 @@ class Webull(Broker):
         if row.get("filled_quantity") not in ("", None):
             order.filled_quantity = require_number(row["filled_quantity"], "filled quantity")
         order.broker_status = row.get("status")
-        order.broker_create_date = row.get("place_time_at")
-        order.broker_update_date = row.get("filled_time_at") or order.broker_create_date
+        def timestamp(field):
+            value = row.get(field)
+            if not value:
+                return None
+            parsed = datetime.fromisoformat(value.removesuffix("Z") + "+00:00" if value.endswith("Z") else value)
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+        order.broker_create_date = timestamp("place_time_at")
+        order.broker_update_date = timestamp("filled_time_at") or order.broker_create_date
         order.update_raw({key: row[key] for key in ("client_order_id", "order_id") if key in row})
         return order
 
@@ -797,7 +830,10 @@ class Webull(Broker):
         selected = (orders[index:] + orders[:index])[:2]
         self._poll_offset += len(selected)
         for order in selected:
-            self._refresh_tracked_order(order)
+            try:
+                self._refresh_tracked_order(order)
+            except (WebullAPIError, ValueError, ArithmeticError) as exc:
+                logger.warning("Webull order observation failed (%s); will retry on a future poll", type(exc).__name__)
 
     def _refresh_tracked_order(self, order):
         observed = self._pull_order(order.identifier, order.strategy)

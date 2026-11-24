@@ -3,6 +3,7 @@ import json
 import os
 import stat
 import time
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -127,22 +128,64 @@ def test_paper_night_day_equity_order_acceptance_and_cancel(paper, symbol):
         assert placed["status"] not in {"FAILED", "REJECTED", "CANCELLED", "CANCELED", "EXPIRED"}
     finally:
         if order.was_transmitted():
-            terminal = _cancel_then_read(strategy, observer, account, order)
-            filled = Decimal(terminal.get("filled_quantity") or 0)
-            if filled:
-                # A fast move can reach even a passive test order. Close only its actual fill.
-                latest = broker.data_source.get_quote(order.asset)
-                assert latest.bid and latest.bid > 0
-                exit_price = (Decimal(str(latest.bid)) * Decimal("0.98")).quantize(Decimal("0.01"))
-                close = strategy.create_order(order.asset, filled, "sell", limit_price=exit_price,
-                                              time_in_force="day",
-                                              custom_params={"support_trading_session": "NIGHT"})
-                assert _submit_and_observe_terminal(strategy, observer, account, close)["status"] == "FILLED"
-            assert terminal["status"] in {"CANCELED", "CANCELLED"} and not filled
+            _cancel_passive_overnight_order(strategy, observer, account, order)
     after = request_json("positions after overnight order", observer.account_v2.get_account_position, account)
     assert {(row["symbol"], row["quantity"]) for row in after} == {
         (row["symbol"], row["quantity"]) for row in before
     }
+
+
+def _cancel_passive_overnight_order(strategy, observer, account, order):
+    terminal = _cancel_then_read(strategy, observer, account, order)
+    filled = Decimal(terminal.get("filled_quantity") or 0)
+    if filled:
+        # A fast move can reach even a passive test order. Close only its actual fill.
+        latest = strategy.broker.data_source.get_quote(order.asset)
+        assert latest.bid and latest.bid > 0
+        exit_price = (Decimal(str(latest.bid)) * Decimal("0.98")).quantize(Decimal("0.01"))
+        close = strategy.create_order(order.asset, filled, "sell", limit_price=exit_price,
+                                      time_in_force="day",
+                                      custom_params={"support_trading_session": "NIGHT"})
+        assert _submit_and_observe_terminal(strategy, observer, account, close)["status"] == "FILLED"
+    assert terminal["status"] in {"CANCELED", "CANCELLED"} and not filled
+
+
+@pytest.mark.parametrize("paper", ["INDIVIDUAL_MARGIN"], indirect=True)
+def test_paper_restart_restores_owned_order_without_adopting_direct_sdk_order(paper):
+    from contextlib import ExitStack
+
+    _require_overnight_equity_session()
+    broker, observer, account = paper
+    strategy, owned = _night_equity_order(broker, "SPY")
+    _, manual = _night_equity_order(broker, "AAPL")
+    with ExitStack() as cleanup:
+        strategy.submit_order(owned)
+        if owned.was_transmitted():
+            cleanup.callback(_cancel_passive_overnight_order, strategy, observer, account, owned)
+        assert owned.status != owned.OrderStatus.ERROR, owned.error_message
+        _detail(observer, account, owned.identifier, lambda row: bool(row.get("order_id")))
+
+        # Place the second order with an independent client and literal provider
+        # fields. It has no association with the strategy checkpoint.
+        request_json("independent overnight placement", observer.order_v3.place_order, account, [{
+            "client_order_id": manual.identifier, "symbol": "AAPL", "market": "US",
+            "combo_type": "NORMAL", "instrument_type": "EQUITY", "side": "BUY",
+            "order_type": "LIMIT", "limit_price": str(manual.limit_price), "time_in_force": "DAY",
+            "support_trading_session": "NIGHT", "entrust_type": "QTY", "quantity": "1",
+        }])
+        cleanup.callback(_cancel_passive_overnight_order, strategy, observer, account, manual)
+        _detail(observer, account, manual.identifier, lambda row: bool(row.get("order_id")))
+
+        fresh = Webull(broker._webull_config, connect_stream=False, start_orders_thread=False)
+        cleanup.callback(fresh.cleanup_streams)
+        fresh.restore_order_state(broker.export_order_state(strategy), strategy.name)
+        account_orders = {item.identifier for item in fresh._pull_all_orders(strategy.name, None)}
+        assert {owned.identifier, manual.identifier} <= account_orders
+        fresh.sync_orders(strategy.name)
+        tracked = fresh.get_active_tracked_orders(strategy.name)
+        assert {item.identifier for item in tracked} == {owned.identifier}
+        assert Decimal(str(tracked[0].limit_price)) == owned.limit_price
+        assert fresh.get_tracked_order(manual.identifier) is None
 
 
 @pytest.mark.parametrize("paper", ["INDIVIDUAL_MARGIN"], indirect=True)
@@ -1149,27 +1192,43 @@ def _observe_terminal_or_cancel(strategy, observer, account, order):
     terminal = {"FILLED", "CANCELED", "CANCELLED", "EXPIRED", "REJECTED", "FAILED"}
     try:
         return _detail(observer, account, order.identifier, lambda row: row.get("status") in terminal)
+    except WebullAPIError as exc:
+        if not exc.write_outcome_unknown:
+            raise
     except pytest.fail.Exception:
-        return _cancel_then_read(strategy, observer, account, order)
+        pass
+    return _cancel_then_read(strategy, observer, account, order)
 
 
 def _cancel_then_read(strategy, observer, account, order):
     terminal = {"FILLED", "CANCELED", "CANCELLED", "EXPIRED", "REJECTED", "FAILED"}
+    cancellation_acknowledged = False
     for pause in (0, 2, 5, 10, 20, 30, 30, 60, 60):
         time.sleep(pause)
-        current = _detail(observer, account, order.identifier, lambda row: bool(row.get("status")))
+        try:
+            current = _detail(observer, account, order.identifier, lambda row: bool(row.get("status")),
+                              pauses=(0,))
+        except WebullAPIError as exc:
+            if not exc.write_outcome_unknown:
+                raise
+            continue
+        except pytest.fail.Exception:
+            continue
         if current["status"] in terminal:
             return current
+        if cancellation_acknowledged or current["status"] in {"CANCELLING", "CANCELING", "PENDING_CANCEL"}:
+            continue
         try:
             strategy.cancel_order(order)
         except WebullAPIError as exc:
-            if (current["status"] != "PENDING" or exc.code not in
-                    {"OPENAPI_ORDER_CAN_NOT_BE_CANCEL_FOR_PENDING_SUBMIT", "OPENAPI_ORDER_CAN_NOT_BE_CANCEL"}):
+            still_submitting = current["status"] == "PENDING" and exc.code in {
+                "OPENAPI_ORDER_CAN_NOT_BE_CANCEL_FOR_PENDING_SUBMIT", "OPENAPI_ORDER_CAN_NOT_BE_CANCEL",
+            }
+            if not (still_submitting or exc.write_outcome_unknown):
                 raise
-            continue
-        return _detail(observer, account, order.identifier, lambda row: row.get("status") in terminal,
-                       pauses=(0, 1, 2, 3, 5, 10, 20, 30))
-    pytest.fail("Webull still shows this submitted order working; reconcile its original identifier")
+        else:
+            cancellation_acknowledged = True
+    pytest.fail("Independent Webull read did not confirm terminal state for the original order")
 
 
 @pytest.mark.parametrize("type_name,wire_type", [("stop", "STOP_LOSS"), ("stop_limit", "STOP_LOSS_LIMIT")])
@@ -2633,8 +2692,8 @@ def test_paper_scoped_history_matches_independent_execution(paper, kind, symbol,
     order, = matches
     assert order.is_filled() and Decimal(str(order.filled_quantity)) == Decimal(target["filled_quantity"])
     assert Decimal(str(order.avg_fill_price)) == Decimal(target["filled_price"])
-    assert order.broker_create_date == target["place_time_at"]
-    assert order.broker_update_date == target["filled_time_at"]
+    assert order.broker_create_date == datetime.fromisoformat(target["place_time_at"].replace("Z", "+00:00"))
+    assert order.broker_update_date == datetime.fromisoformat(target["filled_time_at"].replace("Z", "+00:00"))
 
 
 @pytest.mark.parametrize("paper,product", [("FUTURES", "MES"), ("CRYPTO", "ETH")], indirect=["paper"])

@@ -1,4 +1,5 @@
 """Offline Webull v3 shapes from the individual order and account references."""
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -129,6 +130,112 @@ def test_ambiguous_placement_reads_once_with_original_id(broker, venue):
     assert broker.submit_order(placed) is placed
     venue.order_v3.place_order.assert_called_once()
     venue.order_v3.get_order_detail.assert_called_once_with("sandbox-test", placed.identifier)
+
+
+def test_unacknowledged_bracket_keeps_every_sent_identity_for_recovery(broker, venue):
+    from lumibot.tools.webull_helpers import WebullAPIError
+
+    entry = Order("qualification", Asset("SAMPLE"), 1, "buy", limit_price=20,
+                  order_type="limit", order_class="bracket", secondary_limit_price=25,
+                  secondary_stop_price=17)
+    venue.order_v3.place_order.side_effect = TimeoutError("synthetic timeout")
+    venue.order_v3.get_order_detail.return_value = reply({"orders": []})
+    with pytest.raises(WebullAPIError, match="outcome is unknown"):
+        broker.submit_order(entry)
+    sent = venue.order_v3.place_order.call_args.args[1]
+    assert {o.identifier for o in broker.get_tracked_orders("qualification")} == {
+        row["client_order_id"] for row in sent
+    }
+    assert all(broker.get_tracked_order(row["client_order_id"]).is_active() for row in sent)
+    venue.order_v3.place_order.assert_called_once()
+
+
+def test_successful_concurrent_fill_survives_unknown_placement_receipt(broker, venue):
+    placed = order()
+    venue.order_v3.place_order.side_effect = TimeoutError("synthetic timeout")
+    venue.order_v3.get_order_detail.return_value = reply(detail(
+        placed.identifier, status="FILLED", filled_quantity="1", filled_price="20"))
+    pull = broker._pull_order
+
+    def missing_after_concurrent_fill(identifier, strategy):
+        observed = pull(identifier, strategy)
+        broker._apply_direct_order_observation(placed, observed)
+        return None
+
+    broker._pull_order = missing_after_concurrent_fill
+    assert broker.submit_order(placed) is placed
+    assert placed.is_filled()
+    assert [fill.quantity for fill in placed.transactions] == [1]
+    venue.order_v3.place_order.assert_called_once()
+
+
+def test_broken_detail_does_not_starve_other_working_order(broker, venue):
+    first, second = order(), order()
+    broker.submit_order(first)
+    broker.submit_order(second)
+    venue.order_v3.get_order_detail.side_effect = [
+        TimeoutError("synthetic detail failure"),
+        reply(detail(second.identifier, status="FILLED", filled_quantity="1", filled_price="20")),
+    ]
+    broker._poll_tracked_orders()
+    assert first.is_active() and not first.transactions
+    assert second.is_filled() and len(second.transactions) == 1
+
+
+def test_webull_order_timestamps_support_broker_retention(broker, venue):
+    placed = order()
+    broker.submit_order(placed)
+    venue.order_v3.get_order_detail.return_value = reply(detail(
+        placed.identifier, status="FILLED", filled_quantity="1", filled_price="20",
+        place_time_at="2026-11-23T14:00:00.000Z", filled_time_at="2026-11-23T15:00:00.000Z"))
+    broker._refresh_tracked_order(placed)
+    assert placed.broker_create_date == datetime(2026, 11, 23, 14, tzinfo=timezone.utc)
+    assert placed.broker_update_date == datetime(2026, 11, 23, 15, tzinfo=timezone.utc)
+    assert broker._is_item_too_old(placed, datetime(2026, 11, 25, tzinfo=timezone.utc), 1)
+
+
+def test_resubmitting_same_order_cannot_change_tracked_identity(broker, venue):
+    placed = order()
+    placed.custom_params = {"client_order_id": "original"}
+    broker.submit_order(placed)
+    placed.custom_params["client_order_id"] = "different"
+    with pytest.raises(ValueError, match="already tracked"):
+        broker.submit_order(placed)
+    assert placed.identifier == "original"
+    assert broker.get_tracked_order("original") is placed
+    assert broker.get_tracked_order("different") is None
+    venue.order_v3.place_order.assert_called_once()
+
+
+def test_price_only_replace_does_not_send_stale_local_quantity(broker, venue):
+    placed = order()
+    broker.submit_order(placed)
+    broker.modify_order(placed, limit_price=19, quantity=5)
+    broker.modify_order(placed, limit_price=18)
+    first, second = (call.args[1][0] for call in venue.order_v3.replace_order.call_args_list)
+    assert first["quantity"] == "5"
+    assert "quantity" not in second and second["limit_price"] == "18"
+
+
+def test_paper_readback_reconciles_original_order_after_an_unavailable_detail(monkeypatch):
+    from tests import test_webull_paper_apitest as paper
+    from lumibot.tools.webull_helpers import WebullAPIError
+
+    placed = order()
+    strategy = Mock()
+    observer = Mock()
+    monkeypatch.setattr(paper.time, "sleep", lambda _: None)
+    read = Mock(side_effect=[
+        WebullAPIError("test detail", status=503),
+        WebullAPIError("test detail", status=503),
+        {"status": "WORKING", "filled_quantity": "0"},
+        {"status": "CANCELLED", "filled_quantity": "0"},
+    ])
+    monkeypatch.setattr(paper, "_detail", read)
+    result = paper._observe_terminal_or_cancel(strategy, observer, "sandbox-test", placed)
+    assert result["status"] == "CANCELLED"
+    assert {call.args[2] for call in read.call_args_list} == {placed.identifier}
+    strategy.cancel_order.assert_called_once_with(placed)
 
 
 def test_open_orders_follows_opaque_cursor(broker, venue):
@@ -388,6 +495,64 @@ def test_native_vertical_reconciles_terminal_detail_on_repeated_poll(broker, ven
     broker._refresh_tracked_order(parent)
     assert parent.is_filled()
     assert [(float(fill.quantity), float(fill.price)) for fill in parent.transactions] == [(1.0, 1.2)]
+
+
+def test_sync_preserves_package_terms_without_adopting_legs_as_orders(broker, venue):
+    from datetime import date
+
+    legs = [Order("qualification", Asset("SAMPLE", "option", right="CALL", strike=strike,
+                                         expiration=date(2027, 1, 15)), 1, side)
+            for strike, side in ((20, "buy_to_open"), (25, "sell_to_open"))]
+    [parent] = broker.submit_orders(legs, is_multileg=True, order_type="debit", price=1.25)
+    option_terms = [{"id": f"option-leg-{index}", "quantity": "1", "side": side, "option_contract_multiplier": "100",
+                     "option_type": "CALL", "strike_price": str(strike), "option_expire_date": "2027-01-15"}
+                    for index, (strike, side) in enumerate(((20, "BUY"), (25, "SELL")))]
+    venue.order_v3.list_order_open.return_value = reply({"data": [detail(
+        parent.identifier, instrument_type="OPTION", option_strategy="VERTICAL", legs=option_terms)]})
+    broker.sync_orders("qualification")
+    assert {item.identifier for item in broker.get_tracked_orders("qualification")} == {parent.identifier}
+    assert [item.identifier for item in parent.child_orders] == ["option-leg-0", "option-leg-1"]
+
+
+    fresh = Webull({"ACCOUNT_ID": "sandbox-test"}, trading_client=venue,
+                   connect_stream=False, start_orders_thread=False)
+    try:
+        fresh.restore_order_state(broker.export_order_state("qualification"), "qualification")
+        assert {item.identifier for item in fresh.get_tracked_orders("qualification")} == {parent.identifier}
+        assert [item.identifier for item in fresh.get_tracked_order(parent.identifier).child_orders] == [
+            "option-leg-0", "option-leg-1",
+        ]
+    finally:
+        fresh.cleanup_streams()
+
+
+def test_delayed_snapshot_cannot_undo_order_terms_after_a_partial_fill(broker, venue):
+    placed = Order("qualification", Asset("SAMPLE"), 3, "buy", limit_price=20, order_type="limit")
+    broker.submit_order(placed)
+    venue.order_v3.get_order_detail.side_effect = [
+        reply(detail(placed.identifier, total_quantity="3", status="PARTIALLY_FILLED",
+                     limit_price="21", filled_quantity="1", filled_price="19")),
+        reply(detail(placed.identifier, total_quantity="2", limit_price="20")),
+    ]
+    broker._refresh_tracked_order(placed)
+    assert len(placed.transactions) == 1 and placed.limit_price == 21
+    broker._refresh_tracked_order(placed)
+    assert placed.quantity == 3 and placed.limit_price == 21
+    assert len(placed.transactions) == 1 and placed.is_active()
+
+
+def test_terminal_snapshot_without_execution_price_does_not_close_locally(broker, venue):
+    placed = order()
+    broker.submit_order(placed)
+    venue.order_v3.get_order_detail.side_effect = [
+        reply(detail(placed.identifier, status="FILLED", filled_quantity="1")),
+        reply(detail(placed.identifier, status="FILLED", filled_quantity="1", filled_price="19")),
+    ]
+    with pytest.raises(ValueError, match="without an execution price"):
+        broker._refresh_tracked_order(placed)
+    assert placed.is_active() and not placed.transactions
+    broker._refresh_tracked_order(placed)
+    assert placed.is_filled() and len(placed.transactions) == 1
 
 
 def test_positive_execution_cases_use_the_whole_exchange_session():
@@ -931,8 +1096,8 @@ def test_mixed_order_history_decodes_untyped_stock_leg(broker, shape):
     group = detail("package", instrument_type="OPTION", option_strategy=shape, legs=legs,
                    place_time_at="2030-10-10T17:20:00.000Z", filled_time_at="2030-10-10T17:22:11.500Z")
     order = broker._parse_broker_order(group, "history")
-    assert order.broker_create_date == "2030-10-10T17:20:00.000Z"
-    assert order.broker_update_date == "2030-10-10T17:22:11.500Z"
+    assert order.broker_create_date == datetime(2030, 10, 10, 17, 20, tzinfo=timezone.utc)
+    assert order.broker_update_date == datetime(2030, 10, 10, 17, 22, 11, 500000, tzinfo=timezone.utc)
     shares, = [leg for leg in order.child_orders if leg.asset.asset_type == Asset.AssetType.STOCK]
     assert shares.asset.symbol == "SAMPLE" and shares.quantity == 100 and shares.side == "buy"
     assert {leg.asset.right for leg in order.child_orders if leg is not shares} == (

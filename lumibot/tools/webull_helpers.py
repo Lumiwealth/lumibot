@@ -1,7 +1,11 @@
 """Webull OpenAPI transport and wire conventions."""
 import logging
+import os
+import stat
 import time
 from decimal import Decimal, InvalidOperation
+from hashlib import sha256
+from pathlib import Path
 from threading import Lock
 
 PAPER_HOST = "api.sandbox.webull.com"
@@ -48,8 +52,7 @@ def make_client(config, *, trading):
     with _SDK_INIT_LOCK:
         api = ApiClient(key, secret, "us", connect_timeout=5, timeout=10, verify=True, auto_retry=False)
         api.add_endpoint("us", PAPER_HOST if paper else LIVE_HOST)
-        if config.get("TOKEN_DIR"):
-            api.set_token_dir(config["TOKEN_DIR"])
+        api.set_token_dir(str(_token_directory(config.get("TOKEN_DIR"), paper, key)))
         # The pinned SDK serializes request details on error. Silence only the
         # SDK's logger and disable its default creation of debug log files.
         sdk_logger = logging.getLogger("webull")
@@ -60,6 +63,29 @@ def make_client(config, *, trading):
             return (TradeClient if trading else DataClient)(api)
         except Exception as error:
             raise _format_api_error("client initialization", error) from None
+
+
+def _token_directory(configured, paper, key):
+    if configured:
+        path = Path(configured).expanduser()
+    else:
+        environment = "paper" if paper else "live"
+        key_namespace = sha256(key.encode()).hexdigest()
+        path = Path.home() / ".cache" / "lumibot" / "webull" / environment / key_namespace
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    directory = path.lstat()
+    if not stat.S_ISDIR(directory.st_mode) or directory.st_mode & 0o077:
+        raise ValueError("Webull SDK token directory must be a private directory")
+    if hasattr(os, "getuid") and directory.st_uid != os.getuid():
+        raise ValueError("Webull SDK token directory must be owned by the current user")
+    try:
+        token = (path / "token.txt").lstat()
+    except FileNotFoundError:
+        pass
+    else:
+        if not stat.S_ISREG(token.st_mode) or token.st_nlink != 1:
+            raise ValueError("Webull SDK token must be a private regular file")
+    return path
 
 
 def _format_api_error(operation, error):

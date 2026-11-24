@@ -113,6 +113,14 @@ price, quote, history, order and position methods. Public market reads need no
 trading key. ``pandas_data=`` and matching ``market_metadata=`` support offline
 replay and earlier signal warm-up.
 
+To find a series' markets inside a strategy, call
+``self.broker.data_source.search_markets(series_ticker="KXFED", status="settled",
+min_close_ts=..., max_close_ts=...)``. The same call works on the live
+``KalshiData`` source with ``status="open"``, so one strategy file runs in both.
+In a backtest the rows keep each market's ticker, timing and rules; prices and any
+result not yet settled at the simulated time are removed, so discovery cannot
+see the future.
+
 BacktestingBroker fills marketable orders against observed candle-end bid/ask,
 nets opposite outcomes with cash collateral, and uses actual settlement timing.
 Future results and unfinished bars are withheld; no end-of-test payout is

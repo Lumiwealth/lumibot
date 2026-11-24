@@ -16,10 +16,15 @@ from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.credentials import ALPACA_CONFIG, COINBASE_CONFIG, KRAKEN_CONFIG, POLYGON_API_KEY
 from lumibot.data_sources.data_source_backtesting import DataSourceBacktesting
 from lumibot.entities import Asset, AssetsMapping, Data
-from lumibot.tools import ibkr_helper, polygon_helper
+from lumibot._lazy_imports import LazyModule
+from lumibot.tools import ibkr_helper
 from lumibot.tools.helpers import parse_timestep_qty_and_unit
 from lumibot.tools.ibkr_equity_basis import EquityBasisSnapshot, assert_same_basis, equity_basis_from_frame
 from lumibot.tools.frame_metadata import share_frame_attrs
+
+# Loaded only when a Polygon route is read; every other routed backtest skips the Polygon
+# client package (massive) at startup.
+polygon_helper = LazyModule("lumibot.tools.polygon_helper")
 
 logger = logging.getLogger(__name__)
 

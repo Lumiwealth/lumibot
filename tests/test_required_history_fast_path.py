@@ -98,3 +98,30 @@ def test_every_case_records_the_same_evidence_as_the_full_path(seed, monkeypatch
         return _state()
 
     assert run(True) == run(False)
+
+
+def test_fast_path_on_float_columns_builds_no_notna_series(monkeypatch):
+    """Every indicator call reaches this check; a notna Series per OHLC column cost about
+    0.1 ms per call. Float columns answer from their values directly."""
+    calls = {"n": 0}
+    original = pd.Series.notna
+
+    def counting(self, *args, **kwargs):
+        calls["n"] += 1
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(pd.Series, "notna", counting)
+    for _ in range(20):
+        _record(_frame(300, nan_rows=(5,)), 250)
+    assert calls["n"] == 0
+    assert health._SERIES_WITH_DATA == {("MNQ", "future")}
+
+
+def test_fast_path_answer_matches_notna_for_object_and_nullable_columns():
+    frame = _frame(40, nan_rows=(3, 7))
+    frame["close"] = frame["close"].astype(object)
+    nullable = _frame(40, nan_rows=(1,))
+    nullable["high"] = nullable["high"].astype("Float64")
+    for candidate, enough in ((frame, 38), (frame, 39), (nullable, 39), (nullable, 40)):
+        got = health._enough_bars_and_no_known_hole("MNQ", "future", "minute", enough, candidate)
+        assert got == (enough <= 38 if candidate is frame else enough <= 39)

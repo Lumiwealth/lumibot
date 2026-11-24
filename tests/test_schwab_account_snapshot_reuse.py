@@ -121,3 +121,46 @@ def test_a_fill_or_order_event_drops_the_snapshot(monkeypatch):
 
 # Order lists are NOT reused: an explicit order refresh must always read Schwab, or a
 # fill that lands while a cancel is pending is missed (lifecycle transport test).
+
+
+class _Clock:
+    def __init__(self):
+        self.now = 5_000.0
+
+    def __call__(self):
+        return self.now
+
+
+def _pass_broker(monkeypatch):
+    import lumibot.brokers.schwab as schwab_module
+
+    clock = _Clock()
+    monkeypatch.setattr(schwab_module.time, "monotonic", clock)
+    broker = _broker(monkeypatch)
+    broker._live_pass_id = 1
+    return broker, clock
+
+
+def test_a_long_scan_pass_reuses_one_account_read(monkeypatch):
+    """A 20-symbol pass can take several seconds; asking for cash and positions at its
+    start and again near its end spent two of the shared per-minute requests."""
+    broker, clock = _pass_broker(monkeypatch)
+    broker._pull_positions(_strategy())
+    clock.now += 5
+    broker._get_balances_at_broker(Asset("USD", asset_type="forex"), _strategy())
+    assert broker.client.calls == 1
+
+
+def test_the_next_pass_an_account_event_or_30_seconds_read_the_account_again(monkeypatch):
+    broker, clock = _pass_broker(monkeypatch)
+    broker._pull_positions(_strategy())
+    clock.now += 2
+    broker._live_pass_id = 2  # next pass, older than the 1 s reuse window
+    broker._pull_positions(_strategy())
+    assert broker.client.calls == 2
+    broker._handle_schwab_account_activity({"content": [{"MESSAGE_TYPE": "OrderFill"}]})
+    broker._pull_positions(_strategy())
+    assert broker.client.calls == 3
+    clock.now += 31  # same pass, but older than the pass limit
+    broker._pull_positions(_strategy())
+    assert broker.client.calls == 4

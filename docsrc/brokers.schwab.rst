@@ -420,16 +420,23 @@ request and 0.3 seconds after; 20 symbols: 3 requests and 2.2 seconds per pass.
   ``LUMIBOT_IDLE_SYNC_MAX_AGE`` seconds old (default ``30``; ``0`` always reads).
   Before any submit or modify that follows a skipped read, the order list,
   positions and cash are read first. Your own ``get_position``,
-  ``get_positions`` and ``get_cash`` calls always read Schwab (only the sync
-  before each iteration is skipped), so a sale by hand, an assignment or a
-  dividend is seen even while the account stream is down. ``max_age=0`` on
+  ``get_positions`` and ``get_cash`` calls read Schwab (only the sync before
+  each iteration is skipped), so a sale by hand, an assignment or a dividend is
+  seen even while the account stream is down. One account read is shared by a
+  whole pass: it is reused for up to ``SCHWAB_ACCOUNT_SNAPSHOT_PASS_SECONDS``
+  (default ``30``) inside the same iteration and dropped at once on any submit,
+  cancel, fill or account-stream event. ``max_age=0`` on
   ``get_order``, ``get_orders``, ``get_position`` and ``get_positions`` always
   reads. An order placed by hand on another screen is seen at the latest after
   that maximum age (sooner when the account stream reports it).
 * **A submit that timed out is found again.** If Schwab took an order but its
   answer never arrived (timeout, server error, missing order id), LumiBot keeps
-  reading the order list for 5 minutes and re-attaches the Schwab order with the
-  same asset, side and quantity entered at or after the submit. From then on it
+  reading the order list for 5 minutes and re-attaches the Schwab order that
+  matches it exactly: same asset, side, quantity, order type, limit and stop
+  price and time in force, working or filled, entered between 5 seconds before
+  the submit started and 5 seconds after it ended. An order with no entry time,
+  a canceled or rejected order, or a person's identical order placed later is
+  never re-attached. From then on it
   has its Schwab id: fills, cancels and callbacks work. If two Schwab orders
   match, LumiBot does not guess: it logs an error naming both, keeps reading and
   sends nothing. LumiBot never resends a submit by itself; a strategy that

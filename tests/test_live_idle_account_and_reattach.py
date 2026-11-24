@@ -9,7 +9,9 @@
   quantity and entry time; two candidates are never guessed and nothing is resent.
 * Backtests never call the wall clock for order status times.
 """
+import datetime
 import logging
+from copy import deepcopy
 
 import pytest
 
@@ -83,12 +85,101 @@ def test_a_broker_that_does_not_stamp_reads_never_logs_the_unresolved_submit_war
     assert getattr(broker, "_unresolved_submit_until", None) is None
 
 
-def _submit_that_times_out_after_reaching_schwab(transport, broker, quantity=10):
-    order = stock(quantity)
+def _schwab_time(offset_seconds=0.0):
+    moment = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=offset_seconds)
+    return moment.strftime("%Y-%m-%dT%H:%M:%S+0000")
+
+
+def _submit_that_times_out_after_reaching_schwab(transport, broker, quantity=10, order=None):
+    order = order or stock(quantity)
     transport.pause_next("place_order", timeout=0.05)  # Schwab took it; the answer never came
+    assert broker.submit_order(order) is None
+    live_id = transport.attempted_orders[-1]["order_id"]
+    transport._latest[live_id]["enteredTime"] = _schwab_time()  # Schwab stamps its entry time
+    drain_stream_events(broker)
+    return order
+
+
+def _another_identical_order_at_schwab(transport, entered_offset_seconds, status="WORKING", **changes):
+    """An order nobody in this process sent: a person's or another bot's."""
+    template = deepcopy(next(value for value in transport._latest.values() if value is not None))
+    identifier = f"other-{len(transport._latest) + 1}"
+    template.update(orderId=identifier, status=status, filledQuantity=0, **changes)
+    template["enteredTime"] = _schwab_time(entered_offset_seconds)
+    template.pop("orderActivityCollection", None)
+    transport._latest[identifier] = template
+    transport._base[identifier] = deepcopy(template)
+    return identifier
+
+
+def _lost_with_no_schwab_copy(transport, broker, order=None):
+    """A lost submit whose order never reached Schwab (only other orders are there)."""
+    transport.queue_submission_response(503, "upstream failure")
+    order = order or stock(10)
     assert broker.submit_order(order) is None
     drain_stream_events(broker)
     return order
+
+
+@pytest.mark.parametrize(
+    "offset,status,changes",
+    [
+        (60, "WORKING", {}),               # a person's identical order a minute later
+        (-30, "WORKING", {}),              # another bot's identical order before the submit
+        (0, "CANCELED", {}),               # an identical order that is already canceled
+        (0, "REJECTED", {}),
+    ],
+)
+def test_an_identical_order_outside_the_submit_window_or_ended_is_never_bound(offset, status, changes):
+    transport, broker, _queues, first = submitted()
+    first.status = Order.OrderStatus.FILLED
+    lost = _lost_with_no_schwab_copy(transport, broker)
+    other = _another_identical_order_at_schwab(transport, offset, status, quantity=10, **changes)
+    for leg in transport._latest[other].get("orderLegCollection", []):
+        leg["quantity"] = 10
+    broker.sync_orders("fixture")
+    drain_stream_events(broker)
+    assert lost.identifier != other and not lost.is_active()
+    assert broker._unresolved_submits  # still watching, still reading
+    assert broker.get_tracked_order(other) is None  # someone else's order stays theirs
+
+
+def test_same_asset_side_and_quantity_but_another_limit_price_is_never_bound():
+    transport, broker, _queues, first = submitted()
+    first.status = Order.OrderStatus.FILLED
+    mine = Order(strategy="fixture", asset=Asset("LW"), quantity=10, side=Order.OrderSide.SELL_SHORT,
+                 order_type=Order.OrderType.LIMIT, limit_price=10.00, time_in_force="day")
+    lost = _lost_with_no_schwab_copy(transport, broker, mine)
+    other = _another_identical_order_at_schwab(transport, 0, "WORKING", quantity=10, orderType="LIMIT", price=10.05)
+    for leg in transport._latest[other].get("orderLegCollection", []):
+        leg["quantity"] = 10
+    broker.sync_orders("fixture")
+    assert lost.identifier != other and not lost.is_active()
+
+
+def test_an_order_with_no_entry_time_is_never_bound():
+    transport, broker, _queues, first = submitted()
+    first.status = Order.OrderStatus.FILLED
+    lost = _submit_that_times_out_after_reaching_schwab(transport, broker)
+    live_id = transport.attempted_orders[-1]["order_id"]
+    transport._latest[live_id].pop("enteredTime")
+    broker.sync_orders("fixture")
+    assert lost.identifier != live_id and not lost.is_active()
+
+
+def test_positions_and_cash_changed_outside_the_bot_while_idle_are_in_place_before_the_next_order():
+    """A trade by hand or an assignment while the bot is idle and the stream is down: the
+    strategy's own state is up to date when its next order goes out, without it asking."""
+    strategy, broker = _strategy()
+    asset = Asset("LWX")
+    broker.broker_positions = [Position(strategy.name, asset, 100)]
+    strategy.get_position(asset)
+    _skip_reads(broker, strategy)
+    broker.broker_positions = [Position(strategy.name, asset, 300)]  # assigned 2 contracts
+    broker.broker_balances = (80_000.0, {}, 110_000.0)                 # paid for the assignment
+    strategy.submit_order(strategy.create_order(asset, 1, Order.OrderSide.SELL, limit_price=1.0))
+    assert strategy.get_position(asset, broker_refresh=False).quantity == 300
+    assert strategy.cash == pytest.approx(80_000.0)
 
 
 def test_a_timed_out_submit_that_reached_schwab_is_re_attached_and_tracked():

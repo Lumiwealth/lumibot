@@ -503,6 +503,14 @@ class Schwab(Broker):
         except ValueError:
             return 1.0
 
+    @staticmethod
+    def _account_snapshot_pass_seconds() -> float:
+        raw = os.environ.get("SCHWAB_ACCOUNT_SNAPSHOT_PASS_SECONDS", "30")
+        try:
+            return max(0.0, float(raw))
+        except ValueError:
+            return 30.0
+
     def _account_with_positions(self):
         """One ``get_account(POSITIONS)`` answer shared by balances and positions.
 
@@ -517,16 +525,21 @@ class Schwab(Broker):
         now = time.monotonic()
         epoch = getattr(self, "_account_snapshot_epoch", 0)
         cached = getattr(self, "_account_snapshot", None)
-        if (seconds > 0 and cached is not None and cached[2] == epoch
-                and 0 <= now - cached[0] < seconds):
-            return cached[1]
+        pass_id = getattr(self, "_live_pass_id", None)
+        if seconds > 0 and cached is not None and cached[2] == epoch and now >= cached[0]:
+            age = now - cached[0]
+            # Within the short window, or within the same trading pass (a long scan
+            # asks for cash and positions more than once) up to the pass limit.
+            same_pass = pass_id is not None and len(cached) > 3 and cached[3] == pass_id
+            if age < seconds or (same_pass and age < self._account_snapshot_pass_seconds()):
+                return cached[1]
         self._schwab_pace("account")
         epoch_before = getattr(self, "_order_activity_epoch", 0)
         response = self.client.get_account(self.hash_value, fields=[self.client.Account.Fields.POSITIONS])
         if getattr(response, "status_code", None) == 200:
             self._note_account_read_ok(epoch_before)
         if getattr(response, "status_code", None) == 200 and seconds > 0:
-            self._account_snapshot = (now, response, epoch)
+            self._account_snapshot = (now, response, epoch, pass_id)
         return response
 
     def _drop_account_snapshot(self) -> None:
@@ -2349,9 +2362,10 @@ class Schwab(Broker):
 
         A timeout, server error or missing id leaves the local order without its
         Schwab id while the order may be live: no cancel, no callbacks, and a retry
-        could double the position. Inside the watch window an untracked Schwab
-        order of the same asset, side and quantity, entered at or after the submit,
-        is re-attached to the local order, which then follows Schwab as usual.
+        could double the position. An untracked Schwab order that matches the sent
+        order exactly (see _is_reattach_candidate: same fields, working or filled,
+        entered while the submit call ran) is re-attached to the local order, which
+        then follows Schwab as usual. The 300 s watch only keeps reads going.
         Two or more candidates are never guessed: LumiBot warns loudly once, keeps
         reading every pass and sends nothing.
         """
@@ -2405,25 +2419,49 @@ class Schwab(Broker):
         return attached
 
     def _is_reattach_candidate(self, local, broker_order, item) -> bool:
+        """The same order the lost submit sent, entered while that submit call ran.
+
+        Only a Schwab order that is working or filled, of the same asset, side,
+        quantity, order type, limit price, stop price and time in force, whose entry
+        time lies between 5 s before the submit call started and 5 s after it returned
+        or failed. An order with no entry time never matches: a person's or another
+        bot's identical order placed later must never be bound and then canceled.
+        """
         from decimal import Decimal
+
+        def same_number(a, b):
+            if a is None or b is None:
+                return a is None and b is None
+            return Decimal(str(a)) == Decimal(str(b))
 
         try:
             if getattr(broker_order, "child_orders", None) or getattr(local, "child_orders", None):
+                return False
+            if not (broker_order.is_active() or broker_order.is_filled()):
                 return False
             if broker_order.asset != local.asset:
                 return False
             if str(broker_order.side).lower() != str(local.side).lower():
                 return False
-            if Decimal(str(broker_order.quantity)) != Decimal(str(local.quantity)):
+            if not same_number(broker_order.quantity, local.quantity):
                 return False
-            submitted_at = item.get("submitted_at")
-            entered = getattr(broker_order, "broker_create_date", None) or getattr(broker_order, "created_at", None)
-            if submitted_at is not None and entered is not None:
-                if entered.tzinfo is None:
-                    entered = entered.replace(tzinfo=submitted_at.tzinfo)
-                if (entered - submitted_at).total_seconds() < -float(self.reattach_clock_skew_seconds):
-                    return False
-            return True
+            if str(broker_order.order_type).lower() != str(local.order_type).lower():
+                return False
+            if not same_number(broker_order.limit_price, local.limit_price):
+                return False
+            if not same_number(broker_order.stop_price, local.stop_price):
+                return False
+            sent_duration = self._schwab_time_in_force_for_order(local) or "day"
+            if str(broker_order.time_in_force or "day").lower() != str(sent_duration).lower():
+                return False
+            entered = getattr(broker_order, "broker_create_date", None)
+            started, returned = item.get("submitted_at"), item.get("returned_at")
+            if entered is None or started is None or returned is None:
+                return False
+            if entered.tzinfo is None:
+                return False
+            skew = float(self.reattach_clock_skew_seconds)
+            return (entered - started).total_seconds() >= -skew and (entered - returned).total_seconds() <= skew
         except Exception:
             return False
 
@@ -2800,8 +2838,10 @@ class Schwab(Broker):
             pass
         message_type = re.sub(r"[^A-Za-z0-9_.:-]", "_", str(message_type))[:64] or "unknown"
         logger.info(f"[SchwabLifecycle] account_activity_received type={message_type}")
-        # Any account activity (ours or an order placed elsewhere) ends an idle read skip.
+        # Any account activity (ours or an order placed elsewhere) ends an idle read skip
+        # and the reuse of the last account read.
         self._note_order_activity()
+        self._drop_account_snapshot()
         wakeup = getattr(self, "_schwab_activity_wakeup", None)
         if wakeup is not None:
             wakeup.set()

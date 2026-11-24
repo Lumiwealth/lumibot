@@ -1342,7 +1342,7 @@ class Broker(ABC):
         self._account_read_ok = (time.monotonic(), epoch_before)
         self._account_skipped_since_read = False
 
-    def _note_unresolved_submit(self, order=None, submitted_at=None):
+    def _note_unresolved_submit(self, order=None, submitted_at=None, returned_at=None):
         """A submit ended without a broker id: the order may still be live at the broker.
 
         Only brokers that stamp their reads (STAMPS_GOOD_READS) watch for it; the order
@@ -1356,7 +1356,8 @@ class Broker(ABC):
         if order is not None:
             pending = self.__dict__.setdefault("_unresolved_submits", [])
             pending[:] = [item for item in pending if item["until"] > now and item["order"] is not order]
-            pending.append({"order": order, "submitted_at": submitted_at, "until": now + watch, "warned": False})
+            pending.append({"order": order, "submitted_at": submitted_at, "returned_at": returned_at,
+                            "until": now + watch, "warned": False})
         Broker._note_order_activity(self)
         logger.warning(
             "Order submit ended without a broker order id (%s); the order list is read every "
@@ -3577,10 +3578,12 @@ class Broker(ABC):
         try:
             result = self._submit_order(order)
         except BaseException:
-            Broker._note_unresolved_submit(self, order, submitted_at)
+            Broker._note_unresolved_submit(self, order, submitted_at,
+                                           _datetime.datetime.now(_datetime.timezone.utc))
             raise
         if getattr(result, "identifier", None) is None and not getattr(order, "_submit_cleanly_refused", False):
-            Broker._note_unresolved_submit(self, order, submitted_at)
+            Broker._note_unresolved_submit(self, order, submitted_at,
+                                           _datetime.datetime.now(_datetime.timezone.utc))
         recorder.order_submitted(getattr(result if result is not None else order, "identifier", None), started)
         return result
 

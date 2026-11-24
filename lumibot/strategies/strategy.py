@@ -1787,6 +1787,9 @@ class Strategy(_Strategy):
             return
         try:
             broker._account_skipped_since_read = False
+            drop = getattr(broker, "_drop_account_snapshot", None)
+            if callable(drop):
+                drop()  # a truly fresh account read, not a reused one
             broker.sync_positions(self)
             self.update_broker_balances(force_update=True)
             if hasattr(self, "_positions_cache"):

@@ -18,11 +18,18 @@
   positions and cash are read again. `get_position`/`get_positions` take
   `max_age` (`0` always reads, even inside a ttl).
 - Schwab: a submit that got no order id but reached Schwab (timeout, 5xx,
-  missing id) is re-attached within 5 minutes by asset, side, quantity and entry
-  time, so fills, cancels and callbacks work. Two matching Schwab orders are
+  missing id) is re-attached when exactly one working or filled Schwab order has
+  the same asset, side, quantity, order type, limit and stop price and time in
+  force and was entered between 5 s before the submit started and 5 s after it
+  ended (orders with no entry time never match), so fills, cancels and
+  callbacks work. Two matching Schwab orders are
   never guessed: an error names both, reads continue, nothing is resent. Only
   brokers that stamp their reads watch unresolved submits.
 - Backtests no longer call the wall clock for order status times.
+- Schwab: one account read is reused for a whole trading pass (up to
+  `SCHWAB_ACCOUNT_SNAPSHOT_PASS_SECONDS`, default 30) and dropped on any submit,
+  cancel, fill or account-stream event, so long scans do not spend the shared
+  budget on repeated account reads.
 - Schwab live quotes: assets asked for in the last two iterations are fetched
   together in one request (up to 250 symbols) at the start of each iteration, and
   a quote younger than `LUMIBOT_QUOTE_MAX_AGE` (default 1 s; `0` off) is served

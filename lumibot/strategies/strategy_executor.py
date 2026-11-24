@@ -1547,6 +1547,11 @@ class StrategyExecutor(Thread):
                 # on_trading_iteration method.
                 return
 
+        # A new live pass: account reads may be reused inside it (Schwab, see
+        # Schwab._account_with_positions), never across passes beyond 1 s.
+        if not self.broker.IS_BACKTESTING_BROKER:
+            self.broker._live_pass_id = getattr(self.broker, "_live_pass_id", 0) + 1
+
         # Check if self.strategy.sleeptime is a number or a string.
         sleep_units = self._parse_sleeptime(self.strategy.sleeptime)[1].lower()
         start_dt = datetime.now()

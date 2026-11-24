@@ -3,11 +3,11 @@
   "source_commit": "68ff48915f68d83a36885767c98567d8e35156ac",
   "receipt_sha256": "0c79138a02f2f68eefe3b1d97b0e60d2e6fae095674f9d85ab35c08bfacd4075",
   "author_review": {
-    "candidate_runtime_fingerprint": "a0c0b1b884d3da43b90f3ed347826a9efc45cc0ccb6c5acc27efd21498b88ef6",
+    "candidate_runtime_fingerprint": "36a81e7ee1428327ebd333a64467e2579eb5541086d9002ce8c6cbbcfcb213d8",
     "case_ids": [
       "attention_overnight_management_preserves_entry_opportunity",
       "options_unequal_call_ratio_atomic_open"
     ],
-    "reason": "Release 4.6.96 author review. The retained catalog binds the synchronous Pandas fixture and BacktestingBroker, so it does not construct the optional Webull adapter, use Webull account data or select Webull daily history. The cash-sized order hook returns False on BacktestingBroker and leaves ordinary validation unchanged. The same fixture bypasses the full strategy runner and its new provenance output, never invokes the blocking wait helpers, and has no perpetual, Schwab, IPO listings, or indicator drawing actions. The shared N-minute window optimization passed frame identity tests. No agent tool, prompt, skill, model wrapper, or fixture changed. The catalog binding test, wait and history controls, data provenance, listings, drawings, and Schwab account regressions passed. No new inference is claimed. This retains the previous author-reviewed changes."
+    "reason": "Release 4.6.96 author review. The retained catalog binds the synchronous Pandas fixture and BacktestingBroker, so it does not construct the optional Webull adapter, use Webull account data or select Webull daily history. The cash-sized order hook returns False on BacktestingBroker and leaves ordinary validation unchanged. The same fixture bypasses the full strategy runner and its new provenance output, never invokes the blocking wait helpers, and has no perpetual, Schwab, IPO listings, or indicator drawing actions. The shared N-minute window optimization passed frame identity tests. No agent tool, prompt, skill, model wrapper, or fixture changed. The catalog binding test, wait and history controls, data provenance, listings, drawings, and Schwab account regressions passed. No new inference is claimed. This retains the previous author-reviewed changes. The later broker reconciliation, restart ownership and order-detail changes only run on live broker synchronization and are bypassed by BacktestingBroker. The SEC listings rebuild change affects fetching and storing new EDGAR tables; neither retained case uses it. Focused broker, historical replay and SEC tests verify those paths separately."
   }
 }

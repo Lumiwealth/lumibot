@@ -78,6 +78,59 @@ def wait_for_report_imports() -> None:
         thread.join()
 
 
+# ---- Risk-free rate prefetch -------------------------------------------------------------
+# The backtest statistics and tearsheet read the 13-week Treasury rate (^IRX) for the last
+# simulated day. On a fresh machine that is a Yahoo download (two deliberate 2-5 s
+# rate-limit sleeps plus the request: about 7-10 s) that used to start only after the
+# simulation ended. The prefetch downloads the same series through the same YahooHelper
+# cache path in a background thread when the backtest starts; the rate lookup joins it
+# first, then reads the cached series exactly as before. Only YahooHelper (static, its own
+# pickle cache and the thread-safe remote cache manager) is touched: no broker, router or
+# data-source state.
+
+_risk_free_lock = threading.Lock()
+_risk_free_threads: dict[object, threading.Thread] = {}
+
+
+def _prefetch_risk_free_series(last_needed_datetime) -> None:
+    try:
+        from lumibot.tools.yahoo_helper import YahooHelper
+
+        YahooHelper.get_symbol_data("^IRX", last_needed_datetime=last_needed_datetime)
+    except Exception:
+        # The real lookup at report time fetches again and handles any error as before.
+        return
+
+
+def prefetch_risk_free_rate(last_needed_datetime) -> threading.Thread | None:
+    """Start downloading the risk-free series needed up to ``last_needed_datetime``."""
+    if last_needed_datetime is None or not _env_enabled("LUMIBOT_PREFETCH_RISK_FREE_RATE"):
+        return None
+    key = getattr(last_needed_datetime, "date", lambda: last_needed_datetime)()
+    with _risk_free_lock:
+        thread = _risk_free_threads.get(key)
+        if thread is None:
+            thread = threading.Thread(
+                target=_prefetch_risk_free_series,
+                args=(last_needed_datetime,),
+                name="lumibot-risk-free-prefetch",
+                daemon=True,
+            )
+            _risk_free_threads[key] = thread
+            thread.start()
+        return thread
+
+
+def wait_for_risk_free_prefetch() -> None:
+    """Wait for any started risk-free download so a lookup never downloads it twice."""
+    with _risk_free_lock:
+        threads = list(_risk_free_threads.values())
+    current = threading.current_thread()
+    for thread in threads:
+        if thread is not current:
+            thread.join()
+
+
 def drawdown_cache_enabled() -> bool:
     return _env_enabled("LUMIBOT_REPORT_DRAWDOWN_CACHE")
 

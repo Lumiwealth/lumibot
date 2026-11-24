@@ -3737,6 +3737,13 @@ class _Strategy:
 
         backtesting_start, backtesting_end = self.verify_backtest_inputs(backtesting_start, backtesting_end)
 
+        if risk_free_rate is None:
+            # The statistics read the Treasury rate for the last simulated day; download it
+            # while the backtest runs instead of after it (same series, same value).
+            from lumibot.tools.report_speedups import prefetch_risk_free_rate
+
+            prefetch_risk_free_rate(backtesting_end)
+
         quiet_logs_env = os.environ.get("BACKTESTING_QUIET_LOGS")
         if quiet_logs_env is not None:
             quiet_logs = quiet_logs_env.strip().lower() in ("true", "1", "yes", "on")

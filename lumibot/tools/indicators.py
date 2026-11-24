@@ -2283,6 +2283,11 @@ def _create_tearsheet_impl(
 
 
 def get_risk_free_rate(dt: datetime = None):
+    # A backtest starts downloading this series in the background; join it so the lookup
+    # reads the freshly cached series instead of downloading it a second time.
+    from lumibot.tools.report_speedups import wait_for_risk_free_prefetch
+
+    wait_for_risk_free_prefetch()
     try:
         result = yh.get_risk_free_rate(dt=dt)
     except Exception as e:

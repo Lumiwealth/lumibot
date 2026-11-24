@@ -79,6 +79,12 @@ This page documents environment variables used by LumiBot, with an emphasis on *
   - In production/BotManager backtests we rely on injected environment variables, so `.env` discovery should be off with `LUMIBOT_DISABLE_DOTENV=1`.
 - Where: `lumibot/credentials.py`
 
+### `LUMIBOT_PREFETCH_RISK_FREE_RATE`
+- Purpose: start the `^IRX` download (YahooHelper path, same pickle and remote cache) in a daemon thread at `run_backtest` start when no explicit `risk_free_rate` is given; `indicators.get_risk_free_rate` joins it first. Cold fetch is 7-10 s, of which 6 s are the two deliberate 2-5 s Yahoo rate-limit sleeps.
+- Values: `0`/`false`/`no`/`off` disable; default on.
+- Measured (Mac, 10-year daily, Yahoo cache without ^IRX, load 66-230): `_dump_stats` 8.5-10.9 s off, 2.7-4.7 s on; whole backtest call 16.4-20.0 s off, 10.8-12.3 s on; outputs identical.
+- Where: `lumibot/tools/report_speedups.py`. Tests: `tests/test_risk_free_rate_prefetch.py`.
+
 ### `LUMIBOT_PREWARM_REPORT_IMPORTS` / `LUMIBOT_REPORT_DRAWDOWN_CACHE`
 - Purpose: end-of-backtest report speed with identical numbers. Prewarm imports the report stack (QuantStats, scipy.stats, matplotlib) in a daemon thread at `run_backtest` start; the cache memoizes `quantstats_lumi.stats.drawdown_details` and `quantstats_lumi.utils.aggregate_returns` (when a period is given) per exact input for one `create_tearsheet` call and returns copies.
 - Values: `0`/`false`/`no`/`off` disable; default on.

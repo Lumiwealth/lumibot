@@ -69,6 +69,9 @@ Webull ID. A native package uses one client ID, and linked exits get
 distinct member IDs. Reconcile the original ID after an uncertain write.
 The adapter retries rate-limited reads with bounded backoff. A failed
 write requires reconciliation before another placement.
+Save the strategy's order state before stopping so the next process can
+restore its native order IDs. Strategy sync uses those IDs and locally
+submitted IDs. Account order reads still include manually placed orders.
 An order preview can return a cost estimate while placement returns a
 closed-session error. Webull documents preview for simple orders and
 excludes crypto. Check the native order ID and order detail to establish
@@ -151,7 +154,9 @@ canceled the sibling and the holding returned to its initial quantity.
 GTC buy-to-open limits for a listed call, a put and a native call vertical
 were accepted, repriced and canceled during that Saturday session. Webull
 assigns an ID to each option leg. LumiBot reads those IDs when amending
-the original order. Regular-session DAY limits opened and closed a call, a
+the original order. Specify the net limit when submitting a debit or credit
+package. Use only stock and listed option legs in native option packages.
+Regular-session DAY limits opened and closed a call, a
 put, and both debit and credit call and put verticals. The position endpoint
 returned the vertical as one signed package. LumiBot recovered the two signed
 contract holdings on a fresh position read. Single call and put DAY market buys and

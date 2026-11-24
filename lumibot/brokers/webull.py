@@ -278,6 +278,8 @@ class Webull(Broker):
     @staticmethod
     def _option_leg(order, quantity=None):
         asset = order.asset
+        if asset.asset_type not in (Asset.AssetType.STOCK, Asset.AssetType.OPTION):
+            raise ValueError("Webull option packages accept only stock and option legs")
         leg = dict(side=_SIDES[order.side], quantity=positive_value(
             order.quantity if quantity is None else quantity, "leg quantity"),
             symbol=asset.symbol, market="US", instrument_type="EQUITY")
@@ -447,6 +449,8 @@ class Webull(Broker):
         if not shape:
             raise ValueError("Supply Webull's documented option_strategy for this package")
         if order_type in {"debit", "credit", "even"}:
+            if price is None and order_type != "even":
+                raise ValueError("Webull debit and credit packages require an explicit net limit")
             pay = order_type != "credit"
         elif order_type == "limit" and price is not None and float(price) != 0:
             pay = float(price) > 0
@@ -654,6 +658,17 @@ class Webull(Broker):
                 raise WebullAPIError("Webull order list returned a group without an identity")
             selected.setdefault(group_id, group)
         return list(selected.values())
+
+    def _orders_for_strategy_sync(self, orders, strategy):
+        # Account reads return all venue orders. Only local or restored native
+        # identities establish ownership for strategy sync and callbacks.
+        strategy_name = self._strategy_name_from_input(strategy)
+        owned = []
+        for observed in orders:
+            tracked = self.get_tracked_order(observed.identifier, use_placeholders=True)
+            if tracked is not None and tracked.strategy == strategy_name:
+                owned.append(observed)
+        return owned
 
     def _parse_broker_order(self, response, strategy_name, strategy_object=None):
         if not response:

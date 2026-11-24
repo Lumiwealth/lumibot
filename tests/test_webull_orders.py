@@ -173,6 +173,48 @@ def test_native_option_vertical_transmits_one_package(broker, venue):
     assert [row["legs"][0]["quantity"], row["legs"][1]["quantity"]] == ["2", "2"]
 
 
+@pytest.mark.parametrize("asset_type", ["prediction_contract", "future", "crypto"])
+def test_option_package_does_not_encode_an_unrelated_asset_as_stock(broker, venue, asset_type):
+    from datetime import date
+
+    option = Asset("SAMPLE", "option", right="CALL", strike=20, expiration=date(2027, 1, 15))
+    other = Asset("SAMPLE", asset_type, outcome="yes" if asset_type == "prediction_contract" else None)
+    quote = Asset("USD", "forex") if asset_type == "crypto" else None
+    legs = [Order("qualification", option, 1, "sell_to_open", custom_params={"option_strategy": "COVERED_STOCK"}),
+            Order("qualification", other, 100, "buy", quote=quote)]
+    with pytest.raises(ValueError, match="stock and option"):
+        broker.submit_orders(legs, is_multileg=True, order_type="debit", price=20)
+    venue.order_v3.place_order.assert_not_called()
+
+
+@pytest.mark.parametrize("direction", ["debit", "credit"])
+def test_directional_option_package_requires_an_explicit_net_limit(broker, venue, direction):
+    from datetime import date
+
+    legs = [Order("qualification", Asset("SAMPLE", "option", right="CALL", strike=strike,
+                                         expiration=date(2027, 1, 15)), 1, side)
+            for strike, side in ((20, "buy_to_open"), (25, "sell_to_open"))]
+    with pytest.raises(ValueError, match="explicit net limit"):
+        broker.submit_orders(legs, is_multileg=True, order_type=direction)
+    venue.order_v3.place_order.assert_not_called()
+
+
+def test_account_order_visibility_does_not_assign_strategy_ownership(broker, venue):
+    strategy = "qualification"
+    owned = broker.submit_order(order())
+    another_strategy = order()
+    another_strategy.strategy = "another-strategy"
+    broker.submit_order(another_strategy)
+    account_rows = [detail(owned.identifier), detail("manual-order"), detail(another_strategy.identifier)]
+    venue.order_v3.list_order_open.return_value = reply({"data": account_rows})
+    broker.sync_orders(strategy)
+    assert [value.identifier for value in broker.get_tracked_orders(strategy)] == [owned.identifier]
+    assert broker.get_tracked_order(another_strategy.identifier).strategy == "another-strategy"
+    assert {value.identifier for value in broker._pull_all_orders(strategy, None)} == {
+        owned.identifier, "manual-order", another_strategy.identifier,
+    }
+
+
 def test_http_reconciliation_does_not_apply_same_partial_twice(broker, venue):
     resting = Order("qualification", Asset("SAMPLE"), 3, "buy", limit_price=20.50, order_type="limit")
     broker.submit_order(resting)

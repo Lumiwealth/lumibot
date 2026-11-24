@@ -8,7 +8,11 @@
   (QuantStats, scipy, matplotlib) now load in the background while the backtest runs,
   and each QuantStats drawdown table and monthly/quarterly/yearly aggregation is
   computed once per report instead of repeatedly (13 and 30 times before). A 10-year
-  daily backtest's report step went from about 3.6 s to about 1.9 s on a laptop. Switches: `LUMIBOT_PREWARM_REPORT_IMPORTS`, `LUMIBOT_REPORT_DRAWDOWN_CACHE`.
+  daily backtest's report step went from about 3.6 s to about 1.9 s on a laptop.
+  Switches: `LUMIBOT_PREWARM_REPORT_IMPORTS`, `LUMIBOT_REPORT_DRAWDOWN_CACHE`.
+- A backtest without an explicit risk-free rate now downloads the Treasury rate it needs
+  while it runs, not after it ends (7-10 s on a fresh machine). Same value. Switch:
+  `LUMIBOT_PREFETCH_RISK_FREE_RATE`.
 
 ## 4.6.96 - 2026-11-23
 

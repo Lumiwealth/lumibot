@@ -224,3 +224,43 @@ def test_backtest_starts_report_import_prewarm_once(pandas_data_fixture, tmp_pat
     assert calls["n"] == 1
     assert tearsheet_file.exists()
     assert metrics_file.exists()
+
+
+def test_backtest_prefetches_risk_free_rate_for_its_end_date(pandas_data_fixture, tmp_path, monkeypatch):
+    # The Treasury-rate download overlaps the run instead of following it; see
+    # lumibot/tools/report_speedups.py. An explicit rate needs no download.
+    from lumibot.tools import report_speedups
+    from lumibot.tools.yahoo_helper import YahooHelper
+
+    started = []
+    monkeypatch.setattr(report_speedups, "prefetch_risk_free_rate", lambda end: started.append(end))
+    _run_backtest_case(
+        _PlainBacktestStrategy, pandas_data_fixture, tmp_path / "explicit_rate",
+        datetime(2019, 1, 2), datetime(2019, 3, 29),
+    )
+    assert started == []
+
+    monkeypatch.setattr(YahooHelper, "get_risk_free_rate", staticmethod(lambda **kwargs: 0.0369))
+    case_dir = tmp_path / "looked_up_rate"
+    _PlainBacktestStrategy.run_backtest(
+        datasource_class=PandasDataBacktesting,
+        backtesting_start=datetime(2019, 1, 2),
+        backtesting_end=datetime(2019, 3, 29),
+        pandas_data=pandas_data_fixture,
+        benchmark_asset="SPY",
+        budget=100000,
+        show_plot=False,
+        show_tearsheet=False,
+        save_tearsheet=True,
+        show_indicators=False,
+        save_logfile=False,
+        show_progress_bar=False,
+        quiet_logs=True,
+        plot_file_html=str(case_dir / "trades.html"),
+        stats_file=str(case_dir / "stats.csv"),
+        tearsheet_file=str(case_dir / "tearsheet.html"),
+        indicators_file=str(case_dir / "indicators.html"),
+        tearsheet_metrics_file=str(case_dir / "tearsheet_metrics.json"),
+    )
+    assert len(started) == 1
+    assert started[0].date().isoformat() == "2019-03-29"

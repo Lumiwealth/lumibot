@@ -851,13 +851,21 @@ class MetaMask(Broker):
         if not isinstance(raw_children, list) or not raw_children:
             return
         child_by_id = {str(child.identifier): child for child in (order.child_orders or [])}
+        first_error = None
         for child_resp in raw_children:
             if not isinstance(child_resp, dict) or not child_resp.get("id"):
                 continue
             cid = str(child_resp["id"])
             child_order = self.get_tracked_order(cid) or child_by_id.get(cid)
             if child_order is not None:
-                self._observe(child_order, self._child_observation(response, child_resp))
+                try:
+                    self._observe(child_order, self._child_observation(response, child_resp))
+                except Exception as error:
+                    self.logger.error("MetaMask child order observation failed for %s: %s", cid, error)
+                    if first_error is None:
+                        first_error = error
+        if first_error is not None:
+            raise first_error
 
     def _observe(self, order, response):
         with self._event_lock:
@@ -865,7 +873,11 @@ class MetaMask(Broker):
             req = response.get("request") if isinstance(response.get("request"), dict) else {}
             is_oco_container = str(order.order_class or "").lower() == "oco" or req.get("orderClass") == "oco"
             if is_oco_container:
-                self._observe_children(order, response)
+                child_error = None
+                try:
+                    self._observe_children(order, response)
+                except Exception as error:
+                    child_error = error
                 state = response["state"]
                 previous = self._observations.get(str(order.identifier), (Decimal(0), Decimal(0), None))
                 if previous[2] in ("filled", "canceled", "rejected"):
@@ -873,6 +885,8 @@ class MetaMask(Broker):
                     response = {**response, "state": state}
                     order.update_raw(response)
                     self._set_submission_outcome(order, response)
+                    if child_error is not None:
+                        raise child_error
                     return
                 if state in ("open", "partial_fill") and previous[2] in (
                     None,
@@ -906,59 +920,75 @@ class MetaMask(Broker):
                 order.update_raw(response)
                 self._set_submission_outcome(order, response)
                 self._observations[str(order.identifier)] = (Decimal(0), Decimal(0), state)
+                if child_error is not None:
+                    raise child_error
                 return
 
             money = Context(prec=160)
             state = response["state"]
             previous = self._observations.get(str(order.identifier), (Decimal(0), Decimal(0), None))
-            quantity = decimal_value(response.get("filledQuantity", "0"))
-            if quantity < previous[0]:
-                raise MetaMaskAPIError(
-                    "FILL_REGRESSION", "Provider fill history is incomplete; refusing to overwrite known fills"
-                )
-            if quantity > decimal_value(order.quantity):
-                raise MetaMaskAPIError("INVALID_FILL", "Cumulative fills exceed the original order quantity")
-            self._set_trade_cost(order, response)
-            if previous[2] in ("filled", "canceled", "rejected"):
-                state = previous[2]
-                response = {**response, "state": state}
-                if quantity == previous[0]:
+            parent_error = None
+            terminal_unchanged = False
+            try:
+                quantity = decimal_value(response.get("filledQuantity", "0"))
+                if quantity < previous[0]:
+                    raise MetaMaskAPIError(
+                        "FILL_REGRESSION", "Provider fill history is incomplete; refusing to overwrite known fills"
+                    )
+                if quantity > decimal_value(order.quantity):
+                    raise MetaMaskAPIError("INVALID_FILL", "Cumulative fills exceed the original order quantity")
+                self._set_trade_cost(order, response)
+                if previous[2] in ("filled", "canceled", "rejected"):
+                    state = previous[2]
+                    response = {**response, "state": state}
+                    if quantity == previous[0]:
+                        order.update_raw(response)
+                        # Preserve proven terminal identity despite a stale unknown reply.
+                        self._set_submission_outcome(order, response)
+                        terminal_unchanged = True
+                if not terminal_unchanged:
+                    value = (
+                        money.multiply(quantity, decimal_value(response.get("averagePrice")))
+                        if quantity > 0
+                        else Decimal(0)
+                    )
+                    if quantity > previous[0]:
+                        delta = money.subtract(quantity, previous[0])
+                        price = money.divide(money.subtract(value, previous[1]), delta)
+                        if price <= 0:
+                            raise MetaMaskAPIError("INVALID_FILL", "Fill price must be positive")
+                        event = self.FILLED_ORDER if state == "filled" else self.PARTIALLY_FILLED_ORDER
+                        self._process_trade_event(order, event, price=price, filled_quantity=delta)
+                    elif state == "filled" and previous[2] == "partial_fill" and quantity > 0:
+                        self._process_trade_event(
+                            order, self.FILLED_ORDER, price=decimal_value(response["averagePrice"]), filled_quantity=0
+                        )
+                    elif state in ("open", "waiting_for_fill") and previous[2] in (
+                        None,
+                        "submitted",
+                        "awaiting_approval",
+                        "unknown",
+                        "prepared",
+                    ):
+                        self._process_trade_event(order, self.NEW_ORDER)
+                    if state == "canceled" and previous[2] != "canceled":
+                        self._process_trade_event(order, self.CANCELED_ORDER)
+                    elif state == "rejected" and previous[2] != "rejected":
+                        self._process_trade_event(
+                            order,
+                            self.ERROR_ORDER,
+                            error=MetaMaskAPIError("REJECTED", response.get("message", "Provider rejected order")),
+                        )
                     order.update_raw(response)
-                    # Preserve proven terminal identity despite a stale unknown reply.
                     self._set_submission_outcome(order, response)
-                    self._observe_children(order, response)
-                    return
-            value = (
-                money.multiply(quantity, decimal_value(response.get("averagePrice"))) if quantity > 0 else Decimal(0)
-            )
-            if quantity > previous[0]:
-                delta = money.subtract(quantity, previous[0])
-                price = money.divide(money.subtract(value, previous[1]), delta)
-                if price <= 0:
-                    raise MetaMaskAPIError("INVALID_FILL", "Fill price must be positive")
-                event = self.FILLED_ORDER if state == "filled" else self.PARTIALLY_FILLED_ORDER
-                self._process_trade_event(order, event, price=price, filled_quantity=delta)
-            elif state == "filled" and previous[2] == "partial_fill" and quantity > 0:
-                self._process_trade_event(
-                    order, self.FILLED_ORDER, price=decimal_value(response["averagePrice"]), filled_quantity=0
-                )
-            elif state in ("open", "waiting_for_fill") and previous[2] in (
-                None,
-                "submitted",
-                "awaiting_approval",
-                "unknown",
-                "prepared",
-            ):
-                self._process_trade_event(order, self.NEW_ORDER)
-            if state == "canceled" and previous[2] != "canceled":
-                self._process_trade_event(order, self.CANCELED_ORDER)
-            elif state == "rejected" and previous[2] != "rejected":
-                self._process_trade_event(
-                    order,
-                    self.ERROR_ORDER,
-                    error=MetaMaskAPIError("REJECTED", response.get("message", "Provider rejected order")),
-                )
-            order.update_raw(response)
-            self._set_submission_outcome(order, response)
-            self._observations[str(order.identifier)] = (quantity, value, state)
-            self._observe_children(order, response)
+                    self._observations[str(order.identifier)] = (quantity, value, state)
+            except Exception as error:
+                parent_error = error
+            try:
+                self._observe_children(order, response)
+            except Exception as child_error:
+                if parent_error is None:
+                    raise
+                self.logger.error("MetaMask child observation also failed for %s: %s", order.identifier, child_error)
+            if parent_error is not None:
+                raise parent_error

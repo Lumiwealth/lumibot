@@ -2868,9 +2868,16 @@ def test_do_polling_isolates_child_regression_and_still_observes_subsequent_orde
     broker._record_order_feed.assert_called_once_with(False)
 
 
-def test_engine_orders_bounds_discovery_window_for_settled_closed_groups(tmp_path):
+def test_engine_orders_bounds_discovery_window_for_settled_closed_groups(tmp_path, monkeypatch):
+    import lumibot.tools.metamask.engine as engine_mod
+
     engine, journal, _, venue = _make_engine(tmp_path)
-    old_ts = int(time.time() * 1000) - 10 * 86_400_000  # 10 days ago
+    poll1_sec = 1_750_000_000.0
+    poll2_sec = poll1_sec + 120.0
+    poll3_sec = poll2_sec + 10.0
+    now_sec = [poll1_sec]
+    monkeypatch.setattr(engine_mod.time, "time", lambda: now_sec[0])
+    old_ts = int(poll1_sec * 1000) - 10 * 86_400_000  # 10 days ago
     op = {
         "id": "br-settled-old",
         "agent": "agent",
@@ -2998,19 +3005,22 @@ def test_engine_orders_bounds_discovery_window_for_settled_closed_groups(tmp_pat
     journal.save_effect(op, engine._child_fill_step("br-so-sl"), {"wallet": WALLET, "network": "testnet", "items": []})
     venue.fills.return_value = []
 
-    # First poll scans and establishes the durable discovery cursor past updatedAt + overlap.
+    # First poll scans and establishes the durable discovery cursor at poll1_ms.
     first = engine.orders()
     assert len(first) == 1
     assert venue.fills.call_count == 1
+    saved_cursor = int(journal.metadata("closed_fill_cursor:agent"))
+    assert saved_cursor == int(poll1_sec * 1000)
     venue.fills.reset_mock()
 
     # Second poll skips the fully-exited bracket completely (zero fills() calls for settled-only wallet!).
+    now_sec[0] = poll2_sec
     second = engine.orders()
     assert len(second) == 1
     venue.fills.assert_not_called()
 
-    # Now add a non-exited canceled-child OTO created 10 days ago: discovery window MUST stay bounded
-    # near the durable cursor (cursor - 60s), NOT re-scanning from 10 days ago!
+    # Now add a non-exited canceled-child OTO created 10 days ago: discovery window MUST start at
+    # exactly saved_cursor - 60_000 (the 60s overlap) and end at poll2_ms!
     oto_op = {
         **op,
         "id": "oto-canceled-old",
@@ -3043,4 +3053,178 @@ def test_engine_orders_bounds_discovery_window_for_settled_closed_groups(tmp_pat
     engine.orders()
     assert venue.fills.call_count == 1
     _, start_arg, end_arg = venue.fills.call_args.args
-    assert end_arg - start_arg <= 120_000  # bounded ~60s overlap window, NOT 10 days!
+    assert start_arg == saved_cursor - 60_000
+    assert end_arg == int(poll2_sec * 1000)
+
+    # When venue.fills fails, settled fully-exited groups remain skipped in the fallback path.
+    venue.fills.reset_mock()
+    venue.fills.side_effect = MetaMaskError("VENUE_UNAVAILABLE", "temporary outage")
+    called_order_ids = []
+    orig_order = engine.order
+
+    def spy_order(op_id, **kwargs):
+        called_order_ids.append(op_id)
+        return orig_order(op_id, **kwargs)
+
+    engine.order = spy_order
+    venue.order_status.return_value = {
+        "status": "order",
+        "order": {
+            "status": "canceled",
+            "order": {"oid": 804, "coin": "BTC", "side": "A", "origSz": "0.01", "sz": "0.01", "reduceOnly": True},
+        },
+    }
+    engine.orders()
+    assert "br-settled-old" not in called_order_ids
+    assert "oto-canceled-old" in called_order_ids
+
+    # If _execution is held so order() skips reconciliation of a new fill, cursor MUST NOT advance.
+    engine.order = orig_order
+    cursor_before = journal.metadata("closed_fill_cursor:agent")
+    now_sec[0] = poll3_sec
+    venue.fills.side_effect = None
+    venue.fills.return_value = [
+        {
+            "oid": 804,
+            "coin": "BTC",
+            "side": "A",
+            "sz": "0.002",
+            "px": "45000",
+            "tid": 8199,
+            "fee": "0.01",
+            "feeToken": "USDC",
+        }
+    ]
+    assert engine._execution.acquire(blocking=False)
+    try:
+        engine.orders()
+    finally:
+        engine._execution.release()
+    assert journal.metadata("closed_fill_cursor:agent") == cursor_before
+
+
+def test_observe_entry_and_sibling_child_regressions_still_observe_healthy_exit_legs():
+    broker, client = _make_broker()
+    btc = Asset("BTC", asset_type="crypto_future")
+    usdc = Asset("USDC", asset_type="crypto")
+
+    # 1. Tracked bracket where entry regresses (0.005 -> 0.004) while TP exit fills: exit fill MUST be observed.
+    tp1 = Order(
+        "s", btc, Decimal("0.01"), "sell", order_type="limit", limit_price=55000, quote=usdc, identifier="b-tp-1"
+    )
+    sl1 = Order("s", btc, Decimal("0.01"), "sell", order_type="stop", stop_price=45000, quote=usdc, identifier="b-sl-1")
+    parent1 = Order(
+        "s",
+        btc,
+        Decimal("0.01"),
+        "buy",
+        quote=usdc,
+        order_class=Order.OrderClass.BRACKET,
+        child_orders=[tp1, sl1],
+        identifier="b-par-1",
+    )
+    broker._new_orders.append(parent1)
+    broker._new_orders.append(tp1)
+    broker._new_orders.append(sl1)
+    broker._observe(
+        parent1,
+        {
+            "id": "b-par-1",
+            "state": "partial_fill",
+            "filledQuantity": "0.005",
+            "averagePrice": "50000",
+            "request": {"kind": "perp", "symbol": "BTC", "side": "buy", "quantity": "0.01", "orderClass": "bracket"},
+            "childOperations": [],
+        },
+    )
+    broker._record_order_feed = Mock()
+    client.orders.return_value = [
+        {
+            "id": "b-par-1",
+            "state": "partial_fill",
+            "filledQuantity": "0.004",  # regressed from 0.005
+            "averagePrice": "50000",
+            "request": {"kind": "perp", "symbol": "BTC", "side": "buy", "quantity": "0.01", "orderClass": "bracket"},
+            "childOperations": [
+                {
+                    "id": "b-tp-1",
+                    "parentId": "b-par-1",
+                    "side": "sell",
+                    "quantity": "0.01",
+                    "orderType": "limit",
+                    "state": "filled",
+                    "filledQuantity": "0.01",
+                    "averagePrice": "55000",
+                }
+            ],
+        }
+    ]
+    with pytest.raises(MetaMaskAPIError, match="FILL_REGRESSION"):
+        broker.do_polling()
+    assert tp1.is_filled()
+    broker._record_order_feed.assert_called_once_with(False)
+
+    # 2. Valid entry, first exit regresses (0.005 -> 0.001), second exit fills: second MUST be observed.
+    tp2 = Order(
+        "s", btc, Decimal("0.01"), "sell", order_type="limit", limit_price=55000, quote=usdc, identifier="b-tp-2"
+    )
+    sl2 = Order("s", btc, Decimal("0.01"), "sell", order_type="stop", stop_price=45000, quote=usdc, identifier="b-sl-2")
+    parent2 = Order(
+        "s",
+        btc,
+        Decimal("0.01"),
+        "buy",
+        quote=usdc,
+        order_class=Order.OrderClass.BRACKET,
+        child_orders=[tp2, sl2],
+        identifier="b-par-2",
+    )
+    broker._new_orders.append(parent2)
+    broker._new_orders.append(tp2)
+    broker._new_orders.append(sl2)
+    broker._observe(
+        tp2,
+        {
+            "id": "b-tp-2",
+            "state": "partial_fill",
+            "filledQuantity": "0.005",
+            "averagePrice": "55000",
+            "request": {"kind": "perp", "symbol": "BTC", "side": "sell", "quantity": "0.01"},
+        },
+    )
+    broker._record_order_feed.reset_mock()
+    client.orders.return_value = [
+        {
+            "id": "b-par-2",
+            "state": "filled",
+            "filledQuantity": "0.01",
+            "averagePrice": "50000",
+            "request": {"kind": "perp", "symbol": "BTC", "side": "buy", "quantity": "0.01", "orderClass": "bracket"},
+            "childOperations": [
+                {
+                    "id": "b-tp-2",
+                    "parentId": "b-par-2",
+                    "side": "sell",
+                    "quantity": "0.01",
+                    "orderType": "limit",
+                    "state": "open",
+                    "filledQuantity": "0.001",  # regressed from 0.005
+                    "averagePrice": "55000",
+                },
+                {
+                    "id": "b-sl-2",
+                    "parentId": "b-par-2",
+                    "side": "sell",
+                    "quantity": "0.01",
+                    "orderType": "stop",
+                    "state": "filled",
+                    "filledQuantity": "0.01",
+                    "averagePrice": "45000",
+                },
+            ],
+        }
+    ]
+    with pytest.raises(MetaMaskAPIError, match="FILL_REGRESSION"):
+        broker.do_polling()
+    assert sl2.is_filled()
+    broker._record_order_feed.assert_called_once_with(False)

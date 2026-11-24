@@ -1790,8 +1790,12 @@ class ExecutionEngine:
             current = self._operation(str(operation["id"]))
             return self._change(current, cancelState="unknown", cancelErrorCode=error.code, cancelMessage=str(error))
 
-    def order(self, operation_id: str, *, _observation=None) -> dict[str, object]:
+    def order(
+        self, operation_id: str, *, _observation=None, _skipped_out: list[str] | None = None
+    ) -> dict[str, object]:
         if not self._execution.acquire(blocking=False):
+            if _skipped_out is not None:
+                _skipped_out.append(operation_id)
             operation, child = self._find_operation(operation_id)
             return self._child_view(operation, child) if child is not None else operation
         try:
@@ -1936,12 +1940,13 @@ class ExecutionEngine:
             recent = self.venue.fills(wallet, start, poll_end)
         except MetaMaskError:
             # Preserve ordinary durable reconciliation errors if discovery is unavailable.
-            return [self.order(str(row["id"])) for row in operations]
+            return [row if str(row["id"]) in skipped_settled else self.order(str(row["id"])) for row in operations]
         observation = {"wallet": wallet, "openOrders": live, "fills": recent}
         by_order = {}
         for fill in recent:
             by_order.setdefault(fill.get("oid"), []).append(fill)
         results = []
+        skipped_reconciliation: list[str] = []
         for operation in operations:
             identifier = str(operation["id"])
             if identifier in skipped_settled:
@@ -1985,8 +1990,14 @@ class ExecutionEngine:
                         if all_clean:
                             results.append(current)
                             continue
-            results.append(self.order(identifier, _observation=observation if identifier in existing else None))
-        if not any(
+            results.append(
+                self.order(
+                    identifier,
+                    _observation=observation if identifier in existing else None,
+                    _skipped_out=skipped_reconciliation,
+                )
+            )
+        if not skipped_reconciliation and not any(
             row.get("reconciliationErrorCode")
             or any(isinstance(c, dict) and c.get("reconciliationErrorCode") for c in (row.get("childOperations") or []))
             for row in results

@@ -27,6 +27,61 @@
 - Backtest `telemetry.json` adds `phases.simulation_cpu_seconds` and `machine`
   (architecture, CPU count, CPU model) so wall-time differences between machines
   can be told apart from code changes.
+- Schwab live: no order-list or account read before an iteration or on broad
+  `get_orders()` while nothing can change at the broker. A
+  read always happens while any order is UNKNOWN or still working, after any
+  submit, modify, cancel, fill or account-stream event, for 120 s after an order
+  is canceled, rejected or expired (late fills), for 300 s after a submit that
+  ended without a Schwab order id (timeout, 5xx, missing id), before any order
+  action that follows a skipped read, and at least every
+  `LUMIBOT_IDLE_SYNC_MAX_AGE` seconds (default 30; `0` turns the skip off).
+- Live reads asked for by the strategy stay fresh: `get_position`, `get_positions`
+  and `get_cash` always read the broker (only the per-iteration sync may be
+  skipped), and before a submit or modify that follows a skipped account read,
+  positions and cash are read again. `get_position`/`get_positions` take
+  `max_age` (`0` always reads, even inside a ttl).
+- Schwab: a submit that got no order id but reached Schwab (timeout, 5xx,
+  missing id) is re-attached when exactly one working or filled Schwab order has
+  the same asset, side, quantity, order type, limit and stop price and time in
+  force and was entered between 5 s before the submit started and 5 s after it
+  ended (orders with no entry time never match), so fills, cancels and
+  callbacks work. Two matching Schwab orders are
+  never guessed: an error names both, reads continue, nothing is resent. Only
+  brokers that stamp their reads watch unresolved submits.
+- Backtests no longer call the wall clock for order status times.
+- Schwab: an account-stream event drops the 1 s account-read reuse;
+  `max_age=0` position reads never use it.
+- Schwab live quotes: assets asked for in the last two iterations are fetched
+  together in one request (up to 250 symbols) at the start of each iteration, and
+  a quote younger than `LUMIBOT_QUOTE_MAX_AGE` (default 1 s; `0` off) is served
+  from memory with `quote.cache_age_seconds`. Absent quotes are never kept;
+  crypto never enters the list. Other brokers are unchanged.
+- Schwab live option chains are fetched once per underlying per
+  `LUMIBOT_CHAINS_CACHE_SECONDS` (default 900; `0` off). Each call gets its own
+  copy; after 4:00 PM New York time today's expiration is dropped from a kept
+  chain. Other brokers fetch every call.
+- `get_order` / `get_orders` take `max_age`: `0` always reads the broker. A
+  completely filled order is returned without another broker read; canceled and
+  rejected orders are still refreshed.
+- Live, opt-in: `wake_iteration_on_fill = True` on a strategy runs the next
+  iteration right after a fill (`wake_iteration_on_partial_fill` for partial
+  fills). Off by default: a strategy that orders in every iteration would order again.
+- Orders carry `status_updated_at` (moves only on a real status change),
+  `status_checked_at` and `status_source` (`"rest"` on Schwab; `None` elsewhere).
+- Live speed summary: one `[SpeedSummary]` JSON log line per minute
+  (`LUMIBOT_SPEED_SUMMARY_SECONDS`, `0` off), plus a `[QuoteCache]` line with
+  quotes served from memory and the oldest age served.
+
+### Fixed
+
+- The Schwab request pacer now holds `SCHWAB_REQUESTS_PER_MINUTE` over any 60
+  seconds, start-up included (live: 132.7 per minute let through at a setting of
+  100). Bursts are `SCHWAB_REQUEST_BURST_SECONDS` (default 6) worth of requests.
+  A Schwab data source with its own client now shares the broker's budget.
+- Ticks that only count toward a multi-minute `sleeptime`, and market-closed
+  ticks, no longer leave the executor's "iteration running" flag set.
+- The broker sync before each live iteration no longer spins without sleeping while
+  submitted orders drain, which slowed the order and fill threads.
 
 ## 4.6.97 - 2026-11-24
 

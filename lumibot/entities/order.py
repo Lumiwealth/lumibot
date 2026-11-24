@@ -176,6 +176,17 @@ _SERIALIZING_ORDERS: ContextVar[frozenset] = ContextVar("lumibot_serializing_ord
 class Order:
     Transaction = namedtuple("Transaction", ["quantity", "price"])
 
+    # Freshness labels (live). ``status_updated_at``: UTC time the status last changed.
+    # ``status_checked_at``: UTC time a broker read last confirmed it. ``status_source``:
+    # "rest" or "stream" when the adapter reports where the status came from (Schwab
+    # does); None when the adapter does not say (every other broker today).
+    status_updated_at = None
+    status_source = None
+    status_checked_at = None
+    # Turned on by live brokers (Broker._enable_order_status_times); backtests create
+    # many orders and never pay for the wall-clock call.
+    _record_status_times = False
+
     class OrderClass(StrEnum):
         SIMPLE = "simple"
         BRACKET = "bracket"
@@ -1160,6 +1171,17 @@ class Order:
 
     @status.setter
     def status(self, value):
+        # Remember when the status really changed (UTC). Compare after alias mapping so
+        # "filled" -> "fill" or "Filled" -> "fill" is not counted as a change.
+        if not Order._record_status_times:
+            self._set_status_value(value)
+            return
+        previous = getattr(self, "_status", None)
+        self._set_status_value(value)
+        if value is not None and getattr(self, "_status", None) != previous:
+            self.status_updated_at = datetime.datetime.now(datetime.timezone.utc)
+
+    def _set_status_value(self, value):
         if value and isinstance(value, str):
             if value.lower() in STATUS_ALIAS_MAP:
                 self._status = STATUS_ALIAS_MAP[value.lower()]

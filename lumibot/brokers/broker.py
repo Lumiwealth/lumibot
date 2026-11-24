@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 import time
 import threading
@@ -535,6 +536,8 @@ class Broker(ABC):
         # PERF: Backtesting is single-threaded, but SafeList lock acquisition shows up as
         # a measurable overhead in minute-level backtests. Use lock-free SafeLists in backtests
         # while keeping thread-safe lists for live brokers.
+        if not self.IS_BACKTESTING_BROKER:
+            Broker._enable_order_status_times()
         safelist_lock = None if self.IS_BACKTESTING_BROKER else self._lock
         # PERF: Backtests remove orders by `identifier` extremely frequently as they move through
         # the order-state buckets (unprocessed -> new -> partial -> filled/canceled/error). A
@@ -669,6 +672,22 @@ class Broker(ABC):
                 self._order_contradiction("unowned_order_callback")
             except Exception:
                 pass
+
+    @staticmethod
+    def _enable_order_status_times():
+        """Live processes record when an order status changed; backtests skip the clock call."""
+        from lumibot.entities import Order as _Order
+
+        _Order._record_status_times = True
+
+    def _speed_summary(self):
+        """The live speed recorder for this broker (see lumibot.tools.speed_summary)."""
+        recorder = self.__dict__.get("_speed_summary_recorder")
+        if recorder is None:
+            from lumibot.tools.speed_summary import SpeedSummary
+
+            recorder = self.__dict__.setdefault("_speed_summary_recorder", SpeedSummary())
+        return recorder
 
     def _record_fill_callback_entry(self):
         if not self.IS_BACKTESTING_BROKER:
@@ -1283,9 +1302,143 @@ class Broker(ABC):
         last_refresh = cache.get(strategy_name)
         if last_refresh is not None and now - last_refresh < ttl_seconds:
             return
+        # A strategy that asks for positions gets a fresh read (ttl 0). Only the
+        # per-iteration sync before on_trading_iteration may be skipped while idle.
 
         self.sync_positions(strategy)
         cache[strategy_name] = now
+
+    # ----- Idle read skip ----------------------------------------------------
+    # Live only. While a strategy has nothing that can still change at the broker,
+    # its per-iteration order-list and account reads are served from the last good
+    # read instead of asking the broker again. Safety rules (real money):
+    #   * any submit, modify, cancel or trade event since those reads -> read again
+    #     (an "activity epoch"; a read that started before the activity does not count);
+    #   * any tracked order that is UNKNOWN or still working (NEW, SUBMITTED, OPEN,
+    #     PARTIALLY FILLED, CANCELLING ...) -> read;
+    #   * a canceled, rejected or expired order keeps reads going for
+    #     ``ended_order_watch_seconds`` after LumiBot first sees it end (late fills);
+    #   * a submit that ended without a broker order id (timeout, server error,
+    #     missing id) keeps reads going for ``unresolved_submit_watch_seconds``;
+    #   * the last good read is never older than LUMIBOT_IDLE_SYNC_MAX_AGE seconds
+    #     (default 30, 0 turns the skip off): a periodic full-read backstop;
+    #   * before any order action after a served (skipped) read, the order list is
+    #     read again first (``_fresh_read_before_order_action``).
+    # Brokers opt in with STAMPS_GOOD_READS = True and by calling
+    # _note_orders_list_ok / _note_account_read_ok after a successful read; other
+    # brokers never skip and never get the unresolved-submit watch.
+    STAMPS_GOOD_READS = False
+    ended_order_watch_seconds = 120.0
+    unresolved_submit_watch_seconds = 300.0
+
+    def _note_order_activity(self):
+        self._order_activity_epoch = getattr(self, "_order_activity_epoch", 0) + 1
+
+    def _note_orders_list_ok(self, epoch_before):
+        self._orders_list_ok = (time.monotonic(), epoch_before)
+        self._idle_served_since_read = False
+
+    def _note_account_read_ok(self, epoch_before):
+        self._account_read_ok = (time.monotonic(), epoch_before)
+        self._account_skipped_since_read = False
+
+    def _note_unresolved_submit(self, order=None, submitted_at=None, returned_at=None):
+        """A submit ended without a broker id: the order may still be live at the broker.
+
+        Only brokers that stamp their reads (STAMPS_GOOD_READS) watch for it; the order
+        is remembered so the adapter can re-attach it when it shows up in the order list.
+        """
+        if not getattr(self, "STAMPS_GOOD_READS", False):
+            return
+        watch = float(getattr(self, "unresolved_submit_watch_seconds", 300.0) or 0.0)
+        now = time.monotonic()
+        self._unresolved_submit_until = now + watch
+        if order is not None:
+            pending = self.__dict__.setdefault("_unresolved_submits", [])
+            pending[:] = [item for item in pending if item["until"] > now and item["order"] is not order]
+            pending.append({"order": order, "submitted_at": submitted_at, "returned_at": returned_at,
+                            "until": now + watch, "warned": False})
+        Broker._note_order_activity(self)
+        logger.warning(
+            "Order submit ended without a broker order id (%s); the order list is read every "
+            "iteration for %.0f s so an order that reached the broker is seen. Open account orders "
+            "LumiBot does not manage are named in a separate warning.",
+            getattr(getattr(order, "asset", None), "symbol", "order"),
+            float(getattr(self, "unresolved_submit_watch_seconds", 300.0) or 0.0),
+        )
+
+    @staticmethod
+    def _idle_sync_max_age():
+        raw = os.environ.get("LUMIBOT_IDLE_SYNC_MAX_AGE")
+        if raw is None or not str(raw).strip():
+            return 30.0
+        try:
+            value = float(raw)
+        except ValueError:
+            return 30.0
+        return value if value > 0 and math.isfinite(value) else 0.0
+
+    def _order_may_still_change(self, order, now) -> bool:
+        if order.status == Order.OrderStatus.UNKNOWN or order.is_active():
+            return True
+        if order.is_filled():
+            return any(child.is_active() for child in (getattr(order, "child_orders", None) or []))
+        # Canceled, rejected, expired: a late fill can still arrive for a while.
+        first_seen = self.__dict__.setdefault("_ended_order_first_seen", {})
+        seen = first_seen.setdefault(str(order.identifier), now)
+        return now - seen < float(getattr(self, "ended_order_watch_seconds", 120.0) or 0.0)
+
+    def idle_read_skip_age(self, strategy):
+        """Seconds since the last good order-list and account read when both may be reused, else None."""
+        if self.IS_BACKTESTING_BROKER:
+            return None
+        max_age = self._idle_sync_max_age()
+        orders_ok = getattr(self, "_orders_list_ok", None)
+        acct_ok = getattr(self, "_account_read_ok", None)
+        if max_age <= 0 or orders_ok is None or acct_ok is None:
+            return None
+        epoch = getattr(self, "_order_activity_epoch", 0)
+        if orders_ok[1] != epoch or acct_ok[1] != epoch:
+            return None
+        if getattr(self, "_held_trades", None):
+            return None
+        queued = getattr(getattr(self, "_orders_queue", None), "queue", None)
+        if queued:
+            return None
+        now = time.monotonic()
+        if now < float(getattr(self, "_unresolved_submit_until", 0.0) or 0.0):
+            return None
+        age = now - min(orders_ok[0], acct_ok[0])
+        if age < 0 or age >= max_age:
+            return None
+        try:
+            name = self._strategy_name_from_input(strategy)
+            for order in self.get_tracked_orders(name):
+                if self._order_may_still_change(order, now):
+                    return None
+        except Exception:
+            return None
+        self._idle_served_since_read = True
+        self._account_skipped_since_read = True
+        return age
+
+    def _before_order_action(self, strategy_name):
+        """Fresh order read if the last reads were served idle, then mark order activity."""
+        Broker._fresh_read_before_order_action(self, strategy_name)
+        Broker._note_order_activity(self)
+
+    def _fresh_read_before_order_action(self, strategy_name):
+        """Read the order list before an order action when the last reads were served idle."""
+        if getattr(self, "IS_BACKTESTING_BROKER", False) or not getattr(self, "_idle_served_since_read", False):
+            return
+        orders_ok = getattr(self, "_orders_list_ok", None)
+        age = time.monotonic() - orders_ok[0] if orders_ok else float("nan")
+        logger.info("[IdleRead] reading orders before an order action; last read %.1f s old", age)
+        self._idle_served_since_read = False
+        try:
+            self.sync_orders(strategy_name)
+        except Exception as exc:
+            logger.warning("Order read before an order action failed: %s", exc)
 
     def _invalidate_order_caches(self):
         self._tracked_orders_cache_key = None
@@ -3273,6 +3426,8 @@ class Broker(ABC):
 
     def modify_order(self, order, stop_price: Union[float, None] = None, limit_price: Union[float, None] = None, *, quantity=None):
         """Modify an order. Quantity, when supported, is the new total including fills."""
+        if not getattr(self, "IS_BACKTESTING_BROKER", False):
+            Broker._before_order_action(self, getattr(order, "strategy", None))
         changes = {"stop_price": stop_price, "limit_price": limit_price}
         # Preserve older adapters' price-only signatures for compatible callers.
         if quantity is not None:
@@ -3408,7 +3563,29 @@ class Broker(ABC):
             return order
         self.resolve_option_order_intent(order)
         self._conform_order(order)
-        return self._submit_order(order)
+        if getattr(self, "IS_BACKTESTING_BROKER", False):
+            return self._submit_order(order)
+        Broker._before_order_action(self, getattr(order, "strategy", None))
+        recorder = self._speed_summary()
+        started = recorder.order_submitting()
+        try:
+            order._submit_cleanly_refused = False
+        except Exception:
+            pass
+        import datetime as _datetime
+
+        submitted_at = _datetime.datetime.now(_datetime.timezone.utc)
+        try:
+            result = self._submit_order(order)
+        except BaseException:
+            Broker._note_unresolved_submit(self, order, submitted_at,
+                                           _datetime.datetime.now(_datetime.timezone.utc))
+            raise
+        if getattr(result, "identifier", None) is None and not getattr(order, "_submit_cleanly_refused", False):
+            Broker._note_unresolved_submit(self, order, submitted_at,
+                                           _datetime.datetime.now(_datetime.timezone.utc))
+        recorder.order_submitted(getattr(result if result is not None else order, "identifier", None), started)
+        return result
 
     def resolve_option_order_intent(
         self,
@@ -3513,6 +3690,9 @@ class Broker(ABC):
 
     def submit_orders(self, orders, **kwargs) -> Union[Order, list[Order]]:
         """Submit orders"""
+        if not getattr(self, "IS_BACKTESTING_BROKER", False):
+            first = next((o for o in orders if o is not None), None)
+            Broker._before_order_action(self, getattr(first, "strategy", None))
         resolved_orders = []
         for order in orders:
             if order is None:
@@ -4055,6 +4235,13 @@ class Broker(ABC):
         # can emit hundreds of thousands of events, so minimize per-call overhead in the common
         # backtesting path.
         is_backtesting = getattr(self, "IS_BACKTESTING_BROKER", False)
+        if not is_backtesting:
+            self._order_activity_epoch = getattr(self, "_order_activity_epoch", 0) + 1
+        if not is_backtesting and type_event in ("fill", "partial_fill"):
+            try:
+                self._speed_summary().fill_seen(getattr(stored_order, "identifier", None))
+            except Exception:
+                pass
         if self.logger.isEnabledFor(20):
             self.logger.info(
                 f"Processing trade event. Trade event received for {stored_order.strategy} strategy: {type_event} "

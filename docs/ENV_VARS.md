@@ -69,6 +69,13 @@ This page documents environment variables used by LumiBot, with an emphasis on *
   - Direct smoke helper: `scripts/polymarket_smoke.py`. LumiBot smoke helper: `scripts/polymarket_lumibot_smoke.py`. They load `.env.local`, redact output, and only submit live orders when `POLYMARKET_LIVE_TRADING_ENABLED=true` plus notional caps are present.
   - Never commit or log raw Polymarket private keys or CLOB credentials.
 
+### Live speed settings (Schwab)
+- `LUMIBOT_SPEED_SUMMARY_SECONDS` (60, 0 off): `[SpeedSummary]` log interval, `lumibot/tools/speed_summary.py`.
+- `LUMIBOT_IDLE_SYNC_MAX_AGE` (30, 0 off): oldest order-list/account read that may be reused while nothing can change. Rules in `Broker.idle_read_skip_age` (broker.py).
+- `LUMIBOT_QUOTE_MAX_AGE` (1.0, 0 off), `LUMIBOT_QUOTE_PREFETCH_ITERATIONS` (2), `LUMIBOT_QUOTE_PREFETCH_BATCH` (250, max 500), `LUMIBOT_QUOTE_PREFETCH_WORKERS` (2): Schwab quote cache and per-iteration prefetch, `SchwabData.prefetch_quotes`.
+- `LUMIBOT_CHAINS_CACHE_SECONDS` (900, 0 off): Schwab option chain cache, `SchwabData.get_chains`.
+- `SCHWAB_REQUEST_BURST_SECONDS` (6): pacer burst; the per-minute setting holds over any 60 s.
+
 ### `LUMIBOT_DISABLE_DOTENV`
 - Purpose: Disable automatic `.env` discovery and loading at startup.
 - Values: truthy enables (`1`, `true`, `yes`); unset/`0` disables.

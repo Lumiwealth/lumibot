@@ -199,7 +199,28 @@ def __getattr__(name):
     return value
 
 
+def _order_is_final(order) -> bool:
+    """A completely filled order with no working child orders cannot change any more.
+
+    Canceled or rejected orders are not final here: some brokers report a late
+    fill on a canceled order, so those keep their normal broker refresh.
+    """
+    try:
+        if not order.is_filled():
+            return False
+        return not any(child.is_active() for child in (getattr(order, "child_orders", None) or []))
+    except Exception:
+        return False
+
+
 class Strategy(_Strategy):
+    # Live, opt-in: after a fill, run the next trading iteration at once instead of
+    # waiting out the sleeptime (a running iteration is never interrupted). Off by
+    # default: a daily or DCA strategy that places its order in on_trading_iteration
+    # would place it again. Partial fills wake only with wake_iteration_on_partial_fill.
+    wake_iteration_on_fill = False
+    wake_iteration_on_partial_fill = False
+
     @property
     def name(self):
         """Returns the name of the strategy.
@@ -1346,6 +1367,8 @@ class Strategy(_Strategy):
         broker_refresh_ttl_seconds: float = 0.0,
         position_side: str = None,
         position_id: str = None,
+        *,
+        max_age: float | None = None,
     ):
         """Get a tracked position given an asset for the current
         strategy.
@@ -1358,6 +1381,10 @@ class Strategy(_Strategy):
         ----------
         asset : Asset or str
             Asset object who's traded positions is sought.
+        max_age : float, optional
+            Live: ``0`` always reads the broker, even inside ``broker_refresh_ttl_seconds``;
+            a positive value accepts a read that many seconds old. The default
+            (``broker_refresh_ttl_seconds=0``) is already a fresh read.
 
         Returns
         -------
@@ -1388,6 +1415,7 @@ class Strategy(_Strategy):
         self._refresh_live_positions(
             broker_refresh=broker_refresh,
             broker_refresh_ttl_seconds=broker_refresh_ttl_seconds,
+            max_age=max_age,
         )
         asset = self._sanitize_user_asset(asset)
         
@@ -1638,6 +1666,8 @@ class Strategy(_Strategy):
         include_cash_positions: bool = False,
         broker_refresh: bool = True,
         broker_refresh_ttl_seconds: float = 0.0,
+        *,
+        max_age: float | None = None,
     ):
         """Get all positions for the account.
 
@@ -1645,6 +1675,10 @@ class Strategy(_Strategy):
         ----------
         include_cash_positions : bool
             If True, include cash positions in the returned list. If False, exclude cash positions.
+        max_age : float, optional
+            Live: ``0`` always reads the broker, even inside ``broker_refresh_ttl_seconds``;
+            a positive value accepts a read that many seconds old. The default
+            (``broker_refresh_ttl_seconds=0``) is already a fresh read.
 
         Returns
         -------
@@ -1667,6 +1701,7 @@ class Strategy(_Strategy):
         self._refresh_live_positions(
             broker_refresh=broker_refresh,
             broker_refresh_ttl_seconds=broker_refresh_ttl_seconds,
+            max_age=max_age,
         )
         include_cash = include_cash_positions or self.include_cash_positions
         filled_positions = getattr(self.broker, "_filled_positions", None)
@@ -1740,6 +1775,28 @@ class Strategy(_Strategy):
         self.log_message("Warning: get_tracked_order() is deprecated, please use get_order() instead.")
         return self.get_order(identifier)
 
+    def _refresh_account_before_order_action(self):
+        """Live: read positions and cash again when the last account read was skipped as idle.
+
+        A position can change without any order activity this process sees (a sale by
+        hand, an assignment, a dividend) while the account stream is down; an order
+        decision must not rest on the skipped read.
+        """
+        broker = self.broker
+        if broker.IS_BACKTESTING_BROKER or not getattr(broker, "_account_skipped_since_read", False):
+            return
+        try:
+            broker._account_skipped_since_read = False
+            drop = getattr(broker, "_drop_account_snapshot", None)
+            if callable(drop):
+                drop()  # a truly fresh account read, not a reused one
+            broker.sync_positions(self)
+            self.update_broker_balances(force_update=True)
+            if hasattr(self, "_positions_cache"):
+                self._positions_cache.clear()
+        except Exception as exc:
+            self.logger.warning(f"Account read before an order action failed: {exc}")
+
     def _refresh_live_orders(self, broker_refresh: bool = True, broker_refresh_ttl_seconds: float = 0.0):
         if not broker_refresh or self.broker.IS_BACKTESTING_BROKER:
             return
@@ -1747,9 +1804,17 @@ class Strategy(_Strategy):
         if refresh_orders is not None:
             refresh_orders(self, ttl_seconds=broker_refresh_ttl_seconds)
 
-    def _refresh_live_positions(self, broker_refresh: bool = True, broker_refresh_ttl_seconds: float = 0.0):
+    def _refresh_live_positions(self, broker_refresh: bool = True, broker_refresh_ttl_seconds: float = 0.0,
+                                max_age: float | None = None):
         if not broker_refresh or self.broker.IS_BACKTESTING_BROKER:
             return
+        if max_age is not None:
+            # max_age=0: always read the broker; a positive value accepts a read that old.
+            broker_refresh_ttl_seconds = max(0.0, float(max_age))
+            if broker_refresh_ttl_seconds <= 0:
+                drop = getattr(self.broker, "_drop_account_snapshot", None)
+                if callable(drop):
+                    drop()  # never answer max_age=0 from a reused account read
         refresh_positions = getattr(self.broker, "refresh_positions", None)
         if refresh_positions is not None:
             refresh_positions(self, ttl_seconds=broker_refresh_ttl_seconds)
@@ -1818,13 +1883,27 @@ class Strategy(_Strategy):
             return False
         return order_status in statuses
 
-    def get_order(self, identifier: str, broker_refresh: bool = True, broker_refresh_ttl_seconds: float = 0.0):
+    def get_order(
+        self,
+        identifier: str,
+        broker_refresh: bool = True,
+        broker_refresh_ttl_seconds: float = 0.0,
+        *,
+        max_age: float | None = None,
+    ):
         """Get a tracked order given an identifier. Check the details of the order including status, etc.
 
         In live trading this refreshes broker order state before returning by default.
         Refresh normally reads the broker order list; a tracked active order absent from
         that list may also receive a direct lookup. This is not an unconditional
         single-order HTTP request. Set broker_refresh=False to read only tracked state.
+        An order this strategy already knows is completely filled is final, so it is
+        returned without asking the broker again. ``max_age=0`` always asks the broker
+        (no shortcut); a positive ``max_age`` accepts a broker read up to that many seconds
+        old. ``order.status_updated_at``, ``order.status_checked_at`` and
+        ``order.status_source`` say when the status last changed, when a broker read last
+        confirmed it, and where it came from (Schwab sets the source; other brokers leave
+        it ``None``).
 
         Returns
         -------
@@ -1838,6 +1917,13 @@ class Strategy(_Strategy):
         >>> # Show the status of the order
         >>> self.log_message(order.status)
         """
+        forced = max_age is not None and float(max_age) <= 0
+        if max_age is not None and not forced:
+            broker_refresh_ttl_seconds = max(float(broker_refresh_ttl_seconds or 0.0), float(max_age))
+        if broker_refresh and not forced and not self.broker.IS_BACKTESTING_BROKER:
+            local = self.broker.get_tracked_order(identifier)
+            if local is not None and local.strategy == self.name and _order_is_final(local):
+                return local
         self._refresh_live_orders(broker_refresh=broker_refresh, broker_refresh_ttl_seconds=broker_refresh_ttl_seconds)
         order = self.broker.get_tracked_order(identifier)
         if order is not None and order.strategy == self.name:
@@ -1856,6 +1942,8 @@ class Strategy(_Strategy):
         statuses=None,
         broker_refresh: bool = True,
         broker_refresh_ttl_seconds: float = 0.0,
+        *,
+        max_age: float | None = None,
     ):
         """Get tracked orders, optionally filtered by identifiers and OrderStatus values.
 
@@ -1878,6 +1966,13 @@ class Strategy(_Strategy):
             A list of order identifiers to filter the orders by. If None, returns all tracked orders for the strategy.
         statuses : Order.OrderStatus, str, or iterable of those
             Optional status filter. Use Order.ACTIVE_STATUSES or "open" for currently active orders.
+        max_age : float, optional
+            ``0`` always reads the broker (no shortcut). A positive value accepts a broker
+            read up to that many seconds old. With ``None`` (default) a live broker that
+            supports it (Schwab) may answer from its last good order-list read when this
+            strategy has no open, unknown or recently ended order and no order activity
+            since that read; that read is never older than ``LUMIBOT_IDLE_SYNC_MAX_AGE``
+            seconds (default 30).
 
         Returns
         -------
@@ -1899,7 +1994,25 @@ class Strategy(_Strategy):
 
         """
         normalized_statuses = self._normalize_order_statuses(statuses)
-        self._refresh_live_orders(broker_refresh=broker_refresh, broker_refresh_ttl_seconds=broker_refresh_ttl_seconds)
+        forced = max_age is not None and float(max_age) <= 0
+        if max_age is not None and not forced:
+            broker_refresh_ttl_seconds = max(float(broker_refresh_ttl_seconds or 0.0), float(max_age))
+        skip_refresh = False
+        if broker_refresh and not identifiers and not forced and not self.broker.IS_BACKTESTING_BROKER:
+            # Nothing can have changed at the broker since the last good read (no open,
+            # unknown or recently ended order, no order activity, read under 30 s old).
+            idle = getattr(self.broker, "idle_read_skip_age", None)
+            skip_refresh = callable(idle) and idle(self.name) is not None
+        if broker_refresh and identifiers and not forced and not self.broker.IS_BACKTESTING_BROKER:
+            # Every asked-for order is already completely filled: nothing left to refresh.
+            known = [
+                order
+                for order in self.broker.get_tracked_orders(self.name)
+                if any(self.broker.identifiers_equal(order.identifier, identifier) for identifier in identifiers)
+            ]
+            skip_refresh = len(known) >= len(identifiers) and all(_order_is_final(order) for order in known)
+        if not skip_refresh:
+            self._refresh_live_orders(broker_refresh=broker_refresh, broker_refresh_ttl_seconds=broker_refresh_ttl_seconds)
         all_orders = self.broker.get_tracked_orders(self.name)
         if identifiers:
             all_orders = [
@@ -2041,7 +2154,10 @@ class Strategy(_Strategy):
         optional JSON object of sources, timestamps, sizing and risks. Full
         explanations remain in the private memory journal; orders carry compact
         references. An unknown broker outcome must be reconciled before retrying.
+        Live: if the last per-iteration account read was skipped (nothing seemed to
+        change), positions and cash are read again first.
         """
+        self._refresh_account_before_order_action()
         reference = self._journal_order_action(order, operation="submit", reason=reason, evidence=evidence)
         return self._perform_journaled_order_action(reference, lambda: self._submit_order_impl(order, **kwargs))
 
@@ -2796,6 +2912,7 @@ class Strategy(_Strategy):
         if not order.identifier:
             raise ValueError("Order identifier is not set, unable to modify order. Did you remember to submit it?")
 
+        self._refresh_account_before_order_action()
         changes = {"limit_price": limit_price, "stop_price": stop_price}
         if quantity is not None:
             changes["quantity"] = quantity
@@ -3327,6 +3444,13 @@ class Strategy(_Strategy):
         -------
         Quote
             A Quote object with the quote information, eg. bid, ask, etc.
+
+        Notes
+        -----
+        Live Schwab: quotes asked for in the last two iterations are fetched together in
+        one request at the start of each iteration, and a quote younger than
+        ``LUMIBOT_QUOTE_MAX_AGE`` seconds (default 1; 0 turns this off) is served from
+        memory with ``quote.cache_age_seconds`` set. Other brokers ask every time.
         """
 
         asset = self._sanitize_user_asset(asset)
@@ -3491,6 +3615,11 @@ class Strategy(_Strategy):
         >>> # Will return the option chains for SPY
         >>> asset = "SPY"
         >>> chains = self.get_chains(asset)
+
+        Live Schwab keeps a chain (expirations and strikes, no prices) for
+        ``LUMIBOT_CHAINS_CACHE_SECONDS`` (default 900; 0 fetches every call) and hands
+        out a copy each time; after 4:00 PM New York time today's expiration is dropped
+        from a cached chain. Other brokers fetch every call.
         """
         asset = self._sanitize_user_asset(asset)
         return self.broker.get_chains(asset)

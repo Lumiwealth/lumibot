@@ -381,7 +381,13 @@ def _enough_bars_and_no_known_hole(symbol, asset_type, timestep, requested, fram
         keep &= ~frame["missing"].fillna(False).astype(bool).to_numpy()
     for name in ("open", "high", "low", "close"):
         if name in frame:
-            keep &= frame[name].notna().to_numpy()
+            column = frame[name]
+            values = column.to_numpy() if isinstance(column, pd.Series) else None
+            if values is not None and values.dtype.kind == "f":
+                # Same answer as notna() for a float column, without building a Series.
+                keep &= ~np.isnan(values)
+            else:
+                keep &= column.notna().to_numpy()
     if int(keep.sum()) < requested:
         return False
     with _HEALTH_LOCK:

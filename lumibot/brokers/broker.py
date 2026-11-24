@@ -229,6 +229,7 @@ class Broker(ABC):
     # Metainfo
     IS_BACKTESTING_BROKER = False
     REQUIRES_ORDERS_THREAD = False
+    _REQUIRE_EXECUTION_PRICE_ON_OBSERVATION = False
 
     # Trading events flags
     NEW_ORDER = "new"
@@ -1583,7 +1584,8 @@ class Broker(ABC):
             if total < processed:
                 # A snapshot missing a known execution also cannot set current terms.
                 return False
-            if total > processed and matched_order.avg_fill_price is None:
+            if (self._REQUIRE_EXECUTION_PRICE_ON_OBSERVATION
+                    and total > processed and matched_order.avg_fill_price is None):
                 raise ValueError("Broker reported a new execution without an execution price")
 
         previous_status = order_lumi.status
@@ -1611,7 +1613,7 @@ class Broker(ABC):
                 changed = True
 
         if cumulative is not None:
-            if total > processed:
+            if total > processed and matched_order.avg_fill_price is not None:
                 if not self._reconcile_cumulative_execution(
                     order_lumi, total, matched_order.avg_fill_price,
                     terminal=total == Decimal(str(matched_order.quantity)), raw=matched_order._raw,

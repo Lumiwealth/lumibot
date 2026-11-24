@@ -59,6 +59,8 @@ def _client_identifier(value):
 class Webull(Broker):
     """Connect one explicitly selected Webull account to a LumiBot strategy."""
 
+    _REQUIRE_EXECUTION_PRICE_ON_OBSERVATION = True
+
     def __init__(self, config, data_source=None, connect_stream=True, *,
                  trading_client=None, start_orders_thread=True, option_source=None, **kwargs):
         self._webull_config = dict(config)

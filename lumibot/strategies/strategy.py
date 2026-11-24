@@ -3361,8 +3361,9 @@ class Strategy(_Strategy):
                 source = self.broker.option_source
             else:
                 source = self.broker.data_source
-            if quote is None and exchange is None:
-                cached = self._quote_basket_lookup(source, asset)
+            lookup = getattr(self, "_quote_basket_lookup", None)
+            if quote is None and exchange is None and callable(lookup):
+                cached = lookup(source, asset)
                 if cached is not _QUOTE_BASKET_MISS:
                     return cached
             return source.get_quote(asset, quote=quote, exchange=exchange)

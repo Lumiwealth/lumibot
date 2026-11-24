@@ -288,3 +288,18 @@ def test_listings_rebuild_checks_archived_issuer_reports(monkeypatch, tmp_path):
     assert sec.build_listings_table([2020]).rows == []
     archive_fetch.assert_called_once()
     assert archive_fetch.call_args.args[0].endswith("/submissions/" + archived)
+
+
+def test_listings_select_acceptance_by_prospectus_accession_and_use_eastern_for_naive_cutoffs():
+    submissions = _submissions([("424B4", "2020-02-07"), ("424B4", "2020-02-07")])
+    submissions["filings"]["recent"].update({
+        "acceptanceDateTime": ["2020-02-07T21:00:00Z", "2020-02-07T22:00:00Z"],
+        "accessionNumber": ["0000000009-20-000001", "0000000009-20-000002"],
+    })
+    offering = {"cik": 9, "form": "424B4", "filed": "2020-02-07",
+                "path": "edgar/data/9/0000000009-20-000001.txt"}
+    row = classify_listing(offering, submissions)
+    row["ticker"] = "SAMPLE"
+    table = ListingsTable([row])
+    assert table.for_symbol("SAMPLE", as_of="2020-02-07T15:59:00") is None
+    assert table.for_symbol("SAMPLE", as_of="2020-02-07T16:00:00")["ticker"] == "SAMPLE"

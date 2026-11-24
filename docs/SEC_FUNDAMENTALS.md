@@ -110,7 +110,7 @@ Freshness in a backtest: a copy with `fetched_at` at or after the backtest end d
 SEC publishes nightly `companyfacts.zip` and `submissions.zip`. A warmer that wants LumiBot to get hits must:
 
 1. Write each `CIK##########.json` from `companyfacts.zip` to `sec/companyfacts/CIK##########.json` (same 10-digit, zero-padded name) with `_lumibot_cache_meta.fetched_at` set to when the zip was downloaded.
-2. Write each main `CIK##########.json` from `submissions.zip` to `sec/submissions/CIK##########.json` the same way. The paginated `CIK##########-submissions-NNN.json` files are not read by LumiBot today.
+2. Write each main `CIK##########.json` from `submissions.zip` to `sec/submissions/CIK##########.json` the same way. Store the paginated `CIK##########-submissions-NNN.json` files under the same prefix for historical listings rebuilds.
 3. Write `https://www.sec.gov/files/company_tickers.json` to `sec/company_tickers.json` (the zips do not contain it).
 4. Use the same prefix and version as the backtest containers. Without `_lumibot_cache_meta.fetched_at` a downloaded file looks fresh by its local mtime, so always write it. Running nightly keeps every backtest whose end date is before the warm a hit.
 

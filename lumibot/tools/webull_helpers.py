@@ -78,6 +78,13 @@ def _token_directory(configured, paper, key):
         raise ValueError("Webull SDK token directory must be a private directory")
     if hasattr(os, "getuid") and directory.st_uid != os.getuid():
         raise ValueError("Webull SDK token directory must be owned by the current user")
+    path = path.resolve()
+    for parent in path.parents:
+        state = parent.stat()
+        if state.st_mode & 0o022 and not state.st_mode & stat.S_ISVTX:
+            raise ValueError("Webull SDK token directory must have protected parent directories")
+        if hasattr(os, "getuid") and state.st_uid not in {0, os.getuid()}:
+            raise ValueError("Webull SDK token directory must have protected parent directories")
     try:
         token = (path / "token.txt").lstat()
     except FileNotFoundError:

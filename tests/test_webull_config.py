@@ -74,3 +74,15 @@ def test_webull_initializes_sdk_with_private_per_app_and_environment_token_direc
     writable.chmod(0o777)
     with pytest.raises(ValueError, match="private"):
         make_client({**config, "TOKEN_DIR": writable}, trading=True)
+
+
+def test_webull_token_path_rejects_replaceable_parent(tmp_path):
+    from lumibot.tools.webull_helpers import _token_directory
+
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    shared.chmod(0o777)
+    token_path = shared / "owned"
+    token_path.mkdir(mode=0o700)
+    with pytest.raises(ValueError, match="parent"):
+        _token_directory(token_path, True, "dummy")

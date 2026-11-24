@@ -4,7 +4,7 @@ from logging import getLogger
 from threading import Lock, Thread
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
-from lumibot.brokers.broker import Broker
+from lumibot.brokers.broker import Broker, OrderSubmissionUncertain
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.helpers import get_multileg_quantity_units
 from lumibot.tools.webull_helpers import (
@@ -54,6 +54,10 @@ def _client_identifier(value):
     if len(value.encode("utf-8")) <= 32:
         return value
     return uuid5(NAMESPACE_URL, f"webull:order:{value}").hex
+
+
+class WebullPlacementUncertain(WebullAPIError, OrderSubmissionUncertain):
+    """The original order stays tracked until we can reconcile its outcome."""
 
 
 class Webull(Broker):
@@ -517,9 +521,14 @@ class Webull(Broker):
                             self._unprocessed_orders.append(child)
                 if confirmed:
                     return order
-                raise WebullAPIError("placement outcome is unknown; look up the original client order ID") from None
+                raise WebullPlacementUncertain("placement outcome is unknown; look up the original client order ID") from None
             self._track_submitted_rows(order, rows)
-            self._apply_direct_order_observation(order, observed)
+            try:
+                self._apply_direct_order_observation(order, observed)
+            except (ValueError, ArithmeticError):
+                raise WebullPlacementUncertain(
+                    "placement outcome is unknown; look up the original client order ID",
+                ) from None
             return order
 
         order.update_raw({key: receipt[key] for key in ("client_order_id", "order_id", "combo_order_id") if key in receipt})
@@ -591,14 +600,7 @@ class Webull(Broker):
                 "legs": legs}
 
     def _standard_replacement(self, order, quantity):
-        row = self._order_row(order)
-        modify = {
-            "client_order_id": row["client_order_id"], "order_type": row["order_type"],
-            "time_in_force": row["time_in_force"],
-        }
-        for field in ("stop_price", "limit_price", "trailing_type", "trailing_stop_step"):
-            if field in row:
-                modify[field] = row[field]
+        modify = {"client_order_id": _client_identifier(order.identifier)}
         if quantity is not None:
             filled = require_number(getattr(order, "filled_quantity", None) or 0, "filled quantity")
             if require_number(quantity, "quantity") <= filled:
@@ -689,6 +691,9 @@ class Webull(Broker):
             if tracked is not None and tracked.strategy == strategy_name:
                 owned.append(observed)
         return owned
+
+    def _local_orders_for_strategy_sync(self, strategy_name):
+        return [order for order in self.get_all_orders() if order.strategy == strategy_name]
 
     def _iter_executable_order_tree(self, orders):
         for order in orders:

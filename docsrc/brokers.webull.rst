@@ -69,9 +69,10 @@ Webull ID. A native package uses one client ID, and linked exits get
 distinct member IDs. Reconcile the original ID after an uncertain write.
 The adapter retries rate-limited reads with bounded backoff. A failed
 write requires reconciliation before another placement.
-Save the strategy's order state before stopping so the next process can
-restore its native order IDs. Strategy sync uses those IDs and locally
-submitted IDs. Account order reads still include manually placed orders.
+Save ``broker.export_order_state(strategy)`` privately before stopping. On
+restart, call ``broker.restore_order_state(state, strategy)`` before the first
+sync. Use the same Webull account, environment, strategy and ownership ID.
+Account order reads still include manually placed orders.
 An order preview can return a cost estimate while placement returns a
 closed-session error. Webull documents preview for simple orders and
 excludes crypto. Check the native order ID and order detail to establish

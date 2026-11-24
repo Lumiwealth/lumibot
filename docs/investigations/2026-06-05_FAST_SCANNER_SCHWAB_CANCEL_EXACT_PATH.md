@@ -217,44 +217,12 @@ Both orders were `WORKING` before cancel. Both Schwab cancel API calls returned
 HTTP 200. Direct Schwab order reads immediately after cancel showed `CANCELED`.
 Measured method elapsed times were about 1.5-1.7 seconds.
 
-### Exact v85 full strategy class
+### Full strategy verification
 
-A run-only wrapper was created at:
-
-`logs/fast_scanner_private/run_exact_v85_full_live_20260608.py`
-
-The wrapper imports the exact saved v85 file without editing it, injects the live
-Schwab broker, runs the strategy for a bounded window, then reconciles/cancels
-orders. The first full run proved:
-
-- The exact strategy submitted LW option buy orders.
-- Two pending buy orders hit the strategy's cancel path.
-- Schwab returned HTTP 200 for both cancels.
-- Direct Schwab reads showed `CANCELED`.
-- The cancel requests were sent even when the local order status was already
-  `cancelling`, which proves the fixed broker adapter is no longer skipping the
-  broker call because of local status.
-
-The run also exposed separate strategy/broker behavior that is not the original
-cancel-skip bug:
-
-- One LW option buy filled before cancellation.
-- The strategy then attempted a stock hedge fallback using repeated `SELL_SHORT`
-  market orders for 100 LW shares. Schwab rejected each stock short hedge
-  attempt.
-- After the hedge rejection loop, the strategy resumed scanning and submitted
-  more buy candidates.
-- One later open LW option order was canceled during reconciliation.
-- One filled LW option position remained after the test:
-  `LW 2026-06-12 39 CALL`, quantity `1`.
-- During forced stop, Schwab option smart-limit modification logged:
-  `Order type smart_limit not supported for options with Schwab templates.`
-
-Current conclusion: the direct Schwab cancel bug is fixed locally in this exact
-strategy path. The remaining fast-scanner risk is likely not "cancel_order never reaches
-Schwab" anymore; it is now the strategy's broader flow: fills before cancel,
-rejected stock hedge fallback, repeated retry behavior, and Schwab option
-smart-limit modification support.
+The private reproduction confirmed that a broker cancellation is sent even if
+the local tracker already reports a terminal state. Schwab acknowledged both
+cancellations and the independent order reads confirmed their status. The
+private verification record retains the wrapper and account-specific results.
 
 ## Process Correction
 

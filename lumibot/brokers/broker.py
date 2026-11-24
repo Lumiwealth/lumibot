@@ -172,6 +172,10 @@ class LumibotBrokerAPIError(Exception):
     pass
 
 
+class OrderSubmissionUncertain(LumibotBrokerAPIError):
+    """A broker may have accepted a submission and must be queried before retrying."""
+
+
 # How a broker holds an order. One declaration per broker class (Broker.ORDER_SUPPORT)
 # answers supports_order(), drives the refusal in submit_order(), and is checked
 # against the real request builders by tests/test_broker_order_type_contract.py.
@@ -1655,6 +1659,9 @@ class Broker(ABC):
         """Adapter boundary for verified strategy history versus account visibility."""
         return orders
 
+    def _local_orders_for_strategy_sync(self, strategy_name):
+        return self.get_all_orders()
+
     def _iter_executable_order_tree(self, orders):
         return self._iter_order_tree(orders)
 
@@ -1673,7 +1680,7 @@ class Broker(ABC):
         orders_broker = list(self._iter_executable_order_tree(orders_broker))
 
         changed = False
-        orders_lumi = self.get_all_orders()
+        orders_lumi = self._local_orders_for_strategy_sync(strategy_name)
 
         observation_errors = []
         for order in orders_broker:

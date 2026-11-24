@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, NamedTuple
 from zoneinfo import ZoneInfo
 
-from .sec import _parse_dt, _same_tz, _strip_html
+from .sec import _NEW_YORK, _parse_dt, _same_tz, _strip_html
 
 LISTING_FORMS = ("424B4", "424B1")
 DELISTING_FORMS = ("25", "25-NSE", "15-12B", "15-12G", "15-15D")
@@ -210,15 +210,17 @@ def classify_listing(
         (notice for notice in removals if not _confirmed_transfer(offering["cik"], notice, registrations, fetch_head)),
         None,
     )
-    prospectus_acceptances = {filing.accepted for filing in filings
-                              if (filing.form, filing.day) == (offering["form"], filed) and filing.accepted}
+    prospectuses = [filing for filing in filings if (filing.form, filing.day) == (offering["form"], filed)]
+    accession = Path(offering["path"]).stem.replace("-", "")
+    exact = [filing for filing in prospectuses if (filing.accession or "").replace("-", "") == accession]
+    acceptances = [filing.accepted for filing in (exact or prospectuses) if filing.accepted]
 
     return {
         "cik": int(offering["cik"]),
         "name": name,
         "ticker": None,
         "prospectus_date": filed,
-        "prospectus_accepted_at": next(iter(prospectus_acceptances)) if len(prospectus_acceptances) == 1 else None,
+        "prospectus_accepted_at": max(acceptances, default=None),
         "form": offering["form"],
         "kind": kind,
         "sic": sic or None,
@@ -257,6 +259,8 @@ class ListingsTable:
         """
         lo, hi, cut = _as_date(start), _as_date(end), _as_date(as_of)
         instant = _parse_dt(as_of) if isinstance(as_of, datetime) or len(str(as_of)) > 10 else None
+        if instant is not None and instant.tzinfo is None:
+            instant = instant.replace(tzinfo=_NEW_YORK)
         wanted = {kinds} if isinstance(kinds, str) else set(kinds)
         out = []
         for row in self.rows:

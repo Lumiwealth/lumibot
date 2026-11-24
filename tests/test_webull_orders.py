@@ -238,6 +238,41 @@ def test_paper_readback_reconciles_original_order_after_an_unavailable_detail(mo
     strategy.cancel_order.assert_called_once_with(placed)
 
 
+@pytest.mark.parametrize("readback", ["missing", "unpriced"])
+def test_smart_limit_does_not_repeat_an_uncertain_webull_placement(broker, venue, monkeypatch, readback):
+    from datetime import date
+    from lumibot.strategies import Strategy
+    from lumibot.tools.webull_helpers import WebullAPIError
+
+    strategy = Strategy(broker=broker, name="qualification", risk_free_rate=0,
+                        synchronize_broker_on_start=False, should_backup_variables_to_database=False,
+                        should_send_summary_to_discord=False)
+    legs = [Order("qualification", Asset("SAMPLE", "option", right="CALL", strike=strike,
+                                         expiration=date(2027, 1, 15)), 1, side)
+            for strike, side in ((20, "buy_to_open"), (25, "sell_to_open"))]
+    monkeypatch.setattr(strategy, "_compute_multileg_net_best_fastest", lambda _: (1.0, 1.1))
+    venue.order_v3.place_order.side_effect = TimeoutError("synthetic timeout")
+    if readback == "missing":
+        venue.order_v3.get_order_detail.return_value = reply({"orders": []})
+    else:
+        venue.order_v3.get_order_detail.side_effect = lambda account, client_id: reply(detail(
+            client_id, status="FILLED", filled_quantity="1"))
+    with pytest.raises(WebullAPIError, match="original client order ID"):
+        strategy._submit_multileg_smart_limit_orders(legs, None)
+    venue.order_v3.place_order.assert_called_once()
+    sent = venue.order_v3.place_order.call_args.args[1][0]["client_order_id"]
+    assert broker.get_tracked_order(sent).is_active()
+
+
+def test_quantity_only_replace_never_resends_a_local_price(broker, venue):
+    placed = order()
+    broker.submit_order(placed)
+    broker.modify_order(placed, limit_price=19)
+    broker.modify_order(placed, quantity=5)
+    row, = venue.order_v3.replace_order.call_args.args[1]
+    assert row == {"client_order_id": placed.identifier, "quantity": "5"}
+
+
 def test_open_orders_follows_opaque_cursor(broker, venue):
     venue.order_v3.list_order_open.side_effect = [
         reply({"data": [detail("client-one")], "pagination_key": "opaque"}),
@@ -320,6 +355,16 @@ def test_account_order_visibility_does_not_assign_strategy_ownership(broker, ven
     assert {value.identifier for value in broker._pull_all_orders(strategy, None)} == {
         owned.identifier, "manual-order", another_strategy.identifier,
     }
+
+
+def test_sync_never_refreshes_another_strategys_working_order(broker, venue):
+    foreign_order = Order("another-strategy", Asset("SAMPLE"), 1, "buy", order_type="market")
+    broker.submit_order(foreign_order)
+    venue.order_v3.list_order_open.return_value = reply({"data": [detail(foreign_order.identifier)]})
+    venue.order_v3.get_order_detail.return_value = reply({"orders": []})
+    broker.sync_orders("qualification")
+    venue.order_v3.get_order_detail.assert_not_called()
+    assert foreign_order.is_active()
 
 
 def test_http_reconciliation_does_not_apply_same_partial_twice(broker, venue):

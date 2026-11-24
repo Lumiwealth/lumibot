@@ -2449,6 +2449,8 @@ class Strategy(_Strategy):
         submit_price = 0.0 if initial_price is None else float(initial_price)
         submit_price_or_none = None if (initial_type == "even" and broker_name == "tradier") else submit_price
 
+        from ..brokers.broker import OrderSubmissionUncertain
+
         try:
             submitted = self.broker.submit_orders(
                 child_orders,
@@ -2457,6 +2459,8 @@ class Strategy(_Strategy):
                 duration=duration,
                 price=submit_price_or_none,
             )
+        except OrderSubmissionUncertain:
+            raise
         except Exception as exc:
             self.log_message(
                 f"[SMART_LIMIT] Multi-leg submit failed for type={initial_type} ({exc}); retrying as limit.",

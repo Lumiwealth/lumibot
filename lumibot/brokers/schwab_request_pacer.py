@@ -83,6 +83,8 @@ class SchwabRequestPacer:
         self._updated = self._clock()
         self._cooldowns = {}
         self._cooldown_attempts = {}
+        # Callables (kind, seconds_waited) told about each request; see lumibot.tools.speed_summary.
+        self.listeners = []
         for attr in ("requests_per_minute", "order_reserved_per_minute"):
             value = getattr(self, attr)
             if float(value).is_integer():
@@ -112,6 +114,20 @@ class SchwabRequestPacer:
 
     def acquire(self, kind: str = DATA) -> None:
         """Take one request from the budget, waiting or raising as described above."""
+        started = self._clock()
+        try:
+            self._acquire(kind)
+        except Exception:
+            raise
+        else:
+            waited = max(0.0, self._clock() - started)
+            for listener in list(getattr(self, "listeners", ()) or ()):
+                try:
+                    listener(kind, waited)
+                except Exception:
+                    pass
+
+    def _acquire(self, kind: str = DATA) -> None:
         if not self.enabled:
             return
         rate = self.requests_per_minute / 60.0

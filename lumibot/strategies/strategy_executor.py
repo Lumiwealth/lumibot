@@ -1583,6 +1583,12 @@ class StrategyExecutor(Thread):
                     self.broker._get_order_health().iteration(runtime)
                 except Exception:
                     pass
+                try:
+                    recorder = self.broker._speed_summary()
+                    recorder.iteration(runtime)
+                    recorder.maybe_emit(self.strategy.logger)
+                except Exception:
+                    pass
 
             # Variable Backup
             self._in_trading_iteration = False
@@ -1762,6 +1768,16 @@ class StrategyExecutor(Thread):
             self.broker._record_foreign_callback()
         return owned
 
+    def _record_fill_callback_time(self, started):
+        if self.broker.IS_BACKTESTING_BROKER:
+            return
+        try:
+            recorder = self.broker._speed_summary()
+            recorder.fill_callback(started, time.monotonic())
+            recorder.maybe_emit(self.strategy.logger)
+        except Exception:
+            pass
+
     def _wake_iteration_after_fill(self):
         """Run the next live trading iteration now instead of at its next scheduled tick.
 
@@ -1772,7 +1788,7 @@ class StrategyExecutor(Thread):
         """
         if self.broker.IS_BACKTESTING_BROKER or not getattr(self.strategy, "wake_iteration_on_fill", True):
             return
-        if self._in_trading_iteration or self._is_running_once():
+        if getattr(self, "_in_trading_iteration", False) or self._is_running_once():
             return
         scheduler = getattr(self, "scheduler", None)
         if scheduler is None or not getattr(scheduler, "running", False):
@@ -1801,7 +1817,9 @@ class StrategyExecutor(Thread):
             return
         if not self.broker.IS_BACKTESTING_BROKER:
             self.broker._record_fill_callback_entry()
+        callback_started = time.monotonic()
         self.strategy.on_partially_filled_order(position, order, price, quantity, multiplier)
+        self._record_fill_callback_time(callback_started)
         self._wake_iteration_after_fill()
 
     @event_method
@@ -1822,7 +1840,9 @@ class StrategyExecutor(Thread):
 
         if not self.broker.IS_BACKTESTING_BROKER:
             self.broker._record_fill_callback_entry()
+        callback_started = time.monotonic()
         self.strategy.on_filled_order(position, order, price, quantity, multiplier)
+        self._record_fill_callback_time(callback_started)
         self._wake_iteration_after_fill()
 
         # PERF: In backtesting we never send Discord notifications (`Strategy.send_discord_message`

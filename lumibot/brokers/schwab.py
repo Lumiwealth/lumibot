@@ -550,7 +550,13 @@ class Schwab(Broker):
             return
         from lumibot.brokers.schwab_request_pacer import pacer_for_client
 
-        pacer_for_client(client, getattr(self, "_schwab_pacing_config", None)).acquire(kind)
+        pacer = pacer_for_client(client, getattr(self, "_schwab_pacing_config", None))
+        # Count every request on this client (broker and data source) in the speed summary.
+        listeners = getattr(pacer, "listeners", None)
+        if isinstance(listeners, list) and not self.__dict__.get("_speed_listener_attached"):
+            listeners.append(self._speed_summary().request)
+            self._speed_listener_attached = True
+        pacer.acquire(kind)
 
     def _clear_schwab_rate_limit(self, endpoint_family: str) -> None:
         getattr(self, "_schwab_rate_limit_attempts", {}).pop(endpoint_family, None)

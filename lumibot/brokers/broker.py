@@ -670,6 +670,15 @@ class Broker(ABC):
             except Exception:
                 pass
 
+    def _speed_summary(self):
+        """The live speed recorder for this broker (see lumibot.tools.speed_summary)."""
+        recorder = self.__dict__.get("_speed_summary_recorder")
+        if recorder is None:
+            from lumibot.tools.speed_summary import SpeedSummary
+
+            recorder = self.__dict__.setdefault("_speed_summary_recorder", SpeedSummary())
+        return recorder
+
     def _record_fill_callback_entry(self):
         if not self.IS_BACKTESTING_BROKER:
             try:
@@ -3408,7 +3417,13 @@ class Broker(ABC):
             return order
         self.resolve_option_order_intent(order)
         self._conform_order(order)
-        return self._submit_order(order)
+        if getattr(self, "IS_BACKTESTING_BROKER", False):
+            return self._submit_order(order)
+        recorder = self._speed_summary()
+        started = recorder.order_submitting()
+        result = self._submit_order(order)
+        recorder.order_submitted(getattr(result if result is not None else order, "identifier", None), started)
+        return result
 
     def resolve_option_order_intent(
         self,
@@ -4055,6 +4070,11 @@ class Broker(ABC):
         # can emit hundreds of thousands of events, so minimize per-call overhead in the common
         # backtesting path.
         is_backtesting = getattr(self, "IS_BACKTESTING_BROKER", False)
+        if not is_backtesting and type_event in ("fill", "partial_fill"):
+            try:
+                self._speed_summary().fill_seen(getattr(stored_order, "identifier", None))
+            except Exception:
+                pass
         if self.logger.isEnabledFor(20):
             self.logger.info(
                 f"Processing trade event. Trade event received for {stored_order.strategy} strategy: {type_event} "

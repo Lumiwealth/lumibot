@@ -20,6 +20,10 @@
 - Live: `get_order` / `get_orders(identifiers=...)` return a completely filled order
   without another broker read. Canceled and rejected orders are still refreshed.
 - Orders carry `status_updated_at`, `status_source` and (Schwab) `status_checked_at`.
+- Live speed summary: one `[SpeedSummary]` JSON log line per minute with iteration
+  seconds, broker requests per minute (Schwab, with budget waits) and order step
+  timings (submit, fill seen, callback, next order). `LUMIBOT_SPEED_SUMMARY_SECONDS`
+  sets the interval; `0` turns it off.
 
 ### Fixed
 

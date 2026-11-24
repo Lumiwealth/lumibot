@@ -422,6 +422,17 @@ one Schwab request per symbol:
 
 For a whole list at once, ``get_quotes`` is still the most direct call.
 
+Speed summary in the logs
+-------------------------
+
+Every minute a live strategy logs one line that starts with ``[SpeedSummary]``:
+seconds per trading iteration, Schwab requests per minute (and seconds spent
+waiting for the request budget), and how many milliseconds each order step took:
+submit to Schwab's answer, submit to the fill being seen, fill to your
+``on_filled_order``, and fill to your next order. Read it to see where the time
+goes before changing a strategy. ``LUMIBOT_SPEED_SUMMARY_SECONDS`` sets the
+interval (``0`` turns it off).
+
 Faster reaction to fills
 ------------------------
 

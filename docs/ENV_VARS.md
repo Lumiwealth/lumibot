@@ -69,6 +69,9 @@ This page documents environment variables used by LumiBot, with an emphasis on *
   - Direct smoke helper: `scripts/polymarket_smoke.py`. LumiBot smoke helper: `scripts/polymarket_lumibot_smoke.py`. They load `.env.local`, redact output, and only submit live orders when `POLYMARKET_LIVE_TRADING_ENABLED=true` plus notional caps are present.
   - Never commit or log raw Polymarket private keys or CLOB credentials.
 
+### `LUMIBOT_SPEED_SUMMARY_SECONDS` / `LUMIBOT_QUOTE_BASKET_MAX_AGE_SECONDS`
+- Speed summary log interval (default 60, 0 off) and live quote basket max age (default 1, 0 off). See `lumibot/tools/speed_summary.py` and `Strategy.get_quote`.
+
 ### `LUMIBOT_DISABLE_DOTENV`
 - Purpose: Disable automatic `.env` discovery and loading at startup.
 - Values: truthy enables (`1`, `true`, `yes`); unset/`0` disables.

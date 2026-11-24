@@ -211,6 +211,11 @@ Live scheduled execution (BotSpot/BotManager)
 - ``LUMIBOT_SCHEDULED_STATE_BACKEND``: external state backend prepared by BotManager: ``s3``, ``dynamodb``, or ``none``. ``none`` disables scheduled ``self.vars`` file load/save.
 - ``LUMIBOT_SCHEDULED_STATE_FILE``: local JSON file managed by BotManager/bootstrap code to restore and persist ``self.vars`` for one scheduled live run. State is restored before scheduled lifecycle hooks.
 
+Live speed summary
+------------------
+
+- ``LUMIBOT_SPEED_SUMMARY_SECONDS``: how often a live strategy logs one ``[SpeedSummary]`` line (default ``60``; ``0`` turns it off). The line is JSON with iterations (count and seconds per iteration: median, 95th percentile, max), broker requests per minute by kind with seconds spent waiting for the request budget (Schwab), and order timings in milliseconds: submit to broker answer, submit to fill seen, fill seen to the fill callback, callback running time, and fill seen to the next order submitted. Backtests never log it. See :doc:`brokers.schwab`.
+
 Live quote basket
 -----------------
 

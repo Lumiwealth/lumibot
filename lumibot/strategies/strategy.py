@@ -1782,8 +1782,14 @@ class Strategy(_Strategy):
         hand, an assignment, a dividend) while the account stream is down; an order
         decision must not rest on the skipped read.
         """
-        broker = self.broker
-        if broker.IS_BACKTESTING_BROKER or not getattr(broker, "_account_skipped_since_read", False):
+        # No broker yet (a strategy object not attached to a run): nothing to refresh,
+        # and the order call reports its own input errors as before.
+        broker = getattr(self, "broker", None)
+        if (
+            broker is None
+            or getattr(broker, "IS_BACKTESTING_BROKER", False)
+            or not getattr(broker, "_account_skipped_since_read", False)
+        ):
             return
         try:
             broker._account_skipped_since_read = False

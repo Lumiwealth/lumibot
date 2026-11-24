@@ -248,11 +248,74 @@ Two complete strategies are in ``lumibot/example_strategies``:
 and
 `stock_revenue_growth_low_debt.py <https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/stock_revenue_growth_low_debt.py>`_.
 
+New listings (IPOs): which companies went public, and when
+----------------------------------------------------------
+
+``self.fundamentals.get_listings(start, end)`` returns every company whose first
+final prospectus (SEC form 424B4 or 424B1) is dated between two days, including
+companies that were later delisted, bought out or went bankrupt. Today's ticker
+list only holds survivors, so an IPO study built on it leaves out the losers;
+this list keeps them, with the ticker printed on their own prospectus.
+
+Columns: ``cik``, ``name``, ``ticker``, ``prospectus_date``, ``form``, ``kind``
+(``operating_company``, ``blank_check`` for SPACs, or ``other`` for funds and
+finance subsidiaries; only operating companies unless you pass for example
+``kinds=("operating_company", "blank_check")``), ``sic``, ``delisting_filed``
+(the first public delisting or deregistration notice after the prospectus; a
+confirmed exchange transfer for the same security class is excluded) and
+``prospectus_url``.
+
+.. code-block:: python
+
+   from datetime import date, timedelta
+
+   def on_trading_iteration(self):
+       today = self.get_datetime().date()
+       # Companies that went public in the last 30 days, as known today
+       new = self.fundamentals.get_listings(today - timedelta(days=30), today)
+       for ticker in new["ticker"].dropna():
+           bars = self.get_historical_prices(ticker, 30, "day")
+           ...
+
+       # "Only trade companies public for at least 5 years"
+       row = self.fundamentals.get_listing("RDDT")
+       if row and (today - date.fromisoformat(row["prospectus_date"])).days >= 5 * 365:
+           ...
+
+Good to know:
+
+- Intraday backtests use the SEC acceptance time when available. Rows with an
+  older date-only record have day-level accuracy. The requested date range
+  still filters the original filing dates.
+- A rebuild checks the issuer’s archived submissions for prior periodic reports.
+  If a required index or issuer request fails, the previous table stays in use.
+- A Form 25 stays visible if the issuer continues filing reports. A nearby
+  Form 8-A can confirm an exchange transfer if it identifies the same share
+  class and the prior venue and was public when the removal notice appeared.
+  Rebuild an older listings table to apply this classification.
+- The prospectus is filed 0 to 2 business days after the first trade. The first
+  trade date is the stock's first daily bar from your price source.
+- Companies already public before 2019 have no row unless the table was built
+  for earlier years. ``get_listing`` returns ``None`` for them: treat it as "not
+  a recent listing", not as missing data.
+- Direct listings (no prospectus with an offering price) are not in the list.
+- Price history for delisted companies depends on your data source. Some
+  sources only keep live tickers, so a delisted company can have no bars at all;
+  count and report those instead of dropping them silently.
+- Options on a new stock usually start 3 to 5 business days after its first
+  trade (exchange rule: three closes at $3 or more first). Shorting a new stock
+  may not be possible early; a backtest cannot know borrow availability or fees.
+- The table is built from public SEC files with
+  ``self.fundamentals.build_listings_table(range(2019, 2027))`` (about 20
+  minutes) and shared through the backtest cache, so most strategies only read it.
+
 Methods
 -------
 
 .. code-block:: python
 
+   self.fundamentals.get_listings("2024-01-01", "2024-12-31")  # companies that went public in 2024
+   self.fundamentals.get_listing("RDDT")                   # one company's listing row, or None
    self.fundamentals.preload(["AAPL", "MSFT", ...])        # warm a universe in one call
    self.fundamentals.get_metrics_table(["AAPL", "MSFT"])   # ratios for a universe (see above)
    self.fundamentals.get_income_statement("AAPL")          # latest statement as of now

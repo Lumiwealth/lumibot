@@ -108,3 +108,45 @@ def test_saved_provenance_keeps_price_funding_sources_and_notices(tmp_path, monk
         {"kind": "funding_not_published", "source": "binance_usdm_bulk", "symbol": "BTCUSDT",
          "message": "funding not published"},
     ]
+
+
+def test_a_real_backtest_run_writes_its_data_provenance(tmp_path, monkeypatch):
+    """run_backtest is a classmethod: the provenance writer must read the strategy instance's broker.
+
+    Before the fix every hosted run logged "Backtest data provenance artifact could not be written:
+    type object '<Strategy>' has no attribute 'broker'" and left no data_provenance.json, so no result
+    screen could say where its prices came from.
+    """
+    from datetime import datetime
+
+    import numpy as np
+    import pandas as pd
+
+    from lumibot.backtesting import PandasDataBacktesting
+    from lumibot.entities import Asset, Data
+    from lumibot.strategies import Strategy
+
+    quote = Asset("USD", Asset.AssetType.FOREX)
+    asset = Asset("SPY")
+    index = pd.date_range("2026-08-03 09:30", "2026-08-04 16:00", freq="1min", tz="America/New_York")
+    close = 100 + np.cumsum(np.random.default_rng(2).normal(0, 0.05, len(index)))
+    frame = pd.DataFrame({"open": close, "high": close, "low": close, "close": close, "volume": 1.0}, index=index)
+
+    class _Reads(Strategy):
+        def initialize(self):
+            self.sleeptime = "60M"
+
+        def on_trading_iteration(self):
+            self.get_last_price(asset)
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("BACKTESTING_DATA_SOURCE", "none")
+    _Reads.run_backtest(
+        PandasDataBacktesting, datetime(2026, 8, 3), datetime(2026, 8, 4),
+        pandas_data={(asset, quote): Data(asset, frame, timestep="minute", quote=quote)},
+        benchmark_asset=None, show_plot=False, show_tearsheet=False, save_tearsheet=False,
+        show_indicators=False, quiet_logs=True, show_progress_bar=False, budget=10_000)
+    artifact = tmp_path / "logs" / "data_provenance.json"
+    assert artifact.is_file()
+    routes = json.loads(artifact.read_text())["observedRoutes"]
+    assert routes[0]["adapter"] == "PandasDataBacktesting"

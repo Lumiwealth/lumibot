@@ -496,6 +496,49 @@ class Schwab(Broker):
         deadlines = getattr(self, "_schwab_rate_limit_deadlines", {})
         return max(0.0, float(deadlines.get(endpoint_family, 0.0)) - self._schwab_now_value())
 
+    def _account_snapshot_seconds(self) -> float:
+        raw = os.environ.get("SCHWAB_ACCOUNT_SNAPSHOT_SECONDS", "1.0")
+        try:
+            return max(0.0, float(raw))
+        except ValueError:
+            return 1.0
+
+    def _account_with_positions(self):
+        """One ``get_account(POSITIONS)`` answer shared by balances and positions.
+
+        A trading iteration reads the account for cash/portfolio value and again
+        for positions (and again when held trades arrive mid-sync). The same
+        successful answer is reused for ``SCHWAB_ACCOUNT_SNAPSHOT_SECONDS``
+        (default 1.0; 0 turns reuse off) and dropped on every order/fill
+        reconciliation, submit and cancel, so a fill is never read from an old
+        snapshot.
+        """
+        seconds = self._account_snapshot_seconds()
+        now = time.monotonic()
+        epoch = getattr(self, "_account_snapshot_epoch", 0)
+        cached = getattr(self, "_account_snapshot", None)
+        if (seconds > 0 and cached is not None and cached[2] == epoch
+                and 0 <= now - cached[0] < seconds):
+            return cached[1]
+        self._schwab_pace("account")
+        response = self.client.get_account(self.hash_value, fields=[self.client.Account.Fields.POSITIONS])
+        if getattr(response, "status_code", None) == 200 and seconds > 0:
+            self._account_snapshot = (now, response, epoch)
+        return response
+
+    def _drop_account_snapshot(self) -> None:
+        self._account_snapshot_epoch = getattr(self, "_account_snapshot_epoch", 0) + 1
+        self._account_snapshot = None
+
+    def _invalidate_order_caches(self):
+        self._drop_account_snapshot()
+        super()._invalidate_order_caches()
+
+    def _process_trade_event(self, stored_order, type_event, *args, **kwargs):
+        # A fill or order status change moves cash and positions.
+        self._drop_account_snapshot()
+        return super()._process_trade_event(stored_order, type_event, *args, **kwargs)
+
     def _schwab_pace(self, kind: str) -> None:
         """Spend one request from the client's shared per-minute budget.
 
@@ -1383,8 +1426,7 @@ class Schwab(Broker):
 
         try:
             # Get account information using the hash_value stored during initialization
-            self._schwab_pace("account")
-            response = self.client.get_account(self.hash_value, fields=[self.client.Account.Fields.POSITIONS])
+            response = self._account_with_positions()
 
             if response.status_code != 200:
                 logger.error(colored(f"Error getting account information: {response.status_code}", "red"))
@@ -1563,8 +1605,7 @@ class Schwab(Broker):
                 return [] # Return empty list
 
             # Get account details with positions
-            self._schwab_pace("account")
-            response = self.client.get_account(self.hash_value, fields=[self.client.Account.Fields.POSITIONS])
+            response = self._account_with_positions()
 
             if response.status_code != 200:
                 logger.error(colored(f"Error fetching positions from Schwab: {response.status_code}", "red"))
@@ -2836,6 +2877,8 @@ class Schwab(Broker):
         Order
             Updated order with broker identifier filled in, or None if submission failed.
         """
+        # An order changes cash and positions: the next account read must be fresh.
+        self._drop_account_snapshot()
         # Add check for authorization error first
         if self.schwab_authorization_error:
             logger.error(colored(f"Schwab authorization failed previously. Cannot submit order {order}.", "red"))
@@ -3825,6 +3868,7 @@ class Schwab(Broker):
         -------
         None
         """
+        self._drop_account_snapshot()
         if not order.identifier:
             logger.error(
                 "[SchwabCancelTelemetry] missing_identifier "

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Live Schwab proof for the Titus fast-cancel strategy structure.
+"""Live Schwab proof for the fast-scanner fast-cancel strategy structure.
 
 This is not a generic broker smoke. It proves the strategy-level behavior that
-Titus needs: after a four-second option timeout, cancel by exact order id and
+Fast-scanner needs: after a four-second option timeout, cancel by exact order id and
 unlock on cancel accepted/canceling/canceled without broad get_orders scans.
 """
 
@@ -22,7 +22,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from schwab_titus_workflow_smoke import (  # noqa: E402
+from schwab_fast_scanner_workflow_smoke import (  # noqa: E402
     _make_broker,
     _order_snapshot,
     _poll_until,
@@ -85,7 +85,7 @@ def run_fast_cancel_strategy_smoke(
     wait_seconds: float,
     measure_broad_orders: bool,
 ) -> dict[str, Any]:
-    strategy_name = "rob-titus-fast-cancel-strategy-smoke"
+    strategy_name = "rob-fast_scanner-fast-cancel-strategy-smoke"
     submitted = None
     samples: list[dict[str, Any]] = []
     started = time.perf_counter()
@@ -184,7 +184,7 @@ def main() -> int:
     }
 
     print(json.dumps(summary, indent=2, sort_keys=True))
-    summary_path = Path(args.summary_path or f"tmp/schwab_titus_fast_cancel_strategy_{int(time.time())}.json")
+    summary_path = Path(args.summary_path or f"tmp/schwab_fast_scanner_fast_cancel_strategy_{int(time.time())}.json")
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
     print(f"Wrote summary: {summary_path.resolve()}")

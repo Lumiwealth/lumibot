@@ -2449,6 +2449,8 @@ class Strategy(_Strategy):
         submit_price = 0.0 if initial_price is None else float(initial_price)
         submit_price_or_none = None if (initial_type == "even" and broker_name == "tradier") else submit_price
 
+        from ..brokers.broker import OrderSubmissionUncertain
+
         try:
             submitted = self.broker.submit_orders(
                 child_orders,
@@ -2457,6 +2459,8 @@ class Strategy(_Strategy):
                 duration=duration,
                 price=submit_price_or_none,
             )
+        except OrderSubmissionUncertain:
+            raise
         except Exception as exc:
             self.log_message(
                 f"[SMART_LIMIT] Multi-leg submit failed for type={initial_type} ({exc}); retrying as limit.",
@@ -2580,6 +2584,11 @@ class Strategy(_Strategy):
 
     def wait_for_order_execution(self, order: Order):
         """Wait for one specific order to be executed or canceled by the broker
+
+        In a backtest this returns at once: simulated time cannot move while the
+        iteration waits, so the order fills when the backtest processes orders
+        after the iteration. Read its status on the next iteration or in
+        ``on_filled_order``. A cancel is confirmed immediately in a backtest.
 
         Parameters
         ----------

@@ -1,6 +1,48 @@
 # Changelog
 
-## 4.6.95 - Unreleased
+## 4.6.96 - 2026-11-23
+
+### Webull OpenAPI
+
+- Webull OpenAPI candidate for individual accounts, with optional SDK installation,
+  an independently selectable data source, daily historical replay, and PaperTrade
+  qualification tests. The broker guide lists observed order lifecycles and remaining
+  qualification by product. Option replacements use Webull-assigned leg IDs
+  and preserve the original spread ratios. Live trade bars use the dated UTC
+  timestamp supplied by the Webull SDK. The adapter tracks native bracket children,
+  reconciles repeated option-package observations, reads signed vertical, butterfly,
+  straddle, strangle, calendar, diagonal, condor, iron condor and iron butterfly
+  holdings for the verified package shapes. Standalone DAY fractional-stock
+  buys can submit a cash amount and reconcile broker-assigned shares. The
+  adapter submits leg-out closes using the Webull position ID.
+  Covered stock and collars recover their equity shares and signed option legs.
+  Dated futures positions retain the contract month across process restarts.
+  Individual equity orders can carry native algorithm parameters, and event
+  orders preserve their execution mode and duration. Regression tests cover
+  duplicate partial executions in each instrument family. Rate-limited reads use
+  bounded retries, client order IDs survive worker restarts, and explicit
+  market-scoped history includes completed orders and mixed option/equity legs.
+  An unavailable exchange trade feed reports its entitlement error while other
+  subscriptions continue. The connection closes on the last unsubscribe.
+  PaperTrade checks cover incorrect account selection, invalid application keys,
+  overnight-only equity limit acceptance and cancellations, an SPY overnight
+  round trip, and the venue's rejection of overnight limits outside the session.
+  Minute OHLCV windows can be loaded once for ordinary pandas-backed replay. See `docsrc/brokers.webull.rst`.
+
+### Added
+- **New listings (IPOs) from SEC filings, including companies later delisted.** `self.fundamentals.get_listings(start, end)` returns every company whose first final prospectus (form 424B4 or 424B1) is dated in the window, with the ticker printed on the prospectus, its SIC code, its kind (operating company by default; blank-check companies and funds with `kinds=`) and the first public delisting notice (excluding confirmed exchange transfers of the same class); `self.fundamentals.get_listing(symbol)` returns one row. Point in time in backtests: SEC acceptance timestamps govern visibility when available. Today's ticker list holds only survivors (42% of the 3,705 companies with a final prospectus from 2019 to 2026 are no longer in it), so an IPO study built on it drops the losers. The table is built from public SEC files by `build_listings_table(years)` and shared through the backtest cache. Docs: `docsrc/fundamentals.rst` (New listings), `docs/SEC_FUNDAMENTALS.md`. Tests: `tests/test_sec_listings.py` (new module; red before: import error).
+
+### Fixed
+- **A bar number passed as a drawing time is an error, and epoch seconds draw at the right date.** `self.draw` read every plain number as epoch milliseconds, so a bar number (for example 677, a Pine `bar_index` copied as written) drew the object at 1970-01-01, off the chart, with no error, and epoch seconds landed in January 1970 too. A number below 1e8 now raises a `ValueError` that names the argument and says to pass `bar.time`, another datetime, or epoch seconds or milliseconds; numbers from 1e8 up to 1e11 are epoch seconds; larger numbers are epoch milliseconds as before. Datetimes and ISO strings are unchanged. Docs: `docsrc/indicators_drawings.rst`. Tests: `tests/test_indicator_drawing_times.py` (red before).
+- **Waiting for a fill inside a backtest iteration no longer hangs the run.** In a backtest an order fills when pending orders are processed after the iteration, so `wait_for_order_execution` / `wait_for_orders_execution` called in the same iteration waited forever (a hosted run sat 39 minutes). In backtests they now return the order as it is and log one warning; the order fills on the usual next step, so results are unchanged. Live brokers still wait. Tests: `tests/backtest/test_wait_for_fill_in_backtest.py` (red before: the run never finished).
+
+### Changed
+- **Schwab reads the account once per iteration instead of two or three times.** Cash/portfolio value and positions came from separate `get_account(POSITIONS)` calls with the same answer, and the held-trades loop could ask again; a one-pass-a-second scanner spent about 3 account reads a pass of a per-minute budget. One successful answer is now reused for `SCHWAB_ACCOUNT_SNAPSHOT_SECONDS` (default 1.0, `0` off) and dropped on every order or fill reconciliation, submit and cancel, so fills are never read from an old answer. Docs: `docsrc/environment_variables.rst`. Tests: `tests/test_schwab_account_snapshot_reuse.py` (red before).
+- **N-minute bars read kept bins without a per-call clean-up, with identical frames.** After 4.6.94's one resample per series, every 5-minute read still dropped empty bins from its window on each call (about half of 75 profiled seconds on a three-month BTC 5-minute run). The bins with every price are kept once; a window that starts on a bin boundary is a copied slice of them, so a caller changing its frame cannot change a later answer. Tests: `tests/test_data_window_resample_identical.py` (new count test red on 4.6.95; identity tests unchanged and green).
+- **Perpetual backtests look up funding and mark prices by bisection, with identical answers.** The perpetual account asks for funding events and the hourly mark on every simulated bar; each funding call normalized every funding row of the window and each mark call masked every hourly mark (about 80 of 454 profiled seconds on a three-month BTC 5-minute run). Funding rows are normalized once per loaded list and sliced by bisection (callers still get fresh dicts in the same order); the mark row is found with a sorted-index search. Tests: `tests/test_perpetual_funding_mark_lookup.py` (red on 4.6.95).
+- **Recording the history a decision consumed is cheaper when nothing can be missing.** Every indicator call records the history it read; when its series has no known hole and the frame holds every requested priced row, the record is now made without copying the frame (local: about 2.0 ms to 0.3 ms per call; about 36 of 373 profiled seconds on a three-month MNQ 1-minute run). Every other case keeps the full path, and the recorded evidence is the same. Tests: `tests/test_required_history_fast_path.py` (red on 4.6.95).
+
+## 4.6.95 - 2026-11-22
 
 ### Added
 - **Indicator text options and arrows match Pine.** Boxes take `text_valign` (`top`, `center`, `bottom`), `text_wrap` (`none`, `auto`) and `text_formatting` (`none`, `bold`, `italic`, `bold_italic`); labels take `text_formatting`; table cells take `text_valign`, `tooltip`, `text_formatting`, `width` and `height` (percent of the chart, 0 fits the text); `self.draw.merge_cells(table, start_column, start_row, end_column, end_row)` joins cells like Pine's `table.merge_cells`. A new `arrow` output kind works like Pine's `plotarrow` (up arrow below the bar for a positive value, down arrow above for a negative one, length scaled between `min_height` and `max_height` pixels, defaults 5 and 100; up and down colors are a two-color `palette`). Every `describe()` output now lists `min_height` and `max_height`, and tables list their `merges`. Existing indicators draw the same. Docs: `docsrc/indicators_drawings.rst`, `docsrc/indicators_styles.rst`. Tests: `tests/test_indicator_drawings.py`, `tests/test_indicator_styles.py::TestArrowOutput`.
@@ -2383,13 +2425,13 @@ Deploy marker: `deploy 4.5.61`
 
 ### Fixed
 - **Long Coinbase/CCXT minute backtests now split provider downloads under the
-  cache limit.** BTC/USDT runs such as Greg's March 8 through May 1 replay
+  cache limit.** BTC/USDT runs such as the perp scalper customer's March 8 through May 1 replay
   request 79,200 one-minute bars, which is larger than LumiBot's 50,000-bar
   per-download guard. The CCXT cache now splits those windows into safe chunks
   instead of failing before Coinbase can page through the historical data.
 
 ### Tests
-- **CCXT cache regression coverage now pins the Greg long-window failure
+- **CCXT cache regression coverage now pins the perp-scalper long-window failure
   shape.** Tests assert a March 8 through May 1 BTC/USDT one-minute request is
   downloaded as a 50,000-minute chunk plus a 29,200-minute chunk and merged into
   one cache coverage range.
@@ -2406,7 +2448,7 @@ Deploy marker: `deploy 4.5.60`
   buckets are still excluded and larger stale gaps still fail.
 
 ### Tests
-- **Greg BTC/USDT regression coverage now pins the 15-minute aggregate edge.**
+- **Perp-scalper BTC/USDT regression coverage now pins the 15-minute aggregate edge.**
   Data entity tests assert crypto `5m` history accepts a 15-minute provider-edge
   gap but still rejects gaps beyond that threshold.
 
@@ -2424,7 +2466,7 @@ Deploy marker: `deploy 4.5.60`
   current data.
 
 ### Tests
-- **Data entity regressions cover the Greg BTC/USDT production edge case.**
+- **Data entity regressions cover the perp-scalper BTC/USDT production edge case.**
   Tests assert sparse Coinbase-style minute data can satisfy `5m` history at the
   current edge, excludes incomplete 5-minute bars, allows short BTC/USDT snapshot
   gaps, and still rejects multi-minute requests past the tolerance.
@@ -2467,7 +2509,7 @@ Deploy marker: `4ca4a2d8`
   BTC/USDT, BTC/USD, and other exact crypto quote pairs are loaded once for the
   requested minute, hour, or day backtest window instead of refetching a moving
   slice at each simulated timestamp. This avoids the repeated current-edge
-  `data unavailable` loop seen in production Greg BTC/USDT validation while
+  `data unavailable` loop seen in production perp-scalper BTC/USDT validation while
   keeping strategy access time-bounded through `Data.get_bars(dt)`.
 - **Full-window routed data loads now stop redundant retries.** Shared routed
   dataframe adapters honor full-window and empty-window markers before fetching
@@ -2496,7 +2538,7 @@ Deploy marker: `deploy 4.5.56`
   incomplete OHLC values.
 
 ### Tests
-- **Data entity regressions cover the Greg BTC/USDT 5-minute boundary.** Tests
+- **Data entity regressions cover the perp-scalper BTC/USDT 5-minute boundary.** Tests
   assert strict Coinbase-style minute data can satisfy a `5m` history request at
   the bucket boundary, does not include the partial current 5-minute candle, and
   still rejects requests beyond the allowed bucket tolerance.
@@ -2534,7 +2576,7 @@ Deploy marker: `deploy 4.5.54`
 ### Docs
 - **Crypto validation docs now record the post-deploy partial-coverage failure.**
   The runbook explains why cache metadata must be derived from real candles and
-  cites the Greg production validation backtest that exposed the issue.
+  cites the perp-scalper production validation backtest that exposed the issue.
 
 ### Tests
 - **CCXT cache regressions now cover partial underfills.** Tests assert a
@@ -2589,7 +2631,7 @@ Deploy marker: `deploy 4.5.52`
   validation note lists BTC/USDT minute/hour/day, ETH/USDT, SOL/USDT, and older
   BTC/USD artifact roots with fill-price, fill-time, cache-coverage, and warm
   cache results.
-- **Greg BTC investigation now records the local execution-path guard.** The note separates the Crypto Plus data-availability issue from the LumiBot no-stale-fill invariant and lists local targeted test evidence.
+- **Perp-scalper BTC investigation now records the local execution-path guard.** The note separates the Crypto Plus data-availability issue from the LumiBot no-stale-fill invariant and lists local targeted test evidence.
 - **Tradier docs now describe OAuth token-file durability.** The broker docs and environment-variable reference explain `TRADIER_TOKEN_PATH` separately from manual `TRADIER_ACCESS_TOKEN` usage.
 - **TQQQ provider-diff investigations now document execution sensitivity.** The
   notes record the IBKR-first strategy direction, v22/v23 experiments, and
@@ -2615,7 +2657,7 @@ Deploy marker: `deploy 4.5.52`
 - **Malformed rebuilt IBKR history windows are terminal no-data windows.** If the Data Downloader exhausts the rebuild path and still returns a malformed IBKR history payload, LumiBot records the requested range as missing instead of repeatedly refetching the same invalid minute window.
 
 ### Docs
-- **Greg BTC stale-fill investigation now documents the S3 cache and Data Downloader root cause.** The note records the bad production BTC cache object, the queued downloader proof that stale crypto tails were marked complete/cacheable, and the required cache quarantine path.
+- **Perp-scalper BTC stale-fill investigation now documents the S3 cache and Data Downloader root cause.** The note records the bad production BTC cache object, the queued downloader proof that stale crypto tails were marked complete/cacheable, and the required cache quarantine path.
 
 ### Tests
 - **Data entity tests now reproduce stale BTC bars inside sparse intraday frames.** Regression coverage asserts strict minute reads reject March BTC data when an April simulation timestamp is requested, while allowing recent bars inside the configured tolerance.
@@ -2630,7 +2672,7 @@ Deploy marker: `pending`
 - **Routed IBKR crypto prices and quotes now reject stale or future intraday frames.** BotSpot Auto crypto routing marks intraday IBKR data as strict, validates full-window coverage before marking crypto/futures series loaded, and prevents `get_last_price()` or `get_quote()` from treating out-of-window cached BTC rows as the current simulation price.
 
 ### Docs
-- **Titus Schwab cancel evidence now records deployment and market-hours retest findings.** The investigation note separates the fixed broker cancel path from the remaining strategy-level Titus risks around fills before cancel, rejected stock hedges, retry behavior, and Schwab option smart-limit support.
+- **Fast-scanner Schwab cancel evidence now records deployment and market-hours retest findings.** The investigation note separates the fixed broker cancel path from the remaining strategy-level customer risks around fills before cancel, rejected stock hedges, retry behavior, and Schwab option smart-limit support.
 
 ### Tests
 - **Tradier OAuth refresh coverage now asserts rotated tokens are reused.** The regression tests verify refresh state is persisted after retry-layer 401 responses.
@@ -2654,7 +2696,7 @@ Deploy marker: `e51a0478`
 - **Schwab cancels now emit order-level diagnostic telemetry.** `Schwab.cancel_order()` logs request metadata, Schwab response status and elapsed time, and a best-effort direct order read after cancel acceptance so support can distinguish missing cancel requests, broker rejection, delayed broker state, and strategy-loop lockups.
 
 ### Tests
-- **Rob-owned Schwab live cancel diagnostics now cover Titus-style fast option cancels.** Local smoke helpers can load the existing gitignored Schwab token and app metadata, submit a nonmarketable option order, cancel by exact order id, confirm broker state, and optionally compare broad order-list timing outside the hot path.
+- **Rob-owned Schwab live cancel diagnostics now cover fast-scanner-style fast option cancels.** Local smoke helpers can load the existing gitignored Schwab token and app metadata, submit a nonmarketable option order, cancel by exact order id, confirm broker state, and optionally compare broad order-list timing outside the hot path.
 
 ## 4.5.45 - Unreleased
 
@@ -2675,7 +2717,7 @@ Deploy marker: `e51a0478`
 - **Scheduled timing setup now works with lightweight strategy stubs.** `StrategyExecutor` falls back to the module logger when a minimal strategy object has no `logger`, restoring existing unit/backtest test compatibility.
 
 ### Tests
-- **Rob-owned Schwab live smoke now mirrors Titus-style option cancel and broker-native hedge structures.** The smoke submits a TSLL option limit order, waits four seconds, cancels and verifies the canceled broker state, then submits/read/cancels OTO and bracket option structures against Schwab.
+- **Rob-owned Schwab live smoke now mirrors fast-scanner-style option cancel and broker-native hedge structures.** The smoke submits a TSLL option limit order, waits four seconds, cancels and verifies the canceled broker state, then submits/read/cancels OTO and bracket option structures against Schwab.
 
 ## 4.5.43 - 2026-06-01
 
@@ -2717,7 +2759,7 @@ Deploy marker: `deploy 4.5.40`
 - **Known Schwab account-history rows are quieter.** Schwab `MUTUAL_FUND` position rows and `EXERCISE` order-history rows are preserved without noisy unknown-warning spam, while truly new/unknown asset and order types still warn and preserve raw broker data.
 
 ### Tests
-- **Schwab live option replace smoke coverage now exercises the Titus failure path.** The live API test submits a TSLL option limit order, reads it directly and from the active order list, replaces it through Schwab's order-replace endpoint, reads the replacement, cancels it, and confirms the canceled state.
+- **Schwab live option replace smoke coverage now exercises the fast-scanner failure path.** The live API test submits a TSLL option limit order, reads it directly and from the active order list, replaces it through Schwab's order-replace endpoint, reads the replacement, cancels it, and confirms the canceled state.
 - **Market-order broad-list miss regression coverage was added.** Unit tests cover active market orders missing from non-empty and empty broker order lists, including direct filled reconciliation and unresolved missing-order terminalization to non-active `UNKNOWN`.
 
 ## 4.5.39 - 2026-05-29
@@ -3101,7 +3143,7 @@ Deploy marker: 61b75f24 (`deploy 4.5.6`)
 ### Changed
 - README restructured for visitor conversion: Quick Start code block, competitor comparison table (LumiBot is the only open-source Python trading library with options support), supported brokers & data sources matrix, migration guide from Backtrader (merged from dev).
 - PyPI metadata overhaul: added 20 search keywords and 12 classifiers (Financial, Investment, AI, Python 3.10-3.12) after being previously empty. Updated package description for search discoverability (merged from dev).
-- Author email updated to rob@botspot.trade; added project_urls for documentation, Discord, and BotSpot platform (merged from dev).
+- Maintainer contact metadata updated and project URLs added for documentation, Discord, and BotSpot platform (merged from dev).
 
 ### Added
 - `docs/MIGRATING_FROM_BACKTRADER.md`: concept mapping and side-by-side code examples for users switching from the now-unmaintained Backtrader library (merged from dev).

@@ -73,7 +73,7 @@ class BrokerHistoryBacktesting(PandasData):
         existing = self._loaded_frames.get(key)
         # A longer lookback later in the run reads only the earlier stretch it is missing.
         read_end = (loaded - pd.Timedelta(days=1)) if existing is not None else pd.Timestamp(self.datetime_end)
-        frame = self._read_daily(asset_only, wanted, read_end)
+        frame = self._read_daily(asset_only, wanted, read_end, quote=quote_asset)
         if existing is not None:
             frame = existing if frame is None or frame.empty else pd.concat([frame, existing])
             frame = frame[~frame.index.duplicated(keep="last")].sort_index()
@@ -89,7 +89,7 @@ class BrokerHistoryBacktesting(PandasData):
         self._find_asset_in_data_store_cache.clear()
         self._loaded_from[key] = wanted
 
-    def _read_daily(self, asset, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame | None:
+    def _read_daily(self, asset, start: pd.Timestamp, end: pd.Timestamp, *, quote=None) -> pd.DataFrame | None:
         """Real daily bars through the shared bar cache of this broker connection."""
         from lumibot.tools import shared_bar_cache
 
@@ -158,4 +158,30 @@ class TradierHistoryBacktesting(BrokerHistoryBacktesting):
     BROKER = "tradier"
 
 
-__all__ = ["BrokerHistoryBacktesting", "SchwabHistoryBacktesting", "TradierHistoryBacktesting"]
+class WebullHistoryBacktesting(BrokerHistoryBacktesting):
+    """Replay daily Webull equity, option and spot crypto bars through the shared LumiBot backtesting broker."""
+
+    BROKER = "webull"
+
+    def _read_daily(self, asset, start, end, *, quote=None):
+        # Non-display access does not establish cross-user redistribution or
+        # persistent retention rights. The parent retains loaded frames in memory.
+        if asset.asset_type == Asset.AssetType.CRYPTO:
+            frame = self.adapter.daily_bars(asset.symbol + quote.symbol, start, end, kind="crypto")
+        elif asset.asset_type == Asset.AssetType.OPTION:
+            symbol = self.adapter.data_source.option_symbol(asset)
+            expiry = pd.Timestamp(asset.expiration, tz="America/New_York")
+            frame = self.adapter.daily_bars(symbol, start, min(expiry, end), kind="option")
+        else:
+            frame = self.adapter.daily_bars(asset.symbol, start, end)
+        if frame is None or frame.empty:
+            return None
+        return frame.loc[frame.index <= pd.Timestamp.now(tz="America/New_York")]
+
+    def get_chains(self, asset, quote=None, exchange=None):
+        raise BrokerHistoryUnavailable(
+            "Webull daily replay loads explicitly selected option contracts. Historical chain snapshots are unavailable."
+        )
+
+
+__all__ = ["BrokerHistoryBacktesting", "SchwabHistoryBacktesting", "TradierHistoryBacktesting", "WebullHistoryBacktesting"]

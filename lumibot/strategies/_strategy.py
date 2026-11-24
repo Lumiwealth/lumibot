@@ -222,6 +222,7 @@ _BACKTESTING_CLASS_MODULES = {
     "YahooDataBacktesting": "lumibot.backtesting.yahoo_backtesting",
     "SchwabHistoryBacktesting": "lumibot.backtesting.broker_history_backtesting",
     "TradierHistoryBacktesting": "lumibot.backtesting.broker_history_backtesting",
+    "WebullHistoryBacktesting": "lumibot.backtesting.broker_history_backtesting",
 }
 
 AlpacaBacktesting = lazy_class("lumibot.backtesting.alpaca_backtesting", "AlpacaBacktesting")
@@ -1179,8 +1180,8 @@ class _Strategy:
             )
             return False
 
-        # Check if the order does not have a quantity of zero
-        if order.quantity == 0:
+        # Currency-sized orders get their asset quantity from the broker.
+        if order.quantity == 0 and self.broker.accepts_cash_amount_order(order) is not True:
             self.logger.error(
                 f"Order quantity cannot be zero. You entered {order.quantity}."
             )
@@ -3584,6 +3585,7 @@ class _Strategy:
                 # Your own broker connection's daily history (stocks and ETFs).
                 "schwab": "SchwabHistoryBacktesting",
                 "tradier": "TradierHistoryBacktesting",
+                "webull": "WebullHistoryBacktesting",
                 "ccxt": "CcxtBacktesting",
                 "databento": "DataBentoDataBacktesting",
                 "ibkr": "InteractiveBrokersRESTBacktesting",
@@ -3885,8 +3887,8 @@ class _Strategy:
                 write_backtest_data_provenance(
                     data_source,
                     logdir,
-                    fill_price_counts=getattr(self.broker, "_option_fill_price_counts", None),
-                    valuation_mark_counts=getattr(self.broker, "_option_valuation_mark_counts", None),
+                    fill_price_counts=getattr(strategy.broker, "_option_fill_price_counts", None),
+                    valuation_mark_counts=getattr(strategy.broker, "_option_valuation_mark_counts", None),
                 )
             except Exception as exc:
                 # Diagnostics must not make an otherwise valid simulation fail.

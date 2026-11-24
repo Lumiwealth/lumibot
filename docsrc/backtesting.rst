@@ -116,6 +116,7 @@ When you run a backtest, several important files are generated, each prefixed by
    backtesting.alpaca
    backtesting.perpetuals
    backtesting.broker_history
+   backtesting.webull
    backtesting.tearsheet_html
    backtesting.trades_files
    backtesting.indicators_files

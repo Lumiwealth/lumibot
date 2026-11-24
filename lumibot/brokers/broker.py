@@ -172,6 +172,10 @@ class LumibotBrokerAPIError(Exception):
     pass
 
 
+class OrderSubmissionUncertain(LumibotBrokerAPIError):
+    """A broker may have accepted a submission and must be queried before retrying."""
+
+
 # How a broker holds an order. One declaration per broker class (Broker.ORDER_SUPPORT)
 # answers supports_order(), drives the refusal in submit_order(), and is checked
 # against the real request builders by tests/test_broker_order_type_contract.py.
@@ -229,6 +233,7 @@ class Broker(ABC):
     # Metainfo
     IS_BACKTESTING_BROKER = False
     REQUIRES_ORDERS_THREAD = False
+    _REQUIRE_EXECUTION_PRICE_ON_OBSERVATION = False
 
     # Trading events flags
     NEW_ORDER = "new"
@@ -1571,6 +1576,22 @@ class Broker(ABC):
         also serves adapters without a venue-specific reducer.
         """
 
+        cumulative = getattr(matched_order, "filled_quantity", None)
+        if cumulative is None and matched_order.is_filled():
+            cumulative = matched_order.quantity
+        if cumulative is not None:
+            total = Decimal(str(cumulative))
+            if not total.is_finite() or total < 0 or total > Decimal(str(matched_order.quantity)):
+                raise ValueError("Broker cumulative fill quantity is invalid")
+            processed = sum((Decimal(str(t.quantity)) for t in order_lumi.transactions), Decimal(0))
+            processed = max(processed, getattr(order_lumi, "_broker_synced_filled_quantity", Decimal(0)))
+            if total < processed:
+                # A snapshot missing a known execution also cannot set current terms.
+                return False
+            if (self._REQUIRE_EXECUTION_PRICE_ON_OBSERVATION
+                    and total > processed and matched_order.avg_fill_price is None):
+                raise ValueError("Broker reported a new execution without an execution price")
+
         previous_status = order_lumi.status
         previously_closed = order_lumi._closed_event.is_set()
         changed = False
@@ -1595,18 +1616,7 @@ class Broker(ABC):
                 setattr(order_lumi, order_attr, broker_value)
                 changed = True
 
-        cumulative = getattr(matched_order, "filled_quantity", None)
-        if cumulative is None and matched_order.is_filled():
-            cumulative = matched_order.quantity
         if cumulative is not None:
-            total = Decimal(str(cumulative))
-            if not total.is_finite() or total < 0 or total > Decimal(str(matched_order.quantity)):
-                raise ValueError("Broker cumulative fill quantity is invalid")
-            processed = sum((Decimal(str(t.quantity)) for t in order_lumi.transactions), Decimal(0))
-            processed = max(processed, getattr(order_lumi, "_broker_synced_filled_quantity", Decimal(0)))
-            if total < processed:
-                # Older observations cannot erase immutable execution receipts.
-                return changed
             if total > processed and matched_order.avg_fill_price is not None:
                 if not self._reconcile_cumulative_execution(
                     order_lumi, total, matched_order.avg_fill_price,
@@ -1649,6 +1659,12 @@ class Broker(ABC):
         """Adapter boundary for verified strategy history versus account visibility."""
         return orders
 
+    def _local_orders_for_strategy_sync(self, strategy_name):
+        return self.get_all_orders()
+
+    def _iter_executable_order_tree(self, orders):
+        return self._iter_order_tree(orders)
+
     def sync_orders(self, strategy):
         """Sync broker orders into Lumibot without promoting stale terminal history.
 
@@ -1661,10 +1677,10 @@ class Broker(ABC):
 
         strategy_name = self._strategy_name_from_input(strategy)
         orders_broker = self._orders_for_strategy_sync(self._pull_all_orders(strategy_name, strategy), strategy)
-        orders_broker = list(self._iter_order_tree(orders_broker))
+        orders_broker = list(self._iter_executable_order_tree(orders_broker))
 
         changed = False
-        orders_lumi = self.get_all_orders()
+        orders_lumi = self._local_orders_for_strategy_sync(strategy_name)
 
         observation_errors = []
         for order in orders_broker:
@@ -1691,7 +1707,7 @@ class Broker(ABC):
                 observation_errors.append(exc)
                 logger.error("Could not reconcile broker order %s (%s)", order.identifier, type(exc).__name__)
 
-        broker_identifiers = self._get_all_order_identifiers(orders_broker)
+        broker_identifiers = {order.identifier for order in orders_broker}
         for order_lumi in orders_lumi:
             if order_lumi.identifier in broker_identifiers:
                 continue
@@ -3097,7 +3113,7 @@ class Broker(ABC):
         if state.get("owner") != getattr(self, "order_ownership_id", None):
             raise ValueError("Order checkpoint belongs to a different instance")
         strategy_name = self._strategy_name_from_input(strategy)
-        orders = list(self._iter_order_tree([Order.from_dict(row) for row in state.get("orders", [])]))
+        orders = list(self._iter_executable_order_tree([Order.from_dict(row) for row in state.get("orders", [])]))
         # Bracket/OCO stop and target are saved by identifier; relink them so a
         # restarted bot still treats them as one cancel-the-other pair.
         Order._relink_dependent_orders(orders)
@@ -3375,6 +3391,10 @@ class Broker(ABC):
         except Exception:
             pass
         return True
+
+    def accepts_cash_amount_order(self, order: Order) -> bool:
+        """Whether the venue can size this order in currency instead of asset units."""
+        return False
 
     def submit_order(self, order) -> Order:
         """Conform an order for an asset to broker constraints and submit it.

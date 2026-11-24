@@ -922,6 +922,120 @@ class SECFundamentals:
         return self._filter_submissions_as_of(self._get_submissions_payload(symbol), as_of_dt)
 
     # ------------------------------------------------------------------
+    # Listings: companies that sold shares to the public for the first time
+    # ------------------------------------------------------------------
+
+    def _listings_table(self):
+        from .listings import TABLE_RELATIVE_PATH, TABLE_REMOTE_RELATIVE, ListingsTable
+
+        cached = getattr(self, "_listings_cache", None)
+        if cached is not None:
+            return cached
+        path = self._cache_path(*TABLE_RELATIVE_PATH)
+        if not path.exists():
+            self._pull_remote(path, TABLE_REMOTE_RELATIVE)
+        if not path.exists():
+            raise FileNotFoundError(
+                "The SEC listings table is not built yet. Build it once with "
+                "self.fundamentals.build_listings_table(years) (about 20 minutes for 2019 to today, "
+                "public SEC files only) or point the shared backtest cache at a copy."
+            )
+        self._listings_cache = ListingsTable.load(path)
+        return self._listings_cache
+
+    def get_listings(
+        self,
+        start: Any | None = None,
+        end: Any | None = None,
+        *,
+        as_of: Any | None = None,
+        kinds: Any = ("operating_company",),
+    ):
+        """Companies whose first final prospectus (SEC form 424B4 or 424B1) is dated in [start, end].
+
+        One row per company, including companies later delisted, acquired or bankrupt:
+        ``cik``, ``name``, ``ticker`` (as printed on the prospectus), ``prospectus_date``,
+        ``form``, ``kind`` (``operating_company``, ``blank_check`` or ``other`` for funds and
+        finance subsidiaries; ``kinds`` picks which, operating companies by default), ``sic``,
+        ``delisting_filed`` (the first published delisting or deregistration notice after the prospectus;
+        confirmed exchange transfers for the same security class are excluded) and
+        ``prospectus_url``. Point in time: in a backtest nothing after the strategy clock is
+        returned. The first trade is normally 0 to 2 business days before ``prospectus_date``;
+        read it from the stock's first daily bar.
+        """
+        import pandas as pd
+
+        as_of_dt = self._resolve_as_of(as_of)
+        lo = start if start is not None else date(1900, 1, 1)
+        hi = end if end is not None else as_of_dt
+        rows = self._listings_table().between(lo, hi, as_of=as_of_dt, kinds=kinds)
+        columns = ["cik", "name", "ticker", "prospectus_date", "form", "kind", "sic", "delisting_filed", "prospectus_url"]
+        return pd.DataFrame(rows, columns=columns)
+
+    def get_listing(self, symbol: str, *, as_of: Any | None = None) -> dict[str, Any] | None:
+        """The listing row printed under ``symbol`` and public at ``as_of``, or None."""
+        return self._listings_table().for_symbol(symbol, as_of=self._resolve_as_of(as_of))
+
+    def build_listings_table(self, years: Iterable[int], *, progress: Any | None = None):
+        """Build (or rebuild) the listings table from public SEC files and save it to the local
+        cache and the shared backtest cache. Uses the normal SEC rate limit (10 requests a second);
+        only the first ``PROSPECTUS_HEAD_BYTES`` of each prospectus are read."""
+        from .listings import (
+            PROSPECTUS_HEAD_BYTES,
+            TABLE_RELATIVE_PATH,
+            TABLE_REMOTE_RELATIVE,
+            build_listings,
+        )
+
+        def fetch_text(url: str) -> str:
+            self._rate_limit()
+            response = requests.get(url, headers=self._archive_headers(), timeout=60)
+            response.raise_for_status()
+            return gzip.decompress(response.content).decode("latin-1") if url.endswith(".gz") else response.text
+
+        def fetch_head(url: str) -> str:
+            self._rate_limit()
+            with requests.get(url, headers=self._archive_headers(), timeout=60, stream=True) as response:
+                response.raise_for_status()
+                chunks, size = [], 0
+                for chunk in response.iter_content(65536):
+                    chunks.append(chunk)
+                    size += len(chunk)
+                    if size >= PROSPECTUS_HEAD_BYTES:
+                        break
+            return b"".join(chunks).decode("utf-8", errors="replace")
+
+        def fetch_submissions(cik: int) -> dict[str, Any]:
+            identifier = f"{int(cik):010d}"
+            payload = self._get_submissions_payload("", cik=identifier)
+            historical = []
+            for file in payload.get("filings", {}).get("files", ()):
+                name = file["name"]
+                if not re.fullmatch(rf"CIK{identifier}-submissions-\d+\.json", name):
+                    raise ValueError("Unexpected SEC submissions archive name")
+                historical.append(self._get_json(
+                    f"{SEC_DATA_BASE_URL}/submissions/{name}",
+                    self._cache_path("submissions", name),
+                    mutable=True,
+                    remote_relative=f"sec/submissions/{name}",
+                ))
+            return {**payload, "historical_filings": historical}
+
+        table = build_listings(
+            self,
+            years,
+            fetch_text=fetch_text,
+            fetch_head=fetch_head,
+            fetch_submissions=fetch_submissions,
+            progress=progress,
+        )
+        path = self._cache_path(*TABLE_RELATIVE_PATH)
+        table.save(path)
+        self._push_remote(path, TABLE_REMOTE_RELATIVE)
+        self._listings_cache = table
+        return table
+
+    # ------------------------------------------------------------------
     # Point-in-time fact table (parsed once per process per company)
     # ------------------------------------------------------------------
 

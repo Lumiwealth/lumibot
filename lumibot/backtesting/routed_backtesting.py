@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import bisect
 import logging
 import os
 import re
@@ -1480,7 +1481,25 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
     def funding_events(self, asset: Asset, start, end):
         market, symbol, _ = self.resolve(asset)
         rows = self._funding_rows(symbol, market)
-        return [row for row in DataSourceBacktesting._perpetual_rows(rows) if start <= row["timestamp"] <= end]
+        # PERF: the perpetual account asks for funding on every simulated bar. Normalizing and
+        # scanning the whole window's rows each time was about 10% of a BTC 5-minute run. The
+        # normalized rows are kept once per loaded list and the bar's slice is found by bisection;
+        # callers still get fresh dicts in the same order (tests/test_perpetual_funding_mark_lookup.py).
+        cache = self.__dict__.setdefault("_funding_sorted", {})
+        hit = cache.get(symbol)
+        if hit is None or hit[0] is not rows:
+            normalized = DataSourceBacktesting._perpetual_rows(rows)
+            hit = (rows, normalized, [row["timestamp"] for row in normalized])
+            cache[symbol] = hit
+        _, normalized, stamps = hit
+        lo = bisect.bisect_left(stamps, pd.Timestamp(start)) if stamps else 0
+        out = []
+        for row in normalized[lo:]:
+            if not row["timestamp"] <= end:
+                break
+            if start <= row["timestamp"]:
+                out.append(dict(row))
+        return out
 
     def mark_at(self, asset: Asset, at):
         """Binance mark price from hourly mark-price klines: the open of the hour at or before ``at``.
@@ -1500,6 +1519,12 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
         marks = self._marks[symbol]
         at_ts = pd.Timestamp(at)
         at_ts = at_ts.tz_localize("UTC") if at_ts.tzinfo is None else at_ts.tz_convert("UTC")
+        if isinstance(marks.index, pd.DatetimeIndex) and marks.index.is_monotonic_increasing:
+            # PERF: same row as the mask below, found by bisection instead of a full mask per bar.
+            position = int(marks.index.searchsorted(at_ts, side="right")) - 1
+            if position < 0:
+                return None, False
+            return Decimal(str(marks.iloc[position]["open"])), marks.index[position] == at_ts
         visible = marks[marks.index <= at_ts]
         if visible.empty:
             return None, False

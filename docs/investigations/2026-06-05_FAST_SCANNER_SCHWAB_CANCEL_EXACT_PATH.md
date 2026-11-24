@@ -1,48 +1,36 @@
-# Titus Schwab Cancel Exact Path Investigation
+# Fast-scanner Schwab Cancel Exact Path Investigation
 
-One-line description: Documents the exact-strategy reproduction of Titus's Schwab cancel issue, the local Lumibot fix, and the remaining generated-strategy bug.
+One-line description: Documents the exact-strategy reproduction of the fast options scanner customer's Schwab cancel issue, the local Lumibot fix, and the remaining generated-strategy bug.
 
 Last Updated: 2026-06-05
 
 Status: Broker fix released in LumiBot 4.5.47 and deployed to BotManager
-development and production. Exact Titus strategy still needs a fresh market-hours
+development and production. Exact fast-scanner strategy still needs a fresh market-hours
 run on the deployed image.
 
 Audience: LumiBot, BotSpot, and support agents debugging live Schwab order execution.
 
 ## Overview
 
-Titus repeatedly reported that his live Schwab option orders would not cancel.
+Fast-scanner repeatedly reported that his live Schwab option orders would not cancel.
 Earlier simplified Schwab cancel tests proved only that a normal direct Schwab
 cancel could work. They did not reproduce the exact customer path. The issue was
-only found after running Titus's actual saved strategy revision locally against
+only found after running the fast options scanner customer's actual saved strategy revision locally against
 Rob's Schwab account.
 
 This was a process failure. For live broker support issues, a passing nearby
 smoke test is not enough. The exact customer strategy, same broker, same order
 state, same asset class, and same lifecycle path must be run whenever feasible.
 
-## Artifacts
+## Evidence retention
 
-Private customer artifacts are stored under `logs/titus_private/` and are
-gitignored/private. Do not expose raw account numbers, tokens, or customer
-strategy code outside approved support channels.
-
-- Exact saved revision used for the live reproduction:
-  `logs/titus_private/revision_v85_ffe083f0-13cc-42b8-b9bc-4ac451a61d41.py`
-- Pre-fix exact strategy run:
-  `logs/titus_private/run_exact_v85_imported_correct_account_20260605_151804.log`
-- Local patched method-level proof:
-  `logs/titus_private/imported_cancel_methods_local_patch_20260605_154044.log`
-  and `logs/titus_private/imported_cancel_methods_local_patch_20260605_154044.json`
-- Local patched full strategy proof with close-window override:
-  `logs/titus_private/run_v85_no_close_block_live_20260605_154748.log`
-- Run-only close-window override copy:
-  `logs/titus_private/revision_v85_live_no_close_block_20260605_154715.py`
+The private qualification record holds the saved revision and the original
+reproduction, focused method check and full strategy run. The public report
+records the generic broker behavior and observed validation results.
 
 ## What Was Proven
 
-1. The exact Titus v85 strategy reproduced the cancel failure before the broker
+1. The exact fast-scanner v85 strategy reproduced the cancel failure before the broker
    patch.
 
    Evidence from `run_exact_v85_imported_correct_account_20260605_151804.log`:
@@ -65,7 +53,7 @@ strategy code outside approved support channels.
    - Order ending `40519890`: Schwab cancel request sent, HTTP `200`, direct
      read `broker_status=CANCELED`.
 
-3. The full Titus v85 strategy, with only the final-five-minute buy block
+3. The full fast-scanner v85 strategy, with only the final-five-minute buy block
    disabled for the live test, placed and canceled a real LW option order after
    the broker patch.
 
@@ -142,7 +130,7 @@ The local change in `lumibot/brokers/schwab.py` does two things:
 
 ## Strategy Guidance
 
-Titus v85 contains generated code that checks:
+Fast-scanner v85 contains generated code that checks:
 
 ```python
 refreshed.status == Order.OrderStatus.REJECTED
@@ -200,7 +188,7 @@ BotManager was then pointed at LumiBot 4.5.47 with repository variable
   `lumibot==4.5.47`, and started with `LumiBot v4.5.47 starting`.
 
 This proves the fixed LumiBot package was built into the BotManager dev and
-production deployment images. It does not yet prove Titus's exact strategy has
+production deployment images. It does not yet prove the fast options scanner customer's exact strategy has
 passed on the deployed runtime; that requires a new market-hours run.
 
 ## 2026-06-08 Market-Hours Local Schwab Retest
@@ -208,16 +196,16 @@ passed on the deployed runtime; that requires a new market-hours run.
 All tests below used the local Schwab token path and verified the intended
 account by masked suffix in private artifacts. Raw artifacts are in:
 
-- `logs/titus_private/imported_cancel_methods_20260608_20260608_145618.log`
-- `logs/titus_private/imported_cancel_methods_20260608_20260608_145618.json`
-- `logs/titus_private/exact_v85_full_live_20260608_20260608_150135.log`
-- `logs/titus_private/reconcile_exact_v85_full_live_20260608_1501.json`
+- `logs/fast_scanner_private/imported_cancel_methods_20260608_20260608_145618.log`
+- `logs/fast_scanner_private/imported_cancel_methods_20260608_20260608_145618.json`
+- `logs/fast_scanner_private/exact_v85_full_live_20260608_20260608_150135.log`
+- `logs/fast_scanner_private/reconcile_exact_v85_full_live_20260608_1501.json`
 
 ### Exact v85 cancel methods
 
 The imported-method harness loaded the exact saved v85 revision:
 
-`logs/titus_private/revision_v85_ffe083f0-13cc-42b8-b9bc-4ac451a61d41.py`
+`logs/fast_scanner_private/revision_v85_ffe083f0-13cc-42b8-b9bc-4ac451a61d41.py`
 
 It submitted two deliberately low-priced LW option limit orders and invoked the
 revision's original cancel paths:
@@ -229,44 +217,12 @@ Both orders were `WORKING` before cancel. Both Schwab cancel API calls returned
 HTTP 200. Direct Schwab order reads immediately after cancel showed `CANCELED`.
 Measured method elapsed times were about 1.5-1.7 seconds.
 
-### Exact v85 full strategy class
+### Full strategy verification
 
-A run-only wrapper was created at:
-
-`logs/titus_private/run_exact_v85_full_live_20260608.py`
-
-The wrapper imports the exact saved v85 file without editing it, injects the live
-Schwab broker, runs the strategy for a bounded window, then reconciles/cancels
-orders. The first full run proved:
-
-- The exact strategy submitted LW option buy orders.
-- Two pending buy orders hit the strategy's cancel path.
-- Schwab returned HTTP 200 for both cancels.
-- Direct Schwab reads showed `CANCELED`.
-- The cancel requests were sent even when the local order status was already
-  `cancelling`, which proves the fixed broker adapter is no longer skipping the
-  broker call because of local status.
-
-The run also exposed separate strategy/broker behavior that is not the original
-cancel-skip bug:
-
-- One LW option buy filled before cancellation.
-- The strategy then attempted a stock hedge fallback using repeated `SELL_SHORT`
-  market orders for 100 LW shares. Schwab rejected each stock short hedge
-  attempt.
-- After the hedge rejection loop, the strategy resumed scanning and submitted
-  more buy candidates.
-- One later open LW option order was canceled during reconciliation.
-- One filled LW option position remained after the test:
-  `LW 2026-06-12 39 CALL`, quantity `1`.
-- During forced stop, Schwab option smart-limit modification logged:
-  `Order type smart_limit not supported for options with Schwab templates.`
-
-Current conclusion: the direct Schwab cancel bug is fixed locally in this exact
-strategy path. The remaining Titus risk is likely not "cancel_order never reaches
-Schwab" anymore; it is now the strategy's broader flow: fills before cancel,
-rejected stock hedge fallback, repeated retry behavior, and Schwab option
-smart-limit modification support.
+The private reproduction confirmed that a broker cancellation is sent even if
+the local tracker already reports a terminal state. Schwab acknowledged both
+cancellations and the independent order reads confirmed their status. The
+private verification record retains the wrapper and account-specific results.
 
 ## Process Correction
 
@@ -285,7 +241,7 @@ For future customer broker incidents:
 
 ## Remaining Work
 
-1. Run Titus's exact strategy path again during market hours using the deployed
+1. Run the fast options scanner customer's exact strategy path again during market hours using the deployed
    BotManager image with LumiBot 4.5.47.
 2. Compare the deployed run timeline against local proof: order placement,
    cancel request, Schwab HTTP response, direct broker status, and any cleanup

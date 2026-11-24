@@ -18,6 +18,7 @@ import sys
 from threading import Lock
 from typing import Any, Iterable, Optional, Sequence
 
+import numpy as np
 import pandas as pd
 
 IBKR_HISTORY_HEALTH_MISSING_SESSION_LIMIT = 100
@@ -362,6 +363,36 @@ def record_skipped_asset(*, asset, timestep, when, reason, provider=None, occurr
             "under skipped_assets.", timestep, symbol, day, reason)
 
 
+# PERF: every indicator call records the history it consumed. When the series has no known
+# hole and the frame holds every requested priced row, the full path below copies and filters
+# the frame only to record "this series has data". The check reads the same rows without a
+# copy and records exactly that. tests/test_required_history_fast_path.py compares both paths.
+_RECORD_FAST_PATH = True
+
+
+def _enough_bars_and_no_known_hole(symbol, asset_type, timestep, requested, frame) -> bool:
+    """True after recording "has data" when the full path would record nothing else."""
+    if not isinstance(frame, pd.DataFrame) or "close" not in frame:
+        return False
+    if len(frame) < requested:
+        return False
+    keep = np.ones(len(frame), dtype=bool)
+    if "missing" in frame:
+        keep &= ~frame["missing"].fillna(False).astype(bool).to_numpy()
+    for name in ("open", "high", "low", "close"):
+        if name in frame:
+            keep &= frame[name].notna().to_numpy()
+    if int(keep.sum()) < requested:
+        return False
+    with _HEALTH_LOCK:
+        for health in _HEALTH_BY_SERIES.values():
+            if (health["symbol"] == symbol and health["asset_type"] == asset_type
+                    and health["timestep"] == timestep and health["outcome"] != "complete"):
+                return False
+        _SERIES_WITH_DATA.add((symbol, asset_type))
+    return True
+
+
 def record_required_history(*, asset, timestep, requested_bars, frame, when, requirement="history") -> None:
     """Record history actually consumed by a strategy, separately from prefetch.
 
@@ -374,6 +405,8 @@ def record_required_history(*, asset, timestep, requested_bars, frame, when, req
     asset_type = str(getattr(asset_type, "value", asset_type))
     requested = int(requested_bars)
     if requested <= 0:
+        return
+    if _RECORD_FAST_PATH and _enough_bars_and_no_known_hole(symbol, asset_type, str(timestep), requested, frame):
         return
     usable = frame if isinstance(frame, pd.DataFrame) else pd.DataFrame()
     if "missing" in usable:

@@ -19,9 +19,9 @@ Perp-scalper reported a large backtest result drop in a BotSpot email thread wit
 An initial support copy of the saved revision files was exported from the
 production database through the read-only support path into:
 
-- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260611/revision-9c8e12ce/main.py`
-- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260611/revision-9c8e12ce/requirements.txt`
-- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260611/revision-9c8e12ce/manifest.json`
+- `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260611/revision-9c8e12ce/main.py`
+- `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260611/revision-9c8e12ce/requirements.txt`
+- `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260611/revision-9c8e12ce/manifest.json`
 
 No broker deployment secrets or account credentials were copied.
 
@@ -30,8 +30,8 @@ Important correction from the 2026-06-12 audit: the executed production
 to the older database-exported `main.py` in the 2026-06-11 support folder.
 All future reproduction for this incident must use the executed code zip:
 
-- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/code.zip`
-- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/executed-code/main.py`
+- `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/code.zip`
+- `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/executed-code/main.py`
 
 The executed `main.py` SHA-256 is
 `91473f8fa813cd5fa818bdad6201053b936c999f3a2f725586c25d9e567e8b40`.
@@ -39,9 +39,9 @@ The executed `main.py` SHA-256 is
 Production result artifacts were exported through the supported Bot Manager API
 and CloudWatch, then parsed into:
 
-- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/analysis/production_artifact_summary.md`
-- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/api-artifacts/trades.csv`
-- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/api-artifacts/indicators.csv`
+- `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/analysis/production_artifact_summary.md`
+- `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/api-artifacts/trades.csv`
+- `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/api-artifacts/indicators.csv`
 
 The production artifacts prove the April drop was not just a visual/chart issue:
 
@@ -65,7 +65,7 @@ The copied strategy is `MultiMineralBot`, trading spot `BTC/USDT` in BotSpot whi
 
 The local production-like replay used the copied revision and the same 2026-03-09 to 2026-06-05 window. Logs are under:
 
-- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260611/local-run-v100-prodlike-remote-dd/subprocess_perp_scalper-v100-prodlike-remote-dd.log`
+- `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260611/local-run-v100-prodlike-remote-dd/subprocess_perp_scalper-v100-prodlike-remote-dd.log`
 
 The run was intentionally stopped after it had already reproduced the incorrect early fill path. It did not need to finish the full multi-month backtest to prove the failing invariant.
 
@@ -133,7 +133,7 @@ Additional verified facts from the 2026-06-12 audit:
   finish in-turn because a fresh local task had to hydrate many IBKR `1min`
   `Trades`, `Bid_Ask`, and `Midpoint` chunks through the downloader. Partial
   replay logs are preserved under
-  `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/`.
+  `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/`.
 
 ## Finding From First Pass
 
@@ -261,7 +261,7 @@ Regression coverage was added for direct and routed paths:
 Focused suite:
 
 ```bash
-/Users/robertgrzesik/Development/bin/safe-timeout 240 python3 -m pytest tests/test_interactive_brokers_rest_backtesting_unit.py tests/test_routed_backtesting_ibkr_daily_prefetch.py tests/test_ibkr_crypto_backtesting_smoke_stubbed.py -q
+$WORKSPACE/bin/safe-timeout 240 python3 -m pytest tests/test_interactive_brokers_rest_backtesting_unit.py tests/test_routed_backtesting_ibkr_daily_prefetch.py tests/test_ibkr_crypto_backtesting_smoke_stubbed.py -q
 ```
 
 Result on 2026-06-12:
@@ -473,7 +473,7 @@ v4.5.52 execution guard does not grab wrong-date BTC bars. Two local full-window
 replays were run against the perp scalper customer's executed production code:
 
 - strategy code:
-  `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/executed-code/main.py`
+  `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/executed-code/main.py`
 - original window: `2026-03-09` through `2026-06-05`
 - data source: router
 - cache mode: read-only
@@ -484,7 +484,7 @@ replays were run against the perp scalper customer's executed production code:
 First v4.5.52 replay after the current-bar guard:
 
 - artifact root:
-  `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260613/local-v4552-full-mar09-jun05`
+  `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260613/local-v4552-full-mar09-jun05`
 - result: exit code `0`, elapsed `972.2s`
 - proof the wrong-date fill path was blocked:
   - `strict start check rejected future frame`: `4,058`
@@ -511,7 +511,7 @@ trigger conditions.
 Second v4.5.52 replay after the market-order lifecycle fix:
 
 - artifact root:
-  `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260613/local-v4552-full-mar09-jun05-market-cancel`
+  `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260613/local-v4552-full-mar09-jun05-market-cancel`
 - result: exit code `0`, elapsed `617.7s`
 - trade events: `176` rows total
   - `new`: `88`
@@ -574,7 +574,7 @@ to call release-ready:
 Live production Data Downloader probe on 2026-06-14 used the queued `/ibkr/*`
 path, not a local IBKR login. Evidence artifact:
 
-- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-btc-data-check-20260614/downloader_btc_probe_summary.json`
+- `$WORKSPACE/support-artifacts/perp_scalper-btc-data-check-20260614/downloader_btc_probe_summary.json`
 
 Results:
 
@@ -897,7 +897,7 @@ Code-level change:
 
 New durable regression file:
 
-- `/Users/robertgrzesik/Development/lumibot/tests/test_backtesting_order_lifecycle.py`
+- `$WORKSPACE/lumibot/tests/test_backtesting_order_lifecycle.py`
 
 The test matrix currently covers:
 
@@ -921,7 +921,7 @@ The test matrix currently covers:
 Focused validation on 2026-06-18:
 
 ```bash
-/Users/robertgrzesik/Development/bin/safe-timeout 300s python3 -m pytest tests/test_backtesting_order_lifecycle.py tests/test_backtesting_broker.py tests/test_ibkr_crypto_backtesting_smoke_stubbed.py -q
+$WORKSPACE/bin/safe-timeout 300s python3 -m pytest tests/test_backtesting_order_lifecycle.py tests/test_backtesting_broker.py tests/test_ibkr_crypto_backtesting_smoke_stubbed.py -q
 ```
 
 Result:
@@ -932,7 +932,7 @@ Result:
 Broader broker/final-bar/quote fallback validation:
 
 ```bash
-/Users/robertgrzesik/Development/bin/safe-timeout 300s python3 -m pytest tests/backtest/test_backtesting_broker_processing.py tests/backtest/test_strategy_executor_backtest_end_clamp.py tests/backtest/test_quote_fill_fallback.py -q
+$WORKSPACE/bin/safe-timeout 300s python3 -m pytest tests/backtest/test_backtesting_broker_processing.py tests/backtest/test_strategy_executor_backtest_end_clamp.py tests/backtest/test_quote_fill_fallback.py -q
 ```
 
 Result:
@@ -950,7 +950,7 @@ A full original-window replay was run locally against the perp scalper customer'
 production `main.py` using production-like settings:
 
 - strategy code:
-  `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/executed-code/main.py`
+  `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/executed-code/main.py`
 - original window: `2026-03-09` through `2026-06-05`
 - data source router:
   `{"default":"ibkr","stock":"ibkr","index":"ibkr","option":"thetadata","crypto":"ibkr","crypto_future":"ibkr","future":"ibkr","cont_future":"ibkr"}`
@@ -959,7 +959,7 @@ production `main.py` using production-like settings:
 - production S3 cache target: `lumibot-cache-prod/prod/cache/v1`
 - cache mode: `readonly`
 - local artifact root:
-  `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_full_prodcache_readonly_20260618`
+  `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_full_prodcache_readonly_20260618`
 
 Terminal result:
 
@@ -985,9 +985,9 @@ Terminal result:
 
 Evidence:
 
-- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_full_prodcache_readonly_20260618/subprocess.log`
-- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_full_prodcache_readonly_20260618/logs/progress.csv`
-- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/cache/perp_scalper_full_prodcache_readonly_20260618`
+- `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_full_prodcache_readonly_20260618/subprocess.log`
+- `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_full_prodcache_readonly_20260618/logs/progress.csv`
+- `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/cache/perp_scalper_full_prodcache_readonly_20260618`
 
 Conclusion: the local `v4.5.52` order-lifecycle tests prove the stale/future
 fill behavior in isolation, but the full original perp-scalper replay with production
@@ -1029,12 +1029,12 @@ changes only the routed Coinbase/CCXT history load path:
 Focused local verification before release:
 
 ```bash
-/Users/robertgrzesik/Development/bin/safe-timeout 240s \
-  /Users/robertgrzesik/Development/lumibot/.venv/bin/python -m pytest \
-  /Users/robertgrzesik/Development/lumibot/tests/test_routed_backtesting_ibkr_daily_prefetch.py \
-  /Users/robertgrzesik/Development/lumibot/tests/test_ccxt_store.py \
-  /Users/robertgrzesik/Development/lumibot/tests/test_backtesting_ccxt_execution_semantics.py \
-  /Users/robertgrzesik/Development/lumibot/tests/test_data_entity.py -q
+$WORKSPACE/bin/safe-timeout 240s \
+  $WORKSPACE/lumibot/.venv/bin/python -m pytest \
+  $WORKSPACE/lumibot/tests/test_routed_backtesting_ibkr_daily_prefetch.py \
+  $WORKSPACE/lumibot/tests/test_ccxt_store.py \
+  $WORKSPACE/lumibot/tests/test_backtesting_ccxt_execution_semantics.py \
+  $WORKSPACE/lumibot/tests/test_data_entity.py -q
 ```
 
 Result: `53 passed, 2 skipped`.

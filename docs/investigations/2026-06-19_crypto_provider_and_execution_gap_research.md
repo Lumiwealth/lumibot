@@ -73,7 +73,7 @@ routing and Coinbase for crypto:
 
 ```bash
 python3 scripts/run_backtest_prodlike.py \
-  --main /Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/executed-code/main.py \
+  --main $WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/executed-code/main.py \
   --start 2026-03-15 \
   --end 2026-04-20 \
   --data-source '{"default":"thetadata","stock":"thetadata","index":"thetadata","option":"thetadata","future":"ibkr","cont_future":"ibkr","crypto":"coinbase","crypto_future":"coinbase"}' \
@@ -83,7 +83,7 @@ python3 scripts/run_backtest_prodlike.py \
 ```
 
 Artifact folder:
-`/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2`
+`$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2`
 
 Result:
 
@@ -100,13 +100,13 @@ Result:
 Primary evidence:
 
 - Trades CSV:
-  `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/logs/MultiMineralBot_2026-06-19_22-50_0dPozs_trades.csv`
+  `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/logs/MultiMineralBot_2026-06-19_22-50_0dPozs_trades.csv`
 - Trade events CSV:
-  `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/logs/MultiMineralBot_2026-06-19_22-50_0dPozs_trade_events.csv`
+  `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/logs/MultiMineralBot_2026-06-19_22-50_0dPozs_trade_events.csv`
 - Metrics JSON:
-  `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/metrics.json`
+  `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/metrics.json`
 - Subprocess log:
-  `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/subprocess.log`
+  `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/subprocess.log`
 
 The replay also exposed and confirmed the CCXT cache timezone bug. Before the
 cache-boundary fix, aware New York datetimes were stripped to naive values before

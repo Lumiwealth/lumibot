@@ -49,7 +49,7 @@ Summary files:
 The most complete workflow smoke ran:
 
 ```bash
-/Users/robertgrzesik/Development/bin/safe-timeout 180s \
+$WORKSPACE/bin/safe-timeout 180s \
   python3 scripts/schwab_fast_scanner_workflow_smoke.py \
   --account-suffix 4364 \
   --token-path schwab_token.json \
@@ -68,7 +68,7 @@ Result:
 The latest strategy-level fast-cancel rerun used the saved gitignored token path and passed:
 
 ```bash
-/Users/robertgrzesik/Development/bin/safe-timeout 180s \
+$WORKSPACE/bin/safe-timeout 180s \
   python3 scripts/schwab_fast_scanner_fast_cancel_strategy_smoke.py \
   --account-suffix 4364 \
   --token-path schwab_token.json \
@@ -178,13 +178,13 @@ Validation performed:
 
 ```bash
 python3 -m py_compile \
-  /Users/robertgrzesik/Development/.codex_tmp_fast_scanner_research/lw_itm_call_v18_proposed_fast_cancel.py \
-  /Users/robertgrzesik/Development/.codex_tmp_fast_scanner_research/validate_lw_itm_fast_cancel.py
+  $WORKSPACE/.codex_tmp_fast_scanner_research/lw_itm_call_v18_proposed_fast_cancel.py \
+  $WORKSPACE/.codex_tmp_fast_scanner_research/validate_lw_itm_fast_cancel.py
 ```
 
 ```bash
-PYTHONPATH=/Users/robertgrzesik/Development/lumibot \
-  python3 /Users/robertgrzesik/Development/.codex_tmp_fast_scanner_research/validate_lw_itm_fast_cancel.py
+PYTHONPATH=$WORKSPACE/lumibot \
+  python3 $WORKSPACE/.codex_tmp_fast_scanner_research/validate_lw_itm_fast_cancel.py
 ```
 
 Result:
@@ -232,7 +232,7 @@ Account suffix used: Rob-owned Schwab account `4364`.
 Timed cancel smoke:
 
 ```bash
-/Users/robertgrzesik/Development/bin/safe-timeout 180s \
+$WORKSPACE/bin/safe-timeout 180s \
   python3 scripts/schwab_fast_scanner_fast_cancel_strategy_smoke.py \
   --account-suffix 4364 \
   --token-path schwab_token.json \
@@ -255,7 +255,7 @@ Result:
 OTO/bracket structure smoke:
 
 ```bash
-/Users/robertgrzesik/Development/bin/safe-timeout 180s \
+$WORKSPACE/bin/safe-timeout 180s \
   python3 scripts/schwab_fast_scanner_workflow_smoke.py \
   --account-suffix 4364 \
   --token-path schwab_token.json \
@@ -297,7 +297,7 @@ Summary file:
 Command:
 
 ```bash
-/Users/robertgrzesik/Development/bin/safe-timeout 180s \
+$WORKSPACE/bin/safe-timeout 180s \
   python3 scripts/schwab_fast_scanner_live_fill_hedge_smoke.py \
   --account-suffix 4364 \
   --token-path schwab_token.json \

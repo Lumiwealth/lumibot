@@ -75,7 +75,7 @@ Use the controlled runner for public Coinbase/CCXT validation:
 The runner writes durable artifacts under:
 
 ```text
-/Users/robertgrzesik/Development/support-artifacts/crypto-backtest-validation-<timestamp>/
+$WORKSPACE/support-artifacts/crypto-backtest-validation-<timestamp>/
 ```
 
 Each run includes:
@@ -153,7 +153,7 @@ Result: `77 passed, 2 skipped`.
 Public Coinbase same-day probe:
 
 - Artifact root:
-  `/Users/robertgrzesik/Development/support-artifacts/ccxt-today-edge-20260624`
+  `$WORKSPACE/support-artifacts/ccxt-today-edge-20260624`
 - Request shape: `BTC/USDT`, `1m`, `2026-06-17 04:00:00` UTC through
   `2026-06-24 04:00:00` UTC.
 - Machine now during probe: `2026-06-24 18:16:02` UTC.
@@ -250,7 +250,7 @@ Fix:
 Focused proof:
 
 ```bash
-/Users/robertgrzesik/Development/lumibot/.venv/bin/python -m pytest \
+$WORKSPACE/lumibot/.venv/bin/python -m pytest \
   tests/test_ccxt_store.py \
   tests/test_backtesting_ccxt_execution_semantics.py \
   tests/test_crypto_backtesting_order_matrix.py -q
@@ -366,13 +366,13 @@ minute/hour/day matrices each produced 24 order-matrix fills.
 
 Artifact roots:
 
-- `/Users/robertgrzesik/Development/support-artifacts/crypto-validation-long-20260622-btcusdt-2026-1m-rerun`
-- `/Users/robertgrzesik/Development/support-artifacts/crypto-validation-long-20260622-btcusdt-2026-1h-rerun`
-- `/Users/robertgrzesik/Development/support-artifacts/crypto-validation-long-20260622-btcusdt-2026-1d-rerun`
-- `/Users/robertgrzesik/Development/support-artifacts/crypto-validation-long-20260622-ethusdt-2026-1h-rerun`
-- `/Users/robertgrzesik/Development/support-artifacts/crypto-validation-long-20260622-solusdt-2026-1h-rerun`
-- `/Users/robertgrzesik/Development/support-artifacts/crypto-validation-long-20260622-btcusd-2020-1h-rerun2`
-- `/Users/robertgrzesik/Development/support-artifacts/crypto-validation-long-20260622-btcusd-2016-1d-rerun`
+- `$WORKSPACE/support-artifacts/crypto-validation-long-20260622-btcusdt-2026-1m-rerun`
+- `$WORKSPACE/support-artifacts/crypto-validation-long-20260622-btcusdt-2026-1h-rerun`
+- `$WORKSPACE/support-artifacts/crypto-validation-long-20260622-btcusdt-2026-1d-rerun`
+- `$WORKSPACE/support-artifacts/crypto-validation-long-20260622-ethusdt-2026-1h-rerun`
+- `$WORKSPACE/support-artifacts/crypto-validation-long-20260622-solusdt-2026-1h-rerun`
+- `$WORKSPACE/support-artifacts/crypto-validation-long-20260622-btcusd-2020-1h-rerun2`
+- `$WORKSPACE/support-artifacts/crypto-validation-long-20260622-btcusd-2016-1d-rerun`
 
 Important BTC/USDT 1m proof:
 
@@ -402,7 +402,7 @@ cash/position room for their order sequences.
 
 Corrected artifact root:
 
-- `/Users/robertgrzesik/Development/support-artifacts/crypto-validation-long-20260623-btcusdt-2026-1m-full-buyhold`
+- `$WORKSPACE/support-artifacts/crypto-validation-long-20260623-btcusdt-2026-1m-full-buyhold`
 
 Corrected BTC/USDT 1m `buy_hold` proof:
 
@@ -426,7 +426,7 @@ The no-dotenv validation runs below were executed with:
 
 BTC/USD:
 
-- Artifact root: `/Users/robertgrzesik/Development/support-artifacts/crypto-backtest-validation-20260620T-usd-strict-nodotenv`
+- Artifact root: `$WORKSPACE/support-artifacts/crypto-backtest-validation-20260620T-usd-strict-nodotenv`
 - Cases: `buy_hold`, `round_trip`, `alternating`, and warm-cache repeats.
 - Result: all six cases had `all_cache_rows_exist=true`,
   `all_fill_prices_match_expected_execution=true`,
@@ -437,7 +437,7 @@ BTC/USD:
 
 BTC/USDT:
 
-- Artifact root: `/Users/robertgrzesik/Development/support-artifacts/crypto-backtest-validation-20260620T-usdt-strict-nodotenv`
+- Artifact root: `$WORKSPACE/support-artifacts/crypto-backtest-validation-20260620T-usdt-strict-nodotenv`
 - Cases: `buy_hold`, `round_trip`, `alternating`, and warm-cache repeats.
 - Result: all six cases had `all_cache_rows_exist=true`,
   `all_fill_prices_match_expected_execution=true`,
@@ -474,7 +474,7 @@ The old IBKR artifact had suspicious fill behavior: many fills were outside the 
 The unchanged executed production code zip was replayed locally for the
 `2026-03-15` to `2026-04-20` window with crypto routed to Coinbase:
 
-- Replay artifact root: `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2`
+- Replay artifact root: `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2`
 - Executed code SHA-256:
   `91473f8fa813cd5fa818bdad6201053b936c999f3a2f725586c25d9e567e8b40`
 - LumiBot version: `4.5.52`
@@ -484,10 +484,10 @@ The unchanged executed production code zip was replayed locally for the
 
 Additional analysis artifacts were written under:
 
-- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/analysis/fill_cache_summary.json`
-- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/analysis/fill_cache_checks.csv`
-- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/analysis/portfolio_shape_summary.json`
-- `/Users/robertgrzesik/Development/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/analysis/old_vs_new_trade_count_summary.json`
+- `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/analysis/fill_cache_summary.json`
+- `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/analysis/fill_cache_checks.csv`
+- `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/analysis/portfolio_shape_summary.json`
+- `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/analysis/old_vs_new_trade_count_summary.json`
 
 Replay result:
 

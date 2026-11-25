@@ -1,0 +1,45 @@
+# Temporary: measures the idle live-loop tick on a real ARM server core.
+# Runs only on pushes to this one investigation branch. Remove before merging.
+name: Idle live loop benchmark (temporary)
+
+on:
+  push:
+    branches:
+      - agent/claude-idle-cpu
+    paths:
+      - ".github/workflows/idle-loop-bench.yml"
+      - "scripts/bench_idle_live_loop.py"
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        lumibot: ["4.5.3", "4.5.47", "4.6.98", "branch"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install
+        run: |
+          python -m pip install -q --upgrade pip
+          if [ "${{ matrix.lumibot }}" = "branch" ]; then
+            python -m pip install -q -e .
+          else
+            python -m pip install -q "lumibot==${{ matrix.lumibot }}"
+          fi
+      - name: Bench
+        env:
+          LUMIBOT_DISABLE_DOTENV: "1"
+          PYTHON_DOTENV_DISABLED: "1"
+        run: |
+          cp scripts/bench_idle_live_loop.py "$RUNNER_TEMP/bench.py"
+          cd "$RUNNER_TEMP"
+          nproc; grep -m1 "CPU part" /proc/cpuinfo || true
+          python bench.py 30

@@ -6,7 +6,6 @@ import os
 import re
 import threading
 import time
-from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from threading import Thread
 
@@ -2681,6 +2680,8 @@ class Schwab(Broker):
                 # Schwab's average covers every execution so far. The callback
                 # and the transaction ledger need the price of the new quantity
                 # alone, or a second partial fill is booked at the running average.
+                from decimal import Decimal, InvalidOperation  # local: keep import-time light
+
                 try:
                     prior_value = sum(
                         Decimal(str(item.quantity)) * Decimal(str(item.price)) for item in stored_order.transactions

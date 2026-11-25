@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Opt-in saved memory for live bots: set `LUMIBOT_LIVE_VARS_FILE=/path/vars.json` and
+  `self.vars` is restored once at start (after `initialize()`) and saved to that local file
+  atomically, only when it changed: every `LUMIBOT_LIVE_VARS_SAVE_INTERVAL_SECONDS`
+  (default 600) after an iteration, right after fills, partial fills and cancels, and on
+  shutdown or SIGTERM. Unlike the `DB_CONNECTION_STR` backup it never reloads during the run,
+  so values set in `on_filled_order` or `before_market_opens` are kept. Off by default;
+  backtests and scheduled one-shot runs ignore it.
+
 ## 4.6.98 - 2026-11-24
 
 ### Changed

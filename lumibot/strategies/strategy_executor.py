@@ -173,6 +173,9 @@ class StrategyExecutor(Thread):
         self._live_iteration_callbacks_ready = False
 
         self.strategy = strategy
+        # Opt-in saved memory for live runs (LUMIBOT_LIVE_VARS_FILE); None = off.
+        self._live_vars_file = None
+        self._install_live_vars_sigterm_save()
         self._strategy_context = None
         self.broker = self.strategy.broker
         self.result = {}
@@ -1512,6 +1515,7 @@ class StrategyExecutor(Thread):
             return self._on_trading_iteration_body()
         finally:
             self._in_trading_iteration = False
+            self._save_live_vars_after_iteration()
 
     def _prefetch_live_quotes(self):
         """Live: let each data source fetch the quotes asked for recently in one request."""
@@ -1763,6 +1767,7 @@ class StrategyExecutor(Thread):
                 self.check_queue_thread.join(timeout=5.0)
 
         self.strategy.backup_variables_to_db()
+        self._save_live_vars_now("shutdown")
 
     def __del__(self):
         """Destructor to ensure scheduler is shut down when executor is garbage collected"""
@@ -1789,6 +1794,7 @@ class StrategyExecutor(Thread):
         if not self._owns_order_event(order):
             return
         self.strategy.on_canceled_order(order)
+        self._save_live_vars_now("canceled_order")
 
     def _owns_order_event(self, order):
         owned = self.broker.IS_BACKTESTING_BROKER or self.broker.order_belongs_to_local_strategy(
@@ -1842,6 +1848,39 @@ class StrategyExecutor(Thread):
         except Exception as exc:
             self.strategy.logger.debug(f"Could not wake the trading iteration after a fill: {exc}")
 
+    # =======Saved memory for live runs (opt-in)===========
+
+    def _install_live_vars_sigterm_save(self):
+        """Save memory on SIGTERM when the feature is on. Main thread only; no-op otherwise."""
+        if not str(os.environ.get("LUMIBOT_LIVE_VARS_FILE", "") or "").strip():
+            return
+        if getattr(self.strategy, "is_backtesting", False):
+            return
+        from lumibot.strategies.live_vars_file import install_sigterm_save
+
+        install_sigterm_save(lambda: self._save_live_vars_now("sigterm"))
+
+    def _activate_live_vars_file(self):
+        if self._live_vars_file is not None:
+            return
+        from lumibot.strategies.live_vars_file import LiveVarsFile
+
+        store = LiveVarsFile.from_environment(self.strategy, run_once=self._is_running_once())
+        if store is None:
+            return
+        store.load_once()
+        self._live_vars_file = store
+
+    def _save_live_vars_now(self, reason):
+        store = getattr(self, "_live_vars_file", None)
+        if store is not None:
+            store.save(reason, force=True)
+
+    def _save_live_vars_after_iteration(self):
+        store = getattr(self, "_live_vars_file", None)
+        if store is not None:
+            store.maybe_save_after_iteration()
+
     def _is_running_once(self):
         return bool(getattr(self, "_run_once_requested", False))
 
@@ -1854,6 +1893,7 @@ class StrategyExecutor(Thread):
         callback_started = time.monotonic()
         self.strategy.on_partially_filled_order(position, order, price, quantity, multiplier)
         self._record_fill_callback_time(callback_started)
+        self._save_live_vars_now("partially_filled_order")
         self._wake_iteration_after_fill(partial=True)
 
     @event_method
@@ -1877,6 +1917,7 @@ class StrategyExecutor(Thread):
         callback_started = time.monotonic()
         self.strategy.on_filled_order(position, order, price, quantity, multiplier)
         self._record_fill_callback_time(callback_started)
+        self._save_live_vars_now("filled_order")
         self._wake_iteration_after_fill()
 
         # PERF: In backtesting we never send Discord notifications (`Strategy.send_discord_message`
@@ -2802,6 +2843,9 @@ class StrategyExecutor(Thread):
             self.broker.set_strategy_name(self.strategy._name)
 
             self._initialize()
+            # Saved memory is read once, after initialize() and before any other
+            # lifecycle method, and never again during this run.
+            self._activate_live_vars_file()
 
             # Get the trading days based on the market that the strategy is trading on
             market = self.broker.market

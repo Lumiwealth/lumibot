@@ -746,6 +746,14 @@ class Indicators:
             return custom_fn(df, **kwargs)
         if name == "fibonacci":
             return self._fibonacci_range(df, **kwargs)
+        # sma/ema/rsi/macd/bbands/atr in their plain form run on fin-primitives'
+        # float64 kernels: same index, names, columns and values as pandas-ta-classic,
+        # in one Rust pass. Any other form returns None and keeps the pandas-ta path.
+        from lumibot.indicators import fast_backend
+
+        result = fast_backend.compute(df, name, kwargs)
+        if result is not None:
+            return result
         ta = _get_ta_module()
         fn = getattr(ta, name)
         call_args = {}

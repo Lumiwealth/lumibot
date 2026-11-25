@@ -10,6 +10,7 @@ hyperliquid-python-sdk==0.24.0
 
 # Technical Analysis (needed for VixHelper and other TA components)
 pandas-ta-classic
+fin-primitives>=3.4.0
 
 # Linting modules
 ruff

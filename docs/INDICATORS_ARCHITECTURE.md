@@ -1,6 +1,6 @@
 # Indicators Architecture
 
-**Last Updated:** 2026-11-11
+**Last Updated:** 2026-11-16
 **Status:** Active
 **Audience:** Contributors / AI sessions maintaining `lumibot/indicators/indicators.py`
 
@@ -68,6 +68,25 @@ boilerplate for every indicator and makes the common case (just give me the
 value now) noisy. The tradeoff: `__getattr__` dispatches to
 `pandas-ta-classic` lazily, so a typo like `self.indicators.smaa(...)` fails
 at call-time rather than at import-time.
+
+### 1a. fin-primitives backend for the common calls
+
+`_compute` first asks `lumibot/indicators/fast_backend.py` for `sma`, `ema`,
+`rsi`, `macd`, `bbands` and `atr`. In their plain form (period parameters only,
+finite input at least one period long) these run on `fin_primitives.fast`, a
+single float64 Rust pass that follows pandas-ta-classic's (TA-Lib's) seeding. The
+backend returns the same Series/DataFrame type, index, `name`, `category` and
+column names; `bbands` derives `BBB`/`BBP` from the bands with pandas-ta's
+formulas. Anything else returns `None` and the call goes to pandas-ta-classic
+unchanged, so new pandas-ta parameters never silently change meaning.
+The backend is also off when the installed pandas-ta-classic is older than 0.9.0
+(`fast_backend.PANDAS_TA_BASELINE`), the release whose RSI seeding and flat-window
+%B the kernels reproduce, and for non-numeric columns (numeric strings included).
+`tests/test_indicator_fast_backend.py` pins parity with pandas-ta-classic
+(rtol 1e-12, identical NaN rows) and the fallback cases;
+`benchmarks/indicators_bench.py` times both. Indicator v2 builtins do not use it:
+their whole-history path must equal the per-bar path exactly, and the Rust sums
+differ from the Python streaming sums in the last bits.
 
 ### 2. Memo key carries a data-tag, not a timestamp
 

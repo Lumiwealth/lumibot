@@ -127,3 +127,53 @@ def test_routed_ibkr_futures_lookback_counts_trading_bars(monkeypatch, now, leng
 
     assert bars is not None and len(bars.df) == length
     assert ibkr_history_health_snapshot()["required_failures"] == []
+
+
+def test_routed_backtest_ending_now_stops_at_the_delayed_feed_cutoff(monkeypatch):
+    """A backtest whose window ends at the current minute must not simulate past the
+    delayed IBKR feed. Regression (Dev, Nov 24): an MGC backtest with endDate = today
+    failed "Required historical data unavailable ... asked for 1 and got 0" because
+    its last decisions came after history_as_of minus the 20-minute feed delay."""
+    from lumibot.backtesting.routed_backtesting import RoutedBacktestingPandas
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    frame = _recorded_bars()
+    asof = pd.Timestamp("2026-10-01 18:00", tz="UTC").to_pydatetime()
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_now_utc", lambda: asof)
+    monkeypatch.setattr(ibkr_helper, "get_price_data", _provider(frame))
+    reset_ibkr_history_health_for_testing()
+    start = NY.localize(dt.datetime(2026, 9, 30, 9, 30))
+    source = RoutedBacktestingPandas(
+        datetime_start=start, datetime_end=asof.astimezone(NY),
+        show_progress_bar=False, log_backtest_progress_to_file=False,
+    )
+    source.load_data()
+    source._update_datetime(start)
+    asset = Asset("MNQ", asset_type=Asset.AssetType.CONT_FUTURE)
+    source.get_historical_prices(asset, 10, "15minute")
+
+    cutoff = asof - ibkr_helper.IBKR_INTRADAY_HISTORY_DELAY
+    assert source.datetime_end <= cutoff
+    assert source.feed_cutoff_end == cutoff
+
+
+def test_routed_backtest_ending_before_the_cutoff_keeps_its_end(monkeypatch):
+    from lumibot.backtesting.routed_backtesting import RoutedBacktestingPandas
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    frame = _recorded_bars()
+    asof = pd.Timestamp("2026-10-03 18:00", tz="UTC").to_pydatetime()
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_now_utc", lambda: asof)
+    monkeypatch.setattr(ibkr_helper, "get_price_data", _provider(frame))
+    reset_ibkr_history_health_for_testing()
+    start = NY.localize(dt.datetime(2026, 9, 30, 9, 30))
+    source = RoutedBacktestingPandas(
+        datetime_start=start, datetime_end=start + dt.timedelta(days=1),
+        show_progress_bar=False, log_backtest_progress_to_file=False,
+    )
+    before = source.datetime_end
+    source.load_data()
+    source._update_datetime(start)
+    source.get_historical_prices(Asset("MNQ", asset_type=Asset.AssetType.CONT_FUTURE), 10, "15minute")
+    assert source.datetime_end == before
+    assert source.feed_cutoff_end is None

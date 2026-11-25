@@ -453,7 +453,32 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         self._prefetch_start_by_series: dict[Any, datetime] = {}
         self._equity_basis_snapshots: dict[str, EquityBasisSnapshot] = {}
 
+    def _end_at_feed_cutoff(self):
+        """Stop the run where the delayed feed ends, instead of failing its last decisions.
+
+        The IBKR feed is 20 minutes delayed and frozen at ``_history_as_of``. A backtest whose
+        window ends at (or near) the current minute would otherwise make its final decisions
+        after the feed cutoff, and each would be recorded as required history unavailable
+        ("asked for 1, got 0"), failing a run whose data was complete up to the cutoff.
+        """
+        router = self._router
+        if getattr(router, "feed_cutoff_end", None) is not None:
+            return
+        end = getattr(router, "datetime_end", None)
+        if end is None:
+            return
+        cutoff = ibkr_helper._to_utc(self._history_as_of) - ibkr_helper.IBKR_INTRADAY_HISTORY_DELAY
+        if ibkr_helper._to_utc(end) <= cutoff:
+            return
+        router.feed_cutoff_end = cutoff
+        router.datetime_end = cutoff.astimezone(end.tzinfo) if end.tzinfo else cutoff
+        logger.warning(
+            "Backtest end moved from %s to %s: the IBKR data feed is %s delayed, so later bars "
+            "do not exist yet.", end, router.datetime_end, ibkr_helper.IBKR_INTRADAY_HISTORY_DELAY,
+        )
+
     def _get_price_data(self, **kwargs):
+        self._end_at_feed_cutoff()
         asset = kwargs["asset"]
         stock_symbol = (str(asset.symbol).strip().upper()
                         if _normalize_asset_type(asset.asset_type) == "stock" else None)
@@ -1792,6 +1817,8 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         # The same optional exchange_id accepted by CcxtBacktestingData is
         # retained when a public asset-class map selects this routed source.
         self._ccxt_exchange_id_hint = exchange_id
+        # Set when an IBKR route moved the end to its delayed-feed cutoff (see _end_at_feed_cutoff).
+        self.feed_cutoff_end = None
         super().__init__(*args, **kwargs)
         self._registry = _ProviderRegistry(self)
         self._routing = self._normalize_routing(self._extract_routing_config(getattr(self, "_config", None)))

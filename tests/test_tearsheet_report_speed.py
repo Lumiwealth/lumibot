@@ -197,11 +197,13 @@ def test_cache_setup_failure_runs_the_report_without_the_cache(monkeypatch):
     assert qs_stats.drawdown_details is original
 
 
-def test_report_prewarm_waits_for_the_first_simulation_step(monkeypatch):
-    """Measured on a small 2 vCPU machine (4.6.98): starting the report import thread at
-    backtest start delayed the first progress by about 2.4-3 s (8.7 and 9.4 s to the
-    strategy's initialize with it, 6.4 s without), because the main thread waited on the
-    same imports. The thread must start only once the simulation is running."""
+def test_report_prewarm_starts_at_backtest_start(monkeypatch):
+    """Regression (4.6.99): the report import thread was started at the first simulation
+    step. A short backtest then reached its report while that thread was still importing
+    matplotlib, and the report saw a half-imported module ("module 'matplotlib' has no
+    attribute 'get_data_path'"): the tearsheet became a placeholder with no tearsheet CSV,
+    intermittently. Started at backtest start (as in 4.6.98), the import finishes during
+    data setup, long before any report code runs. Taking a step must not start it again."""
     from lumibot.data_sources.data_source_backtesting import DataSourceBacktesting
 
     started = []
@@ -210,7 +212,7 @@ def test_report_prewarm_waits_for_the_first_simulation_step(monkeypatch):
     monkeypatch.setattr(report_speedups, "prewarm_report_imports", lambda: started.append(1))
 
     report_speedups.request_report_prewarm()
-    assert started == []
+    assert started == [1]
 
     import types
 

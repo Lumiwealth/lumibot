@@ -3496,8 +3496,8 @@ class _Strategy:
         clear_report_prewarm_request()
         if analyze_backtest and save_tearsheet:
             # Import the report stack (QuantStats, scipy, matplotlib) in the background while
-            # the simulation runs, instead of after it. Same modules, same output. It starts at
-            # the first simulation step, not here: started here it slowed startup by ~3 s.
+            # data loads and the simulation runs, instead of after it. Same modules, same output.
+            # It must start here: started later, a short run's report raced the import (4.6.99).
             request_report_prewarm()
 
         if quote_asset is _DEFAULT_QUOTE_ASSET:

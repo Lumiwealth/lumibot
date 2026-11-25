@@ -79,16 +79,17 @@ _prewarm_requested = False
 
 
 def request_report_prewarm() -> None:
-    """Ask for the background report import once the simulation has started.
+    """Start the background report import now, at backtest start.
 
-    WHY: started at backtest start, the import thread competed with the main thread's own
-    imports and data setup. On a small 2 vCPU machine the strategy's ``initialize`` was
-    reached after 8.7-9.4 s with it and 6.4 s without it, so the customer saw the first
-    progress about 3 s later. Started at the first simulation step it still overlaps the
-    simulation and the report is identical.
+    WHY: 4.6.99 delayed this thread to the first simulation step to reach the first step
+    about 3 s sooner. A short backtest then reached its report while the thread was still
+    importing matplotlib and read a half-imported module, so the tearsheet was replaced by
+    a placeholder (intermittent). Starting here, as before 4.6.99, lets the import finish
+    during data setup. Do not move it later without making every report path wait for it.
     """
     global _prewarm_requested
-    _prewarm_requested = True
+    _prewarm_requested = False
+    prewarm_report_imports()
 
 
 def clear_report_prewarm_request() -> None:

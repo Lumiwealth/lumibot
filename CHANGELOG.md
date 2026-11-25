@@ -2,7 +2,16 @@
 
 ## 4.6.100 - Unreleased
 
-## 4.6.99 - Unreleased
+### Fixed
+
+- Backtest tearsheets are complete again on short backtests. 4.6.99 started the background
+  import of the report libraries at the first simulation step; a short run could reach its
+  report while matplotlib was still half imported, and the tearsheet became a placeholder
+  ("module 'matplotlib' has no attribute 'get_data_path'") with no tearsheet CSV. The import
+  starts at backtest start again, as in 4.6.98. The 4.6.99 "first step about 3 seconds
+  sooner" change is withdrawn.
+
+## 4.6.99 - 2026-11-25
 
 ### Fixed
 

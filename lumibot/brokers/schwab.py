@@ -521,7 +521,10 @@ class Schwab(Broker):
                 and 0 <= now - cached[0] < seconds):
             return cached[1]
         self._schwab_pace("account")
+        epoch_before = getattr(self, "_order_activity_epoch", 0)
         response = self.client.get_account(self.hash_value, fields=[self.client.Account.Fields.POSITIONS])
+        if getattr(response, "status_code", None) == 200:
+            self._note_account_read_ok(epoch_before)
         if getattr(response, "status_code", None) == 200 and seconds > 0:
             self._account_snapshot = (now, response, epoch)
         return response
@@ -539,6 +542,21 @@ class Schwab(Broker):
         self._drop_account_snapshot()
         return super()._process_trade_event(stored_order, type_event, *args, **kwargs)
 
+    def _share_request_budget_with_data_source(self) -> None:
+        """One per-minute budget for the broker and its Schwab data source.
+
+        The pacer is kept per Schwab client. A data source that brought its own client
+        would otherwise get a second full budget, and the process could send up to
+        twice its setting (live: 132.7 per minute at a setting of 100).
+        """
+        data_client = getattr(getattr(self, "data_source", None), "client", None)
+        client = getattr(self, "client", None)
+        if client is None or data_client is None or data_client is client:
+            return
+        from lumibot.brokers.schwab_request_pacer import attach_pacer, pacer_for_client
+
+        attach_pacer(data_client, pacer_for_client(client, getattr(self, "_schwab_pacing_config", None)))
+
     def _schwab_pace(self, kind: str) -> None:
         """Spend one request from the client's shared per-minute budget.
 
@@ -550,7 +568,15 @@ class Schwab(Broker):
             return
         from lumibot.brokers.schwab_request_pacer import pacer_for_client
 
-        pacer_for_client(client, getattr(self, "_schwab_pacing_config", None)).acquire(kind)
+        pacer = pacer_for_client(client, getattr(self, "_schwab_pacing_config", None))
+        # Count every request on this client (broker and data source) in the speed
+        # summary exactly once: one listener per (pacer, recorder), checked on the pacer
+        # itself, so a replaced client gets a listener and a shared one never gets two.
+        listeners = getattr(pacer, "listeners", None)
+        listener = self._speed_summary().request
+        if isinstance(listeners, list) and listener not in listeners:
+            listeners.append(listener)
+        pacer.acquire(kind)
 
     def _clear_schwab_rate_limit(self, endpoint_family: str) -> None:
         getattr(self, "_schwab_rate_limit_attempts", {}).pop(endpoint_family, None)
@@ -1798,6 +1824,7 @@ class Schwab(Broker):
             seek_start = datetime.now(timezone('UTC')) - timedelta(days=7)
 
             self._schwab_pace("order")
+            epoch_before = getattr(self, "_order_activity_epoch", 0)
             response = self.client.get_orders_for_account(
                 self.hash_value,
                 from_entered_datetime=seek_start
@@ -1812,6 +1839,8 @@ class Schwab(Broker):
 
             self._clear_schwab_rate_limit("order_history")
             schwab_orders = response.json()
+            if isinstance(schwab_orders, list):
+                self._note_orders_list_ok(epoch_before)
 
             return schwab_orders
 
@@ -2292,20 +2321,155 @@ class Schwab(Broker):
         # Both ordinary account-number and hash-only configurations are supported.
         return getattr(self, "account_number", None) or getattr(self, "hash_value", None)
 
+    # Schwab stamps good order-list and account reads (see Broker.idle_read_skip_age).
+    STAMPS_GOOD_READS = True
+    # A broker entry time may differ a little from this machine's clock.
+    reattach_clock_skew_seconds = 5.0
+
     def _orders_for_strategy_sync(self, orders, strategy):
         # The Schwab endpoint returns the whole account and parsing assigns the
         # requested display name to each row. Only known native identities (or
         # their nested broker-created children) belong in local execution state.
-        owned, unmanaged = [], []
+        owned, unmanaged, untracked = [], [], []
         for parent in orders:
             tracked_parent = self.get_tracked_order(parent.identifier, use_placeholders=True)
             if tracked_parent is None:
-                if parent.is_active():
-                    unmanaged.append(str(parent.identifier))
+                untracked.append(parent)
                 continue
             owned.append(parent)
+        for parent in self._reattach_unresolved_submits(untracked):
+            owned.append(parent)
+        unmanaged = [str(parent.identifier) for parent in untracked
+                     if parent.is_active() and not getattr(parent, "_reattached", False)]
         self._warn_unmanaged_open_orders(unmanaged)
         return owned
+
+    def _reattach_unresolved_submits(self, untracked):
+        """Re-attach a submit that got no Schwab order id but reached Schwab.
+
+        A timeout, server error or missing id leaves the local order without its
+        Schwab id while the order may be live: no cancel, no callbacks, and a retry
+        could double the position. An untracked Schwab order that matches the sent
+        order exactly (see _is_reattach_candidate: same fields, working or filled,
+        entered while the submit call ran) is re-attached to the local order, which
+        then follows Schwab as usual. The 300 s watch only keeps reads going.
+        Two or more candidates are never guessed: LumiBot warns loudly once, keeps
+        reading every pass and sends nothing.
+        """
+        pending = self.__dict__.get("_unresolved_submits") or []
+        if not pending:
+            return []
+        now = time.monotonic()
+        pending[:] = [item for item in pending if item["until"] > now]
+        attached = []
+        taken = set()
+        for item in list(pending):
+            local = item["order"]
+            # Wait until the submit error has been processed, so it cannot undo this.
+            if local.is_active() or getattr(local, "status", None) != Order.OrderStatus.ERROR:
+                continue
+            candidates = [
+                parent for parent in untracked
+                if str(parent.identifier) not in taken and self._is_reattach_candidate(local, parent, item)
+            ]
+            if not candidates:
+                continue
+            if len(candidates) > 1:
+                if not item["warned"]:
+                    item["warned"] = True
+                    logger.error(colored(
+                        f"A {local.side} {local.quantity} {local.asset.symbol} order whose submit got no Schwab "
+                        f"order id could not be matched to one Schwab order: {len(candidates)} Schwab orders "
+                        f"match ({', '.join(str(c.identifier) for c in candidates)}). LumiBot will not guess and "
+                        "will not resend it; it keeps reading the order list. Check the account and cancel any "
+                        "order that should not be there.", "red"))
+                continue
+            broker_order = candidates[0]
+            # The match must be unique both ways: if another pending lost submit also
+            # matches this Schwab order, we cannot tell which one created it.
+            rivals = [
+                other for other in pending
+                if other is not item
+                and not other["order"].is_active()
+                and getattr(other["order"], "status", None) == Order.OrderStatus.ERROR
+                and self._is_reattach_candidate(other["order"], broker_order, other)
+            ]
+            if rivals:
+                if not item["warned"]:
+                    item["warned"] = True
+                    logger.error(colored(
+                        f"Schwab order {broker_order.identifier} matches {len(rivals) + 1} local orders whose "
+                        f"submits got no Schwab order id ({local.side} {local.quantity} {local.asset.symbol}). "
+                        "LumiBot will not guess which one it belongs to and will not resend; it keeps reading "
+                        "the order list. Check the account and cancel any order that should not be there.",
+                        "red"))
+                continue
+            taken.add(str(broker_order.identifier))
+            with self._lock:
+                self._error_orders.remove(local.identifier, key="identifier")
+                previous_identifier = local.identifier
+                local.identifier = broker_order.identifier
+                local._local_order_ownership = True
+                local.status = Order.OrderStatus.SUBMITTED
+                self._unprocessed_orders.append(local)
+            broker_order._reattached = True
+            pending.remove(item)
+            logger.warning(colored(
+                f"Re-attached Schwab order {broker_order.identifier} ({local.side} {local.quantity} "
+                f"{local.asset.symbol}) to the local order {previous_identifier} whose submit got no order "
+                "id. It is tracked again: fills, cancels and callbacks work.", "yellow"))
+            self._safe_stream_dispatch(self.NEW_ORDER, order=local)
+            attached.append(broker_order)
+        if not pending:
+            self._unresolved_submit_until = 0.0
+        return attached
+
+    def _is_reattach_candidate(self, local, broker_order, item) -> bool:
+        """The same order the lost submit sent, entered while that submit call ran.
+
+        Only a Schwab order that is working or filled, of the same asset, side,
+        quantity, order type, limit price, stop price and time in force, whose entry
+        time lies between 5 s before the submit call started and 5 s after it returned
+        or failed. An order with no entry time never matches: a person's or another
+        bot's identical order placed later must never be bound and then canceled.
+        """
+        from decimal import Decimal
+
+        def same_number(a, b):
+            if a is None or b is None:
+                return a is None and b is None
+            return Decimal(str(a)) == Decimal(str(b))
+
+        try:
+            if getattr(broker_order, "child_orders", None) or getattr(local, "child_orders", None):
+                return False
+            if not (broker_order.is_active() or broker_order.is_filled()):
+                return False
+            if broker_order.asset != local.asset:
+                return False
+            if str(broker_order.side).lower() != str(local.side).lower():
+                return False
+            if not same_number(broker_order.quantity, local.quantity):
+                return False
+            if str(broker_order.order_type).lower() != str(local.order_type).lower():
+                return False
+            if not same_number(broker_order.limit_price, local.limit_price):
+                return False
+            if not same_number(broker_order.stop_price, local.stop_price):
+                return False
+            sent_duration = self._schwab_time_in_force_for_order(local) or "day"
+            if str(broker_order.time_in_force or "day").lower() != str(sent_duration).lower():
+                return False
+            entered = getattr(broker_order, "broker_create_date", None)
+            started, returned = item.get("submitted_at"), item.get("returned_at")
+            if entered is None or started is None or returned is None:
+                return False
+            if entered.tzinfo is None:
+                return False
+            skew = float(self.reattach_clock_skew_seconds)
+            return (entered - started).total_seconds() >= -skew and (entered - returned).total_seconds() <= skew
+        except Exception:
+            return False
 
     def _warn_unmanaged_open_orders(self, identifiers):
         """Name, once, open account orders this strategy will not manage."""
@@ -2361,6 +2525,16 @@ class Schwab(Broker):
             if parent is not None:
                 for child in self._iter_order_tree(children):
                     self._reduce_schwab_order_snapshot(child)
+            # Freshness label: this tracked order's state was just read from Schwab.
+            try:
+                tracked = self.get_tracked_order(observed_order.identifier, use_placeholders=True)
+            except Exception:
+                tracked = None
+            if tracked is not None:
+                import datetime as dt
+
+                tracked.status_source = "stream" if "stream" in str(source) else "rest"
+                tracked.status_checked_at = dt.datetime.now(dt.timezone.utc)
 
     def _apply_direct_order_observation(self, order_lumi, matched_order):
         # Setting terminal status first makes the reducer skip the callback and
@@ -2626,6 +2800,7 @@ class Schwab(Broker):
                 else:
                     # This case might happen if SchwabData was passed in already configured
                     logger.debug("[Schwab] Client seems already set on the SchwabData instance.")
+                self._share_request_budget_with_data_source()
             else:
                 # This case indicates a problem earlier in initialization
                 logger.error(colored("[Schwab] Cannot assign client to SchwabData source because broker client is missing.", "red"))
@@ -2669,6 +2844,10 @@ class Schwab(Broker):
             pass
         message_type = re.sub(r"[^A-Za-z0-9_.:-]", "_", str(message_type))[:64] or "unknown"
         logger.info(f"[SchwabLifecycle] account_activity_received type={message_type}")
+        # Any account activity (ours or an order placed elsewhere) ends an idle read skip
+        # and the reuse of the last account read.
+        self._note_order_activity()
+        self._drop_account_snapshot()
         wakeup = getattr(self, "_schwab_activity_wakeup", None)
         if wakeup is not None:
             wakeup.set()
@@ -2879,6 +3058,10 @@ class Schwab(Broker):
         """
         # An order changes cash and positions: the next account read must be fresh.
         self._drop_account_snapshot()
+        # Until place_order is called nothing reached Schwab: a refusal here is clean.
+        # After it, only a 4xx answer proves Schwab did not take the order; a timeout,
+        # 5xx or missing order id leaves the submit unresolved (see Broker.submit_order).
+        order._submit_cleanly_refused = True
         # Add check for authorization error first
         if self.schwab_authorization_error:
             logger.error(colored(f"Schwab authorization failed previously. Cannot submit order {order}.", "red"))
@@ -2949,7 +3132,10 @@ class Schwab(Broker):
 
             # Submit the order to Schwab
             self._schwab_pace("order")
+            order._submit_cleanly_refused = False
             response = self.client.place_order(self.hash_value, order_spec)
+            if 400 <= int(getattr(response, "status_code", 0) or 0) < 500:
+                order._submit_cleanly_refused = True
 
             # Log the response - reduce verbosity
             logger.info(colored(f"Schwab order response status: {response.status_code}", "cyan"))
@@ -3868,6 +4054,8 @@ class Schwab(Broker):
         -------
         None
         """
+        self._fresh_read_before_order_action(getattr(order, "strategy", None))
+        self._note_order_activity()
         self._drop_account_snapshot()
         if not order.identifier:
             logger.error(

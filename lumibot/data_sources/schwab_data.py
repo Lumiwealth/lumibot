@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import copy
+import math
 import os
+import threading
 import time
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, LazyPytzTimezoneRef, lazy_class
@@ -199,7 +202,75 @@ class SchwabData(DataSource):
         self.client = client
         logger.info(colored("Schwab client set for data source", "green"))
 
+    # ----- live option chain cache -------------------------------------------
     def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None, strike_count: int = 100) -> dict:
+        """Option chain (expirations and strikes) for ``asset``, kept for a while.
+
+        Expirations and strikes change about once a day, so a chain is fetched once
+        per underlying per ``LUMIBOT_CHAINS_CACHE_SECONDS`` (default 900; 0 fetches
+        every call). Every call gets its own copy, so a strategy that edits the
+        returned chain never changes the kept one. When a kept chain is handed out
+        after 4:00 PM New York time, today's expiration (and any earlier one) is
+        removed from the copy. Prices are never kept here; read them with quotes.
+        """
+        ttl = self._env_seconds("LUMIBOT_CHAINS_CACHE_SECONDS", 900.0)
+        if ttl <= 0:
+            return self._get_chains_uncached(asset, quote=quote, exchange=exchange, strike_count=strike_count)
+        key = (getattr(asset, "symbol", str(asset)), str(getattr(asset, "asset_type", "")), strike_count)
+        lock, _, _ = self._quote_state()
+        cache = self.__dict__.setdefault("_chains_cache", {})
+        now = self._cache_clock()
+        with lock:
+            hit = cache.get(key)
+        if hit is not None and 0 <= now - hit[0] < ttl:
+            logger.debug(f"[ChainCache] {key[0]} served, {now - hit[0]:.0f} s old (keep {ttl:.0f} s)")
+            return self._chain_copy(hit[1], drop_ended=True)
+        chains = self._get_chains_uncached(asset, quote=quote, exchange=exchange, strike_count=strike_count)
+        if chains:
+            with lock:
+                cache[key] = (now, chains)
+            return self._chain_copy(chains, drop_ended=False)
+        return chains
+
+    def _new_york_now(self):
+        clock = getattr(self, "_new_york_clock", None)
+        if callable(clock):
+            return clock()
+        return datetime.datetime.now(_default_pytz())
+
+    def _chain_copy(self, chains, drop_ended: bool):
+        """A copy whose expiration and strike lists can be edited without touching the kept chain."""
+        data = dict(chains)
+        nested = data.get("Chains")
+        if isinstance(nested, dict):
+            data["Chains"] = {
+                right: ({expiry: list(strikes) for expiry, strikes in expirations.items()}
+                        if isinstance(expirations, dict) else copy.copy(expirations))
+                for right, expirations in nested.items()
+            }
+        if drop_ended:
+            try:
+                now_ny = self._new_york_now()
+                today = now_ny.date().isoformat()
+                after_close = (now_ny.hour, now_ny.minute) >= (16, 0)
+                for right in ("CALL", "PUT"):
+                    expirations = (data.get("Chains") or {}).get(right)
+                    if not isinstance(expirations, dict):
+                        continue
+                    for expiry in list(expirations):
+                        day = str(expiry)[:10]
+                        if day < today or (after_close and day == today):
+                            expirations.pop(expiry, None)
+            except Exception as exc:
+                logger.debug(f"[ChainCache] could not drop ended expirations: {exc}")
+        if type(chains) is dict:
+            return data
+        try:
+            return type(chains)(data)
+        except Exception:
+            return data
+
+    def _get_chains_uncached(self, asset: Asset, quote: Asset = None, exchange: str = None, strike_count: int = 100) -> dict:
         """
         Obtains option chain information for the asset (stock) from each
         of the exchanges the options trade on and returns a dictionary
@@ -810,7 +881,144 @@ class SchwabData(DataSource):
         if status == 200:
             pacer.clear_cooldown("market_data")
 
+    # ----- live quote cache and prefetch -------------------------------------
+    # A strategy that asks for the same quotes every iteration pays one request per
+    # iteration instead of one per symbol: at the start of each live iteration the
+    # executor calls prefetch_quotes(), which fetches every asset asked for in the last
+    # LUMIBOT_QUOTE_PREFETCH_ITERATIONS iterations (default 2; never older than 300 s)
+    # in as few requests as possible (LUMIBOT_QUOTE_PREFETCH_BATCH symbols each,
+    # default 250). get_quote(s) then serve a quote only while it is younger than
+    # LUMIBOT_QUOTE_MAX_AGE seconds (default 1.0; 0 turns cache and prefetch off) and
+    # set quote.cache_age_seconds. An absent quote (None) is never kept; assets Schwab
+    # cannot quote (crypto) never enter the prefetch list.
+    _PREFETCH_LIMIT = 1000
+    _PREFETCH_WINDOW_SECONDS = 300.0
+
+    @staticmethod
+    def _env_seconds(name, default):
+        raw = os.environ.get(name)
+        if raw is None or not str(raw).strip():
+            return float(default)
+        try:
+            value = float(raw)
+        except ValueError:
+            return float(default)
+        return value if value > 0 and math.isfinite(value) else 0.0
+
+    def _cache_clock(self) -> float:
+        return time.monotonic()
+
+    def _quote_state(self):
+        state = self.__dict__.get("_quote_cache_state")
+        if state is None:
+            state = self.__dict__.setdefault(
+                "_quote_cache_state", (threading.Lock(), {}, {"wanted": {}, "iteration": 0, "stats": None})
+            )
+        return state
+
+    def _note_quote_stats(self, served_ages, fetched):
+        lock, _, meta = self._quote_state()
+        now = self._cache_clock()
+        line = None
+        with lock:
+            stats = meta["stats"]
+            if stats is None:
+                stats = meta["stats"] = {"since": now, "served": 0, "fetched": 0, "oldest": 0.0}
+            stats["served"] += len(served_ages)
+            stats["fetched"] += fetched
+            if served_ages:
+                stats["oldest"] = max(stats["oldest"], max(served_ages))
+            if now - stats["since"] >= 60 and (stats["served"] or stats["fetched"]):
+                line = (
+                    f"[QuoteCache] last {now - stats['since']:.0f} s: {stats['served']} quotes served from memory "
+                    f"(oldest {stats['oldest']:.2f} s, limit {self._env_seconds('LUMIBOT_QUOTE_MAX_AGE', 1.0):.2f} s), "
+                    f"{stats['fetched']} fetched"
+                )
+                meta["stats"] = None
+        if line:
+            logger.info(line)
+
+    def prefetch_quotes(self) -> int:
+        """Fetch recently asked-for quotes together; returns the number of requests sent."""
+        if self._env_seconds("LUMIBOT_QUOTE_MAX_AGE", 1.0) <= 0 or self.client is None:
+            return 0
+        keep = max(1, int(self._env_seconds("LUMIBOT_QUOTE_PREFETCH_ITERATIONS", 2.0) or 1))
+        lock, _, meta = self._quote_state()
+        now = self._cache_clock()
+        with lock:
+            meta["iteration"] += 1
+            iteration = meta["iteration"]
+            wanted = meta["wanted"]
+            for asset, (asked_at, asked_iteration) in list(wanted.items()):
+                if now - asked_at > self._PREFETCH_WINDOW_SECONDS or iteration - asked_iteration > keep:
+                    wanted.pop(asset, None)
+            assets = list(wanted)[: self._PREFETCH_LIMIT]
+        if not assets:
+            return 0
+        size = min(500, max(1, int(self._env_seconds("LUMIBOT_QUOTE_PREFETCH_BATCH", 250.0) or 250)))
+        batches = [assets[i:i + size] for i in range(0, len(assets), size)]
+        workers = min(len(batches), max(1, int(self._env_seconds("LUMIBOT_QUOTE_PREFETCH_WORKERS", 2.0) or 1)))
+
+        def fetch(batch):
+            try:
+                self._fetch_quotes_uncached(batch, batch_size=size)
+                return True
+            except Exception as exc:
+                # Never retried here: the strategy's own get_quote asks again and keeps
+                # its normal error contract. Drop the batch so a bad symbol cannot
+                # fail every iteration's prefetch.
+                with lock:
+                    for asset in batch:
+                        wanted.pop(asset, None)
+                logger.warning(f"[QuoteCache] prefetch of {len(batch)} quotes failed: {exc}")
+                return False
+
+        if workers > 1:
+            from concurrent.futures import ThreadPoolExecutor
+
+            with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="schwab-quote-prefetch") as executor:
+                list(executor.map(fetch, batches))
+        else:
+            for batch in batches:
+                fetch(batch)
+        return len(batches)
+
     def get_quotes(self, assets, quote=None, exchange=None):
+        """Quotes for many assets; live, served from memory while younger than LUMIBOT_QUOTE_MAX_AGE.
+
+        See the quote cache notes above. Missing quotes are fetched in batches.
+        """
+        assets = list(dict.fromkeys(assets))
+        if not assets:
+            return {}
+        for asset in assets:
+            if not _schwab_market_symbol(asset):
+                raise ValueError("Schwab does not support the requested quote asset")
+        max_age = self._env_seconds("LUMIBOT_QUOTE_MAX_AGE", 1.0)
+        if max_age <= 0:
+            return self._fetch_quotes_uncached(assets)
+        lock, cache, meta = self._quote_state()
+        now = self._cache_clock()
+        result, missing, ages = {}, [], []
+        with lock:
+            for asset in assets:
+                meta["wanted"][asset] = (now, meta["iteration"])
+                hit = cache.get(asset)
+                if hit is not None and hit[1] is not None and 0 <= now - hit[0] <= max_age:
+                    try:
+                        hit[1].cache_age_seconds = now - hit[0]
+                    except Exception:
+                        pass
+                    result[asset] = hit[1]
+                    ages.append(now - hit[0])
+                else:
+                    missing.append(asset)
+        if missing:
+            result.update(self._fetch_quotes_uncached(missing))
+        self._note_quote_stats(ages, len(missing))
+        return {asset: result.get(asset) for asset in assets}
+
+    def _fetch_quotes_uncached(self, assets, quote=None, exchange=None, batch_size=50):
         """Fetch exact stock/option/future contracts in batches of at most 50.
 
         Return every requested Asset mapped to a Quote or None when its symbol
@@ -830,13 +1038,17 @@ class SchwabData(DataSource):
         if self.client is None:
             raise ConnectionError("No Schwab client available for quotes")
         result = {}
-        for offset in range(0, len(assets), 50):
-            batch = assets[offset:offset + 50]
+        # Each batch's quotes are as old as that batch's response, not the last one's:
+        # a slow later batch must not make earlier quotes look newly fetched.
+        observed_at = {}
+        for offset in range(0, len(assets), batch_size):
+            batch = assets[offset:offset + batch_size]
             # Schwab may have asked us to wait (HTTP 429 + Retry-After). Fail
             # visibly without another request; never invent or reuse a quote.
             self._before_market_data_request("quote")
             response = self.client.get_quotes([symbols[asset] for asset in batch])
             self._after_market_data_response(response, "quote")
+            batch_stamp = self._cache_clock()
             status = getattr(response, "status_code", None)
             if status != 200:
                 raise ConnectionError(f"Schwab quote request failed (status {status})")
@@ -861,6 +1073,21 @@ class SchwabData(DataSource):
                 if reported is not None and str(reported).upper() != symbol.upper():
                     raise ValueError("Schwab quote contract does not match the requested asset")
                 result[asset] = self._quote_from_response(asset, matches[0], data)
+                observed_at[asset] = batch_stamp
+        if self._env_seconds("LUMIBOT_QUOTE_MAX_AGE", 1.0) > 0:
+            lock, cache, _ = self._quote_state()
+            now = self._cache_clock()
+            with lock:
+                for asset, value in result.items():
+                    if value is None:
+                        cache.pop(asset, None)
+                        continue
+                    stamp = observed_at.get(asset, now)
+                    try:
+                        value.cache_age_seconds = max(0.0, now - stamp)
+                    except Exception:
+                        pass
+                    cache[asset] = (stamp, value)
         return result
 
     def get_last_prices(self, assets, quote=None, exchange=None):

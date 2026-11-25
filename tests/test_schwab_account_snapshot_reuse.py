@@ -121,3 +121,56 @@ def test_a_fill_or_order_event_drops_the_snapshot(monkeypatch):
 
 # Order lists are NOT reused: an explicit order refresh must always read Schwab, or a
 # fill that lands while a cancel is pending is missed (lifecycle transport test).
+
+
+class _Clock:
+    def __init__(self):
+        self.now = 5_000.0
+
+    def __call__(self):
+        return self.now
+
+
+def _pass_broker(monkeypatch):
+    import lumibot.brokers.schwab as schwab_module
+
+    clock = _Clock()
+    monkeypatch.setattr(schwab_module.time, "monotonic", clock)
+    broker = _broker(monkeypatch)
+    return broker, clock
+
+
+def test_a_manual_sale_mid_pass_is_seen_by_a_later_read_in_the_same_pass(monkeypatch):
+    """Stream down; a sale by hand at second 5 of a 20-second pass. The first order at
+    second 20 must be sized from fresh positions and cash, not the read from second 0."""
+    broker, clock = _pass_broker(monkeypatch)
+    broker._live_pass_id = 1  # inside one trading pass
+    broker._pull_positions(_strategy())
+    clock.now += 5
+    broker.client.cash = 9_000.0  # sold by hand: more cash
+    clock.now += 15
+    cash = broker._get_balances_at_broker(Asset("USD", asset_type="forex"), _strategy())[0]
+    assert cash == 9_000.0 and broker.client.calls == 2
+
+
+def test_max_age_zero_never_answers_from_a_reused_account_read(monkeypatch):
+    from lumibot.strategies.strategy import Strategy
+
+    broker, _clock = _pass_broker(monkeypatch)
+    broker._pull_positions(_strategy())  # a read the 1 s reuse would hand out again
+    broker.client.cash = 7_000.0
+    refreshed = []
+    fake = _strategy()
+    fake.broker = broker
+    broker.IS_BACKTESTING_BROKER = False
+    broker.refresh_positions = lambda strategy, ttl_seconds=0.0: refreshed.append(broker._pull_positions(strategy))
+    Strategy._refresh_live_positions(fake, max_age=0)
+    assert refreshed and broker.client.calls == 2
+
+
+def test_an_account_stream_event_drops_the_reused_account_read(monkeypatch):
+    broker, _clock = _pass_broker(monkeypatch)
+    broker._pull_positions(_strategy())
+    broker._handle_schwab_account_activity({"content": [{"MESSAGE_TYPE": "OrderFill"}]})
+    broker._pull_positions(_strategy())
+    assert broker.client.calls == 2

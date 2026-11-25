@@ -427,6 +427,18 @@ class ThetaDataBacktestingPandas(PandasData):
                 series = frame.get(col)
                 if series is None:
                     continue
+                # PERF: portfolio valuation asks this for every held asset several times per
+                # simulated day; the to_numeric/notna pair cost about 0.06 ms per column. A
+                # numeric column answers from its last value directly: to_numeric is the
+                # identity there, so the answer is the same.
+                kind = getattr(getattr(series, "dtype", None), "kind", None)
+                if kind in ("f", "c") and len(series):
+                    last = series.to_numpy(copy=False)[-1]
+                    if last == last:  # not NaN
+                        return True
+                    continue
+                if kind in ("i", "u", "b") and len(series):
+                    return True
                 if pd.to_numeric(series.iloc[-1:], errors="coerce").notna().any():
                     return True
             for col in required:
@@ -3208,14 +3220,12 @@ class ThetaDataBacktestingPandas(PandasData):
         try:
             snapshot = data.get_price_snapshot(dt)
             if isinstance(snapshot, dict):
-                snapshot = dict(snapshot)
-                for price_key in ("open", "high", "low", "close", "bid", "ask"):
-                    if price_key in snapshot:
-                        snapshot[price_key] = self._adjust_stale_daily_price_for_stock_split(
-                            data,
-                            snapshot.get(price_key),
-                            dt,
-                        )
+                snapshot = self._adjust_stale_daily_prices_for_stock_split(
+                    data,
+                    dict(snapshot),
+                    ("open", "high", "low", "close", "bid", "ask"),
+                    dt,
+                )
             logger.debug(
                 "[THETA][DEBUG][THETADATA-PANDAS] get_price_snapshot succeeded for %s/%s: %s",
                 asset,

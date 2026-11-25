@@ -69,6 +69,13 @@ This page documents environment variables used by LumiBot, with an emphasis on *
   - Direct smoke helper: `scripts/polymarket_smoke.py`. LumiBot smoke helper: `scripts/polymarket_lumibot_smoke.py`. They load `.env.local`, redact output, and only submit live orders when `POLYMARKET_LIVE_TRADING_ENABLED=true` plus notional caps are present.
   - Never commit or log raw Polymarket private keys or CLOB credentials.
 
+### Live speed settings (Schwab)
+- `LUMIBOT_SPEED_SUMMARY_SECONDS` (60, 0 off): `[SpeedSummary]` log interval, `lumibot/tools/speed_summary.py`.
+- `LUMIBOT_IDLE_SYNC_MAX_AGE` (30, 0 off): oldest order-list/account read that may be reused while nothing can change. Rules in `Broker.idle_read_skip_age` (broker.py).
+- `LUMIBOT_QUOTE_MAX_AGE` (1.0, 0 off), `LUMIBOT_QUOTE_PREFETCH_ITERATIONS` (2), `LUMIBOT_QUOTE_PREFETCH_BATCH` (250, max 500), `LUMIBOT_QUOTE_PREFETCH_WORKERS` (2): Schwab quote cache and per-iteration prefetch, `SchwabData.prefetch_quotes`.
+- `LUMIBOT_CHAINS_CACHE_SECONDS` (900, 0 off): Schwab option chain cache, `SchwabData.get_chains`.
+- `SCHWAB_REQUEST_BURST_SECONDS` (6): pacer burst; the per-minute setting holds over any 60 s.
+
 ### `LUMIBOT_DISABLE_DOTENV`
 - Purpose: Disable automatic `.env` discovery and loading at startup.
 - Values: truthy enables (`1`, `true`, `yes`); unset/`0` disables.
@@ -78,6 +85,18 @@ This page documents environment variables used by LumiBot, with an emphasis on *
   - LumiBot no longer recursively scans every nested directory under the start path. This reduces startup latency and lowers the chance of loading an unrelated nested repo's `.env`.
   - In production/BotManager backtests we rely on injected environment variables, so `.env` discovery should be off with `LUMIBOT_DISABLE_DOTENV=1`.
 - Where: `lumibot/credentials.py`
+
+### `LUMIBOT_PREFETCH_RISK_FREE_RATE`
+- Purpose: start the `^IRX` download (YahooHelper path, same pickle and remote cache) in a daemon thread at `run_backtest` start when no explicit `risk_free_rate` is given; `indicators.get_risk_free_rate` joins it first. Cold fetch is 7-10 s, of which 6 s are the two deliberate 2-5 s Yahoo rate-limit sleeps.
+- Values: `0`/`false`/`no`/`off` disable; default on.
+- Measured (Mac, 10-year daily, Yahoo cache without ^IRX, load 66-230): `_dump_stats` 8.5-10.9 s off, 2.7-4.7 s on; whole backtest call 16.4-20.0 s off, 10.8-12.3 s on; outputs identical.
+- Where: `lumibot/tools/report_speedups.py`. Tests: `tests/test_risk_free_rate_prefetch.py`.
+
+### `LUMIBOT_PREWARM_REPORT_IMPORTS` / `LUMIBOT_REPORT_DRAWDOWN_CACHE`
+- Purpose: end-of-backtest report speed with identical numbers. Prewarm imports the report stack (QuantStats, scipy.stats, matplotlib) in a daemon thread at `run_backtest` start; the cache memoizes `quantstats_lumi.stats.drawdown_details` and `quantstats_lumi.utils.aggregate_returns` (when a period is given) per exact input for one `create_tearsheet` call and returns copies.
+- Values: `0`/`false`/`no`/`off` disable; default on.
+- Measured (Mac, 10-year daily backtest, load about 18): report phase 3.6 to 3.9 s before, 1.8 to 2.3 s after (load 30 to 40); tearsheet HTML (minus SVG timestamps/ids), tearsheet CSV, metrics JSON and stats.csv byte-identical.
+- Where: `lumibot/tools/report_speedups.py`, `lumibot/tools/indicators.py::create_tearsheet`, `lumibot/strategies/_strategy.py::run_backtest`. Tests: `tests/test_tearsheet_report_speed.py`.
 
 ### `LUMIBOT_DISABLE_DOTENV_LOCAL`
 - Purpose: Disable sibling `.env.local` loading after a discovered `.env`.

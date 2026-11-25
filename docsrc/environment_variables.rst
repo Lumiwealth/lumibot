@@ -42,6 +42,30 @@ LUMIBOT_DISABLE_DOTENV
   - LumiBot no longer recursively scans every nested directory under the start path. This reduces startup latency and lowers the chance of loading an unrelated nested repo's ``.env`` file.
   - In production/BotManager/BotSpot runs, prefer injected environment variables and set ``LUMIBOT_DISABLE_DOTENV=1`` so local files cannot override runtime secrets.
 
+LUMIBOT_PREWARM_REPORT_IMPORTS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: When a backtest that writes a tearsheet starts, import the report libraries (QuantStats, scipy, matplotlib) in a background thread so the end-of-run report does not wait for them.
+- Values: ``0``, ``false``, ``no`` or ``off`` turn it off; anything else (or unset) keeps it on.
+- Default: on.
+- Notes: The same modules are imported either way, so report numbers are unchanged.
+
+LUMIBOT_PREFETCH_RISK_FREE_RATE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: When a backtest without an explicit ``risk_free_rate`` starts, download the 13-week Treasury rate series (``^IRX``) it will need for its statistics in a background thread, instead of after the simulation ends.
+- Values: ``0``, ``false``, ``no`` or ``off`` turn it off; anything else (or unset) keeps it on.
+- Default: on.
+- Notes: The rate lookup waits for that download and then reads the cached series exactly as before, so the value is the same.
+
+LUMIBOT_REPORT_DRAWDOWN_CACHE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: While one tearsheet is built, compute each QuantStats drawdown table and period aggregation once per distinct input instead of once per request (13 and 30 requests per report before).
+- Values: ``0``, ``false``, ``no`` or ``off`` turn it off; anything else (or unset) keeps it on.
+- Default: on.
+- Notes: The cache key is the exact series (dates, values, type, name) and every caller gets its own copy, so report numbers are unchanged. The cache lives only for one report.
+
 LUMIBOT_DISABLE_DOTENV_LOCAL
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -210,6 +234,22 @@ Live scheduled execution (BotSpot/BotManager)
 - ``LUMIBOT_SCHEDULED_TIMING_FILE``: local JSON timing file written by LumiBot for BotManager bootstrap telemetry.
 - ``LUMIBOT_SCHEDULED_STATE_BACKEND``: external state backend prepared by BotManager: ``s3``, ``dynamodb``, or ``none``. ``none`` disables scheduled ``self.vars`` file load/save.
 - ``LUMIBOT_SCHEDULED_STATE_FILE``: local JSON file managed by BotManager/bootstrap code to restore and persist ``self.vars`` for one scheduled live run. State is restored before scheduled lifecycle hooks.
+
+Live speed summary
+------------------
+
+- ``LUMIBOT_SPEED_SUMMARY_SECONDS``: how often a live strategy logs one ``[SpeedSummary]`` line (default ``60``; ``0`` turns it off). The line is JSON with iterations (count and seconds per iteration: median, 95th percentile, max), broker requests per minute by kind with seconds spent waiting for the request budget (Schwab), and order timings in milliseconds: submit to broker answer, submit to fill seen, fill seen to the fill callback, callback running time, and fill seen to the next order submitted. Backtests never log it. See :doc:`brokers.schwab`.
+
+Schwab live request savings
+---------------------------
+
+- ``LUMIBOT_IDLE_SYNC_MAX_AGE``: oldest order-list and account read (seconds) that may be reused while nothing can change at the broker (default ``30``; ``0`` always reads). The safety rules are in :doc:`brokers.schwab`.
+- ``LUMIBOT_QUOTE_MAX_AGE``: seconds a live Schwab quote is served from memory (default ``1``; ``0`` turns the quote cache and prefetch off).
+- ``LUMIBOT_QUOTE_PREFETCH_ITERATIONS``: quotes asked for in this many recent iterations are fetched together at the start of each iteration (default ``2``).
+- ``LUMIBOT_QUOTE_PREFETCH_BATCH``: symbols per prefetch request (default ``250``, at most ``500``).
+- ``LUMIBOT_QUOTE_PREFETCH_WORKERS``: prefetch requests sent at the same time when there is more than one (default ``2``; all inside the request budget).
+- ``LUMIBOT_CHAINS_CACHE_SECONDS``: seconds a live Schwab option chain is kept (default ``900``; ``0`` fetches every call).
+- ``SCHWAB_REQUEST_BURST_SECONDS``: how many seconds worth of requests may go out at once (default ``6``). The per-minute setting holds over any 60 seconds.
 
 BotSpot managed research
 ------------------------
@@ -844,7 +884,7 @@ IBKR_HISTORY_SOURCE
 
 - Purpose: Select which IBKR Client Portal history source to use for OHLC bars in IBKR REST backtests.
 - Values: ``Trades`` / ``Midpoint`` / ``Bid_Ask`` (case-insensitive; hyphen/underscore variants accepted).
-- Default: ``Trades``.
+- Default: ``Trades`` for stocks and futures; ``Midpoint`` for indexes, listed options and forex/spot metals (for example ``XAU/USD``), because IBKR publishes no reliable trade bars for those. Setting this variable applies to options and forex too; indexes always use ``Midpoint``.
 
 IBKR_FUTURES_EXCHANGE
 ^^^^^^^^^^^^^^^^^^^^^

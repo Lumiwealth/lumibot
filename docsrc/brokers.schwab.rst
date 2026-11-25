@@ -336,6 +336,16 @@ quantity, multiplier)`` receives the newly observed fill delta in ``quantity``;
 it is not cumulative across callbacks. A later ``on_filled_order`` receives the
 remaining fill delta and must share the same idempotency state.
 
+Schwab keeps a partly executed order ``WORKING`` and reports its executions
+beside it. LumiBot shows such an order as partially filled while it is still
+open: ``order.status`` is ``partial_fill``, ``order.filled_quantity`` is the
+quantity executed so far, ``order.get_fill_price()`` is the average price so
+far, and ``on_partially_filled_order`` runs once for each new executed amount
+with that amount's own price. Seeing the same execution again (a stream wake,
+then a REST read) runs nothing. ``on_filled_order`` runs exactly once, with the
+last remaining amount, when Schwab reports ``FILLED``. A hedge sized from the
+fill can therefore follow each partial fill instead of waiting for the end.
+
 LumiBot uses Schwab account-activity WebSocket messages to wake exact reads of
 locally tracked active orders. REST snapshots and stream-triggered observations
 feed one serialized transition reducer, including after login or reconnect. A
@@ -439,6 +449,13 @@ request and 0.3 seconds after; 20 symbols: 3 requests and 2.2 seconds per pass.
   match, LumiBot does not guess: it logs an error naming both, keeps reading and
   sends nothing. LumiBot never resends a submit by itself; a strategy that
   retries after an error should first check ``get_orders(max_age=0)``.
+* **An error on submit does not always mean no order.** When Schwab accepts a
+  submit but returns no order id, or the reply times out, LumiBot reports the
+  order as an error (``on_error_order``), but the order may still be live at
+  Schwab. LumiBot re-attaches it if exactly one matching Schwab order appears
+  within the 5 minute watch window above. Do not resubmit from
+  ``on_error_order`` without first checking ``get_orders(max_age=0)``, or you
+  can end up with two live orders.
 
 .. code-block:: python
 
@@ -477,8 +494,10 @@ Faster reaction to fills
   waiting out ``sleeptime``. It is off by default because a strategy that places an
   order in every iteration (a daily or DCA strategy) would place it again. Partial
   fills wake only with ``wake_iteration_on_partial_fill = True``. A running
-  iteration is never interrupted, so time-critical orders such as a hedge are best
-  sent from ``on_filled_order`` itself.
+  iteration is never interrupted, and a fill that arrives while an iteration is
+  running does not wake the next one: that iteration starts after ``sleeptime`` as
+  usual. Time-critical orders such as a hedge are best sent from
+  ``on_filled_order`` (or ``on_partially_filled_order``) itself.
 * **Filled orders are final.** ``get_order(id)`` and ``get_orders(identifiers=[...])``
   return an order that is already completely filled without asking Schwab again.
   Canceled and rejected orders are still refreshed, because a late fill can arrive.

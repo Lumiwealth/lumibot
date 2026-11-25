@@ -2620,6 +2620,9 @@ class Broker(ABC):
     def _process_partially_filled_order(self, order, price, quantity):
         with self._lock:
             self._new_orders.remove(order.identifier, key="identifier")
+            # Like a full fill, a partial fill moves the order out of every
+            # earlier bucket; one left in "unprocessed" is listed twice as active.
+            self._unprocessed_orders.remove(order.identifier, key="identifier")
             order.add_transaction(price, quantity)
             order.status = self.PARTIALLY_FILLED_ORDER
             order.set_partially_filled()
@@ -2828,7 +2831,30 @@ class Broker(ABC):
         dt_now_utc = datetime.now(timezone.utc)
 
         date = date if date is not None else dt_now_utc
-        trading_hours = mkt_cal.schedule(start_date=date, end_date=date + pd.DateOffset(weeks=1)).head(2)
+        # The live executor asks for the open/close every second. A calendar's schedule
+        # depends only on the calendar day of `start_date` (pandas_market_calendars strips
+        # time and timezone in `clean_dates`), so the two-row result is reused for the same
+        # market and day instead of rebuilding a one-week schedule each call. On an idle
+        # bot that rebuild was most of the CPU it used between iterations.
+        try:
+            cache_day = pd.Timestamp(date).tz_localize(None).normalize()
+        except Exception:
+            cache_day = None
+        cache = getattr(self, "_market_hours_schedule_cache", None)
+        if cache is None:
+            cache = {}
+            try:
+                self._market_hours_schedule_cache = cache
+            except Exception:
+                pass
+        cache_key = (market, cache_day)
+        trading_hours = cache.get(cache_key) if cache_day is not None else None
+        if trading_hours is None:
+            trading_hours = mkt_cal.schedule(start_date=date, end_date=date + pd.DateOffset(weeks=1)).head(2)
+            if cache_day is not None:
+                if len(cache) >= 16:
+                    cache.clear()
+                cache[cache_key] = trading_hours
 
         row = 0 if not next else 1
         th = trading_hours.iloc[row, :]
@@ -2922,19 +2948,36 @@ class Broker(ABC):
         try:
             now_utc = now_utc or datetime.now(timezone.utc)
             now_utc = now_utc.replace(tzinfo=timezone.utc) if now_utc.tzinfo is None else now_utc.astimezone(timezone.utc)
-            rows = trading_days
-            if "market_close" not in getattr(rows, "columns", ()):
-                rows = rows.reset_index()
-            for row in rows.itertuples(index=False):
-                market_open = getattr(row, "market_open", None)
-                market_close = getattr(row, "market_close", None)
-                if market_open is None or market_close is None:
-                    continue
-                market_open = pd.Timestamp(market_open)
-                market_close = pd.Timestamp(market_close)
-                market_open = market_open.tz_localize("UTC") if market_open.tzinfo is None else market_open.tz_convert("UTC")
-                market_close = market_close.tz_localize("UTC") if market_close.tzinfo is None else market_close.tz_convert("UTC")
-                market_close = market_close + timedelta(minutes=self.extended_trading_minutes)
+            # Converting every row to UTC sessions is pandas-heavy and the live loop calls
+            # this every second. The converted (open, close) list only changes when a new
+            # calendar is initialized or the extended minutes change, so it is built once
+            # per (frame, extended minutes) and only the cheap comparison runs per call.
+            extended_minutes = self.extended_trading_minutes
+            cached = getattr(self, "_session_bounds_cache", None)
+            if cached is not None and cached[0] is trading_days and cached[1] == extended_minutes:
+                sessions = cached[2]
+            else:
+                sessions = []
+                rows = trading_days
+                if "market_close" not in getattr(rows, "columns", ()):
+                    rows = rows.reset_index()
+                for row in rows.itertuples(index=False):
+                    market_open = getattr(row, "market_open", None)
+                    market_close = getattr(row, "market_close", None)
+                    if market_open is None or market_close is None:
+                        continue
+                    market_open = pd.Timestamp(market_open)
+                    market_close = pd.Timestamp(market_close)
+                    market_open = market_open.tz_localize("UTC") if market_open.tzinfo is None else market_open.tz_convert("UTC")
+                    market_close = market_close.tz_localize("UTC") if market_close.tzinfo is None else market_close.tz_convert("UTC")
+                    market_close = market_close + timedelta(minutes=extended_minutes)
+                    sessions.append((market_open, market_close))
+                try:
+                    # Keep a reference to the frame itself so identity cannot be reused.
+                    self._session_bounds_cache = (trading_days, extended_minutes, sessions)
+                except Exception:
+                    pass
+            for market_open, market_close in sessions:
                 if market_open <= now_utc <= market_close:
                     return market_close
         except Exception:

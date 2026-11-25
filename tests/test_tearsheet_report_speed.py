@@ -17,6 +17,7 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from lumibot.tools import report_speedups
 from lumibot.tools.indicators import create_tearsheet
@@ -194,3 +195,62 @@ def test_cache_setup_failure_runs_the_report_without_the_cache(monkeypatch):
         ran.append(True)
     assert ran == [True]
     assert qs_stats.drawdown_details is original
+
+
+def test_report_prewarm_waits_for_the_first_simulation_step(monkeypatch):
+    """Measured on a small 2 vCPU machine (4.6.98): starting the report import thread at
+    backtest start delayed the first progress by about 2.4-3 s (8.7 and 9.4 s to the
+    strategy's initialize with it, 6.4 s without), because the main thread waited on the
+    same imports. The thread must start only once the simulation is running."""
+    from lumibot.data_sources.data_source_backtesting import DataSourceBacktesting
+
+    started = []
+    monkeypatch.setattr(report_speedups, "_prewarm_thread", None)
+    monkeypatch.setattr(report_speedups, "_prewarm_requested", False, raising=False)
+    monkeypatch.setattr(report_speedups, "prewarm_report_imports", lambda: started.append(1))
+
+    report_speedups.request_report_prewarm()
+    assert started == []
+
+    import types
+
+    source = types.SimpleNamespace(
+        _datetime=datetime(2026, 1, 5, 9, 30),
+        _show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+        record_runtime_milestone=lambda *args, **kwargs: None,
+    )
+    DataSourceBacktesting._update_datetime(source, datetime(2026, 1, 5, 9, 31))
+    DataSourceBacktesting._update_datetime(source, datetime(2026, 1, 5, 9, 32))
+    assert started == [1]
+
+
+def test_backtest_without_a_tearsheet_drops_an_earlier_unused_prewarm_request(monkeypatch):
+    """Bug: a backtest that asked for the report prewarm and never took a simulation step
+    left the request set, so the next backtest in the same process (without a tearsheet)
+    started the report import thread anyway. Each backtest starts with a fresh request."""
+    import lumibot.strategies._strategy as strategy_module
+    from lumibot.strategies.strategy import Strategy
+
+    monkeypatch.setattr(report_speedups, "_prewarm_requested", True, raising=False)
+
+    class StopAfterPrewarmDecision(Exception):
+        pass
+
+    def stop(*_args, **_kwargs):
+        raise StopAfterPrewarmDecision()
+
+    # The quote asset is built right after the prewarm decision; stop the run there.
+    monkeypatch.setattr(strategy_module, "Asset", stop)
+
+    class NoopStrategy(Strategy):
+        def on_trading_iteration(self):
+            pass
+
+    with pytest.raises(StopAfterPrewarmDecision):
+        NoopStrategy.run_backtest(
+            None, datetime(2026, 1, 5), datetime(2026, 1, 6),
+            save_tearsheet=False, show_plot=False, show_tearsheet=False,
+        )
+
+    assert report_speedups._prewarm_requested is False

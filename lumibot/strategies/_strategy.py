@@ -3490,12 +3490,15 @@ class _Strategy:
         self._name = name
         self._analyze_backtest = analyze_backtest
 
+        from lumibot.tools.report_speedups import clear_report_prewarm_request, request_report_prewarm
+
+        # A request from an earlier backtest that never took a step must not carry over.
+        clear_report_prewarm_request()
         if analyze_backtest and save_tearsheet:
             # Import the report stack (QuantStats, scipy, matplotlib) in the background while
-            # data loads and the simulation runs, instead of after it. Same modules, same output.
-            from lumibot.tools.report_speedups import prewarm_report_imports
-
-            prewarm_report_imports()
+            # the simulation runs, instead of after it. Same modules, same output. It starts at
+            # the first simulation step, not here: started here it slowed startup by ~3 s.
+            request_report_prewarm()
 
         if quote_asset is _DEFAULT_QUOTE_ASSET:
             quote_asset = Asset(symbol="USD", asset_type="forex")

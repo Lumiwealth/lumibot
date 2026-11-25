@@ -453,7 +453,36 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         self._prefetch_start_by_series: dict[Any, datetime] = {}
         self._equity_basis_snapshots: dict[str, EquityBasisSnapshot] = {}
 
+    def _end_at_feed_cutoff(self, asset=None, timestep=None):
+        """Stop the run where the delayed feed ends, instead of failing its last decisions.
+
+        Intraday IBKR history for stocks, indexes and futures is 20 minutes delayed and frozen
+        at ``_history_as_of``. A backtest whose window ends at (or near) the current minute
+        would otherwise make its final decisions after the feed cutoff, and each would be
+        recorded as required history unavailable ("asked for 1, got 0"), failing a run whose
+        data was complete up to the cutoff. Daily bars, forex and crypto have no such delay,
+        so a fetch for them never moves the end.
+        """
+        if not ibkr_helper.history_feed_is_delayed(getattr(asset, "asset_type", ""), timestep):
+            return
+        router = self._router
+        if getattr(router, "feed_cutoff_end", None) is not None:
+            return
+        end = getattr(router, "datetime_end", None)
+        if end is None:
+            return
+        cutoff = ibkr_helper._to_utc(self._history_as_of) - ibkr_helper.IBKR_INTRADAY_HISTORY_DELAY
+        if ibkr_helper._to_utc(end) <= cutoff:
+            return
+        router.feed_cutoff_end = cutoff
+        router.datetime_end = cutoff.astimezone(end.tzinfo) if end.tzinfo else cutoff
+        logger.warning(
+            "Backtest end moved from %s to %s: the IBKR data feed is %s delayed, so later bars "
+            "do not exist yet.", end, router.datetime_end, ibkr_helper.IBKR_INTRADAY_HISTORY_DELAY,
+        )
+
     def _get_price_data(self, **kwargs):
+        self._end_at_feed_cutoff(kwargs.get("asset"), kwargs.get("timestep"))
         asset = kwargs["asset"]
         stock_symbol = (str(asset.symbol).strip().upper()
                         if _normalize_asset_type(asset.asset_type) == "stock" else None)
@@ -535,6 +564,10 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         qty, unit = parse_timestep_qty_and_unit(dataset_key)
         qty = int(qty)
         unit = str(unit)
+
+        # Move the run end to the delayed feed cutoff before any prefetch reads it, so the
+        # first full-window request does not ask past the cutoff either.
+        self._end_at_feed_cutoff(fetch_asset, dataset_key)
 
         asset_type = _normalize_asset_type(getattr(fetch_asset, "asset_type", ""))
         include_after_hours = _ibkr_include_after_hours(asset_type, unit)
@@ -705,7 +738,14 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 end_dt=prefetch_end,
             ):
                 self._fully_loaded_series.add(canonical_key)
-        elif asset_type == "crypto" and unit in {"minute", "hour"} and canonical_key not in self._fully_loaded_series:
+        elif (
+            asset_type in {"crypto", "forex"}
+            and unit in {"minute", "hour"}
+            and canonical_key not in self._fully_loaded_series
+        ):
+            # Forex and spot metals trade nearly around the clock like crypto. Without this
+            # prefetch they fell through to the per-call fetch below, which ends at the current
+            # simulated time, so every iteration asked the downloader for one more bar.
             try:
                 prefetch_start = min(start_datetime, self._router.datetime_start)
             except Exception:
@@ -1792,6 +1832,8 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         # The same optional exchange_id accepted by CcxtBacktestingData is
         # retained when a public asset-class map selects this routed source.
         self._ccxt_exchange_id_hint = exchange_id
+        # Set when an IBKR route moved the end to its delayed-feed cutoff (see _end_at_feed_cutoff).
+        self.feed_cutoff_end = None
         super().__init__(*args, **kwargs)
         self._registry = _ProviderRegistry(self)
         self._routing = self._normalize_routing(self._extract_routing_config(getattr(self, "_config", None)))

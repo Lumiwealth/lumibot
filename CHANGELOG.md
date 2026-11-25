@@ -8,6 +8,10 @@
   backtest window once, like crypto, instead of asking the data downloader for one more bar
   on every iteration. An hourly gold backtest sent one 3 to 35 second request per simulated
   hour. Same bars, same results, far fewer requests.
+- Backtests reach their first simulation step about 3 seconds sooner on small hosted
+  machines: the background import of the report libraries now starts at the first
+  simulation step instead of at backtest start, where it competed with startup. Same
+  report, same numbers.
 
 ## 4.6.98 - 2026-11-24
 

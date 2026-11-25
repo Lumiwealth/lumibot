@@ -75,6 +75,31 @@ def prewarm_report_imports() -> threading.Thread | None:
         return _prewarm_thread
 
 
+_prewarm_requested = False
+
+
+def request_report_prewarm() -> None:
+    """Ask for the background report import once the simulation has started.
+
+    WHY: started at backtest start, the import thread competed with the main thread's own
+    imports and data setup. On a hosted 2 vCPU machine the strategy's ``initialize`` was
+    reached after 8.7-9.4 s with it and 6.4 s without it, so the customer saw the first
+    progress about 3 s later. Started at the first simulation step it still overlaps the
+    simulation and the report is identical.
+    """
+    global _prewarm_requested
+    _prewarm_requested = True
+
+
+def start_requested_report_prewarm() -> None:
+    """Start the requested background import (no-op when none was requested)."""
+    global _prewarm_requested
+    if not _prewarm_requested:
+        return
+    _prewarm_requested = False
+    prewarm_report_imports()
+
+
 def wait_for_report_imports() -> None:
     """Wait for a started background import so the report never races it."""
     thread = _prewarm_thread

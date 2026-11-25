@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from lumibot.data_sources import DataSource
 from lumibot.tools import print_progress_bar, to_datetime_aware
 from lumibot.tools.helpers import get_timezone_from_datetime
+from lumibot.tools.report_speedups import start_requested_report_prewarm
 
 
 class DataSourceBacktesting(DataSource, ABC):
@@ -432,6 +433,8 @@ class DataSourceBacktesting(DataSource, ABC):
 
         if new_datetime > self._datetime:
             self.record_runtime_milestone("first_simulation_advance_at")
+            # Startup is done: begin the background report import requested at backtest start.
+            start_requested_report_prewarm()
         self._datetime = new_datetime
 
         if not self._show_progress_bar and not self.log_backtest_progress_to_file:

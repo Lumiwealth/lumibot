@@ -2275,11 +2275,24 @@ class Schwab(Broker):
                 )
                 order._schwab_cumulative_filled_quantity = cumulative_filled
                 order._schwab_average_fill_price = average_fill_price
+                order.filled_quantity = cumulative_filled
                 if average_fill_price is not None:
                     order.avg_fill_price = average_fill_price
 
+                # Schwab keeps a partly executed order WORKING (or another open
+                # status) and reports the executions beside it; it has no
+                # separate partial status in normal responses. An open order with
+                # some, but not all, of its quantity executed is partially
+                # filled. A full quantity still waits for Schwab's FILLED.
+                leg_status = status
+                if (
+                    Order.is_equivalent_status(status, Order.OrderStatus.NEW)
+                    and 0 < cumulative_filled < quantity
+                ):
+                    leg_status = Order.OrderStatus.PARTIALLY_FILLED
+
                 # Set the status and timestamps
-                order.status = status
+                order.status = leg_status
                 order.broker_create_date = entered_time
                 order.created_at = order.broker_create_date
                 order.broker_update_date = close_time if close_time else entered_time
@@ -2451,7 +2464,12 @@ class Schwab(Broker):
                 return False
             if not same_number(broker_order.quantity, local.quantity):
                 return False
-            if str(broker_order.order_type).lower() != str(local.order_type).lower():
+            # A single-leg smart limit is sent to Schwab as a plain LIMIT
+            # (Strategy.submit_order restores the local type afterwards).
+            sent_type = str(local.order_type).lower()
+            if sent_type == str(Order.OrderType.SMART_LIMIT).lower():
+                sent_type = str(Order.OrderType.LIMIT).lower()
+            if str(broker_order.order_type).lower() != sent_type:
                 return False
             if not same_number(broker_order.limit_price, local.limit_price):
                 return False
@@ -2653,11 +2671,28 @@ class Schwab(Broker):
                             self._filled_orders.append(stored_order)
                 return
             fill_delta = cumulative_filled - prior_filled
-            price = (
+            cumulative_average = (
                 getattr(observed_order, "_schwab_average_fill_price", None)
                 or getattr(observed_order, "avg_fill_price", None)
-                or getattr(observed_order, "limit_price", None)
             )
+            price = cumulative_average or getattr(observed_order, "limit_price", None)
+            if cumulative_average is not None and fill_delta > 0 and prior_filled > 0 and recorded_filled == prior_filled:
+                # Schwab's average covers every execution so far. The callback
+                # and the transaction ledger need the price of the new quantity
+                # alone, or a second partial fill is booked at the running average.
+                from decimal import Decimal, InvalidOperation  # local: keep import-time light
+
+                try:
+                    prior_value = sum(
+                        Decimal(str(item.quantity)) * Decimal(str(item.price)) for item in stored_order.transactions
+                    )
+                    delta_price = (
+                        Decimal(str(cumulative_filled)) * Decimal(str(cumulative_average)) - prior_value
+                    ) / Decimal(str(fill_delta))
+                    if delta_price.is_finite() and delta_price > 0:
+                        price = float(delta_price)
+                except (InvalidOperation, TypeError, ValueError):
+                    pass
             if price is None and fill_delta > 0:
                 logger.warning(
                     "[SchwabLifecycle] event=order.lifecycle.deferred "
@@ -2690,6 +2725,11 @@ class Schwab(Broker):
                         filled_quantity=fill_delta,
                         multiplier=getattr(getattr(stored_order, "asset", None), "multiplier", 1) or 1,
                     )
+                    # Keep the strategy-visible running totals current while the
+                    # order is still open, as other live brokers do.
+                    stored_order.filled_quantity = cumulative_filled
+                    if cumulative_average is not None:
+                        stored_order.avg_fill_price = cumulative_average
                     self._log_schwab_lifecycle_event(
                         "order.lifecycle.callback",
                         stored_order,
@@ -3192,7 +3232,16 @@ class Schwab(Broker):
                 logger.error(colored(f"Error extracting order ID: {e}", "red"))
 
             if not order_id:
-                logger.error(colored("Failed to get order ID from response", "red"))
+                error_msg = (
+                    f"Schwab accepted the order (HTTP {response.status_code}) but returned no order id. "
+                    "It may be live at Schwab; LumiBot keeps reading the order list to re-attach it."
+                )
+                logger.error(colored(error_msg, "red"))
+                # Same state as a submit that timed out after reaching Schwab: the
+                # local order is closed with an error, and the order-list reads
+                # started by the base submit_order re-attach the one Schwab order
+                # that matches it exactly. Left open, it could never be matched.
+                self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
                 return None
 
             # Update the order with the identifier

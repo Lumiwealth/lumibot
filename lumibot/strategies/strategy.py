@@ -1925,7 +1925,9 @@ class Strategy(_Strategy):
         """
         forced = max_age is not None and float(max_age) <= 0
         if max_age is not None and not forced:
-            broker_refresh_ttl_seconds = max(float(broker_refresh_ttl_seconds or 0.0), float(max_age))
+            # A positive max_age is the oldest read the caller accepts; it replaces
+            # broker_refresh_ttl_seconds, as in get_positions/get_position.
+            broker_refresh_ttl_seconds = float(max_age)
         if broker_refresh and not forced and not self.broker.IS_BACKTESTING_BROKER:
             local = self.broker.get_tracked_order(identifier)
             if local is not None and local.strategy == self.name and _order_is_final(local):
@@ -2002,7 +2004,9 @@ class Strategy(_Strategy):
         normalized_statuses = self._normalize_order_statuses(statuses)
         forced = max_age is not None and float(max_age) <= 0
         if max_age is not None and not forced:
-            broker_refresh_ttl_seconds = max(float(broker_refresh_ttl_seconds or 0.0), float(max_age))
+            # A positive max_age is the oldest read the caller accepts; it replaces
+            # broker_refresh_ttl_seconds, as in get_positions/get_position.
+            broker_refresh_ttl_seconds = float(max_age)
         skip_refresh = False
         if broker_refresh and not identifiers and not forced and not self.broker.IS_BACKTESTING_BROKER:
             # Nothing can have changed at the broker since the last good read (no open,

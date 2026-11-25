@@ -2620,6 +2620,9 @@ class Broker(ABC):
     def _process_partially_filled_order(self, order, price, quantity):
         with self._lock:
             self._new_orders.remove(order.identifier, key="identifier")
+            # Like a full fill, a partial fill moves the order out of every
+            # earlier bucket; one left in "unprocessed" is listed twice as active.
+            self._unprocessed_orders.remove(order.identifier, key="identifier")
             order.add_transaction(price, quantity)
             order.status = self.PARTIALLY_FILLED_ORDER
             order.set_partially_filled()

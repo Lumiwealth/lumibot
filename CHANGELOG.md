@@ -2,6 +2,27 @@
 
 ## 4.6.99 - Unreleased
 
+### Fixed
+
+- Schwab: an order that is partly filled while Schwab still shows it WORKING is now
+  reported as partially filled. `filled_quantity` and the average fill price stay current,
+  `on_partially_filled_order` runs once per new fill with that fill's own price, and
+  `on_filled_order` still runs exactly once at the end. Re-attach of a lost submit also
+  matches a smart limit sent as a plain limit and a 201 reply with no order id, and a
+  positive `max_age` on `get_order`/`get_orders` now bounds the read age like `get_positions`.
+- Routed IBKR backtests of forex and spot metals on minute or hourly bars now load the
+  backtest window once, like crypto, instead of asking the data downloader for one more bar
+  on every iteration. An hourly gold backtest sent one 3 to 35 second request per simulated
+  hour. Same bars, same results, far fewer requests.
+- Backtests reach their first simulation step about 3 seconds sooner on small machines:
+  the background import of the report libraries now starts at the first simulation step
+  instead of at backtest start, where it competed with startup. Same report, same numbers.
+- A routed IBKR backtest whose window ends at the current minute no longer fails with
+  "asked for 1 bar, got 0": the run ends where the 20-minute delayed feed ends.
+- Idle live bots use far less CPU: the live loop no longer rebuilds the market calendar
+  every second (an idle NYSE bot went from about 0.26 vCPU to about 0.005 on ARM). Same
+  open and close times.
+
 ## 4.6.98 - 2026-11-24
 
 ### Changed

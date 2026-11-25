@@ -3492,10 +3492,11 @@ class _Strategy:
 
         if analyze_backtest and save_tearsheet:
             # Import the report stack (QuantStats, scipy, matplotlib) in the background while
-            # data loads and the simulation runs, instead of after it. Same modules, same output.
-            from lumibot.tools.report_speedups import prewarm_report_imports
+            # the simulation runs, instead of after it. Same modules, same output. It starts at
+            # the first simulation step, not here: started here it slowed startup by ~3 s.
+            from lumibot.tools.report_speedups import request_report_prewarm
 
-            prewarm_report_imports()
+            request_report_prewarm()
 
         if quote_asset is _DEFAULT_QUOTE_ASSET:
             quote_asset = Asset(symbol="USD", asset_type="forex")

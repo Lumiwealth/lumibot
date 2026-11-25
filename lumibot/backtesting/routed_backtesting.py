@@ -705,7 +705,14 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 end_dt=prefetch_end,
             ):
                 self._fully_loaded_series.add(canonical_key)
-        elif asset_type == "crypto" and unit in {"minute", "hour"} and canonical_key not in self._fully_loaded_series:
+        elif (
+            asset_type in {"crypto", "forex"}
+            and unit in {"minute", "hour"}
+            and canonical_key not in self._fully_loaded_series
+        ):
+            # Forex and spot metals trade nearly around the clock like crypto. Without this
+            # prefetch they fell through to the per-call fetch below, which ends at the current
+            # simulated time, so every iteration asked the downloader for one more bar.
             try:
                 prefetch_start = min(start_datetime, self._router.datetime_start)
             except Exception:

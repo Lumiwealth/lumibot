@@ -1750,3 +1750,42 @@ def test_daily_strategy_valuation_snapshot_still_uses_daily_bars(monkeypatch):
     router.get_historical_prices(asset, 75, "day", quote=quote)
     assert router.get_price_snapshot(asset, quote=quote) is not None
     assert "minute" not in requested, requested
+
+
+@pytest.mark.parametrize("timestep,step", [("hour", timedelta(hours=1)), ("minute", timedelta(minutes=1))])
+def test_router_ibkr_prefetches_full_window_once_for_forex_intraday(monkeypatch, timestep, step):
+    """Forex and spot metals (for example XAU/USD) on IBKR intraday bars.
+
+    Bug: forex fell through to the per-call fetch, which asks for history ending at the
+    current simulated time. Each new iteration needed the next bar, so the run sent one
+    downloader request per simulated bar (observed: one 3-35 s request per simulated hour
+    for an hourly XAU strategy). It must prefetch the backtest window once, like crypto.
+    """
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 5, 9, 0))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 7, 16, 0))
+    router = _make_router(start, end, {"default": "thetadata", "forex": "ibkr"})
+
+    asset = Asset("XAU", asset_type=Asset.AssetType.FOREX)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    calls: list[dict] = []
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
+        calls.append({"timestep": timestep, "start_dt": start_dt, "end_dt": end_dt})
+        if timestep == "hour":
+            return _multi_minute_ohlc(start_dt, end_dt, minutes=60)
+        return _minute_ohlc(start_dt, end_dt)
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+
+    for i in range(1, 6):
+        router._datetime = start + timedelta(hours=2) + step * i
+        _ = router.get_historical_prices(asset, length=5, timestep=timestep, quote=quote)
+
+    assert len(calls) == 1, calls
+    assert calls[0]["end_dt"] == router.datetime_end
+    assert calls[0]["start_dt"] <= router.datetime_start

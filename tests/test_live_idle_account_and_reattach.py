@@ -289,3 +289,18 @@ def test_status_times_switch_reaches_an_order_module_loaded_later():
     )
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
     assert out.stdout.strip().splitlines()[-1] == "True"
+
+
+def test_one_schwab_order_matching_two_lost_submits_is_never_guessed(caplog):
+    """Two identical lost submits, only one reached Schwab: neither is bound (CodeRabbit PR #1340)."""
+    transport, broker, _queues, first = submitted()
+    first.status = Order.OrderStatus.FILLED
+    a = _submit_that_times_out_after_reaching_schwab(transport, broker)  # reached Schwab
+    b = _lost_with_no_schwab_copy(transport, broker, order=stock(10))  # never reached Schwab
+    sends = [c["method"] for c in transport.calls].count("place_order")
+    with caplog.at_level(logging.ERROR):
+        broker.sync_orders("fixture")
+    drain_stream_events(broker)
+    assert not a.is_active() and not b.is_active()
+    assert "will not guess which one it belongs to" in caplog.text
+    assert [c["method"] for c in transport.calls].count("place_order") == sends

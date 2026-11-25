@@ -2385,6 +2385,25 @@ class Schwab(Broker):
                         "order that should not be there.", "red"))
                 continue
             broker_order = candidates[0]
+            # The match must be unique both ways: if another pending lost submit also
+            # matches this Schwab order, we cannot tell which one created it.
+            rivals = [
+                other for other in pending
+                if other is not item
+                and not other["order"].is_active()
+                and getattr(other["order"], "status", None) == Order.OrderStatus.ERROR
+                and self._is_reattach_candidate(other["order"], broker_order, other)
+            ]
+            if rivals:
+                if not item["warned"]:
+                    item["warned"] = True
+                    logger.error(colored(
+                        f"Schwab order {broker_order.identifier} matches {len(rivals) + 1} local orders whose "
+                        f"submits got no Schwab order id ({local.side} {local.quantity} {local.asset.symbol}). "
+                        "LumiBot will not guess which one it belongs to and will not resend; it keeps reading "
+                        "the order list. Check the account and cancel any order that should not be there.",
+                        "red"))
+                continue
             taken.add(str(broker_order.identifier))
             with self._lock:
                 self._error_orders.remove(local.identifier, key="identifier")

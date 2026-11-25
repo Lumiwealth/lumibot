@@ -1038,6 +1038,9 @@ class SchwabData(DataSource):
         if self.client is None:
             raise ConnectionError("No Schwab client available for quotes")
         result = {}
+        # Each batch's quotes are as old as that batch's response, not the last one's:
+        # a slow later batch must not make earlier quotes look newly fetched.
+        observed_at = {}
         for offset in range(0, len(assets), batch_size):
             batch = assets[offset:offset + batch_size]
             # Schwab may have asked us to wait (HTTP 429 + Retry-After). Fail
@@ -1045,6 +1048,7 @@ class SchwabData(DataSource):
             self._before_market_data_request("quote")
             response = self.client.get_quotes([symbols[asset] for asset in batch])
             self._after_market_data_response(response, "quote")
+            batch_stamp = self._cache_clock()
             status = getattr(response, "status_code", None)
             if status != 200:
                 raise ConnectionError(f"Schwab quote request failed (status {status})")
@@ -1069,16 +1073,18 @@ class SchwabData(DataSource):
                 if reported is not None and str(reported).upper() != symbol.upper():
                     raise ValueError("Schwab quote contract does not match the requested asset")
                 result[asset] = self._quote_from_response(asset, matches[0], data)
+                observed_at[asset] = batch_stamp
         if self._env_seconds("LUMIBOT_QUOTE_MAX_AGE", 1.0) > 0:
             lock, cache, _ = self._quote_state()
-            stamp = self._cache_clock()
+            now = self._cache_clock()
             with lock:
                 for asset, value in result.items():
                     if value is None:
                         cache.pop(asset, None)
                         continue
+                    stamp = observed_at.get(asset, now)
                     try:
-                        value.cache_age_seconds = 0.0
+                        value.cache_age_seconds = max(0.0, now - stamp)
                     except Exception:
                         pass
                     cache[asset] = (stamp, value)

@@ -171,3 +171,26 @@ def test_prewarm_can_be_switched_off(monkeypatch):
     monkeypatch.setenv("LUMIBOT_PREWARM_REPORT_IMPORTS", "0")
     monkeypatch.setattr(report_speedups, "_prewarm_thread", None)
     assert report_speedups.prewarm_report_imports() is None
+
+
+def test_cache_setup_failure_runs_the_report_without_the_cache(monkeypatch):
+    """A failed QuantStats import inside the cache setup must not escape or leave wrappers."""
+    import importlib
+
+    from lumibot.tools import report_speedups
+
+    qs_stats = importlib.import_module("quantstats_lumi.stats")
+    original = qs_stats.drawdown_details
+    real_import = importlib.import_module
+
+    def failing_import(name, *args, **kwargs):
+        if name == "quantstats_lumi.utils":
+            raise ImportError("simulated")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(report_speedups.importlib, "import_module", failing_import)
+    ran = []
+    with report_speedups.report_computation_cache():
+        ran.append(True)
+    assert ran == [True]
+    assert qs_stats.drawdown_details is original

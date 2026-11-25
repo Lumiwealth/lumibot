@@ -420,3 +420,26 @@ def test_activity_during_an_order_list_read_means_that_read_does_not_count(clock
     broker._note_orders_list_ok(epoch_before)
     broker._note_account_read_ok(epoch_before)
     assert broker.idle_read_skip_age("fixture") is None
+
+
+def test_a_slow_second_batch_does_not_make_first_batch_quotes_look_new(monkeypatch):
+    """Each batch's quotes age from that batch's own response (CodeRabbit PR #1340)."""
+    data, calls, now = _quote_source(monkeypatch)
+    real_get_quotes = data.client.get_quotes
+
+    def slow_second(symbols):
+        response = real_get_quotes(symbols)
+        if len(calls) == 2:
+            now["t"] += 5.0  # the second batch answers 5 s after the first
+        return response
+
+    data.client.get_quotes = slow_second
+    basket = [Asset(f"B{i}") for i in range(60)]
+    data._fetch_quotes_uncached(basket, batch_size=50)
+    assert len(calls) == 2
+    first = data.get_quote(basket[0])  # first batch: 5 s old, past the 1 s max age
+    assert len(calls) == 3
+    assert first.cache_age_seconds == 0.0
+    last = data.get_quote(basket[-1])  # second batch: fresh, served from memory
+    assert len(calls) == 3
+    assert last.cache_age_seconds == 0.0

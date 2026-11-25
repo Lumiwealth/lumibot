@@ -216,6 +216,28 @@ def report_computation_cache():
         return
 
     installed = []
+
+    def _restore():
+        # Restore only our own wrappers; never clobber a replacement made by someone else.
+        for module, function_name, original, cached in reversed(installed):
+            if getattr(module, function_name) is cached:
+                setattr(module, function_name, original)
+
+    try:
+        _install_cached_functions(installed)
+    except Exception:
+        # Setup must never change the report outcome: undo any partial install and
+        # build the report without the cache (the report keeps its own error handling).
+        _restore()
+        yield
+        return
+    try:
+        yield
+    finally:
+        _restore()
+
+
+def _install_cached_functions(installed):
     for module_name, function_name, key_builder in _CACHED_FUNCTIONS:
         module = importlib.import_module(module_name)
         original = getattr(module, function_name)
@@ -235,10 +257,3 @@ def report_computation_cache():
 
         setattr(module, function_name, cached)
         installed.append((module, function_name, original, cached))
-    try:
-        yield
-    finally:
-        # Restore only our own wrappers; never clobber a replacement made by someone else.
-        for module, function_name, original, cached in reversed(installed):
-            if getattr(module, function_name) is cached:
-                setattr(module, function_name, original)

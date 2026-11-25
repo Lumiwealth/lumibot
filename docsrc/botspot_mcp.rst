@@ -67,6 +67,20 @@ The optional ``lumibot connect botspot`` command can also set up the connection.
 See :doc:`cli` for its options. On BotSpot-hosted strategies, the runtime
 supplies the connection automatically.
 
+Connect your assistant to your broker
+-------------------------------------
+
+Use the `BotSpot setup guide <https://botspot.trade/agents#agents-setup>`_
+to connect ChatGPT, Claude, Claude Code, Codex, Cursor, Gemini CLI or VS Code.
+Choose BotSpot sign-in or the API-key method supported by your client.
+
+After setup, ask your assistant to help connect a broker, show the linked
+accounts, then review positions. An account with no holdings may return an
+empty list. Review any requested trade in BotSpot before approving submission.
+See `supported brokers and account modes <https://botspot.trade/brokers>`_.
+This is the coding assistant's connection; a LumiBot strategy's research
+connection described above uses its own key.
+
 Your coding assistant gets superpowers too
 ------------------------------------------
 

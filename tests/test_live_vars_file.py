@@ -317,7 +317,7 @@ def test_assets_and_datetimes_round_trip(tmp_path, monkeypatch):
     when = datetime.datetime(2026, 11, 24, 15, 30, tzinfo=datetime.timezone.utc)
     strategy.vars.set("asset", asset)
     strategy.vars.set("when", when)
-    assert store.save("test", force=True) is True
+    assert store.save("test") is True
 
     restored = _Strategy_()
     LiveVarsFile.from_environment(restored).load_once()
@@ -357,12 +357,12 @@ def test_save_only_when_content_changed(tmp_path, monkeypatch):
     store = LiveVarsFile.from_environment(strategy)
     store.load_once()
     strategy.vars.set("a", 1)
-    assert store.save("test", force=True) is True
+    assert store.save("test") is True
     mtime = os.stat(path).st_mtime_ns
-    assert store.save("test", force=True) is False
+    assert store.save("test") is False
     assert os.stat(path).st_mtime_ns == mtime
     strategy.vars.set("a", 2)
-    assert store.save("test", force=True) is True
+    assert store.save("test") is True
 
 
 def test_save_immediately_after_fill_and_survives_next_iteration(tmp_path, monkeypatch):
@@ -442,7 +442,7 @@ def test_unserializable_key_skipped_with_warning(tmp_path, monkeypatch, caplog):
     strategy.vars.set("handle", object())
 
     with caplog.at_level(logging.WARNING, logger="test_live_vars_file"):
-        assert store.save("test", force=True) is True
+        assert store.save("test") is True
 
     saved = _read(path)["vars"]
     assert saved == {"ok": {"x": [1, 2.5, "y", None, True]}}
@@ -456,7 +456,7 @@ def test_atomic_write_keeps_old_file_when_replace_crashes(tmp_path, monkeypatch)
     store = LiveVarsFile.from_environment(strategy)
     store.load_once()
     strategy.vars.set("a", 1)
-    assert store.save("test", force=True) is True
+    assert store.save("test") is True
     before = path.read_bytes()
 
     def crash(*args, **kwargs):
@@ -464,7 +464,7 @@ def test_atomic_write_keeps_old_file_when_replace_crashes(tmp_path, monkeypatch)
 
     monkeypatch.setattr(live_vars_module.os, "replace", crash)
     strategy.vars.set("a", 2)
-    assert store.save("test", force=True) is False  # logged, never raised
+    assert store.save("test") is False  # logged, never raised
 
     assert path.read_bytes() == before
     assert sorted(p.name for p in tmp_path.iterdir()) == ["vars.json"]
@@ -477,19 +477,19 @@ def test_atomic_write_keeps_old_file_when_write_crashes(tmp_path, monkeypatch):
     store = LiveVarsFile.from_environment(strategy)
     store.load_once()
     strategy.vars.set("a", 1)
-    store.save("test", force=True)
+    store.save("test")
     before = path.read_bytes()
 
     monkeypatch.setattr(live_vars_module.os, "fsync", lambda fd: (_ for _ in ()).throw(OSError("disk")))
     strategy.vars.set("a", 2)
-    assert store.save("test", force=True) is False
+    assert store.save("test") is False
     assert path.read_bytes() == before
     assert sorted(p.name for p in tmp_path.iterdir()) == ["vars.json"]
 
     # A later save after the fault clears still writes the new value.
     monkeypatch.undo()
     monkeypatch.setenv(ENV_FILE, str(path))
-    assert store.save("test", force=True) is True
+    assert store.save("test") is True
     assert _read(path)["vars"]["a"] == 2
 
 
@@ -503,5 +503,142 @@ def test_does_not_touch_db_or_scheduled_state_paths(tmp_path, monkeypatch):
     store = LiveVarsFile.from_environment(strategy)
     store.load_once()
     strategy.vars.set("a", 1)
-    store.save("test", force=True)
+    store.save("test")
     assert calls == []
+
+
+# ---------------------------------------------------------------- review fixes (Nov 25)
+
+
+def test_save_retries_when_vars_change_during_encoding(tmp_path, monkeypatch):
+    """A nested dict changed by the iteration thread mid-encode raises RuntimeError;
+    the post-fill save must still land instead of being dropped with an error."""
+    path = tmp_path / "vars.json"
+    monkeypatch.setenv(ENV_FILE, str(path))
+    strategy = _Strategy_()
+    store = LiveVarsFile.from_environment(strategy)
+    store.load_once()
+    strategy.vars.set("legs", {"short": "SPY 500P"})
+
+    real = _Strategy._encode_variable_for_backup
+    calls = {"n": 0}
+
+    def flaky(value):
+        if isinstance(value, dict) and calls["n"] == 0:
+            calls["n"] += 1
+            raise RuntimeError("dictionary changed size during iteration")
+        return real(value)
+
+    monkeypatch.setattr(_Strategy, "_encode_variable_for_backup", staticmethod(flaky))
+    assert store.save("filled_order") is True
+    assert _read(path)["vars"]["legs"] == {"short": "SPY 500P"}
+
+
+def test_fill_wakes_the_iteration_before_the_disk_save(tmp_path, monkeypatch):
+    monkeypatch.setenv(ENV_FILE, str(tmp_path / "vars.json"))
+    strategy = _Strategy_()
+    executor = _executor(strategy)
+    executor._activate_live_vars_file()
+    calls = []
+    monkeypatch.setattr(executor, "_save_live_vars_now", lambda reason: calls.append(("save", reason)))
+    monkeypatch.setattr(executor, "_wake_iteration_after_fill", lambda partial=False: calls.append(("wake", partial)))
+    order = Order(strategy.name, Asset("SPY"), 1, "buy", identifier="o-3")
+
+    executor._on_filled_order(SimpleNamespace(asset=order.asset), order, 500.0, 1, 1)
+    executor._on_partially_filled_order(None, order, 500.0, 1, 1)
+
+    assert calls == [("wake", False), ("save", "filled_order"), ("wake", True), ("save", "partially_filled_order")]
+
+
+def test_sigterm_handler_is_untouched_when_feature_off():
+    before = signal.getsignal(signal.SIGTERM)
+    _executor(_Strategy_())
+    _executor(_Strategy_())
+    assert signal.getsignal(signal.SIGTERM) is before
+
+
+def test_sigterm_handler_installed_once_and_does_not_keep_executors_alive(tmp_path, monkeypatch):
+    import gc
+    import weakref
+
+    monkeypatch.setenv(ENV_FILE, str(tmp_path / "vars.json"))
+    original = signal.getsignal(signal.SIGTERM)
+    monkeypatch.setattr(live_vars_module, "_process_handler_installed", False)
+    try:
+        first = _executor(_Strategy_())
+        installed = signal.getsignal(signal.SIGTERM)
+        assert installed is not original
+        second = _executor(_Strategy_())
+        assert signal.getsignal(signal.SIGTERM) is installed  # not chained a second time
+        ref = weakref.ref(second)
+        del second
+        gc.collect()
+        assert ref() is None
+        assert first is not None
+    finally:
+        signal.signal(signal.SIGTERM, original)
+
+
+def test_sigterm_saves_every_active_store(tmp_path, monkeypatch):
+    monkeypatch.setenv(ENV_FILE, str(tmp_path / "vars.json"))
+    strategy = _Strategy_()
+    executor = _executor(strategy)
+    executor._activate_live_vars_file()
+    strategy.vars.set("on_stop", 7)
+    handed = []
+    handler = live_vars_module._make_process_sigterm_handler(lambda sig, frame: handed.append(sig))
+    handler(signal.SIGTERM, None)
+    assert _read(tmp_path / "vars.json")["vars"]["on_stop"] == 7
+    assert handed == [signal.SIGTERM]
+
+
+def test_concurrent_saves_leave_one_valid_file(tmp_path, monkeypatch):
+    import threading
+
+    path = tmp_path / "vars.json"
+    monkeypatch.setenv(ENV_FILE, str(path))
+    strategy = _Strategy_()
+    store = LiveVarsFile.from_environment(strategy)
+    store.load_once()
+    errors = []
+
+    def worker(n):
+        try:
+            for i in range(40):
+                strategy.vars.set(f"k{n}", {"i": i, "list": list(range(i % 5))})
+                store.save(f"t{n}")
+        except Exception as exc:  # pragma: no cover - reported below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker, args=(n,)) for n in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert errors == []
+    saved = _read(path)["vars"]
+    assert set(saved) >= {"k0", "k1", "k2", "k3"}
+    assert not [p for p in os.listdir(tmp_path) if p.endswith(".tmp")]
+
+
+def test_warns_once_when_database_backup_is_also_on(tmp_path, monkeypatch, caplog):
+    monkeypatch.setenv(ENV_FILE, str(tmp_path / "vars.json"))
+    monkeypatch.setenv("DB_CONNECTION_STR", "sqlite:///:memory:")
+    strategy = _Strategy_()
+    with caplog.at_level(logging.WARNING):
+        LiveVarsFile.from_environment(strategy).load_once()
+    assert any("DB_CONNECTION_STR" in r.getMessage() for r in caplog.records)
+
+
+def test_run_reads_saved_memory_right_after_initialize():
+    """run() order: _initialize(), then the one-time load, before any other lifecycle call."""
+    import inspect
+
+    source = inspect.getsource(StrategyExecutor.run)
+    init_at = source.index("self._initialize()")
+    load_at = source.index("self._activate_live_vars_file()")
+    assert init_at < load_at
+    between = source[init_at + len("self._initialize()"):load_at]
+    assert "before_market_opens" not in between and "_before_starting_trading" not in between
+    later_hooks = [source.find(name, init_at) for name in ("before_market_opens", "_before_starting_trading")]
+    assert all(pos == -1 or pos > load_at for pos in later_hooks)

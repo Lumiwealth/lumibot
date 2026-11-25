@@ -33,6 +33,7 @@ import os
 import signal
 import threading
 import time
+import weakref
 from typing import Callable, Optional
 
 ENV_FILE = "LUMIBOT_LIVE_VARS_FILE"
@@ -43,6 +44,14 @@ FORMAT_VERSION = 1
 
 # Module-level clock so tests can move time without patching ``time`` globally.
 _monotonic = time.monotonic
+
+# Stores that are active in this process. Weak, so the SIGTERM hook never keeps
+# an executor (or its strategy) alive; one hook per process, not per executor.
+_ACTIVE_STORES: "weakref.WeakSet" = weakref.WeakSet()
+_process_handler_installed = False
+# A nested value changed by another thread while it is encoded raises
+# RuntimeError ("changed size during iteration"); retry a few times.
+_ENCODE_ATTEMPTS = 3
 
 
 def _strategy_codec():
@@ -103,6 +112,11 @@ class LiveVarsFile:
             if self._loaded:
                 return False
             self._loaded = True
+            if str(os.environ.get("DB_CONNECTION_STR", "") or "").strip():
+                self._logger.warning(
+                    "Saved strategy memory: DB_CONNECTION_STR is also set; the database backup reloads "
+                    "self.vars before every iteration and will overwrite values restored from the file"
+                )
             try:
                 with open(self.path, "r", encoding="utf-8") as handle:
                     raw = handle.read()
@@ -159,9 +173,7 @@ class LiveVarsFile:
         skipped = []
         for key, value in self.strategy.vars.all().items():
             try:
-                item = codec._encode_variable_for_backup(value)
-                # Strict check: no fallback encoder, so unknown objects fail here.
-                json.dumps(item)
+                item = self._encode_one(codec, value)
             except (TypeError, ValueError, OverflowError, RecursionError) as exc:
                 skipped.append(key)
                 if key not in self._warned_keys:
@@ -173,6 +185,19 @@ class LiveVarsFile:
                 continue
             encoded[key] = item
         return encoded, skipped
+
+    @staticmethod
+    def _encode_one(codec, value):
+        for attempt in range(_ENCODE_ATTEMPTS):
+            try:
+                item = codec._encode_variable_for_backup(value)
+                # Strict check: no fallback encoder, so unknown objects fail here.
+                json.dumps(item)
+                return item
+            except RuntimeError:
+                if attempt == _ENCODE_ATTEMPTS - 1:
+                    raise
+        raise RuntimeError("unreachable")
 
     @staticmethod
     def _hash(encoded) -> str:
@@ -187,11 +212,11 @@ class LiveVarsFile:
                 return False
             return self.save("interval")
 
-    def save(self, reason: str, force: bool = False) -> bool:
+    def save(self, reason: str) -> bool:
         """Write the file if its content changed. Never raises. Returns True when written.
 
-        ``force`` is accepted for readability at call sites (order events, exit):
-        those ignore the interval, which only ``maybe_save_after_iteration`` applies.
+        Ignores the interval (order events, exit, SIGTERM); only
+        ``maybe_save_after_iteration`` applies it.
         """
         with self._lock:
             if not self._loaded:
@@ -262,7 +287,7 @@ def _make_sigterm_handler(store, previous) -> Callable:
     def handler(signum, frame):
         try:
             if hasattr(store, "save"):
-                store.save("sigterm", force=True)
+                store.save("sigterm")
             else:
                 store()
         except Exception:
@@ -279,14 +304,33 @@ def _make_sigterm_handler(store, previous) -> Callable:
     return handler
 
 
-def install_sigterm_save(store) -> bool:
-    """Install the SIGTERM save hook. Only possible from the main thread; otherwise a no-op."""
+def register_active_store(store) -> None:
+    """Mark a store as active so the process SIGTERM hook saves it."""
+    _ACTIVE_STORES.add(store)
+
+
+def _make_process_sigterm_handler(previous) -> Callable:
+    """One hook for the whole process: save every active store, then hand over."""
+
+    def save_all():
+        for store in list(_ACTIVE_STORES):
+            store.save("sigterm")
+
+    return _make_sigterm_handler(save_all, previous)
+
+
+def install_process_sigterm_save_once() -> bool:
+    """Install the process-wide SIGTERM save hook once (main thread only)."""
+    global _process_handler_installed
+    if _process_handler_installed:
+        return True
     sigterm = getattr(signal, "SIGTERM", None)
     if sigterm is None or threading.current_thread() is not threading.main_thread():
         return False
     try:
         previous = signal.getsignal(sigterm)
-        signal.signal(sigterm, _make_sigterm_handler(store, previous))
+        signal.signal(sigterm, _make_process_sigterm_handler(previous))
     except (ValueError, OSError):
         return False
+    _process_handler_installed = True
     return True

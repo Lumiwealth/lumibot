@@ -1515,7 +1515,11 @@ class StrategyExecutor(Thread):
             return self._on_trading_iteration_body()
         finally:
             self._in_trading_iteration = False
-            self._save_live_vars_after_iteration()
+            # Saved memory (opt-in). Inline getattr: with the feature off this is
+            # one attribute read and nothing else, even on stub executors.
+            live_vars_file = getattr(self, "_live_vars_file", None)
+            if live_vars_file is not None:
+                live_vars_file.maybe_save_after_iteration()
 
     def _prefetch_live_quotes(self):
         """Live: let each data source fetch the quotes asked for recently in one request."""
@@ -1856,30 +1860,28 @@ class StrategyExecutor(Thread):
             return
         if getattr(self.strategy, "is_backtesting", False):
             return
-        from lumibot.strategies.live_vars_file import install_sigterm_save
+        # One weak, process-wide hook (not one per executor): it saves every
+        # active store and never keeps an executor alive.
+        from lumibot.strategies.live_vars_file import install_process_sigterm_save_once
 
-        install_sigterm_save(lambda: self._save_live_vars_now("sigterm"))
+        install_process_sigterm_save_once()
 
     def _activate_live_vars_file(self):
         if self._live_vars_file is not None:
             return
-        from lumibot.strategies.live_vars_file import LiveVarsFile
+        from lumibot.strategies.live_vars_file import LiveVarsFile, register_active_store
 
         store = LiveVarsFile.from_environment(self.strategy, run_once=self._is_running_once())
         if store is None:
             return
         store.load_once()
         self._live_vars_file = store
+        register_active_store(store)
 
     def _save_live_vars_now(self, reason):
         store = getattr(self, "_live_vars_file", None)
         if store is not None:
-            store.save(reason, force=True)
-
-    def _save_live_vars_after_iteration(self):
-        store = getattr(self, "_live_vars_file", None)
-        if store is not None:
-            store.maybe_save_after_iteration()
+            store.save(reason)
 
     def _is_running_once(self):
         return bool(getattr(self, "_run_once_requested", False))
@@ -1893,8 +1895,9 @@ class StrategyExecutor(Thread):
         callback_started = time.monotonic()
         self.strategy.on_partially_filled_order(position, order, price, quantity, multiplier)
         self._record_fill_callback_time(callback_started)
-        self._save_live_vars_now("partially_filled_order")
+        # Wake the iteration first: the disk save must not delay the reaction to a fill.
         self._wake_iteration_after_fill(partial=True)
+        self._save_live_vars_now("partially_filled_order")
 
     @event_method
     def _on_filled_order(self, position, order, price, quantity, multiplier):
@@ -1917,8 +1920,9 @@ class StrategyExecutor(Thread):
         callback_started = time.monotonic()
         self.strategy.on_filled_order(position, order, price, quantity, multiplier)
         self._record_fill_callback_time(callback_started)
-        self._save_live_vars_now("filled_order")
+        # Wake the iteration first: the disk save must not delay the reaction to a fill.
         self._wake_iteration_after_fill()
+        self._save_live_vars_now("filled_order")
 
         # PERF: In backtesting we never send Discord notifications (`Strategy.send_discord_message`
         # hard-returns), but building the formatted message is still non-trivial work and can

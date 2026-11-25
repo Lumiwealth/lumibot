@@ -453,14 +453,18 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         self._prefetch_start_by_series: dict[Any, datetime] = {}
         self._equity_basis_snapshots: dict[str, EquityBasisSnapshot] = {}
 
-    def _end_at_feed_cutoff(self):
+    def _end_at_feed_cutoff(self, asset=None, timestep=None):
         """Stop the run where the delayed feed ends, instead of failing its last decisions.
 
-        The IBKR feed is 20 minutes delayed and frozen at ``_history_as_of``. A backtest whose
-        window ends at (or near) the current minute would otherwise make its final decisions
-        after the feed cutoff, and each would be recorded as required history unavailable
-        ("asked for 1, got 0"), failing a run whose data was complete up to the cutoff.
+        Intraday IBKR history for stocks, indexes and futures is 20 minutes delayed and frozen
+        at ``_history_as_of``. A backtest whose window ends at (or near) the current minute
+        would otherwise make its final decisions after the feed cutoff, and each would be
+        recorded as required history unavailable ("asked for 1, got 0"), failing a run whose
+        data was complete up to the cutoff. Daily bars, forex and crypto have no such delay,
+        so a fetch for them never moves the end.
         """
+        if not ibkr_helper.history_feed_is_delayed(getattr(asset, "asset_type", ""), timestep):
+            return
         router = self._router
         if getattr(router, "feed_cutoff_end", None) is not None:
             return
@@ -478,7 +482,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         )
 
     def _get_price_data(self, **kwargs):
-        self._end_at_feed_cutoff()
+        self._end_at_feed_cutoff(kwargs.get("asset"), kwargs.get("timestep"))
         asset = kwargs["asset"]
         stock_symbol = (str(asset.symbol).strip().upper()
                         if _normalize_asset_type(asset.asset_type) == "stock" else None)
@@ -560,6 +564,10 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         qty, unit = parse_timestep_qty_and_unit(dataset_key)
         qty = int(qty)
         unit = str(unit)
+
+        # Move the run end to the delayed feed cutoff before any prefetch reads it, so the
+        # first full-window request does not ask past the cutoff either.
+        self._end_at_feed_cutoff(fetch_asset, dataset_key)
 
         asset_type = _normalize_asset_type(getattr(fetch_asset, "asset_type", ""))
         include_after_hours = _ibkr_include_after_hours(asset_type, unit)

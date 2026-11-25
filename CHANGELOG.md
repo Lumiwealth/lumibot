@@ -13,12 +13,18 @@
 - Routed IBKR backtests of forex and spot metals on minute or hourly bars now load the
   backtest window once, like crypto, instead of asking the data downloader for one more bar
   on every iteration. An hourly gold backtest sent one 3 to 35 second request per simulated
-  hour. Same bars, same results, far fewer requests.
+  hour. Same bars, same results, far fewer requests. A window that starts or ends while
+  forex is closed (Friday 17:00 to Sunday 17:00 ET, or the daily 17:00 ET break) now counts
+  as loaded; before, a window ending on a Saturday was fetched again on every step.
 - Backtests reach their first simulation step about 3 seconds sooner on small machines:
   the background import of the report libraries now starts at the first simulation step
   instead of at backtest start, where it competed with startup. Same report, same numbers.
+  A request left by an earlier backtest in the same process that never took a step no
+  longer starts the import for a later backtest without a tearsheet.
 - A routed IBKR backtest whose window ends at the current minute no longer fails with
-  "asked for 1 bar, got 0": the run ends where the 20-minute delayed feed ends.
+  "asked for 1 bar, got 0": the run ends where the 20-minute delayed feed ends. Only
+  intraday stock, index and futures fetches move the end (daily bars, forex and crypto
+  have no delay), and the first full-window request already stops at the cutoff.
 - Idle live bots use far less CPU: the live loop no longer rebuilds the market calendar
   every second (an idle NYSE bot went from about 0.26 vCPU to about 0.005 on ARM). Same
   open and close times.

@@ -6,24 +6,39 @@
     "name": "Lumiwealth",
     "email": "rob@botspot.trade",
     "phone": "",
-    "description": "Lumiwealth builds open source tools for algorithmic trading and financial markets. Our flagship project, Lumibot, is a Python framework used by 14,000+ students and developers to build, backtest, and deploy trading bots across stocks, options, crypto, forex, and futures.",
+    "description": "Lumiwealth is the GitHub organisation behind Lumibot, an open-source Python framework for building, backtesting, and running trading strategies. The maintainers also run BotSpot, a commercial platform built on the framework; the open-source project runs standalone and is used by developers who never touch that product.",
     "webpageUrl": {
-      "url": "https://lumiwealth.com"
+      "url": "https://lumibot.lumiwealth.com"
     }
   },
   "projects": [
     {
       "guid": "lumibot",
       "name": "Lumibot",
-      "description": "Backtesting and Trading Bots Made Easy for Crypto, Stocks, Options, Futures, FOREX and more. Lumibot is a Python library that makes it simple to build and deploy algorithmic trading strategies with multiple broker integrations (Alpaca, Interactive Brokers, Tradier, Coinbase) and data sources (Yahoo Finance, ThetaData, Polygon).",
+      "description": "Lumibot is an open-source Python framework (GPL-3.0, maintained since 2020, past 2,000 GitHub stars) for building, backtesting, and running trading strategies. One interface covers strategy structure, historical simulation, and live execution across broker adapters for Alpaca, Charles Schwab, Tradier, Tradovate, Interactive Brokers, prop-futures rails, Bitunix, Polymarket, and 100+ crypto exchanges through CCXT. It ships an agent runtime that runs language-model agents inside strategies and inside the backtest loop, multi-provider, with look-ahead bias prevention and replay caching, plus an 11-case real-model evaluation suite that gates every release. Lumibot gives no investment advice and promises no returns; it is infrastructure.",
       "webpageUrl": {
         "url": "https://lumibot.lumiwealth.com"
       },
       "repositoryUrl": {
-        "url": "https://github.com/Lumiwealth/lumibot"
+        "url": "https://github.com/Lumiwealth/lumibot",
+        "wellKnown": "https://raw.githubusercontent.com/Lumiwealth/lumibot/dev/.well-known/funding-manifest-urls"
       },
-      "licenses": ["GPL-3.0"],
-      "tags": ["python", "trading", "backtesting", "algorithmic-trading", "fintech", "quantitative-finance", "stocks", "options", "crypto", "forex", "futures"]
+      "licenses": [
+        "spdx:GPL-3.0"
+      ],
+      "tags": [
+        "python",
+        "trading",
+        "backtesting",
+        "algorithmic-trading",
+        "fintech",
+        "quantitative-finance",
+        "ai-agents",
+        "stocks",
+        "options",
+        "crypto",
+        "futures"
+      ]
     }
   ],
   "funding": {
@@ -37,10 +52,10 @@
     ],
     "plans": [
       {
-        "guid": "development",
+        "guid": "adapters-and-evals",
         "status": "active",
-        "name": "Core Development & Maintenance",
-        "description": "Ongoing development of Lumibot: new broker integrations, data source support, backtesting improvements, bug fixes, documentation, and community support.",
+        "name": "Broker adapter maintenance and the agent evaluation suite",
+        "description": "Twelve months of funded maintainer time on the public repository. Deliverables: keep the nine broker and venue adapters plus CCXT current as those APIs change, with regression tests per adapter; grow the real-model agent evaluation suite from 11 cases to cover the options, futures, and research skills; land Kalshi and finish the Interactive Brokers and Binance adapters already in progress; and bring documentation and contributor onboarding up to date. Everything funded is public and usable without any commercial service.",
         "amount": 100000,
         "currency": "USD",
         "frequency": "one-time"

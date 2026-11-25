@@ -1906,7 +1906,8 @@ class Strategy(_Strategy):
         An order this strategy already knows is completely filled is final, so it is
         returned without asking the broker again. ``max_age=0`` always asks the broker
         (no shortcut); a positive ``max_age`` accepts a broker read up to that many seconds
-        old. ``order.status_updated_at``, ``order.status_checked_at`` and
+        old; a small ``max_age`` means more broker reads. ``order.status_updated_at``,
+        ``order.status_checked_at`` and
         ``order.status_source`` say when the status last changed, when a broker read last
         confirmed it, and where it came from (Schwab sets the source; other brokers leave
         it ``None``).
@@ -1980,7 +1981,7 @@ class Strategy(_Strategy):
             supports it (Schwab) may answer from its last good order-list read when this
             strategy has no open, unknown or recently ended order and no order activity
             since that read; that read is never older than ``LUMIBOT_IDLE_SYNC_MAX_AGE``
-            seconds (default 30).
+            seconds (default 30). A small ``max_age`` means more broker reads.
 
         Returns
         -------

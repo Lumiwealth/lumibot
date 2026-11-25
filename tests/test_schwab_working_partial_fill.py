@@ -160,3 +160,91 @@ def test_parsed_working_order_with_fills_reads_as_partially_filled():
     untouched.update(snapshot("WORKING", []))
     parsed = broker._parse_broker_order(untouched, "fixture")
     assert Order.is_equivalent_status(parsed.status, Order.OrderStatus.NEW)
+
+
+def snapshot_without_price(status, filled):
+    """A snapshot that reports a filled amount but no executions and no average."""
+    return {
+        "status": status,
+        "filledQuantity": filled,
+        "remainingQuantity": 10 - filled,
+        "orderActivityCollection": [],
+    }
+
+
+def test_stale_unfilled_snapshot_does_not_move_partial_order_back_to_new():
+    transport = _TRANSPORT.SchwabLifecycleTransport()
+    broker, recipient, order = submitted_order(transport)
+    transport.queue_order_reads(
+        order.identifier,
+        snapshot("WORKING", [(4, 1.00)]),
+        # A list read taken before the fill arrives late.
+        snapshot("WORKING", []),
+    )
+
+    broker._reconcile_active_schwab_orders()
+    assert fill_events(broker, drain(recipient)) == [(broker.PARTIALLY_FILLED_ORDER, 4, 1.00)]
+
+    broker._reconcile_active_schwab_orders()
+    assert fill_events(broker, drain(recipient)) == []
+    assert Order.is_equivalent_status(order.status, Order.OrderStatus.PARTIALLY_FILLED)
+    assert float(order.filled_quantity) == 4
+    assert order.is_active()
+
+
+def test_partial_fill_without_a_reported_price_waits_for_one():
+    transport = _TRANSPORT.SchwabLifecycleTransport()
+    broker, recipient, order = submitted_order(transport)
+    transport.queue_order_reads(
+        order.identifier,
+        snapshot_without_price("WORKING", 4),
+        snapshot("WORKING", [(4, 1.00)]),
+    )
+
+    broker._reconcile_active_schwab_orders()
+    # The limit price (1.50) is not a fill price; nothing is booked yet.
+    assert fill_events(broker, drain(recipient)) == []
+    assert not order.transactions
+
+    broker._reconcile_active_schwab_orders()
+    assert fill_events(broker, drain(recipient)) == [(broker.PARTIALLY_FILLED_ORDER, 4, 1.00)]
+
+
+def test_second_partial_without_a_reported_price_is_not_priced_from_the_limit():
+    transport = _TRANSPORT.SchwabLifecycleTransport()
+    broker, recipient, order = submitted_order(transport)
+    transport.queue_order_reads(
+        order.identifier,
+        snapshot("WORKING", [(4, 1.00)]),
+        snapshot_without_price("WORKING", 7),
+        snapshot("WORKING", [(4, 1.00), (3, 1.20)]),
+    )
+
+    broker._reconcile_active_schwab_orders()
+    assert fill_events(broker, drain(recipient)) == [(broker.PARTIALLY_FILLED_ORDER, 4, 1.00)]
+
+    broker._reconcile_active_schwab_orders()
+    # (7 * 1.50 - 4) / 3 = 2.17 would be invented; wait for the real executions.
+    assert fill_events(broker, drain(recipient)) == []
+
+    broker._reconcile_active_schwab_orders()
+    assert fill_events(broker, drain(recipient)) == [(broker.PARTIALLY_FILLED_ORDER, 3, pytest.approx(1.20))]
+
+
+def test_filled_without_a_reported_price_keeps_the_earlier_limit_fallback():
+    # Before partial fills were surfaced, a FILLED snapshot with no executions
+    # and no average booked its new quantity at the limit price. Keep that.
+    transport = _TRANSPORT.SchwabLifecycleTransport()
+    broker, recipient, order = submitted_order(transport)
+    transport.queue_order_reads(
+        order.identifier,
+        snapshot("WORKING", [(4, 1.00)]),
+        snapshot_without_price("FILLED", 10),
+    )
+
+    broker._reconcile_active_schwab_orders()
+    assert fill_events(broker, drain(recipient)) == [(broker.PARTIALLY_FILLED_ORDER, 4, 1.00)]
+
+    broker._reconcile_active_schwab_orders()
+    assert fill_events(broker, drain(recipient)) == [(broker.FILLED_ORDER, 6, pytest.approx(1.50))]
+    assert order.is_filled()

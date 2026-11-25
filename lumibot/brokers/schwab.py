@@ -2067,13 +2067,17 @@ class Schwab(Broker):
         return Order.OrderStatus.UNKNOWN
 
     @staticmethod
-    def _schwab_execution_summary(schwab_order: dict, leg_id=None):
+    def _schwab_execution_summary(schwab_order: dict, leg_id=None, with_price_source=False):
         """Return cumulative executed quantity and VWAP from a Schwab snapshot.
 
         Schwab order-history responses describe executions as cumulative activity.
         LumiBot callbacks require the newly observed delta, so parsing keeps the
         cumulative broker value on the observed Order and the reducer calculates
         the delta against a per-order high-water mark.
+
+        With ``with_price_source`` a third value says whether the average came
+        from Schwab (execution rows or ``averagePrice``) rather than the order's
+        limit ``price`` fallback.
         """
         execution_rows = []
         for activity in schwab_order.get("orderActivityCollection") or schwab_order.get("activityCollection") or []:
@@ -2100,17 +2104,20 @@ class Schwab(Broker):
         if execution_rows:
             cumulative = sum(quantity for quantity, _ in execution_rows)
             average_price = sum(quantity * price for quantity, price in execution_rows) / cumulative
-            return cumulative, average_price
+            return (cumulative, average_price, True) if with_price_source else (cumulative, average_price)
 
         try:
             cumulative = float(schwab_order.get("filledQuantity") or 0)
         except (TypeError, ValueError):
             cumulative = 0.0
-        average_price = schwab_order.get("averagePrice") or schwab_order.get("price")
+        reported_average = schwab_order.get("averagePrice")
+        average_price = reported_average or schwab_order.get("price")
         try:
             average_price = float(average_price) if average_price is not None else None
         except (TypeError, ValueError):
             average_price = None
+        if with_price_source:
+            return cumulative, average_price, bool(reported_average)
         return cumulative, average_price
 
     def _schwab_instruction_to_side(self, instruction):
@@ -2269,12 +2276,14 @@ class Schwab(Broker):
                     }.get(schwab_order.get("duration"), str(schwab_order.get("duration") or "day").lower()),
                 )
 
-                cumulative_filled, average_fill_price = self._schwab_execution_summary(
+                cumulative_filled, average_fill_price, price_reported = self._schwab_execution_summary(
                     schwab_order,
                     leg_id=schwab_leg.get("legId", leg_index + 1),
+                    with_price_source=True,
                 )
                 order._schwab_cumulative_filled_quantity = cumulative_filled
                 order._schwab_average_fill_price = average_fill_price
+                order._schwab_average_fill_price_reported = price_reported
                 order.filled_quantity = cumulative_filled
                 if average_fill_price is not None:
                     order.avg_fill_price = average_fill_price
@@ -2628,8 +2637,13 @@ class Schwab(Broker):
 
         if Order.is_equivalent_status(observed_status, self.NEW_ORDER):
             # Never regress a local/broker cancel-pending order back to NEW when
-            # an older snapshot arrives out of order.
-            if not Order.is_equivalent_status(stored_order.status, Order.OrderStatus.CANCELLING):
+            # an older snapshot arrives out of order. An order with recorded
+            # fills stays partially filled: a list read taken before the fill
+            # can arrive late, and fills never un-happen.
+            has_fills = bool(stored_order.transactions) or float(
+                self._schwab_observed_fill_quantities.get(identifier, 0.0) or 0
+            ) > 0
+            if not has_fills and not Order.is_equivalent_status(stored_order.status, Order.OrderStatus.CANCELLING):
                 stored_order.status = Order.OrderStatus.NEW
             return
 
@@ -2676,7 +2690,17 @@ class Schwab(Broker):
                 or getattr(observed_order, "avg_fill_price", None)
             )
             price = cumulative_average or getattr(observed_order, "limit_price", None)
-            if cumulative_average is not None and fill_delta > 0 and prior_filled > 0 and recorded_filled == prior_filled:
+            # A snapshot with no executions and no averagePrice carries the limit
+            # price as its "average". That is not a fill price.
+            price_reported = cumulative_average is not None and getattr(
+                observed_order, "_schwab_average_fill_price_reported", True
+            )
+            if (fill_delta > 0 and not price_reported and not terminal_after_fill
+                    and not Order.is_equivalent_status(observed_status, self.FILLED_ORDER)):
+                # Open partial: wait for a snapshot that carries a real price.
+                # (FILLED and terminal snapshots keep the earlier limit fallback.)
+                price = None
+            if price_reported and fill_delta > 0 and prior_filled > 0 and recorded_filled == prior_filled:
                 # Schwab's average covers every execution so far. The callback
                 # and the transaction ledger need the price of the new quantity
                 # alone, or a second partial fill is booked at the running average.
@@ -2728,7 +2752,7 @@ class Schwab(Broker):
                     # Keep the strategy-visible running totals current while the
                     # order is still open, as other live brokers do.
                     stored_order.filled_quantity = cumulative_filled
-                    if cumulative_average is not None:
+                    if price_reported:
                         stored_order.avg_fill_price = cumulative_average
                     self._log_schwab_lifecycle_event(
                         "order.lifecycle.callback",

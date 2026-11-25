@@ -449,6 +449,13 @@ request and 0.3 seconds after; 20 symbols: 3 requests and 2.2 seconds per pass.
   match, LumiBot does not guess: it logs an error naming both, keeps reading and
   sends nothing. LumiBot never resends a submit by itself; a strategy that
   retries after an error should first check ``get_orders(max_age=0)``.
+* **An error on submit does not always mean no order.** When Schwab accepts a
+  submit but returns no order id, or the reply times out, LumiBot reports the
+  order as an error (``on_error_order``), but the order may still be live at
+  Schwab. LumiBot re-attaches it if exactly one matching Schwab order appears
+  within the 5 minute watch window above. Do not resubmit from
+  ``on_error_order`` without first checking ``get_orders(max_age=0)``, or you
+  can end up with two live orders.
 
 .. code-block:: python
 

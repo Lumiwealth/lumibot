@@ -82,13 +82,23 @@ def request_report_prewarm() -> None:
     """Ask for the background report import once the simulation has started.
 
     WHY: started at backtest start, the import thread competed with the main thread's own
-    imports and data setup. On a hosted 2 vCPU machine the strategy's ``initialize`` was
+    imports and data setup. On a small 2 vCPU machine the strategy's ``initialize`` was
     reached after 8.7-9.4 s with it and 6.4 s without it, so the customer saw the first
     progress about 3 s later. Started at the first simulation step it still overlaps the
     simulation and the report is identical.
     """
     global _prewarm_requested
     _prewarm_requested = True
+
+
+def clear_report_prewarm_request() -> None:
+    """Drop a request left by an earlier backtest in this process that never took a step.
+
+    Called at the start of every backtest so only that backtest's own settings decide
+    whether the report import starts.
+    """
+    global _prewarm_requested
+    _prewarm_requested = False
 
 
 def start_requested_report_prewarm() -> None:

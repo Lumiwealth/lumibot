@@ -58,6 +58,20 @@ def _metamask_config():
     }
 
 
+def _webull_config():
+    return {field: os.environ.get(f"WEBULL_{field}")
+            for field in ("APP_KEY", "APP_SECRET", "ACCOUNT_ID", "PAPER", "TOKEN_DIR")}
+
+
+def _webull_data_for_broker(broker):
+    if broker is not None and broker.name.lower() == "webull":
+        return broker.data_source
+
+    from .data_sources import WebullData
+
+    return WebullData(_webull_config())
+
+
 def _broker_class(name: str):
     from . import brokers
 
@@ -77,6 +91,7 @@ _BROKER_CLASS_NAMES = {
     "Polymarket",
     "MetaMask",
     "Kalshi",
+    "Webull",
 }
 
 
@@ -705,6 +720,11 @@ def _build_default_live_credentials():
                 connect_stream=connect_stream,
                 start_orders_thread=start_orders_thread,
             )
+        elif broker_name == "webull":
+            broker = _broker_class("Webull")(
+                _webull_config(), connect_stream=connect_stream, start_orders_thread=start_orders_thread
+            )
+            data_source = broker.data_source
         elif broker_name == "tradier":
             broker = _broker_class("Tradier")(TRADIER_CONFIG, connect_stream=connect_stream)
         elif broker_name in ("ccxt", "coinbase"):
@@ -865,6 +885,8 @@ def _build_default_live_credentials():
             if data_name == "alpaca":
                 from .data_sources import AlpacaData
                 data_source = AlpacaData(ALPACA_CONFIG)
+            elif data_name == "webull":
+                data_source = _webull_data_for_broker(broker)
             elif data_name == "tradier":
                 from .data_sources import TradierData
                 data_source = TradierData(TRADIER_CONFIG)
@@ -1009,6 +1031,11 @@ elif not is_backtesting or is_backtesting.lower() == "false":
                 connect_stream=connect_stream,
                 start_orders_thread=start_orders_thread,
             )
+        elif trading_broker_name.lower() == "webull":
+            broker = _broker_class("Webull")(
+                _webull_config(), connect_stream=connect_stream, start_orders_thread=start_orders_thread
+            )
+            data_source = broker.data_source
         elif trading_broker_name.lower() == "tradier":
             broker = _broker_class("Tradier")(TRADIER_CONFIG, connect_stream=connect_stream)
         elif trading_broker_name.lower() == "ccxt":
@@ -1182,6 +1209,8 @@ elif not is_backtesting or is_backtesting.lower() == "false":
             if data_source_name.lower() == "alpaca":
                 from .data_sources import AlpacaData
                 data_source = AlpacaData(ALPACA_CONFIG)
+            elif data_source_name.lower() == "webull":
+                data_source = _webull_data_for_broker(broker)
             elif data_source_name.lower() == "tradier":
                 from .data_sources import TradierData
                 data_source = TradierData(TRADIER_CONFIG)

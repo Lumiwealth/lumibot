@@ -32,6 +32,7 @@ _STATUS_MAP = {
     "partial_fill": "partial_fill",
     "open": "open",
     "waiting_for_fill": "open",
+    "awaiting_approval": "awaiting_approval",
 }
 
 
@@ -604,6 +605,9 @@ class MetaMask(Broker):
             elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
                 order.set_partially_filled()
                 tracker = self._partially_filled_orders
+            elif order.status == Order.OrderStatus.AWAITING_APPROVAL:
+                # Keep pre-release approval orders in unprocessed so approval -> open emits NEW_ORDER cleanly.
+                tracker = self._unprocessed_orders
             else:
                 tracker = self._new_orders if order.is_active() else self._unprocessed_orders
             tracker.append(order)
@@ -821,6 +825,8 @@ class MetaMask(Broker):
             "reconciliation_required": certainty == "unknown" or bool(response.get("reconciliationErrorCode")),
             "state": state,
         }
+        if state == "awaiting_approval" and isinstance(response.get("approvalId"), str) and response["approvalId"]:
+            order.submission_outcome["approval_id"] = response["approvalId"]
         if state in {"open", "waiting_for_fill", "partial_fill", "filled"} or venue_evidence:
             order.submission_outcome["venue_acceptance_observed"] = True
         if certainty == "confirmed_not_submitted":
@@ -896,6 +902,10 @@ class MetaMask(Broker):
                     "prepared",
                 ):
                     self._process_trade_event(order, self.NEW_ORDER)
+                elif state == "awaiting_approval":
+                    order.status = Order.OrderStatus.AWAITING_APPROVAL
+                elif state == "submitted" and order.status == Order.OrderStatus.AWAITING_APPROVAL:
+                    order.status = Order.OrderStatus.SUBMITTED
                 if state == "partial_fill" and previous[2] != "partial_fill":
                     with self._lock:
                         order.status = Order.OrderStatus.PARTIALLY_FILLED
@@ -971,6 +981,10 @@ class MetaMask(Broker):
                         "prepared",
                     ):
                         self._process_trade_event(order, self.NEW_ORDER)
+                    elif state == "awaiting_approval":
+                        order.status = Order.OrderStatus.AWAITING_APPROVAL
+                    elif state == "submitted" and order.status == Order.OrderStatus.AWAITING_APPROVAL:
+                        order.status = Order.OrderStatus.SUBMITTED
                     if state == "canceled" and previous[2] != "canceled":
                         self._process_trade_event(order, self.CANCELED_ORDER)
                     elif state == "rejected" and previous[2] != "rejected":

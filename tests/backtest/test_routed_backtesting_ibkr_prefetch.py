@@ -1750,3 +1750,134 @@ def test_daily_strategy_valuation_snapshot_still_uses_daily_bars(monkeypatch):
     router.get_historical_prices(asset, 75, "day", quote=quote)
     assert router.get_price_snapshot(asset, quote=quote) is not None
     assert "minute" not in requested, requested
+
+
+@pytest.mark.parametrize("timestep,step", [("hour", timedelta(hours=1)), ("minute", timedelta(minutes=1))])
+def test_router_ibkr_prefetches_full_window_once_for_forex_intraday(monkeypatch, timestep, step):
+    """Forex and spot metals (for example XAU/USD) on IBKR intraday bars.
+
+    Bug: forex fell through to the per-call fetch, which asks for history ending at the
+    current simulated time. Each new iteration needed the next bar, so the run sent one
+    downloader request per simulated bar (observed: one 3-35 s request per simulated hour
+    for an hourly XAU strategy). It must prefetch the backtest window once, like crypto.
+    """
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 5, 9, 0))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 7, 16, 0))
+    router = _make_router(start, end, {"default": "thetadata", "forex": "ibkr"})
+
+    asset = Asset("XAU", asset_type=Asset.AssetType.FOREX)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    calls: list[dict] = []
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
+        calls.append({"timestep": timestep, "start_dt": start_dt, "end_dt": end_dt})
+        if timestep == "hour":
+            return _multi_minute_ohlc(start_dt, end_dt, minutes=60)
+        return _minute_ohlc(start_dt, end_dt)
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+
+    for i in range(1, 6):
+        router._datetime = start + timedelta(hours=2) + step * i
+        _ = router.get_historical_prices(asset, length=5, timestep=timestep, quote=quote)
+
+    assert len(calls) == 1, calls
+    assert calls[0]["end_dt"] == router.datetime_end
+    assert calls[0]["start_dt"] <= router.datetime_start
+
+
+def _forex_hourly_until(start_dt, end_dt, *, last_bar):
+    """Hourly forex bars that really stop at ``last_bar`` (the Friday close)."""
+    stop = min(pd.Timestamp(end_dt), pd.Timestamp(last_bar))
+    if stop < pd.Timestamp(start_dt):
+        return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
+    return _multi_minute_ohlc(start_dt, stop, minutes=60)
+
+
+def _forex_router_and_calls(monkeypatch, start, end, last_bar):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+    router = _make_router(start, end, {"default": "thetadata", "forex": "ibkr"})
+    calls: list[dict] = []
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, **_):
+        calls.append({"start_dt": start_dt, "end_dt": end_dt})
+        return _forex_hourly_until(start_dt, end_dt, last_bar=last_bar)
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+    return router, calls
+
+
+def test_forex_window_ending_in_the_weekend_close_is_fetched_once(monkeypatch):
+    """Bug: a forex window whose end fell in the weekend close was never judged covered
+    (no bars exist after Friday 17:00 ET), so every step re-fetched the whole window."""
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 5, 9, 0))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 10, 12, 0))  # Saturday
+    last_bar = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 9, 16, 0))  # bar ending Fri 17:00
+    router, calls = _forex_router_and_calls(monkeypatch, start, end, last_bar)
+    asset = Asset("XAU", asset_type=Asset.AssetType.FOREX)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    friday_noon = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 9, 12, 0))
+    for i in range(12):
+        router._datetime = friday_noon + timedelta(hours=i)
+        router.get_historical_prices(asset, length=5, timestep="hour", quote=quote)
+
+    assert len(calls) == 1, calls
+
+
+def test_forex_lookback_starting_in_the_weekend_close_is_fetched_once(monkeypatch):
+    """The start edge: a run starting Sunday morning has no bars until the Sunday reopen."""
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 4, 9, 0))  # Sunday, market closed
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 6, 12, 0))
+    reopen = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 4, 17, 0))
+    router, calls = _forex_router_and_calls(monkeypatch, start, end, end)
+
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    real_fake = ibkr_helper.get_price_data
+
+    def from_reopen(**kwargs):
+        df = real_fake(**kwargs)
+        return df[df.index >= pd.Timestamp(reopen)]
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", from_reopen)
+    asset = Asset("EUR", asset_type=Asset.AssetType.FOREX)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    # Sunday evening steps: a 5-bar lookback reaches back into the closed weekend.
+    sunday_evening = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 4, 18, 0))
+    for i in range(6):
+        router._datetime = sunday_evening + timedelta(hours=i)
+        router.get_historical_prices(asset, length=5, timestep="hour", quote=quote)
+
+    assert len(calls) == 1, calls
+
+
+def test_forex_coverage_still_requires_bars_while_the_market_is_open():
+    """Negative control: a gap inside an open forex session is not covered."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    asset = Asset("EUR", asset_type=Asset.AssetType.FOREX)
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 5, 9, 0))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 8, 12, 0))  # Thursday midday
+    df = _multi_minute_ohlc(start, LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 7, 12, 0)), minutes=60)
+    assert not ibkr_helper.frame_covers_requested_window(df, asset=asset, timestep="hour", start_dt=start, end_dt=end)
+
+
+def test_crypto_coverage_has_no_weekend_close():
+    """Crypto trades 24/7: a window ending Saturday needs Saturday bars."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 5, 9, 0))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 10, 12, 0))
+    df = _multi_minute_ohlc(start, LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 9, 16, 0)), minutes=60)
+    assert not ibkr_helper.frame_covers_requested_window(df, asset=asset, timestep="hour", start_dt=start, end_dt=end)

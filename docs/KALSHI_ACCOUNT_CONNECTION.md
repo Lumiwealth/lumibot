@@ -267,6 +267,14 @@ placing real orders. An existing `KalshiData` can instead be passed as
 this class through the existing environment override; as usual, an environment
 selection takes precedence over the class argument.
 
+Market discovery uses the public `search_markets(...)` call on the data source,
+the same call live `KalshiData` answers. In a backtest, `KalshiBacktesting`
+forwards it to Kalshi's public market list and returns each row through the same
+visibility rule as `get_market_metadata`: identity, timing and rules stay;
+prices and results not yet settled at the simulated time are removed. Strategies
+should call `self.broker.data_source.search_markets(...)` rather than reaching the
+internal `kalshi_data` attribute.
+
 The optional `assets` list preloads only the requested backtest range. On-demand
 loading uses that same bounded range, caches each outcome separately and reuses
 the ordinary PandasData store. Every read remains limited to the simulated time;

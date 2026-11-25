@@ -34,7 +34,7 @@ python3 -m pytest tests/test_schwab_positions_unit.py -k "cancel_order or pull_b
 Live Schwab smoke:
 
 ```text
-python3 scripts/schwab_titus_fast_cancel_strategy_smoke.py --account-suffix 364 --token-path schwab_token.json --wait-seconds 4 --option-limit 0.01 --measure-broad-orders --summary-path logs/schwab_cancel_telemetry_20260604_live.json
+python3 scripts/schwab_fast_scanner_fast_cancel_strategy_smoke.py --account-suffix 364 --token-path schwab_token.json --wait-seconds 4 --option-limit 0.01 --measure-broad-orders --summary-path logs/schwab_cancel_telemetry_20260604_live.json
 ```
 
 Result summary:
@@ -63,11 +63,11 @@ For Rob's live Schwab account, the direct Schwab cancel path worked for a restin
 2. Direct order lookup immediately showed `CANCELED`.
 3. LumiBot parsed the order as non-active/canceled.
 
-This does not prove Titus's generated strategy logic is correct, but it does prove the broker adapter can send and confirm a direct cancel for the same class of operation.
+This does not prove the fast options scanner customer's generated strategy logic is correct, but it does prove the broker adapter can send and confirm a direct cancel for the same class of operation.
 
 ## Next Diagnostic Step
 
-Use the new telemetry on Titus-style BotSpot runs. If Titus still reports "not canceling", compare the deployment logs for:
+Use the new telemetry on fast-scanner-style BotSpot runs. If the fast options scanner customer still reports "not canceling", compare the deployment logs for:
 
 - whether `[SchwabCancelTelemetry] request` appears
 - whether Schwab returns HTTP 2xx, 4xx, or an exception

@@ -1,6 +1,6 @@
 """Fill events must only reach the strategy that owns the order.
 
-Regression for Titus / shared-account option fills (2026-09-03):
+Regression for the fast options scanner customer / shared-account option fills (2026-09-03):
 a live STM call strategy read MOS option activity from the broker account and
 submitted an unintended 100-share STM stock hedge. Broker polling must not
 attribute foreign-tagged fills to the local strategy, and on_filled_order must

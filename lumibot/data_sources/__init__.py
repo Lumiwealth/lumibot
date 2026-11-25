@@ -6,6 +6,7 @@ _NAME_TO_MODULE = {
     "MetaMaskData": "metamask_data",
     "KalshiData": "kalshi_data",
     "AlpacaData": "alpaca_data",
+    "WebullData": "webull_data",
     "AlphaVantageData": "alpha_vantage_data",
     "BitunixData": "bitunix_data",
     "CcxtBacktestingData": "ccxt_backtesting_data",

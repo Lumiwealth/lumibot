@@ -235,14 +235,34 @@ def _is_color(value) -> bool:
     return True
 
 
+# A plain number below this is far too small to be a real time (1e8 seconds is March 1973).
+# In practice it is a bar number, for example a Pine ``bar_index`` ported as written, which
+# used to draw the object at 1970-01-01, off the chart, with no error.
+_SMALLEST_EPOCH_SECONDS = 100_000_000
+# Epoch seconds stay below this until the year 5138; epoch milliseconds are above it after March 1973.
+_SMALLEST_EPOCH_MILLISECONDS = 100_000_000_000
+
+
 def _to_ms(value, what: str) -> int:
-    """UTC epoch milliseconds from a bar time, a datetime, an ISO string or a number of milliseconds."""
+    """UTC epoch milliseconds from a bar time, a datetime, an ISO string, or epoch seconds or milliseconds.
+
+    A plain number below 1e8 is refused: it is a bar number, not a time.
+    """
     if value is None or isinstance(value, bool):
         raise ValueError(f"{what} must be a bar time (bar.time), got {value!r}")
     if isinstance(value, numbers.Real):
         number = float(value)
         if not math.isfinite(number):
             raise ValueError(f"{what} must be a finite time, got {value!r}")
+        if abs(number) < _SMALLEST_EPOCH_SECONDS:
+            raise ValueError(
+                f"{what} got {value!r}, which looks like a bar number, not a time. Drawings need a time: "
+                "pass bar.time (or another datetime), or epoch seconds or milliseconds for a real date. "
+                "To place an object N bars back, keep that bar's bar.time in state when you see the bar "
+                "and pass it later."
+            )
+        if abs(number) < _SMALLEST_EPOCH_MILLISECONDS:
+            return int(round(number * 1000))
         return int(number)
     try:
         stamp = pd.Timestamp(value)

@@ -67,6 +67,17 @@ No ranking or filtering call exists on purpose: `get_metrics_table` returns the 
 
 `lumibot/fundamentals/metrics_history.py`. Why: a 60-to-500-symbol market cap screen spent most of its first day loading a daily price for every candidate (each slow symbol cost 30 to 100 s of provider edge requests). A stored row per (session, symbol) holds every `FUNDAMENTAL_METRICS` value plus `close`, `cik`, `available_at` (session 16:00 New York) and `reasons` (JSON). Built by `build_metrics_history(sec, closes)` = `get_metrics(symbol, as_of=<session close>, price=<traded close>)`; saved per calendar year to `metrics_daily/v1/<year>.parquet` locally and `sec/metrics_daily/v1/<year>.parquet` in the shared backtest cache (`save_metrics_history`, merges by date and symbol). Reader invariants (`MetricsHistory.lookup`): backtest mode only; latest row with session date <= the as-of session (before 16:00 the previous session); rows older than `MAX_ROW_AGE` (7 days) are ignored, never carried forward; every requested metric must be a stored column; symbols with `prices=` skip the table; when stored rows cover the date, a symbol they leave out is None with a reason and is not priced (4.6.90: an S&P 500 screen from 2010 otherwise downloaded history for hundreds of left-out companies); a broken or missing file means compute as before. Builders must pass as-traded closes (not split or dividend adjusted), otherwise market cap is wrong. Tests: `tests/test_sec_metrics_history.py`.
 
+## Listings (4.6.96)
+
+`lumibot/fundamentals/listings.py`, read through `SECFundamentals.get_listings(start, end, as_of=, kinds=)` and `get_listing(symbol)`. Why: the SEC ticker map is current only, so an IPO study on it is survivorship-biased (2026-11-22: 1,556 of 3,705 companies with a 2019-2026 424B4/424B1 were gone from it; a delisted CIK keeps its filings but `tickers` is empty).
+- The builder reads the quarterly Form index, recent and archived issuer submissions and up to 400 KB of each prospectus. It excludes follow-on offerings and keeps blank-check companies separately labeled.
+- `delisting_filed` is the date of the first eligible SEC notice. Continued periodic reporting leaves the notice intact. When a nearby Form 8-A was public by the removal notice, the builder reads both documents using the same bounded archive fetcher. It skips the notice only if the Form 8-A explicitly transfers the same security class from the same exchange to another exchange. The filing date does not determine the last session that traded.
+- The table keeps its existing local and remote keys. Rebuild a previously stored table to apply the new classification. A required download failure leaves the prior table in use.
+- Point-in-time reads use SEC acceptance timestamps where available, with day-level accuracy for filing dates alone. The backtest clock caps `as_of`.
+- Known gaps include direct listings without a final prospectus, missing tickers on prospectus covers, and exchange transfers where the public documents lack a confirmed match. SIC is the issuer's current classification.
+- 424B4 date vs first trade (hand-checked 2026-11-22): RDDT 0, ARM 0, CSPR 1, RIVN 2 business days after.
+- Tests: `tests/test_sec_listings.py`.
+
 ## Rate limit
 
 Request starts are spaced by `min_request_interval_seconds` (default 0.11 s, under SEC's 10 requests per second) across all threads, so `preload()` workers share one limit. `request_count` counts actual SEC requests.
@@ -99,7 +110,7 @@ Freshness in a backtest: a copy with `fetched_at` at or after the backtest end d
 SEC publishes nightly `companyfacts.zip` and `submissions.zip`. A warmer that wants LumiBot to get hits must:
 
 1. Write each `CIK##########.json` from `companyfacts.zip` to `sec/companyfacts/CIK##########.json` (same 10-digit, zero-padded name) with `_lumibot_cache_meta.fetched_at` set to when the zip was downloaded.
-2. Write each main `CIK##########.json` from `submissions.zip` to `sec/submissions/CIK##########.json` the same way. The paginated `CIK##########-submissions-NNN.json` files are not read by LumiBot today.
+2. Write each main `CIK##########.json` from `submissions.zip` to `sec/submissions/CIK##########.json` the same way. Store the paginated `CIK##########-submissions-NNN.json` files under the same prefix for historical listings rebuilds.
 3. Write `https://www.sec.gov/files/company_tickers.json` to `sec/company_tickers.json` (the zips do not contain it).
 4. Use the same prefix and version as the backtest containers. Without `_lumibot_cache_meta.fetched_at` a downloaded file looks fresh by its local mtime, so always write it. Running nightly keeps every backtest whose end date is before the warm a hit.
 

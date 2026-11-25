@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import bisect
 import logging
 import os
 import re
@@ -15,10 +16,15 @@ from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.credentials import ALPACA_CONFIG, COINBASE_CONFIG, KRAKEN_CONFIG, POLYGON_API_KEY
 from lumibot.data_sources.data_source_backtesting import DataSourceBacktesting
 from lumibot.entities import Asset, AssetsMapping, Data
-from lumibot.tools import ibkr_helper, polygon_helper
+from lumibot._lazy_imports import LazyModule
+from lumibot.tools import ibkr_helper
 from lumibot.tools.helpers import parse_timestep_qty_and_unit
 from lumibot.tools.ibkr_equity_basis import EquityBasisSnapshot, assert_same_basis, equity_basis_from_frame
 from lumibot.tools.frame_metadata import share_frame_attrs
+
+# Loaded only when a Polygon route is read; every other routed backtest skips the Polygon
+# client package (massive) at startup.
+polygon_helper = LazyModule("lumibot.tools.polygon_helper")
 
 logger = logging.getLogger(__name__)
 
@@ -447,7 +453,36 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         self._prefetch_start_by_series: dict[Any, datetime] = {}
         self._equity_basis_snapshots: dict[str, EquityBasisSnapshot] = {}
 
+    def _end_at_feed_cutoff(self, asset=None, timestep=None):
+        """Stop the run where the delayed feed ends, instead of failing its last decisions.
+
+        Intraday IBKR history for stocks, indexes and futures is 20 minutes delayed and frozen
+        at ``_history_as_of``. A backtest whose window ends at (or near) the current minute
+        would otherwise make its final decisions after the feed cutoff, and each would be
+        recorded as required history unavailable ("asked for 1, got 0"), failing a run whose
+        data was complete up to the cutoff. Daily bars, forex and crypto have no such delay,
+        so a fetch for them never moves the end.
+        """
+        if not ibkr_helper.history_feed_is_delayed(getattr(asset, "asset_type", ""), timestep):
+            return
+        router = self._router
+        if getattr(router, "feed_cutoff_end", None) is not None:
+            return
+        end = getattr(router, "datetime_end", None)
+        if end is None:
+            return
+        cutoff = ibkr_helper._to_utc(self._history_as_of) - ibkr_helper.IBKR_INTRADAY_HISTORY_DELAY
+        if ibkr_helper._to_utc(end) <= cutoff:
+            return
+        router.feed_cutoff_end = cutoff
+        router.datetime_end = cutoff.astimezone(end.tzinfo) if end.tzinfo else cutoff
+        logger.warning(
+            "Backtest end moved from %s to %s: the IBKR data feed is %s delayed, so later bars "
+            "do not exist yet.", end, router.datetime_end, ibkr_helper.IBKR_INTRADAY_HISTORY_DELAY,
+        )
+
     def _get_price_data(self, **kwargs):
+        self._end_at_feed_cutoff(kwargs.get("asset"), kwargs.get("timestep"))
         asset = kwargs["asset"]
         stock_symbol = (str(asset.symbol).strip().upper()
                         if _normalize_asset_type(asset.asset_type) == "stock" else None)
@@ -529,6 +564,10 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         qty, unit = parse_timestep_qty_and_unit(dataset_key)
         qty = int(qty)
         unit = str(unit)
+
+        # Move the run end to the delayed feed cutoff before any prefetch reads it, so the
+        # first full-window request does not ask past the cutoff either.
+        self._end_at_feed_cutoff(fetch_asset, dataset_key)
 
         asset_type = _normalize_asset_type(getattr(fetch_asset, "asset_type", ""))
         include_after_hours = _ibkr_include_after_hours(asset_type, unit)
@@ -699,7 +738,14 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 end_dt=prefetch_end,
             ):
                 self._fully_loaded_series.add(canonical_key)
-        elif asset_type == "crypto" and unit in {"minute", "hour"} and canonical_key not in self._fully_loaded_series:
+        elif (
+            asset_type in {"crypto", "forex"}
+            and unit in {"minute", "hour"}
+            and canonical_key not in self._fully_loaded_series
+        ):
+            # Forex and spot metals trade nearly around the clock like crypto. Without this
+            # prefetch they fell through to the per-call fetch below, which ends at the current
+            # simulated time, so every iteration asked the downloader for one more bar.
             try:
                 prefetch_start = min(start_datetime, self._router.datetime_start)
             except Exception:
@@ -1480,7 +1526,25 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
     def funding_events(self, asset: Asset, start, end):
         market, symbol, _ = self.resolve(asset)
         rows = self._funding_rows(symbol, market)
-        return [row for row in DataSourceBacktesting._perpetual_rows(rows) if start <= row["timestamp"] <= end]
+        # PERF: the perpetual account asks for funding on every simulated bar. Normalizing and
+        # scanning the whole window's rows each time was about 10% of a BTC 5-minute run. The
+        # normalized rows are kept once per loaded list and the bar's slice is found by bisection;
+        # callers still get fresh dicts in the same order (tests/test_perpetual_funding_mark_lookup.py).
+        cache = self.__dict__.setdefault("_funding_sorted", {})
+        hit = cache.get(symbol)
+        if hit is None or hit[0] is not rows:
+            normalized = DataSourceBacktesting._perpetual_rows(rows)
+            hit = (rows, normalized, [row["timestamp"] for row in normalized])
+            cache[symbol] = hit
+        _, normalized, stamps = hit
+        lo = bisect.bisect_left(stamps, pd.Timestamp(start)) if stamps else 0
+        out = []
+        for row in normalized[lo:]:
+            if not row["timestamp"] <= end:
+                break
+            if start <= row["timestamp"]:
+                out.append(dict(row))
+        return out
 
     def mark_at(self, asset: Asset, at):
         """Binance mark price from hourly mark-price klines: the open of the hour at or before ``at``.
@@ -1500,6 +1564,12 @@ class _BinanceBulkRoutingAdapter(_DataFrameRoutingAdapter):
         marks = self._marks[symbol]
         at_ts = pd.Timestamp(at)
         at_ts = at_ts.tz_localize("UTC") if at_ts.tzinfo is None else at_ts.tz_convert("UTC")
+        if isinstance(marks.index, pd.DatetimeIndex) and marks.index.is_monotonic_increasing:
+            # PERF: same row as the mask below, found by bisection instead of a full mask per bar.
+            position = int(marks.index.searchsorted(at_ts, side="right")) - 1
+            if position < 0:
+                return None, False
+            return Decimal(str(marks.iloc[position]["open"])), marks.index[position] == at_ts
         visible = marks[marks.index <= at_ts]
         if visible.empty:
             return None, False
@@ -1762,6 +1832,8 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         # The same optional exchange_id accepted by CcxtBacktestingData is
         # retained when a public asset-class map selects this routed source.
         self._ccxt_exchange_id_hint = exchange_id
+        # Set when an IBKR route moved the end to its delayed-feed cutoff (see _end_at_feed_cutoff).
+        self.feed_cutoff_end = None
         super().__init__(*args, **kwargs)
         self._registry = _ProviderRegistry(self)
         self._routing = self._normalize_routing(self._extract_routing_config(getattr(self, "_config", None)))

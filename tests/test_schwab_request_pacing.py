@@ -169,31 +169,40 @@ def _pacer(rpm, reserve, max_wait=0.0):
 
 
 def test_market_data_cannot_use_the_order_reserve_and_fails_fast_visibly():
+    # Updated 2026-11-24: the budget now holds over any 60 seconds (burst of 6 s worth
+    # plus a lowered refill), so the first second no longer carries a whole minute.
     from lumibot.tools.http_retry_after import RateLimitedError
 
-    pacer, _clock, sleeps = _pacer(rpm=10, reserve=3)
-    for _ in range(7):
-        pacer.acquire("data")
+    pacer, _clock, sleeps = _pacer(rpm=100, reserve=20)
+    reads = 0
     with pytest.raises(RateLimitedError, match="budget"):
-        pacer.acquire("data")
-    # Orders still go out immediately from the reserved headroom.
-    for _ in range(3):
+        while True:
+            pacer.acquire("data")
+            reads += 1
+    assert reads == 8  # 6 seconds of the 80 per minute reads may use
+    # Orders still go out immediately from the headroom reads may not touch.
+    for _ in range(2):
         pacer.acquire("order")
     assert sleeps == []
 
 
 def test_orders_are_never_refused_they_wait_for_the_next_token():
-    pacer, _clock, sleeps = _pacer(rpm=60, reserve=5)
+    pacer, clock, sleeps = _pacer(rpm=60, reserve=5)
+    for _ in range(6):  # the burst: 6 seconds worth of a 60 per minute budget
+        pacer.acquire("order")
+    assert sleeps == []
+    pacer.acquire("order")  # bucket empty: waits for the next token, never raises
+    assert len(sleeps) == 1 and 0.9 <= sleeps[0] <= 1.3
     for _ in range(60):
         pacer.acquire("order")
-    pacer.acquire("order")  # bucket empty: waits about one second, never raises
-    assert len(sleeps) == 1 and 0.9 <= sleeps[0] <= 1.1
+    assert clock["value"] >= 60.0  # 67 orders never fit in one minute of a 60 budget
 
 
 def test_market_data_waits_within_its_limit_then_proceeds():
     pacer, clock, sleeps = _pacer(rpm=60, reserve=0, max_wait=2.0)
-    for _ in range(60):
+    for _ in range(6):
         pacer.acquire("data")
+    assert sleeps == []
     pacer.acquire("data")
     assert sleeps and sum(sleeps) <= 2.0
     assert clock["value"] > 0
@@ -242,17 +251,31 @@ def test_quote_polling_never_starves_order_send_and_cancel_on_a_shared_client():
     from lumibot.brokers.schwab_request_pacer import SchwabRequestPacer, attach_pacer
     from lumibot.tools.http_retry_after import RateLimitedError
 
-    transport = _QuotingTransport()
-    attach_pacer(transport, SchwabRequestPacer(requests_per_minute=6, order_reserved_per_minute=3,
-                                               market_data_max_wait_seconds=0))
-    broker, _queues = TRANSPORT.data_only_schwab_broker(transport)
-    data = SchwabData(client=transport, auto_create_client=False)
+    # Updated 2026-11-24: live quotes are now served from memory for up to
+    # LUMIBOT_QUOTE_MAX_AGE seconds, so this test turns that off to keep every quote
+    # call a real request. Its point is unchanged: quote polling that has used up
+    # its share is refused, and order send and cancel still go out.
+    import os
 
-    for _ in range(3):
-        data.get_quotes([Asset("LWP")])
-    with pytest.raises(RateLimitedError):
-        data.get_quotes([Asset("LWP")])
-    assert transport.quote_calls == 3
+    previous = os.environ.get("LUMIBOT_QUOTE_MAX_AGE")
+    os.environ["LUMIBOT_QUOTE_MAX_AGE"] = "0"
+    try:
+        transport = _QuotingTransport()
+        attach_pacer(transport, SchwabRequestPacer(requests_per_minute=60, order_reserved_per_minute=30,
+                                                   market_data_max_wait_seconds=0))
+        broker, _queues = TRANSPORT.data_only_schwab_broker(transport)
+        data = SchwabData(client=transport, auto_create_client=False)
+
+        for _ in range(3):
+            data.get_quotes([Asset("LWP")])
+        with pytest.raises(RateLimitedError):
+            data.get_quotes([Asset("LWP")])
+        assert transport.quote_calls == 3
+    finally:
+        if previous is None:
+            os.environ.pop("LUMIBOT_QUOTE_MAX_AGE", None)
+        else:
+            os.environ["LUMIBOT_QUOTE_MAX_AGE"] = previous
 
     order = Order(strategy="fixture", asset=Asset("LWP"), quantity=1, side=Order.OrderSide.BUY,
                   order_type=Order.OrderType.LIMIT, limit_price=1.0)

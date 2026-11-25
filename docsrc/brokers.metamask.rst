@@ -30,10 +30,12 @@ Check the printed source commit against the intended revision before testing. Pa
 availability and passing offline checks do not establish production qualification.
 
 Authorize through the official `MetaMask Agent Wallet sign-in page
-<https://developer.metamask.io/agentic/login>`_. Use the original Google/email
-method to retain the same wallet identity. The optional Python login function
-opens that page, accepts the copied browser token through a hidden prompt,
-verifies its identity, and writes an owner-only session file:
+<https://developer.metamask.io/agentic/login>`_. Wallet linking uses OAuth
+(never raw private keys); keys stay inside MetaMask's managed server wallet.
+Use the original Google/email method to retain the same wallet identity. The
+optional Python login function opens that page, accepts the copied browser token
+through a hidden prompt, verifies its identity, and writes an owner-only session
+file:
 
 .. code-block:: python
 
@@ -135,6 +137,20 @@ replayed after restart. Cancellation has a separate lifecycle and cannot erase
 fills or reject the original live order merely because cancellation failed.
 Parent and child IDs of bracket, OTO, and OCO orders can be queried and
 canceled individually.
+
+When MetaMask Guard Mode pauses a signing request for human approval
+(``AWAITING_MFA``), LumiBot sets ``order.status`` to
+``Order.OrderStatus.AWAITING_APPROVAL`` (``"awaiting_approval"``) while keeping
+the order active and exposing the approval request ID on
+``order._raw["approvalId"]`` and ``order.submission_outcome["approval_id"]``.
+No venue order is sent until approval completes. Once approved (``SIGNED``),
+polling validates authority/expiry/reservation and releases the order to
+Hyperliquid normally. If the user denies the prompt (``DENIED``) or it expires
+or fails (``EXPIRED``/``FAILED``), no venue order is sent, ``order.status``
+becomes ``Order.OrderStatus.ERROR`` (``Order.OrderStatus.REJECTED``),
+``order.error_message`` records the denial reason, and
+``order.submission_outcome["broker_state_certainty"]`` is
+``"confirmed_rejected"``.
 
 Perpetual receipt fees populate cumulative ``Order.trade_cost`` in USDC,
 including maker rebates. Partial-fill trade-log rows contain the cumulative cost

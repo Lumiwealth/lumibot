@@ -1,21 +1,15 @@
-# Titus Schwab Strategy Validation - 2026-06-01
+# Fast-scanner Schwab Strategy Validation - 2026-06-01
 
 ## Scope
 
-Investigate whether Titus's current cancel and hedge issues are still a LumiBot Schwab broker bug or a generated-strategy structure problem. This note intentionally avoids customer secrets and does not include token values.
+Investigate whether the fast options scanner customer's current cancel and hedge issues are still a LumiBot Schwab broker bug or a generated-strategy structure problem. This note intentionally avoids customer secrets and does not include token values.
 
-## Strategy Provenance
+## Strategy provenance
 
-The proposed local copy is based on Titus's saved LW ITM call scanner, not a generic scratch strategy.
-
-Evidence checked:
-
-- The saved strategy export at `.codex_tmp_titus_research/lw_itm_call_v18_main.py` has the `LWITMCallScanner` class and the generated-code header for the same refinement thread.
-- The exported conversation includes repeated requests to cancel option orders after 4 seconds if they do not fill.
-- The same conversation includes Schwab cancel failures from before the option cancel fix, including `cancel_order` not being implemented for Schwab option orders.
-- Later generated versions moved toward IOC-style option handling and bounded hedge retries, which matches the workaround path Titus was using after the earlier cancel failures.
-
-That means the proposed copy is addressing the strategy shape Titus was working with: a fast option entry, a short cancel window, and a stock hedge that should fire immediately after the first leg fills.
+The private reproduction used a saved strategy with an option entry and an
+order-cancel trigger. The public investigation records the generic broker
+behavior. The strategy export and its configuration are kept in the private
+qualification record.
 
 ## Current Finding
 
@@ -31,7 +25,7 @@ The remaining risk is strategy structure, not basic Schwab cancel support.
 
 Update after the latest local strategy pass:
 
-- The proposed Titus strategy copy now uses a 1 second exact-order polling loop during the 4 second cancel window.
+- The proposed fast-scanner strategy copy now uses a 1 second exact-order polling loop during the 4 second cancel window.
 - If the option order fills during that direct polling window, it submits the hedge immediately from the same code path.
 - `on_filled_order()` remains as a backup trigger, but a per-order hedge guard prevents duplicate hedge orders if both direct polling and the callback see the same fill.
 - If the order does not fill, it cancels the exact submitted order id, treats `CANCELLING` / pending-cancel states as an unlock condition, and avoids broad `get_orders()` in the hot path.
@@ -42,15 +36,15 @@ Rob-owned Schwab account suffix used: `4364`.
 
 Summary files:
 
-- `tmp/schwab_titus_fast_cancel_strategy_1780357004.json`
-- `tmp/schwab_titus_fast_cancel_strategy_1780360399.json`
-- `tmp/schwab_titus_workflow_smoke_1780359992.json`
+- `tmp/schwab_fast_scanner_fast_cancel_strategy_1780357004.json`
+- `tmp/schwab_fast_scanner_fast_cancel_strategy_1780360399.json`
+- `tmp/schwab_fast_scanner_workflow_smoke_1780359992.json`
 
 The most complete workflow smoke ran:
 
 ```bash
-/Users/robertgrzesik/Development/bin/safe-timeout 180s \
-  python3 scripts/schwab_titus_workflow_smoke.py \
+$WORKSPACE/bin/safe-timeout 180s \
+  python3 scripts/schwab_fast_scanner_workflow_smoke.py \
   --account-suffix 4364 \
   --token-path schwab_token.json \
   --wait-seconds 4 \
@@ -61,15 +55,15 @@ The most complete workflow smoke ran:
 
 Result:
 
-- `titus_style_cancel`: passed.
+- `fast_scanner_style_cancel`: passed.
 - `oto_structure`: passed.
 - `bracket_structure`: passed.
 
 The latest strategy-level fast-cancel rerun used the saved gitignored token path and passed:
 
 ```bash
-/Users/robertgrzesik/Development/bin/safe-timeout 180s \
-  python3 scripts/schwab_titus_fast_cancel_strategy_smoke.py \
+$WORKSPACE/bin/safe-timeout 180s \
+  python3 scripts/schwab_fast_scanner_fast_cancel_strategy_smoke.py \
   --account-suffix 4364 \
   --token-path schwab_token.json \
   --wait-seconds 4 \
@@ -88,7 +82,7 @@ Result:
 
 Latest rerun:
 
-- summary: `tmp/schwab_titus_fast_cancel_strategy_1780364001.json`
+- summary: `tmp/schwab_fast_scanner_fast_cancel_strategy_1780364001.json`
 - result: `pass: true`
 - elapsed time: 5.368 seconds
 - before cancel: `PENDING_ACTIVATION`
@@ -97,7 +91,7 @@ Latest rerun:
 
 Because the market was closed by the time the final checks ran, this does not prove a real fill-triggered hedge leg. That needs market-hours validation.
 
-## Titus Strategy Issues Found
+## Fast-scanner Strategy Issues Found
 
 ### 1. Hedge can wait one full strategy cycle
 
@@ -108,7 +102,7 @@ In the ITM call scanner version:
 - `on_filled_order()` also only sets `self.vars.pending_hedge`.
 - The hedge is actually placed from the next `on_trading_iteration()`.
 
-That means a fill can legitimately wait close to a minute before the hedge order is submitted. This matches Titus's report that the hedge leg can take about a minute.
+That means a fill can legitimately wait close to a minute before the hedge order is submitted. This matches the fast options scanner customer's report that the hedge leg can take about a minute.
 
 Fix direction:
 
@@ -145,7 +139,7 @@ That workaround should now be removed for strategies that require "cancel after 
 
 ## Recommended Strategy Pattern
 
-For Titus's current workflow, the next generated/refined strategy should:
+For the fast options scanner customer's current workflow, the next generated/refined strategy should:
 
 1. Submit one option order and store the returned `submitted.identifier`.
 2. Sleep 4 seconds with `process_pending_orders=True`.
@@ -158,10 +152,10 @@ For Titus's current workflow, the next generated/refined strategy should:
 
 ## Proposed Local Strategy Copy
 
-A proposed copy was created from the read-only saved Titus strategy:
+A proposed copy was created from the read-only saved fast-scanner strategy:
 
-- source: `.codex_tmp_titus_research/lw_itm_call_v18_main.py`
-- proposed: `.codex_tmp_titus_research/lw_itm_call_v18_proposed_fast_cancel.py`
+- source: `.codex_tmp_fast_scanner_research/lw_itm_call_v18_main.py`
+- proposed: `.codex_tmp_fast_scanner_research/lw_itm_call_v18_proposed_fast_cancel.py`
 
 Changes in the proposed copy:
 
@@ -178,18 +172,18 @@ Validation performed:
 
 ```bash
 python3 -m py_compile \
-  /Users/robertgrzesik/Development/.codex_tmp_titus_research/lw_itm_call_v18_proposed_fast_cancel.py \
-  /Users/robertgrzesik/Development/.codex_tmp_titus_research/validate_lw_itm_fast_cancel.py
+  $WORKSPACE/.codex_tmp_fast_scanner_research/lw_itm_call_v18_proposed_fast_cancel.py \
+  $WORKSPACE/.codex_tmp_fast_scanner_research/validate_lw_itm_fast_cancel.py
 ```
 
 ```bash
-PYTHONPATH=/Users/robertgrzesik/Development/lumibot \
-  python3 /Users/robertgrzesik/Development/.codex_tmp_titus_research/validate_lw_itm_fast_cancel.py
+PYTHONPATH=$WORKSPACE/lumibot \
+  python3 $WORKSPACE/.codex_tmp_fast_scanner_research/validate_lw_itm_fast_cancel.py
 ```
 
 Result:
 
-- `PASS: proposed Titus fast-cancel strategy control flow`
+- `PASS: proposed fast-scanner fast-cancel strategy control flow`
 
 The fake-control-flow test proves:
 
@@ -200,7 +194,7 @@ The fake-control-flow test proves:
 - the cancel path sleeps in 1 second increments,
 - `CANCELLING` unlocks `pair_lock` and clears `active_order_id`.
 
-The proposed copy compiles and passes the local control-flow harness. It has not been deployed and has not been written back to Titus's saved strategy.
+The proposed copy compiles and passes the local control-flow harness. It has not been deployed and has not been written back to the fast options scanner customer's saved strategy.
 
 ## Prompt / Skills Follow-up
 
@@ -232,14 +226,14 @@ Account suffix used: Rob-owned Schwab account `4364`.
 Timed cancel smoke:
 
 ```bash
-/Users/robertgrzesik/Development/bin/safe-timeout 180s \
-  python3 scripts/schwab_titus_fast_cancel_strategy_smoke.py \
+$WORKSPACE/bin/safe-timeout 180s \
+  python3 scripts/schwab_fast_scanner_fast_cancel_strategy_smoke.py \
   --account-suffix 4364 \
   --token-path schwab_token.json \
   --wait-seconds 4 \
   --option-limit 0.01 \
   --measure-broad-orders \
-  --summary-path tmp/schwab_titus_fast_cancel_strategy_1780424917.json
+  --summary-path tmp/schwab_fast_scanner_fast_cancel_strategy_1780424917.json
 ```
 
 Result:
@@ -255,20 +249,20 @@ Result:
 OTO/bracket structure smoke:
 
 ```bash
-/Users/robertgrzesik/Development/bin/safe-timeout 180s \
-  python3 scripts/schwab_titus_workflow_smoke.py \
+$WORKSPACE/bin/safe-timeout 180s \
+  python3 scripts/schwab_fast_scanner_workflow_smoke.py \
   --account-suffix 4364 \
   --token-path schwab_token.json \
   --wait-seconds 4 \
   --option-limit 0.01 \
   --child-limit 0.50 \
   --stop-loss 0.01 \
-  --summary-path tmp/schwab_titus_workflow_smoke_1780425067.json
+  --summary-path tmp/schwab_fast_scanner_workflow_smoke_1780425067.json
 ```
 
 Result:
 
-- Titus-style timed cancel: `pass=true`, final status `CANCELED`.
+- fast-scanner-style timed cancel: `pass=true`, final status `CANCELED`.
 - OTO structure: Schwab accepted parent as `orderStrategyType=TRIGGER` with one child, then parent canceled; `pass=true`.
 - Bracket structure: Schwab accepted parent as `orderStrategyType=TRIGGER` with child structure, then parent canceled; `pass=true`.
 
@@ -292,19 +286,19 @@ Rob-owned Schwab account suffix used: `4364`.
 
 Summary file:
 
-- `tmp/schwab_titus_live_fill_hedge_1780429984.json`
+- `tmp/schwab_fast_scanner_live_fill_hedge_1780429984.json`
 
 Command:
 
 ```bash
-/Users/robertgrzesik/Development/bin/safe-timeout 180s \
-  python3 scripts/schwab_titus_live_fill_hedge_smoke.py \
+$WORKSPACE/bin/safe-timeout 180s \
+  python3 scripts/schwab_fast_scanner_live_fill_hedge_smoke.py \
   --account-suffix 4364 \
   --token-path schwab_token.json \
   --option-qty 1 \
   --hedge-qty 100 \
   --fill-timeout-seconds 12 \
-  --summary-path tmp/schwab_titus_live_fill_hedge_1780429984.json
+  --summary-path tmp/schwab_fast_scanner_live_fill_hedge_1780429984.json
 ```
 
 Result:
@@ -318,4 +312,4 @@ Result:
 - sold to close the option contract,
 - result `pass=true`, `cleanup_pass=true`.
 
-This proves the corrected fast-order structure can run a real Schwab fill-to-hedge path without waiting for the next one-minute strategy cycle. It still does not prove Titus's exact production deployment, because this was a Rob-owned controlled smoke using TSLL instead of Titus's LW symbol.
+This proves the corrected fast-order structure can run a real Schwab fill-to-hedge path without waiting for the next one-minute strategy cycle. It still does not prove the fast options scanner customer's exact production deployment, because this was a Rob-owned controlled smoke using TSLL instead of the fast options scanner customer's LW symbol.

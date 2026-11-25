@@ -73,6 +73,7 @@ NON_SECRET_FIELDS = {"apiKey", "uid", "accountId", "login", "walletAddress"}
 NATIVE_BROKER_NAMES = {
     "alpaca",
     "tradier",
+    "webull",
     "schwab",
     "tradovate",
     "bitunix",

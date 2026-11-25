@@ -46,6 +46,7 @@ Trade US stocks, ETFs and options from a LumiBot strategy or AI agent with one o
    Interactive Brokers <brokers.interactive_brokers>
    Interactive Brokers (legacy TWS) <brokers.interactive_brokers_legacy>
    Tradier <brokers.tradier>
+   Webull <brokers.webull>
 
 Frequently asked questions
 --------------------------

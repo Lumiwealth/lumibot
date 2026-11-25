@@ -1740,6 +1740,31 @@ class BacktestingBroker(Broker):
         if callable(validator):
             validator(order)
 
+    # Waiting cannot advance simulated time. A market or resting order fills when pending
+    # orders are processed after the iteration, so a wait inside the iteration would block
+    # forever. Return the order as it is now; it fills on the usual next processing step.
+    _WAIT_NOTE = (
+        "wait_for_order_execution in a backtest returns at once: the order fills when the "
+        "backtest processes orders after this iteration, not during the wait. Check its "
+        "status on the next iteration or in on_filled_order."
+    )
+
+    def _note_backtest_wait(self, orders):
+        if any(not order.is_filled() and not order.is_canceled() for order in orders) and not getattr(
+                self, "_wait_noted", False):
+            self._wait_noted = True
+            self.logger.warning(self._WAIT_NOTE)
+
+    def wait_for_order_execution(self, order):
+        """Return immediately in a backtest (see ``_WAIT_NOTE``)."""
+        self._note_backtest_wait([order])
+        return order
+
+    def wait_for_orders_execution(self, orders):
+        """Return immediately in a backtest (see ``_WAIT_NOTE``)."""
+        self._note_backtest_wait(list(orders))
+        return orders
+
     def cancel_order(self, order):
         """Cancel an order"""
         self.stream.dispatch(

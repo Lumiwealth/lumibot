@@ -471,3 +471,78 @@ def test_negative_history_timeshift_cannot_expose_a_future_completed_candle():
         frame = source.get_historical_prices(asset(), 100, timeshift=shift).df
         assert frame.index.max() <= now
         assert list(frame["close"]) == [0.4]
+
+
+def _run_favorite(monkeypatch, result, **parameters):
+    from lumibot.example_strategies.kalshi_favorite_backtest import KalshiFavoriteStrategy
+
+    monkeypatch.setenv("BACKTESTING_DATA_SOURCE", "kalshi")
+    prepared = make_source(result=result)
+    _, strategy = KalshiFavoriteStrategy.run_backtest(
+        KalshiBacktesting,
+        prepared.datetime_start,
+        pd.Timestamp("2026-01-01T12:06Z").to_pydatetime(),
+        pandas_data=prepared.pandas_data,
+        market_metadata=prepared._market_metadata,
+        fee_rate=0,
+        market="24/7",
+        timestep="minute",
+        budget=100,
+        benchmark_asset=None,
+        parameters={"tickers": ["SYNTHETIC-EVENT"], "sleeptime": "1M", **parameters},
+        show_plot=False,
+        show_tearsheet=False,
+        save_tearsheet=False,
+        save_stats_file=False,
+        show_progress_bar=False,
+    )
+    fills = [o for o in strategy.broker.get_all_orders() if o.is_filled() and o.order_type == "market"]
+    return strategy, fills
+
+
+@pytest.mark.parametrize("result, payout", [("no", 1), ("yes", 0)])
+def test_favorite_example_buys_the_favored_side_once_and_holds_to_settlement(monkeypatch, result, payout):
+    # First bar: YES ask .41, NO ask .61. Only NO is inside the .55-.90 band.
+    strategy, fills = _run_favorite(monkeypatch, result, min_price=0.55, max_price=0.90, dollars_per_market=10)
+    assert len(fills) == 1
+    assert fills[0].asset == asset("no") and fills[0].is_buy_order()
+    assert fills[0].quantity == 16 and fills[0].avg_fill_price == pytest.approx(0.61)
+    assert strategy.get_position(asset("no")) is None
+    assert strategy.cash == pytest.approx(100 - 16 * 0.61 + 16 * payout)
+
+
+def test_favorite_example_places_nothing_when_no_side_is_in_the_band(monkeypatch):
+    strategy, fills = _run_favorite(monkeypatch, "yes", min_price=0.90, max_price=0.95, dollars_per_market=10)
+    assert fills == [] and strategy.cash == pytest.approx(100)
+
+
+def test_market_search_is_public_and_hides_outcomes_not_yet_settled():
+    """Strategies find a series' markets through the data source, never a private attribute."""
+    prepared = make_source(settlement="2026-01-01T12:04:00Z", result="yes")
+    searched = []
+
+    class RecordedSearchSource:
+        def search_markets(self, query=None, limit=20, **filters):
+            searched.append((query, limit, filters))
+            return [
+                {"ticker": "SYNTHETIC-EVENT", "status": "settled", "result": "yes",
+                 "settlement_value_dollars": "1.0000", "settlement_ts": "2026-01-01T12:04:00Z",
+                 "close_time": "2026-01-01T12:03:00Z", "yes_ask_dollars": "0.99"},
+            ]
+
+        def get_market_metadata(self, selected):
+            return prepared._market_metadata[selected.symbol].copy()
+
+    source = KalshiBacktesting(
+        prepared.datetime_start, prepared.datetime_end,
+        kalshi_data=RecordedSearchSource(), market="24/7", show_progress_bar=False,
+    )
+    source._update_datetime(pd.Timestamp("2026-01-01T12:01Z").to_pydatetime())
+    rows = source.search_markets(series_ticker="SYNTHETIC", status="settled", limit=5)
+    assert searched == [(None, 5, {"series_ticker": "SYNTHETIC", "status": "settled"})]
+    assert [row["ticker"] for row in rows] == ["SYNTHETIC-EVENT"]
+    # Before settlement the result and later prices stay hidden: no look-ahead.
+    assert "result" not in rows[0] and "settlement_value_dollars" not in rows[0]
+    assert "yes_ask_dollars" not in rows[0]
+    source._update_datetime(pd.Timestamp("2026-01-01T12:05Z").to_pydatetime())
+    assert source.search_markets(series_ticker="SYNTHETIC")[0]["result"] == "yes"

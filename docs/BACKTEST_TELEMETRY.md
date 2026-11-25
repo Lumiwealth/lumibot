@@ -48,6 +48,8 @@
 | `phases.simulation_seconds` | First trading iteration until the simulation loop ends. Includes provider waits. |
 | `phases.reports_seconds` | `backtest_analysis`: tearsheet, trades and indicator files, plots. |
 | `phases.uploads_seconds` | Waiting at the end for background shared-cache uploads to S3. |
+| `phases.simulation_cpu_seconds` | Process CPU seconds (all threads) during the simulation phase. Same CPU seconds but more `simulation_seconds` means a slower or busier machine, not more work. |
+| `machine.architecture`, `.cpu_count`, `.cpu_model` | The CPU the run used, for example `aarch64`, 2, `Arm Neoverse-V1`. No hostname or instance id. Compare benchmark runs only on the same `cpu_model`. |
 | `iterations.count`, `.total_seconds` | Trading iterations and the time inside `on_trading_iteration`. |
 | `iterations.slowest_seconds`, `.slowest_at` | The slowest iteration and its simulated time. That is usually a first chain or contract load. |
 | `providers[]` | One row per `source` and `asset_class`. |
@@ -88,7 +90,8 @@ To attribute new work, wrap a fetch in `backtest_telemetry.provider_scope(source
    - Many `requests` with few `rows`: the provider is being asked for nothing. Contracts that never traded are asked again on every run, because an empty answer is never cached.
    - Rate-limit or backoff seconds: the provider or the shared downloader lane is the limit, not LumiBot.
 3. **Check the cache rows.** A repeat run should show `misses` near 0 and provider `requests` near 0. Many misses on a repeat mean the cache is not reused. Look for a different credential scope, a cache folder that is not kept, or the S3 backend switched off.
-4. **If provider and cache time do not explain `simulation_seconds`, the time is LumiBot's own work.** `iterations.slowest_at` tells you where to look. Profile it:
+4. **Before blaming code, compare `simulation_cpu_seconds` and `machine.cpu_model` across the runs.** If two runs of the same strategy and data have about the same CPU seconds but different wall seconds, or ran on different CPU models, the difference is the machine. In November 2026 one futures minute benchmark took 104 s on one run and 144 to 164 s on later runs with the same work; a local A/B of both LumiBot versions on the same data did the same Python calls (203.3 million each) in the same CPU time.
+5. **If provider and cache time do not explain `simulation_seconds`, the time is LumiBot's own work.** `iterations.slowest_at` tells you where to look. Profile it:
 
    ```bash
    BACKTESTING_PROFILE=yappi python my_strategy.py

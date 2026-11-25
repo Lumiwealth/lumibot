@@ -151,18 +151,20 @@ class BrokerHistoryAdapter:
 
     # -- reads ------------------------------------------------------------------------------
 
-    def daily_bars(self, symbol: str, start: datetime, end: datetime) -> pd.DataFrame | None:
-        """Real daily bars for ``[start, end]``, stamped at the 16:00 New York session close, or None."""
+    def daily_bars(self, symbol: str, start: datetime, end: datetime, *, kind: str = "stock") -> pd.DataFrame | None:
+        """Real daily bars over the inclusive date window, stamped at the session close."""
         from lumibot.tools import backtest_telemetry
 
-        with backtest_telemetry.provider_scope(self.name, "stock"):
+        with backtest_telemetry.provider_scope(self.name, kind):
             for attempt in range(len(self.RATE_LIMIT_WAITS) + 1):
                 waited = self.limiter.acquire()
                 if waited:
                     backtest_telemetry.record_wait("rate_limit", waited)
                 started = time.perf_counter()
                 try:
-                    frame = self._daily(symbol, start, end)
+                    frame = self._daily(symbol, start, end) if kind == "stock" else self._daily_for_kind(
+                        kind, symbol, start, end
+                    )
                 except Exception as exc:
                     backtest_telemetry.record_provider_request(time.perf_counter() - started)
                     if not self.is_rate_limited(exc):
@@ -182,6 +184,9 @@ class BrokerHistoryAdapter:
                 backtest_telemetry.record_provider_request(time.perf_counter() - started, rows=rows)
                 return frame
         return None
+
+    def _daily_for_kind(self, kind, symbol, start, end):
+        raise BrokerHistoryUnavailable(f"{self.title} does not have {kind} history in this adapter")
 
     def _daily(self, symbol: str, start: datetime, end: datetime) -> pd.DataFrame | None:
         raise NotImplementedError
@@ -272,6 +277,12 @@ def make_adapter(name: str, config=None, **kwargs) -> BrokerHistoryAdapter:
 
     name = str(name).strip().lower()
     config = dict(config or {})
+    if name == "webull":
+        from lumibot.credentials import _webull_config
+        from lumibot.data_sources import WebullData
+
+        data = config.pop("data_source", None)
+        return WebullHistory(data or WebullData({**_webull_config(), **config}), **kwargs)
     if name == "tradier":
         from lumibot.credentials import TRADIER_CONFIG
 
@@ -304,4 +315,34 @@ def make_adapter(name: str, config=None, **kwargs) -> BrokerHistoryAdapter:
         # Same scope as SchwabData: one cache shared by every Schwab connection.
         return SchwabHistory(client, scope=shared_scope("schwab"),
                              legacy_scope=credential_scope("schwab", account), **kwargs)
-    raise ValueError(f"Unknown broker history source {name!r}; choose 'schwab' or 'tradier'.")
+    raise ValueError(f"Unknown broker history source {name!r}; choose 'schwab', 'tradier' or 'webull'.")
+
+
+class WebullHistory(BrokerHistoryAdapter):
+    """US equity and spot crypto daily bars through Webull's non-display data API."""
+
+    name = "webull"
+    limits = BrokerHistoryLimits(requests_per_minute=30)
+
+    def __init__(self, data_source, **kwargs):
+        super().__init__(scope=None, **kwargs)
+        self.data_source = data_source
+
+    def check_asset(self, asset):
+        if asset_type_name(asset) not in {*SUPPORTED_ASSET_TYPES, "crypto", "option"}:
+            raise BrokerHistoryUnavailable("Webull daily replay supports stocks, ETFs, spot crypto and exact option contracts.")
+
+    def _daily(self, symbol, start, end):
+        return self.data_source.get_equity_daily_range(symbol, start, end)
+
+    def _daily_for_kind(self, kind, symbol, start, end):
+        if kind == "crypto":
+            return self.data_source.get_crypto_daily_range(symbol, start, end)
+        if kind == "option":
+            return self.data_source.get_option_daily_range(symbol, start, end)
+        return super()._daily_for_kind(kind, symbol, start, end)
+
+    def is_rate_limited(self, exc):
+        from lumibot.tools.webull_helpers import WebullAPIError
+
+        return isinstance(exc, WebullAPIError) and exc.status == 429

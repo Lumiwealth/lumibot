@@ -222,6 +222,7 @@ _BACKTESTING_CLASS_MODULES = {
     "YahooDataBacktesting": "lumibot.backtesting.yahoo_backtesting",
     "SchwabHistoryBacktesting": "lumibot.backtesting.broker_history_backtesting",
     "TradierHistoryBacktesting": "lumibot.backtesting.broker_history_backtesting",
+    "WebullHistoryBacktesting": "lumibot.backtesting.broker_history_backtesting",
 }
 
 AlpacaBacktesting = lazy_class("lumibot.backtesting.alpaca_backtesting", "AlpacaBacktesting")
@@ -1182,8 +1183,8 @@ class _Strategy:
             )
             return False
 
-        # Check if the order does not have a quantity of zero
-        if order.quantity == 0:
+        # Currency-sized orders get their asset quantity from the broker.
+        if order.quantity == 0 and self.broker.accepts_cash_amount_order(order) is not True:
             self.logger.error(
                 f"Order quantity cannot be zero. You entered {order.quantity}."
             )
@@ -3492,6 +3493,16 @@ class _Strategy:
         self._name = name
         self._analyze_backtest = analyze_backtest
 
+        from lumibot.tools.report_speedups import clear_report_prewarm_request, request_report_prewarm
+
+        # A request from an earlier backtest that never took a step must not carry over.
+        clear_report_prewarm_request()
+        if analyze_backtest and save_tearsheet:
+            # Import the report stack (QuantStats, scipy, matplotlib) in the background while
+            # the simulation runs, instead of after it. Same modules, same output. It starts at
+            # the first simulation step, not here: started here it slowed startup by ~3 s.
+            request_report_prewarm()
+
         if quote_asset is _DEFAULT_QUOTE_ASSET:
             quote_asset = Asset(symbol="USD", asset_type="forex")
 
@@ -3587,6 +3598,7 @@ class _Strategy:
                 # Your own broker connection's daily history (stocks and ETFs).
                 "schwab": "SchwabHistoryBacktesting",
                 "tradier": "TradierHistoryBacktesting",
+                "webull": "WebullHistoryBacktesting",
                 "ccxt": "CcxtBacktesting",
                 "databento": "DataBentoDataBacktesting",
                 "ibkr": "InteractiveBrokersRESTBacktesting",
@@ -3730,6 +3742,13 @@ class _Strategy:
             return None
 
         backtesting_start, backtesting_end = self.verify_backtest_inputs(backtesting_start, backtesting_end)
+
+        if risk_free_rate is None:
+            # The statistics read the Treasury rate for the last simulated day; download it
+            # while the backtest runs instead of after it (same series, same value).
+            from lumibot.tools.report_speedups import prefetch_risk_free_rate
+
+            prefetch_risk_free_rate(backtesting_end)
 
         quiet_logs_env = os.environ.get("BACKTESTING_QUIET_LOGS")
         if quiet_logs_env is not None:
@@ -3888,8 +3907,8 @@ class _Strategy:
                 write_backtest_data_provenance(
                     data_source,
                     logdir,
-                    fill_price_counts=getattr(self.broker, "_option_fill_price_counts", None),
-                    valuation_mark_counts=getattr(self.broker, "_option_valuation_mark_counts", None),
+                    fill_price_counts=getattr(strategy.broker, "_option_fill_price_counts", None),
+                    valuation_mark_counts=getattr(strategy.broker, "_option_valuation_mark_counts", None),
                 )
             except Exception as exc:
                 # Diagnostics must not make an otherwise valid simulation fail.

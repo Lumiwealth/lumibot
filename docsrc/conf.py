@@ -1016,6 +1016,7 @@ HAND_WRITTEN_BROKERS = [
     ("TopstepX (ProjectX)", "Futures broker", "CME futures", "brokers.projectx"),
     ("Tradier", "Stocks and options broker", "Stocks, ETFs, options", "brokers.tradier"),
     ("Tradovate", "Futures broker", "CME futures", "brokers.tradovate"),
+    ("Webull (development)", "Broker OpenAPI", "PaperTrade equity and crypto qualification", "brokers.webull"),
 ]
 
 _CCXT_MARKET_LABELS = [

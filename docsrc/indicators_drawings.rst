@@ -44,6 +44,20 @@ Times are bar times (``bar.time``), prices are numbers, colors are
 ``#RRGGBB``, ``#RRGGBBAA`` (the last two digits are transparency) or the theme
 colors ``chart.fg`` and ``chart.bg``.
 
+A time can be ``bar.time``, any other datetime, an ISO date string, or a real
+date as epoch seconds or epoch milliseconds. A bar number is not a time: a
+small number such as ``677`` (for example a Pine ``bar_index`` copied as
+written) raises a ``ValueError`` that names the argument, instead of drawing
+the object in 1970, off the chart. To place an object N bars back, keep that
+bar's ``bar.time`` in ``state`` when you see the bar and pass it later:
+
+.. code-block:: python
+
+    state.setdefault("times", []).append(bar.time)
+    if len(state["times"]) > 5:
+        five_bars_ago = state["times"][-6]
+        self.draw.line(five_bars_ago, bar.low, bar.time, bar.low)
+
 What you can draw
 -----------------
 

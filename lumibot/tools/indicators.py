@@ -1839,7 +1839,25 @@ def _total_return_with_two_decimals(shown, returns) -> object:
     return f"{total:,.2f}%"
 
 
-def create_tearsheet(
+def create_tearsheet(*args, **kwargs):
+    """Build the QuantStats tearsheet, metrics JSON and summary frame for one backtest.
+
+    Same arguments and outputs as before; two speed-ups that never change a number:
+    the report stack import started in the background when the backtest began is joined
+    here, and QuantStats drawdown tables are computed once per distinct series for the
+    duration of this report (see ``lumibot.tools.report_speedups``).
+    """
+    from lumibot.tools import report_speedups
+
+    save_tearsheet = kwargs.get("save_tearsheet", args[6] if len(args) > 6 else True)
+    if not save_tearsheet:
+        return _create_tearsheet_impl(*args, **kwargs)
+    report_speedups.wait_for_report_imports()
+    with report_speedups.report_computation_cache():
+        return _create_tearsheet_impl(*args, **kwargs)
+
+
+def _create_tearsheet_impl(
     strategy_df: pd.DataFrame,
     strat_name: str,
     tearsheet_file: str,
@@ -2265,6 +2283,11 @@ def create_tearsheet(
 
 
 def get_risk_free_rate(dt: datetime = None):
+    # A backtest starts downloading this series in the background; join it so the lookup
+    # reads the freshly cached series instead of downloading it a second time.
+    from lumibot.tools.report_speedups import wait_for_risk_free_prefetch
+
+    wait_for_risk_free_prefetch()
     try:
         result = yh.get_risk_free_rate(dt=dt)
     except Exception as e:

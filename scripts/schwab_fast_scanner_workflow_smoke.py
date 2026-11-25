@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rob-owned live Schwab smoke for Titus-style option cancel and hedge flows.
+"""Rob-owned live Schwab smoke for fast-scanner-style option cancel and hedge flows.
 
 This script intentionally uses the real Schwab broker adapter and a real
 account. It places low-priced option limit orders that should rest, then cancels
@@ -186,8 +186,8 @@ def _safe_cancel(broker: Schwab, order: Order | None, strategy_name: str) -> dic
     )
 
 
-def run_titus_style_cancel(broker: Schwab, asset: Asset, limit_price: float, wait_seconds: float) -> dict[str, Any]:
-    strategy_name = "rob-titus-style-cancel-smoke"
+def run_fast_scanner_style_cancel(broker: Schwab, asset: Asset, limit_price: float, wait_seconds: float) -> dict[str, Any]:
+    strategy_name = "rob-fast_scanner-style-cancel-smoke"
     order = Order(
         strategy=strategy_name,
         asset=asset,
@@ -204,7 +204,7 @@ def run_titus_style_cancel(broker: Schwab, asset: Asset, limit_price: float, wai
     try:
         submitted = broker._submit_order(order)
         if not submitted or not submitted.identifier:
-            raise RuntimeError("Schwab did not return an order id for Titus-style cancel smoke.")
+            raise RuntimeError("Schwab did not return an order id for fast-scanner-style cancel smoke.")
 
         while time.perf_counter() - started < wait_seconds:
             snap = _order_snapshot(broker, submitted.identifier, strategy_name)
@@ -222,7 +222,7 @@ def run_titus_style_cancel(broker: Schwab, asset: Asset, limit_price: float, wai
         )
         final["elapsed_seconds"] = round(time.perf_counter() - started, 3)
         return {
-            "name": "titus_style_cancel",
+            "name": "fast_scanner_style_cancel",
             "order_id_suffix": _suffix(submitted.identifier),
             "samples": samples,
             "final": final,
@@ -235,7 +235,7 @@ def run_titus_style_cancel(broker: Schwab, asset: Asset, limit_price: float, wai
 
 
 def run_oto_structure(broker: Schwab, asset: Asset, parent_limit: float, child_limit: float) -> dict[str, Any]:
-    strategy_name = "rob-titus-oto-hedge-smoke"
+    strategy_name = "rob-fast_scanner-oto-hedge-smoke"
     child = Order(
         strategy=strategy_name,
         asset=asset,
@@ -291,7 +291,7 @@ def run_oto_structure(broker: Schwab, asset: Asset, parent_limit: float, child_l
 
 
 def run_bracket_structure(broker: Schwab, asset: Asset, parent_limit: float, take_profit: float, stop_loss: float) -> dict[str, Any]:
-    strategy_name = "rob-titus-bracket-hedge-smoke"
+    strategy_name = "rob-fast_scanner-bracket-hedge-smoke"
     take_profit_order = Order(
         strategy=strategy_name,
         asset=asset,
@@ -361,7 +361,7 @@ def main() -> int:
     parser.add_argument("--account-suffix", default="4364", help="Schwab account suffix to trade in.")
     parser.add_argument("--token-path", default="schwab_token.json", help="Gitignored Schwab token JSON path.")
     parser.add_argument("--token-payload", default=None, help="Optional fresh BotSpot/LumiBot Schwab payload string.")
-    parser.add_argument("--wait-seconds", type=float, default=4.0, help="Cancel timeout to mirror Titus workflow.")
+    parser.add_argument("--wait-seconds", type=float, default=4.0, help="Cancel timeout to mirror the fast options scanner customer workflow.")
     parser.add_argument("--option-limit", type=float, default=0.01, help="Low limit intended to rest, not fill.")
     parser.add_argument("--child-limit", type=float, default=0.50, help="OTO/bracket take-profit child limit.")
     parser.add_argument("--stop-loss", type=float, default=0.01, help="Bracket stop-loss child stop price.")
@@ -385,7 +385,7 @@ def main() -> int:
     }
 
     for runner in (
-        lambda: run_titus_style_cancel(broker, asset, args.option_limit, args.wait_seconds),
+        lambda: run_fast_scanner_style_cancel(broker, asset, args.option_limit, args.wait_seconds),
         lambda: run_oto_structure(broker, asset, args.option_limit, args.child_limit),
         lambda: run_bracket_structure(broker, asset, args.option_limit, args.child_limit, args.stop_loss),
     ):
@@ -393,7 +393,7 @@ def main() -> int:
         summary["tests"].append(result)
         print(json.dumps(result, indent=2, sort_keys=True))
 
-    summary_path = Path(args.summary_path or f"tmp/schwab_titus_workflow_smoke_{int(time.time())}.json")
+    summary_path = Path(args.summary_path or f"tmp/schwab_fast_scanner_workflow_smoke_{int(time.time())}.json")
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
     print(f"Wrote summary: {summary_path.resolve()}")

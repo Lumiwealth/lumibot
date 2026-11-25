@@ -538,8 +538,8 @@ class ExecutionEngine:
 
         def change(current, **values):
             if not cancellation:
-                if values.get("state") == "rejected" and "childOperations" not in values:
-                    marked = self._mark_children(current, "rejected")
+                if values.get("state") in {"rejected", "awaiting_approval"} and "childOperations" not in values:
+                    marked = self._mark_children(current, str(values["state"]))
                     if marked is not None:
                         values["childOperations"] = marked
                 return self._change(current, **values)

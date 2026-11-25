@@ -66,24 +66,24 @@ Result on 2026-06-20 after adding sparse GTC/GTD regression coverage and the
 CCXT UTC cache-boundary regression:
 `39 passed, 2 skipped`.
 
-### Greg Local Replay - 2026-06-20
+### Perp-scalper Local Replay - 2026-06-20
 
-Greg's saved production strategy was replayed locally with production-like
+The perp scalper customer's saved production strategy was replayed locally with production-like
 routing and Coinbase for crypto:
 
 ```bash
 python3 scripts/run_backtest_prodlike.py \
-  --main /Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/prod-artifacts/executed-code/main.py \
+  --main $WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/prod-artifacts/executed-code/main.py \
   --start 2026-03-15 \
   --end 2026-04-20 \
   --data-source '{"default":"thetadata","stock":"thetadata","index":"thetadata","option":"thetadata","future":"ibkr","cont_future":"ibkr","crypto":"coinbase","crypto_future":"coinbase"}' \
   --cache-mode disabled \
-  --label greg_coinbase_mar15_apr20_20260620_utcfix2 \
+  --label perp_scalper_coinbase_mar15_apr20_20260620_utcfix2 \
   --audit
 ```
 
 Artifact folder:
-`/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_coinbase_mar15_apr20_20260620_utcfix2`
+`$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2`
 
 Result:
 
@@ -100,13 +100,13 @@ Result:
 Primary evidence:
 
 - Trades CSV:
-  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_coinbase_mar15_apr20_20260620_utcfix2/logs/MultiMineralBot_2026-06-19_22-50_0dPozs_trades.csv`
+  `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/logs/MultiMineralBot_2026-06-19_22-50_0dPozs_trades.csv`
 - Trade events CSV:
-  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_coinbase_mar15_apr20_20260620_utcfix2/logs/MultiMineralBot_2026-06-19_22-50_0dPozs_trade_events.csv`
+  `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/logs/MultiMineralBot_2026-06-19_22-50_0dPozs_trade_events.csv`
 - Metrics JSON:
-  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_coinbase_mar15_apr20_20260620_utcfix2/metrics.json`
+  `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/metrics.json`
 - Subprocess log:
-  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_coinbase_mar15_apr20_20260620_utcfix2/subprocess.log`
+  `$WORKSPACE/support-artifacts/perp_scalper-backtest-april17-20260612/local-runs/perp_scalper_coinbase_mar15_apr20_20260620_utcfix2/subprocess.log`
 
 The replay also exposed and confirmed the CCXT cache timezone bug. Before the
 cache-boundary fix, aware New York datetimes were stripped to naive values before
@@ -116,7 +116,7 @@ Coinbase cache to look four hours short and produced repeated "after available
 data" errors. `CcxtCacheDB` now converts aware request bounds to UTC before
 dropping timezone metadata.
 
-One related note: Greg's saved strategy parameters say `BTC/USDT`, but the
+One related note: the perp scalper customer's saved strategy parameters say `BTC/USDT`, but the
 production entrypoint in the captured artifact passes `quote_asset=USD` to
 `run_backtest`. The replay therefore proves the captured production code path as
 saved, not a rewritten `BTC/USDT` strategy.
@@ -330,7 +330,7 @@ Remaining work before customer-facing confidence:
 
 1. Build Coinbase-only proof inside LumiBot with isolated cache for BTC/USD,
    BTC/USDT, and BTC/EUR across 1m, 1h, and 1d.
-2. Reproduce Greg with exact strategy code and exact requested pair. If the pair
+2. Reproduce the perp scalper customer with exact strategy code and exact requested pair. If the pair
    is missing data, fail honestly or leave eligible orders open until a real
    executable Coinbase bar arrives. Do not map symbols.
 3. Wire BotSpot to the proven Coinbase-only LumiBot path after LumiBot tests and

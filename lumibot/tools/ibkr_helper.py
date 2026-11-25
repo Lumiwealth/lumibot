@@ -1229,6 +1229,12 @@ def get_price_data(
     # price a contract when the caller did not pick a source.
     if source is None and not env_source_was_explicit and asset_type == "option":
         history_source = "Midpoint"
+    # IBKR publishes no reliable TRADES bars for forex or spot metals (XAU/USD):
+    # a Trades request returns a fraction of the hours (observed: 28-31 of 50
+    # hourly XAU bars vs 50 of 50 with Midpoint) and the backtest then fails as
+    # "required data unavailable". Midpoint is IBKR's history for these pairs.
+    if source is None and not env_source_was_explicit and asset_type == "forex":
+        history_source = "Midpoint"
 
     # Normalize timestep classification once so callers can pass "day", "1d", "1day", etc.
     try:
@@ -1243,7 +1249,7 @@ def get_price_data(
     # validation before older requested history can be fetched. Use the same
     # stable historical boundary for explicit and continuous futures as for
     # stocks/indexes; daily bars and real-time snapshot APIs remain separate.
-    if asset_type in {"stock", "index", "future", "cont_future"} and not str(timestep_component).endswith("day"):
+    if history_feed_is_delayed(asset_type, timestep):
         latest_available = _to_utc(history_as_of or _ibkr_history_now_utc()) - IBKR_INTRADAY_HISTORY_DELAY
         if end_utc > latest_available:
             if start_utc >= latest_available:
@@ -3108,7 +3114,66 @@ def frame_covers_requested_window(
         except Exception:
             pass
 
+    if asset_type == "forex" and not normalized_bar.endswith("d") and (not start_covered or not end_covered):
+        # Forex closes from Friday 17:00 ET to Sunday 17:00 ET and briefly each weekday at
+        # 17:00 ET. A window edge inside a closed period has no bars to return, so judge
+        # coverage at the nearest session edge instead. Without this a window ending on a
+        # Saturday was never covered and the routed prefetch re-fetched it on every step.
+        try:
+            def _utc(ts):
+                return ts.tz_convert("UTC") if ts.tzinfo is not None else ts.tz_localize("UTC")
+
+            if not start_covered:
+                session_start = _forex_next_open(_utc(start_local))
+                start_covered = _utc(coverage_start) <= (session_start + tolerance)
+            if not end_covered:
+                session_end = _forex_previous_close(_utc(end_local))
+                end_covered = _utc(coverage_end) >= (session_end - tolerance)
+        except Exception:
+            pass
+
     return bool(start_covered and end_covered)
+
+
+# Forex daily maintenance break length at 17:00 ET (weekdays).
+_FOREX_DAILY_BREAK = timedelta(minutes=15)
+
+
+def _forex_closed_period(ts_utc: pd.Timestamp) -> Optional[tuple[pd.Timestamp, pd.Timestamp]]:
+    """Return (close, reopen) in UTC if forex is closed at ``ts_utc``, else None."""
+    et = ts_utc.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+    day_five_pm = LUMIBOT_DEFAULT_PYTZ.localize(datetime(et.year, et.month, et.day, 17, 0))
+    day_five_pm = pd.Timestamp(day_five_pm)
+    weekday = et.weekday()  # Mon=0 .. Sun=6
+    # Weekend: Friday 17:00 ET to Sunday 17:00 ET.
+    if weekday == 4 and et >= day_five_pm:
+        close = day_five_pm
+    elif weekday == 5:
+        close = day_five_pm - timedelta(days=1)
+    elif weekday == 6 and et < day_five_pm:
+        close = day_five_pm - timedelta(days=2)
+    else:
+        close = None
+    if close is not None:
+        friday = close.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+        sunday = LUMIBOT_DEFAULT_PYTZ.localize(datetime(friday.year, friday.month, friday.day, 17, 0) + timedelta(days=2))
+        return close.tz_convert("UTC"), pd.Timestamp(sunday).tz_convert("UTC")
+    # Weekday daily break (Monday to Thursday).
+    if weekday <= 3 and day_five_pm <= et < day_five_pm + _FOREX_DAILY_BREAK:
+        return day_five_pm.tz_convert("UTC"), (day_five_pm + _FOREX_DAILY_BREAK).tz_convert("UTC")
+    return None
+
+
+def _forex_next_open(ts_utc: pd.Timestamp) -> pd.Timestamp:
+    """First moment at or after ``ts_utc`` when forex trades."""
+    period = _forex_closed_period(ts_utc)
+    return period[1] if period is not None else ts_utc
+
+
+def _forex_previous_close(ts_utc: pd.Timestamp) -> pd.Timestamp:
+    """Last moment at or before ``ts_utc`` when forex traded."""
+    period = _forex_closed_period(ts_utc)
+    return period[0] if period is not None else ts_utc
 
 
 def _downloader_history_meta(payload: Any) -> Dict[str, Any]:
@@ -6482,6 +6547,21 @@ def _asset_folder(asset: Asset) -> str:
     if asset_type in {"future", "cont_future"}:
         return "future"
     return asset_type or "asset"
+
+
+def history_feed_is_delayed(asset_type: Any, timestep: Any) -> bool:
+    """True when IBKR history for this asset type and bar size trails now by
+    ``IBKR_INTRADAY_HISTORY_DELAY``: intraday bars for stocks, indexes and futures.
+
+    Daily bars, forex and crypto have no such delay."""
+    normalized = _normalize_asset_type(asset_type)
+    if normalized not in {"stock", "index", "future", "cont_future"}:
+        return False
+    try:
+        _bar, _seconds, component = _timestep_to_ibkr_bar(str(timestep or "minute"))
+    except Exception:
+        component = _timestep_component(str(timestep or "minute"))
+    return not str(component).endswith("day")
 
 
 def _timestep_component(timestep: str) -> str:

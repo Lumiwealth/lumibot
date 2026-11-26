@@ -1,10 +1,30 @@
 # Changelog
 
-## 4.6.99 - Unreleased
+## Unreleased
 
 ### Added
 
 - **MetaMask perpetual broker & data-source LumiBot parity + Agent Wallet approval status.** `MetaMask` (`MODE="perp"`) now supports native Hyperliquid trigger orders (`stop`, `stop_limit`), grouped TP/SL orders (`bracket`, `oto` via `normalTpsl`, and `oco` via `positionTpsl`) with durable per-leg recovery and cancellation, `ORDER_SUPPORT` / `supports_order()` declarations (9/13 native; trailing stops and spot mode refused before transport), `get_contract_spec()`, `get_order_size_rules()`, sequential parent-first `cancel_orders()`, standard `OrderSide` normalization with canonical `reduce_only` enforcement on closing sides, and `USDC` default `quote_asset` on `Strategy` in perp mode. Adds first-class `Order.OrderStatus.AWAITING_APPROVAL` (`"awaiting_approval"`, active) for MetaMask Agent Wallet MFA approvals (`AWAITING_MFA`), propagating to grouped children and surfacing `approval_id` on `order.submission_outcome`, while user denials (`DENIED`/`EXPIRED`/`FAILED`) transition cleanly to `Order.OrderStatus.ERROR` (`REJECTED`) with `confirmed_rejected` certainty and zero venue submission. `MetaMaskData` adds L2 top-of-book `get_quote()` (enabling LumiBot-simulated `SMART_LIMIT`), per-symbol-preserving batched `get_last_prices()`, `get_contract_spec()`, and native `supports_native_timestep()` dispatch across all 14 Hyperliquid candle intervals (`1m` through `1M`). Also fixes `Decimal * float` fractional `Broker.close_position()`. Docs: `docs/METAMASK.md`, `docsrc/brokers.metamask.rst`, `docsrc/brokers.order_support.rst`. Tests: `tests/test_metamask_lumibot_features.py`, `tests/test_metamask_broker.py`, `tests/test_order.py`, `tests/test_broker_order_support.py`, `tests/test_broker_order_type_contract.py`.
+
+## 4.6.100 - 2026-11-25
+
+### Fixed
+
+- Backtest tearsheets are complete again on short backtests. 4.6.99 started the background
+  import of the report libraries at the first simulation step; a short run could reach its
+  report while matplotlib was still half imported, and the tearsheet became a placeholder
+  ("module 'matplotlib' has no attribute 'get_data_path'") with no tearsheet CSV. The import
+  starts at backtest start again, as in 4.6.98. The 4.6.99 "first step about 3 seconds
+  sooner" change is withdrawn.
+
+### Added
+
+- Live always-on bots can now persist `self.vars` to the local state file when
+  `LUMIBOT_PERSISTENT_STATE_ENABLED=true` is set (without enabling scheduled run-once mode).
+- `Trader.run_all()` now traps `SIGTERM` alongside `SIGINT` on the main thread so container
+  shutdowns cleanly flush `self.vars` via `_on_abrupt_closing` before exit.
+
+## 4.6.99 - 2026-11-25
 
 ### Fixed
 

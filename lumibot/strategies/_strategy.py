@@ -5035,7 +5035,8 @@ class _Strategy:
         if self.is_backtesting:
             return False
         scheduled = str(os.environ.get("LUMIBOT_SCHEDULED_EXECUTION", "")).strip().lower()
-        if scheduled not in {"1", "true", "yes", "y", "on"}:
+        persistent = str(os.environ.get("LUMIBOT_PERSISTENT_STATE_ENABLED", "")).strip().lower()
+        if scheduled not in {"1", "true", "yes", "y", "on"} and persistent not in {"1", "true", "yes", "y", "on"}:
             return False
         if str(os.environ.get("LUMIBOT_SCHEDULED_STATE_BACKEND", "")).strip().lower() == "none":
             return False

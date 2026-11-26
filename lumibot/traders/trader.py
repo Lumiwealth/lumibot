@@ -247,6 +247,8 @@ class Trader:
 
             if threading.current_thread() is threading.main_thread():
                 signal.signal(signal.SIGINT, self._stop_pool)
+                if hasattr(signal, "SIGTERM"):
+                    signal.signal(signal.SIGTERM, self._stop_pool)
         except ValueError:
             # Not in main thread: skip custom SIGINT handler
             pass

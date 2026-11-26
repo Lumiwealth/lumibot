@@ -1274,6 +1274,34 @@ def test_recent_missing_daily_session_is_not_remembered_as_missing(monkeypatch, 
     assert "frame" not in stored
 
 
+def test_four_day_old_session_is_not_remembered_as_missing_in_the_new_york_evening(monkeypatch, tmp_path) -> None:
+    """The test above depends on the wall clock: it can only catch a gap marked one day early
+    after 7 PM New York, when the UTC date is a day ahead. Pin the clock there. On Friday
+    2026-11-20 at 9:30 PM New York (Saturday 02:30 UTC), Monday the 16th is four exchange days
+    old, under the five-day minimum, so its missing bar must not be remembered yet."""
+    evening = datetime(2026, 11, 21, 2, 30, tzinfo=timezone.utc)
+
+    class _EveningClock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return evening if tz is None else evening.astimezone(tz)
+
+    monkeypatch.setattr(ibkr_helper, "datetime", _EveningClock)
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_now_utc", lambda: evening)
+    days = ["2026-11-13", "2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19"]
+    hole = "2026-11-16"
+    kept = [d for d in days if d != hole]
+    stored = {}
+    monkeypatch.setattr(ibkr_helper, "_fetch_history_between_dates", lambda **_k: _daily_frame(kept))
+    monkeypatch.setattr(
+        ibkr_helper, "_write_cache_frame", lambda path, updated: stored.__setitem__("frame", updated.copy())
+    )
+    _new_daily_process(monkeypatch)
+    result = _repair(_daily_frame(kept), tmp_path, start=(2026, 11, 13), end=(2026, 11, 19))
+    assert pd.Timestamp(f"{hole} 16:00", tz="America/New_York") not in result.index
+    assert "frame" not in stored
+
+
 def test_daily_gap_repair_stops_waiting_after_the_queue_missed_its_deadline(monkeypatch, tmp_path) -> None:
     """One repair that the busy queue could not serve in time must not cost every later
     symbol of the same run the full repair budget again. After the pause the repair

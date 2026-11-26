@@ -84,7 +84,7 @@ IBKR_DEFAULT_INDEX_HISTORY_SOURCE = "Midpoint"
 # If a future need arises for sub-daily stock/index bars with very long
 # windows, extend ``_history_period_for_request`` to pick a smaller period
 # tailored to the bar size rather than tightening this cap.
-IBKR_STOCK_INDEX_DAILY_MAX_PERIOD = "5y"
+IBKR_STOCK_INDEX_DAILY_MAX_PERIOD = "993d"
 IBKR_GAP_RETRY_TTL_SECONDS = 24 * 60 * 60
 # Older writers mistook a successful page of only older bars for confirmed
 # tail absence. Those persisted records must remain retryable after recovery.

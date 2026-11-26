@@ -550,6 +550,92 @@ class DataSourceBacktesting(DataSource, ABC):
                     orders_json=orders_json
                 )
 
+    def flush_progress_snapshot(
+        self,
+        *,
+        positions=None,
+        orders=None,
+        cash=None,
+        portfolio_value=None,
+        initial_budget=None,
+        min_interval_seconds: float = 2.0,
+        force: bool = False,
+    ) -> bool:
+        """Flush an updated orders/positions snapshot to `logs/progress.csv` without
+        advancing the simulation clock. Keeps live status snapshots current during
+        long-running iterations (such as AI strategy runs) where fills occur long
+        before the next `_update_datetime` tick."""
+        if not self.log_backtest_progress_to_file:
+            return False
+        now_wall = datetime.now()
+        if (
+            not force
+            and self._last_logging_time is not None
+            and (now_wall - self._last_logging_time).total_seconds() < min_interval_seconds
+        ):
+            return False
+        with self._progress_snapshot_lock:
+            last = dict(self._last_progress_snapshot or {})
+        self._last_logging_time = now_wall
+        percent = last.get("percent")
+        if percent is None:
+            current_dt = self.get_datetime()
+            if current_dt is not None and self.datetime_end != self.datetime_start:
+                total_seconds = (self.datetime_end - self.datetime_start).total_seconds()
+                elapsed_sim = (current_dt - self.datetime_start).total_seconds()
+                percent = max(0.0, min(100.0, (elapsed_sim / total_seconds) * 100.0)) if total_seconds > 0 else 0.0
+            else:
+                percent = 0.0
+        elapsed = now_wall - self.backtesting_started if self.backtesting_started else timedelta(0)
+        log_eta = last.get("log_eta")
+        if portfolio_value is None:
+            portfolio_value = getattr(self, "_portfolio_value", None)
+        else:
+            self._portfolio_value = portfolio_value
+        if portfolio_value is not None:
+            try:
+                log_portfolio_value = f"{float(str(portfolio_value).replace(',', '')):,.2f}"
+            except (ValueError, TypeError):
+                log_portfolio_value = str(portfolio_value)
+        else:
+            log_portfolio_value = last.get("portfolio_value", "")
+        simulation_date = last.get("simulation_date") or (
+            self.get_datetime().strftime("%Y-%m-%d %H:%M:%S") if self.get_datetime() else ""
+        )
+        total_return_pct = last.get("total_return_pct")
+        if portfolio_value is not None and initial_budget is not None and initial_budget > 0:
+            try:
+                pv = float(str(portfolio_value).replace(",", ""))
+                total_return_pct = ((pv / initial_budget) - 1) * 100
+            except (ValueError, TypeError):
+                pass
+        positions_json = json.dumps(positions) if positions is not None else last.get("positions_json", "[]")
+        orders_json = json.dumps(orders) if orders is not None else last.get("orders_json", "[]")
+        with self._progress_snapshot_lock:
+            self._last_progress_snapshot = {
+                "percent": percent,
+                "elapsed": elapsed,
+                "log_eta": log_eta,
+                "portfolio_value": log_portfolio_value,
+                "simulation_date": simulation_date,
+                "cash": cash if cash is not None else last.get("cash"),
+                "total_return_pct": total_return_pct,
+                "positions_json": positions_json,
+                "orders_json": orders_json,
+            }
+        self.log_backtest_progress_to_csv(
+            percent,
+            elapsed,
+            log_eta,
+            log_portfolio_value,
+            simulation_date=simulation_date,
+            cash=cash if cash is not None else last.get("cash"),
+            total_return_pct=total_return_pct,
+            positions_json=positions_json,
+            orders_json=orders_json,
+        )
+        return True
+
     def log_backtest_progress_to_csv(
         self,
         percent,

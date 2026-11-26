@@ -3554,6 +3554,9 @@ class _Strategy:
         # is set (and not blank/\"none\"), it should take precedence even if a
         # datasource_class argument was provided.
         env_override_raw = os.environ.get("BACKTESTING_DATA_SOURCE")
+        requested_datasource_name = (
+            getattr(datasource_class, "__name__", None) if datasource_class is not None else None
+        )
         env_override_name = None
         env_override_routing = None
 
@@ -3632,6 +3635,18 @@ class _Strategy:
                         pass
 
             label = env_override_raw or default_backtesting_data_source
+            effective_datasource_name = getattr(datasource_class, "__name__", str(datasource_class))
+            if (
+                env_override_raw is not None
+                and requested_datasource_name
+                and requested_datasource_name != effective_datasource_name
+            ):
+                get_logger(__name__).info(
+                    "[BACKTEST][DATASOURCE] BACKTESTING_DATA_SOURCE=%s overrode code datasource_class=%s; effective_datasource_class=%s",
+                    label,
+                    requested_datasource_name,
+                    effective_datasource_name,
+                )
             if quiet_logs:
                 get_logger(__name__).debug(
                     colored(

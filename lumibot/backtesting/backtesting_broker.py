@@ -2584,6 +2584,45 @@ class BacktestingBroker(Broker):
                 if parent_order not in self._filled_orders:
                     self._filled_orders.append(parent_order)
 
+        # Keep progress.csv orders/positions current during long iterations (throttled).
+        flush_fn = getattr(self.data_source, "flush_progress_snapshot", None)
+        if callable(flush_fn) and getattr(self.data_source, "log_backtest_progress_to_file", False):
+            try:
+                strategy_name = getattr(strategy, "name", None)
+                minimal_positions = []
+                for pos in self.get_tracked_positions(strategy_name) if strategy_name else []:
+                    asset_obj = getattr(pos, "asset", None)
+                    sym = getattr(asset_obj, "symbol", None) or str(asset_obj or "")
+                    qty = float(getattr(pos, "quantity", 0) or 0)
+                    if qty == 0:
+                        continue
+                    avg_px = float(getattr(pos, "avg_fill_price", 0) or 0)
+                    minimal_positions.append({
+                        "symbol": sym,
+                        "qty": qty,
+                        "val": round(qty * avg_px, 2) if avg_px else 0.0,
+                        "pnl": 0.0,
+                    })
+                minimal_orders = []
+                for ord_obj in (self.get_active_tracked_orders(strategy=strategy_name) if strategy_name else [])[-25:]:
+                    ord_asset = getattr(ord_obj, "asset", None)
+                    minimal_orders.append({
+                        "id": getattr(ord_obj, "identifier", None),
+                        "symbol": getattr(ord_asset, "symbol", None) or str(ord_asset or ""),
+                        "side": str(getattr(ord_obj, "side", "") or ""),
+                        "qty": float(getattr(ord_obj, "quantity", 0) or 0),
+                        "status": str(getattr(ord_obj, "status", "") or ""),
+                    })
+                flush_fn(
+                    positions=minimal_positions,
+                    orders=minimal_orders,
+                    cash=getattr(strategy, "cash", None),
+                    portfolio_value=getattr(strategy, "portfolio_value", None),
+                    initial_budget=getattr(strategy, "initial_budget", None),
+                )
+            except Exception:
+                pass
+
     def _process_crypto_quote(self, order, quantity, price):
         """Override to skip quote processing for assets that use direct cash updates or margin-based trading."""
         # Check asset types

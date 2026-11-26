@@ -237,3 +237,20 @@ def test_guard_policy_cannot_use_another_wallet_mode_response(provider):
     )
     with pytest.raises(MetaMaskError, match="POLICY_IDENTITY_MISMATCH"):
         provider.policy(WALLET)
+
+
+def test_compact_live_transaction_submit_reply_is_accepted_but_get_still_verifies_tx(provider):
+    tx = {"from": WALLET, "to": WALLET, "chainId": 421614, "nonce": 0, "data": "0x", "value": "0x0"}
+    # Live MetaMask POST /transaction-requests replies with only requestId + status for AWAITING_MFA.
+    provider.session.request.return_value = response({"requestId": "tx-1", "status": "AWAITING_MFA"})
+    job = provider.submit_transaction("tx-1", tx)
+    assert job == {"requestId": "tx-1", "status": "AWAITING_MFA"}
+    # The full GET echo is still checked against the persisted intent.
+    provider.session.request.return_value = response(
+        {"requestId": "tx-1", "status": "DENIED", "tx": {**tx, "to": OTHER_WALLET}}
+    )
+    with pytest.raises(MetaMaskError) as error:
+        provider.transaction("tx-1", tx)
+    assert error.value.code == "JOB_CONTEXT_MISMATCH"
+    provider.session.request.return_value = response({"requestId": "tx-1", "status": "DENIED", "tx": tx})
+    assert provider.transaction("tx-1", tx)["status"] == "DENIED"

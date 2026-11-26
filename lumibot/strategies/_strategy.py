@@ -3496,8 +3496,8 @@ class _Strategy:
         clear_report_prewarm_request()
         if analyze_backtest and save_tearsheet:
             # Import the report stack (QuantStats, scipy, matplotlib) in the background while
-            # the simulation runs, instead of after it. Same modules, same output. It starts at
-            # the first simulation step, not here: started here it slowed startup by ~3 s.
+            # data loads and the simulation runs, instead of after it. Same modules, same output.
+            # It must start here: started later, a short run's report raced the import (4.6.99).
             request_report_prewarm()
 
         if quote_asset is _DEFAULT_QUOTE_ASSET:
@@ -5035,7 +5035,8 @@ class _Strategy:
         if self.is_backtesting:
             return False
         scheduled = str(os.environ.get("LUMIBOT_SCHEDULED_EXECUTION", "")).strip().lower()
-        if scheduled not in {"1", "true", "yes", "y", "on"}:
+        persistent = str(os.environ.get("LUMIBOT_PERSISTENT_STATE_ENABLED", "")).strip().lower()
+        if scheduled not in {"1", "true", "yes", "y", "on"} and persistent not in {"1", "true", "yes", "y", "on"}:
             return False
         if str(os.environ.get("LUMIBOT_SCHEDULED_STATE_BACKEND", "")).strip().lower() == "none":
             return False

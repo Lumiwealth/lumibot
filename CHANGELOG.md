@@ -1,6 +1,24 @@
 # Changelog
 
-## 4.6.99 - Unreleased
+## 4.6.100 - 2026-11-25
+
+### Fixed
+
+- Backtest tearsheets are complete again on short backtests. 4.6.99 started the background
+  import of the report libraries at the first simulation step; a short run could reach its
+  report while matplotlib was still half imported, and the tearsheet became a placeholder
+  ("module 'matplotlib' has no attribute 'get_data_path'") with no tearsheet CSV. The import
+  starts at backtest start again, as in 4.6.98. The 4.6.99 "first step about 3 seconds
+  sooner" change is withdrawn.
+
+### Added
+
+- Live always-on bots can now persist `self.vars` to the local state file when
+  `LUMIBOT_PERSISTENT_STATE_ENABLED=true` is set (without enabling scheduled run-once mode).
+- `Trader.run_all()` now traps `SIGTERM` alongside `SIGINT` on the main thread so container
+  shutdowns cleanly flush `self.vars` via `_on_abrupt_closing` before exit.
+
+## 4.6.99 - 2026-11-25
 
 ### Fixed
 

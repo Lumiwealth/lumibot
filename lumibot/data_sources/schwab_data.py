@@ -83,8 +83,8 @@ def _schwab_option_symbol(asset) -> str:
     month_str = asset.expiration.strftime("%m")
     day_str = asset.expiration.strftime("%d")
     option_type = "C" if str(asset.right).upper() == "CALL" else "P"
-    strike_whole = int(asset.strike)
-    strike_decimal = int((float(asset.strike) - strike_whole) * 1000)
+    # Round to whole thousandths: truncating (2.3 - 2) * 1000 = 299.999... gives strike 2.299.
+    strike_whole, strike_decimal = divmod(round(float(asset.strike) * 1000), 1000)
     return f"{root_symbol}{year_str}{month_str}{day_str}{option_type}{strike_whole:05d}{strike_decimal:03d}"
 
 

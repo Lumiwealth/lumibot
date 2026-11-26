@@ -831,8 +831,9 @@ def create_options_symbol(stock_symbol, expiration_date, option_type, strike_pri
     # Determine the option type character
     option_char = "C" if option_type.lower() == "call" else "P"
 
-    # Format the strike price, assuming it needs to be in thousandths
-    strike_price_str = f"{int(strike_price * 1000):08d}"
+    # Format the strike price in thousandths. Round instead of truncating: in binary
+    # floating point 16.33 * 1000 is 16329.999..., which int() would turn into 16.329.
+    strike_price_str = f"{round(float(strike_price) * 1000):08d}"
 
     return f"{stock_symbol}{expiration_str}{option_char}{strike_price_str}"
 

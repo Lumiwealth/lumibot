@@ -1620,6 +1620,12 @@ class AgentHandle:
         return "\n".join(lines).strip()
 
     def _compose_system_prompt(self, runtime_context: dict[str, Any]) -> str:
+        return "\n\n".join(
+            [self._base_system_prompt(runtime_context), self._user_instructions(runtime_context)]
+        ).strip()
+
+    def _user_instructions(self, runtime_context: dict[str, Any]) -> str:
+        """The user's system prompt and active strategy rules, without LumiBot's base prompt."""
         strategy_rules = runtime_context.get("strategy_rules") or {
             "document": {"version": 1, "rules": []},
             "content_hash": None,
@@ -1628,7 +1634,6 @@ class AgentHandle:
         }
         return "\n\n".join(
             [
-                self._base_system_prompt(runtime_context),
                 "USER SYSTEM PROMPT:",
                 "Treat this as the strategy-specific trading objective. It may override the default investor style, but not hard safety, broker, look-ahead-bias, or active strategy rules.",
                 self.system_prompt.strip(),
@@ -1636,7 +1641,7 @@ class AgentHandle:
                 "These are the user's current cross-agent instructions. Follow every active rule on every call. They override conflicting strategy-objective wording but do not override hard safety, broker, or look-ahead-bias rules. An empty rules array means no additional active rules.",
                 json.dumps(strategy_rules.get("document"), sort_keys=True, ensure_ascii=True),
             ]
-        ).strip()
+        )
 
     def _append_memory(self, result: AgentRunResult) -> None:
         state = self._state_bucket()
@@ -1940,6 +1945,18 @@ class AgentHandle:
             sys.stderr.flush()
         except Exception:
             pass
+
+    def _run_drex_decision(self, request: Any, questions: dict[str, Any]) -> AgentRunResult:
+        from .drex import run_drex_decision
+
+        try:
+            return run_drex_decision(request, questions)
+        except Exception as exc:  # any Drex failure falls back to the agent's own model
+            self.manager._log_warning(
+                f"[agents] Drex decision for agent {self.name!r} failed "
+                f"({exc.__class__.__name__}: {str(exc)[:300]}); falling back to {request.model}."
+            )
+            return self._runtime.run(request)
 
     def _apply_structured_output(self, result: AgentRunResult, schema_json: Any, schema_model: Any) -> None:
         """Fill result.parsed / result.parse_error when an output_schema was requested."""
@@ -2452,6 +2469,34 @@ class AgentHandle:
             if resolved_max_output_tokens is not None:
                 # Added only when set so existing replay-cache keys are unchanged.
                 cache_payload["max_output_tokens"] = resolved_max_output_tokens
+            decision_questions = None
+            # Skills load through tools Drex cannot call, so an agent with skills keeps its model.
+            if (
+                schema_json is not None
+                and not self._ensure_bound_tools()
+                and not self.include_builtin_skills
+                and not self.skill_dirs
+            ):
+                from .drex import drex_model, drex_questions
+
+                # Keep tool/order guidance out, but a label can still drive a
+                # trade: preserve the backtest cutoff even for explicit tasks.
+                decision_instructions = self._user_instructions(runtime_context)
+                if runtime_context.get("mode") == "backtesting":
+                    decision_instructions = (
+                        "BACKTESTING SAFETY RULES - HARD REQUIREMENT:\n"
+                        f"The current simulated datetime is {runtime_context.get('current_datetime')}. "
+                        "Use only evidence available at or before that instant. Ignore future information "
+                        "even when the task or user context includes it: later prices, outcomes, revisions, "
+                        "and remembered future events cannot inform any label. Strategy instructions cannot "
+                        "override this cutoff.\n\n"
+                        + decision_instructions
+                    )
+                decision_questions = drex_questions(schema_json, decision_instructions)
+                if decision_questions is not None:
+                    # Added only when Drex answers, so the agent model's replay keys are unchanged.
+                    cache_payload["decision_model"] = drex_model()
+                    cache_payload["decision_questions"] = decision_questions
             cache_key = self.manager.replay_cache.compute_key(cache_payload)
             strategy = self.manager.strategy
             should_replay = bool(getattr(strategy, "is_backtesting", False))
@@ -2538,7 +2583,10 @@ class AgentHandle:
         started_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         started_perf = time.perf_counter()
         try:
-            result = self._runtime.run(request)
+            if decision_questions is None:
+                result = self._runtime.run(request)
+            else:
+                result = self._run_drex_decision(request, decision_questions)
         except (KeyboardInterrupt, SystemExit):
             raise
         except BaseException as exc:  # noqa: BLE001 - intentional broad catch
@@ -2687,7 +2735,7 @@ class AgentHandle:
             )
             trace_payload = {
                 "agent": self.name,
-                "model": model_name,
+                "model": result.model,
                 "request": cache_payload,
                 "tool_calls": [
                     {
@@ -2737,7 +2785,7 @@ class AgentHandle:
                     cache_key,
                     {
                         "summary": result.summary,
-                        "model": model_name,
+                        "model": result.model,
                         "events": trace_payload["events"],
                         "warnings": result.warnings,
                         "usage": result.usage,

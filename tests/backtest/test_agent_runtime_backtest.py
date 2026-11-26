@@ -1336,6 +1336,355 @@ def test_agent_output_schema_accepts_a_pydantic_model(monkeypatch, tmp_path):
     assert strategy.vars.last_parsed.verdict == "PASS"
 
 
+# Optional Drex answers (NACE_API_KEY) for agents without tools or skills whose
+# output_schema has only enum/boolean properties. The agent's model is the fallback.
+
+GATE_SCHEMA = {
+    "type": "object",
+    "properties": {"verdict": {"type": "string", "enum": ["PASS", "VETO"]}, "trim": {"type": "boolean"}},
+    "required": ["verdict"],
+}
+
+
+DREX_ANSWERS = {
+    "verdict": {"type": "choice", "choice": "VETO", "probabilities": {"PASS": 0.1, "VETO": 0.9}},
+    "trim": {"type": "noul", "noul": 0.8},
+}
+
+
+class _DrexResponse:
+    def __init__(self, answers):
+        self.answers = answers
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return {"answers": self.answers, "usage": {"input_tokens": 120, "output_tokens": 3}, "request_id": "req_test"}
+
+
+def _patch_drex(monkeypatch, *, error=None, answers=DREX_ANSWERS):
+    calls = []
+    # Exact timeout expectations must not depend on a developer's shell.
+    # Per-agent overrides (including the one-second enum run) still take precedence.
+    monkeypatch.setenv("LUMIBOT_AGENT_MODEL_REQUEST_TIMEOUT_SECONDS", "600")
+    monkeypatch.setenv("LUMIBOT_AGENT_RUN_TIMEOUT_SECONDS", "1800")
+
+    async def post(self, url, **kwargs):
+        calls.append({"url": url, **kwargs})
+        if error is not None:
+            raise error
+        return _DrexResponse(answers)
+
+    monkeypatch.setattr("lumibot.components.agents.drex.httpx.AsyncClient.post", post)
+    return calls
+
+
+class GateStrategy(TokenAndSchemaStrategy):
+    create_kwargs = {"output_schema": GATE_SCHEMA, "include_builtin_skills": False}
+
+    def on_trading_iteration(self):
+        result = self.agents["analyst"].run(task_prompt="Review INTC.", context={"position_pct": 12})
+        self.vars.last_parsed = result.parsed
+        self.vars.last_model = result.model
+
+
+class ToolGateStrategy(GateStrategy):
+    def initialize(self):
+        from lumibot.components.agents import BuiltinTools
+
+        self.sleeptime = "1D"
+        self.agents.create(
+            name="analyst",
+            system_prompt="Give a PASS or VETO verdict for the stock.",
+            default_model="stub-verdict",
+            tools=[BuiltinTools.account.portfolio()],
+            include_builtin_tools=False,
+            _runtime=self.runtime_class(),
+            **type(self).create_kwargs,
+        )
+
+
+def test_drex_answers_a_bounded_verdict_and_replays_apart_from_the_agent_model(monkeypatch, tmp_path):
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    monkeypatch.setenv("NACE_API_KEY", "nace_sk_test")
+    monkeypatch.delenv("NACE_DEFAULT_DECISION_MODEL", raising=False)
+    monkeypatch.setattr(FencedVerdictRuntime, "reply", '{"verdict": "PASS"}')
+    monkeypatch.setattr(FencedVerdictRuntime, "call_count", 0)
+    calls = _patch_drex(monkeypatch)
+
+    _, strategy = _run_stub_backtest(GateStrategy)
+
+    assert strategy.vars.last_parsed == {"verdict": "VETO", "trim": True}
+    assert strategy.vars.last_model == "nace/drex-max-finance"
+    assert FencedVerdictRuntime.call_count == 0
+    body = calls[-1]["json"]
+    assert calls[-1]["headers"] == {
+        "Authorization": "Bearer nace_sk_test",
+        "X-Nace-Client": f"lumibot/{lumibot_version}",
+        "User-Agent": f"lumibot/{lumibot_version}",
+    }
+    assert body["model"] == "drex-max-finance"
+    assert body["questions"]["verdict"]["type"] == "choice"
+    assert body["questions"]["verdict"]["criteria"] == {"PASS": None, "VETO": None}
+    assert body["questions"]["trim"]["type"] == "noul"
+    # Drex gets the user's system prompt and active strategy rules, not LumiBot's tool guidance.
+    instructions = body["questions"]["verdict"]["instructions"]
+    assert "Give a PASS or VETO verdict" in instructions
+    assert "ACTIVE STRATEGY RULES JSON" in instructions
+    assert "operating as an agent inside LumiBot" not in instructions
+    assert calls[-1]["timeout"] == 600.0
+    assert '"position_pct": 12' in body["state"]
+
+    # Same cache folder without the key: the agent's model answers, not the cached Drex verdict.
+    monkeypatch.delenv("NACE_API_KEY")
+    _, strategy = _run_stub_backtest(GateStrategy)
+
+    assert strategy.vars.last_parsed == {"verdict": "PASS"}
+    assert strategy.vars.last_model == "stub-verdict"
+    assert FencedVerdictRuntime.call_count > 0
+
+
+def test_drex_answers_a_pydantic_enum_field_within_the_run_timeout(monkeypatch, tmp_path):
+    from enum import Enum
+
+    from pydantic import BaseModel
+
+    class Verdict(str, Enum):
+        PASS = "PASS"
+        VETO = "VETO"
+
+    class Gate(BaseModel):
+        verdict: Verdict
+        trim: bool
+
+    class EnumGateStrategy(GateStrategy):
+        create_kwargs = {"output_schema": Gate, "include_builtin_skills": False, "run_timeout_seconds": 1}
+
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    monkeypatch.setenv("NACE_API_KEY", "nace_sk_test")
+    calls = _patch_drex(monkeypatch)
+
+    _, strategy = _run_stub_backtest(EnumGateStrategy)
+
+    assert strategy.vars.last_parsed == Gate(verdict=Verdict.VETO, trim=True)
+    assert calls[-1]["json"]["questions"]["verdict"]["criteria"] == {"PASS": None, "VETO": None}
+    assert calls[-1]["timeout"] == 1.0
+
+
+def test_drex_explicit_task_keeps_backtest_cutoff_instruction(monkeypatch, tmp_path):
+    """Request-contract coverage, not a real-model claim about rejecting future facts."""
+    class FutureContextGate(GateStrategy):
+        def on_trading_iteration(self):
+            self.agents["analyst"].run(
+                task_prompt="Review INTC using the supplied context.",
+                context={"future_report": {"published_at": "2099-01-01", "text": "The stock will double."}},
+            )
+
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    monkeypatch.setenv("NACE_API_KEY", "nace_sk_test")
+    calls = _patch_drex(monkeypatch)
+
+    _run_stub_backtest(FutureContextGate)
+
+    body = calls[-1]["json"]
+    assert "Review INTC using the supplied context." in body["state"]
+    assert "2099-01-01" in body["state"]
+    # Explicit tasks suppress the runtime's default task wording. The decision
+    # instructions must still carry the simulated cutoff and exclusion rule.
+    for question in body["questions"].values():
+        instructions = question["instructions"]
+        assert "BACKTESTING SAFETY RULES" in instructions
+        assert "2025-01-06" in instructions
+        assert "Ignore future information" in instructions
+        assert "even when the task or user context includes it" in instructions
+
+
+def test_drex_replay_invalidates_when_decision_instructions_change(monkeypatch, tmp_path):
+    from lumibot.components.agents import drex
+
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    monkeypatch.setenv("NACE_API_KEY", "nace_sk_test")
+    calls = _patch_drex(monkeypatch)
+    _, first = _run_stub_backtest(GateStrategy)
+    assert calls and first.vars.last_parsed["verdict"] == "VETO"
+    calls.clear()
+    _run_stub_backtest(GateStrategy)
+    assert not calls  # Unchanged decision policy still replays.
+
+    original = drex.drex_questions
+
+    def revised_questions(*args):
+        questions = original(*args)
+        for question in questions.values():
+            question["instructions"] += "\nUse the revised decision policy."
+        return questions
+
+    monkeypatch.setattr(drex, "drex_questions", revised_questions)
+    calls = _patch_drex(
+        monkeypatch,
+        answers={**DREX_ANSWERS, "verdict": {"type": "choice", "choice": "PASS", "probabilities": {"PASS": 1.0}}},
+    )
+    _, revised = _run_stub_backtest(GateStrategy)
+    assert calls
+    assert revised.vars.last_parsed["verdict"] == "PASS"
+
+
+def test_drex_run_deadline_cancels_a_response_that_keeps_sending_data(monkeypatch, tmp_path):
+    """Use HTTPX's real body reader with an in-process drip stream, never a network."""
+    import asyncio
+    import time
+    from types import SimpleNamespace
+
+    import httpx
+
+    from lumibot.components.agents import drex
+
+    class DripStream(httpx.SyncByteStream, httpx.AsyncByteStream):
+        chunks = 0
+        closed = False
+
+        def __iter__(self):
+            for _ in range(40):
+                self.chunks += 1
+                yield b" "
+                time.sleep(0.005)
+            yield json.dumps({"answers": DREX_ANSWERS}).encode()
+
+        async def __aiter__(self):
+            for _ in range(40):
+                self.chunks += 1
+                yield b" "
+                await asyncio.sleep(0.005)
+            yield json.dumps({"answers": DREX_ANSWERS}).encode()
+
+        def close(self):
+            self.closed = True
+
+        async def aclose(self):
+            self.closed = True
+
+    stream = DripStream()
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, stream=stream, request=request))
+    async_client = httpx.AsyncClient
+
+    def sync_post(url, **kwargs):
+        with httpx.Client(transport=transport) as client:
+            return client.post(url, **kwargs)
+
+    # The sync shim also makes this a safe red regression on the old transport.
+    monkeypatch.setattr(drex, "httpx", SimpleNamespace(post=sync_post, AsyncClient=lambda: async_client(transport=transport)))
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    monkeypatch.setenv("NACE_API_KEY", "nace_sk_test")
+    monkeypatch.setattr(FencedVerdictRuntime, "reply", '{"verdict": "PASS"}')
+    monkeypatch.setattr(FencedVerdictRuntime, "call_count", 0)
+
+    class DeadlineGate(GateStrategy):
+        create_kwargs = {
+            **GateStrategy.create_kwargs,
+            "model_request_timeout_seconds": 0.02,
+            "run_timeout_seconds": 0.05,
+        }
+
+    _, strategy = _run_stub_backtest(DeadlineGate)
+
+    assert stream.closed
+    assert 0 < stream.chunks < 40  # Active reads were interrupted, not waited out.
+    assert strategy.vars.last_parsed == {"verdict": "PASS"}
+    assert strategy.vars.last_model == "stub-verdict"
+    assert FencedVerdictRuntime.call_count == 1
+
+
+@pytest.mark.parametrize(
+    "error, answers, reason",
+    [
+        ("connect", DREX_ANSWERS, "ConnectError: connection refused"),
+        (None, {**DREX_ANSWERS, "verdict": {"type": "choice", "choice": "HOLD"}}, "unknown label 'HOLD'"),
+        (None, {**DREX_ANSWERS, "trim": {"type": "noul", "noul": 2}}, "invalid probability 2"),
+    ],
+)
+def test_drex_failure_falls_back_to_the_agent_model(monkeypatch, tmp_path, error, answers, reason):
+    import httpx
+
+    from lumibot.components.agents.manager import AgentManager
+
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    monkeypatch.setenv("NACE_API_KEY", "nace_sk_test")
+    monkeypatch.setattr(FencedVerdictRuntime, "reply", '{"verdict": "PASS"}')
+    monkeypatch.setattr(FencedVerdictRuntime, "call_count", 0)
+    error = httpx.ConnectError("connection refused") if error == "connect" else None
+    calls = _patch_drex(monkeypatch, error=error, answers=answers)
+    warnings = []
+    monkeypatch.setattr(AgentManager, "_log_warning", lambda self, message: warnings.append(message))
+
+    _, strategy = _run_stub_backtest(GateStrategy)
+
+    assert calls
+    assert FencedVerdictRuntime.call_count == len(calls)
+    assert strategy.vars.last_parsed == {"verdict": "PASS"}
+    assert strategy.vars.last_model == "stub-verdict"
+    assert any("Drex decision for agent 'analyst' failed" in w and reason in w for w in warnings)
+
+
+CONSTRAINED_BOOLEAN_SCHEMA = {
+    "type": "object",
+    "properties": {"verdict": GATE_SCHEMA["properties"]["verdict"], "trim": {"type": "boolean", "enum": [False]}},
+    "required": ["verdict"],
+}
+
+# Drex picks any label in the enum, so it cannot enforce a narrower value constraint.
+CONSTRAINED_ENUM_SCHEMA = {
+    **GATE_SCHEMA,
+    "properties": {"verdict": {**GATE_SCHEMA["properties"]["verdict"], "const": "PASS"}},
+}
+
+# Drex answers each property on its own, so it cannot enforce an object-level constraint.
+EXCLUSIVE_GATE_SCHEMA = {
+    **GATE_SCHEMA,
+    "not": {"properties": {"verdict": {"const": "PASS"}, "trim": {"const": True}}, "required": ["verdict", "trim"]},
+}
+
+# JSON Schema allows a required additional field; Drex has no question for it.
+REQUIRED_ADDITIONAL_FIELD_SCHEMA = {
+    "type": "object",
+    "properties": {"verdict": GATE_SCHEMA["properties"]["verdict"]},
+    "required": ["verdict", "confidence"],
+    "additionalProperties": {"type": "string"},
+}
+
+
+@pytest.mark.parametrize(
+    "api_key, strategy_class, create_kwargs",
+    [
+        (None, GateStrategy, GateStrategy.create_kwargs),
+        ("nace_sk_test", GateStrategy, {**GateStrategy.create_kwargs, "output_schema": VERDICT_SCHEMA}),  # free text
+        ("nace_sk_test", GateStrategy, {**GateStrategy.create_kwargs, "output_schema": CONSTRAINED_BOOLEAN_SCHEMA}),
+        ("nace_sk_test", GateStrategy, {**GateStrategy.create_kwargs, "output_schema": CONSTRAINED_ENUM_SCHEMA}),
+        ("nace_sk_test", GateStrategy, {**GateStrategy.create_kwargs, "output_schema": EXCLUSIVE_GATE_SCHEMA}),
+        ("nace_sk_test", GateStrategy, {**GateStrategy.create_kwargs, "output_schema": REQUIRED_ADDITIONAL_FIELD_SCHEMA}),
+        ("nace_sk_test", GateStrategy, {"output_schema": GATE_SCHEMA}),  # built-in skills on
+        ("nace_sk_test", ToolGateStrategy, GateStrategy.create_kwargs),  # agent has tools
+    ],
+)
+def test_agent_model_answers_when_drex_is_off_or_cannot_answer(
+    monkeypatch, tmp_path, api_key, strategy_class, create_kwargs
+):
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    if api_key:
+        monkeypatch.setenv("NACE_API_KEY", api_key)
+    else:
+        monkeypatch.delenv("NACE_API_KEY", raising=False)
+    monkeypatch.setattr(FencedVerdictRuntime, "reply", '{"symbol": "INTC", "verdict": "PASS", "confidence": "LOW"}')
+    monkeypatch.setattr(strategy_class, "create_kwargs", create_kwargs)
+    calls = _patch_drex(monkeypatch)
+
+    _, strategy = _run_stub_backtest(strategy_class)
+
+    assert calls == []
+    assert strategy.vars.last_model == "stub-verdict"
+    assert strategy.vars.last_parsed["verdict"] == "PASS"
+
+
 class RateLimitedRuntime:
     call_count = 0
 

@@ -340,7 +340,10 @@ class MetaMaskProvider:
         job = json_object(value, "transaction job")
         if job.get("requestId") != request_id:
             raise MetaMaskError("JOB_MISMATCH", "Transaction response belongs to another request")
-        tx = json_object(job.get("tx"), "transaction identity")
+        # MetaMask's POST /transaction-requests can return a compact {requestId, status} reply
+        # (observed live for AWAITING_MFA). The full tx echo arrives on GET and is verified there.
+        compact = "tx" not in job
+        tx = json_object(job.get("tx"), "transaction identity") if not compact else {}
         for key in (
             "from",
             "to",
@@ -352,7 +355,7 @@ class MetaMaskProvider:
             "maxFeePerGas",
             "maxPriorityFeePerGas",
         ):
-            if key not in expected:
+            if compact or key not in expected:
                 continue
             actual, wanted = tx.get(key), expected[key]
             if key in {"from", "to", "data"}:

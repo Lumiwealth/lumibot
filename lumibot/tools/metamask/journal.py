@@ -272,7 +272,14 @@ class Journal:
                         "RECONCILIATION_REQUIRED", "Resolve pending collateral movement before another trade"
                     )
                 operations = self.operations(agent)
-                if any(item.get("reconciliationErrorCode") for item in operations):
+                if any(
+                    item.get("reconciliationErrorCode")
+                    or any(
+                        isinstance(child, dict) and child.get("reconciliationErrorCode")
+                        for child in (item.get("childOperations") or [])
+                    )
+                    for item in operations
+                ):
                     raise MetaMaskError(
                         "RECONCILIATION_REQUIRED", "Resolve inconsistent execution evidence before further spending"
                     )
@@ -280,7 +287,14 @@ class Journal:
                     raise MetaMaskError(
                         "FEE_BUDGET_REVIEW_REQUIRED", "Review recorded chain fee overrun before further spending"
                     )
-                if any(item.get("state") in UNCERTAIN for item in operations):
+                if any(
+                    item.get("state") in UNCERTAIN
+                    or any(
+                        isinstance(child, dict) and child.get("state") in UNCERTAIN
+                        for child in (item.get("childOperations") or [])
+                    )
+                    for item in operations
+                ):
                     raise MetaMaskError(
                         "RECONCILIATION_REQUIRED", "Resolve pending or uncertain execution before another trade"
                     )
@@ -397,6 +411,18 @@ class Journal:
                 (agent, operation_id),
             ).fetchall()
             return {step: json_object(json.loads(data), "execution effect") for step, data in rows}
+
+    def metadata(self, name: str) -> str | None:
+        with self._lock:
+            row = self.db.execute("SELECT value FROM native_metadata WHERE name=?", (name,)).fetchone()
+            return str(row[0]) if row else None
+
+    def set_metadata(self, name: str, value: str) -> None:
+        with self._lock:
+            self.db.execute(
+                "INSERT INTO native_metadata VALUES (?,?) ON CONFLICT(name) DO UPDATE SET value=excluded.value",
+                (name, value),
+            )
 
     def next_nonce(self, *, now: int | None = None) -> int:
         now = int(time.time() * 1000) if now is None else now

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **MetaMask perpetual broker & data-source LumiBot parity + Agent Wallet approval status.** `MetaMask` (`MODE="perp"`) now supports native Hyperliquid trigger orders (`stop`, `stop_limit`), grouped TP/SL orders (`bracket`, `oto` via `normalTpsl`, and `oco` via `positionTpsl`) with durable per-leg recovery and cancellation, `ORDER_SUPPORT` / `supports_order()` declarations (9/13 native; trailing stops and spot mode refused before transport), `get_contract_spec()`, `get_order_size_rules()`, sequential parent-first `cancel_orders()`, standard `OrderSide` normalization with canonical `reduce_only` enforcement on closing sides, and `USDC` default `quote_asset` on `Strategy` in perp mode. Adds first-class `Order.OrderStatus.AWAITING_APPROVAL` (`"awaiting_approval"`, active) for MetaMask Agent Wallet MFA approvals (`AWAITING_MFA`), propagating to grouped children and surfacing `approval_id` on `order.submission_outcome`, while user denials (`DENIED`/`EXPIRED`/`FAILED`) transition cleanly to `Order.OrderStatus.ERROR` (`REJECTED`) with `confirmed_rejected` certainty and zero venue submission. `MetaMaskData` adds L2 top-of-book `get_quote()` (enabling LumiBot-simulated `SMART_LIMIT`), per-symbol-preserving batched `get_last_prices()`, `get_contract_spec()`, and native `supports_native_timestep()` dispatch across all 14 Hyperliquid candle intervals (`1m` through `1M`). Also fixes `Decimal * float` fractional `Broker.close_position()`. Docs: `docs/METAMASK.md`, `docsrc/brokers.metamask.rst`, `docsrc/brokers.order_support.rst`. Tests: `tests/test_metamask_lumibot_features.py`, `tests/test_metamask_broker.py`, `tests/test_order.py`, `tests/test_broker_order_support.py`, `tests/test_broker_order_type_contract.py`.
+
 ## 4.6.100 - 2026-11-25
 
 ### Fixed

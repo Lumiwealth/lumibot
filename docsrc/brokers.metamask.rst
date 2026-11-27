@@ -30,10 +30,12 @@ Check the printed source commit against the intended revision before testing. Pa
 availability and passing offline checks do not establish production qualification.
 
 Authorize through the official `MetaMask Agent Wallet sign-in page
-<https://developer.metamask.io/agentic/login>`_. Use the original Google/email
-method to retain the same wallet identity. The optional Python login function
-opens that page, accepts the copied browser token through a hidden prompt,
-verifies its identity, and writes an owner-only session file:
+<https://developer.metamask.io/agentic/login>`_. Wallet linking uses OAuth
+(never raw private keys); keys stay inside MetaMask's managed server wallet.
+Use the original Google/email method to retain the same wallet identity. The
+optional Python login function opens that page, accepts the copied browser token
+through a hidden prompt, verifies its identity, and writes an owner-only session
+file:
 
 .. code-block:: python
 
@@ -107,18 +109,48 @@ capacity must cover entry and closing legs. ``get_cash()`` is broker-reported US
 not remaining policy budget. Startup never renews authority. Stop and join
 Trader before calling ``broker.close()`` to release workers and the native client.
 
-The native candidate supports Hyperliquid's default USDC perpetual DEX with
-market and limit buy/sell orders. ``reduce_only=True`` survives shared closing
-methods and restored snapshots. Legacy ``custom_params={"reduce_only": True}``
-cannot turn off canonical reduce-only intent. Limit orders require ``gtc``,
-``ioc`` or ``alo``. Market orders become frozen slippage-bounded IOC limits.
-Conditional, bracket, OCO and automatic cancel/replace orders are unsupported.
+The native adapter supports Hyperliquid's default USDC perpetual DEX with
+market, limit, stop, stop-limit, bracket, OTO, and OCO orders (mapped to
+Hyperliquid trigger and grouped ``normalTpsl``/``positionTpsl`` actions), plus
+LumiBot-simulated ``SMART_LIMIT`` orders backed by L2 book quotes. Standard
+LumiBot order sides (``buy``, ``buy_to_open``, ``sell``, ``sell_to_open``,
+``sell_short``, ``buy_to_close``, ``buy_to_cover``, ``sell_to_close``) are
+normalized, and closing sides as well as ``reduce_only=True`` enforce canonical
+reduce-only intent across closing methods and restored snapshots. Legacy
+``custom_params={"reduce_only": False}`` cannot turn off canonical reduce-only
+intent. ``custom_params`` also supports ``leverage`` and ``tpsl`` (``"tp"`` or
+``"sl"`` on standalone triggers). Limit orders require ``gtc``, ``ioc`` or
+``alo``; trigger orders (``stop``, ``stop_limit``) require ``gtc`` because
+Hyperliquid's trigger wire does not carry a time-in-force flag. Market orders
+become frozen slippage-bounded IOC limits. Trailing stops, trailing legs, and
+automatic in-place cancel/replace (``_modify_order``) are unsupported; check
+``broker.supports_order(...)`` before submission. ``MetaMask`` exposes
+``get_contract_spec()`` and ``get_order_size_rules()`` for Hyperliquid perpetual
+sizing, accepts an optional ``MARKET`` config/environment override (default
+``"24/7"``), and defaults ``Strategy(broker=MetaMask(...))`` ``quote_asset`` to
+USDC in ``MODE='perp'`` (preserving USD in ``MODE='spot'``).
 
 Duplicate IDs reuse the same journaled operation. A different request under an
 existing ID is rejected. Uncertain mutations keep their original request IDs
 and block new execution until reconciliation. Pending signatures are never
 replayed after restart. Cancellation has a separate lifecycle and cannot erase
 fills or reject the original live order merely because cancellation failed.
+Parent and child IDs of bracket, OTO, and OCO orders can be queried and
+canceled individually.
+
+When MetaMask Guard Mode pauses a signing request for human approval
+(``AWAITING_MFA``), LumiBot sets ``order.status`` to
+``Order.OrderStatus.AWAITING_APPROVAL`` (``"awaiting_approval"``) while keeping
+the order active and exposing the approval request ID on
+``order._raw["approvalId"]`` and ``order.submission_outcome["approval_id"]``.
+No venue order is sent until approval completes. Once approved (``SIGNED``),
+polling validates authority/expiry/reservation and releases the order to
+Hyperliquid normally. If the user denies the prompt (``DENIED``) or it expires
+or fails (``EXPIRED``/``FAILED``), no venue order is sent, ``order.status``
+becomes ``Order.OrderStatus.ERROR`` (``Order.OrderStatus.REJECTED``),
+``order.error_message`` records the denial reason, and
+``order.submission_outcome["broker_state_certainty"]`` is
+``"confirmed_rejected"``.
 
 Perpetual receipt fees populate cumulative ``Order.trade_cost`` in USDC,
 including maker rebates. Partial-fill trade-log rows contain the cumulative cost
@@ -132,8 +164,11 @@ accounts use pooled HyperCore spot USDC once, without adding perpetual PnL
 again. Portfolio margin is unsupported. HIP3 writes are held until native
 collateral-aware valuation and effective DEX fee inputs are qualified.
 
-``MetaMaskData`` provides actual perpetual marks and closed minute/hour/day
-candles from the selected network. Public perpetual data needs only an explicit
+``MetaMaskData`` provides actual perpetual marks, batched ``get_last_prices()``,
+L2 top-of-book ``get_quote()``, and closed candles across all 14 Hyperliquid
+intervals (``1m``, ``3m``, ``5m``, ``15m``, ``30m``, ``1h``, ``2h``, ``4h``,
+``8h``, ``12h``, ``1d``, ``3d``, ``1w``, ``1M``, plus standard LumiBot aliases)
+from the selected network. Public perpetual data needs only an explicit
 ``NETWORK``. The venue retains at most 5,000 bars per interval. Spot candles
 and historical account equity are not provided.
 

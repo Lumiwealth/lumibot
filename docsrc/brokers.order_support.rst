@@ -69,6 +69,7 @@ Bitunix                               Native  Native  No      No          No    
 ProjectX                              Native  Native  Native  No          No        Simulated  No      No            No
 Interactive Brokers (Client Portal)   Native  Native  Native  Native      Native    No         No      No            No
 CCXT exchanges                        Native  Native  Native  Native      Some      No         No      No            No
+MetaMask                              Native  Native  Native  Native      No        Native     Native  No            Native
 ====================================  ======  ======  ======  ==========  ========  =========  ======  ============  ======
 
 ``tests/test_broker_order_support.py`` fails if this table and the brokers' declarations
@@ -100,7 +101,12 @@ Notes
   Binance for percent, Bybit for amount); ``supports_order`` answers per exchange.
   Brackets, OTO and OCO are refused; pass the exchange's own attached take-profit or
   stop-loss fields through ``custom_params`` instead.
-* **Interactive Brokers (TWS), Kalshi, Polymarket and MetaMask** have not declared their
+* **MetaMask:** applies to ``MODE="perp"`` (Hyperliquid perpetuals with
+  ``asset_type="crypto_future"``). Market, limit, stop, stop-limit, bracket, OTO, and OCO
+  orders are sent natively using Hyperliquid trigger and grouped TP/SL orders. Trailing
+  stops and trailing legs are refused. ``MODE="spot"`` refuses standard orders and exposes
+  exact-input swaps via ``broker.swap(...)`` instead.
+* **Interactive Brokers (TWS), Kalshi and Polymarket** have not declared their
   order support yet, so ``supports_order`` answers ``"unknown"`` for them.
 
 If your strategy is not running all the time

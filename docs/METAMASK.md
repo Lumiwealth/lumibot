@@ -2,7 +2,7 @@
 
 MetaMask managed-wallet execution through ordinary LumiBot strategies, without a JavaScript runtime or localhost service.
 
-Last Updated: 2026-11-10
+Last Updated: 2026-11-24
 
 Status: Native adapter available; funded qualification limits remain below
 
@@ -49,7 +49,7 @@ These paths are repository-relative; test names are under `tests/`. Brace groups
 
 ## Authentication and explicit authority
 
-Use the official [Agent Wallet sign-in page](https://developer.metamask.io/agentic/login), keeping the same Google/email method as the funded wallet. Changing sign-in methods can select a different wallet. Copy its browser-issued token into the secure Python prompt, never a strategy source file or chat:
+MetaMask Agent Wallet uses OAuth browser authorization (`https://developer.metamask.io/agentic/login`) and OIDC token refresh (`https://oidc.api.cx.metamask.io`), **not** raw EOA private keys. Wallet keys stay inside MetaMask's managed server wallet (`type="derived"`), and the broker refuses non-managed wallets (`CUSTODY_MISMATCH`). Keep the same Google/email sign-in method as the funded wallet — changing sign-in methods can select a different wallet. Copy its browser-issued token into the secure Python prompt, never a strategy source file or chat:
 
 ```python
 from lumibot.tools.metamask.owner import login
@@ -127,9 +127,28 @@ closing leg as well as entry; `get_cash()` reports broker-reported USDC cash, no
 policy budget. Startup does not renew authority. Stop and join `Trader` before
 calling `broker.close()` to release polling, order workers and the native client.
 
-Quantities are base units with multiplier 1. Supported orders are buy/sell market or limit, with canonical `reduce_only=True` for closing positions. `custom_params` may contain `leverage` and `reduce_only`; it cannot weaken canonical reduce-only intent. Limit orders require `gtc`, `ioc` or `alo`. Market orders become a frozen slippage-bounded IOC limit. Conditional, bracket, OCO and automatic cancel/replace orders are unsupported.
+Quantities are base units with multiplier 1. In perp mode, `Strategy(broker=MetaMask(...))` defaults its `quote_asset` to `Asset("USDC", asset_type="crypto")` unless overridden (spot mode retains `USD`). Supported `MODE="perp"` orders are market, limit, stop, stop-limit, bracket, OTO, and OCO (using Hyperliquid trigger and grouped `normalTpsl`/`positionTpsl` actions), plus LumiBot-simulated `SMART_LIMIT` via L2 book quotes (`get_quote()`). Standard LumiBot side variants (`buy`, `buy_to_open`, `sell`, `sell_to_open`, `sell_short`, `buy_to_close`, `buy_to_cover`, `sell_to_close`) are normalized, with closing sides and `reduce_only=True` enforcing canonical reduce-only intent. `custom_params` may contain `leverage`, `reduce_only`, and `tpsl` (`"tp"`/`"sl"` on standalone triggers); it cannot weaken canonical reduce-only intent. Limit orders require `gtc`, `ioc` or `alo`. Market orders become a frozen slippage-bounded IOC limit. Trailing stops, trailing legs, and automatic in-place cancel/replace (`_modify_order`) are unsupported; `broker.supports_order(...)` reports the exact support mode before submission.
 
-The broker reserves pre-trade notional plus the current effective fee envelope. Duplicate operation IDs are idempotent; changed intent under an existing ID is rejected. Uncertain submissions block new execution and reconcile the original request/client-order ID. Cancellation uses a separate durable effect and cannot overwrite the original order's fills or terminal status. Canceling a prepared, unreleased order never advances it into a trade.
+The broker reserves pre-trade notional plus the current effective fee envelope. Duplicate operation IDs are idempotent; changed intent under an existing ID is rejected. Uncertain submissions block new execution and reconcile the original request/client-order ID. Cancellation uses a separate durable effect and cannot overwrite the original order's fills or terminal status. Canceling a prepared, unreleased order never advances it into a trade. Both parent and child order IDs of bracket, OTO, and OCO groups can be queried and canceled individually.
+
+### Agent Wallet approval and denial lifecycle
+
+When MetaMask Guard Mode requires human MFA approval (`AWAITING_MFA` on mobile push or the browser dashboard):
+
+- **Waiting for approval:** The engine pauses before releasing any venue order and sets `order.status` to `Order.OrderStatus.AWAITING_APPROVAL` (`"awaiting_approval"`). The order stays active (`order.is_active() is True`) and tracked in `broker.get_active_tracked_orders()`, without emitting `NEW_ORDER`, `FILLED_ORDER`, or `ERROR_ORDER`. The MetaMask approval request ID is exposed on `order._raw["approvalId"]` and `order.submission_outcome["approval_id"]` (with `broker_state_certainty="unknown"` and `reconciliation_required=True`). Grouped orders (`bracket`, `oto`, `oco`) propagate `"awaiting_approval"` to both parent and child orders.
+- **Approved (`SIGNED`):** Subsequent polling (`POLL_INTERVAL`, default 10s) observes the completed signature, re-validates authority, account mode, signature expiry (5 minutes), and fee/notional reservation, submits the signed action to Hyperliquid, and transitions the order cleanly into `open` / `partial_fill` / `fill` with normal callbacks.
+- **Denied, expired, or failed (`DENIED`, `EXPIRED`, `FAILED`):** No venue order is sent. The engine marks the operation (and any grouped children) `rejected`, and the broker emits `ERROR_ORDER`: `order.status` becomes `Order.OrderStatus.ERROR` (aliased as `Order.OrderStatus.REJECTED`), `order.error_message` records the provider denial/failure reason (e.g. `"Managed signing denied; no venue order sent"`), and `order.submission_outcome["broker_state_certainty"]` becomes `"confirmed_rejected"`.
+- **Canceled while awaiting approval:** `broker.cancel_order(order)` cancels the unreleased parent locally with `order.status == Order.OrderStatus.CANCELED` and `order.submission_outcome["broker_state_certainty"] == "confirmed_not_submitted"`.
+- **Process restart while awaiting approval:** Pre-restart signatures are never auto-released after a process restart (`ownerEpoch` guard).
+
+### Live MFA approval / denial and tiny mainnet verification checklist
+
+Before claiming mainnet or live-MFA qualification, run these manual checks against a dedicated funded MetaMask Agent Wallet (using OAuth via `lumibot.tools.metamask.owner.login(...)` — never raw private keys):
+
+1. **Authenticate via OAuth & pin Guard Mode policy:** Run `login("<private-dir>/session.json")`, inspect `client.provider.policy(wallet).text`, and configure a tight Guard Mode rule that triggers MFA approval (e.g., per-order threshold below your test order size) plus a small `client.authorize(...)` cap (e.g., `maxOrderUsd="25"`, `maxDailyUsd="50"`, `maxLeverage=1`).
+2. **Test MFA Deny:** Submit a small resting limit order (e.g., 10% below mark, `time_in_force="alo"`). Confirm `order.status == Order.OrderStatus.AWAITING_APPROVAL` and `order.submission_outcome["approval_id"]` is populated. **Deny** the prompt in MetaMask Mobile / browser dashboard. Confirm on the next poll that `order.status == Order.OrderStatus.ERROR`, `order.submission_outcome["broker_state_certainty"] == "confirmed_rejected"`, and Hyperliquid has zero open orders or positions.
+3. **Test MFA Approve + Cancel:** Submit another small resting ALO order. Confirm `Order.OrderStatus.AWAITING_APPROVAL`. **Approve** the prompt in MetaMask within 5 minutes. Confirm the order transitions to `open` on Hyperliquid, then call `broker.cancel_order(order)` and verify `canceled`.
+4. **Test Tiny Mainnet Round Trip (optional funded mainnet proof):** With a dedicated mainnet Agent Wallet (`NETWORK="mainnet"`), small collateral (~$20–$30 USDC), and 1x leverage, execute a tiny market open (~$12 notional) followed by an exact `reduce_only=True` close. Verify fills, `order.trade_cost`, flat ending position, and reconciled ending USDC balance.
 
 Perpetual receipt fees populate standard `Order.trade_cost` in USDC, including
 maker rebates. This is the cumulative order cost, matching the existing broker
@@ -179,7 +198,9 @@ incomplete results with `CASH_HISTORY_INCOMPLETE`. Raw non-funding records remai
 readable through `client.cash_history(start_ms, end_ms)`; bounds there are
 inclusive. This reporting contract does not qualify funded provider execution.
 
-`MetaMaskData` reads marks and closed minute/hour/day candles from the selected Hyperliquid network. Public perpetual data needs only `NETWORK`; it does not need a wallet credential. Candle history is limited to the venue's latest 5,000 bars. Spot candles and historical account equity are not provided.
+`MetaMaskData` reads marks, batched `get_last_prices()` (preserving per-symbol availability without failing valid symbols), top-of-book L2 quotes (`get_quote()`), `get_contract_spec()`, and closed candles across all 14 Hyperliquid intervals (`1m`, `3m`, `5m`, `15m`, `30m`, `1h`, `2h`, `4h`, `8h`, `12h`, `1d`, `3d`, `1w`, `1M`, plus standard LumiBot aliases such as `"5 minutes"`, `"hour"`, `"day"`) with `supports_native_timestep()` enabled for direct `Strategy.get_historical_prices()` dispatch from the selected Hyperliquid network. Public perpetual data needs only `NETWORK`; it does not need a wallet credential. Candle history is limited to the venue's latest 5,000 bars. Spot candles and historical account equity are not provided.
+
+`MetaMask` also exposes `get_contract_spec()` and `get_order_size_rules()` for Hyperliquid `crypto_future` sizing (`get_contract_exposure()` / `get_quantity_for_notional()`), accepts an optional `MARKET` config/environment override (default `"24/7"`), defaults `Strategy.quote_asset` to `USDC` in `MODE="perp"` (keeping `USD` in `MODE="spot"`), and requires `time_in_force="gtc"` on trigger orders (`stop`, `stop_limit`). Note that LumiBot-simulated `SMART_LIMIT` repricing still obeys Hyperliquid's 5-significant-figure price precision (`PRICE_PRECISION`).
 
 LumiBot's uppercase asset symbols resolve to the unique canonical venue name,
 including mixed-case markets such as `kPEPE`. Orders retain that native name in

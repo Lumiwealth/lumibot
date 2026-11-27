@@ -5321,9 +5321,24 @@ class Strategy(_Strategy):
                 actual_length = length * multiplier
                 needs_resampling = True
         elif parsed:
-            # Standard format (1 minute or 1 day)
+            # Standard format (1 minute or 1 day). Preserve exact "1M" when a live
+            # data source explicitly serves monthly candles natively under that alias.
             multiplier, base_unit = parsed
-            actual_timestep = base_unit
+            live_data_source = getattr(getattr(self, "broker", None), "data_source", None)
+            if (
+                not (
+                    getattr(self, "is_backtesting", False)
+                    or getattr(getattr(self, "broker", None), "IS_BACKTESTING_BROKER", False)
+                )
+                and isinstance(original_timestep, str)
+                and original_timestep.strip() == "1M"
+                and _data_source_serves_timestep_natively(
+                    live_data_source, original_timestep, include_after_hours=include_after_hours
+                )
+            ):
+                actual_timestep = original_timestep
+            else:
+                actual_timestep = base_unit
             actual_length = length
             needs_resampling = False
         else:

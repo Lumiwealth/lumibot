@@ -43,8 +43,10 @@ def _positions_lines(message):
 
 
 def _render(assets_prices, portfolio_value=1_000_000.0):
-    fake = _SummaryStrategy({asset: price for asset, price in assets_prices})
-    fake._positions = [Position(fake, asset, 1, avg_fill_price=price) for asset, price in assets_prices]
+    """Render the summary for ``(asset, last_price)`` or ``(asset, last_price, quantity)`` entries."""
+    entries = [entry if len(entry) == 3 else (*entry, 1) for entry in assets_prices]
+    fake = _SummaryStrategy({asset: price for asset, price, _ in entries})
+    fake._positions = [Position(fake, asset, qty, avg_fill_price=price) for asset, price, qty in entries]
     _Strategy.send_result_text_to_discord(fake, "returns_text", portfolio_value=portfolio_value, cash=0.0)
     assert len(fake.sent) == 1
     return _positions_lines(fake.sent[0])
@@ -54,6 +56,12 @@ def test_future_position_uses_multiplier():
     es = Asset("ES", asset_type=Asset.AssetType.FUTURE, multiplier=50, expiration=date(2026, 12, 18))
     lines = _render([(es, 6000.0)])
     assert lines == [f"1.00 {es} ($300,000 or 30%)"]
+
+
+def test_future_position_value_scales_with_quantity():
+    es = Asset("ES", asset_type=Asset.AssetType.FUTURE, multiplier=50, expiration=date(2026, 12, 18))
+    lines = _render([(es, 6000.0, 2)], portfolio_value=100_000.0)
+    assert lines == [f"2.00 {es} ($600,000 or 600%)"]
 
 
 def test_continuous_future_position_uses_multiplier():
@@ -83,7 +91,8 @@ def test_standard_option_and_stock_values_unchanged():
         strike=500.0,
         right="put",
     )
-    stock = Asset("MSFT", asset_type=Asset.AssetType.STOCK)
+    # Explicit multiplier metadata on a stock must not scale its value.
+    stock = Asset("MSFT", asset_type=Asset.AssetType.STOCK, multiplier=7)
     lines = _render([(opt, 5.0), (stock, 400.0)], portfolio_value=1000.0)
     assert lines == [
         f"1.00 {opt} ($500 or 50%)",

@@ -75,6 +75,12 @@ def test_future_position_value_scales_with_quantity():
     assert lines == [f"2.00 {es} ($600,000 or 600%)"]
 
 
+def test_short_future_position_keeps_negative_value():
+    es = Asset("ES", asset_type=Asset.AssetType.FUTURE, multiplier=50, expiration=date(2026, 12, 18))
+    lines = _render([(es, 6000.0, -1)], portfolio_value=100_000.0)
+    assert lines == [f"-1.00 {es} ($-300,000 or 0%)"]
+
+
 def test_future_position_keeps_fractional_multiplier():
     micro = Asset("MBT", asset_type=Asset.AssetType.FUTURE, multiplier=0.5, expiration=date(2026, 12, 18))
     lines = _render([(micro, 200.0)], portfolio_value=1_000.0)

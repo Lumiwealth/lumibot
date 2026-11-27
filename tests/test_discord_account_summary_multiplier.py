@@ -43,10 +43,21 @@ def _positions_lines(message):
 
 
 def _render(assets_prices, portfolio_value=1_000_000.0):
-    """Render the summary for ``(asset, last_price)`` or ``(asset, last_price, quantity)`` entries."""
-    entries = [entry if len(entry) == 3 else (*entry, 1) for entry in assets_prices]
-    fake = _SummaryStrategy({asset: price for asset, price, _ in entries})
-    fake._positions = [Position(fake, asset, qty, avg_fill_price=price) for asset, price, qty in entries]
+    """Render the summary for ``(asset, last_price[, quantity[, fill_price]])`` entries.
+
+    The fill price defaults to half the last price so the rendered values must come
+    from the current quote rather than the acquisition cost.
+    """
+    entries = []
+    for entry in assets_prices:
+        asset, last_price, *rest = entry
+        quantity = rest[0] if len(rest) > 0 else 1
+        fill_price = rest[1] if len(rest) > 1 else last_price / 2
+        entries.append((asset, last_price, quantity, fill_price))
+    fake = _SummaryStrategy({asset: last for asset, last, _, _ in entries})
+    fake._positions = [
+        Position(fake, asset, qty, avg_fill_price=fill) for asset, _, qty, fill in entries
+    ]
     _Strategy.send_result_text_to_discord(fake, "returns_text", portfolio_value=portfolio_value, cash=0.0)
     assert len(fake.sent) == 1
     return _positions_lines(fake.sent[0])
@@ -79,7 +90,8 @@ def test_adjusted_option_uses_its_multiplier_not_100():
         right="call",
         multiplier=10,
     )
-    lines = _render([(adj, 6.0)], portfolio_value=600.0)
+    # Bought at $5, now quoted at $6: the summary shows current value.
+    lines = _render([(adj, 6.0, 1, 5.0)], portfolio_value=600.0)
     assert lines == [f"1.00 {adj} ($60 or 10%)"]
 
 
@@ -110,7 +122,7 @@ def test_summary_from_issue_report_orders_by_corrected_value():
         right="call",
         multiplier=10,
     )
-    lines = _render([(adj, 6.0), (es, 6000.0)], portfolio_value=100_000.0)
+    lines = _render([(adj, 6.0, 1, 5.0), (es, 6000.0)], portfolio_value=100_000.0)
     assert lines == [
         f"1.00 {es} ($300,000 or 300%)",
         f"1.00 {adj} ($60 or 0%)",

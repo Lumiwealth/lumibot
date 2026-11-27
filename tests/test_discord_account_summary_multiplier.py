@@ -1,6 +1,7 @@
 """Discord account summary values contract positions with the asset multiplier."""
 
 from datetime import date
+from decimal import Decimal
 from types import SimpleNamespace
 
 from lumibot.entities import Asset
@@ -85,6 +86,13 @@ def test_future_position_keeps_fractional_multiplier():
     micro = Asset("MBT", asset_type=Asset.AssetType.FUTURE, multiplier=0.5, expiration=date(2026, 12, 18))
     lines = _render([(micro, 200.0)], portfolio_value=1_000.0)
     assert lines == [f"1.00 {micro} ($100 or 10%)"]
+
+
+def test_future_position_with_decimal_quote_matches_float_quote():
+    es = Asset("ES", asset_type=Asset.AssetType.FUTURE, multiplier=50, expiration=date(2026, 12, 18))
+    expected = [f"1.00 {es} ($300,000 or 300%)"]
+    assert _render([(es, 6000.0, 1, 5900.0)], portfolio_value=100_000.0) == expected
+    assert _render([(es, Decimal("6000"), 1, 5900.0)], portfolio_value=100_000.0) == expected
 
 
 def test_continuous_future_position_uses_multiplier():

@@ -4867,7 +4867,8 @@ class _Strategy:
                     multiplier = getattr(position.asset, "multiplier", None) or 1
                 else:
                     multiplier = 1
-                position_value = position.quantity * last_price * multiplier
+                # Quotes may be Decimal while Position.quantity is a float.
+                position_value = position.quantity * float(last_price) * multiplier
 
                 if position_value > 0 and portfolio_value > 0:
                     # Calculate the percent of the portfolio that this position represents

@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.103 - Unreleased
+## 4.6.103 - 2026-11-28
 
 ### Fixed
 

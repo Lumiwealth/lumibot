@@ -2,6 +2,16 @@
 
 ## 4.6.102 - Unreleased
 
+### Fixed
+
+- Backtests with a routing map in `BACKTESTING_DATA_SOURCE` now use the data the strategy
+  passes in `pandas_data` for those assets. Before, the map replaced `PandasDataBacktesting`
+  and every lookup for the strategy's own assets still went to the routed provider: a strategy
+  that loaded its own CSV minute bars got provider prices, or no price and a failed run for a
+  symbol the provider does not know. Assets the strategy did not supply keep their route, and
+  `data_provenance.json` lists the supplied assets with vendor `your_own_data`.
+  Test: `tests/test_routed_strategy_supplied_data.py`.
+
 ## 4.6.101 - 2026-11-27
 
 ### Fixed

@@ -1839,6 +1839,68 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         self._routing = self._normalize_routing(self._extract_routing_config(getattr(self, "_config", None)))
         self._registry.validate_routing(self._routing)
         self._observed_data_routes: Dict[tuple, Dict[str, str]] = {}
+        self._strategy_supplied_keys = self._register_strategy_supplied_data()
+
+    # ------------------------------------------------------------------
+    # Data the strategy supplied itself (pandas_data)
+    # ------------------------------------------------------------------
+    STRATEGY_DATA_VENDOR = "your_own_data"
+
+    def _register_strategy_supplied_data(self) -> set:
+        """Remember the series the strategy passed in pandas_data and index them like routed series.
+
+        WHY (2026-11-27): a hosted runner sets BACKTESTING_DATA_SOURCE to a routing map, which
+        swaps the strategy's PandasDataBacktesting for this class but keeps its pandas_data. Lookups
+        for those assets still went to the routed provider, so a strategy that loaded its own CSV
+        bars got provider prices (or None, then a failed run, for symbols the provider does not
+        know). Data the strategy supplies is the strategy's decision: it wins for those assets, and
+        every other asset keeps its route.
+        """
+        supplied = set()
+        store = getattr(self, "pandas_data", None)
+        if not isinstance(store, dict):
+            return supplied
+        for key, data in list(store.items()):
+            if not (isinstance(key, tuple) and len(key) == 2):
+                continue
+            asset, quote = key
+            supplied.add((asset, quote))
+            timestep = str(getattr(data, "timestep", "") or "").strip().lower()
+            if timestep:
+                canonical_key = (asset, quote, timestep)
+                if canonical_key not in store:
+                    store[canonical_key] = data
+        if supplied:
+            cache = getattr(self, "_find_asset_in_data_store_cache", None)
+            if isinstance(cache, dict):
+                cache.clear()
+        return supplied
+
+    def _is_strategy_supplied(self, asset, quote=None) -> bool:
+        supplied = getattr(self, "_strategy_supplied_keys", None)
+        if not supplied:
+            return False
+        if isinstance(asset, tuple) and asset:
+            asset, quote = asset[0], (asset[1] if len(asset) > 1 else quote)
+        quote_asset = quote if quote is not None else _DEFAULT_QUOTE_ASSET
+        return (asset, quote_asset) in supplied
+
+    def _record_strategy_data_route(self, asset, quote_asset, timestep) -> None:
+        asset_type = _normalize_asset_type(getattr(asset, "asset_type", "")) or "unknown"
+        symbol = str(getattr(asset, "symbol", "") or "").strip()
+        route = {
+            "assetClass": asset_type,
+            "symbol": symbol,
+            "adapter": "StrategySuppliedData",
+            "vendor": self.STRATEGY_DATA_VENDOR,
+            "feedType": "ohlc",
+        }
+        if timestep:
+            route["resolution"] = str(timestep)
+        key = (asset_type, symbol, self.STRATEGY_DATA_VENDOR, None, "ohlc", str(timestep or ""))
+        if not isinstance(getattr(self, "_observed_data_routes", None), dict):
+            self._observed_data_routes = {}
+        self._observed_data_routes[key] = route
 
     # ------------------------------------------------------------------
     # 5, 10, 15 and 30-minute stock bars from the loaded 1-minute series
@@ -2392,6 +2454,11 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         if isinstance(asset_separated, tuple):
             asset_separated, quote_asset = asset_separated
 
+        if self._is_strategy_supplied(asset_separated, quote_asset):
+            # The strategy supplied this series itself: never ask a provider for it.
+            self._record_strategy_data_route(asset_separated, quote_asset, timestep)
+            return None
+
         provider_spec = self._provider_spec_for_asset(asset_separated)
         adapter = self._registry.adapter_for_spec(provider_spec)
         self._record_observed_route(
@@ -2496,7 +2563,8 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                     timestep = "day"
 
         price = super().get_last_price(asset, timestep=timestep, quote=quote, exchange=exchange, **kwargs)
-        if price is None and timestep == "minute" and self._is_routed_stock_index_minute_lookup(spec, base):
+        if (price is None and timestep == "minute" and not self._is_strategy_supplied(asset, quote)
+                and self._is_routed_stock_index_minute_lookup(spec, base)):
             # The provider returned no intraday bars for this stock/index. Use the completed
             # daily close rather than nothing, and say so once: decisions then see the previous
             # session's close all day, not a moving price.

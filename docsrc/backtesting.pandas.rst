@@ -326,7 +326,9 @@ Yes. Any source works as long as you end up with a DataFrame in the format above
 Can I select the Pandas backtester with BACKTESTING_DATA_SOURCE?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-No. Pass ``PandasDataBacktesting`` in your code instead. If ``BACKTESTING_DATA_SOURCE`` is set to another source, it wins over the class in your code, so leave it unset (or set it to ``none``) when you use your own data.
+No. Pass ``PandasDataBacktesting`` in your code instead. If ``BACKTESTING_DATA_SOURCE`` names a single other source, it wins over the class in your code, so leave it unset (or set it to ``none``) when you use your own data.
+
+If ``BACKTESTING_DATA_SOURCE`` is a routing map (JSON such as ``{"default": "ibkr", "stock": "ibkr"}``), the assets you pass in ``pandas_data`` still come only from your own data: prices, history and fills for those assets never go to a provider. Any other asset the strategy asks for follows the map. The run's ``data_provenance.json`` lists your assets with the vendor ``your_own_data`` so you can confirm where the prices came from.
 
 How are option expirations handled with my own data?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

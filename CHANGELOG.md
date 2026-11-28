@@ -11,6 +11,11 @@
   symbol the provider does not know. Assets the strategy did not supply keep their route, and
   `data_provenance.json` lists the supplied assets with vendor `your_own_data`.
   Test: `tests/test_routed_strategy_supplied_data.py`.
+- A Data Downloader request whose queue position never moves no longer waits forever. A pending
+  request that has not started and has not moved for `LUMIBOT_QUEUE_STALL_SECONDS` (default 480)
+  fails with `DownloaderQueueStalled` and a plain reason, and is not resubmitted into the same
+  stuck queue. Moving queues, started requests and provider rate-limit waits are unaffected.
+  Test: `tests/test_downloader_queue_stall.py`.
 
 ## 4.6.101 - 2026-11-27
 

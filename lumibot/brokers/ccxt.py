@@ -12,6 +12,12 @@ from .broker import Broker, LumibotBrokerAPIError
 from lumibot.brokers.broker import ORDER_NATIVE, ORDER_SIMULATED, ORDER_UNSUPPORTED, OrderSupport  # noqa: F401
 
 logger = LazyLogger(__name__)
+
+# Exchanges whose ccxt adapter passes ``timeInForce`` through unmapped and whose API
+# uses its own words. Phemex answers GTC/IOC/FOK with 39999 "Error in place order".
+_NATIVE_TIME_IN_FORCE = {
+    "phemex": {"GTC": "GoodTillCancel", "IOC": "ImmediateOrCancel", "FOK": "FillOrKill", "PO": "PostOnly"},
+}
 TYPE_CHECKING = False
 json = LazyModule("json")
 datetime = LazyModule("datetime")
@@ -193,11 +199,12 @@ class Ccxt(Broker):
                         error = {}
                     if not isinstance(error, dict):
                         error = {}
-                    # Retired catalog entries can outlive their settlement API.
-                    # Still read inactive wallets when supported, and preserve
-                    # auth/network/active-market failures instead of hiding them.
-                    if str(error.get("code")) == "39108" and all(m.get("active") is False for m in markets):
-                        logger.warning("Phemex no longer supports settlement %s for its retired markets", settle)
+                    # 39108 "Currency not supported.": this account has no wallet in
+                    # that settlement currency, so it holds nothing there. Retired
+                    # catalog entries cause it on mainnet; the testnet lists a USD
+                    # contract with no USD wallet. Other errors still raise.
+                    if str(error.get("code")) == "39108":
+                        logger.warning("Phemex has no %s settlement wallet for this account; skipping it", settle)
                         continue
                     raise
                 data = response.get("data") or {}
@@ -830,7 +837,8 @@ class Ccxt(Broker):
             if trailing_params:
                 params.update(trailing_params)
             if order.time_in_force and order.time_in_force.lower() != "day":
-                params["timeInForce"] = order.time_in_force.upper()
+                time_in_force = order.time_in_force.upper()
+                params["timeInForce"] = _NATIVE_TIME_IN_FORCE.get(self.api.id, {}).get(time_in_force, time_in_force)
             if getattr(order, "reduce_only", False):
                 params["reduceOnly"] = True
             if order.position_side is not None:

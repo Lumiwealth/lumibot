@@ -623,3 +623,20 @@ def test_other_ccxt_exchange_ids_still_route_to_ccxt(monkeypatch):
     router = _router({"crypto": "kraken", "default": "ibkr"}, monkeypatch, _perp_archive())
     assert router._provider_spec_for_asset(Asset("BTC", "crypto")).provider == "ccxt"
     assert router._provider_spec_for_asset(Asset("BTC", "crypto")).ccxt_exchange_id == "kraken"
+
+
+def test_spot_window_ending_on_a_new_york_day_runs_to_the_last_utc_bar(monkeypatch):
+    # Crypto routed to Binance spot where the
+    # backtest end is the end of a New York day (04:59 UTC next day) while the newest
+    # published daily file ends at 23:59 UTC. This used to raise RoutingProviderError.
+    archive = _Archive()
+    minute = pd.Timedelta(minutes=1)
+    for day in ("2026-08-02", "2026-08-03"):
+        archive.add(f"spot/daily/klines/BTCUSDT/1m/BTCUSDT-1m-{day}.zip",
+                    _kline_rows(f"{day} 00:00", 1440, minute, 62000))
+    router = _router({"crypto": "binance", "default": "ibkr"}, monkeypatch, archive,
+                     start="2026-08-03 04:00", end="2026-08-04 04:59")
+    router._update_pandas_data(Asset("BTC", "crypto"), USDT, 30, "minute")  # must not raise
+    assert pd.Timestamp(router.datetime_end) == pd.Timestamp("2026-08-04 00:00", tz="UTC")
+    kinds = [n["kind"] for n in router.get_data_provenance()["notices"]]
+    assert "data_ends_before_requested_end" in kinds

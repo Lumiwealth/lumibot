@@ -13,6 +13,10 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 
 ## Backtesting selection + dates
 
+### `LUMIBOT_BENCHMARK_WAIT_SECONDS`
+- Purpose: bounded wait for the end-of-backtest benchmark read (`_Strategy._dump_benchmark_stats`, worker thread `lumibot-benchmark`). Default 120 seconds; non-positive or non-numeric values use the default.
+- On timeout, error or empty answer: `_benchmark_returns_df = None`, one warning, and `_analysis["benchmark_unavailable"] = {"benchmark", "reason"}`. A late thread answer is dropped. Tests: `tests/test_benchmark_never_blocks_backtest.py`.
+
 ### `LUMIBOT_CHATGPT_HOME` / `LUMIBOT_CHATGPT_PROFILE` / `LUMIBOT_CHATGPT_PROFILE_PATH`
 - Purpose: Select the private directory, existing profile ID, or explicitly protected profile file for `chatgpt/<model>` agents and subscription-funded evaluations.
 - Default directory: `~/.config/lumibot-chatgpt`; never source-control this directory.
@@ -541,6 +545,7 @@ bound to one deployment or backtest.
 
 ## Schwab request pacing
 
+- `SCHWAB_ORDER_POLL_SECONDS` (default 2, floor 1): order-status poll used while another program on the same Schwab login holds the one order stream (streamer code 12, or three sessions in a row shorter than 60 s). The stream is retried every 600 s (`Schwab._run_schwab_account_activity_async`).
 - `SCHWAB_REQUESTS_PER_MINUTE` (default 100, `0` disables): per-process Schwab request budget, shared by the broker and data source through `lumibot/brokers/schwab_request_pacer.py`.
 - `SCHWAB_ACCOUNT_SNAPSHOT_SECONDS` (default 1.0, `0` disables): one `get_account(POSITIONS)` answer shared by balances and positions within an iteration; dropped on every order/fill reconciliation, submit and cancel (`Schwab._account_with_positions`).
 - `SCHWAB_ORDER_RESERVED_REQUESTS_PER_MINUTE` (default 20): headroom only order traffic may use.

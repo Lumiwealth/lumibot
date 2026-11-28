@@ -50,6 +50,14 @@ LUMIBOT_PREWARM_REPORT_IMPORTS
 - Default: on.
 - Notes: The same modules are imported either way, so report numbers are unchanged.
 
+LUMIBOT_BENCHMARK_WAIT_SECONDS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: How long the end of a backtest waits for the benchmark comparison line (for example ``SPY``) before giving up on it.
+- Values: a positive number of seconds. Anything else uses the default.
+- Default: ``120``.
+- Notes: The strategy's results are complete before the benchmark is read. A slow, failing or empty benchmark never fails or holds the backtest: the comparison line is left empty, the log says why, and the results carry ``benchmark_unavailable`` with the benchmark name and the reason.
+
 LUMIBOT_PREFETCH_RISK_FREE_RATE
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -948,6 +956,13 @@ SCHWAB_CANCEL_DIAGNOSTICS
 - Purpose: Re-enable the post-cancel direct order read used for Schwab cancel incident diagnostics.
 - Values: ``true``/``false`` (or ``1``/``0``).
 - Default: disabled. The diagnostic read doubles the round trips on every cancel; enable it only while investigating a cancel issue.
+
+SCHWAB_ORDER_POLL_SECONDS
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: How often a Schwab bot checks its own working orders while it cannot have the order stream, for example when another bot or app uses the same Schwab login (Schwab allows one stream per login).
+- Values: seconds; values under ``1`` are raised to ``1``.
+- Default: ``2``. Each check reads only this bot's working orders, so an idle bot sends no requests.
 
 SCHWAB_REQUESTS_PER_MINUTE
 ^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -394,6 +394,39 @@ class ProjectX:
             response = requests.post(url, headers=self.headers, **kwargs)
         return response
 
+    # ProjectX answers bursts with HTTP 429. Read calls wait and try again a few
+    # times (honoring Retry-After, capped so a strategy never stalls long).
+    # Order writes (place, modify, cancel) never use this: a write is sent once.
+    READ_RATE_LIMIT_ATTEMPTS = 3
+    READ_RATE_LIMIT_MAX_WAIT_SECONDS = 10.0
+
+    def _read_post(self, url, **kwargs):
+        attempts = self.READ_RATE_LIMIT_ATTEMPTS
+        response = None
+        for attempt in range(1, attempts + 1):
+            response = self._post(url, **kwargs)
+            if response.status_code != 429 or attempt == attempts:
+                return response
+            wait = float(attempt)
+            retry_after = (getattr(response, "headers", None) or {}).get("Retry-After")
+            try:
+                if retry_after is not None:
+                    wait = float(retry_after)
+            except (TypeError, ValueError):
+                pass
+            wait = max(0.0, min(wait, self.READ_RATE_LIMIT_MAX_WAIT_SECONDS))
+            self.logger.warning(
+                f"ProjectX rate limited (HTTP 429) on {url.rsplit('/', 2)[-2:]}; "
+                f"retry {attempt}/{attempts - 1} in {wait:.1f}s"
+            )
+            time.sleep(wait)
+        return response
+
+    @staticmethod
+    def _http_error(response):
+        reason = getattr(response, "reason", None) or ""
+        return f"HTTP {response.status_code} {reason}".strip()
+
     def account_search(self, only_active_accounts: bool = True) -> dict:
         """Returns a list of accounts for the user"""
         url = f"{self.base_url}api/account/search"
@@ -406,7 +439,7 @@ class ProjectX:
             self.logger.debug(f"API Request: POST {url}")
             self.logger.debug(f"Request Data: {payload}")
             
-            response = self._post(url, json=payload)
+            response = self._read_post(url, json=payload)
             
             self.logger.debug(f"Response Status: {response.status_code}")
             
@@ -417,7 +450,7 @@ class ProjectX:
             else:
                 self.logger.error(f"API request failed: {response.status_code} {response.reason}")
                 self.logger.debug(f"Error Response Text: {response.text}")
-                return {"success": False, "error": f"HTTP {response.status_code}"}
+                return {"success": False, "error": self._http_error(response)}
                 
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Request error: {e}")
@@ -439,7 +472,7 @@ class ProjectX:
             self.logger.debug(f"API Request: POST {url}")
             self.logger.debug(f"Request Data: {payload}")
             
-            response = self._post(url, json=payload, timeout=10)
+            response = self._read_post(url, json=payload, timeout=10)
             
             self.logger.debug(f"Response Status: {response.status_code}")
             
@@ -448,13 +481,9 @@ class ProjectX:
                 position_count = len(result.get("positions", [])) if result.get("success") else 0
                 self.logger.debug(f"Retrieved {position_count} positions")
                 return result
-            elif response.status_code == 429:
-                self.logger.warning(f"Rate limited, retrying in 1 second...")
-                time.sleep(1)  # Wait 1 second for rate limit
-                return {"success": False, "error": "Rate limited"}
             else:
                 self.logger.error(f"API request failed: {response.status_code} {response.reason}")
-                return {"success": False, "error": f"HTTP {response.status_code}"}
+                return {"success": False, "error": self._http_error(response)}
                 
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Request error: {e}")
@@ -479,7 +508,7 @@ class ProjectX:
             self.logger.debug(f"API Request: POST {url}")
             self.logger.debug(f"Request Data: {payload}")
             
-            response = self._post(url, json=payload, timeout=10)
+            response = self._read_post(url, json=payload, timeout=10)
             
             self.logger.debug(f"Response Status: {response.status_code}")
             
@@ -489,13 +518,9 @@ class ProjectX:
                 order_count = len(result.get("orders", [])) if result.get("success") else 0
                 self.logger.debug(f"Retrieved {order_count} orders")
                 return result
-            elif response.status_code == 429:
-                self.logger.warning(f"Rate limited, retrying in 1 second...")
-                time.sleep(1)  # Wait 1 second for rate limit
-                return {"success": False, "error": "Rate limited"}
             else:
                 self.logger.error(f"API request failed: {response.status_code} {response.reason}")
-                return {"success": False, "error": f"HTTP {response.status_code}"}
+                return {"success": False, "error": self._http_error(response)}
                 
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Request error: {e}")
@@ -520,7 +545,7 @@ class ProjectX:
             self.logger.debug(f"API Request: POST {url}")
             self.logger.debug(f"Request Data: {payload}")
             
-            response = self._post(url, json=payload, timeout=10)
+            response = self._read_post(url, json=payload, timeout=10)
             
             self.logger.debug(f"Response Status: {response.status_code}")
             
@@ -530,13 +555,9 @@ class ProjectX:
                 trade_count = len(result.get("trades", [])) if result.get("success") else 0
                 self.logger.debug(f"Retrieved {trade_count} trades")
                 return result
-            elif response.status_code == 429:
-                self.logger.warning(f"Rate limited, retrying in 1 second...")
-                time.sleep(1)  # Wait 1 second for rate limit
-                return {"success": False, "error": "Rate limited"}
             else:
                 self.logger.error(f"API request failed: {response.status_code} {response.reason}")
-                return {"success": False, "error": f"HTTP {response.status_code}"}
+                return {"success": False, "error": self._http_error(response)}
                 
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Request error: {e}")
@@ -665,7 +686,7 @@ class ProjectX:
         }
         
         try:
-            response = self._post(url, json=payload)
+            response = self._read_post(url, json=payload)
             return response.json()
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Error: {e}")
@@ -684,7 +705,7 @@ class ProjectX:
             import time
             time.sleep(0.05)  # 50ms delay between requests
             
-            response = self._post(url, json=payload, timeout=10)
+            response = self._read_post(url, json=payload, timeout=10)
             
             if response.status_code == 200:
                 try:
@@ -694,13 +715,9 @@ class ProjectX:
                     self.logger.error(f"JSON parsing error for contract {contract_id}: {json_error}")
                     self.logger.error(f"Raw response: {response.text[:200]}...")
                     return {"success": False, "error": "Invalid JSON response"}
-            elif response.status_code == 429:
-                self.logger.warning(f"⚠️ Rate limited on contract lookup, retrying...")
-                time.sleep(1)
-                return {"success": False, "error": "Rate limited"}
             else:
                 self.logger.error(f"Contract lookup failed: {response.status_code} {response.reason}")
-                return {"success": False, "error": f"HTTP {response.status_code}"}
+                return {"success": False, "error": self._http_error(response)}
                 
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Error getting contract details: {e}")
@@ -733,7 +750,7 @@ class ProjectX:
         }
         
         try:
-            response = self._post(url, json=payload)
+            response = self._read_post(url, json=payload)
             result = response.json()
             
             if not result.get("success"):

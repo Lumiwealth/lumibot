@@ -1,5 +1,40 @@
 # Changelog
 
+## 4.6.103 - 2026-11-28
+
+### Fixed
+
+- Backtests: the benchmark comparison line can no longer fail or stall a finished backtest. It is
+  read with a bounded wait (`LUMIBOT_BENCHMARK_WAIT_SECONDS`, default 120 seconds); a slow,
+  failing or empty benchmark leaves the line empty, logs why and adds `benchmark_unavailable`
+  to the results. Before, a data source that raised while reading benchmark bars failed the run,
+  and a slow benchmark history read could hold the end of a backtest for many minutes.
+
+- ProjectX (TopstepX and other firms): read calls (account, positions, orders, trades, contract
+  lookups, history bars) now wait and try again up to two more times when ProjectX answers
+  HTTP 429 Too Many Requests, honoring `Retry-After` and waiting at most 10 seconds. Before, the
+  first account lookup failing with 429 left the bot with no account and the error said only
+  "no account ID available". Order place, modify and cancel are still sent exactly once. When the
+  account lookup still fails, the error now carries the real reason (for example
+  "HTTP 429 Too Many Requests"). Tests: `tests/test_projectx_rate_limit.py`.
+
+### Added
+
+- Schwab: several bots on one Schwab login no longer fight over the one order stream Schwab
+  allows per login. When Schwab refuses the stream (streamer code 12) or three sessions in a row
+  end within a minute, the bot logs one plain warning, keeps trading, checks its own working
+  orders every `SCHWAB_ORDER_POLL_SECONDS` (default 2 s, no requests when idle) and retries the
+  stream every 10 minutes. Before, each bot reconnected with backoff forever (about 60 logins in
+  10 minutes for two bots) and fills could wait for the 30-second healing poll.
+  Tests: `tests/test_schwab_stream_connection_limit.py`, `tests/test_schwab_shared_login_replay.py`.
+- Result parity gate for the test suite: `tests/test_backtest_result_parity_gate.py` runs four
+  small deterministic backtests on the CSV files in `data/` (daily stock crossover, monthly
+  five-ETF rebalance, minute limit entry with OCO exits on a stock and on a future) with no
+  network, and fails when any fill, the per-iteration portfolio value or the final value differs
+  from `tests/backtest_parity/baselines.json`. A speed change that alters results now fails before
+  release. About 3 seconds. Regenerate the baselines only for a proven accuracy fix
+  (`LUMIBOT_UPDATE_PARITY_BASELINES=1`), and say why in the commit.
+
 ## 4.6.102 - 2026-11-27
 
 ### Fixed

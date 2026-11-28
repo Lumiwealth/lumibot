@@ -71,6 +71,26 @@ capped at 30 seconds. A login alone does not reset the retry delay; a connection
 must remain healthy for at least 60 seconds. This reduces reconnect storms but
 does not remove provider connection or authentication restrictions.
 
+Several bots on one Schwab login
+--------------------------------
+
+Schwab allows **one order stream per login** at a time (streamer error code 12,
+``CLOSE_CONNECTION``). When a second bot, app or notebook signs in with the same
+login, the two would otherwise keep closing each other's stream every few seconds.
+LumiBot stops that fight: when Schwab answers code 12, or after three stream
+sessions in a row end within a minute, the bot
+
+* logs one warning that starts with ``[SchwabLifecycle] account_activity_stream_shared_login``,
+* keeps trading, and checks the status of its own working orders every
+  ``SCHWAB_ORDER_POLL_SECONDS`` (default 2 seconds, never faster than 1 second;
+  no requests when it has no working orders),
+* tries the stream again every 10 minutes, and logs
+  ``account_activity_stream_recovered`` when it gets it back.
+
+What is slower: fills and cancels are seen on the next poll instead of the
+moment Schwab sends them (up to the poll interval later). Bots on separate
+Schwab logins are not affected.
+
 Go directly to :ref:`Schwab prerequisites <schwab-prerequisites>`,
 :ref:`credentials <schwab-environment>`, :ref:`first-time OAuth login
 <schwab-first-login>`, or :ref:`token renewal <schwab-token-lifecycle>`.

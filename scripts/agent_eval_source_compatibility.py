@@ -239,10 +239,15 @@ def _without_alpaca_benchmark_body(source):
     try:
         owner = next(n for n in ast.parse(source).body
                      if isinstance(n, ast.ClassDef) and n.name == '_Strategy')
-        method = next(n for n in owner.body
-                      if isinstance(n, ast.FunctionDef) and n.name == '_dump_benchmark_stats')
+        # 4.6.103 moved the benchmark read body from _dump_benchmark_stats into
+        # _load_benchmark_returns (run under a bounded wait); the branch may live in either.
+        methods = [n for n in owner.body if isinstance(n, ast.FunctionDef)
+                   and n.name in {'_dump_benchmark_stats', '_load_benchmark_returns'}]
+        if not methods:
+            return None
         expected = ast.dump(ast.parse('type(self.broker.data_source) == AlpacaBacktesting', mode='eval').body)
-        branches = [n for n in ast.walk(method) if isinstance(n, ast.If) and ast.dump(n.test) == expected]
+        branches = [n for method in methods for n in ast.walk(method)
+                    if isinstance(n, ast.If) and ast.dump(n.test) == expected]
         if len(branches) != 1 or not branches[0].body:
             return None
         branch = branches[0]

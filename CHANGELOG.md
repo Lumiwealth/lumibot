@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.6.104 - Unreleased
+
+### Fixed
+
+- Phemex: limit orders with time in force GTC, IOC or FOK were refused with 39999 "Error in place
+  spot order" (or "Error in place order" for contracts). CCXT passes `timeInForce` to Phemex
+  unchanged, and Phemex only accepts its own words. LumiBot now sends GoodTillCancel,
+  ImmediateOrCancel, FillOrKill or PostOnly. Checked on the Phemex testnet.
+- Phemex: the account read no longer fails when Phemex answers 39108 "Currency not supported." for
+  a settlement wallet the account does not have (the testnet lists a USD contract but has no USD
+  wallet). That wallet is skipped with a warning; other errors still raise.
+
 ## 4.6.103 - 2026-11-28
 
 ### Fixed

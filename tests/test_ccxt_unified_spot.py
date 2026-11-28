@@ -260,3 +260,27 @@ def test_cancel_open_orders_respects_the_supplied_owned_orders(make_broker):
     broker.cancel_open_orders("test-strategy", orders=[owned])
 
     broker.cancel_order.assert_called_once_with(owned)
+
+
+@pytest.mark.parametrize("tif,native", [
+    ("gtc", "GoodTillCancel"), ("ioc", "ImmediateOrCancel"), ("fok", "FillOrKill"),
+])
+def test_phemex_time_in_force_uses_phemex_words(make_broker, tif, native):
+    # Phemex answers 39999 "Error in place spot order" (and "Error in place order"
+    # for contracts) to GTC/IOC/FOK; ccxt passes timeInForce through unmapped.
+    # Checked on the Phemex testnet, Nov 28 2026: GoodTillCancel is accepted.
+    broker = make_broker("phemex")
+    submitted = order(order_type="limit", limit_price=Decimal("10000"), time_in_force=tif)
+
+    broker._submit_order(submitted)
+
+    assert broker.api.create_order.call_args.kwargs["params"]["timeInForce"] == native
+
+
+def test_other_exchanges_keep_unified_time_in_force(make_broker):
+    broker = make_broker("okx")
+    submitted = order(order_type="limit", limit_price=Decimal("10000"), time_in_force="gtc")
+
+    broker._submit_order(submitted)
+
+    assert broker.api.create_order.call_args.kwargs["params"]["timeInForce"] == "GTC"

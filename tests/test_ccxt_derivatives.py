@@ -191,8 +191,11 @@ def test_phemex_account_routes_follow_product_metadata_and_real_value_fields(der
 
 
 @pytest.mark.parametrize("active,error_code,skip", [
-    (False, 39108, True), (True, 39108, False), (None, 39108, False),
-    (False, 10002, False),
+    # 39108 "Currency not supported." means the account has no wallet in that
+    # settlement currency, so it holds nothing there even while a market in it
+    # is listed (Phemex testnet lists LINK/USD:USD but has no USD wallet).
+    (False, 39108, True), (True, 39108, True), (None, 39108, True),
+    (False, 10002, False), (True, 10002, False),
 ])
 def test_phemex_retired_unsupported_settlement_does_not_break_other_wallets(
         derivatives, active, error_code, skip):

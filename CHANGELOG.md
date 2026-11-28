@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.6.106 - 2026-11-28
+
+### Fixed
+
+- CCXT: `set_order_read_markets` also takes a bare base symbol ("BTC", the way a crypto order row
+  names its asset) and reads every active market of that base. Before, a bare symbol was refused,
+  so readers fell back to scanning every market; on Phemex (about 700 markets) cancelling an order
+  failed with 39995 "Too many requests". Found on the Phemex testnet.
+
 ## 4.6.105 - 2026-11-28
 
 ### Fixed

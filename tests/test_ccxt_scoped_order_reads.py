@@ -82,3 +82,35 @@ def test_scope_with_an_unknown_market_is_refused():
     broker = _reader()
     with pytest.raises(ValueError):
         broker.set_order_read_markets(["DOGE/USDT:USDT"])
+
+
+def _spot(base, quote):
+    market = _swap(base)
+    market.update(
+        id=f"s{base}{quote}", symbol=f"{base}/{quote}", quote=quote, quoteId=quote, settle=None,
+        settleId=None, type="spot", spot=True, swap=False, contract=False, linear=None,
+        contractSize=None,
+    )
+    return market
+
+
+def test_bare_base_symbol_reads_every_market_of_that_base():
+    # A crypto order row names its asset by the base alone ("BTC"). Cancelling it must not
+    # scan all ~700 Phemex markets (39995 "Too many requests", Phemex testnet, Nov 28 2026):
+    # a bare base reads each active market of that base and nothing else.
+    broker = _reader(bases=("BTC", "ETH"))
+    broker.api.set_markets(
+        list(broker.api.markets.values()) + [_spot("BTC", "USDT"), _spot("BTC", "USDC"), _spot("ETH", "USDT")]
+    )
+    broker.set_order_read_markets(["BTC"])
+
+    broker._pull_all_orders("reader", SimpleNamespace(name="reader"))
+
+    asked = sorted(call.args[0] for call in broker.api.fetch_open_orders.call_args_list)
+    assert asked == ["BTC/USDC", "BTC/USDT", "BTC/USDT:USDT"]
+
+
+def test_bare_symbol_with_no_market_of_that_base_is_refused():
+    broker = _reader()
+    with pytest.raises(ValueError):
+        broker.set_order_read_markets(["DOGE"])

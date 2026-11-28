@@ -290,6 +290,48 @@ def test_ccxt_history_finds_a_page_size_the_exchange_accepts(ccxt_cache_mode, ap
     assert len(frame) == 20
 
 
+class _RecentlyListedDailyCcxtApi(_SingleCandleCcxtApi):
+    """A daily perpetual listed 235 days ago on an exchange that rejects a start before 1970.
+
+    Phemex answers a request whose start is before 1970 with a generic bad request. Widening the
+    lookback (x16, x64) for a contract with less history than asked walked the start before 1970
+    and the read failed instead of returning the 235 bars that exist (Spot Charts daily chart for
+    a Phemex perpetual, Nov 28 2026: stuck on "Reconnecting").
+    """
+
+    id = "phemexlike"
+    markets = {"QQQ/USDT:USDT": {}}
+
+    def __init__(self, end: datetime.datetime):
+        super().__init__(end)
+        day = 86_400_000
+        self.candles = [[self.end_ms - offset * day, 100, 101, 99, 100, 1] for offset in range(235)][::-1]
+
+    def fetch_ohlcv(self, symbol, freq, since, limit, params):
+        import ccxt
+
+        self.calls.append(since)
+        if since < 0:
+            raise ccxt.BadRequest('phemexlike {"code":30000,"msg":"Please double check input arguments"}')
+        return [candle for candle in self.candles if candle[0] >= since][:limit]
+
+
+def test_ccxt_daily_history_never_asks_from_before_crypto_existed(ccxt_cache_mode):
+    end = datetime.datetime(2026, 11, 28, 0, 0)
+    api = _RecentlyListedDailyCcxtApi(end)
+    source = CcxtData.__new__(CcxtData)
+    source.api = api
+    source._ensure_markets_loaded = lambda: None
+
+    # More bars than exist: the read reports what exists instead of an exchange rejection.
+    with pytest.raises(ValueError, match="returned only 235 of 530"):
+        source.get_barset_from_api(api, "QQQ/USDT:USDT", "1d", limit=530, end=end)
+    assert min(api.calls) >= 0
+
+    frame = source.get_barset_from_api(api, "QQQ/USDT:USDT", "1d", limit=235, end=end)
+    assert len(frame) == 235
+
+
 def test_ccxt_history_still_raises_errors_unrelated_to_page_size(ccxt_cache_mode):
     import ccxt
 

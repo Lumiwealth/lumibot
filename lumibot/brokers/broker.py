@@ -3930,9 +3930,14 @@ class Broker(ABC):
             The sell order submitted to close the position, or None if no open position exists
             or the position quantity is zero.
         """
-        fraction_value = float(fraction)
-        if not 0 < fraction_value <= 1:
-            raise ValueError("fraction must be greater than 0 and no more than 1")
+        if isinstance(fraction, Decimal):
+            if not (fraction.is_finite() and Decimal("0") < fraction <= Decimal("1")):
+                raise ValueError("fraction must be greater than 0 and no more than 1")
+            fraction_value = float(fraction)
+        else:
+            fraction_value = float(fraction)
+            if not 0 < fraction_value <= 1:
+                raise ValueError("fraction must be greater than 0 and no more than 1")
 
         selectors = {key: value for key, value in (("position_side", position_side), ("position_id", position_id))
                      if value is not None}
@@ -3965,7 +3970,11 @@ class Broker(ABC):
                 )
                 return None
             if fraction != 1.00:
-                order.quantity = order.quantity * fraction_value
+                if isinstance(order.quantity, Decimal):
+                    multiplier = fraction if isinstance(fraction, Decimal) else Decimal(str(fraction_value))
+                    order.quantity = order.quantity * multiplier
+                else:
+                    order.quantity = order.quantity * fraction_value
             order_id = getattr(order, "identifier", None) or getattr(order, "id", None) or getattr(order, "order_id", None)
             self.logger.info(
                 "close_position(strategy=%s) submitting order %s qty=%s side=%s type=%s",

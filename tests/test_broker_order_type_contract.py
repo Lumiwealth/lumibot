@@ -220,6 +220,41 @@ def _projectx(stack):
     return broker, asset, sent, "buy"
 
 
+def _metamask(stack):
+    from lumibot.brokers.metamask import MetaMask
+
+    client = MagicMock()
+    client.verify.return_value = None
+    client.submit.side_effect = lambda req: {
+        "id": req["id"],
+        "request": req,
+        "state": "open",
+        "filledQuantity": "0",
+        **(
+            {
+                "childOperations": [
+                    {**child, "parentId": req["id"], "state": "waiting_for_fill", "filledQuantity": "0"}
+                    for child in req["children"]
+                ]
+            }
+            if req.get("children")
+            else {}
+        ),
+    }
+    stack.enter_context(patch("lumibot.brokers.metamask.MetaMaskClient", return_value=client))
+    stack.enter_context(patch("lumibot.brokers.metamask.MetaMaskData"))
+    broker = MetaMask({"MODE": "perp", "NETWORK": "testnet"}, connect_stream=False)
+    broker._process_trade_event = MagicMock()
+    asset = Asset("BTC", asset_type="crypto_future", leverage=2)
+
+    def sent():
+        if not client.submit.called:
+            return None
+        return json.dumps(client.submit.call_args.args[0])
+
+    return broker, asset, sent, "buy"
+
+
 BROKERS = {
     "alpaca": _alpaca,
     "bitunix": _bitunix,
@@ -230,6 +265,7 @@ BROKERS = {
     "ccxt_coinbase": _ccxt("coinbase"),
     "ibkr_rest": _ibkr_rest,
     "projectx": _projectx,
+    "metamask": _metamask,
 }
 
 
@@ -243,8 +279,16 @@ def _submit(broker_name, case_name):
     with ExitStack() as stack:
         stack.enter_context(patch.object(Broker, "_launch_stream", lambda self: None))
         broker, asset, sent, side = BROKERS[broker_name](stack)
-        quote = Asset("USDT", asset_type="crypto") if broker_name.startswith("ccxt") else None
-        order = Order("contract-strategy", asset, Decimal("1"), side=side, quote=quote, **kwargs)
+        if broker_name.startswith("ccxt"):
+            quote = Asset("USDT", asset_type="crypto")
+        elif broker_name == "metamask":
+            quote = Asset("USDC", asset_type="crypto")
+        else:
+            quote = None
+        order_kwargs = dict(kwargs)
+        if broker_name == "metamask" and "time_in_force" not in order_kwargs:
+            order_kwargs["time_in_force"] = "gtc"
+        order = Order("contract-strategy", asset, Decimal("1"), side=side, quote=quote, **order_kwargs)
         support = broker.supports_order(order)
         try:
             result = broker._submit_order(order)
@@ -304,6 +348,7 @@ EXPECTED_REFUSED = {
                   "oto_stop", "oto_trailing", "oco"},
     "projectx": {"stop_limit", "trailing_percent", "trailing_price", "bracket_stop_limit_leg",
                  "bracket_trailing_leg", "oto_stop", "oto_trailing", "oco"},
+    "metamask": {"trailing_percent", "trailing_price", "bracket_trailing_leg", "oto_trailing"},
 }
 
 

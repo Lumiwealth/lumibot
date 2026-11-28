@@ -20,6 +20,36 @@ class TestOrderBasics:
         assert Order.OrderStatus.REJECTED == Order.OrderStatus.ERROR
         assert Order.OrderStatus.REJECTED.value == "error"
 
+    def test_awaiting_approval_status_is_active_and_serializable(self):
+        assert Order.OrderStatus.AWAITING_APPROVAL == "awaiting_approval"
+        assert Order.OrderStatus.AWAITING_APPROVAL in Order.ACTIVE_STATUSES
+
+        order = Order(
+            strategy="Example",
+            asset=Asset("BTC", asset_type="crypto_future"),
+            quantity=1,
+            side="buy",
+            order_type=Order.OrderType.MARKET,
+            status=Order.OrderStatus.AWAITING_APPROVAL,
+        )
+        assert order.status == Order.OrderStatus.AWAITING_APPROVAL
+        assert order.is_active() is True
+        assert order.is_canceled() is False
+        assert order.is_filled() is False
+        assert not order.equivalent_status(Order.OrderStatus.OPEN)
+        assert not order.equivalent_status(Order.OrderStatus.SUBMITTED)
+        assert Order.is_equivalent_status("pending_approval", Order.OrderStatus.AWAITING_APPROVAL)
+        assert Order.is_equivalent_status("awaiting_mfa", Order.OrderStatus.AWAITING_APPROVAL)
+
+        order.status = "pending_approval"
+        assert order.status == Order.OrderStatus.AWAITING_APPROVAL
+        order.status = "awaiting_mfa"
+        assert order.status == Order.OrderStatus.AWAITING_APPROVAL
+
+        restored = Order.from_dict(order.to_dict())
+        assert restored.status == Order.OrderStatus.AWAITING_APPROVAL
+        assert restored.is_active() is True
+
     def test_side_must_be_one_of(self):
         assert Order(asset=Asset("SPY"), quantity=10, side="buy", strategy='abc').side == 'buy'
         assert Order(asset=Asset("SPY"), quantity=10, side="sell", strategy='abc').side == 'sell'

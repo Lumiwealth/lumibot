@@ -119,6 +119,7 @@ VALID_STATUS = [
     "new",
     "open",
     "submitted",
+    "awaiting_approval",
     "fill",
     "partial_fill",
     "cancelling",
@@ -153,6 +154,8 @@ STATUS_ALIAS_MAP = {
     "apipending": "new",  # IBKR status
     "rejected": "error",  # Tradier status
     "submit": "submitted",
+    "pending_approval": "awaiting_approval",  # MetaMask Agent Wallet MFA approval
+    "awaiting_mfa": "awaiting_approval",  # MetaMask Agent Wallet MFA approval
     "done_for_day": "done_for_day",  # Alpaca status
     "replaced": "replaced",  # Alpaca status
     "stopped": "stopped",  # Alpaca status
@@ -218,6 +221,7 @@ class Order:
     class OrderStatus(StrEnum):
         UNPROCESSED = "unprocessed"
         SUBMITTED = "submitted"
+        AWAITING_APPROVAL = "awaiting_approval"
         OPEN = "open"
         NEW = "new"
         CANCELLING = "cancelling"
@@ -244,6 +248,7 @@ class Order:
         OrderStatus.STOPPED,
         OrderStatus.UNPROCESSED,
         OrderStatus.SUBMITTED,
+        OrderStatus.AWAITING_APPROVAL,
         OrderStatus.OPEN,
         OrderStatus.NEW,
         OrderStatus.CANCELLING,

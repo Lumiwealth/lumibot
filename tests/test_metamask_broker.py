@@ -181,8 +181,13 @@ def test_lost_response_stays_transmitted_and_does_not_retry(broker):
 
 
 def test_unsupported_order_rejected_before_transport(broker):
-    with pytest.raises(ValueError, match="conditional"):
-        broker._submit_order(order(order_type="stop", stop_price=100))
+    # Native stop and stop-limit orders are now supported; trailing stops and
+    # trailing bracket legs must still be refused before touching transport.
+    with pytest.raises(ValueError, match="not supported"):
+        broker._submit_order(order(trail_percent=2.0))
+    broker.client.submit.assert_not_called()
+    with pytest.raises(ValueError, match="not supported"):
+        broker._submit_order(order(order_class="bracket", secondary_limit_price=55000, secondary_trail_percent=2.0))
     broker.client.submit.assert_not_called()
 
 
@@ -319,8 +324,12 @@ def test_cancel_sends_even_when_lumibot_status_is_cancelling(broker):
 def test_pending_approval_does_not_emit_fill_or_error(broker):
     item = order()
     broker._process_trade_event = Mock()
-    broker._observe(item, observation(item, "awaiting_approval"))
+    broker._observe(item, {**observation(item, "awaiting_approval"), "approvalId": "req-mfa-1"})
     broker._process_trade_event.assert_not_called()
+    assert item.status == Order.OrderStatus.AWAITING_APPROVAL
+    assert item.is_active() is True
+    assert item.submission_outcome["approval_id"] == "req-mfa-1"
+    assert item.submission_outcome["broker_state_certainty"] == "unknown"
 
 
 @pytest.mark.parametrize("custom", [{}, {"reduce_only": False}])
@@ -1218,3 +1227,229 @@ def test_generic_action_lookup_of_prepared_order_never_refreshes_into_execution(
         assert _submission_certainty(item) == "unknown"
     engine.provider.submit_signature.assert_not_called()
     engine.venue.submit_action.assert_not_called()
+
+
+def test_restored_awaiting_approval_order_transitions_cleanly_on_approve_and_deny(broker):
+    item = order()
+    req = {
+        "kind": "perp",
+        "id": str(item.identifier),
+        "symbol": "BTC",
+        "side": "buy",
+        "quantity": "0.001",
+        "orderType": "limit",
+        "limitPrice": "20000",
+        "leverage": 1,
+        "reduceOnly": False,
+        "tif": "gtc",
+    }
+    parsed = broker._parse_broker_order(
+        {
+            "id": str(item.identifier),
+            "request": req,
+            "state": "awaiting_approval",
+            "approvalId": "req-restore-1",
+            "filledQuantity": "0",
+        },
+        "test",
+    )
+    assert parsed.status == Order.OrderStatus.AWAITING_APPROVAL
+    assert parsed.is_active() is True
+    assert parsed in broker._unprocessed_orders.get_list()
+    assert parsed in broker.get_active_tracked_orders()
+    assert parsed.submission_outcome["approval_id"] == "req-restore-1"
+
+    # Once approved and opened on venue, NEW_ORDER transitions it cleanly to _new_orders.
+    broker._observe(parsed, {**observation(parsed, "open"), "providerOrderId": "77"})
+    assert parsed.status == Order.OrderStatus.NEW
+    assert parsed in broker._new_orders.get_list()
+    assert parsed not in broker._unprocessed_orders.get_list()
+
+    # Second restored awaiting-approval order denied by user transitions cleanly to ERROR/REJECTED.
+    denied_item = order()
+    denied_req = {**req, "id": str(denied_item.identifier)}
+    restored_denied = broker._parse_broker_order(
+        {
+            "id": str(denied_item.identifier),
+            "request": denied_req,
+            "state": "awaiting_approval",
+            "approvalId": "req-restore-2",
+            "filledQuantity": "0",
+        },
+        "test",
+    )
+    assert restored_denied.status == Order.OrderStatus.AWAITING_APPROVAL
+    broker._observe(
+        restored_denied,
+        {
+            **observation(restored_denied, "rejected"),
+            "message": "Managed signing denied; no venue order sent",
+        },
+    )
+    assert restored_denied.status == Order.OrderStatus.ERROR
+    assert restored_denied.status == Order.OrderStatus.REJECTED
+    assert restored_denied in broker._error_orders.get_list()
+    assert restored_denied.is_active() is False
+    assert "denied" in (restored_denied.error_message or "").lower()
+    assert restored_denied.submission_outcome["broker_state_certainty"] == "confirmed_rejected"
+
+
+def test_engine_to_broker_mfa_approve_and_deny_end_to_end(broker, engine):
+    from eth_account.messages import encode_typed_data
+
+    from lumibot.tools.metamask.provider import SignatureJob
+    from tests.test_metamask_native_engine import SIGNER
+    from tests.test_metamask_native_engine import WALLET as ENGINE_WALLET
+
+    def sign_typed(data):
+        return "0x" + SIGNER.sign_message(encode_typed_data(full_message=data)).signature.hex().removeprefix("0x")
+
+    client = MetaMaskClient({**CONFIG, "WALLET_ADDRESS": ENGINE_WALLET})
+    client._engine, client._journal = engine, engine.journal
+    client._provider, client._venue = engine.provider, engine.venue
+    broker.client = client
+    engine.venue.account.return_value = {
+        "cash": "100",
+        "positionsValue": "0",
+        "equity": "100",
+        "currency": "USDC",
+        "positions": [],
+    }
+    engine.venue.submit_action.side_effect = lambda action, nonce, signature, expiry: (
+        {"status": "ok", "response": {"type": "default"}}
+        if action["type"] == "updateLeverage"
+        else {"status": "ok", "response": {"type": "order", "data": {"statuses": [{"resting": {"oid": 42}}]}}}
+    )
+    engine.venue.fills.return_value = []
+
+    # --- 1. MFA DENY path ---
+    pending_payloads = {}
+
+    def submit_mfa(request_id, wallet, network, typed_data, action):
+        pending_payloads[request_id] = typed_data
+        return SignatureJob(request_id, wallet, "AWAITING_MFA")
+
+    engine.provider.submit_signature.side_effect = submit_mfa
+    denied_order = order()
+    broker.submit_order(denied_order)
+    assert denied_order.status == Order.OrderStatus.AWAITING_APPROVAL
+    assert denied_order.is_active() is True
+    assert denied_order in broker.get_active_tracked_orders()
+    approval_id = denied_order.submission_outcome["approval_id"]
+    assert approval_id in pending_payloads
+    engine.venue.submit_action.assert_not_called()
+
+    # User denies the prompt in MetaMask Agent Wallet.
+    engine.provider.signature.side_effect = lambda req_id, wallet, network, origin="metamask": SignatureJob(
+        req_id, wallet, "DENIED", failure_code="TX_DENIED"
+    )
+    broker.do_polling()
+    assert denied_order.status == Order.OrderStatus.ERROR
+    assert denied_order.status == Order.OrderStatus.REJECTED
+    assert denied_order.is_active() is False
+    assert denied_order in broker._error_orders.get_list()
+    assert "denied" in (denied_order.error_message or "").lower()
+    assert "TX_DENIED" in (denied_order.error_message or "")
+    assert denied_order.submission_outcome["broker_state_certainty"] == "confirmed_rejected"
+    engine.venue.submit_action.assert_not_called()
+
+    # --- 2. MFA APPROVE path ---
+    # First signature step (leverage) pauses at AWAITING_MFA, then user approves both leverage and order.
+    approved_order = order(order_type="limit", limit_price=20000, time_in_force="gtc")
+    broker.submit_order(approved_order)
+    assert approved_order.status == Order.OrderStatus.AWAITING_APPROVAL
+    assert approved_order.is_active() is True
+
+    # User approves the pending signing request (and subsequent order signing completes).
+    engine.provider.signature.side_effect = lambda req_id, wallet, network, origin="metamask": SignatureJob(
+        req_id, wallet, "SIGNED", sign_typed(pending_payloads[req_id])
+    )
+    engine.provider.submit_signature.side_effect = lambda req_id, wallet, network, typed_data, action: SignatureJob(
+        req_id, wallet, "SIGNED", sign_typed(typed_data)
+    )
+    engine.venue.order_status.side_effect = lambda wallet, ref: {
+        "status": "order",
+        "order": {
+            "status": "open",
+            "order": {
+                "coin": "BTC",
+                "side": "B",
+                "limitPx": "20000",
+                "sz": "0.001",
+                "origSz": "0.001",
+                "oid": 42,
+                "reduceOnly": False,
+                "tif": "Gtc",
+                "isTrigger": False,
+                "isPositionTpsl": False,
+                "cloid": engine.journal.effect("agent", str(approved_order.identifier), "plan")["clientOrderId"],
+            },
+        },
+    }
+    engine.venue.frontend_open_orders.side_effect = lambda wallet: [
+        {
+            "coin": "BTC",
+            "side": "B",
+            "limitPx": "20000",
+            "sz": "0.001",
+            "origSz": "0.001",
+            "oid": 42,
+            "reduceOnly": False,
+            "tif": "Gtc",
+            "isTrigger": False,
+            "isPositionTpsl": False,
+            "cloid": engine.journal.effect("agent", str(approved_order.identifier), "plan")["clientOrderId"],
+        }
+    ]
+    broker.do_polling()
+    assert approved_order.status == Order.OrderStatus.NEW
+    assert approved_order in broker._new_orders.get_list()
+    assert approved_order.submission_outcome["broker_state_certainty"] == "confirmed_submitted"
+    assert engine.venue.submit_action.call_count >= 2
+
+
+def test_grouped_oco_awaiting_approval_propagates_to_children_and_denies_cleanly(broker, tmp_path):
+    from lumibot.tools.metamask.provider import SignatureJob
+    from tests.test_metamask_lumibot_features import WALLET as FEAT_WALLET
+    from tests.test_metamask_lumibot_features import _make_engine
+
+    feat_engine, _journal, provider, venue = _make_engine(tmp_path)
+    client = MetaMaskClient({**CONFIG, "WALLET_ADDRESS": FEAT_WALLET})
+    client._engine, client._journal = feat_engine, feat_engine.journal
+    client._provider, client._venue = provider, venue
+    broker.client = client
+    provider.submit_signature.side_effect = lambda req_id, wallet, network, typed_data, action: SignatureJob(
+        req_id, wallet, "AWAITING_MFA"
+    )
+
+    asset = Asset("BTC", asset_type="crypto_future", leverage=1)
+    quote = Asset("USDC", asset_type="crypto")
+    tp = Order(
+        "test", asset, Decimal("0.001"), "sell", order_type="limit", limit_price=55000, quote=quote, reduce_only=True
+    )
+    sl = Order(
+        "test", asset, Decimal("0.001"), "sell", order_type="stop", stop_price=45000, quote=quote, reduce_only=True
+    )
+    oco = Order(
+        "test",
+        asset,
+        Decimal("0.001"),
+        "sell",
+        order_class=Order.OrderClass.OCO,
+        child_orders=[tp, sl],
+        quote=quote,
+        reduce_only=True,
+    )
+    broker.submit_order(oco)
+    assert oco.status == Order.OrderStatus.AWAITING_APPROVAL
+    assert tp.status == Order.OrderStatus.AWAITING_APPROVAL
+    assert sl.status == Order.OrderStatus.AWAITING_APPROVAL
+
+    provider.signature.side_effect = lambda req_id, wallet, network, origin="metamask": SignatureJob(
+        req_id, wallet, "DENIED"
+    )
+    broker.do_polling()
+    assert oco.status == Order.OrderStatus.ERROR
+    assert tp.status == Order.OrderStatus.ERROR
+    assert sl.status == Order.OrderStatus.ERROR
+    venue.submit_action.assert_not_called()

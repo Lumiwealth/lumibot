@@ -211,8 +211,17 @@ class MetaMaskClient:
             return self.evm.account()
         return self.venue.account(identity["wallet"])
 
+    def market(self, symbol):
+        return self.venue.market(symbol)
+
     def price(self, symbol):
         return self.venue.price(symbol)
+
+    def prices(self, symbols, *, allow_missing=False):
+        return self.venue.prices(symbols, allow_missing=allow_missing)
+
+    def quote(self, symbol):
+        return self.venue.l2_book(symbol)
 
     def token_price(self, asset, quote=None):
         return self.evm.price(TokenAsset.parse(asset), TokenAsset.parse(quote) if quote is not None else None)

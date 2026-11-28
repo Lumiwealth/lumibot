@@ -22,7 +22,24 @@ from .provider import MetaMaskError, address, json_object
 
 URLS = {"testnet": "https://api.hyperliquid-testnet.xyz", "mainnet": "https://api.hyperliquid.xyz"}
 _CLIENT_ID = re.compile(r"0x[0-9a-fA-F]{32}\Z")
-_INTERVALS = {"1m": 60_000, "1h": 3_600_000, "1d": 86_400_000}
+_INTERVALS = {
+    "1m": 60_000,
+    "3m": 180_000,
+    "5m": 300_000,
+    "15m": 900_000,
+    "30m": 1_800_000,
+    "1h": 3_600_000,
+    "2h": 7_200_000,
+    "4h": 14_400_000,
+    "8h": 28_800_000,
+    "12h": 43_200_000,
+    "1d": 86_400_000,
+    "3d": 259_200_000,
+    "1w": 604_800_000,
+    "1M": 2_678_400_000,
+}
+_MIN_MONTH_MS = 28 * 86_400_000
+_MAX_MONTH_MS = 31 * 86_400_000
 
 
 def _ledger_row(raw):
@@ -55,8 +72,10 @@ def canonical_symbol(symbol, names):
     if not isinstance(symbol, str) or not 1 <= len(symbol) <= 60:
         raise ValueError("A venue market symbol is required")
     matches = [name for name in names if isinstance(name, str) and name.casefold() == symbol.casefold()]
-    if len(matches) != 1:
-        raise MetaMaskError("UNKNOWN_MARKET", "Requested market is absent or ambiguous")
+    if not matches:
+        raise MetaMaskError("UNKNOWN_MARKET", "Requested market was not found")
+    if len(matches) > 1:
+        raise MetaMaskError("AMBIGUOUS_MARKET", "Requested market is ambiguous")
     return matches[0]
 
 
@@ -174,8 +193,10 @@ class HyperliquidVenue:
                     and isinstance(item.get("name"), str)
                     and item["name"].casefold() == dex.casefold()
                 ]
-                if len(matches) != 1:
+                if not matches:
                     raise MetaMaskError("UNKNOWN_MARKET", "Requested perpetual dex was not found")
+                if len(matches) > 1:
+                    raise MetaMaskError("AMBIGUOUS_MARKET", "Requested perpetual dex is ambiguous")
                 offset = 110_000 + matches[0] * 10_000
                 dex = dexs[matches[0] + 1]["name"]
             meta = json_object(self.info({"type": "meta", **({"dex": dex} if dex else {})}), "market metadata")
@@ -214,20 +235,87 @@ class HyperliquidVenue:
             return self._markets[canonical_symbol(symbol, self._markets)]
 
     def price(self, symbol: str) -> Decimal:
-        query = {"type": "metaAndAssetCtxs"}
-        if ":" in symbol:
-            symbol = self.market(symbol).symbol
-            query["dex"] = symbol.split(":", 1)[0]
-        result = self.info(query)
-        if not isinstance(result, list) or len(result) != 2:
-            raise MetaMaskError("INVALID_RESPONSE", "Venue mark-price contexts are missing")
-        universe = json_object(result[0], "market metadata").get("universe")
-        contexts = result[1]
-        if not isinstance(universe, list) or not isinstance(contexts, list) or len(universe) != len(contexts):
-            raise MetaMaskError("INVALID_RESPONSE", "Venue mark-price metadata is incomplete")
-        names = [json_object(row).get("name") for row in universe]
-        resolved = canonical_symbol(symbol, names)
-        return decimal(json_object(contexts[names.index(resolved)], "asset context").get("markPx"), positive=True)
+        return self.prices([symbol])[symbol]
+
+    def prices(self, symbols: list[str] | tuple[str, ...], *, allow_missing: bool = False) -> dict[str, Decimal]:
+        if not symbols:
+            return {}
+        by_dex: dict[str, list[tuple[str, str]]] = {}
+        for raw in symbols:
+            if not isinstance(raw, str) or not 1 <= len(raw) <= 60:
+                raise ValueError("A venue market symbol is required")
+            if ":" in raw:
+                try:
+                    resolved_symbol = self.market(raw).symbol
+                except MetaMaskError as error:
+                    if allow_missing and error.code == "UNKNOWN_MARKET":
+                        continue
+                    raise
+                dex = resolved_symbol.split(":", 1)[0]
+                by_dex.setdefault(dex, []).append((raw, resolved_symbol))
+            else:
+                by_dex.setdefault("", []).append((raw, raw))
+        output: dict[str, Decimal] = {}
+        for dex, items in by_dex.items():
+            query: dict[str, object] = {"type": "metaAndAssetCtxs"}
+            if dex:
+                query["dex"] = dex
+            result = self.info(query)
+            if not isinstance(result, list) or len(result) != 2:
+                raise MetaMaskError("INVALID_RESPONSE", "Venue mark-price contexts are missing")
+            universe = json_object(result[0], "market metadata").get("universe")
+            contexts = result[1]
+            if not isinstance(universe, list) or not isinstance(contexts, list) or len(universe) != len(contexts):
+                raise MetaMaskError("INVALID_RESPONSE", "Venue mark-price metadata is incomplete")
+            names = [json_object(row).get("name") for row in universe]
+            for raw, lookup in items:
+                try:
+                    resolved = canonical_symbol(lookup, names)
+                except MetaMaskError as error:
+                    if allow_missing and error.code == "UNKNOWN_MARKET":
+                        continue
+                    raise
+                output[raw] = decimal(
+                    json_object(contexts[names.index(resolved)], "asset context").get("markPx"), positive=True
+                )
+        return output
+
+    def l2_book(self, symbol: str) -> dict[str, object]:
+        market = self.market(symbol)
+        raw = json_object(self.info({"type": "l2Book", "coin": market.symbol}), "order book")
+        coin = raw.get("coin")
+        if coin is not None and coin != market.symbol:
+            raise MetaMaskError("INVALID_RESPONSE", "Order book market differs from the requested symbol")
+        stamp = raw.get("time")
+        if isinstance(stamp, bool) or not isinstance(stamp, int) or stamp < 0:
+            raise MetaMaskError("INVALID_RESPONSE", "Order book timestamp is invalid")
+        levels = raw.get("levels")
+        if not isinstance(levels, list) or len(levels) != 2:
+            raise MetaMaskError("INVALID_RESPONSE", "Order book levels are missing")
+        bids, asks = levels[0], levels[1]
+        if not isinstance(bids, list) or not isinstance(asks, list):
+            raise MetaMaskError("INVALID_RESPONSE", "Order book sides are malformed")
+
+        def top(side_levels: list[object]) -> tuple[Decimal | None, Decimal | None]:
+            if not side_levels:
+                return None, None
+            level = json_object(side_levels[0], "order book level")
+            px = decimal(level.get("px"), positive=True)
+            sz = decimal(level.get("sz"))
+            if sz < 0:
+                raise MetaMaskError("INVALID_RESPONSE", "Order book level size cannot be negative")
+            return px, sz
+
+        bid, bid_size = top(bids)
+        ask, ask_size = top(asks)
+        return {
+            "symbol": market.symbol,
+            "time": stamp,
+            "bid": bid,
+            "bidSize": bid_size,
+            "ask": ask,
+            "askSize": ask_size,
+        }
 
     @staticmethod
     def normalize_price(price: Decimal, market: Market) -> Decimal:
@@ -236,6 +324,108 @@ class HyperliquidVenue:
         places = min(6 - market.size_decimals, 4 - price.adjusted())
         with localcontext(Context(prec=160)):
             return price.quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_EVEN)
+
+    def _slippage_bound_price(self, base: Decimal, side: str, slippage_bps: int, market: Market) -> Decimal:
+        if isinstance(slippage_bps, bool) or not 1 <= slippage_bps <= 500:
+            raise ValueError("Slippage must be 1-500 basis points")
+        with localcontext(Context(prec=160)):
+            intended = base * (1 + Decimal(slippage_bps if side == "buy" else -slippage_bps) / 10_000)
+            price = self.normalize_price(intended, market)
+            if (side == "buy" and price > intended) or (side == "sell" and price < intended):
+                tick = Decimal(1).scaleb(-min(6 - market.size_decimals, 4 - intended.adjusted()))
+                price += -tick if side == "buy" else tick
+            if price <= 0:
+                raise MetaMaskError("PRICE_PRECISION", "Price is below this market's supported precision")
+            return price
+
+    def _normalize_directional_price(
+        self, intended: Decimal, side: str, market: Market, *, label: str = "limit"
+    ) -> Decimal:
+        with localcontext(Context(prec=160)):
+            price = self.normalize_price(intended, market)
+            if (side == "buy" and price > intended) or (side == "sell" and price < intended):
+                raise MetaMaskError("PRICE_PRECISION", f"Venue normalization would weaken the requested {label}")
+            if price <= 0:
+                raise MetaMaskError("PRICE_PRECISION", "Price is below this market's supported precision")
+            return price
+
+    def _build_order_wire(
+        self,
+        market: Market,
+        *,
+        side: str,
+        quantity: Decimal,
+        kind: str,
+        limit: Decimal | None,
+        stop_price: Decimal | None,
+        tif: str,
+        reduce_only: bool,
+        client_id: str,
+        slippage_bps: int,
+        tpsl: str | None = None,
+        as_trigger: bool = False,
+        mark_price: Decimal | None = None,
+    ) -> dict[str, object]:
+        quantity = decimal(quantity, positive=True)
+        if side not in {"buy", "sell"} or kind not in {"market", "limit", "stop", "stop_limit"}:
+            raise MetaMaskError("UNSUPPORTED_ORDER", "Use buy/sell and market/limit/stop/stop_limit")
+        if tif not in {"gtc", "ioc", "alo"}:
+            raise MetaMaskError("UNSUPPORTED_ORDER", "Use explicit gtc/ioc/alo time in force")
+        if not isinstance(reduce_only, bool) or not _CLIENT_ID.fullmatch(client_id):
+            raise ValueError("Canonical reduce-only flag and 128-bit client order ID are required")
+        with localcontext(Context(prec=160)):
+            if quantity != quantity.quantize(Decimal(1).scaleb(-market.size_decimals)):
+                raise MetaMaskError("SIZE_PRECISION", "Order size exceeds this market's exact precision")
+        if as_trigger or kind in {"stop", "stop_limit"}:
+            if tif != "gtc":
+                raise MetaMaskError("UNSUPPORTED_ORDER", "Trigger orders support time in force 'gtc' only")
+            role = tpsl if tpsl is not None else ("tp" if kind == "limit" else "sl")
+            if role not in {"tp", "sl"}:
+                raise MetaMaskError("UNSUPPORTED_ORDER", "Trigger orders require tpsl of 'tp' or 'sl'")
+            if kind == "limit":
+                if role != "tp":
+                    raise MetaMaskError("UNSUPPORTED_ORDER", "Trigger limit orders must be take-profit legs")
+                intended = decimal(limit, positive=True)
+                trigger_px = self._normalize_directional_price(intended, side, market, label="limit")
+                price = trigger_px
+                is_market = False
+            elif kind == "stop":
+                trigger_px = self._normalize_directional_price(
+                    decimal(stop_price, positive=True), side, market, label="trigger price"
+                )
+                price = self._slippage_bound_price(trigger_px, side, slippage_bps, market)
+                is_market = True
+            elif kind == "stop_limit":
+                trigger_px = self._normalize_directional_price(
+                    decimal(stop_price, positive=True), side, market, label="trigger price"
+                )
+                price = self._normalize_directional_price(decimal(limit, positive=True), side, market, label="limit")
+                is_market = False
+            else:
+                raise MetaMaskError("UNSUPPORTED_ORDER", "Trigger orders must be limit, stop, or stop_limit")
+            order_type_wire: dict[str, object] = {
+                "trigger": {
+                    "isMarket": is_market,
+                    "triggerPx": wire_decimal(trigger_px),
+                    "tpsl": role,
+                }
+            }
+        elif kind == "market":
+            base = mark_price if mark_price is not None else self.price(market.symbol)
+            price = self._slippage_bound_price(base, side, slippage_bps, market)
+            order_type_wire = {"limit": {"tif": "Ioc"}}
+        else:
+            price = self._normalize_directional_price(decimal(limit, positive=True), side, market, label="limit")
+            order_type_wire = {"limit": {"tif": {"gtc": "Gtc", "ioc": "Ioc", "alo": "Alo"}[tif]}}
+        return {
+            "a": market.index,
+            "b": side == "buy",
+            "p": wire_decimal(price),
+            "s": wire_decimal(quantity),
+            "r": reduce_only,
+            "t": order_type_wire,
+            "c": client_id,
+        }
 
     def order_action(
         self,
@@ -249,45 +439,62 @@ class HyperliquidVenue:
         client_id: str,
         *,
         slippage_bps: int = 50,
+        stop_price: Decimal | None = None,
+        tpsl: str | None = None,
     ) -> dict[str, object]:
         market = self.market(symbol)
         if market.delisted:
             raise MetaMaskError("MARKET_DELISTED", "Delisted markets cannot accept new orders")
-        quantity = decimal(quantity, positive=True)
-        if side not in {"buy", "sell"} or kind not in {"market", "limit"} or tif not in {"gtc", "ioc", "alo"}:
-            raise MetaMaskError("UNSUPPORTED_ORDER", "Use buy/sell, market/limit and explicit gtc/ioc/alo")
-        if not isinstance(reduce_only, bool) or not _CLIENT_ID.fullmatch(client_id):
-            raise ValueError("Canonical reduce-only flag and 128-bit client order ID are required")
-        with localcontext(Context(prec=160)):
-            if quantity != quantity.quantize(Decimal(1).scaleb(-market.size_decimals)):
-                raise MetaMaskError("SIZE_PRECISION", "Order size exceeds this market's exact precision")
-            if kind == "market":
-                if isinstance(slippage_bps, bool) or not 1 <= slippage_bps <= 500:
-                    raise ValueError("Slippage must be 1-500 basis points")
-                base = self.price(symbol)
-                intended = base * (1 + Decimal(slippage_bps if side == "buy" else -slippage_bps) / 10_000)
-                price = self.normalize_price(intended, market)
-                if (side == "buy" and price > intended) or (side == "sell" and price < intended):
-                    tick = Decimal(1).scaleb(-min(6 - market.size_decimals, 4 - intended.adjusted()))
-                    price += -tick if side == "buy" else tick
-                tif = "ioc"
-            else:
-                intended = decimal(limit, positive=True)
-                price = self.normalize_price(intended, market)
-                if (side == "buy" and price > intended) or (side == "sell" and price < intended):
-                    raise MetaMaskError("PRICE_PRECISION", "Venue normalization would weaken the requested limit")
-            if price <= 0:
-                raise MetaMaskError("PRICE_PRECISION", "Price is below this market's supported precision")
-        wire = {
-            "a": market.index,
-            "b": side == "buy",
-            "p": wire_decimal(price),
-            "s": wire_decimal(quantity),
-            "r": reduce_only,
-            "t": {"limit": {"tif": {"gtc": "Gtc", "ioc": "Ioc", "alo": "Alo"}[tif]}},
-            "c": client_id,
-        }
+        wire = self._build_order_wire(
+            market,
+            side=side,
+            quantity=quantity,
+            kind=kind,
+            limit=limit,
+            stop_price=stop_price,
+            tif=tif,
+            reduce_only=reduce_only,
+            client_id=client_id,
+            slippage_bps=slippage_bps,
+            tpsl=tpsl,
+        )
         return {"type": "order", "orders": [wire], "grouping": "na"}
+
+    def grouped_order_action(
+        self,
+        symbol: str,
+        legs: list[dict[str, object]],
+        grouping: str,
+        *,
+        slippage_bps: int = 50,
+    ) -> dict[str, object]:
+        if grouping not in {"normalTpsl", "positionTpsl"}:
+            raise MetaMaskError("UNSUPPORTED_ORDER", "Unsupported grouped order mode")
+        if not legs or len(legs) > 3:
+            raise MetaMaskError("UNSUPPORTED_ORDER", "Grouped orders require 1-3 legs")
+        market = self.market(symbol)
+        if market.delisted:
+            raise MetaMaskError("MARKET_DELISTED", "Delisted markets cannot accept new orders")
+        mark_price = self.price(market.symbol) if any(leg.get("kind") == "market" for leg in legs) else None
+        wires = [
+            self._build_order_wire(
+                market,
+                side=str(leg["side"]),
+                quantity=leg["quantity"],
+                kind=str(leg["kind"]),
+                limit=leg.get("limit"),
+                stop_price=leg.get("stop_price"),
+                tif=str(leg.get("tif", "gtc")),
+                reduce_only=bool(leg["reduce_only"]),
+                client_id=str(leg["client_id"]),
+                slippage_bps=slippage_bps,
+                tpsl=leg.get("tpsl"),
+                as_trigger=bool(leg.get("as_trigger", False)),
+                mark_price=mark_price,
+            )
+            for leg in legs
+        ]
+        return {"type": "order", "orders": wires, "grouping": grouping}
 
     def submit_action(self, action: dict[str, object], nonce: int, signature: dict[str, object], expires_after=None):
         payload = {"action": action, "nonce": nonce, "signature": signature, "vaultAddress": None}
@@ -403,13 +610,18 @@ class HyperliquidVenue:
             if row.get("s") != symbol or row.get("i") != interval:
                 raise MetaMaskError("INVALID_RESPONSE", "Candle identity differs from the requested symbol or interval")
             stamp, closed = row.get("t"), row.get("T")
-            if (
-                isinstance(stamp, bool)
-                or isinstance(closed, bool)
-                or not isinstance(stamp, int)
-                or not isinstance(closed, int)
-                or closed != stamp + _INTERVALS[interval] - 1
-            ):
+            valid_span = (
+                isinstance(stamp, int)
+                and not isinstance(stamp, bool)
+                and isinstance(closed, int)
+                and not isinstance(closed, bool)
+                and (
+                    _MIN_MONTH_MS <= closed - stamp + 1 <= _MAX_MONTH_MS
+                    if interval == "1M"
+                    else closed == stamp + _INTERVALS[interval] - 1
+                )
+            )
+            if not valid_span:
                 raise MetaMaskError("INVALID_RESPONSE", "Candle timestamps are invalid")
             if stamp < start or closed >= cutoff:
                 continue

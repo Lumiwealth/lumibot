@@ -4,6 +4,14 @@
 
 ### Fixed
 
+- Backtests with a routing map in `BACKTESTING_DATA_SOURCE` now use the data the strategy
+  passes in `pandas_data` for those assets. Before, the map replaced `PandasDataBacktesting`
+  and every lookup for the strategy's own assets still went to the routed provider: a strategy
+  that loaded its own CSV minute bars got provider prices, or no price and a failed run for a
+  symbol the provider does not know. Assets the strategy did not supply keep their route, and
+  `data_provenance.json` lists the supplied assets with vendor `your_own_data`.
+  Test: `tests/test_routed_strategy_supplied_data.py`.
+
 - Alpaca live: a bot waiting for the market to close no longer crashes with
   `'Alpaca' object has no attribute 'process_pending_orders'`. The live Alpaca broker
   called a backtesting-only method in `_await_market_to_close`; on an early-close day this

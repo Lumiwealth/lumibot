@@ -357,11 +357,15 @@ class CcxtData(DataSource):
             )
 
         df_ret = None
+        # No crypto candle predates the first Bitcoin block. Widening the lookback for a contract
+        # with less history than asked walked the start before 1970, and Phemex rejects such a
+        # request outright, so a daily chart of a recently listed perpetual never loaded.
+        history_floor = pd.Timestamp("2009-01-03", tz="UTC")
         for lookback_multiplier in (1, 4, 16, 64):
-            start = end - timeframe_delta * (limit + buffer) * lookback_multiplier
+            start = max(end - timeframe_delta * (limit + buffer) * lookback_multiplier, history_floor)
             # In the shared series an answer that starts late must not mark older bars as absent.
             df_ret = shared_bar_cache.read_bars(series, start, end, fetch, coverage_from_rows=public)
-            if len(df_ret) >= limit:
+            if len(df_ret) >= limit or start <= history_floor:
                 break
 
         if df_ret is None or df_ret.empty:

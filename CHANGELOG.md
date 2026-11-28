@@ -13,6 +13,10 @@
 - Phemex: the account read no longer fails when Phemex answers 39108 "Currency not supported." for
   a settlement wallet the account does not have (the testnet lists a USD contract but has no USD
   wallet). That wallet is skipped with a warning; other errors still raise.
+- CCXT history: asking for more bars than an exchange has (a daily chart of a perpetual listed 235
+  days ago asked for 530) widened the lookback until the start was before 1970, and Phemex
+  rejected that request, so the read failed instead of returning the bars that exist. The widened
+  start now stops at the first Bitcoin block (2009-01-03); the read reports how many bars exist.
 
 ## 4.6.103 - 2026-11-28
 

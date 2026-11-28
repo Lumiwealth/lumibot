@@ -17,6 +17,9 @@
   request that has not started and has not moved for `LUMIBOT_QUEUE_STALL_SECONDS` (default 480)
   fails with `DownloaderQueueStalled` and a plain reason, and is not resubmitted into the same
   stuck queue. Moving queues, started requests and provider rate-limit waits are unaffected.
+  The stall reason is also written into the backtest download status when the stall is seen on a
+  repeat request check (release captain fix: that path referenced undefined names and the
+  status update was silently skipped).
   Test: `tests/test_downloader_queue_stall.py`.
 
 ## 4.6.101 - 2026-11-27

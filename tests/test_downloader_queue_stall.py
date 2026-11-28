@@ -97,3 +97,23 @@ def test_a_stalled_request_is_not_resubmitted(monkeypatch):
         client.execute_request(method="GET", path="ibkr/iserver/marketdata/history", query_params={})
     assert len(submits) == 1
     assert client._in_flight_count == 0
+
+
+def test_a_stall_seen_on_resubmit_check_is_shown_in_the_download_status(monkeypatch):
+    """The stall reason must reach the backtest status, not be lost to a swallowed NameError."""
+    import lumibot.tools.thetadata_helper as helper
+
+    client = queue.QueueClient("http://localhost:8080", "test-key", timeout=600, poll_interval=5)
+    info = _pending(61)
+    client._pending_requests["corr-1"] = info
+
+    def stalled(request_id):
+        raise queue.DownloaderQueueStalled("queue did not move")
+
+    monkeypatch.setattr(client, "_refresh_status", stalled)
+    recorded = []
+    monkeypatch.setattr(helper, "update_download_status_queue_info", lambda **kw: recorded.append(kw))
+
+    with pytest.raises(queue.DownloaderQueueStalled):
+        client.check_or_submit("GET", info.path, {}, correlation_id_override="corr-1")
+    assert recorded == [{"request_id": "request-1", "correlation_id": "corr-1", "last_error": "queue did not move"}]

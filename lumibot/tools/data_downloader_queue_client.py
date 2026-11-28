@@ -498,8 +498,8 @@ class QueueClient:
                         from lumibot.tools.thetadata_helper import update_download_status_queue_info
 
                         update_download_status_queue_info(
-                            request_id=request_id,
-                            correlation_id=correlation_override or base_correlation_id,
+                            request_id=existing.request_id,
+                            correlation_id=correlation_id,
                             last_error=str(exc),
                         )
                     except Exception:

@@ -331,6 +331,17 @@ Instead:
 
 ---
 
+## 3.2) Result parity gate (every speed change)
+
+`tests/test_backtest_result_parity_gate.py` runs four deterministic offline backtests on the bundled
+`data/` CSV files and compares every fill (time, symbol, side, quantity, price), the portfolio value
+at every iteration and the final value with `tests/backtest_parity/baselines.json`. It runs in the
+normal unit shards (about 3 seconds). A speed change must leave it green. A red result means the
+change altered trades or valuation: fix the change. Regenerate the baselines
+(`LUMIBOT_UPDATE_PARITY_BASELINES=1 pytest tests/test_backtest_result_parity_gate.py`) only for a
+proven accuracy fix, and explain the result change in the commit. Proof it catches real changes:
+moving the in-bar limit fill price by 0.25 fails both minute cases.
+
 ## 4) The #1 rule for speed work: measure twice (cold vs warm)
 
 For caching systems, a single run is ambiguous. You must measure at least:

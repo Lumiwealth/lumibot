@@ -2,6 +2,16 @@
 
 ## 4.6.103 - Unreleased
 
+### Added
+
+- Result parity gate for the test suite: `tests/test_backtest_result_parity_gate.py` runs four
+  small deterministic backtests on the CSV files in `data/` (daily stock crossover, monthly
+  five-ETF rebalance, minute limit entry with OCO exits on a stock and on a future) with no
+  network, and fails when any fill, the per-iteration portfolio value or the final value differs
+  from `tests/backtest_parity/baselines.json`. A speed change that alters results now fails before
+  release. About 3 seconds. Regenerate the baselines only for a proven accuracy fix
+  (`LUMIBOT_UPDATE_PARITY_BASELINES=1`), and say why in the commit.
+
 ## 4.6.102 - 2026-11-27
 
 ### Fixed

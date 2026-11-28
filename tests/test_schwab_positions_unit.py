@@ -1691,6 +1691,7 @@ def test_schwab_direct_lookup_delivers_partial_then_final_fill_without_losing_de
 def test_schwab_immediate_stream_disconnects_increase_retry_delay(monkeypatch):
     broker = Schwab.__new__(Schwab)
     broker._schwab_activity_stop = Event()
+    broker._schwab_activity_wakeup = Event()
     broker.client = object()
     broker.account_number = "test-account"
     broker.stream_client = SimpleNamespace()
@@ -1711,7 +1712,11 @@ def test_schwab_immediate_stream_disconnects_increase_retry_delay(monkeypatch):
     monkeypatch.setattr("lumibot.brokers.schwab._get_stream_client_class", lambda: lambda *args, **kwargs: SimpleNamespace())
     asyncio.run(broker._run_schwab_account_activity_async())
 
-    assert delays == [1, 2, 4]
+    # Updated 2026-11-28: the first retries still grow (1 s, 2 s). The third session in a
+    # row that ends right after login means another program holds Schwab's one stream for
+    # this login, so the bot polls order status (every 2 s) instead of reconnecting again
+    # (tests/test_schwab_stream_connection_limit.py).
+    assert delays == [1, 2, 2.0]
 
 
 @pytest.mark.parametrize("terminal_status", ["FILLED", "CANCELED"])

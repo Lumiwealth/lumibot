@@ -195,17 +195,21 @@ def test_two_bots_on_one_login_back_off_instead_of_fighting_for_the_stream(monke
     with caplog.at_level(logging.WARNING, logger="lumibot.brokers.schwab"):
         asyncio.run(run_both())
 
+    # Updated 2026-11-28 (test is about a week old): Schwab allows one streamer per
+    # login, so after three short sessions in a row a bot stops fighting for the
+    # stream and polls order status instead (tests/test_schwab_stream_connection_limit.py).
     for name, sequence in delays.items():
         assert sequence, name
-        # Doubling up to the 30 s cap, never reset by a session that never lasted.
-        assert sequence[:5] == [1, 2, 4, 8, 16], (name, sequence)
-        assert max(sequence) == 30 and sequence == sorted(sequence), (name, sequence)
-        assert len(sequence) <= 30, (name, len(sequence))
-        # Every reconnect asks for an immediate reconcile of missed events.
+        # Doubling backoff starts as before, never reset by a session that never lasted.
+        assert sequence[:2] == [1, 2], (name, sequence)
+        # Order-status reconciliation keeps being asked for while the stream is not ours.
         assert bots[name]._schwab_activity_wakeup.is_set()
-    warnings = [r.message for r in caplog.records if "account_activity_stream_disconnected" in r.message]
-    assert len(warnings) == sum(len(sequence) for sequence in delays.values())
-    assert sum(server.logins.values()) <= 62
+    messages = [r.getMessage() for r in caplog.records]
+    shared = [m for m in messages if "account_activity_stream_shared_login" in m]
+    # At least one bot gave up the fight, and each announces it once, not every retry.
+    assert 1 <= len(shared) <= 2, shared
+    # The old loop reached about 62 logins in ten minutes; polling keeps it small.
+    assert sum(server.logins.values()) <= 12, server.logins
 
 
 def _one_contract_option_order():

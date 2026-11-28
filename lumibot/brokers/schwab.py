@@ -2954,13 +2954,68 @@ class Schwab(Broker):
             except Exception:
                 logger.error(_format_exc())
 
+    # Schwab's streamer allows one connection per login at a time. When a second
+    # process (another bot, an app, a notebook) logs in with the same login, the
+    # streamer answers code 12 (CLOSE_CONNECTION) to one of them, or keeps closing
+    # the older session. Fighting for it only bumps both sides every few seconds.
+    SCHWAB_STREAM_CONNECTION_LIMIT_CODE = 12
+    # Sessions that end this soon after login count as "taken by another login".
+    SCHWAB_STREAM_SHORT_SESSION_SECONDS = 60.0
+    # After this many short sessions in a row, stop fighting and poll instead.
+    SCHWAB_STREAM_SHORT_SESSIONS_BEFORE_POLLING = 3
+    # While polling, try the stream again this rarely (the other login may be gone).
+    SCHWAB_STREAM_RETRY_WHILE_POLLING_SECONDS = 600.0
+
+    @staticmethod
+    def _schwab_stream_error_code(exc) -> int | None:
+        """Return the streamer response code carried by a schwab-py stream error, if any.
+
+        schwab-py raises ``UnexpectedResponseCode`` (login refused) and
+        ``UnexpectedResponse`` (a response arrived mid-stream) with the raw message
+        on ``exc.response``: ``{"response": [{"content": {"code": 12, "msg": ...}}]}``.
+        """
+        response = getattr(exc, "response", None)
+        try:
+            code = response["response"][0]["content"]["code"]
+            return int(code)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _schwab_order_poll_seconds() -> float:
+        """Order-status poll interval used while the order stream is unavailable (minimum 1 s)."""
+        raw = os.environ.get("SCHWAB_ORDER_POLL_SECONDS", "").strip()
+        try:
+            value = float(raw) if raw else 2.0
+        except ValueError:
+            value = 2.0
+        return max(1.0, value)
+
+    async def _poll_orders_while_stream_unavailable(self, seconds: float) -> None:
+        """Wake exact-order reconciliation on a fixed cadence for ``seconds``.
+
+        Each wake re-reads only this broker's locally active orders, so the request
+        rate is bounded by (active orders / poll interval) and is zero when idle.
+        """
+        import asyncio
+
+        interval = self._schwab_order_poll_seconds()
+        waited = 0.0
+        while waited < seconds and not self._schwab_activity_stop.is_set():
+            self._schwab_activity_wakeup.set()
+            await asyncio.sleep(interval)
+            waited += interval
+
     async def _run_schwab_account_activity_async(self) -> None:
         import asyncio
 
         backoff_seconds = 1.0
+        short_sessions = 0
+        polling_announced = False
         self._record_order_feed(False)
         while not self._schwab_activity_stop.is_set():
             stream_client = self.stream_client
+            connected_at = None
             try:
                 await self._configure_schwab_account_activity_stream(stream_client)
                 self._record_order_feed(True)
@@ -2970,18 +3025,49 @@ class Schwab(Broker):
                     await stream_client.handle_message()
                     # Login success alone does not mean the stream recovered.
                     # Keep backoff across rapid login/disconnect cycles.
-                    if time.monotonic() - connected_at >= 60.0:
+                    if time.monotonic() - connected_at >= self.SCHWAB_STREAM_SHORT_SESSION_SECONDS:
                         backoff_seconds = 1.0
+                        short_sessions = 0
+                        if polling_announced:
+                            logger.info("[SchwabLifecycle] account_activity_stream_recovered; order polling stopped")
+                            polling_announced = False
             except Exception as exc:
                 self._record_order_feed(False)
                 if self._schwab_activity_stop.is_set():
                     return
-                logger.warning(
-                    f"[SchwabLifecycle] account_activity_stream_disconnected retry_seconds={backoff_seconds:g} "
-                    f"error_type={type(exc).__name__}"
-                )
-                await asyncio.sleep(backoff_seconds)
-                backoff_seconds = min(backoff_seconds * 2, 30.0)
+                lasted = None if connected_at is None else time.monotonic() - connected_at
+                if lasted is None or lasted < self.SCHWAB_STREAM_SHORT_SESSION_SECONDS:
+                    short_sessions += 1
+                else:
+                    short_sessions = 0
+                limit_code = self._schwab_stream_error_code(exc) == self.SCHWAB_STREAM_CONNECTION_LIMIT_CODE
+                if limit_code or short_sessions >= self.SCHWAB_STREAM_SHORT_SESSIONS_BEFORE_POLLING:
+                    # Another login holds the one Schwab stream. Do not loop: check
+                    # order status at a bounded rate, keep trading, retry rarely.
+                    retry_seconds = self.SCHWAB_STREAM_RETRY_WHILE_POLLING_SECONDS
+                    if not polling_announced:
+                        logger.warning(
+                            "[SchwabLifecycle] account_activity_stream_shared_login "
+                            f"reason={'code_12' if limit_code else 'repeated_short_sessions'} "
+                            f"poll_seconds={self._schwab_order_poll_seconds():g} retry_stream_seconds={retry_seconds:g} "
+                            "Schwab allows one order stream per login and another program using this login has it. "
+                            "Trading continues; order updates are checked by polling, so fills may be seen a little later."
+                        )
+                        polling_announced = True
+                    else:
+                        logger.debug("[SchwabLifecycle] account_activity_stream_still_shared; polling continues")
+                    await self._poll_orders_while_stream_unavailable(retry_seconds)
+                    backoff_seconds = 1.0
+                    short_sessions = 0
+                else:
+                    logger.warning(
+                        f"[SchwabLifecycle] account_activity_stream_disconnected retry_seconds={backoff_seconds:g} "
+                        f"error_type={type(exc).__name__}"
+                    )
+                    await asyncio.sleep(backoff_seconds)
+                    backoff_seconds = min(backoff_seconds * 2, 30.0)
+                if self._schwab_activity_stop.is_set():
+                    return
                 try:
                     self.stream_client = _get_stream_client_class()(self.client, account_id=self.account_number)
                 except Exception:

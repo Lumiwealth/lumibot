@@ -4,6 +4,13 @@
 
 ### Added
 
+- Schwab: several bots on one Schwab login no longer fight over the one order stream Schwab
+  allows per login. When Schwab refuses the stream (streamer code 12) or three sessions in a row
+  end within a minute, the bot logs one plain warning, keeps trading, checks its own working
+  orders every `SCHWAB_ORDER_POLL_SECONDS` (default 2 s, no requests when idle) and retries the
+  stream every 10 minutes. Before, each bot reconnected with backoff forever (about 60 logins in
+  10 minutes for two bots) and fills could wait for the 30-second healing poll.
+  Tests: `tests/test_schwab_stream_connection_limit.py`, `tests/test_schwab_shared_login_replay.py`.
 - Result parity gate for the test suite: `tests/test_backtest_result_parity_gate.py` runs four
   small deterministic backtests on the CSV files in `data/` (daily stock crossover, monthly
   five-ETF rebalance, minute limit entry with OCO exits on a stock and on a future) with no

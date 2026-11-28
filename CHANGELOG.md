@@ -1,6 +1,15 @@
 # Changelog
 
-## 4.6.104 - Unreleased
+## 4.6.105 - 2026-11-28
+
+### Fixed
+
+- CCXT history: asking for more bars than an exchange has (a daily chart of a perpetual listed 235
+  days ago asked for 530) widened the lookback until the start was before 1970, and Phemex
+  rejected that request, so the read failed instead of returning the bars that exist. The widened
+  start now stops at the first Bitcoin block (2009-01-03); the read reports how many bars exist.
+
+## 4.6.104 - 2026-11-28
 
 ### Fixed
 

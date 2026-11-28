@@ -610,9 +610,21 @@ class Ccxt(Broker):
         resolved = []
         for symbol in symbols:
             market = self.api.markets.get(symbol)
-            if market is None:
+            if market is not None:
+                resolved.append(market["symbol"])
+                continue
+            # A crypto asset is often named by its base alone ("BTC"), as order rows are.
+            # Read each active market of that base: a handful of requests, not every market.
+            same_base = [
+                item["symbol"]
+                for item in self.api.markets.values()
+                if "/" not in str(symbol)
+                and str(item.get("base") or "").upper() == str(symbol).upper()
+                and item.get("active") is not False
+            ]
+            if not same_base:
                 raise ValueError(f"{self.api.id} has no market {symbol!r} to read orders from")
-            resolved.append(market["symbol"])
+            resolved.extend(name for name in same_base if name not in resolved)
         self._order_read_markets = resolved
 
     def set_closed_order_read_window(self, days):

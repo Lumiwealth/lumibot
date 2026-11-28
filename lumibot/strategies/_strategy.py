@@ -4922,12 +4922,16 @@ class _Strategy:
                     self.logger.info(f"Last price for {position.asset} is not a number: {last_price}")
                     continue
 
-                # Calculate the value of the position
-                position_value = position.quantity * last_price
-
-                # If option, multiply % of portfolio by 100
-                if position.asset.asset_type == "option":
-                    position_value = position_value * 100
+                # Calculate the value of the position. Contract assets use their own
+                # multiplier, matching the rule used for portfolio valuation.
+                raw_asset_type = getattr(position.asset, "asset_type", "")
+                asset_type_key = str(getattr(raw_asset_type, "value", raw_asset_type)).lower()
+                if asset_type_key in {"option", "future", "cont_future"}:
+                    multiplier = getattr(position.asset, "multiplier", None) or 1
+                else:
+                    multiplier = 1
+                # Quotes may be Decimal while Position.quantity is a float.
+                position_value = position.quantity * float(last_price) * multiplier
 
                 if position_value > 0 and portfolio_value > 0:
                     # Calculate the percent of the portfolio that this position represents

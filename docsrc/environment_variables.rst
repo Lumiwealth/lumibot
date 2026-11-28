@@ -380,6 +380,14 @@ DATADOWNLOADER_REQUEST_CLASS
 - Default: unset. Nothing extra is sent and the submit body is unchanged.
 - Limits: this is a label only. It does not change what data is requested, cache keys or results. A downloader that does not know the field ignores it.
 
+LUMIBOT_QUEUE_STALL_SECONDS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Stops a Data Downloader request that is stuck. When a queued request has not started and its queue position has not moved for this many seconds, LumiBot stops waiting and raises ``DownloaderQueueStalled`` with a plain reason (minutes waited, queue position, request path) instead of waiting through its attempt timeout and resubmitting.
+- Values: seconds, for example ``LUMIBOT_QUEUE_STALL_SECONDS=600``. ``0`` turns the check off.
+- Default: ``480`` (8 minutes).
+- Limits: a queue that is moving (position going down), a request that has started, and a provider rate-limit wait never count as stuck.
+
 ThetaData option-chain building (performance)
 ---------------------------------------------
 

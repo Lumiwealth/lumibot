@@ -132,6 +132,9 @@ QUEUE_SUBMIT_HTTP_TIMEOUT = float(os.environ.get("THETADATA_QUEUE_SUBMIT_HTTP_TI
 QUEUE_STATUS_HTTP_TIMEOUT = float(os.environ.get("THETADATA_QUEUE_STATUS_HTTP_TIMEOUT", "10"))
 QUEUE_RESULT_HTTP_TIMEOUT = float(os.environ.get("THETADATA_QUEUE_RESULT_HTTP_TIMEOUT", "120"))
 QUEUE_SUBMIT_MAX_WAIT = float(os.environ.get("THETADATA_QUEUE_SUBMIT_MAX_WAIT", "0"))  # 0 = wait forever
+# A pending request whose queue position has not moved and that has not started for this long
+# fails with a plain reason instead of waiting through attempt timeouts and resubmits. 0 disables.
+QUEUE_STALL_SECONDS = float(os.environ.get("LUMIBOT_QUEUE_STALL_SECONDS", "480"))
 QUEUE_SUBMIT_BACKOFF_BASE = float(os.environ.get("THETADATA_QUEUE_SUBMIT_BACKOFF_BASE", "0.5"))
 QUEUE_SUBMIT_BACKOFF_MAX = float(os.environ.get("THETADATA_QUEUE_SUBMIT_BACKOFF_MAX", "30"))
 QUEUE_SUBMIT_BACKOFF_JITTER_PCT = float(os.environ.get("THETADATA_QUEUE_SUBMIT_BACKOFF_JITTER_PCT", "0.1"))
@@ -219,6 +222,14 @@ class DownloaderNotConfigured(DownloaderQueueTimeout):
 
 class DownloaderQueueRequestLost(RuntimeError):
     """The downloader explicitly no longer has an accepted queue request."""
+
+
+class DownloaderQueueStalled(RuntimeError):
+    """A queued request never started and its queue position did not move for the stall limit.
+
+    Not a TimeoutError on purpose: retrying or resubmitting a request into a queue that is not
+    moving only repeats the wait. The message is written for the person and their agent.
+    """
 
 
 class QueueClient:
@@ -480,6 +491,20 @@ class QueueClient:
                 # Refresh status from server
                 try:
                     self._refresh_status(existing.request_id)
+                except DownloaderQueueStalled as exc:
+                    # Show the reason in the backtest status, then stop: a queue that is not moving
+                    # will not move faster for a resubmit.
+                    try:  # pragma: no cover - UI plumbing
+                        from lumibot.tools.thetadata_helper import update_download_status_queue_info
+
+                        update_download_status_queue_info(
+                            request_id=existing.request_id,
+                            correlation_id=correlation_id,
+                            last_error=str(exc),
+                        )
+                    except Exception:
+                        pass
+                    raise
                 except DownloaderQueueRequestLost:
                     if method.upper() not in {"GET", "HEAD"}:
                         raise
@@ -835,6 +860,9 @@ class QueueClient:
         last_info_time = 0.0
         missing_info_streak = 0
         terminal_result_error_streak = 0
+        # Stall watch: the queue position last seen falling, and since when it has not moved.
+        stall_position = None
+        stall_since = start_time
 
         while True:
             try:
@@ -882,6 +910,28 @@ class QueueClient:
                 status = info.status
                 position = info.queue_position
                 last_status = status
+
+                provider_details = info.error_details if isinstance(info.error_details, dict) else {}
+                waiting_unstarted = (
+                    status == "pending"
+                    and not int(info.attempts or 0)
+                    and position is not None
+                    and provider_details.get("classification") != "rate_limited"
+                )
+                if not waiting_unstarted or stall_position is None or position < stall_position:
+                    stall_position = position if waiting_unstarted else None
+                    stall_since = time.time()
+                elif QUEUE_STALL_SECONDS > 0 and time.time() - stall_since >= QUEUE_STALL_SECONDS:
+                    minutes = int(round((time.time() - stall_since) / 60.0))
+                    with self._lock:
+                        if info.correlation_id in self._pending_requests:
+                            self._pending_requests[info.correlation_id].status = "dead"
+                    raise DownloaderQueueStalled(
+                        "The data request waited %d minutes at queue position %s and the queue did not "
+                        "move, so it was stopped instead of waiting longer (request %s, %s). The data "
+                        "provider's queue is stuck right now: try again later, use a shorter window, or "
+                        "use another data source." % (minutes, position, request_id, info.path)
+                    )
 
                 # Emit a low-rate heartbeat at INFO so "no logs for an hour" is diagnosable in prod.
                 if elapsed >= 10 and time.time() - last_info_time > 30:

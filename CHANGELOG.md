@@ -1,5 +1,27 @@
 # Changelog
 
+## 4.6.102 - 2026-11-27
+
+### Fixed
+
+- Backtests with a routing map in `BACKTESTING_DATA_SOURCE` now use the data the strategy
+  passes in `pandas_data` for those assets. Before, the map replaced `PandasDataBacktesting`
+  and every lookup for the strategy's own assets still went to the routed provider: a strategy
+  that loaded its own CSV minute bars got provider prices, or no price and a failed run for a
+  symbol the provider does not know. Assets the strategy did not supply keep their route, and
+  `data_provenance.json` lists the supplied assets with vendor `your_own_data`.
+  Backtests whose strategy does not pass `pandas_data`, and backtests without a routing map,
+  use exactly the same data as before: the new path only runs for assets the strategy supplied.
+  Test: `tests/test_routed_strategy_supplied_data.py`.
+- A Data Downloader request whose queue position never moves no longer waits forever. A pending
+  request that has not started and has not moved for `LUMIBOT_QUEUE_STALL_SECONDS` (default 480)
+  fails with `DownloaderQueueStalled` and a plain reason, and is not resubmitted into the same
+  stuck queue. Moving queues, started requests and provider rate-limit waits are unaffected.
+  The stall reason is also written into the backtest download status when the stall is seen on a
+  repeat request check (release captain fix: that path referenced undefined names and the
+  status update was silently skipped).
+  Test: `tests/test_downloader_queue_stall.py`.
+
 ## 4.6.101 - 2026-11-27
 
 ### Fixed

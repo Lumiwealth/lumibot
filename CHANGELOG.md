@@ -4,6 +4,12 @@
 
 ### Fixed
 
+- Backtests: the benchmark comparison line can no longer fail or stall a finished backtest. It is
+  read with a bounded wait (`LUMIBOT_BENCHMARK_WAIT_SECONDS`, default 120 seconds); a slow,
+  failing or empty benchmark leaves the line empty, logs why and adds `benchmark_unavailable`
+  to the results. Before, a data source that raised while reading benchmark bars failed the run,
+  and a slow benchmark history read could hold the end of a backtest for many minutes.
+
 - ProjectX (TopstepX and other firms): read calls (account, positions, orders, trades, contract
   lookups, history bars) now wait and try again up to two more times when ProjectX answers
   HTTP 429 Too Many Requests, honoring `Retry-After` and waiting at most 10 seconds. Before, the

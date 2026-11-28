@@ -2652,9 +2652,72 @@ class _Strategy:
                 unique.append(a)
         return unique
 
+    BENCHMARK_WAIT_SECONDS_DEFAULT = 120.0
+
+    @staticmethod
+    def _benchmark_wait_seconds() -> float:
+        """How long the end of a backtest waits for benchmark data (``LUMIBOT_BENCHMARK_WAIT_SECONDS``)."""
+        raw = os.environ.get("LUMIBOT_BENCHMARK_WAIT_SECONDS", "")
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            return _Strategy.BENCHMARK_WAIT_SECONDS_DEFAULT
+        return value if value > 0 else _Strategy.BENCHMARK_WAIT_SECONDS_DEFAULT
+
     def _dump_benchmark_stats(self):
+        """Read the benchmark comparison line without ever failing or stalling the backtest.
+
+        Why: the strategy's results are complete before this runs; the benchmark is only a
+        comparison line. A slow benchmark history read once held a finished backtest for about
+        half an hour, and a data source that raised here failed the whole run. The read runs in
+        a background thread with a bounded wait. A timeout, an error or an empty answer leaves
+        the line empty, logs why and records it in the results as ``benchmark_unavailable``.
+        A late answer after the wait is dropped.
+        """
         if not self.is_backtesting or not self._benchmark_asset:
             return
+        wait = _Strategy._benchmark_wait_seconds()
+        state = {"done": False, "error": None, "abandoned": False}
+
+        def _load():
+            try:
+                _Strategy._load_benchmark_returns(self)
+            except Exception as exc:  # noqa: BLE001 - a comparison line never fails a backtest
+                state["error"] = exc
+            finally:
+                if state["abandoned"]:
+                    self._benchmark_returns_df = None
+                state["done"] = True
+
+        worker = threading.Thread(target=_load, name="lumibot-benchmark", daemon=True)
+        worker.start()
+        worker.join(wait)
+
+        reason = None
+        if not state["done"]:
+            state["abandoned"] = True
+            reason = f"benchmark data did not arrive within {wait:g} seconds"
+        elif state["error"] is not None:
+            reason = f"benchmark data could not be read: {state['error']}"
+        else:
+            frame = self._benchmark_returns_df
+            empty = getattr(frame, "is_empty", None)
+            if frame is None or (empty() if callable(empty) else bool(getattr(frame, "empty", False))):
+                reason = "no benchmark data was returned"
+        if reason is None:
+            return
+        if state["error"] is not None or state["abandoned"]:
+            self._benchmark_returns_df = None
+        self.logger.warning(
+            "Benchmark %s unavailable: %s. The backtest results are complete; the comparison line is left empty.",
+            self._benchmark_asset,
+            reason,
+        )
+        analysis = getattr(self, "_analysis", None)
+        if isinstance(analysis, dict):
+            analysis["benchmark_unavailable"] = {"benchmark": str(self._benchmark_asset), "reason": reason}
+
+    def _load_benchmark_returns(self):
         if self._backtesting_start is not None and self._backtesting_end is not None:
             # Need to adjust the backtesting end date because the data from Yahoo
             # is at the start of the day, so the graph cuts short. This may be needed

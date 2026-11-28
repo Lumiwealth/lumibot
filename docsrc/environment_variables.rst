@@ -50,6 +50,14 @@ LUMIBOT_PREWARM_REPORT_IMPORTS
 - Default: on.
 - Notes: The same modules are imported either way, so report numbers are unchanged.
 
+LUMIBOT_BENCHMARK_WAIT_SECONDS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: How long the end of a backtest waits for the benchmark comparison line (for example ``SPY``) before giving up on it.
+- Values: a positive number of seconds. Anything else uses the default.
+- Default: ``120``.
+- Notes: The strategy's results are complete before the benchmark is read. A slow, failing or empty benchmark never fails or holds the backtest: the comparison line is left empty, the log says why, and the results carry ``benchmark_unavailable`` with the benchmark name and the reason.
+
 LUMIBOT_PREFETCH_RISK_FREE_RATE
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

@@ -366,8 +366,16 @@ class ProjectX(Broker):
             return True
 
         except Exception as e:
+            # Keep the real reason (for example "HTTP 429 Too Many Requests") so
+            # callers can tell the customer why, instead of only "no account ID".
+            self.last_connect_error = str(e)
             self.logger.error(f"❌ Failed to connect to ProjectX: {e}")
             return False
+
+    def _connect_failure_message(self, purpose: str) -> str:
+        message = f"Failed to auto-connect for {purpose} - no account ID available"
+        reason = getattr(self, "last_connect_error", None)
+        return f"{message} ({reason})" if reason else message
 
     def _setup_streaming(self):
         """Set up streaming data connection."""
@@ -931,7 +939,7 @@ class ProjectX(Broker):
             if not self.account_id:
                 self.logger.debug("Auto-connecting to get account ID")
                 if not self.connect():
-                    raise Exception("Failed to auto-connect for balance retrieval - no account ID available")
+                    raise Exception(self._connect_failure_message("balance retrieval"))
 
             # Use cached account balance method
             balance_data = self.client.get_account_balance(self.account_id)
@@ -964,7 +972,7 @@ class ProjectX(Broker):
             if not self.account_id:
                 self.logger.debug("Auto-connecting to get account ID")
                 if not self.connect():
-                    raise Exception("Failed to auto-connect for order retrieval - no account ID available")
+                    raise Exception(self._connect_failure_message("order retrieval"))
 
             # Get orders from last 30 days to catch filled/cancelled orders
             # Note: Orders may disappear quickly after being filled
@@ -1029,7 +1037,7 @@ class ProjectX(Broker):
             if not self.account_id:
                 self.logger.debug("Auto-connecting to get account ID")
                 if not self.connect():
-                    raise Exception("Failed to auto-connect for position retrieval - no account ID available")
+                    raise Exception(self._connect_failure_message("position retrieval"))
 
             positions_data = self.client.get_positions(self.account_id)
 

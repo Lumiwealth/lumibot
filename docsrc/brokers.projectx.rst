@@ -139,6 +139,11 @@ Where do I get a ProjectX API key?
 
 Your broker gives you the API key and username. For TopstepX, get them from your TopstepX account, then put the key in ``PROJECTX_TOPSTEPX_API_KEY`` and the username in ``PROJECTX_TOPSTEPX_USERNAME``.
 
+What happens when ProjectX says "too many requests"?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+ProjectX limits how often one API key can call it and answers HTTP 429 when the limit is hit. LumiBot waits and tries a read call (accounts, positions, orders, trades, contracts, history) up to two more times, following ProjectX's ``Retry-After`` hint and waiting at most 10 seconds. Orders are never sent twice: place, modify and cancel go out once. If the account lookup still fails, the error says why (for example ``HTTP 429 Too Many Requests``). Several bots, charts or scripts sharing one API key share its limit, so spread them out or use separate keys.
+
 Which account does LumiBot trade if I have more than one?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

@@ -2,6 +2,16 @@
 
 ## 4.6.103 - Unreleased
 
+### Fixed
+
+- ProjectX (TopstepX and other firms): read calls (account, positions, orders, trades, contract
+  lookups, history bars) now wait and try again up to two more times when ProjectX answers
+  HTTP 429 Too Many Requests, honoring `Retry-After` and waiting at most 10 seconds. Before, the
+  first account lookup failing with 429 left the bot with no account and the error said only
+  "no account ID available". Order place, modify and cancel are still sent exactly once. When the
+  account lookup still fails, the error now carries the real reason (for example
+  "HTTP 429 Too Many Requests"). Tests: `tests/test_projectx_rate_limit.py`.
+
 ### Added
 
 - Schwab: several bots on one Schwab login no longer fight over the one order stream Schwab

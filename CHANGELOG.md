@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.102 - Unreleased
+## 4.6.102 - 2026-11-27
 
 ### Fixed
 
@@ -10,6 +10,8 @@
   that loaded its own CSV minute bars got provider prices, or no price and a failed run for a
   symbol the provider does not know. Assets the strategy did not supply keep their route, and
   `data_provenance.json` lists the supplied assets with vendor `your_own_data`.
+  Backtests whose strategy does not pass `pandas_data`, and backtests without a routing map,
+  use exactly the same data as before: the new path only runs for assets the strategy supplied.
   Test: `tests/test_routed_strategy_supplied_data.py`.
 - A Data Downloader request whose queue position never moves no longer waits forever. A pending
   request that has not started and has not moved for `LUMIBOT_QUEUE_STALL_SECONDS` (default 480)
